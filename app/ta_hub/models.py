@@ -43,7 +43,7 @@ class Event(models.Model):
     overview = models.TextField('概要')
 
     def __str__(self):
-        return f"{self.meeting.name} - {self.date}"
+        return f"{self.meeting.name} - {self.date} - {self.speakers}『{self.theme}』"
 
     class Meta:
         verbose_name = 'イベント'
