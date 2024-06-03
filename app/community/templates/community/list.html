@@ -4,6 +4,34 @@
         <h1 class="text-center my-5">
             VRChat 技術・学術系コミュニティ一覧
         </h1>
+        {#    検索フォーム   #}
+        <form method="get" class="mb-4">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="input-group mb-3" style="width: 70%; margin: 0 auto;">
+                        {{ form.query }}
+                        <button type="submit" class="btn btn-primary">検索</button>
+                    </div>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col text-center">
+                    {% for choice in form.weekdays %}
+                        <div class="form-check form-check-inline">
+                            {{ choice.tag }}
+                            <label class="form-check-label"
+                                   for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="text-end">
+                <a href="{% url 'community:list' %}" class="btn btn-secondary">クリア</a>
+            </div>
+        </form>
+
+
+        {#    集会一覧   #}
         {% for community in communities %}
             <div class="row py-3 my-3">
                 <div class="col-lg-4 order-lg-1 order-2">
