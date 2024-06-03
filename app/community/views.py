@@ -32,6 +32,23 @@ class CommunityListView(ListView):
         context = super().get_context_data(**kwargs)
         context['form'] = CommunitySearchForm(self.request.GET)
         for community in context['communities']:
+            # if community.weekday == '月曜日':
+            #     community.weekday = 'Mon'
+            # elif community.weekday == '火曜日':
+            #     community.weekday = 'Tue'
+            # elif community.weekday == '水曜日':
+            #     community.weekday = 'Wed'
+            # elif community.weekday == '木曜日':
+            #     community.weekday = 'Thu'
+            # elif community.weekday == '金曜日':
+            #     community.weekday = 'Fri'
+            # elif community.weekday == '土曜日':
+            #     community.weekday = 'Sat'
+            # elif community.weekday == '日曜日':
+            #     community.weekday = 'Sun'
+            # else:
+            #     community.weekday = 'Other'
+            # community.save()
             if community.twitter_hashtag:
                 community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
                                               tag.strip()]
