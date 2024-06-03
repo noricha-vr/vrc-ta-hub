@@ -3,6 +3,8 @@ from django.shortcuts import render
 # Create your views here.
 # views.py
 from django.views.generic import TemplateView, ListView, DetailView
+
+from .libs import get_join_type
 from .models import Community
 
 
@@ -17,16 +19,7 @@ class CommunityListView(ListView):
             if community.twitter_hashtag:
                 community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
                                               tag.strip()]
-            # join type
-            vrc_group = community.vrchat_group
-            if vrc_group.find('group/') != -1:
-                community.join_type = 'group'
-            elif vrc_group.find('/user/') != -1:
-                community.join_type = 'user_page'
-            elif vrc_group.find('vrch.at/') != -1:
-                community.join_type = 'world'
-            else:
-                community.join_type = 'user_name'
+            community.join_type = get_join_type(community.vrchat_group)
         return context
 
 
@@ -34,3 +27,12 @@ class CommunityDetailView(DetailView):
     model = Community
     template_name = 'community/detail.html'
     context_object_name = 'community'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        community = context['community']
+        if community.twitter_hashtag:
+            community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
+                                          tag.strip()]
+        community.join_type = get_join_type(community.vrchat_group)
+        return context

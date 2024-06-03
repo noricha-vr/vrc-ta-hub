@@ -1,59 +1,68 @@
 {% extends 'ta_hub/base.html' %}
 {% block main %}
     <div class="container mt-4">
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h1 class="">最新の技術と学術イベントハブへようこそ！</h1>
-                    <p class="lead">このサイトでは、VRChatで開催されている技術・学術系のイベント情報を提供しています。</p>
-                    <hr class="my-4">
-                </div>
+
+        <div class="row py-3d-flex justify-content-center text-center">
+            <h1>{{ community.name }}</h1>
+            <div class="col-lg-4 order-lg-1 order-2">
+                <img src="{{ community.poster_image }}" alt="{{ community.name }}" class="img-fluid mb-4 img-thumbnail">
             </div>
         </div>
-    </div>
+        <div class="row py-3">
+            <div class="col-lg-8 order-lg-2 order-1">
 
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h2 class="">VRChat 技術・学術イベントガイド 本</h2>
-                    <p class="lead">VRChatで開催されている技術・学術系のイベント情報をまとめた書籍です。</p>
-                    <hr class="my-4">
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h2 class="">VRChat 技術・学術イベントガイド 本（デジタル版）</h2>
-                    <p class="lead">Boothより
-                        <a href="https://vrc-ta-hub.booth.pm/items/5307031">
-                            無料でダウンロード</a>
-                        いただけます。
-                    </p>
-                    <hr class="my-4">
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h2 class="">技術・学術系イベント情報アセット</h2>
-                    <p class="lead">VRChat技術学術系のイベントを一覧で表示できるアセットを無料配布中！ <br>
-
-
-                    </p>
+                <h2 class="my-4">
+                    イベント開催情報
+                </h2>
+                <p><strong>開催曜日:</strong> {{ community.get_weekday_display }}</p>
+                <p><strong>開催時間:</strong> {{ community.start_time|date:"H:i" }}
+                    - {{ community.end_time|date:"H:i" }}</p>
+                <p><strong>開催周期:</strong> {{ community.frequency }}</p>
+                <p><strong>主催・副主催:</strong> {{ community.organizers }}</p>
+                <div class="mt-4">
                     <p>
-                        <a href="https://twitter.com/azukimochi25/status/1721888965924720929" target="_blank">
-                            JPチュートリアルワードにも設置</a>されているアセットです。<br>
-                        ぜひあなたのワールドにも設置してみてください。<a
-                            href="https://azukimochi.github.io/vpm-repos-world/">
-                        VCCから導入</a>できます。
+                        <strong>参加方法・VRChatグループ:</strong>
+                        {% if community.join_type == 'group' %}
+                            <a href="{{ community.vrchat_group }}"
+                               target="_blank">{{ community.vrchat_group|slice:"29:" }}</a>
+                        {% elif community.join_type == 'user_page' %}
+                            <a href="{{ community.vrchat_group }}" target="_blank">{{ community.organizers }}</a>
+                        {% elif community.join_type == 'user_name' %}
+                            <a href="https://vrchat.com/home/search/{{ community.vrchat_group }}"
+                               target="_blank">{{ community.vrchat_group }}</a>
+                        {% elif community.join_type == 'world' %}
+                            <a href="{{ community.vrchat_group }}"
+                               target="_blank">{{ community.vrchat_group }}</a>
+                        {% else %}
+                            {{ community.vrchat_group }}
+                        {% endif %}
                     </p>
-                    <hr class="my-4">
+
+                    {% if community.discord %}
+                        <p><strong>Discord:</strong> <a href="{{ community.discord }}"
+                                                        target="_blank">{{ community.discord }}</a></p>
+                    {% endif %}
+
+                    {% if community.twitter %}
+                        <p><strong>Twitter:</strong> <a href="{{ community.twitter }}"
+                                                        target="_blank">{{ community.twitter }}</a></p>
+                    {% endif %}
+
+                    {% if community.twitter_hashtags %}
+                        <p>
+                            <strong>Twitterハッシュタグ:</strong>
+                            {% for hashtag in community.twitter_hashtags %}
+                                <a href="https://twitter.com/hashtag/{{ hashtag|slice:"1:" }}?f=live"
+                                   target="_blank">{{ hashtag }}</a>{% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        </p>
+                    {% endif %}
                 </div>
+                <h2 class="my-4">
+                    イベント紹介
+                </h2>
+                <p>{{ community.description|linebreaks }}</p>
             </div>
         </div>
-
     </div>
 {% endblock %}
