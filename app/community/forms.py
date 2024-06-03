@@ -9,7 +9,6 @@ class CommunitySearchForm(forms.Form):
         widget=forms.TextInput(attrs={
             'placeholder': 'キーワードを入力',
             'class': 'form-control',
-            'style': 'width: 80%;'
         })
     )
     weekdays = forms.MultipleChoiceField(
