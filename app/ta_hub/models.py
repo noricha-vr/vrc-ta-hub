@@ -15,14 +15,14 @@ class Community(models.Model):
 
     name = models.CharField('イベント名', max_length=100)
     start_time = models.TimeField('開始時刻')
-    duration = models.DurationField('開催時間')
+    duration = models.IntegerField('開催時間', default=60, help_text='単位は分')
     weekday = models.CharField('曜日', max_length=5, choices=WEEKDAY_CHOICES)
     frequency = models.CharField('開催周期', max_length=100)
     organizers = models.CharField('主催・副主催', max_length=200)
     vrchat_group = models.URLField('VRChatグループ', blank=True)
     discord = models.URLField('Discord', blank=True)
     twitter_hashtag = models.CharField('Twitterハッシュタグ', max_length=100, blank=True)
-    poster_image = models.URLField('ポスター画像（URL）', blank=True)
+    poster_image = models.ImageField('ポスター', blank=True)
     description = models.TextField('イベント紹介')
 
     def __str__(self):
