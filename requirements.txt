@@ -4,5 +4,5 @@ django-storages==1.11.1
 # djangorestframework==3.11.1
 # django-filter==2.3.0
 mysqlclient==2.2.4
-# Pillow==7.1.2
+Pillow==10.3.0
 # requests==2.23.0
