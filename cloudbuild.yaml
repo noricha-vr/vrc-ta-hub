@@ -17,7 +17,7 @@ steps:
       - '--cpu'
       - '1'
       - '--memory'
-      - '4Gi'
+      - '2Gi'
       - '--region'
       - 'asia-northeast1'
       - '--image'
@@ -30,4 +30,4 @@ steps:
 
 substitutions:
   _SERVICE_NAME: 'vrc-ta-hub'
-  _DOCKER_PATH: 'asia-northeast1-docker.pkg.dev/vrc-ta-hub-415013/docker/'
+  _DOCKER_PATH: 'asia-northeast1-docker.pkg.dev/vrc-ta-hub/docker/'
