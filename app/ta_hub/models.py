@@ -16,7 +16,7 @@ class Community(models.Model):
     name = models.CharField('イベント名', max_length=100)
     start_time = models.TimeField('開始時刻')
     duration = models.DurationField('開催時間')
-    weekday = models.CharField('曜日', max_length=3, choices=WEEKDAY_CHOICES)
+    weekday = models.CharField('曜日', max_length=5, choices=WEEKDAY_CHOICES)
     frequency = models.CharField('開催周期', max_length=100)
     organizers = models.CharField('主催・副主催', max_length=200)
     vrchat_group = models.URLField('VRChatグループ', blank=True)
