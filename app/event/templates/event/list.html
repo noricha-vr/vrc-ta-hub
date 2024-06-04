@@ -28,7 +28,12 @@
                                 {{ event.meeting.get_platform_display }}</td>
                             <td>{{ event.meeting.name }}</td>
                             <td>{{ event.meeting.organizers }}</td>
-                            <td>{{ event.meeting.how_to_join }}</td>
+                            <td>
+                                {% if event.meeting.group_url %}
+                                    <a href="{{ event.meeting.group_url }}" target="_blank">VRChatグループ</a>
+                                {% else %}
+                                {% endif %}
+                            </td>
                         </tr>
                     {% endfor %}
                 </table>
