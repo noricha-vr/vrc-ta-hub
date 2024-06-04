@@ -29,6 +29,9 @@ class Community(models.Model):
     poster_image = models.ImageField('ポスター', blank=True)
     description = models.TextField('イベント紹介')
 
+    # platform = models.CharField('プラットフォーム', max_length=100)
+    # genre = models.CharField('ジャンル', max_length=100)
+
     class Meta:
         verbose_name = '集会'
         verbose_name_plural = '集会'

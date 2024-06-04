@@ -1,8 +1,9 @@
 boto3==1.17.11
 django==4.2.*
 django-storages==1.11.1
-# djangorestframework==3.11.1
-# django-filter==2.3.0
 mysqlclient==2.2.4
 Pillow==10.3.0
-# requests==2.23.0
+google-auth==2.29.0
+google-api-python-client==2.131.0
+# djangorestframework==3.11.1
+# django-filter==2.3.0
