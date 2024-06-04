@@ -18,22 +18,27 @@
                 <p><strong>開催時間:</strong> {{ community.start_time|date:"H:i" }}
                     - {{ community.end_time|date:"H:i" }}</p>
                 <p><strong>開催周期:</strong> {{ community.frequency }}</p>
-                <p><strong>主催・副主催:</strong> {{ community.organizers }}</p>
+                <p><strong>主催・副主催:</strong>
+                    <a href="https://vrchat.com/home/search/{{ community.organizers }}"
+                       target="_blank">{{ community.organizers }}</a>
+                </p>
                 <div class="mt-4">
                     <p>
                         <strong>参加方法</strong>
-                        {{ community.join_type }}
-                        {% if community.join_type == 'group' %}
+                        {% if community.group_url %}
+                            <strong>VRChatグループ:</strong>
+                            <a href="{{ community.group_url }}"
+                               target="_blank">{{ community.group_url|slice:"18:" }}</a>
+                        {% endif %}
+                        {% if community.join_type == 'user_page' %}
                             <a href="{{ community.how_to_join }}"
-                               target="_blank">VRChatグループ</a>
-                        {% elif community.join_type == 'user_page' %}
-                            <a href="{{ community.how_to_join }}" target="_blank">{{ community.organizers }}</a>
+                               target="_blank">{{ community.organizer_url }}</a>
                         {% elif community.join_type == 'user_name' %}
-                            <a href="https://vrchat.com/home/search/{{ community.how_to_join }}"
-                               target="_blank">{{ community.how_to_join }}</a>
+                            <a href="https://vrchat.com/home/search/{{ community.organizers }}"
+                               target="_blank">{{ community.organizers }}</a>
                         {% elif community.join_type == 'world' %}
-                            <a href="{{ community.how_to_join }}"
-                               target="_blank">{{ community.how_to_join }}</a>
+                            <a href="{{ community.organizer_url }}"
+                               target="_blank">ワールド</a>
                         {% else %}
                             {{ community.how_to_join }}
                         {% endif %}

@@ -54,5 +54,5 @@ class CommunityDetailView(DetailView):
         if community.twitter_hashtag:
             community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
                                           tag.strip()]
-        community.join_type = get_join_type(community.how_to_join)
+        community.join_type = get_join_type(community.organizer_url)
         return context

@@ -67,7 +67,7 @@
                                    target="_blank">{{ community.group_url|slice:"18:" }}</a>
                             {% endif %}
                             {% if community.join_type == 'user_page' %}
-                                <a href="{{ community.how_to_join }}"
+                                <a href="{{ community.organizer_url }}"
                                    target="_blank">{{ community.organizers }}</a>
                             {% elif community.join_type == 'user_name' %}
                                 <a href="https://vrchat.com/home/search/{{ community.how_to_join }}"
