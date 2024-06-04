@@ -40,7 +40,7 @@ class Community(models.Model):
     organizer_url = models.URLField('VRChat主催プロフィールURL', blank=True)
     discord = models.URLField('Discord', blank=True)
     twitter_hashtag = models.CharField('Twitterハッシュタグ', max_length=100, blank=True)
-    poster_image = models.ImageField('ポスター', blank=True)
+    poster_image = models.ImageField('ポスター', upload_to='poster/', blank=True)
     description = models.TextField('イベント紹介')
     platform = models.CharField('対応プラットフォーム', max_length=10, choices=PLATFORM_CHOICES, default='All')
     tags = models.JSONField('タグ', max_length=10, choices=TAGS, default=list)
