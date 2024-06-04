@@ -2,21 +2,20 @@ from django.db import models
 from datetime import timedelta
 from django.utils import timezone
 
-
 # Create your models here.
+WEEKDAY_CHOICES = (
+    ('Sun', '日曜日'),
+    ('Mon', '月曜日'),
+    ('Tue', '火曜日'),
+    ('Wed', '水曜日'),
+    ('Thu', '木曜日'),
+    ('Fri', '金曜日'),
+    ('Sat', '土曜日'),
+    ('Other', 'その他')
+)
+
 
 class Community(models.Model):
-    WEEKDAY_CHOICES = (
-        ('Sun', '日曜日'),
-        ('Mon', '月曜日'),
-        ('Tue', '火曜日'),
-        ('Wed', '水曜日'),
-        ('Thu', '木曜日'),
-        ('Fri', '金曜日'),
-        ('Sat', '土曜日'),
-        ('Other', 'その他')
-    )
-
     name = models.CharField('イベント名', max_length=100)
     start_time = models.TimeField('開始時刻')
     duration = models.IntegerField('開催時間', default=60, help_text='単位は分')
