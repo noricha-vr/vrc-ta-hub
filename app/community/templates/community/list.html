@@ -53,25 +53,30 @@
                     <p><strong>開催時間:</strong> {{ community.start_time|date:"H:i" }}
                         - {{ community.end_time|date:"H:i" }}</p>
                     <p><strong>開催周期:</strong> {{ community.frequency }}</p>
-                    <p><strong>主催・副主催:</strong> {{ community.organizers }}</p>
-                    <div class="mt-4">
 
+                    <div class="mt-4">
+                        <h3 class="h5">参加方法:</h3>
+                        <p><strong>主催・副主催:</strong>
+                            <a href="https://vrchat.com/home/search/{{ community.organizers }}"
+                               target="_blank">{{ community.organizers }}</a>
+                        </p>
                         <p>
-                            <strong>参加方法・VRChatグループ:</strong>
-                            {% if community.join_type == 'group' %}
-                                <a href="{{ community.vrchat_group }}"
-                                   target="_blank">{{ community.vrchat_group|slice:"29:" }}</a>
-                            {% elif community.join_type == 'user_page' %}
-                                <a href="{{ community.vrchat_group }}"
+                            {% if community.group_url %}
+                                <strong>VRChatグループ:</strong>
+                                <a href="{{ community.group_url }}"
+                                   target="_blank">{{ community.group_url|slice:"18:" }}</a>
+                            {% endif %}
+                            {% if community.join_type == 'user_page' %}
+                                <a href="{{ community.how_to_join }}"
                                    target="_blank">{{ community.organizers }}</a>
                             {% elif community.join_type == 'user_name' %}
-                                <a href="https://vrchat.com/home/search/{{ community.vrchat_group }}"
-                                   target="_blank">{{ community.vrchat_group }}</a>
+                                <a href="https://vrchat.com/home/search/{{ community.how_to_join }}"
+                                   target="_blank">{{ community.how_to_join }}</a>
                             {% elif community.join_type == 'world' %}
-                                <a href="{{ community.vrchat_group }}"
-                                   target="_blank">{{ community.vrchat_group }}</a>
+                                <a href="{{ community.how_to_join }}"
+                                   target="_blank">{{ community.how_to_join }}</a>
                             {% else %}
-                                {{ community.vrchat_group }}
+                                {{ community.how_to_join }}
                             {% endif %}
                         </p>
 

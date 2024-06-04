@@ -1,4 +1,6 @@
 from django.views.generic import TemplateView, ListView, DetailView
+
+from community.models import Community
 from .models import Event
 from django.http import HttpResponse
 from icalendar import Calendar
@@ -10,6 +12,16 @@ class EventListView(ListView):
     model = Event
     template_name = 'event/list.html'
     context_object_name = 'events'
+    paginate_by = 20
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        queryset = queryset.filter(date__gte=datetime.today()).select_related('meeting')
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        return context
 
 
 class EventDetailView(DetailView):
@@ -18,7 +30,7 @@ class EventDetailView(DetailView):
     context_object_name = 'event'
 
 
-def calendar_view(request):
+def import_events(request):
     # 公開カレンダーのURLを指定
     url = "https://calendar.google.com/calendar/ical/fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7%40group.calendar.google.com/public/basic.ics"
 
@@ -28,23 +40,33 @@ def calendar_view(request):
     # iCalendarデータをパース
     cal = Calendar.from_ical(response.text)
 
-    # 現在の日付を取得
-    now = datetime.now().date()
-
-    # イベント情報を取得して表示
+    # イベント情報を取得して保存
     for component in cal.walk():
         if component.name == "VEVENT":
             start = component.get("dtstart").dt
             end = component.get("dtend").dt
 
-            # 現在の日付以降のイベントのみを表示
-            if isinstance(start, datetime) and start.date() >= now:
-                summary = component.get("summary")
-                description = component.get("description")
-                print(f"Summary: {summary}")
-                print(f"Description: {description}")
-                print(f"Start: {start}")
-                print(f"End: {end}")
-                print("------------------------")
+            # summaryとdescriptionをUTF-8でデコード
+            summary = str(component.get("summary"))
+            description = str(component.get("description"))
 
-    return HttpResponse("Upcoming events printed in the console.")
+            # コミュニティーを名前と主催者名で検索
+            community = Community.objects.filter(name=summary).first()
+
+            if community:
+                # 同じ日時の同じコミュニティーのイベントが存在するかチェック
+                event_exists = Event.objects.filter(meeting=community, date=start.date(),
+                                                    start_time=start.time()).exists()
+
+                if not event_exists:
+                    # イベントを作成
+                    event = Event(
+                        meeting=community,
+                        date=start.date(),
+                        start_time=start.time(),
+                        duration=(end - start).total_seconds() // 60,  # 分単位に変換
+                        weekday=start.strftime("%a"),
+                    )
+                    event.save()
+
+    return HttpResponse("Events imported successfully.")

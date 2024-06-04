@@ -21,20 +21,21 @@
                 <p><strong>主催・副主催:</strong> {{ community.organizers }}</p>
                 <div class="mt-4">
                     <p>
-                        <strong>参加方法・VRChatグループ:</strong>
+                        <strong>参加方法</strong>
+                        {{ community.join_type }}
                         {% if community.join_type == 'group' %}
-                            <a href="{{ community.vrchat_group }}"
-                               target="_blank">{{ community.vrchat_group|slice:"29:" }}</a>
+                            <a href="{{ community.how_to_join }}"
+                               target="_blank">VRChatグループ</a>
                         {% elif community.join_type == 'user_page' %}
-                            <a href="{{ community.vrchat_group }}" target="_blank">{{ community.organizers }}</a>
+                            <a href="{{ community.how_to_join }}" target="_blank">{{ community.organizers }}</a>
                         {% elif community.join_type == 'user_name' %}
-                            <a href="https://vrchat.com/home/search/{{ community.vrchat_group }}"
-                               target="_blank">{{ community.vrchat_group }}</a>
+                            <a href="https://vrchat.com/home/search/{{ community.how_to_join }}"
+                               target="_blank">{{ community.how_to_join }}</a>
                         {% elif community.join_type == 'world' %}
-                            <a href="{{ community.vrchat_group }}"
-                               target="_blank">{{ community.vrchat_group }}</a>
+                            <a href="{{ community.how_to_join }}"
+                               target="_blank">{{ community.how_to_join }}</a>
                         {% else %}
-                            {{ community.vrchat_group }}
+                            {{ community.how_to_join }}
                         {% endif %}
                     </p>
 

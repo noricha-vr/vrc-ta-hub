@@ -1,13 +1,9 @@
 {% extends 'ta_hub/base.html' %}
 {% block main %}
-    <div class="container mt-4">
-        <div class="row">
+    <div class="container my-5">
+        <div class="row text-center">
             <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h1 class="">VRChat 技術学術系 イベントハブへようこそ！</h1>
-                    <p class="lead">このサイトでは、VRChatで開催されている技術・学術系のイベント情報を提供しています。</p>
-                    <hr class="my-4">
-                </div>
+                <h1 class="">VRChat 技術学術系 イベント開催情報</h1>
             </div>
         </div>
     </div>
@@ -15,45 +11,28 @@
     <div class="container mt-4">
         <div class="row">
             <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h2 class="">VRChat 技術・学術イベントガイド 本</h2>
-                    <p class="lead">VRChatで開催されている技術・学術系のイベント情報をまとめた書籍です。</p>
-                    <hr class="my-4">
-                </div>
+                <table class="text-center table table-bordered">
+                    <tr>
+                        <th>開催日</th>
+                        <th>開始時間</th>
+                        <th>プラットフォーム</th>
+                        <th>イベント名</th>
+                        <th>主催</th>
+                        <th>参加方法</th>
+                    </tr>
+                    {% for event in events %}
+                        <tr>
+                            <td>{{ event.date|date:"Y年n月j日（D）" }}</td>
+                            <td>{{ event.start_time }}</td>
+                            <td>
+                                {{ event.meeting.get_platform_display }}</td>
+                            <td>{{ event.meeting.name }}</td>
+                            <td>{{ event.meeting.organizers }}</td>
+                            <td>{{ event.meeting.how_to_join }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
             </div>
         </div>
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h2 class="">VRChat 技術・学術イベントガイド 本（デジタル版）</h2>
-                    <p class="lead">Boothより
-                        <a href="https://vrc-ta-hub.booth.pm/items/5307031">
-                            無料でダウンロード</a>
-                        いただけます。
-                    </p>
-                    <hr class="my-4">
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h2 class="">技術・学術系イベント情報アセット</h2>
-                    <p class="lead">VRChat技術学術系のイベントを一覧で表示できるアセットを無料配布中！ <br>
-
-
-                    </p>
-                    <p>
-                        <a href="https://twitter.com/azukimochi25/status/1721888965924720929" target="_blank">
-                            JPチュートリアルワードにも設置</a>されているアセットです。<br>
-                        ぜひあなたのワールドにも設置してみてください。<a
-                            href="https://azukimochi.github.io/vpm-repos-world/">
-                        VCCから導入</a>できます。
-                    </p>
-                    <hr class="my-4">
-                </div>
-            </div>
-        </div>
-
     </div>
 {% endblock %}

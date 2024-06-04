@@ -4,10 +4,10 @@ from community.models import Community, WEEKDAY_CHOICES
 
 class Event(models.Model):
     meeting = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='events', verbose_name='集会')
-    date = models.DateField('開催日')
-    start_time = models.TimeField('開始時刻')
+    date = models.DateField('開催日', db_index=True)
+    start_time = models.TimeField('開始時刻', default='22:00')
     duration = models.IntegerField('開催時間', default=60, help_text='単位は分')
-    weekday = models.CharField('曜日', max_length=5, choices=WEEKDAY_CHOICES)
+    weekday = models.CharField('曜日', max_length=5, choices=WEEKDAY_CHOICES, blank=True)
     youtube_url = models.URLField('YouTube URL', blank=True)
     materials_url = models.URLField('資料 URL', blank=True)
     speakers = models.CharField('登壇者', max_length=200)

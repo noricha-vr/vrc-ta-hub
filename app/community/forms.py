@@ -1,5 +1,5 @@
 from django import forms
-from .models import Community
+from .models import WEEKDAY_CHOICES
 
 
 class CommunitySearchForm(forms.Form):
@@ -13,7 +13,7 @@ class CommunitySearchForm(forms.Form):
     )
     weekdays = forms.MultipleChoiceField(
         label='曜日',
-        choices=Community.WEEKDAY_CHOICES,
+        choices=WEEKDAY_CHOICES,
         required=False,
         widget=forms.CheckboxSelectMultiple
     )
