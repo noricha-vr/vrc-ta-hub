@@ -25,5 +25,5 @@ from django.views.generic import TemplateView
 app_name = 'ta_hub'
 urlpatterns = [
     path('', TemplateView.as_view(template_name='ta_hub/index.html'), name='index'),
-    path('event_list/', TemplateView.as_view(template_name='ta_hub/envent_list.html'), name='event_list'),
+    path('event_list/', TemplateView.as_view(template_name='ta_hub/event_list.html'), name='event_list'),
 ]
