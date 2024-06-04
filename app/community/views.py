@@ -15,6 +15,7 @@ class CommunityListView(ListView):
     model = Community
     template_name = 'community/list.html'
     context_object_name = 'communities'
+    paginate_by = 20
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -26,29 +27,15 @@ class CommunityListView(ListView):
                 queryset = queryset.filter(Q(name__icontains=query) | Q(description__icontains=query))
             if weekdays:
                 queryset = queryset.filter(weekday__in=weekdays)
+
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['form'] = CommunitySearchForm(self.request.GET)
+        form = CommunitySearchForm(self.request.GET)
+        context['form'] = form
+        context['search_count'] = self.get_queryset().count()
         for community in context['communities']:
-            # if community.weekday == '月曜日':
-            #     community.weekday = 'Mon'
-            # elif community.weekday == '火曜日':
-            #     community.weekday = 'Tue'
-            # elif community.weekday == '水曜日':
-            #     community.weekday = 'Wed'
-            # elif community.weekday == '木曜日':
-            #     community.weekday = 'Thu'
-            # elif community.weekday == '金曜日':
-            #     community.weekday = 'Fri'
-            # elif community.weekday == '土曜日':
-            #     community.weekday = 'Sat'
-            # elif community.weekday == '日曜日':
-            #     community.weekday = 'Sun'
-            # else:
-            #     community.weekday = 'Other'
-            # community.save()
             if community.twitter_hashtag:
                 community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
                                               tag.strip()]

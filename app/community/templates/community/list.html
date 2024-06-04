@@ -29,17 +29,21 @@
                 <a href="{% url 'community:list' %}" class="btn btn-secondary ">クリア</a>
             </div>
         </form>
-
+        <div class="text-end border-bottom">
+            <div class="mb-2">
+                件数：{{ search_count }}
+            </div>
+        </div>
 
         {#    集会一覧   #}
         {% for community in communities %}
             <div class="row py-3 my-3">
-                <div class="col-lg-4 order-lg-1 order-2">
+                <div class="col-md-4 order-md-1 order-2">
                     <a href="{% url 'community:detail' community.id %}">
                         <img src="{{ community.poster_image }}" alt="{{ community.name }}" class="img-fluid mb-4">
                     </a>
                 </div>
-                <div class="col-lg-8 order-lg-2 order-1">
+                <div class="col-md-8 order-md-2 order-1">
                     <h2><a href="{% url 'community:detail' community.id %}"
                            class="text-body text-decoration-none">{{ community.name }}</a></h2>
                     <p><a href="{% url 'community:detail' community.id %}"
@@ -94,5 +98,6 @@
                 </div>
             </div>
         {% endfor %}
+        {% include "ta_hub/pagination.html" %}
     </div>
 {% endblock %}
