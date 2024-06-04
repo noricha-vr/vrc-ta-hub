@@ -40,7 +40,12 @@
             <div class="row py-3 my-3">
                 <div class="col-md-4 order-md-1 order-2">
                     <a href="{% url 'community:detail' community.id %}">
-                        <img src="{{ community.poster_image.url }}" alt="{{ community.name }}" class="img-fluid mb-4">
+                        {% if community.poster_image %}
+                            <img src="{{ community.poster_image.url }}" alt="{{ community.name }}" class="img-fluid">
+                        {% else %}
+                            <img src="https://vrc-ta-hub.com/poster/no-image.png" alt="{{ community.name }}"
+                                 class="img-fluid">
+                        {% endif %}
                     </a>
                 </div>
                 <div class="col-md-8 order-md-2 order-1">
