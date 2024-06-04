@@ -1,11 +1,13 @@
 from django.views.generic import TemplateView, ListView, DetailView
-
+import logging
 from community.models import Community
 from .models import Event
 from django.http import HttpResponse
 from icalendar import Calendar
 import requests
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 class EventListView(ListView):
@@ -48,8 +50,7 @@ def import_events(request):
 
             # summaryとdescriptionをUTF-8でデコード
             summary = str(component.get("summary"))
-            description = str(component.get("description"))
-
+            logger.info(summary)
             # コミュニティーを名前と主催者名で検索
             community = Community.objects.filter(name=summary).first()
 
