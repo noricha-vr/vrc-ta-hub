@@ -21,3 +21,4 @@ class Event(models.Model):
         verbose_name = 'イベント'
         verbose_name_plural = 'イベント'
         db_table = 'event'
+        unique_together = ('meeting', 'date', 'start_time')

@@ -18,7 +18,7 @@ class EventListView(ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        queryset = queryset.filter(date__gte=datetime.today()).select_related('meeting')
+        queryset = queryset.filter().select_related('meeting').order_by('date', 'start_time')
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -50,7 +50,7 @@ def import_events(request):
 
             # summaryとdescriptionをUTF-8でデコード
             summary = str(component.get("summary"))
-            logger.info(summary)
+            logger.info('summary:' + summary)
             # コミュニティーを名前と主催者名で検索
             community = Community.objects.filter(name=summary).first()
 
