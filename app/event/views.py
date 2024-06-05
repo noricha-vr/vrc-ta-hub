@@ -1,3 +1,5 @@
+from django.contrib import messages
+from django.shortcuts import redirect
 from django.views.generic import TemplateView, ListView, DetailView
 import logging
 from community.models import Community
@@ -18,7 +20,7 @@ class EventListView(ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        queryset = queryset.filter().select_related('meeting').order_by('date', 'start_time')
+        queryset = queryset.filter().select_related('community').order_by('date', 'start_time')
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -56,18 +58,18 @@ def import_events(request):
 
             if community:
                 # 同じ日時の同じコミュニティーのイベントが存在するかチェック
-                event_exists = Event.objects.filter(meeting=community, date=start.date(),
+                event_exists = Event.objects.filter(community=community, date=start.date(),
                                                     start_time=start.time()).exists()
 
                 if not event_exists:
                     # イベントを作成
                     event = Event(
-                        meeting=community,
+                        community=community,
                         date=start.date(),
                         start_time=start.time(),
                         duration=(end - start).total_seconds() // 60,  # 分単位に変換
                         weekday=start.strftime("%a"),
                     )
                     event.save()
-
-    return HttpResponse("Events imported successfully.")
+    messages.info(request, f"Events imported successfully. {Event.objects.count()} events imported.")
+    return redirect('event:list')

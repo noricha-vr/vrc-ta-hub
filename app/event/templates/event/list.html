@@ -34,7 +34,10 @@
                             <td>{{ event.start_time }}</td>
                             <td>
                                 {{ event.meeting.get_platform_display }}</td>
-                            <td>{{ event.meeting.name }}</td>
+                            <td>
+                                <a href="{% url 'community:detail' event.community.pk %}"
+                                   target="_blank">{{ event.community.name }}</a>
+                            </td>
                             <td>{{ event.meeting.organizers }}</td>
                             <td>
                                 {% if event.meeting.group_url %}

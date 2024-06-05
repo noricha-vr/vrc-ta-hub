@@ -86,6 +86,7 @@ DATABASES = {
         '': 'SET default_storage_engine=INNODB',
     }
 }
+print('DB_NAME ' + DATABASES['default']['NAME'])
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators

@@ -5,13 +5,18 @@
         <div class="row py-3d-flex justify-content-center text-center">
             <h1>{{ community.name }}</h1>
             <div class="col-lg-4 order-lg-1 order-2">
-                <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
-                     class="img-fluid mb-4 img-thumbnail">
+                {% if community.poster_image %}
+                    <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
+                         class="img-fluid mb-4 img-thumbnail">
+                {% endif %}
             </div>
         </div>
         <div class="row py-3">
             <div class="col-lg-8 order-lg-2 order-1">
-
+                <h2 class="my-4">
+                    イベント紹介
+                </h2>
+                <p>{{ community.description|linebreaks }}</p>
                 <h2 class="my-4">
                     イベント開催情報
                 </h2>
@@ -65,10 +70,62 @@
                         </p>
                     {% endif %}
                 </div>
-                <h2 class="my-4">
-                    イベント紹介
-                </h2>
-                <p>{{ community.description|linebreaks }}</p>
+
+                <h2 class="my-4">{{ community.name }}の開催日程</h2>
+                <div>
+                    <table class="table table-striped">
+                        <thead>
+                        <tr>
+                            <th scope="col">日付</th>
+                            <th scope="col">時間</th>
+                            <th scope="col">登壇者</th>
+                            <th scope="col">テーマ</th>
+                            <th scope="col">詳細</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for event in scheduled_events %}
+                            <tr{% if event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
+                                <td>{{ event.date|date:"Y年m月d日" }}</td>
+                                <td>{{ event.start_time|date:"H:i" }} - {{ event.end_time|date:"H:i" }}</td>
+                                <td>{{ event.speakers }}</td>
+                                <td>{{ event.theme }}</td>
+                                <td><a href="{% url 'event:detail' event.id %}"
+                                       class="btn btn-primary btn-sm">詳細</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <h2 class="my-4">{{ community.name }}の活動記録</h2>
+                <div>
+                    <table class="table table-striped">
+                        <thead>
+                        <tr>
+                            <th scope="col">日付</th>
+                            <th scope="col">時間</th>
+                            <th scope="col">登壇者</th>
+                            <th scope="col">テーマ</th>
+                            <th scope="col">詳細</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for event in past_events %}
+                            <tr{% if event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
+                                <td>{{ event.date|date:"Y年m月d日" }}</td>
+                                <td>{{ event.start_time|date:"H:i" }} - {{ event.end_time|date:"H:i" }}</td>
+                                <td>{{ event.speakers }}</td>
+                                <td>{{ event.theme }}</td>
+                                <td><a href="{% url 'event:detail' event.id %}"
+                                       class="btn btn-primary btn-sm">詳細</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

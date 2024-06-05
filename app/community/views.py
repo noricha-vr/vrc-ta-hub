@@ -1,10 +1,12 @@
 from django.db.models import Q
 from django.shortcuts import render
+from django.utils import timezone
 
 # Create your views here.
 # views.py
 from django.views.generic import TemplateView, ListView, DetailView
 
+from event.models import Event
 from .libs import get_join_type
 from .models import Community
 
@@ -55,4 +57,11 @@ class CommunityDetailView(DetailView):
             community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
                                           tag.strip()]
         community.join_type = get_join_type(community.organizer_url)
+        # 予定されているイベント scheduled events
+        now = timezone.now()
+        context['scheduled_events'] = Event.objects.filter(
+            community=community, date__gte=now).order_by('date', 'start_time')[:4]
+        # 過去のイベントを取得。ただし、themeが空でないものに限る
+        context['past_events'] = Event.objects.filter(
+            community=community, date__lt=now, theme__isnull=False).order_by('-date', '-start_time')[:4]
         return context
