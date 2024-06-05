@@ -25,7 +25,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 DEBUG = True
 
 ALLOWED_HOSTS = ['vrc-ta-hub.com', os.environ.get('HTTP_HOST')]
-
+CSRF_TRUSTED_ORIGINS = ['https://vrc-ta-hub.com', os.environ.get('CSRF_TRUSTED_ORIGIN')]
 # Application definition
 
 INSTALLED_APPS = [
