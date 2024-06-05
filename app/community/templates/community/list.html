@@ -1,9 +1,11 @@
 {% extends 'ta_hub/base.html' %}
 {% block main %}
     <div class="container mt-4">
-        <h1 class="text-center my-5">
-            VRChat 技術・学術系コミュニティ一覧
-        </h1>
+        <a href="{% url 'community:list' %}" class="text-decoration-none text-black">
+            <h1 class="text-center my-5">
+                VRChat 技術・学術系コミュニティ一覧
+            </h1>
+        </a>
         {#    検索フォーム   #}
         <form method="get" class="mb-4">
             <div class="row justify-content-center">
