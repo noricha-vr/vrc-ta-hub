@@ -29,7 +29,7 @@ class CommunityListView(ListView):
                 queryset = queryset.filter(Q(name__icontains=query) | Q(description__icontains=query))
             if weekdays:
                 queryset = queryset.filter(weekday__in=weekdays)
-        # queryset = queryset.order_by('-updated_at')
+        queryset = queryset.order_by('-updated_at')
         return queryset
 
     def get_context_data(self, **kwargs):
