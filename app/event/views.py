@@ -51,7 +51,7 @@ def import_events(request):
             end = component.get("dtend").dt
 
             # summaryとdescriptionをUTF-8でデコード
-            summary = str(component.get("summary"))
+            summary = str(component.get("summary", "")).strip()
             logger.info('summary:' + summary)
             # コミュニティーを名前と主催者名で検索
             community = Community.objects.filter(name=summary).first()
@@ -71,5 +71,7 @@ def import_events(request):
                         weekday=start.strftime("%a"),
                     )
                     event.save()
+            else:
+                messages.warning(request, f"Community not found: {summary}")
     messages.info(request, f"Events imported successfully. {Event.objects.count()} events imported.")
     return redirect('event:list')
