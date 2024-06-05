@@ -80,7 +80,6 @@
                             <th scope="col">時間</th>
                             <th scope="col">発表者</th>
                             <th scope="col">テーマ</th>
-                            <th scope="col">詳細</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -90,9 +89,6 @@
                                 <td>{{ event.start_time|date:"H:i" }} - {{ event.end_time|date:"H:i" }}</td>
                                 <td>{{ event.speakers }}</td>
                                 <td>{{ event.theme }}</td>
-                                <td><a href="{% url 'event:detail' event.id %}"
-                                       class="btn btn-primary btn-sm">詳細</a>
-                                </td>
                             </tr>
                         {% endfor %}
                         </tbody>
@@ -108,7 +104,6 @@
                             <th scope="col">時間</th>
                             <th scope="col">発表者</th>
                             <th scope="col">テーマ</th>
-                            <th scope="col">詳細</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -123,11 +118,9 @@
                                 </td>
                                 <td>
                                     {% for detail in event.details.all %}
-                                        {{ detail.theme }}{% if not forloop.last %}, {% endif %}
+                                        <a href="{% url 'event:detail' detail.id %}">{{ detail.theme }}</a>
+                                        {% if not forloop.last %}, {% endif %}
                                     {% endfor %}
-                                </td>
-                                <td><a href="{% url 'event:detail' event.id %}"
-                                       class="btn btn-primary btn-sm">詳細</a>
                                 </td>
                             </tr>
                         {% endfor %}

@@ -4,56 +4,36 @@
         <div class="row">
             <div class="col-lg-12">
                 <div class="jumbotron">
-                    <h1 class="">最新の技術と学術イベントハブへようこそ！</h1>
-                    <p class="lead">このサイトでは、VRChatで開催されている技術・学術系のイベント情報を提供しています。</p>
-                    <hr class="my-4">
+                    <h1 class="">{{ event_detail.theme }} ({{ event_detail.speaker }})</h1>
+                    <div>
+                        {# 集会名・開催日・時 #}
+                        <div class="lead">
+                            {{ event_detail.event.community.name }}
+                            {{ event_detail.event.date|date:"Y年m月d日" }}
+                            {{ event_detail.event.start_time|date:"H:i" }}
+                            - {{ event_detail.event.end_time|date:"H:i" }}
+                        </div>
+                    </div>
+                    <div class="my-2">
+                        スライド、資料：
+                        {% if event_detail.slide_url %}
+                            <a href="{{ event_detail.slide_url }}" target="_blank">リンク</a>
+                        {% endif %}
+                        {% if event_detail.slide_file %}
+                            <a href="{{ event_detail.slide_file.url }}" target="_blank">ダウンロード</a>
+                        {% endif %}
+                    </div>
+                    <div>
+                        {% if video_id %}
+                            <div class="ratio ratio-16x9">
+                                <iframe src="https://www.youtube.com/embed/{{ video_id }}"
+                                        title="{{ event_detail.theme }} - {{ event_detail.speaker }}"
+                                        allowfullscreen></iframe>
+                            </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h2 class="">VRChat 技術・学術イベントガイド 本</h2>
-                    <p class="lead">VRChatで開催されている技術・学術系のイベント情報をまとめた書籍です。</p>
-                    <hr class="my-4">
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h2 class="">VRChat 技術・学術イベントガイド 本（デジタル版）</h2>
-                    <p class="lead">Boothより
-                        <a href="https://vrc-ta-hub.booth.pm/items/5307031">
-                            無料でダウンロード</a>
-                        いただけます。
-                    </p>
-                    <hr class="my-4">
-                </div>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h2 class="">技術・学術系イベント情報アセット</h2>
-                    <p class="lead">VRChat技術学術系のイベントを一覧で表示できるアセットを無料配布中！ <br>
-
-
-                    </p>
-                    <p>
-                        <a href="https://twitter.com/azukimochi25/status/1721888965924720929" target="_blank">
-                            JPチュートリアルワードにも設置</a>されているアセットです。<br>
-                        ぜひあなたのワールドにも設置してみてください。<a
-                            href="https://azukimochi.github.io/vpm-repos-world/">
-                        VCCから導入</a>できます。
-                    </p>
-                    <hr class="my-4">
-                </div>
-            </div>
-        </div>
-
     </div>
 {% endblock %}

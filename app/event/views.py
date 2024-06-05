@@ -1,9 +1,10 @@
+import re
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.views.generic import TemplateView, ListView, DetailView
 import logging
 from community.models import Community
-from .models import Event
+from .models import Event, EventDetail
 from django.http import HttpResponse
 from icalendar import Calendar
 import requests
@@ -28,10 +29,27 @@ class EventListView(ListView):
         return context
 
 
+def extract_video_id(youtube_url):
+    """
+    YouTube URLからvideo_idを抽出する関数。
+    """
+    pattern = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})'
+    match = re.search(pattern, youtube_url)
+    if match:
+        return match.group(1)
+    return None
+
+
 class EventDetailView(DetailView):
-    model = Event
+    model = EventDetail
     template_name = 'event/detail.html'
-    context_object_name = 'event'
+    context_object_name = 'event_detail'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        event_detail = self.get_object()
+        context['video_id'] = extract_video_id(event_detail.youtube_url)
+        return context
 
 
 def import_events(request):
