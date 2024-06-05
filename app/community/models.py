@@ -15,9 +15,9 @@ WEEKDAY_CHOICES = (
 )
 
 PLATFORM_CHOICES = (
-    ('PC', 'PC オンリー'),
-    ('All', 'Android/PC 対応'),
-    ('Android', 'Android オンリー'),
+    ('PC', 'PC'),
+    ('All', 'Android・PC'),
+    ('Android', 'Android'),
 )
 TAGS = (
     ('技術', '技術'),

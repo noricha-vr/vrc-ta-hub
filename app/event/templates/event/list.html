@@ -19,43 +19,52 @@
         </div>
         <div class="row">
             <div class="col-lg-12">
-                <table class="text-center table table-bordered">
-                    <tr>
-                        <th>開催日</th>
-                        <th>開始時間</th>
-                        <th>プラットフォーム</th>
-                        <th>イベント名</th>
-                        <th>主催</th>
-                        <th>参加方法</th>
-                    </tr>
-                    {% for event in events %}
+                <div class="table-responsive">
+                    <table class="text-center table table-bordered">
                         <tr>
-                            <td>{{ event.date|date:"Y年n月j日（D）" }}</td>
-                            <td>{{ event.start_time }}</td>
-                            <td>
-                                {{ event.community.get_platform_display }}</td>
-                            <td>
-                                <a href="{% url 'community:detail' event.community.pk %}"
-                                   target="_blank">{{ event.community.name }}</a>
-                            </td>
-                            <td>
-                                {% if event.community.organizer_url %}
-                                    <a href="{{ event.community.organizer_url }}"
-                                       target="_blank">{{ event.community.organizers }}</a>
-                                {% else %}
-                                    <a href="https://vrchat.com/home/search/{{ event.community.organizers }}"
-                                       target="_blank">{{ event.community.organizers }}</a>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if event.community.group_url %}
-                                    <a href="{{ event.community.group_url }}" target="_blank">VRChatグループ</a>
-                                {% else %}
-                                {% endif %}
-                            </td>
+                            <th style="min-width: 100px">開催日</th>
+                            <th style="min-width: 81px">開始時間</th>
+                            <th style="min-width: 100px">プラット<br>フォーム</th>
+                            <th style="min-width: 150px">イベント名</th>
+                            <th style="min-width: 100px">主催</th>
+                            <th style="min-width: 100px">参加方法</th>
                         </tr>
-                    {% endfor %}
-                </table>
+                        {% for event in events %}
+                            <tr>
+                                <td>{{ event.date|date:"Y年n月j日（D）" }}</td>
+                                <td>{{ event.start_time }}</td>
+                                <td>
+                                    {{ event.community.get_platform_display }}</td>
+                                <td>
+                                    <a href="{% url 'community:detail' event.community.pk %}"
+                                    >{{ event.community.name }}</a>
+                                </td>
+                                <td>
+                                    {% if event.community.organizer_url %}
+                                        <a href="{{ event.community.organizer_url }}"
+                                           target="_blank">{{ event.community.organizers }}</a>
+                                    {% else %}
+                                        <a href="https://vrchat.com/home/search/{{ event.community.organizers }}"
+                                           target="_blank">{{ event.community.organizers }}</a>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if event.community.group_url %}
+                                        <a href="{{ event.community.group_url }}" target="_blank">VRChat<br>グループ</a>
+                                    {% else %}
+                                        {% if event.community.organizer_url %}
+                                            <a href="{{ event.community.organizer_url }}"
+                                               target="_blank">主催</a>
+                                        {% else %}
+                                            <a href="https://vrchat.com/home/search/{{ event.community.organizers }}"
+                                               target="_blank">{{ event.community.organizers }}</a>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                </div>
             </div>
         </div>
     </div>
