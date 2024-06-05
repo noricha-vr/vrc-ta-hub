@@ -78,7 +78,7 @@
                         <tr>
                             <th scope="col">日付</th>
                             <th scope="col">時間</th>
-                            <th scope="col">登壇者</th>
+                            <th scope="col">発表者</th>
                             <th scope="col">テーマ</th>
                             <th scope="col">詳細</th>
                         </tr>
@@ -106,7 +106,7 @@
                         <tr>
                             <th scope="col">日付</th>
                             <th scope="col">時間</th>
-                            <th scope="col">登壇者</th>
+                            <th scope="col">発表者</th>
                             <th scope="col">テーマ</th>
                             <th scope="col">詳細</th>
                         </tr>
@@ -116,8 +116,16 @@
                             <tr{% if event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
                                 <td>{{ event.date|date:"Y年m月d日" }}</td>
                                 <td>{{ event.start_time|date:"H:i" }} - {{ event.end_time|date:"H:i" }}</td>
-                                <td>{{ event.speakers }}</td>
-                                <td>{{ event.theme }}</td>
+                                <td>
+                                    {% for detail in event.details.all %}
+                                        {{ detail.speaker }}{% if not forloop.last %}, {% endif %}
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    {% for detail in event.details.all %}
+                                        {{ detail.theme }}{% if not forloop.last %}, {% endif %}
+                                    {% endfor %}
+                                </td>
                                 <td><a href="{% url 'event:detail' event.id %}"
                                        class="btn btn-primary btn-sm">詳細</a>
                                 </td>

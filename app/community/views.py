@@ -1,10 +1,6 @@
 from django.db.models import Q
-from django.shortcuts import render
 from django.utils import timezone
-
-# Create your views here.
-# views.py
-from django.views.generic import TemplateView, ListView, DetailView
+from django.views.generic import ListView, DetailView
 
 from event.models import Event
 from .libs import get_join_type
@@ -60,8 +56,13 @@ class CommunityDetailView(DetailView):
         # 予定されているイベント scheduled events
         now = timezone.now()
         context['scheduled_events'] = Event.objects.filter(
-            community=community, date__gte=now).order_by('date', 'start_time')[:4]
-        # 過去のイベントを取得。ただし、themeが空でないものに限る
+            community=community, date__gte=now).prefetch_related('details').order_by('date', 'start_time')[:4]
+
+        # 過去のイベントを取得。ただし、event_detailが存在するもののみ
         context['past_events'] = Event.objects.filter(
-            community=community, date__lt=now, theme__isnull=False).order_by('-date', '-start_time')[:4]
+            community=community, date__lt=now
+        ).filter(
+            Q(details__theme__isnull=False) | Q(details__theme__gt='')
+        ).prefetch_related('details').order_by('-date', '-start_time')[:4]
+
         return context
