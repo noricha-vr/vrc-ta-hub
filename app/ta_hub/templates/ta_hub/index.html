@@ -2,10 +2,12 @@
 {% block main %}
     <div class="bg-dark text-secondary px-4 py-5 text-center">
         <div class="py-5">
-            <h1 class="display-5 fw-bold text-white">ようこそ！VRChat技術学術系コミュニティの世界へ！</h1>
+            <h1 class="display-5 fw-bold text-white">
+                ようこそ！<br>
+                VRChat技術学術系コミュニティの世界へ！</h1>
             <div class="col-lg-6 mx-auto text-white">
-                <p class="fs-5 my-4">VRChatで開催される多彩な技術学術系イベントをお届けします。</br>
-                    入門者から経験豊富な方まで、みんなが楽しめるイベントが満載です！。</p>
+                <p class="fs-5 my-4">VRChatで開催される多彩な技術学術系イベントをお届けします</br>
+                    入門者から経験豊富な方まで、みんなが楽しめるイベントが満載です！</p>
                 <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
                     <a href="{% url 'event:list' %}" class="btn btn-outline-info btn-lg px-4 me-sm-3 fw-bold">開催日を確認
                     </a>
@@ -17,7 +19,7 @@
     </div>
     <!-- hero end -->
 
-    <hr class="featurette-divider">
+    <hr class="featurette-divider my-5">
 
 
     <!-- contents 1 -->
@@ -38,14 +40,12 @@
 
             </div>
         </div>
-    </div>
 
-    <!-- contents 1 end -->
+        <!-- contents 1 end -->
 
-    <hr class="featurette-divider">
+        <hr class="featurette-divider my-5">
 
-    <!-- contents 2 -->
-    <div class="container">
+        <!-- contents 2 -->
 
         <div class="row featurette">
             <div class="col-md-7 order-md-2">
@@ -67,7 +67,7 @@
 
     <!-- contents 2 end -->
 
-    <hr class="featurette-divider">
+    <hr class="featurette-divider my-5">
 
     <!-- 4 icons -->
 
@@ -75,7 +75,7 @@
 
         <!-- Three columns of text below the carousel -->
         <div class="row">
-            <h2 class="featurette-heading fw-normal lh-1">コミュニティの<span
+            <h2 class="featurette-heading fw-normal lh-1 mb-5 text-center">コミュニティの<span
                     class="text-body-secondary">特徴</span></h2>
 
             <div class="col-lg-4">
@@ -83,7 +83,7 @@
                      class="rounded-circle" width="140" height="140"><title>Placeholder</title>
                 <rect width="100%" height="100%" fill="var(--bs-secondary-color)"></rect>
                 </svg>
-                <h2 class="fw-normal">誰でも参加しやすい！</h2>
+                <h2 class="fw-normal my-3">誰でも参加しやすい！</h2>
                 <p>学生や社会人など、いろんなバックグラウンドを持つ人たちが集まり、気軽に意見交換ができます。</p>
                 <p><a class="btn btn-secondary" href="#">View details »</a></p>
             </div><!-- /.col-lg-4 -->
@@ -92,7 +92,7 @@
                      class="rounded-circle" width="140" height="140"><title>Placeholder</title>
                 <rect width="100%" height="100%" fill="var(--bs-secondary-color)"></rect>
                 </svg>
-                <h2 class="fw-normal">いつでもイベントがある！</h2>
+                <h2 class="fw-normal my-3">毎日イベントを開催！</h2>
                 <p>土日や平日の夜も、毎日イベントが開催されているので、忙しい人でも参加しやすいです。</p>
                 <p><a class="btn btn-secondary" href="#">View details »</a></p>
             </div><!-- /.col-lg-4 -->
@@ -101,7 +101,7 @@
                      class="rounded-circle" width="140" height="140"><title>Placeholder</title>
                 <rect width="100%" height="100%" fill="var(--bs-secondary-color)"></rect>
                 </svg>
-                <h2 class="fw-normal">自分にピッタリのイベントが見つかる！</h2>
+                <h2 class="fw-normal my-3">自分にピッタリのイベントが見つかる！</h2>
                 <p>いろんなイベントがあるので、きっと自分にピッタリのイベントが見つかるはず！</p>
                 <p><a class="btn btn-secondary" href="#">View details »</a></p>
             </div><!-- /.col-lg-4 -->
@@ -112,7 +112,7 @@
 
         <!-- グループ紹介 -->
 
-        <hr class="featurette-divider">
+        <hr class="featurette-divider my-5">
 
         <div class="row featurette">
             <div class="col-md-7">
@@ -133,106 +133,15 @@
         <!-- グループ紹介 end -->
 
 
-        <hr class="featurette-divider">
-
-        <!-- 過去の実績 -->
-
-
-        <div class="container px-4 py-5" id="custom-cards">
-            <h2 class="pb-2 border-bottom">過去の実績</h2>
-
-            <div class="row row-cols-1 row-cols-lg-3 align-items-stretch g-4 py-5">
-                <div class="col">
-                    <div class="card card-cover h-100 overflow-hidden text-bg-dark rounded-4 shadow-lg"
-                         style="background-image: url('unsplash-photo-1.jpg');">
-                        <div class="d-flex flex-column h-100 p-5 pb-3 text-white text-shadow-1">
-                            <h3 class="pt-5 mt-5 mb-4 display-6 lh-1 fw-bold">成功例</h3>
-                            <ul class="d-flex list-unstyled mt-auto">
-                                <li class="me-auto">
-                                    <img src="https://github.com/twbs.png" alt="Bootstrap" width="32" height="32"
-                                         class="rounded-circle border border-white">
-                                </li>
-                                <li class="d-flex align-items-center me-3">
-                                    <svg class="bi me-2" width="1em" height="1em">
-                                        <use xlink:href="#geo-fill"></use>
-                                    </svg>
-                                    <small>Earth</small>
-                                </li>
-                                <li class="d-flex align-items-center">
-                                    <svg class="bi me-2" width="1em" height="1em">
-                                        <use xlink:href="#calendar3"></use>
-                                    </svg>
-                                    <small>3d</small>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col">
-                    <div class="card card-cover h-100 overflow-hidden text-bg-dark rounded-4 shadow-lg"
-                         style="background-image: url('unsplash-photo-2.jpg');">
-                        <div class="d-flex flex-column h-100 p-5 pb-3 text-white text-shadow-1">
-                            <h3 class="pt-5 mt-5 mb-4 display-6 lh-1 fw-bold">統計データ</h3>
-                            <ul class="d-flex list-unstyled mt-auto">
-                                <li class="me-auto">
-                                    <img src="https://github.com/twbs.png" alt="Bootstrap" width="32" height="32"
-                                         class="rounded-circle border border-white">
-                                </li>
-                                <li class="d-flex align-items-center me-3">
-                                    <svg class="bi me-2" width="1em" height="1em">
-                                        <use xlink:href="#geo-fill"></use>
-                                    </svg>
-                                    <small>Pakistan</small>
-                                </li>
-                                <li class="d-flex align-items-center">
-                                    <svg class="bi me-2" width="1em" height="1em">
-                                        <use xlink:href="#calendar3"></use>
-                                    </svg>
-                                    <small>4d</small>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col">
-                    <div class="card card-cover h-100 overflow-hidden text-bg-dark rounded-4 shadow-lg"
-                         style="background-image: url('unsplash-photo-3.jpg');">
-                        <div class="d-flex flex-column h-100 p-5 pb-3 text-shadow-1">
-                            <h3 class="pt-5 mt-5 mb-4 display-6 lh-1 fw-bold">Another longer title belongs here</h3>
-                            <ul class="d-flex list-unstyled mt-auto">
-                                <li class="me-auto">
-                                    <img src="https://github.com/twbs.png" alt="Bootstrap" width="32" height="32"
-                                         class="rounded-circle border border-white">
-                                </li>
-                                <li class="d-flex align-items-center me-3">
-                                    <svg class="bi me-2" width="1em" height="1em">
-                                        <use xlink:href="#geo-fill"></use>
-                                    </svg>
-                                    <small>California</small>
-                                </li>
-                                <li class="d-flex align-items-center">
-                                    <svg class="bi me-2" width="1em" height="1em">
-                                        <use xlink:href="#calendar3"></use>
-                                    </svg>
-                                    <small>5d</small>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-
-        <!-- 過去の実績 end -->
+        <hr class="featurette-divider my-5">
 
         <!-- メリット -->
 
         <div class="inner-container-small text-center">
             <span class="bg-light heading-color small rounded-3 px-3 py-2">🚀今話題のVRCの技術・学術系集会</span>
-            <h2 class="mb-0 mt-4">参加するメリット</h2>
+            <h2 class="mb-0 mt-4">VRChat技術学術コミュニティの魅力
+
+            </h2>
         </div>
 
         <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 gy-5 gy-md-7 mt-3">
@@ -317,7 +226,7 @@
 
         <!-- メリット end -->
 
-        <hr class="featurette-divider">
+        <hr class="featurette-divider my-5">
 
 
         <!-- 雰囲気 -->
