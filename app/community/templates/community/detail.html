@@ -1,50 +1,59 @@
 {% extends 'ta_hub/base.html' %}
 {% block main %}
     <div class="container mt-4">
-
-        <div class="row py-3d-flex justify-content-center text-center">
-            <h1>{{ community.name }}</h1>
-            <div class="col-lg-4 order-lg-1 order-2">
-                {% if community.poster_image %}
-                    <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
-                         class="img-fluid mb-4 img-thumbnail">
-                {% endif %}
+        <div class="card bg-light-subtle my-5 shadow">
+            <div class="row no-gutters">
+                <div class="col-md-5 order-md-1 order-2 p-3 d-flex justify-content-center justify-content-md-start">
+                    {% if community.poster_image %}
+                        <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
+                             class="img-fluid img-thumbnail" style="max-width: 350px;">
+                    {% else %}
+                        <img src="https://vrc-ta-hub.com/poster/no-image.png" alt="{{ community.name }}"
+                             class="img-fluid img-thumbnail" style="max-width: 350px;">
+                    {% endif %}
+                </div>
+                <div class="col-md-7 order-md-2 order-1">
+                    <div class="card-body">
+                        <h1 class="fs-2 fw-bold text-center">{{ community.name }}</h1>
+                        <h2 class="fs-3 my-4">
+                            イベント紹介
+                        </h2>
+                        <p>{{ community.description|linebreaks }}</p>
+                        <h2 class="fs-3 my-4">
+                            イベント開催情報
+                        </h2>
+                        <p><strong>開催曜日:</strong> {{ community.get_weekday_display }}</p>
+                        <p><strong>開催時間:</strong> {{ community.start_time|date:"H:i" }}
+                            - {{ community.end_time|date:"H:i" }}</p>
+                        <p><strong>開催周期:</strong> {{ community.frequency }}</p>
+                        <p><strong>主催・副主催:</strong>
+                            <a href="https://vrchat.com/home/search/{{ community.organizers }}"
+                               target="_blank">{{ community.organizers }}</a>
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="row py-3">
-            <div class="col-lg-8 order-lg-2 order-1">
-                <h2 class="my-4">
-                    イベント紹介
-                </h2>
-                <p>{{ community.description|linebreaks }}</p>
-                <h2 class="my-4">
-                    イベント開催情報
-                </h2>
-                <p><strong>開催曜日:</strong> {{ community.get_weekday_display }}</p>
-                <p><strong>開催時間:</strong> {{ community.start_time|date:"H:i" }}
-                    - {{ community.end_time|date:"H:i" }}</p>
-                <p><strong>開催周期:</strong> {{ community.frequency }}</p>
-                <p><strong>主催・副主催:</strong>
-                    <a href="https://vrchat.com/home/search/{{ community.organizers }}"
-                       target="_blank">{{ community.organizers }}</a>
-                </p>
+
+        <div class="card bg-light-subtle my-5 shadow">
+            <div class="card-body">
                 <div class="mt-4">
+                    <h3 class="fs-3 mb-3 text-center">参加方法</h3>
                     <p>
-                        <strong>参加方法</strong>
                         {% if community.group_url %}
                             <strong>VRChatグループ:</strong>
                             <a href="{{ community.group_url }}"
                                target="_blank">{{ community.group_url|slice:"18:" }}</a>
                         {% endif %}
                         {% if community.join_type == 'user_page' %}
-                            <a href="{{ community.how_to_join }}"
-                               target="_blank">{{ community.organizer_url }}</a>
-                        {% elif community.join_type == 'user_name' %}
-                            <a href="https://vrchat.com/home/search/{{ community.organizers }}"
-                               target="_blank">{{ community.organizers }}</a>
-                        {% elif community.join_type == 'world' %}
                             <a href="{{ community.organizer_url }}"
-                               target="_blank">ワールド</a>
+                               target="_blank">{{ community.organizers }}</a>
+                        {% elif community.join_type == 'user_name' %}
+                            <a href="https://vrchat.com/home/search/{{ community.how_to_join }}"
+                               target="_blank">{{ community.how_to_join }}</a>
+                        {% elif community.join_type == 'world' %}
+                            <a href="{{ community.how_to_join }}"
+                               target="_blank">{{ community.how_to_join }}</a>
                         {% else %}
                             {{ community.how_to_join }}
                         {% endif %}
@@ -70,7 +79,11 @@
                         </p>
                     {% endif %}
                 </div>
+            </div>
+        </div>
 
+        <div class="card bg-light-subtle my-5 shadow">
+            <div class="card-body">
                 <h2 class="my-4">{{ community.name }}の開催日程</h2>
                 <div>
                     <table class="table table-striped">
@@ -94,7 +107,11 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
 
+        <div class="card bg-light-subtle my-5 shadow">
+            <div class="card-body">
                 <h2 class="my-4">{{ community.name }}の活動記録</h2>
                 <div>
                     <table class="table table-striped">
