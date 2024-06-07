@@ -4,24 +4,24 @@
         <div class="row">
             <div class="col-lg-12">
                 <div class="jumbotron">
-                    <h1 class="">{{ event_detail.theme }} ({{ event_detail.speaker }})</h1>
-                    <div>
+                    <h1 class="">{{ event_detail.theme }}</h1>
+                    <div class="lead mb-2">
                         {# 集会名・開催日・時 #}
-                        <div class="lead">
-                            {{ event_detail.event.community.name }}
-                            {{ event_detail.event.date|date:"Y年m月d日" }}
-                            {{ event_detail.event.start_time|date:"H:i" }}
-                            - {{ event_detail.event.end_time|date:"H:i" }}
-                        </div>
-                    </div>
-                    <div class="my-2">
-                        スライド、資料：
+                        {{ event_detail.event.community.name }}
+                        {{ event_detail.event.date|date:"Y年m月d日" }}
+                        {{ event_detail.event.start_time|date:"H:i" }}
+                        - {{ event_detail.event.end_time|date:"H:i" }}
+                        <span class="ms-2">{{ event_detail.speaker }}</span>
+                        <span class="ms-2">発表資料:</span>
                         {% if event_detail.slide_url %}
-                            <a href="{{ event_detail.slide_url }}" target="_blank">リンク</a>
+                            <a href="{{ event_detail.slide_url }}" target="_blank" class="me-2"><i
+                                    class="bi bi-file-earmark-text-fill"></i></a>
                         {% endif %}
                         {% if event_detail.slide_file %}
-                            <a href="{{ event_detail.slide_file.url }}" target="_blank">ダウンロード</a>
+                            <a href="{{ event_detail.slide_file.url }}" target="_blank"><i
+                                    class="bi bi-file-earmark-text-fill"></i></a>
                         {% endif %}
+
                     </div>
                     <div>
                         {% if video_id %}
