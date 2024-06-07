@@ -30,7 +30,7 @@ class EventDetail(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='details', verbose_name='イベント')
     youtube_url = models.URLField('YouTube URL', blank=True, null=True)
     slide_url = models.URLField('スライド URL', blank=True, null=True)
-    slide_file = models.FileField('スライド', blank=True, null=True)
+    slide_file = models.FileField('スライド', blank=True, null=True, upload_to='slide/')
     speaker = models.CharField('発表者', max_length=200, blank=True, default='', db_index=True)
     theme = models.CharField('テーマ', max_length=100, blank=True, default='', db_index=True)
 
