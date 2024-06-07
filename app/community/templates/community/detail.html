@@ -3,7 +3,7 @@
     <div class="container mt-4">
         <div class="card bg-light-subtle my-5 shadow">
             <div class="row no-gutters">
-                <div class="col-md-5 p-3">
+                <div class="col-md-5 order-md-1 order-2 p-3">
                     {% if community.poster_image %}
                         <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
                              class="img-fluid w-100 img-thumbnail">
@@ -12,23 +12,24 @@
                              class="img-fluid img-thumbnail" style="max-width: 350px;">
                     {% endif %}
                 </div>
-                <div class="col-md-7">
+                <div class="col-md-7 order-md-2 order-1 ">
                     <div class="card-body">
                         <h1 class="fs-2 fw-bold text-center">{{ community.name }}</h1>
-                        <h2 class="fs-3 my-4">
+                        <h2 class="fs-4 fw-bold my-3">
                             イベント紹介
                         </h2>
                         <p>{{ community.description|linebreaks }}</p>
-                        <h2 class="fs-3 my-4">
+                        <h2 class="fs-4 fw-bold my-3">
                             イベント開催情報
                         </h2>
-                        <p><strong>開催曜日:</strong> {{ community.get_weekday_display }}</p>
-                        <p><strong>開催時間:</strong> {{ community.start_time|date:"H:i" }}
+                        <p>開催曜日: {{ community.get_weekday_display }}</p>
+                        <p>開催時間: {{ community.start_time|date:"H:i" }}
                             - {{ community.end_time|date:"H:i" }}</p>
-                        <p><strong>開催周期:</strong> {{ community.frequency }}</p>
-                        <h3 class="fs-3 my-4">参加方法</h3>
+                        <p>開催周期: {{ community.frequency }}</p>
+                        <h2 class="fs-4 fw-bold my-3">
+                            参加方法</h2>
                         <p>
-                            <strong>主催・副主催:</strong>
+                            主催・副主催:
                             {% if community.organizer_url %}
                                 <a href="{{ community.organizer_url }}"
                                    target="_blank">{{ community.organizers }}</a>
@@ -40,7 +41,7 @@
                         </p>
                         <p>
                             {% if community.group_url %}
-                                <strong>VRChatグループ:</strong>
+                                VRChatグループ:
                                 <a href="{{ community.group_url }}"
                                    target="_blank">{{ community.group_url|slice:"18:" }}</a>
                             {% endif %}
@@ -53,18 +54,18 @@
                         </p>
 
                         {% if community.discord %}
-                            <p><strong>Discord:</strong> <a href="{{ community.discord }}"
-                                                            target="_blank">{{ community.discord }}</a></p>
+                            <p>Discord: <a href="{{ community.discord }}"
+                                           target="_blank">{{ community.discord }}</a></p>
                         {% endif %}
 
                         {% if community.twitter %}
-                            <p><strong>Twitter:</strong> <a href="{{ community.twitter }}"
-                                                            target="_blank">{{ community.twitter }}</a></p>
+                            <p>Twitter: <a href="{{ community.twitter }}"
+                                           target="_blank">{{ community.twitter }}</a></p>
                         {% endif %}
 
                         {% if community.twitter_hashtags %}
                             <p>
-                                <strong>Twitterハッシュタグ:</strong>
+                                Twitterハッシュタグ:
                                 {% for hashtag in community.twitter_hashtags %}
                                     <a href="https://twitter.com/hashtag/{{ hashtag|slice:"1:" }}?f=live"
                                        target="_blank">{{ hashtag }}</a>{% if not forloop.last %}, {% endif %}
@@ -78,7 +79,9 @@
 
         <div class="card my-5 shadow">
             <div class="card-body">
-                <h2 class="my-4 text-center">{{ community.name }}の開催日程</h2>
+                <h2 class="fs-3 fw-bold my-5 text-center">
+                    {{ community.name }}の開催日程
+                </h2>
                 <div class="table-responsive">
                     <table class="table table-hover table-nowrap">
                         <thead class="table-light">
@@ -106,7 +109,9 @@
 
         <div class="card my-5 shadow">
             <div class="card-body">
-                <h2 class="my-4 text-center">{{ community.name }}の活動記録</h2>
+                <h2 class="fs-3 fw-bold my-5 text-center">
+                    {{ community.name }}の活動記録
+                </h2>
                 <div class="table-responsive">
                     <table class="table table-hover table-nowrap">
                         <thead class="table-light">
