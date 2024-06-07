@@ -39,77 +39,80 @@
 
         {#    集会一覧   #}
         {% for community in communities %}
-            <div class="row py-3 my-3">
-                <div class="col-md-4 order-md-1 order-2">
-                    <a href="{% url 'community:detail' community.id %}">
-                        {% if community.poster_image %}
-                            <img src="{{ community.poster_image.url }}" alt="{{ community.name }}" class="img-fluid">
-                        {% else %}
-                            <img src="https://vrc-ta-hub.com/poster/no-image.png" alt="{{ community.name }}"
-                                 class="img-fluid">
-                        {% endif %}
-                    </a>
-                </div>
-                <div class="col-md-8 order-md-2 order-1">
-                    <h2><a href="{% url 'community:detail' community.id %}"
-                           class="text-body text-decoration-none">{{ community.name }}</a></h2>
-                    <p><a href="{% url 'community:detail' community.id %}"
-                          class="text-body text-decoration-none">{{ community.description|linebreaks|slice:":140" }}...</a>
-                    </p>
-                    <p><strong>開催曜日:</strong> {{ community.get_weekday_display }}</p>
-                    <p><strong>開催時間:</strong> {{ community.start_time|date:"H:i" }}
-                        - {{ community.end_time|date:"H:i" }}</p>
-                    <p><strong>開催周期:</strong> {{ community.frequency }}</p>
-
-                    <div class="mt-4">
-                        <h3 class="h5">参加方法:</h3>
-                        <p><strong>主催・副主催:</strong>
-                            <a href="https://vrchat.com/home/search/{{ community.organizers }}"
-                               target="_blank">{{ community.organizers }}</a>
-                        </p>
-                        <p>
-                            {% if community.group_url %}
-                                <strong>VRChatグループ:</strong>
-                                <a href="{{ community.group_url }}"
-                                   target="_blank">{{ community.group_url|slice:"18:" }}</a>
-                            {% endif %}
-                            {% if community.join_type == 'user_page' %}
-                                <a href="{{ community.organizer_url }}"
-                                   target="_blank">{{ community.organizers }}</a>
-                            {% elif community.join_type == 'user_name' %}
-                                <a href="https://vrchat.com/home/search/{{ community.how_to_join }}"
-                                   target="_blank">{{ community.how_to_join }}</a>
-                            {% elif community.join_type == 'world' %}
-                                <a href="{{ community.how_to_join }}"
-                                   target="_blank">{{ community.how_to_join }}</a>
+            <div class="card bg-light my-3">
+                <div class="row no-gutters">
+                    <div class="col-md-5 order-md-1 order-2 p-3 d-flex justify-content-center justify-content-md-end">
+                        <a href="{% url 'community:detail' community.id %}">
+                            {% if community.poster_image %}
+                                <img src="{{ community.poster_image.url }}" style="max-width: 350px"
+                                     alt="{{ community.name }}" class="img-fluid card-img">
                             {% else %}
-                                {{ community.how_to_join }}
+                                <img src="https://vrc-ta-hub.com/poster/no-image.png" style="max-width: 350px"
+                                     alt="{{ community.name }}" class="img-fluid card-img">
                             {% endif %}
-                        </p>
-
-                        {% if community.discord %}
-                            <p><strong>Discord:</strong> <a href="{{ community.discord }}"
-                                                            target="_blank">{{ community.discord }}</a></p>
-                        {% endif %}
-
-                        {% if community.twitter %}
-                            <p><strong>Twitter:</strong> <a href="{{ community.twitter }}"
-                                                            target="_blank">{{ community.twitter }}</a></p>
-                        {% endif %}
-
-                        {% if community.twitter_hashtags %}
-                            <p>
-                                <strong>Twitterハッシュタグ:</strong>
-                                {% for hashtag in community.twitter_hashtags %}
-                                    <a href="https://twitter.com/hashtag/{{ hashtag|slice:"1:" }}?f=live"
-                                       target="_blank">{{ hashtag }}</a>{% if not forloop.last %}, {% endif %}
-                                {% endfor %}
+                        </a>
+                    </div>
+                    <div class="col-md-7 order-md-2 order-1">
+                        <div class="card-body">
+                            <h2><a href="{% url 'community:detail' community.id %}"
+                                   class="text-body text-decoration-none">{{ community.name }}</a></h2>
+                            <p><a href="{% url 'community:detail' community.id %}"
+                                  class="text-body text-decoration-none">{{ community.description|linebreaks|slice:":140" }}...</a>
                             </p>
-                        {% endif %}
+                            <p><strong>開催曜日:</strong> {{ community.get_weekday_display }}</p>
+                            <p><strong>開催時間:</strong> {{ community.start_time|date:"H:i" }}
+                                - {{ community.end_time|date:"H:i" }}</p>
+                            <p><strong>開催周期:</strong> {{ community.frequency }}</p>
+
+                            <div class="mt-4">
+                                <h3 class="h5">参加方法:</h3>
+                                <p><strong>主催・副主催:</strong> <a
+                                        href="https://vrchat.com/home/search/{{ community.organizers }}"
+                                        target="_blank">{{ community.organizers }}</a></p>
+                                <p>
+                                    {% if community.group_url %}
+                                        <strong>VRChatグループ:</strong><a href="{{ community.group_url }}"
+                                                                           target="_blank">{{ community.group_url|slice:"18:" }}</a>
+                                    {% endif %}
+                                    {% if community.join_type == 'user_page' %}
+                                        <a href="{{ community.organizer_url }}"
+                                           target="_blank">{{ community.organizers }}</a>
+                                    {% elif community.join_type == 'user_name' %}
+                                        <a href="https://vrchat.com/home/search/{{ community.how_to_join }}"
+                                           target="_blank">{{ community.how_to_join }}</a>
+                                    {% elif community.join_type == 'world' %}
+                                        <a href="{{ community.how_to_join }}"
+                                           target="_blank">{{ community.how_to_join }}</a>
+                                    {% else %}
+                                        {{ community.how_to_join }}
+                                    {% endif %}
+                                </p>
+                                {% if community.discord %}
+                                    <p><strong>Discord:</strong> <a href="{{ community.discord }}"
+                                                                    target="_blank">{{ community.discord }}</a></p>
+                                {% endif %}
+                                {% if community.twitter %}
+                                    <p><strong>Twitter:</strong> <a href="{{ community.twitter }}"
+                                                                    target="_blank">{{ community.twitter }}</a></p>
+                                {% endif %}
+                                {% if community.twitter_hashtags %}
+                                    <p>
+                                        <strong>Twitterハッシュタグ:</strong>
+                                        {% for hashtag in community.twitter_hashtags %}
+                                            <a href="https://twitter.com/hashtag/{{ hashtag|slice:"1:" }}?f=live"
+                                               target="_blank">{{ hashtag }}</a>{% if not forloop.last %}, {% endif %}
+                                        {% endfor %}
+                                    </p>
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         {% endfor %}
+
+
+
         {% include "ta_hub/pagination.html" %}
     </div>
 {% endblock %}
