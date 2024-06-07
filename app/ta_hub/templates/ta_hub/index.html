@@ -1,6 +1,10 @@
 {% extends 'ta_hub/base.html' %}
 {% block main %}
-
+    <style>
+        .rounded-custom {
+            border-radius: 40px; /* ボーダー半径を20%に設定 */
+        }
+    </style>
     <div class="bg-dark text-secondary px-4 py-5 text-center">
         <div class="py-5">
             <h1 class="display-5 fw-bold text-white">
@@ -134,158 +138,166 @@
         </h2>
     </div>
 
-    <div class="container">
+    <div class=" bg-light pb-5">
 
-        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 gy-5 gy-md-7 mt-3">
-            <!-- Service item -->
-            <div class="col">
-                <div class="card bg-light h-100">
-                    <div class="card-body pb-0">
-                        <!-- Icon -->
-                        <div class="icon-lg bg-white text-primary rounded-circle mb-4 mt-n5">
-                            <i class="bi bi-stack fa-fw fs-5"></i>
+
+        <div class="container">
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 gy-5 gy-md-7 mt-0 py-5">
+                <!-- Service item -->
+                <div class="col">
+                    <div class="card bg-white h-100 shadow-sm">
+                        <div class="card-body pb-0">
+                            <div class="d-flex justify-content-center mt-3 icon-text">
+                                <!-- Icon -->
+                                <span class="text-primary me-2">
+                            <i class="material-icons fs-4">group</i>
+                        </span>
+                                <!-- Content -->
+                                <h3 class="mb-3 fs-5 fw-bold mb-0">新しい仲間に出会える！</h3>
+                            </div>
+                            <p class="text-center">
+                                共通の興味を持つ人たちと知り合い、交流が深まる楽しい時間を過ごせます。</p>
                         </div>
-                        <!-- Content -->
-                        <h5 class="mb-3">新しい仲間と出会える！</h5>
-                        <p>共通の興味を持つ人たちと知り合い、交流が深まる楽しい時間を過ごせます。</p>
-                    </div>
-
-                </div>
-            </div>
-
-            <!-- Service item -->
-            <div class="col">
-                <div class="card bg-light h-100">
-                    <div class="card-body pb-0">
-                        <!-- Icon -->
-                        <div class="icon-lg bg-white text-primary rounded-circle mb-4 mt-n5">
-                            <i class="bi bi-boxes fa-fw fs-5"></i>
-                        </div>
-                        <!-- Content -->
-                        <h5 class="mb-3">毎日が新しい発見！</h5>
-                        <p>いつでも最新の技術や知識に触れられるので、学びが止まりません。</p>
-                    </div>
-
-                </div>
-            </div>
-
-            <!-- Service item -->
-            <div class="col">
-                <div class="card bg-light h-100">
-                    <div class="card-body pb-0">
-                        <!-- Icon -->
-                        <div class="icon-lg bg-white text-primary rounded-circle mb-4 mt-n5">
-                            <i class="bi bi-circle-square fa-fw fs-5"></i>
-                        </div>
-                        <!-- Content -->
-                        <h5 class="mb-3">リアルでは得られない経験！</h5>
-                        <p>田舎や海外、どこに住んでいても参加でき、物理的な制約を超えた交流が楽しめます。</p>
                     </div>
                 </div>
-            </div>
 
-            <!-- Service item -->
-            <div class="col">
-                <div class="card bg-light h-100">
-                    <div class="card-body pb-0">
-                        <!-- Icon -->
-                        <div class="icon-lg bg-white text-primary rounded-circle mb-4 mt-n5">
-                            <i class="bi bi-vector-pen fa-fw fs-5"></i>
+                <!-- Service item -->
+                <div class="col">
+                    <div class="card bg-white h-100 shadow-sm">
+                        <div class="card-body pb-0">
+                            <div class="d-flex justify-content-center mt-3 icon-text">
+                                <!-- Icon -->
+                                <span class="text-primary me-2">
+                            <i class="bi bi-boxes fs-4"></i>
+                        </span>
+                                <!-- Content -->
+                                <h3 class="mb-3 fs-5 fw-bold mb-0">毎日が新しい発見！</h3>
+                            </div>
+                            <p class="text-center">いつでも最新の技術や知識に触れられるので、学びが止まりません。</p>
                         </div>
-                        <!-- Content -->
-                        <h5 class="mb-3">ライトニングトークで大興奮！</h5>
-                        <p>集会のテーマに沿った内容の登壇者による発表を楽しめます</p>
                     </div>
                 </div>
-            </div>
 
-            <!-- Service item -->
-            <div class="col">
-                <div class="card bg-light h-100">
-                    <div class="card-body pb-0">
-                        <!-- Icon -->
-                        <div class="icon-lg bg-white text-primary rounded-circle mb-4 mt-n5">
-                            <i class="bi bi-briefcase fa-fw fs-5"></i>
+                <!-- Service item -->
+                <div class="col">
+                    <div class="card bg-white h-100 shadow-sm">
+                        <div class="card-body pb-0">
+                            <div class="d-flex justify-content-center mt-3 icon-text">
+                                <!-- Icon -->
+                                <span class="text-primary me-2">
+                            <i class="bi bi-circle-square fs-4"></i>
+                        </span>
+                                <!-- Content -->
+                                <h3 class="mb-3 fs-5 fw-bold mb-0">リアルでは得られない経験！</h3>
+                            </div>
+                            <p class="text-center">
+                                田舎や海外、どこに住んでいても参加でき、物理的な制約を超えた交流が楽しめます。</p>
                         </div>
-                        <!-- Content -->
-                        <h5 class="mb-3">忙しくても参加OK！</h5>
-                        <p>平日夜や週末に集会があるので、スケジュールに合わせて参加できます。</p>
                     </div>
                 </div>
-            </div>
-            <div class="col">
-                <div class="card bg-light h-100">
-                    <div class="card-body pb-0">
-                        <!-- Icon -->
-                        <div class="icon-lg bg-white text-primary rounded-circle mb-4 mt-n5">
-                            <i class="bi bi-briefcase fa-fw fs-5"></i>
+
+                <!-- Service item -->
+                <div class="col">
+                    <div class="card bg-white h-100 shadow-sm">
+                        <div class="card-body pb-0">
+                            <div class="d-flex justify-content-center mt-3 icon-text">
+                                <!-- Icon -->
+                                <span class="text-primary me-2">
+                            <i class="bi bi-vector-pen fs-4"></i>
+                        </span>
+                                <!-- Content -->
+                                <h3 class="mb-3 fs-5 fw-bold mb-0">ライトニングトークで大興奮！</h3>
+                            </div>
+                            <p class="text-center">集会のテーマに沿った内容の登壇者による発表を楽しめます</p>
                         </div>
-                        <!-- Content -->
-                        <h5 class="mb-3">世代を超えた交流</h5>
-                        <p>
-                            アバターでおしゃべりするので実際の年齢とは関係なく、自分と同じ興味や関心を持つ人と仲良くなれます。</p>
+                    </div>
+                </div>
+
+                <!-- Service item -->
+                <div class="col">
+                    <div class="card bg-white h-100 shadow-sm">
+                        <div class="card-body pb-0">
+                            <div class="d-flex justify-content-center mt-3 icon-text">
+                                <!-- Icon -->
+                                <span class="text-primary me-2">
+                            <i class="bi bi-briefcase fs-4"></i>
+                        </span>
+                                <!-- Content -->
+                                <h3 class="mb-3 fs-5 fw-bold mb-0">忙しくても参加OK！</h3>
+                            </div>
+                            <p class="text-center">平日夜や週末に集会があるので、スケジュールに合わせて参加できます。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Service item -->
+                <div class="col">
+                    <div class="card bg-white h-100 shadow-sm">
+                        <div class="card-body pb-0">
+                            <div class="d-flex justify-content-center mt-3 icon-text">
+                                <!-- Icon -->
+                                <span class="text-primary me-2">
+                            <i class="bi bi-people fs-4"></i>
+                        </span>
+                                <!-- Content -->
+                                <h3 class="mb-3 fs-5 fw-bold mb-0">世代を超えた交流</h3>
+                            </div>
+                            <p class="text-center">
+                                アバターでおしゃべりするので実際の年齢とは関係なく、自分と同じ興味や関心を持つ人と仲良くなれます。</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-
     </div>
-
     <!-- メリット end -->
 
 
-    <style>
-        .rounded-custom {
-            border-radius: 40px; /* ボーダー半径を20%に設定 */
-        }
-    </style>
+
     <!-- 雰囲気 -->
-    <h2 class="featurette-heading fw-normal lh-1 bg-primary text-white fw-bold text-center py-3 my-5">
+    <h2 class="featurette-heading fw-normal lh-1 bg-primary text-white fw-bold text-center py-3 mb−5">
         技術学術系集会の雰囲気</h2>
     <div class="container">
-        <div class="row featurette">
+        <div class="row featurette py-5">
             <div class="col-12 col-md-6 mb-3">
                 <img class="rounded-custom img-thumbnail bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto"
-                     width="500"
-                     height="500" src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
+                     src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
                      alt="Placeholder: 500x500">
             </div>
             <div class="col-12 col-md-6 mb-3">
                 <img class="rounded-custom img-thumbnail bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto"
-                     width="500"
-                     height="500" src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
+                     src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
+                     alt="Placeholder: 500x500">
+            </div>
+
+            <div class="col-12 col-md-6 mb-3">
+                <img class="rounded-custom img-thumbnail bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto"
+                     src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
                      alt="Placeholder: 500x500">
             </div>
             <div class="col-12 col-md-6 mb-3">
                 <img class="rounded-custom img-thumbnail bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto"
-                     width="500"
-                     height="500" src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
+                     src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
+                     alt="Placeholder: 500x500">
+            </div>
+
+            <div class="col-12 col-md-6 mb-3">
+                <img class="rounded-custom img-thumbnail bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto"
+                     src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
                      alt="Placeholder: 500x500">
             </div>
             <div class="col-12 col-md-6 mb-3">
                 <img class="rounded-custom img-thumbnail bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto"
-                     width="500"
-                     height="500" src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
+                     src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
                      alt="Placeholder: 500x500">
             </div>
-            <div class="col-12 col-md-6 mb-3">
-                <img class="rounded-custom img-thumbnail bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto"
-                     width="500"
-                     height="500" src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
-                     alt="Placeholder: 500x500">
-            </div>
-            <div class="col-12 col-md-6 mb-3">
-                <img class="rounded-custom img-thumbnail bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto"
-                     width="500"
-                     height="500" src="https://pbs.twimg.com/media/GOY0J_BacAA4jEx?format=jpg&name=4096x4096"
-                     alt="Placeholder: 500x500">
-            </div>
+
         </div>
     </div>
     <!-- 雰囲気 end -->
 
     <!-- 参加者の声 -->
-    <div class="bg-light my-5 py-5">
+    <div class="bg-light mb-5 py-5">
         <div class="container marketing">
 
             <!-- Three columns of text below the carousel -->
@@ -320,39 +332,48 @@
 
 
     <!-- 参加方法 -->
-
     <h2 class="pb-2 fw-bold primary text-primary text-center">参加方法</h2>
+
     <div class="container px-4 py-5" id="featured-3">
         <div class="row g-4 py-3 row-cols-1 row-cols-lg-3">
-            <div class="feature col">
-                <div class="fs-2">
-                    1.
+            <div class="col">
+                <div class="card bg-light h-100 shadow-sm">
+                    <div class="card-body">
+                        <div class="fs-2">
+                            1.
+                        </div>
+                        <h3 class="fs-4 text-body-emphasis">興味のある集会を見つける</h3>
+                        <p>あなたはどんな分野に興味がありますか？いろんな種類の集会から、興味のある集会を選んでね。</p>
+                        <a href="{% url 'community:list' %}" class="btn btn-primary">
+                            集会を探す
+                        </a>
+                    </div>
                 </div>
-                <h3 class="fs-3 text-body-emphasis">興味のある集会を見つける</h3>
-                <p>あなたはどんな分野に興味がありますか？いろんな種類の集会から、興味のある集会を選んでね。</p>
-                <a href="{% url 'community:list' %}" class="btn btn-primary">
-                    集会を探す
-                </a>
-
             </div>
-            <div class="feature col">
-                <div class="fs-2">
-                    2.
+            <div class="col">
+                <div class="card bg-light h-100 shadow-sm">
+                    <div class="card-body">
+                        <div class="fs-2">
+                            2.
+                        </div>
+                        <h3 class="fs-5 text-body-emphasis">
+                            VRChatグループ、Discordに参加したり、主催者にフレンド申請をする</h3>
+                        <p>
+                            「いきなりフレンド申請しても大丈夫かな？」と心配しなくても大丈夫！主催者はあなたが参加してくれるのを楽しみにしています。</p>
+                    </div>
                 </div>
-                <h3 class="fs-4 text-body-emphasis">
-                    VRChatグループ、Discordに参加したり、主催者にフレンド申請をする</h3>
-                <p>
-                    「いきなりフレンド申請しても大丈夫かな？」と心配しなくても大丈夫！主催者はあなたが参加してくれるのを楽しみにしています。
-                </p>
             </div>
-            <div class="feature col">
-                <div class="fs-2">
-                    3.
+            <div class="col">
+                <div class="card bg-light h-100 shadow-sm">
+                    <div class="card-body">
+                        <div class="fs-2">
+                            3.
+                        </div>
+                        <h3 class="fs-5 text-body-emphasis">集会当日、グループや主催にJOINする</h3>
+                        <p>
+                            あとは当日、その時間に主催やグループにJOINするだけ！初めて参加するときは緊張するかもしれないけど、みんな優しく迎えてくれるので安心してね。</p>
+                    </div>
                 </div>
-                <h3 class="fs-4 text-body-emphasis">集会当日、グループや主催にJOINする</h3>
-                <p>
-                    あとは当日、その時間に主催やグループにJOINするだけ！初めて参加するときは緊張するかもしれないけど、みんな優しく迎えてくれるので安心してね。
-                </p>
             </div>
         </div>
     </div>
