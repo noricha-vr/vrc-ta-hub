@@ -39,7 +39,7 @@
 
         {#    集会一覧   #}
         {% for community in communities %}
-            <div class="card bg-light my-3">
+            <div class="card bg-light-subtle my-3 shadow">
                 <div class="row no-gutters">
                     <div class="col-md-5 order-md-1 order-2 p-3 d-flex justify-content-center justify-content-md-end">
                         <a href="{% url 'community:detail' community.id %}">
