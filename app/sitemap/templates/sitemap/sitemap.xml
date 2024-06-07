@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset
+        xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+            http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+    <!-- created with Free Online Sitemap Generator www.xml-sitemaps.com -->
+    <url>
+        <loc>{{ base_url }}</loc>
+        <priority>1</priority>
+    </url>
+    <url>
+        <loc>{{ base_url }}item_filter/</loc>
+        <priority>0.5</priority>
+    </url>
+    <url>
+        <loc>{{ base_url }}search_history/</loc>
+        <priority>0.8</priority>
+    </url>
+    {% for search in search_list %}
+        <url>
+<loc>{{ base_url }}item/{{ search.keyword|slice:":150" }}/</loc>
+            <lastmod>{{ search.used_at|date:"Y-m-d" }}</lastmod>
+            <priority>0.3</priority>
+        </url>
+    {% endfor %}
+</urlset>

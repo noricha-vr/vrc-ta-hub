@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'ta_hub',
     'community',
     'event',
+    'sitemap',
 ]
 
 MIDDLEWARE = [

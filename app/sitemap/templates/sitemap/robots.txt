@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://vrc-ta-hub.com//sitemap.xml
