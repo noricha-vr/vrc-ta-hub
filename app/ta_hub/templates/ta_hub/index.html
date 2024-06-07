@@ -1,5 +1,6 @@
 {% extends 'ta_hub/base.html' %}
 {% block main %}
+
     <div class="bg-dark text-secondary px-4 py-5 text-center">
         <div class="py-5">
             <h1 class="display-5 fw-bold text-white">
@@ -12,26 +13,30 @@
                     <a href="{% url 'event:list' %}" class="btn btn-outline-info btn-lg px-4 me-sm-3 fw-bold">開催日を確認
                     </a>
                     <a href="{% url 'community:list' %}"
-                       class="btn btn-outline-light btn-lg px-4">イベントを探す</a>
+                       class="btn btn-outline-info btn-lg fw-bold px-4">イベントを探す</a>
                 </div>
             </div>
         </div>
     </div>
     <!-- hero end -->
 
-    <hr class="featurette-divider my-5">
 
+
+    <div class="row featurette text-center bg-primary text-white p-3">
+        <h2 class="featurette-heading fw-normal lh-1 fw-bold">
+            VRChat技術学術系コミュニティってなに？
+        </h2>
+    </div>
 
     <!-- contents 1 -->
-    <div class="container">
+    <div class="container my-5">
 
         <div class="row featurette">
             <div class="col-md-7">
-                <h2 class="featurette-heading fw-normal lh-1">VRChat技術学術系<span
-                        class="text-body-secondary">コミュニティってなに？</span>
-                </h2>
-                <p class="lead">VRChat技術学術系コミュニティは、技術や学問に関心を持つ人々が集まり、</br>
-                    最新の技術情報を共有しつつ、ワイワイおしゃべりを楽しむ場所です！</p>
+                <p class="lead">
+                    VRChat技術学術系コミュニティは、技術や学問に関心を持つ人々が集まり、VRChat内でイベントを開催しています。
+                <p class="lead">
+                    最新の技術や情報を共有しつつ、みんなでワイワイおしゃべりを楽しむ場所です！</p>
             </div>
             <div class="col-md-5">
                 <img class="bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto" width="500"
@@ -40,21 +45,31 @@
 
             </div>
         </div>
+    </div>
 
-        <!-- contents 1 end -->
-
-        <hr class="featurette-divider my-5">
-
-        <!-- contents 2 -->
+    <!-- contents 1 end -->
+    <!-- contents 2 -->
+    <div class="row featurette text-center bg-primary text-white p-3 mb-5">
+        <h2 class="featurette-heading fw-normal lh-1 fw-bold">
+            どんな活動があるの？
+        </h2>
+    </div>
+    <div class="container">
 
         <div class="row featurette">
             <div class="col-md-7 order-md-2">
-                <h2 class="featurette-heading fw-normal lh-1">どんな<span
-                        class="text-body-secondary">活動があるの？</span></h2>
-                <p class="lead">講演とライトニングトーク</br>
-                    業界のプロフェッショナルによる面白い講演やパネルディスカッション、短時間でたくさんの話題を楽しむライトニングトークが毎回大人気！</p>
-                <p class="lead">ディスカッション</br>最新技術や研究についてみんなで楽しくディスカッション。</p>
-
+                <div class="lead mb-2">
+                    講演とライトニングトーク
+                </div>
+                <p>
+                    業界のプロフェッショナルによる面白い講演やパネルディスカッション、短時間でできるライトニングトークが大人気！
+                </p>
+                <div class="lead mb-2">
+                    雑談やディスカッション
+                </div>
+                <p>
+                    各イベントごとのテーマはその日の講演やライトニングトークの延長でみんなの興味を深堀り！そこから派生したトピックで盛り上がることも！
+                </p>
             </div>
             <div class="col-md-5 order-md-1">
                 <img class="bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto" width="500"
