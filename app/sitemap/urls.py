@@ -38,4 +38,5 @@ urlpatterns = [
     path('apple-touch-icon-152x152.png', icon160_view),
     path('apple-touch-icon-152x152-precomposed.png', icon160_view),
     path('sitemap.xml', SitemapView.as_view(), name='sitemap'),
+    path('sitemaps.xml', RedirectView.as_view(url='/sitemap.xml', permanent=True)),
 ]

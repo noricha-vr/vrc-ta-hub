@@ -18,12 +18,12 @@
         <priority>0.8</priority>
     </url>
     <url>
-        <loc>{{ base_url }}about//</loc>
+        <loc>{{ base_url }}about/</loc>
         <priority>0.1</priority>
     </url>
     {% for event_detail in event_details %}
         <url>
-            <loc>{{ base_url }}item/{{ event_detail.pk }}/</loc>
+            <loc>{{ base_url }}event/detail/{{ event_detail.pk }}/</loc>
             <lastmod>{{ event_detail.updated_at|date:"Y-m-d" }}</lastmod>
             <priority>0.3</priority>
         </url>
