@@ -44,10 +44,11 @@
                     <div class="col-md-5 order-md-1 order-2 p-3 d-flex justify-content-center justify-content-md-end">
                         <a href="{% url 'community:detail' community.id %}">
                             {% if community.poster_image %}
-                                <img src="{{ community.poster_image.url }}" style="max-width: 350px"
+                                <img src="{{ community.poster_image.url }}" style="max-width: 350px" loading=”lazy”
                                      alt="{{ community.name }}" class="img-fluid card-img">
                             {% else %}
                                 <img src="https://vrc-ta-hub.com/poster/no-image.png" style="max-width: 350px"
+                                     loading=”lazy”
                                      alt="{{ community.name }}" class="img-fluid card-img">
                             {% endif %}
                         </a>
