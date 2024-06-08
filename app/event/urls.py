@@ -5,6 +5,6 @@ from .views import EventListView, EventDetailView, import_events
 app_name = 'event'
 urlpatterns = [
     path('list/', EventListView.as_view(), name='list'),
-    path('<int:pk>/', EventDetailView.as_view(), name='detail'),
+    path('detail/<int:pk>/', EventDetailView.as_view(), name='detail'),
     path('import/', import_events, name='import'),
 ]

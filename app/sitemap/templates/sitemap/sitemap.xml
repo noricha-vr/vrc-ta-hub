@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset
+        xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+            http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+    <!-- created with Free Online Sitemap Generator www.xml-sitemaps.com -->
+    <url>
+        <loc>{{ base_url }}</loc>
+        <priority>1</priority>
+    </url>
+    <url>
+        <loc>{{ base_url }}event/list/</loc>
+        <priority>0.8</priority>
+    </url>
+    <url>
+        <loc>{{ base_url }}community/list/</loc>
+        <priority>0.8</priority>
+    </url>
+    <url>
+        <loc>{{ base_url }}about/</loc>
+        <priority>0.1</priority>
+    </url>
+    {% for event_detail in event_details %}
+        <url>
+            <loc>{{ base_url }}event/detail/{{ event_detail.pk }}/</loc>
+            <lastmod>{{ event_detail.updated_at|date:"Y-m-d" }}</lastmod>
+            <priority>0.3</priority>
+        </url>
+    {% endfor %}
+    {% for community in communities %}
+        <url>
+            <loc>{{ base_url }}community/{{ community.pk }}/</loc>
+            <lastmod>{{ community.updated_at|date:"Y-m-d" }}</lastmod>
+            <priority>0.3</priority>
+        </url>
+    {% endfor %}
+</urlset>
