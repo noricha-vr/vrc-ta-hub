@@ -27,6 +27,8 @@ class Event(models.Model):
 
 
 class EventDetail(models.Model):
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='details', verbose_name='イベント')
     youtube_url = models.URLField('YouTube URL', blank=True, null=True)
     slide_url = models.URLField('スライド URL', blank=True, null=True)

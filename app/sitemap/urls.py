@@ -15,6 +15,7 @@ Including another URLconf
 """
 from django.urls import path
 from django.views.generic import TemplateView, RedirectView
+from .views import SitemapView
 
 app_name = 'sitemap'
 
@@ -28,7 +29,6 @@ icon120_view = RedirectView.as_view(
 icon160_view = RedirectView.as_view(
     url='apple-touch-icon.png',
     permanent=True)
-sitemap_view = RedirectView.as_view(url='sitemap.xml', permanent=True)
 urlpatterns = [
     # path('sitemap.xml', SitemapListView.as_view(), name='sitemap_list'),
     path('favicon.ico', favicon_view),
@@ -37,5 +37,5 @@ urlpatterns = [
     path('apple-touch-icon-precomposed.png', icon120_view),
     path('apple-touch-icon-152x152.png', icon160_view),
     path('apple-touch-icon-152x152-precomposed.png', icon160_view),
-    path('sitemaps.xml', sitemap_view),
+    path('sitemap.xml', SitemapView.as_view(), name='sitemap'),
 ]

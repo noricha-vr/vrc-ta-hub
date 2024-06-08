@@ -10,17 +10,28 @@
         <priority>1</priority>
     </url>
     <url>
-        <loc>{{ base_url }}item_filter/</loc>
-        <priority>0.5</priority>
-    </url>
-    <url>
-        <loc>{{ base_url }}search_history/</loc>
+        <loc>{{ base_url }}event/list/</loc>
         <priority>0.8</priority>
     </url>
-    {% for search in search_list %}
+    <url>
+        <loc>{{ base_url }}community/list/</loc>
+        <priority>0.8</priority>
+    </url>
+    <url>
+        <loc>{{ base_url }}about//</loc>
+        <priority>0.1</priority>
+    </url>
+    {% for event_detail in event_details %}
         <url>
-<loc>{{ base_url }}item/{{ search.keyword|slice:":150" }}/</loc>
-            <lastmod>{{ search.used_at|date:"Y-m-d" }}</lastmod>
+            <loc>{{ base_url }}item/{{ event_detail.pk }}/</loc>
+            <lastmod>{{ event_detail.updated_at|date:"Y-m-d" }}</lastmod>
+            <priority>0.3</priority>
+        </url>
+    {% endfor %}
+    {% for community in communities %}
+        <url>
+            <loc>{{ base_url }}community/{{ community.pk }}/</loc>
+            <lastmod>{{ community.updated_at|date:"Y-m-d" }}</lastmod>
             <priority>0.3</priority>
         </url>
     {% endfor %}
