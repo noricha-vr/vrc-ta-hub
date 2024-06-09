@@ -1,34 +1,17 @@
 import os
 import re
-from pprint import pprint
 
 from django.contrib import messages
 from django.shortcuts import redirect
-from django.views.generic import TemplateView, ListView, DetailView
+from django.views.generic import DetailView
 import logging
-from community.models import Community
-from .models import Event, EventDetail
+from .models import EventDetail, Community
 from googleapiclient.discovery import build
 
 logger = logging.getLogger(__name__)
 
-# views.py
-
-from django.shortcuts import render
-from django.utils import timezone
 from django.views.generic import ListView
 from .models import Event
-from .forms import EventSearchForm
-from django.utils import timezone
-from django.views.generic import ListView
-from .models import Event, Community
-# views.py
-
-from django.utils import timezone
-from django.views.generic import ListView
-from .models import Event
-from .forms import EventSearchForm
-
 from .forms import EventSearchForm
 
 
