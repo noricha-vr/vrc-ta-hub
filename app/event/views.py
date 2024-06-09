@@ -1,3 +1,4 @@
+import os
 import re
 from django.contrib import messages
 from django.shortcuts import redirect
@@ -5,10 +6,7 @@ from django.views.generic import TemplateView, ListView, DetailView
 import logging
 from community.models import Community
 from .models import Event, EventDetail
-from django.http import HttpResponse
-from icalendar import Calendar
-import requests
-from datetime import datetime
+from googleapiclient.discovery import build
 
 logger = logging.getLogger(__name__)
 
@@ -52,44 +50,44 @@ class EventDetailView(DetailView):
         return context
 
 
+CALENDAR_API_KEY = os.environ.get('CALENDAR_API_KEY')
+
+
 def import_events(request):
-    # 公開カレンダーのURLを指定
-    url = "https://calendar.google.com/calendar/ical/fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7%40group.calendar.google.com/public/basic.ics"
+    service = build('calendar', 'v3', developerKey=CALENDAR_API_KEY)
 
-    # URLからiCalendarデータを取得
-    response = requests.get(url)
+    # カレンダーIDを指定（ここでは例として自分のカレンダーを使用）
+    calendar_id = 'fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7@group.calendar.google.com'
 
-    # iCalendarデータをパース
-    cal = Calendar.from_ical(response.text)
+    # イベントを取得
+    events_result = service.events().list(calendarId=calendar_id, singleEvents=True, orderBy='startTime').execute()
+    events = events_result.get('items', [])
 
-    # イベント情報を取得して保存
-    for component in cal.walk():
-        if component.name == "VEVENT":
-            start = component.get("dtstart").dt
-            end = component.get("dtend").dt
+    for event in events:
+        start = event['start'].get('dateTime', event['start'].get('date'))
+        end = event['end'].get('dateTime', event['end'].get('date'))
+        summary = event['summary']
 
-            # summaryとdescriptionをUTF-8でデコード
-            summary = str(component.get("summary", "")).strip()
-            logger.info('summary:' + summary)
-            # コミュニティーを名前と主催者名で検索
-            community = Community.objects.filter(name=summary).first()
+        # コミュニティーを名前と主催者名で検索
+        community = Community.objects.filter(name=summary).first()
 
-            if community:
-                # 同じ日時の同じコミュニティーのイベントが存在するかチェック
-                event_exists = Event.objects.filter(community=community, date=start.date(),
-                                                    start_time=start.time()).exists()
+        if community:
+            # 同じ日時の同じコミュニティーのイベントが存在するかチェック
+            event_exists = Event.objects.filter(community=community, date=start.date(),
+                                                start_time=start.time()).exists()
 
-                if not event_exists:
-                    # イベントを作成
-                    event = Event(
-                        community=community,
-                        date=start.date(),
-                        start_time=start.time(),
-                        duration=(end - start).total_seconds() // 60,  # 分単位に変換
-                        weekday=start.strftime("%a"),
-                    )
-                    event.save()
-            else:
-                messages.warning(request, f"Community not found: {summary}")
+            if not event_exists:
+                # イベントを作成
+                event = Event(
+                    community=community,
+                    date=start.date(),
+                    start_time=start.time(),
+                    duration=(end - start).total_seconds() // 60,  # 分単位に変換
+                    weekday=start.strftime("%a"),
+                )
+                event.save()
+        else:
+            messages.warning(request, f"Community not found: {summary}")
+
     messages.info(request, f"Events imported successfully. {Event.objects.count()} events imported.")
     return redirect('event:list')
