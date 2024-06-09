@@ -86,6 +86,31 @@
                 font-size: 1.1rem !important;
             }
         }
+
+        @media (max-width: 991.98px) {
+            .navbar-collapse {
+                position: fixed;
+                top: 55px;
+                right: 0;
+                padding-left: 15px;
+                padding-right: 15px;
+                padding-bottom: 15px;
+                width: 25%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.8);
+                z-index: 1000;
+            }
+
+            .navbar-collapse.collapsing {
+                right: -75%;
+                transition: height 0s ease;
+            }
+
+            .navbar-collapse.show {
+                right: 0;
+                transition: right 300ms ease-in-out;
+            }
+        }
     </style>
 </head>
 <body class="d-flex flex-column min-vh-100">
