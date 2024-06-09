@@ -81,30 +81,11 @@
             font-style: normal;
         }
 
-        .push-menu {
-            position: fixed;
-            top: 55px;
-            left: -250px;
-            width: 250px;
-            height: calc(100vh - 55px);
-            background-color: rgb(43, 128, 220);
-            transition: left 0.3s ease;
-            z-index: 1000;
-            padding: 20px;
+        @media (max-width: 576px) {
+            #title {
+                font-size: 1.1rem !important;
+            }
         }
-
-        .push-menu.open {
-            left: 0;
-        }
-
-        main {
-            transition: transform 0.3s ease;
-        }
-
-        main.push {
-            transform: translateX(250px);
-        }
-
     </style>
 </head>
 <body class="d-flex flex-column min-vh-100">
@@ -112,6 +93,7 @@
     <nav class="navbar navbar-expand-lg navbar-light bg-primary">
         <div class="container">
             <a class="navbar-brand text-white fw-bold fs-4" href="{% url 'ta_hub:index' %}"
+               id="title"
             >VRChat 技術・学術系イベントHub</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
                     aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -135,27 +117,8 @@
             </div>
         </div>
     </nav>
-
 </header>
 
-
-<!-- プッシュメニューを追加 -->
-<div id="pushMenu" class="push-menu">
-    <ul class="navbar-nav">
-        <li class="nav-item">
-            <a class="nav-link text-light" href="{% url 'ta_hub:index' %}">ホーム</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link text-light" href="{% url 'event:list' %}">開催日程</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link text-light" href="{% url 'community:list' %}">集会一覧</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link text-light" href="{% url 'ta_hub:about' %}">運営情報</a>
-        </li>
-    </ul>
-</div>
 <main class="flex-grow-1">
     {% block main %}
     {% endblock %}
@@ -172,15 +135,14 @@
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
         crossorigin="anonymous"></script>
 </body>
+
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const pushMenu = document.getElementById('pushMenu');
-        const main = document.querySelector('main');
         const navbarToggler = document.querySelector('.navbar-toggler');
 
         navbarToggler.addEventListener('click', function () {
             pushMenu.classList.toggle('open');
-            main.classList.toggle('push');
         });
     });
 </script>
