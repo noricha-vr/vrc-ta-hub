@@ -29,6 +29,8 @@ from django.views.generic import ListView
 from .models import Event
 from .forms import EventSearchForm
 
+from .forms import EventSearchForm
+
 
 class EventListView(ListView):
     model = Event
@@ -43,11 +45,11 @@ class EventListView(ListView):
 
         form = EventSearchForm(self.request.GET)
         if form.is_valid():
-            query = form.cleaned_data.get('query')
-            weekdays = form.cleaned_data.get('weekdays')
+            name = form.cleaned_data.get('name')
+            weekdays = form.cleaned_data.get('weekday')
 
-            if query:
-                queryset = queryset.filter(community__name__icontains=query)
+            if name:
+                queryset = queryset.filter(community__name__icontains=name)
 
             if weekdays:
                 queryset = queryset.filter(weekday__in=weekdays)
