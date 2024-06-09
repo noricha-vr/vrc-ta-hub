@@ -76,8 +76,8 @@
                                                                            target="_blank">{{ community.group_url|slice:"18:" }}</a>
                                     {% endif %}
                                     {% if community.join_type == 'user_page' %}
-                                        <a href="{{ community.organizer_url }}"
-                                           target="_blank">{{ community.organizers }}</a>
+                                        <strong>Join先:</strong><a href="{{ community.organizer_url }}"
+                                                                   target="_blank">{{ community.organizers }}</a>
                                     {% elif community.join_type == 'user_name' %}
                                         <a href="https://vrchat.com/home/search/{{ community.how_to_join }}"
                                            target="_blank">{{ community.how_to_join }}</a>
@@ -92,9 +92,10 @@
                                     <p><strong>Discord:</strong> <a href="{{ community.discord }}"
                                                                     target="_blank">{{ community.discord }}</a></p>
                                 {% endif %}
-                                {% if community.twitter %}
-                                    <p><strong>Twitter:</strong> <a href="{{ community.twitter }}"
-                                                                    target="_blank">{{ community.twitter }}</a></p>
+                                {% if community.sns_url %}
+                                    <p><strong>Twitter:</strong> <a href="{{ community.sns_url }}"
+                                                                    target="_blank">{{ community.get_sns_display }}</a>
+                                    </p>
                                 {% endif %}
                                 {% if community.twitter_hashtags %}
                                     <p>

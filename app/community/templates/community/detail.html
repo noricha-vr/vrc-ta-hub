@@ -58,9 +58,9 @@
                                            target="_blank">{{ community.discord }}</a></p>
                         {% endif %}
 
-                        {% if community.twitter %}
-                            <p>Twitter: <a href="{{ community.twitter }}"
-                                           target="_blank">{{ community.twitter }}</a></p>
+                        {% if community.sns_url %}
+                            <p>Twitter: <a href="{{ community.sns_url }}"
+                                           target="_blank">{{ community.get_sns_display }}</a></p>
                         {% endif %}
 
                         {% if community.twitter_hashtags %}

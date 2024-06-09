@@ -39,6 +39,7 @@ class Community(models.Model):
     organizers = models.CharField('主催・副主催', max_length=200)
     group_url = models.URLField('VRChatグループURL', blank=True)
     organizer_url = models.URLField('主催プロフィールURL', blank=True)
+    sns_url = models.URLField('SNS', blank=True)
     discord = models.URLField('Discord', blank=True)
     twitter_hashtag = models.CharField('Twitterハッシュタグ', max_length=100, blank=True)
     poster_image = models.ImageField('ポスター', upload_to='poster/', blank=True)
@@ -58,3 +59,10 @@ class Community(models.Model):
     def end_time(self):
         return (timezone.datetime.combine(timezone.datetime.today(), self.start_time) + timedelta(
             minutes=self.duration)).time()
+
+    @property
+    def get_sns_display(self):
+        if self.sns_url:
+            sns_parts = self.sns_url.split('/')
+            return f"@{sns_parts[-1]}"
+        return None

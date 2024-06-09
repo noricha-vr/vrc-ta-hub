@@ -1,5 +1,7 @@
 import os
 import re
+from pprint import pprint
+
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.views.generic import TemplateView, ListView, DetailView
@@ -50,7 +52,12 @@ class EventDetailView(DetailView):
         return context
 
 
+from django.utils import timezone
+from datetime import datetime
+
 CALENDAR_API_KEY = os.environ.get('CALENDAR_API_KEY')
+
+from datetime import datetime, timedelta
 
 
 def import_events(request):
@@ -59,17 +66,29 @@ def import_events(request):
     # カレンダーIDを指定（ここでは例として自分のカレンダーを使用）
     calendar_id = 'fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7@group.calendar.google.com'
 
+    # 今日の日付と60日後の日付を取得
+    today = datetime.now().date()
+    end_date = today + timedelta(days=60)
+
     # イベントを取得
-    events_result = service.events().list(calendarId=calendar_id, singleEvents=True, orderBy='startTime').execute()
+    events_result = service.events().list(calendarId=calendar_id, singleEvents=True, orderBy='startTime',
+                                          timeMin=today.isoformat() + 'T00:00:00Z',
+                                          timeMax=end_date.isoformat() + 'T23:59:59Z').execute()
     events = events_result.get('items', [])
 
     for event in events:
-        start = event['start'].get('dateTime', event['start'].get('date'))
-        end = event['end'].get('dateTime', event['end'].get('date'))
-        summary = event['summary']
+        start_datetime = event['start'].get('dateTime', event['start'].get('date'))
+        end_datetime = event['end'].get('dateTime', event['end'].get('date'))
+        summary = event['summary'].strip()
+
+        start = datetime.strptime(start_datetime, '%Y-%m-%dT%H:%M:%S%z')
+        end = datetime.strptime(end_datetime, '%Y-%m-%dT%H:%M:%S%z')
 
         # コミュニティーを名前と主催者名で検索
         community = Community.objects.filter(name=summary).first()
+
+        event_str = f"{start} - {end} {summary}"
+        logger.info(f"Event: {event_str}")
 
         if community:
             # 同じ日時の同じコミュニティーのイベントが存在するかチェック
@@ -86,6 +105,8 @@ def import_events(request):
                     weekday=start.strftime("%a"),
                 )
                 event.save()
+            else:
+                messages.warning(request, f"Event already exists: {event_str}")
         else:
             messages.warning(request, f"Community not found: {summary}")
 
