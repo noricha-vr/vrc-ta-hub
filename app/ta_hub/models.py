@@ -8,7 +8,7 @@ from io import BytesIO
 class ImageFile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     image = models.ImageField(upload_to='images/')
-    max_size = 720
+    max_size = models.IntegerField(default=720)
 
     def save(self, *args, **kwargs):
         if self.image:
@@ -18,7 +18,7 @@ class ImageFile(models.Model):
             width, height = img.size
 
             # 最大サイズを720pxに設定
-            max_size = 720
+            max_size = self.max_size
 
             # 縦横比を維持しながらリサイズ
             if width > max_size or height > max_size:
@@ -38,7 +38,7 @@ class ImageFile(models.Model):
 
                 # ファイル名の拡張子を.pngに変更
                 file_name, _ = os.path.splitext(self.image.name)
-                file_name = f"{file_name}.png"
+                file_name = f"{file_name}-{self.max_size}.png"
 
                 self.image.save(file_name, ContentFile(buffer.read()), save=False)
 
