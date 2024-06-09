@@ -12,6 +12,23 @@ from googleapiclient.discovery import build
 
 logger = logging.getLogger(__name__)
 
+# views.py
+
+from django.shortcuts import render
+from django.utils import timezone
+from django.views.generic import ListView
+from .models import Event
+from .forms import EventSearchForm
+from django.utils import timezone
+from django.views.generic import ListView
+from .models import Event, Community
+# views.py
+
+from django.utils import timezone
+from django.views.generic import ListView
+from .models import Event
+from .forms import EventSearchForm
+
 
 class EventListView(ListView):
     model = Event
@@ -20,10 +37,27 @@ class EventListView(ListView):
     paginate_by = 50
 
     def get_queryset(self):
-        now = timezone.now()
         queryset = super().get_queryset()
+        now = timezone.now()
         queryset = queryset.filter(date__gte=now.date()).select_related('community').order_by('date', 'start_time')
+
+        form = EventSearchForm(self.request.GET)
+        if form.is_valid():
+            query = form.cleaned_data.get('query')
+            weekdays = form.cleaned_data.get('weekdays')
+
+            if query:
+                queryset = queryset.filter(community__name__icontains=query)
+
+            if weekdays:
+                queryset = queryset.filter(weekday__in=weekdays)
+
         return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = EventSearchForm(self.request.GET or None)
+        return context
 
 
 def extract_video_id(youtube_url):

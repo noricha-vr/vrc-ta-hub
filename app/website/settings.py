@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'community',
     'event',
     'sitemap',
+    'django_bootstrap5',
 ]
 
 MIDDLEWARE = [
