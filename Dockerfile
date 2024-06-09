@@ -15,6 +15,7 @@ RUN apt-get update && \
     build-essential \
     libmariadb-dev-compat \
     libmariadb-dev \
+    libsqlite3-dev \
     pkg-config
 
 

@@ -11,3 +11,4 @@ google-api-python-client==2.131.0
 # django-filter==2.3.0
 google-auth-oauthlib==1.2.0
 django-bootstrap5==24.2
+pysqlite3
