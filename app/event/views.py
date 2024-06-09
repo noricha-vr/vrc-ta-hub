@@ -17,16 +17,13 @@ class EventListView(ListView):
     model = Event
     template_name = 'event/list.html'
     context_object_name = 'events'
-    paginate_by = 20
+    paginate_by = 50
 
     def get_queryset(self):
+        now = timezone.now()
         queryset = super().get_queryset()
-        queryset = queryset.filter().select_related('community').order_by('date', 'start_time')
+        queryset = queryset.filter(date__gte=now.date()).select_related('community').order_by('date', 'start_time')
         return queryset
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        return context
 
 
 def extract_video_id(youtube_url):

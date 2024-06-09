@@ -12,6 +12,7 @@
 
     <div class="container mt-4">
         {% include 'ta_hub/messages.html' %}
+
         <div class="row mb-5">
             <div class="col-lg-12 text-center">
                 <div class="d-flex justify-content-center">
@@ -75,6 +76,7 @@
         <div class="text-end">
             <a href="{% url 'event:import' %}" class="text-white">インポート</a>
         </div>
+        {% include 'ta_hub/pagination.html' %}
     </div>
 
 {% endblock %}
