@@ -10,6 +10,10 @@ class ImageFile(models.Model):
     image = models.ImageField(upload_to='images/')
     max_size = models.IntegerField(default=720)
 
+    class Meta:
+        verbose_name = '画像ファイル'
+        verbose_name_plural = '画像ファイル'
+
     def save(self, *args, **kwargs):
         if self.image:
             img = Image.open(self.image.file)
