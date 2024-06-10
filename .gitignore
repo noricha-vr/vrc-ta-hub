@@ -89,3 +89,4 @@ local_settings.py
 .env.local
 db.sqlite3
 /.local.env
+/app/ta_hub/static/ta_hub/js/*.js
