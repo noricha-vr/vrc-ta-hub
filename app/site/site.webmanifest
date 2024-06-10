@@ -30,7 +30,7 @@
       "url": "/events?source=pwa",
       "icons": [
         {
-          "src": "/images/events.png",
+          "src": "https://data.vrc-ta-hub.com/images%2Fsite%2Fandroid-chrome-192x192.png",
           "sizes": "192x192"
         }
       ]
