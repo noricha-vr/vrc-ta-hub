@@ -20,5 +20,34 @@
   "display": "standalone",
   "start_url": "/",
   "scope": "/",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "description": "VRChatの技術と学術に特化したイベント情報を提供するプラットフォーム。",
+  "shortcuts": [
+    {
+      "name": "即時イベント情報",
+      "short_name": "イベント情報",
+      "description": "開催予定のイベントをすぐに確認",
+      "url": "/events?source=pwa",
+      "icons": [
+        {
+          "src": "/images/events.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/images/screenshot1.png",
+      "type": "image/png",
+      "sizes": "540x720",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/images/screenshot2.jpg",
+      "type": "image/jpg",
+      "sizes": "720x540",
+      "form_factor": "wide"
+    }
+  ]
 }
