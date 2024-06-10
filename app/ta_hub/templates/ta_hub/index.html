@@ -1,4 +1,5 @@
 {% extends 'ta_hub/base.html' %}
+{% load static %}
 {% block main %}
     <style>
         .rounded-custom {
@@ -169,9 +170,11 @@
                             <i class="bi bi-boxes fs-4"></i>
                         </span>
                                 <!-- Content -->
-                                <h3 class="mb-3 fs-5 fw-bold mb-0">毎日が新しい発見！</h3>
+                                <h3 class="mb-3 fs-5 fw-bold mb-0">最先端の情報が満載！</h3>
                             </div>
-                            <p class="text-center">いつでも最新の技術や知識に触れられるので、学びが止まりません。</p>
+                            <p class="text-center">
+                                VRChat技術学術系集会は、最先端の技術情報の宝庫です。参加するたびに、新しい知識や発見があなたを待っています。
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -189,7 +192,7 @@
                                 <h3 class="mb-3 fs-5 fw-bold mb-0">リアルでは得られない経験！</h3>
                             </div>
                             <p class="text-center">
-                                地方や海外、どこに住んでいても参加でき、物理的な制約を超えた交流が楽しめます。</p>
+                                地方や海外、どこに住んでいても参加でき、物理的な制約を超えた交流を楽しめます。</p>
                         </div>
                     </div>
                 </div>
@@ -204,9 +207,11 @@
                             <i class="bi bi-vector-pen fs-4"></i>
                         </span>
                                 <!-- Content -->
-                                <h3 class="mb-3 fs-5 fw-bold mb-0">ライトニングトークで大興奮！</h3>
+                                <h3 class="mb-3 fs-5 fw-bold mb-0">興味の幅が広がる！</h3>
                             </div>
-                            <p class="text-center">集会のテーマに沿った内容の登壇者による発表を楽しめます</p>
+                            <p class="text-center">
+                                ライトニングトークでは、普段は接点の少ない分野の最新事情を知ることができ、興味の幅が広がります。
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -223,7 +228,8 @@
                                 <!-- Content -->
                                 <h3 class="mb-3 fs-5 fw-bold mb-0">忙しくても参加OK！</h3>
                             </div>
-                            <p class="text-center">平日夜や週末に集会があるので、自分のスケジュールに合わせて参加できます。</p>
+                            <p class="text-center">
+                                平日夜や週末に集会があるので、自分のスケジュールに合わせて参加できます。</p>
                         </div>
                     </div>
                 </div>
@@ -324,22 +330,22 @@
                     <img src="https://data.vrc-ta-hub.com/images/kiri-240.png"
                          alt="kiri"
                          class="rounded-circle mx-auto d-block" width="140" height="140" loading="lazy">
-                    <h2 class="fw-normal my-2">kiriさん</h2>
+                    <h3 class="fw-normal my-2">kiriさん</h3>
                     <p>いろんな分野でユニークなLTと濃すぎる雑談が楽しめます～ 強そうなやつ、大体友達！</p>
                 </div><!-- /.col-lg-4 -->
 
                 <div class="col-lg-4">
-                    <img src="https://pbs.twimg.com/media/GK7jdDhaIAAEkzR?format=jpg&name=large" alt="アイコン画像"
+                    <img src="https://data.vrc-ta-hub.com/images/petipeti.png" alt="petipeti"
                          class="rounded-circle mx-auto d-block" width="140" height="140" loading="lazy">
-                    <h2 class="fw-normal my-2">Bさん</h2>
-                    <p>
-                        毎日集会が目白押しで、仕事終わりにVRChatに入るのが日課です</p>
+                    <h3 class="fw-normal my-2">PetiPetiさん</h3>
+                    <p id="petipeti">
+                        さまざまなバックグラウンドを持つ人々と交流することで、視野が広がった！！とんがった知識でもバッチコイ！</p>
                 </div><!-- /.col-lg-4 -->
 
                 <div class="col-lg-4">
                     <img src="https://data.vrc-ta-hub.com/images/001aahge_400x400-280.png" alt="のりちゃん"
                          class="rounded-circle mx-auto d-block" width="140" height="140" loading="lazy">
-                    <h2 class="fw-normal my-2">のりちゃん</h2>
+                    <h3 class="fw-normal my-2">のりちゃん</h3>
                     <p>地方に住んでいるのでリアルではなかなか出会えないニッチな分野の友達がたくさんできました！</p>
                 </div><!-- /.col-lg-4 -->
             </div>
@@ -427,6 +433,7 @@
         </div>
     </section>
 
+    <script src="{% static 'ta_hub/js/index.js' %}"></script>
 
 
 {% endblock %}
