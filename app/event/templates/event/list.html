@@ -1,5 +1,19 @@
 {% extends 'ta_hub/base.html' %}
 {% load django_bootstrap5 %}
+{% block meta %}
+    <title>VRChatイベント一覧 - VRChat 技術・学術系イベントHub</title>
+    <meta name="twitter:title" content="VRChatイベント一覧 - VRChat 技術・学術系イベントHub">
+    <meta property="og:title" content="VRChatイベント一覧 - VRChat 技術・学術系イベントHub">
+    <meta name="description"
+          content="VRChat技術学術系のイベント情報を掲載しています。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
+    <meta name="twitter:description"
+          content="VRChat技術学術系のイベント情報を掲載しています。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
+    <meta property="og:description"
+          content="VRChat技術学術系のイベント情報を掲載しています。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
+    <meta property="og:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan.png">
+    <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan.png">
+{% endblock %}
+
 {% block main %}
     <div class="container my-5">
         <div class="row text-center">
