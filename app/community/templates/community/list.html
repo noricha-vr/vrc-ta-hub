@@ -1,4 +1,17 @@
 {% extends 'ta_hub/base.html' %}
+{% block meta %}
+    <title>VRChat 技術学術系集会一覧 - VRChat 技術・学術系イベントHub</title>
+    <meta name="twitter:title" content="VRChat 技術学術系集会一覧 - VRChat 技術・学術系イベントHub">
+    <meta property="og:title" content="VRChat 技術学術系集会一覧 - VRChat 技術・学術系イベントHub">
+    <meta name="description"
+          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、Twitter、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
+    <meta name="twitter:description"
+          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、Twitter、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
+    <meta property="og:description"
+          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、Twitter、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
+    <meta property="og:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan.png">
+    <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan.png">
+{% endblock %}
 {% block main %}
     <div class="container mt-4">
         <a href="{% url 'community:list' %}" class="text-decoration-none text-black">
