@@ -11,6 +11,7 @@ class EventDetailInline(admin.TabularInline):
 class EventAdmin(admin.ModelAdmin):
     list_display = ('get_community_name', 'date', 'start_time', 'end_time')
     list_filter = ('date',)
+    search_fields = ('community__name', 'date')
     inlines = [EventDetailInline]
 
     def get_community_name(self, obj):
