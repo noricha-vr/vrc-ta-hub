@@ -75,24 +75,79 @@ CALENDAR_API_KEY = os.environ.get('CALENDAR_API_KEY')
 
 from datetime import datetime, timedelta
 
+import logging
+from datetime import datetime, timedelta
 
-def import_events(request):
+from django.http import HttpResponse
+from django.utils import timezone
+from googleapiclient.discovery import build
+
+from .models import Event, Community
+
+logger = logging.getLogger(__name__)
+
+CALENDAR_API_KEY = os.environ.get('CALENDAR_API_KEY')
+
+
+def sync_calendar_events(request):
+    if request.method != 'GET':
+        return HttpResponse("Invalid request method.", status=405)
+
     service = build('calendar', 'v3', developerKey=CALENDAR_API_KEY)
-
-    # カレンダーIDを指定（ここでは例として自分のカレンダーを使用）
     calendar_id = 'fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7@group.calendar.google.com'
-
-    # 今日の日付と60日後の日付を取得
     today = datetime.now().date()
     end_date = today + timedelta(days=60)
 
-    # イベントを取得
-    events_result = service.events().list(calendarId=calendar_id, singleEvents=True, orderBy='startTime',
-                                          timeMin=today.isoformat() + 'T00:00:00Z',
-                                          timeMax=end_date.isoformat() + 'T23:59:59Z').execute()
-    events = events_result.get('items', [])
+    events_result = service.events().list(
+        calendarId=calendar_id,
+        singleEvents=True,
+        orderBy='startTime',
+        timeMin=today.isoformat() + 'T00:00:00Z',
+        timeMax=end_date.isoformat() + 'T23:59:59Z',
+    ).execute()
+    calendar_events = events_result.get('items', [])
 
-    for event in events:
+    # データベースのイベントを削除
+    delete_outdated_events(calendar_events, today)
+
+    # カレンダーイベントを登録/更新
+    register_calendar_events(calendar_events)
+
+    logger.info(
+        f"Events synchronized successfully. {Event.objects.count()} events found."
+    )
+    return HttpResponse("Calendar events synchronized successfully.")
+
+
+def delete_outdated_events(calendar_events, today):
+    """データベースに存在するが、カレンダーに存在しないイベントは削除"""
+    future_events = Event.objects.filter(date__gte=today).values(
+        'id', 'community__name', 'date', 'start_time'
+    )
+
+    for db_event in future_events:
+        db_event_datetime = datetime.combine(
+            db_event['date'], db_event['start_time']
+        ).astimezone(timezone.utc)
+        db_event_str = f"{db_event_datetime.isoformat()} {db_event['community__name']}"
+
+        found = any(
+            datetime.strptime(
+                e['start'].get('dateTime', e['start'].get('date')), '%Y-%m-%dT%H:%M:%S%z'
+            ).astimezone(timezone.utc)
+            == db_event_datetime
+            and e['summary'].strip() == db_event['community__name']
+            for e in calendar_events
+        )
+
+        if not found:
+            Event.objects.filter(id=db_event['id']).delete()
+            logger.info(f"Event deleted: {db_event_str}")
+
+
+def register_calendar_events(calendar_events):
+    """カレンダーイベントの登録処理"""
+    for event in calendar_events:
         start_datetime = event['start'].get('dateTime', event['start'].get('date'))
         end_datetime = event['end'].get('dateTime', event['end'].get('date'))
         summary = event['summary'].strip()
@@ -100,31 +155,29 @@ def import_events(request):
         start = datetime.strptime(start_datetime, '%Y-%m-%dT%H:%M:%S%z')
         end = datetime.strptime(end_datetime, '%Y-%m-%dT%H:%M:%S%z')
 
-        # コミュニティーを名前と主催者名で検索
         community = Community.objects.filter(name=summary).first()
+        if not community:
+            logger.warning(f"Community not found: {summary}")
+            continue
 
         event_str = f"{start} - {end} {summary}"
         logger.info(f"Event: {event_str}")
 
-        if community:
-            # 同じ日時の同じコミュニティーのイベントが存在するかチェック
-            event_exists = Event.objects.filter(community=community, date=start.date(),
-                                                start_time=start.time()).exists()
+        existing_event = Event.objects.filter(
+            community=community, date=start.date(), start_time=start.time()
+        ).first()
 
-            if not event_exists:
-                # イベントを作成
-                event = Event(
-                    community=community,
-                    date=start.date(),
-                    start_time=start.time(),
-                    duration=(end - start).total_seconds() // 60,  # 分単位に変換
-                    weekday=start.strftime("%a"),
-                )
-                event.save()
-            else:
-                messages.warning(request, f"Event already exists: {event_str}")
+        if existing_event:
+            if existing_event.duration != (end - start).total_seconds() // 60:
+                existing_event.duration = (end - start).total_seconds() // 60
+                existing_event.save()
+                logger.info(f"Event updated: {event_str}")
         else:
-            messages.warning(request, f"Community not found: {summary}")
-
-    messages.info(request, f"Events imported successfully. {Event.objects.count()} events imported.")
-    return redirect('event:list')
+            Event.objects.create(
+                community=community,
+                date=start.date(),
+                start_time=start.time(),
+                duration=(end - start).total_seconds() // 60,
+                weekday=start.strftime("%a"),
+            )
+            logger.info(f"Event created: {event_str}")
