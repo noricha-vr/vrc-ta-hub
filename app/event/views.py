@@ -87,6 +87,7 @@ from .models import Event, Community
 logger = logging.getLogger(__name__)
 
 CALENDAR_API_KEY = os.environ.get('CALENDAR_API_KEY')
+REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN')
 
 
 def sync_calendar_events(request):
