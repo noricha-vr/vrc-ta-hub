@@ -21,13 +21,13 @@ app_name = 'sitemap'
 
 # Redirect settings
 favicon_view = RedirectView.as_view(
-    url='apple-touch-icon.png',
+    url='https://data.vrc-ta-hub.com/images%2Fsite%2Ffavicon.ico',
     permanent=True)
 icon120_view = RedirectView.as_view(
-    url='apple-touch-icon.png',
+    url='https://data.vrc-ta-hub.com/images%2Fsite%2Fapple-touch-icon.png',
     permanent=True)
 icon160_view = RedirectView.as_view(
-    url='apple-touch-icon.png',
+    url='https://data.vrc-ta-hub.com/images%2Fsite%2Fapple-touch-icon.png',
     permanent=True)
 urlpatterns = [
     # path('sitemap.xml', SitemapListView.as_view(), name='sitemap_list'),
