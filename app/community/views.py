@@ -38,6 +38,10 @@ class CommunityListView(ListView):
                 community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
                                               tag.strip()]
             community.join_type = get_join_type(community.organizer_url)
+
+        # 曜日の選択肢をコンテキストに追加
+        context['weekday_choices'] = dict(WEEKDAY_CHOICES)
+
         return context
 
 
