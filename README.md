@@ -32,15 +32,16 @@ VRChat技術学術ハブは、VRChat内で開催される技術・学術系イ�
 ## 使用技術
 
 - Django（Python）
-- Bootstrap5
+- Bootstrap5.3
 - SQLite
+- MySql
 - Google Calendar API
 
 ## 開発環境
 
 - Python 3.9以上
-- Django 3.2以上
-- Bootstrap5
+- Django 4.2以上
+- Bootstrap5.3
 
 ## データモデル
 
@@ -53,8 +54,3 @@ VRChat技術学術ハブは、VRChat内で開催される技術・学術系イ�
     - フィールド：集会（外部キー）、開催日時、登壇者、資料、YouTube動画のURLなど
     - 集会モデルとの1対多の関係を持ちます。
 
-## 今後の予定
-
-- デザインをマシにする
-- トップページをちゃんと書く
-- ポスターをいれる 
