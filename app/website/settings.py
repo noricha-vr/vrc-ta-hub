@@ -40,8 +40,11 @@ INSTALLED_APPS = [
     'community',
     'event',
     'sitemap',
+    'account',
     'django_bootstrap5',
 ]
+
+AUTH_USER_MODEL = 'account.CustomUser'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
