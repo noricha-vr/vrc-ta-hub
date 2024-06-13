@@ -1,6 +1,8 @@
-# VRChat 技術学術ハブ（Vrc Technology and Academic Hub）
+# VRChat 技術学術ハブ（VRChat Technology and Academic Hub）
 
-このプロジェクトはVRChat技術学術系の情報を共有するためのプロジェクトです。
+このプロジェクトはVRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくためのWeb制作プロジェクトです。
+
+https://vrc-ta-hub.com
 
 ## 概要
 
