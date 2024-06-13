@@ -41,6 +41,9 @@ class CommunityListView(ListView):
         return context
 
 
+from .models import Community, WEEKDAY_CHOICES, TAGS
+
+
 class CommunityDetailView(DetailView):
     model = Community
     template_name = 'community/detail.html'
@@ -64,5 +67,11 @@ class CommunityDetailView(DetailView):
         ).filter(
             Q(details__theme__isnull=False) | Q(details__theme__gt='')
         ).prefetch_related('details').order_by('-date', '-start_time')[:4]
+
+        # 曜日の選択肢をコンテキストに追加
+        context['weekday_choices'] = dict(WEEKDAY_CHOICES)
+
+        # タグの選択肢をコンテキストに追加
+        context['tag_choices'] = dict(TAGS)
 
         return context
