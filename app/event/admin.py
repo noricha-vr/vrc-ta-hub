@@ -18,3 +18,10 @@ class EventAdmin(admin.ModelAdmin):
         return obj.community.name
 
     get_community_name.short_description = 'コミュニティ名'
+
+
+@admin.register(EventDetail)
+class EventDetailAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'updated_at', 'theme', 'speaker')
+    list_filter = ('theme', 'speaker')
+    readonly_fields = ('event',)
