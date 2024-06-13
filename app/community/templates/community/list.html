@@ -73,7 +73,7 @@
                             <p><a href="{% url 'community:detail' community.id %}"
                                   class="text-body text-decoration-none">{{ community.description|linebreaks|slice:":140" }}...</a>
                             </p>
-                            <p><strong>開催曜日:</strong> {{ community.get_weekday_display }}</p>
+                            <p><strong>開催曜日:</strong> {{ community.get_weekdays_display }}</p>
                             <p><strong>開催時間:</strong> {{ community.start_time|date:"H:i" }}
                                 - {{ community.end_time|date:"H:i" }}</p>
                             <p><strong>開催周期:</strong> {{ community.frequency }}</p>

@@ -50,7 +50,7 @@
                         <h2 class="fs-4 fw-bold my-3">
                             イベント開催情報
                         </h2>
-                        <p>開催曜日: {{ community.get_weekday_display }}</p>
+                        <p>開催曜日: {{ community.get_weekdays_display }}</p>
                         <p>開催時間: {{ community.start_time|date:"H:i" }}
                             - {{ community.end_time|date:"H:i" }}</p>
                         <p>開催周期: {{ community.frequency }}</p>

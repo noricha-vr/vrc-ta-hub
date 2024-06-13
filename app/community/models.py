@@ -32,7 +32,7 @@ class Community(models.Model):
     end_at = models.DateField('終了日', default=None, blank=True, null=True)
     start_time = models.TimeField('開始時刻', default='22:00', db_index=True)
     duration = models.IntegerField('開催時間', default=60, help_text='単位は分')
-    weekday = models.CharField('曜日', max_length=5, choices=WEEKDAY_CHOICES)
+    weekdays = models.JSONField('曜日', default=list, blank=True)  # JSONFieldに変更
     frequency = models.CharField('開催周期', max_length=100)
     organizers = models.CharField('主催・副主催', max_length=200)
     group_url = models.URLField('VRChatグループURL', blank=True)
@@ -43,7 +43,7 @@ class Community(models.Model):
     poster_image = models.ImageField('ポスター', upload_to='poster/', blank=True)
     description = models.TextField('イベント紹介', default='', blank=True)
     platform = models.CharField('対応プラットフォーム', max_length=10, choices=PLATFORM_CHOICES, default='All')
-    tags = models.JSONField('タグ', max_length=10, choices=TAGS, default=list)
+    tags = models.JSONField('タグ', max_length=10, default=list)
 
     class Meta:
         verbose_name = '集会'

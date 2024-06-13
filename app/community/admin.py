@@ -1,12 +1,26 @@
 from django.contrib import admin
 from .models import Community
+from .forms import CommunityForm
 
 
 @admin.register(Community)
 class CommunityAdmin(admin.ModelAdmin):
-    list_display = ('name', 'weekday', 'start_time', 'frequency', 'organizers')
-    list_filter = ('weekday', 'frequency')
+    form = CommunityForm
+    list_display = ('name', 'get_weekdays', 'start_time', 'frequency', 'organizers', 'get_tags')
+    list_filter = ('weekdays', 'frequency', 'tags')  # tags をフィルタに追加
     search_fields = ('name', 'organizers')
+
+    def get_weekdays(self, obj):
+        return ", ".join(obj.weekdays)
+
+    get_weekdays.short_description = '曜日'
+
+    def get_tags(self, obj):
+        if type(obj.tags) == str:
+            return obj.tags
+        return ", ".join(obj.tags)
+
+    get_tags.short_description = 'タグ'
 
 #
 # class Community(models.Model):
