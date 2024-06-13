@@ -1,8 +1,36 @@
 {% extends 'ta_hub/base.html' %}
+
+{% block meta %}
+    <title>VRChatイベント一覧 - VRChat 技術・学術系イベントHub</title>
+    <meta name="twitter:title" content="{{ community.name }} - VRChat 技術・学術系イベントHub">
+    <meta property="og:title" content="{{ community.name }} - VRChat 技術・学術系イベントHub">
+    <meta name="description" content="{{ community.description|truncatechars:170 }}">
+    <meta name="twitter:description" content="{{ community.description|truncatechars:170 }}">
+    <meta property="og:description" content="{{ community.description|truncatechars:170 }}">
+    {% if community.poster_image %}
+        <meta property="og:image" content="{{ community.poster_image.url }}">
+        <meta name="twitter:image" content="{{ community.poster_image.url }}">
+    {% else %}
+        <meta property="og:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan.png">
+        <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan.png">
+    {% endif %}
+{% endblock %}
+
 {% block main %}
     <div class="container mt-4">
+        {% if request.user.is_superuser %}
+            <a href="/admin/community/community/{{ community.pk }}/change/"
+               class="btn btn-primary">Admin編集</a>
+        {% endif %}
+
+        {% if request.user.is_staff %}
+            <a href="/admin/community/community/{{ community.pk }}/change/"
+               class="btn btn-primary">編集</a>
+        {% endif %}
+
         <div class="card bg-light-subtle my-5 shadow">
             <div class="row no-gutters">
+
                 <div class="col-md-5 order-md-1 order-2 p-3">
                     {% if community.poster_image %}
                         <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
