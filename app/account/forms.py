@@ -20,3 +20,13 @@ class CustomUserCreationForm(UserCreationForm):
             user.save()
             Community.objects.create(name=community_name, description=community_description, user=user)
         return user
+
+
+from django import forms
+from .models import CustomUser
+
+
+class CustomUserChangeForm(forms.ModelForm):
+    class Meta:
+        model = CustomUser
+        fields = ('user_name',)

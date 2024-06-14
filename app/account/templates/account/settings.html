@@ -1,0 +1,18 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block main %}
+    <h2>設定</h2>
+
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <ul>
+        <li><a href="{% url 'account:password_change' %}">パスワードの変更</a></li>
+        <li><a href="{% url 'account:user_update' %}">ユーザー情報の更新</a></li>
+    </ul>
+{% endblock %}

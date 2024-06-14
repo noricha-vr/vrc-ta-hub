@@ -1,0 +1,10 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block main %}
+    <h2>ユーザー名の変更</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">変更</button>
+    </form>
+{% endblock %}
