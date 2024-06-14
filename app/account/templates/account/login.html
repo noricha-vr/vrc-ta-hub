@@ -1,11 +1,23 @@
 {% extends 'ta_hub/base.html' %}
 
 {% block main %}
-    {% include 'ta_hub/messages.html' %}
-    <h2>ログイン</h2>
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">ログイン</button>
-    </form>
+    <div class="container my-4">
+        <div class="row">
+            <div class="col-md-6 offset-md-3">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">ログイン</h4>
+                    </div>
+                    <div class="card-body">
+                        {% include 'ta_hub/messages.html' %}
+                        <form method="post">
+                            {% csrf_token %}
+                            {{ form.as_p }}
+                            <button type="submit" class="btn btn-primary">ログイン</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock %}
