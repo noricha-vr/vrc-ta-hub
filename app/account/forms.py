@@ -37,8 +37,8 @@ from .models import CustomUser
 class CustomUserChangeForm(forms.ModelForm):
     class Meta:
         model = CustomUser
-        fields = ('user_name', 'icon')
+        fields = ('user_name', 'email')
         widgets = {
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
-            'icon': forms.FileInput(attrs={'class': 'form-control-file'}),
+            'email': forms.TextInput(attrs={'class': 'form-control'}),
         }

@@ -12,19 +12,20 @@
                         {% include 'ta_hub/messages.html' %}
                         <ul class="list-group">
                             <li class="list-group-item">
-                                <a href="{% url 'account:password_change' %}" class="text-decoration-none">
-                                    <i class="fas fa-lock me-2"></i>パスワードの変更
+                                <a href="{% url 'community:update' community.pk %}"
+                                   class="text-decoration-none">
+                                    <i class="fas fa-users me-2"></i>集会情報の編集
                                 </a>
                             </li>
+
                             <li class="list-group-item">
                                 <a href="{% url 'account:user_update' %}" class="text-decoration-none">
                                     <i class="fas fa-user me-2"></i>ユーザー情報の更新
                                 </a>
                             </li>
                             <li class="list-group-item">
-                                <a href="{% url 'community:update' community.pk %}"
-                                   class="text-decoration-none">
-                                    <i class="fas fa-users me-2"></i>集会情報の編集
+                                <a href="{% url 'account:password_change' %}" class="text-decoration-none">
+                                    <i class="fas fa-lock me-2"></i>パスワードの変更
                                 </a>
                             </li>
                         </ul>
