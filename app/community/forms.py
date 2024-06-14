@@ -60,13 +60,27 @@ from .models import Community
 
 
 class CommunityUpdateForm(forms.ModelForm):
+    weekdays = forms.MultipleChoiceField(
+        label='曜日',
+        choices=WEEKDAY_CHOICES,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-inline'}),
+        required=False
+    )
+
+    tags = forms.MultipleChoiceField(
+        label='タグ',
+        choices=TAGS,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-inline'}),
+        required=False
+    )
+
     class Meta:
         model = Community
         fields = ['name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers', 'group_url', 'organizer_url',
                   'sns_url', 'discord', 'twitter_hashtag', 'poster_image', 'description', 'platform', 'tags']
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
-            'start_time': forms.TimeInput(attrs={'class': 'form-control'}),
+            'start_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'duration': forms.NumberInput(attrs={'class': 'form-control'}),
             'weekdays': forms.SelectMultiple(attrs={'class': 'form-control'}),
             'frequency': forms.TextInput(attrs={'class': 'form-control'}),
@@ -80,4 +94,7 @@ class CommunityUpdateForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'class': 'form-control'}),
             'platform': forms.Select(attrs={'class': 'form-control'}),
             'tags': forms.SelectMultiple(attrs={'class': 'form-control'}),
+        }
+        labels = {
+            'sns_url': 'SNS URL',
         }
