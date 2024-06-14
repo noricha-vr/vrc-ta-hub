@@ -26,6 +26,8 @@ TAGS = (
 
 
 class Community(models.Model):
+    custom_user = models.ForeignKey('account.CustomUser', on_delete=models.CASCADE, verbose_name='ユーザー',
+                                    default=None, blank=True, null=True)
     name = models.CharField('集会名', max_length=100, db_index=True)
     created_at = models.DateField('開始日', default=timezone.now, blank=True, null=True, db_index=True)
     updated_at = models.DateField('更新日', auto_now=True, db_index=True)

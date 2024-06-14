@@ -21,6 +21,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('community/', include('community.urls')),
     path('event/', include('event.urls')),
+    path('account/', include('account.urls')),
     path('', include('ta_hub.urls')),
     path('', include('sitemap.urls')),
 ]

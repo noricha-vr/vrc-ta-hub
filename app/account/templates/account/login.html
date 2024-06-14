@@ -1,0 +1,11 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block main %}
+    {% include 'ta_hub/messages.html' %}
+    <h2>ログイン</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">ログイン</button>
+    </form>
+{% endblock %}

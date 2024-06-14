@@ -53,16 +53,16 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         verbose_name=_('groups'),
         blank=True,
         help_text=_(
-            'The groups this user belongs to. A user will get all permissions '
+            'The groups this custom_user belongs to. A custom_user will get all permissions '
             'granted to each of their groups.'
         ),
         related_name='customuser_set',  # related_name を追加
     )
     user_permissions = models.ManyToManyField(
         'auth.Permission',
-        verbose_name=_('user permissions'),
+        verbose_name=_('custom_user permissions'),
         blank=True,
-        help_text=_('Specific permissions for this user.'),
+        help_text=_('Specific permissions for this custom_user.'),
         related_name='customuser_set',  # related_name を追加
     )
 
