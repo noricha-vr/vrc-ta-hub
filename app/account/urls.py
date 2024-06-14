@@ -3,7 +3,7 @@ from django.urls import path
 from django.views.generic import TemplateView
 
 from .views import CustomLoginView, CustomLogoutView, CustomUserCreateView, CustomPasswordChangeView, \
-    UserNameChangeView, UserUpdateView
+    UserNameChangeView, UserUpdateView, SettingsView
 
 app_name = 'account'
 urlpatterns = [
@@ -13,6 +13,6 @@ urlpatterns = [
     path('password_change/', CustomPasswordChangeView.as_view(), name='password_change'),
     path('user_name_change/', UserNameChangeView.as_view(), name='user_name_change'),
     path('update/', UserUpdateView.as_view(), name='user_update'),
-    path('settings/', TemplateView.as_view(template_name='account/settings.html'), name='settings'),
+    path('settings/', SettingsView.as_view(), name='settings'),
 
 ]

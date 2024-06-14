@@ -12,7 +12,7 @@ from community.models import Community
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import reverse_lazy
 
-from django.views.generic import CreateView
+from django.views.generic import CreateView, TemplateView
 from django.urls import reverse_lazy
 from .forms import CustomUserCreationForm
 
@@ -87,6 +87,15 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, 'ユーザー情報が正常に更新されました。')
         return super().form_valid(form)
+
+
+class SettingsView(LoginRequiredMixin, TemplateView):
+    template_name = 'account/settings.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['community'] = Community.objects.filter(custom_user=self.request.user).first()
+        return context
 
 # for user in CustomUser.objects.all():
 #     password = secrets.token_hex(12)  # ランダムな16文字のパスワードを生成

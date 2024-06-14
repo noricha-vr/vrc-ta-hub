@@ -1,3 +1,4 @@
+from django.contrib import messages
 from django.db.models import Q
 from django.utils import timezone
 from django.views.generic import ListView, DetailView
@@ -66,3 +67,25 @@ class CommunityDetailView(DetailView):
         ).prefetch_related('details').order_by('-date', '-start_time')[:4]
 
         return context
+
+
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.urls import reverse_lazy
+from django.views.generic import UpdateView
+from .models import Community
+from .forms import CommunityUpdateForm
+
+
+class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    model = Community
+    form_class = CommunityUpdateForm
+    template_name = 'community/update.html'
+    success_url = reverse_lazy('account:settings')
+
+    def test_func(self):
+        community = self.get_object()
+        return self.request.user == community.custom_user
+
+    def form_valid(self, form):
+        messages.success(self.request, 'コミュニティ情報が更新されました。')
+        return super().form_valid(form)

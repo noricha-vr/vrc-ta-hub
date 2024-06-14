@@ -53,3 +53,31 @@ class CommunityForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
+
+
+from django import forms
+from .models import Community
+
+
+class CommunityUpdateForm(forms.ModelForm):
+    class Meta:
+        model = Community
+        fields = ['name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers', 'group_url', 'organizer_url',
+                  'sns_url', 'discord', 'twitter_hashtag', 'poster_image', 'description', 'platform', 'tags']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'start_time': forms.TimeInput(attrs={'class': 'form-control'}),
+            'duration': forms.NumberInput(attrs={'class': 'form-control'}),
+            'weekdays': forms.SelectMultiple(attrs={'class': 'form-control'}),
+            'frequency': forms.TextInput(attrs={'class': 'form-control'}),
+            'organizers': forms.TextInput(attrs={'class': 'form-control'}),
+            'group_url': forms.URLInput(attrs={'class': 'form-control'}),
+            'organizer_url': forms.URLInput(attrs={'class': 'form-control'}),
+            'sns_url': forms.URLInput(attrs={'class': 'form-control'}),
+            'discord': forms.URLInput(attrs={'class': 'form-control'}),
+            'twitter_hashtag': forms.TextInput(attrs={'class': 'form-control'}),
+            'poster_image': forms.FileInput(attrs={'class': 'form-control-file'}),
+            'description': forms.Textarea(attrs={'class': 'form-control'}),
+            'platform': forms.Select(attrs={'class': 'form-control'}),
+            'tags': forms.SelectMultiple(attrs={'class': 'form-control'}),
+        }
