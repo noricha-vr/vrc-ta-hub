@@ -87,3 +87,9 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, 'ユーザー情報が正常に更新されました。')
         return super().form_valid(form)
+
+# for user in CustomUser.objects.all():
+#     password = secrets.token_hex(12)  # ランダムな16文字のパスワードを生成
+#     user.set_password(password)
+#     user.save()
+#     print(user.user_name, password)

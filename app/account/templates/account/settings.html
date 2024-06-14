@@ -1,18 +1,30 @@
 {% extends 'ta_hub/base.html' %}
 
 {% block main %}
-    <h2>設定</h2>
-
-    {% if messages %}
-        <ul class="messages">
-            {% for message in messages %}
-                <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
-            {% endfor %}
-        </ul>
-    {% endif %}
-
-    <ul>
-        <li><a href="{% url 'account:password_change' %}">パスワードの変更</a></li>
-        <li><a href="{% url 'account:user_update' %}">ユーザー情報の更新</a></li>
-    </ul>
+    <div class="container my-4">
+        <div class="row">
+            <div class="col-md-6 offset-md-3">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">設定</h4>
+                    </div>
+                    <div class="card-body">
+                        {% include 'ta_hub/messages.html' %}
+                        <ul class="list-group">
+                            <li class="list-group-item">
+                                <a href="{% url 'account:password_change' %}" class="text-decoration-none">
+                                    <i class="fas fa-lock me-2"></i>パスワードの変更
+                                </a>
+                            </li>
+                            <li class="list-group-item">
+                                <a href="{% url 'account:user_update' %}" class="text-decoration-none">
+                                    <i class="fas fa-user me-2"></i>ユーザー情報の更新
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock %}
