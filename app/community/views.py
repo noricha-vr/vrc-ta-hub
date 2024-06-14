@@ -39,7 +39,14 @@ class CommunityListView(ListView):
                 community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
                                               tag.strip()]
             community.join_type = get_join_type(community.organizer_url)
+
+        # 曜日の選択肢をコンテキストに追加
+        context['weekday_choices'] = dict(WEEKDAY_CHOICES)
+
         return context
+
+
+from .models import Community, WEEKDAY_CHOICES, TAGS
 
 
 class CommunityDetailView(DetailView):
@@ -65,6 +72,12 @@ class CommunityDetailView(DetailView):
         ).filter(
             Q(details__theme__isnull=False) | Q(details__theme__gt='')
         ).prefetch_related('details').order_by('-date', '-start_time')[:4]
+
+        # 曜日の選択肢をコンテキストに追加
+        context['weekday_choices'] = dict(WEEKDAY_CHOICES)
+
+        # タグの選択肢をコンテキストに追加
+        context['tag_choices'] = dict(TAGS)
 
         return context
 

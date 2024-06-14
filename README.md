@@ -1,6 +1,8 @@
-# VRChat 技術学術ハブ（Vrc Technology and Academic Hub）
+# VRChat 技術学術ハブ（VRChat Technology and Academic Hub）
 
-このプロジェクトはVRChat技術学術系の情報を共有するためのプロジェクトです。
+このプロジェクトはVRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくためのWeb制作プロジェクトです。
+
+https://vrc-ta-hub.com
 
 ## 概要
 
@@ -32,15 +34,16 @@ VRChat技術学術ハブは、VRChat内で開催される技術・学術系イ�
 ## 使用技術
 
 - Django（Python）
-- Bootstrap5
+- Bootstrap5.3
 - SQLite
+- MySql
 - Google Calendar API
 
 ## 開発環境
 
 - Python 3.9以上
-- Django 3.2以上
-- Bootstrap5
+- Django 4.2以上
+- Bootstrap5.3
 
 ## データモデル
 
@@ -53,8 +56,12 @@ VRChat技術学術ハブは、VRChat内で開催される技術・学術系イ�
     - フィールド：集会（外部キー）、開催日時、登壇者、資料、YouTube動画のURLなど
     - 集会モデルとの1対多の関係を持ちます。
 
-## 今後の予定
+## TODO
 
-- デザインをマシにする
-- トップページをちゃんと書く
-- ポスターをいれる 
+- PGNをJPEGに変換して画像を軽量化
+- ユーザー・イベントの登録画面
+- ユーザーの承認画面
+- ユーザー名の変更画面
+- パスワードの変更画面
+- 集会の編集画面
+- スライドや動画のリンクを登録する画面

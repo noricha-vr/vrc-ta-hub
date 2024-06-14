@@ -1,4 +1,5 @@
 {% extends 'ta_hub/base.html' %}
+{% load custom_filters %}
 
 {% block meta %}
     <title>VRChatイベント一覧 - VRChat 技術・学術系イベントHub</title>
@@ -50,7 +51,12 @@
                         <h2 class="fs-4 fw-bold my-3">
                             イベント開催情報
                         </h2>
-                        <p>開催曜日: {{ community.get_weekdays_display }}</p>
+                        <p>開催曜日:
+                            {% for weekday in community.weekdays %}
+                                {{ weekday_choices|get_item:weekday }}
+                                {% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        </p>
                         <p>開催時間: {{ community.start_time|date:"H:i" }}
                             - {{ community.end_time|date:"H:i" }}</p>
                         <p>開催周期: {{ community.frequency }}</p>
@@ -100,6 +106,12 @@
                                 {% endfor %}
                             </p>
                         {% endif %}
+
+                        {# タグ #}
+                        {#                      {% for tag in community.tags %}#}
+                        {#    {{ tag_choices|get_item:tag }}#}
+                        {#    {% if not forloop.last %}, {% endif %}#}
+                        {#  {% endfor %}#}
                     </div>
                 </div>
             </div>
