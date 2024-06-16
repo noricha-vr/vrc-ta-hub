@@ -28,7 +28,7 @@
                                         <a href="{% url 'event:detail' event.details.pk %}"
                                            class="btn btn-primary">確認</a>
                                         <a href="{% url 'event:detail_update' event.details.pk %}"
-                                           class="btn btn-secondary">編集</a>
+                                           class="btn btn-success">編集</a>
                                         <form method="post" action="{% url 'event:detail_delete' event.details.pk %}"
                                               class="d-inline">
                                         {% csrf_token %}

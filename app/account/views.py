@@ -1,25 +1,14 @@
-import hashlib
-
-from django.contrib import messages
-from django.shortcuts import render
-
-# Create your views here.
-import secrets
-from django.contrib.auth.hashers import make_password
-
-from account.models import CustomUser
 from community.models import Community
 from django.contrib.auth.views import LoginView, LogoutView
-from django.urls import reverse_lazy
-
 from django.views.generic import CreateView, TemplateView
 from django.urls import reverse_lazy
-from .forms import CustomUserCreationForm
+from .forms import CustomUserCreationForm, BootstrapAuthenticationForm
 
 
 class CustomLoginView(LoginView):
     template_name = 'account/login.html'
-    success_url = reverse_lazy('ta_hub:index')  # ログイン成功後のリダイレクト先
+    success_url = reverse_lazy('ta_hub:settings')  # ログイン成功後のリダイレクト先
+    form_class = BootstrapAuthenticationForm
 
     def get_success_url(self):
         messages.success(self.request, 'ログインしました。')
@@ -36,7 +25,6 @@ class CustomUserCreateView(CreateView):
     success_url = reverse_lazy('account:login')
 
 
-from django.contrib.auth.views import PasswordChangeView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.views.generic import UpdateView
