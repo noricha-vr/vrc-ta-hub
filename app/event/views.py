@@ -56,6 +56,8 @@ def extract_video_id(youtube_url):
     """
     YouTube URLからvideo_idを抽出する関数。
     """
+    if not youtube_url:
+        return None
     pattern = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})'
     match = re.search(pattern, youtube_url)
     if match:
@@ -205,7 +207,7 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        return reverse_lazy('event:detail', kwargs={'pk': self.event.pk})
+        return reverse_lazy('event:detail', kwargs={'pk': self.object.pk})
 
 
 class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
@@ -214,7 +216,7 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'event/detail_form.html'
 
     def get_success_url(self):
-        return reverse_lazy('event:detail', kwargs={'pk': self.object.event.pk})
+        return reverse_lazy('event:detail', kwargs={'pk': self.object.pk})
 
 
 class EventDetailDeleteView(LoginRequiredMixin, DeleteView):
@@ -222,7 +224,7 @@ class EventDetailDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'event/detail_confirm_delete.html'
 
     def get_success_url(self):
-        return reverse_lazy('event:detail', kwargs={'pk': self.object.event.pk})
+        return reverse_lazy('event:detail_list')
 
 
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -230,9 +232,9 @@ from django.views.generic import ListView
 from .models import Event
 
 
-class UserEventListView(LoginRequiredMixin, ListView):
+class DetailList(LoginRequiredMixin, ListView):
     model = Event
-    template_name = 'event/user_event_list.html'
+    template_name = 'event/detail_list.html'
     context_object_name = 'events'
 
     def get_queryset(self):

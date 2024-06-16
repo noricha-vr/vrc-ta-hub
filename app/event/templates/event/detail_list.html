@@ -1,0 +1,53 @@
+{% extends 'ta_hub/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block main %}
+    <div class="container my-4">
+        <a href="{% url 'community:list' %}" class="text-decoration-none text-black">
+            <h1 class="text-center my-5 fw-bold keiko_yellow">
+                {{ request.user }} イベント開催一覧
+            </h1>
+        </a>
+        {% for event in events %}
+            <div class="row">
+                <div class="col-12 col-md-8 offset-md-2 mb-4">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card-text mb-2">{{ event.community.name }}</div>
+                                    <div class="card-text mb-2">開催日: {{ event.date }}</div>
+                                    <div class="card-text mb-2">開始時刻: {{ event.start_time }}</div>
+                                </div>
+                                <div class="col-md-6">
+                                    {% if event.details %}
+                                        <div class="card-text mb-2">テーマ:
+                                            {{ event.details.theme }}
+                                        </div>
+                                        <div class="card-text mb-2">発表者: {{ event.details.speaker }}</div>
+                                        <a href="{% url 'event:detail' event.details.pk %}"
+                                           class="btn btn-primary">確認</a>
+                                        <a href="{% url 'event:detail_update' event.details.pk %}"
+                                           class="btn btn-secondary">編集</a>
+                                        <form method="post" action="{% url 'event:detail_delete' event.details.pk %}"
+                                              class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-danger">削除</button>
+                                    {% else %}
+                                        <div class="d-flex align-items-end mb-2">
+                                            <a href="{% url 'event:detail_create' event.pk %}" class="btn btn-success">スライド・動画を登録</a>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <div class="">
+                <p>イベントがありません。</p>
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}

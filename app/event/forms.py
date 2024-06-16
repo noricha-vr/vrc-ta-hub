@@ -22,10 +22,13 @@ class EventSearchForm(forms.Form):
     )
 
 
+from django.core.exceptions import ValidationError
+
+
 class EventDetailForm(forms.ModelForm):
     class Meta:
         model = EventDetail
-        fields = ['youtube_url', 'slide_url', 'slide_file', 'speaker', 'theme']
+        fields = ['theme', 'speaker', 'slide_url', 'slide_file', 'youtube_url', ]
         widgets = {
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
@@ -33,3 +36,10 @@ class EventDetailForm(forms.ModelForm):
             'speaker': forms.TextInput(attrs={'class': 'form-control'}),
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
         }
+
+    def clean_slide_file(self):
+        slide_file = self.cleaned_data.get('slide_file')
+        if slide_file:
+            if slide_file.size > 30 * 1024 * 1024:  # 30MB
+                raise ValidationError('ファイルサイズが30MBを超えています。')
+        return slide_file

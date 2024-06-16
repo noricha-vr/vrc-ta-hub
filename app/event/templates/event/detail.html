@@ -55,13 +55,14 @@
                         </div>
                         <div>
                             発表資料:
+
                             {% if event_detail.slide_url %}
                                 <a href="{{ event_detail.slide_url }}" target="_blank" class="me-2"><i
-                                        class="bi bi-file-earmark-text-fill"></i></a>
+                                        class="bi bi-link"></i>リンク</a>
                             {% endif %}
                             {% if event_detail.slide_file %}
                                 <a href="{{ event_detail.slide_file.url }}" target="_blank"><i
-                                        class="bi bi-file-earmark-text-fill"></i></a>
+                                        class="bi bi-file-earmark-text-fill"></i>ファイル</a>
                             {% endif %}
                         </div>
                     </div>
