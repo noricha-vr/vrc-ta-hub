@@ -1,6 +1,13 @@
 import os
 import re
 
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.shortcuts import get_object_or_404
+from django.urls import reverse_lazy
+from django.views.generic import CreateView, UpdateView, DeleteView
+from .models import Event, EventDetail
+from event.forms import EventDetailForm
+
 from django.contrib import messages
 from django.shortcuts import redirect
 from django.views.generic import DetailView
@@ -182,3 +189,51 @@ def register_calendar_events(calendar_events):
                 weekday=start.strftime("%a"),
             )
             logger.info(f"Event created: {event_str}")
+
+
+class EventDetailCreateView(LoginRequiredMixin, CreateView):
+    model = EventDetail
+    form_class = EventDetailForm
+    template_name = 'event/detail_form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.event = get_object_or_404(Event, pk=kwargs['event_pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.event = self.event
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('event:detail', kwargs={'pk': self.event.pk})
+
+
+class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
+    model = EventDetail
+    form_class = EventDetailForm
+    template_name = 'event/detail_form.html'
+
+    def get_success_url(self):
+        return reverse_lazy('event:detail', kwargs={'pk': self.object.event.pk})
+
+
+class EventDetailDeleteView(LoginRequiredMixin, DeleteView):
+    model = EventDetail
+    template_name = 'event/detail_confirm_delete.html'
+
+    def get_success_url(self):
+        return reverse_lazy('event:detail', kwargs={'pk': self.object.event.pk})
+
+
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic import ListView
+from .models import Event
+
+
+class UserEventListView(LoginRequiredMixin, ListView):
+    model = Event
+    template_name = 'event/user_event_list.html'
+    context_object_name = 'events'
+
+    def get_queryset(self):
+        return Event.objects.filter(community__custom_user=self.request.user).prefetch_related('details')

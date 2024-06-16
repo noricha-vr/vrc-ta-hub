@@ -1,0 +1,15 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block content %}
+    <h2>イベント詳細の削除</h2>
+    <p>以下のイベント詳細を削除しますか？</p>
+    <ul>
+        <li>テーマ: {{ object.theme }}</li>
+        <li>発表者: {{ object.speaker }}</li>
+    </ul>
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">削除</button>
+        <a href="{% url 'event:detail' object.event.pk %}" class="btn btn-secondary">キャンセル</a>
+    </form>
+{% endblock %}

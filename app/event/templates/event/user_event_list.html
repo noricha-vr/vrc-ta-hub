@@ -1,0 +1,39 @@
+{% extends 'ta_hub/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block main %}
+    <div class="container my-4">
+        <h2>{{ request.user }} イベント開催一覧</h2>
+        <div class="row">
+            {% for event in events %}
+                <div class="col-12 mb-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ event.community.name }}</h5>
+                            <p class="card-text">開催日: {{ event.date }}</p>
+                            <p class="card-text">開始時刻: {{ event.start_time }}</p>
+                            <p class="card-text">主催: {{ event.community.organizers }}</p>
+                        </div>
+                        <div class="card-footer d-flex justify-content-start align-items-center">
+                            <div>
+                                <a href="{% url 'event:detail' event.pk %}" class="btn btn-primary me-2">確認</a>
+                            </div>
+                            <div>
+                                {% if event.details.exists %}
+                                    <a href="{% url 'event:detail_update' event.details.first.pk %}"
+                                       class="btn btn-secondary me-2">編集</a>
+                                {% else %}
+                                    <a href="{% url 'event:detail_create' event.pk %}" class="btn btn-success">作成</a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <p>イベントがありません。</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}
