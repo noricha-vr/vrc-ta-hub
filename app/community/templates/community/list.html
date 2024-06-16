@@ -59,7 +59,7 @@
                         <a href="{% url 'community:detail' community.id %}">
                             {% if community.poster_image %}
                                 <img src="{{ community.poster_image.url }}" style="max-width: 350px" loading=”lazy”
-                                     alt="{{ community.name }}" class="img-fluid card-img">
+                                     alt="{{ community.name }}" class="img-fluid  card-img">
                             {% else %}
                                 <img src="https://vrc-ta-hub.com/poster/no-image.png" style="max-width: 350px"
                                      loading=”lazy”
@@ -70,7 +70,7 @@
                     <div class="col-md-7 order-md-2 order-1">
                         <div class="card-body">
                             <h2><a href="{% url 'community:detail' community.id %}"
-                                   class="text-body text-decoration-none">{{ community.name }}</a></h2>
+                                   class="text-body text-decoration-none fw-bold">{{ community.name }}</a></h2>
                             <p><a href="{% url 'community:detail' community.id %}"
                                   class="text-body text-decoration-none">{{ community.description|linebreaks|slice:":140" }}...</a>
                             </p>
