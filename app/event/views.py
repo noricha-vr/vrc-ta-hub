@@ -236,4 +236,5 @@ class UserEventListView(LoginRequiredMixin, ListView):
     context_object_name = 'events'
 
     def get_queryset(self):
-        return Event.objects.filter(community__custom_user=self.request.user).prefetch_related('details')
+        return Event.objects.filter(community__custom_user=self.request.user).prefetch_related('details').order_by(
+            '-date', '-start_time')
