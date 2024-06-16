@@ -2,7 +2,7 @@ from community.models import Community
 from django.contrib.auth.views import LoginView, LogoutView
 from django.views.generic import CreateView, TemplateView
 from django.urls import reverse_lazy
-from .forms import CustomUserCreationForm, BootstrapAuthenticationForm
+from .forms import CustomUserCreationForm, BootstrapAuthenticationForm, BootstrapPasswordChangeForm
 
 
 class CustomLoginView(LoginView):
@@ -52,6 +52,7 @@ from django.contrib.auth.views import PasswordChangeView
 class CustomPasswordChangeView(LoginRequiredMixin, PasswordChangeView):
     success_url = reverse_lazy('account:settings')
     template_name = 'account/password_change.html'
+    form_class = BootstrapPasswordChangeForm
 
     def form_valid(self, form):
         messages.success(self.request, 'パスワードが正常に変更されました。')
