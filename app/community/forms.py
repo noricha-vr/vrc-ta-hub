@@ -98,3 +98,6 @@ class CommunityUpdateForm(forms.ModelForm):
         labels = {
             'sns_url': 'SNS URL',
         }
+        help_texts = {
+            'name': '※ Googleカレンダーと同期するためにカレンダーの予定名と集会名が完全に一致する必要があります',
+        }
