@@ -31,8 +31,11 @@
                                            class="btn btn-success">編集</a>
                                         <form method="post" action="{% url 'event:detail_delete' event.details.pk %}"
                                               class="d-inline">
-                                        {% csrf_token %}
-                                        <button type="submit" class="btn btn-danger">削除</button>
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-danger"
+                                                    onclick="return confirm('本当に削除しますか？');">削除
+                                            </button>
+                                        </form>
                                     {% else %}
                                         <div class="d-flex align-items-end mb-2">
                                             <a href="{% url 'event:detail_create' event.pk %}" class="btn btn-success">スライド・動画を登録</a>
