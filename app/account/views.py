@@ -7,7 +7,7 @@ from .forms import CustomUserCreationForm, BootstrapAuthenticationForm
 
 class CustomLoginView(LoginView):
     template_name = 'account/login.html'
-    success_url = reverse_lazy('ta_hub:settings')  # ログイン成功後のリダイレクト先
+    success_url = reverse_lazy('account:settings')  # ログイン成功後のリダイレクト先
     form_class = BootstrapAuthenticationForm
 
     def get_success_url(self):
