@@ -137,8 +137,8 @@
                             <tr{% if event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
                                 <td>{{ event.date|date:"Y年m月d日" }}</td>
                                 <td>{{ event.start_time|date:"H:i" }} - {{ event.end_time|date:"H:i" }}</td>
-                                <td>{{ event.speakers }}</td>
-                                <td>{{ event.theme }}</td>
+                                <td>{{ event.details.speakers }}</td>
+                                <td>{{ event.details.theme }}</td>
                             </tr>
                         {% endfor %}
                         </tbody>
@@ -168,15 +168,12 @@
                                 <td>{{ event.date|date:"Y年m月d日" }}</td>
                                 <td>{{ event.start_time|date:"H:i" }} - {{ event.end_time|date:"H:i" }}</td>
                                 <td>
-                                    {% for detail in event.details.all %}
-                                        {{ detail.speaker }}{% if not forloop.last %}, {% endif %}
-                                    {% endfor %}
+                                    {{ event.details.speaker }}
                                 </td>
                                 <td>
-                                    {% for detail in event.details.all %}
-                                        <a href="{% url 'event:detail' detail.id %}">{{ detail.theme }}</a>
-                                        {% if not forloop.last %}, {% endif %}
-                                    {% endfor %}
+                                    <a href="{% url 'event:detail' event.details.pk %}">
+                                        {{ event.details.theme }}
+                                    </a>
                                 </td>
                             </tr>
                         {% endfor %}
@@ -186,7 +183,6 @@
             </div>
         </div>
     </div>
-
 
 
 {% endblock %}

@@ -64,14 +64,14 @@ class CommunityDetailView(DetailView):
         # 予定されているイベント scheduled events
         now = timezone.now()
         context['scheduled_events'] = Event.objects.filter(
-            community=community, date__gte=now).prefetch_related('details').order_by('date', 'start_time')[:4]
+            community=community, date__gte=now).select_related('details').order_by('date', 'start_time')[:4]
 
         # 過去のイベントを取得。ただし、event_detailが存在するもののみ
         context['past_events'] = Event.objects.filter(
             community=community, date__lt=now
         ).filter(
             Q(details__theme__isnull=False) | Q(details__theme__gt='')
-        ).prefetch_related('details').order_by('-date', '-start_time')[:4]
+        ).select_related('details').order_by('-date', '-start_time')[:4]
 
         # 曜日の選択肢をコンテキストに追加
         context['weekday_choices'] = dict(WEEKDAY_CHOICES)
