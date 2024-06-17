@@ -19,17 +19,10 @@
 
 {% block main %}
     <div class="container mt-4">
-        {% if request.user.is_superuser %}
-            <a href="/admin/community/community/{{ community.pk }}/change/"
-               class="btn btn-primary">Admin編集</a>
-        {% endif %}
 
-        {% if request.user.is_staff %}
-            <a href="/admin/community/community/{{ community.pk }}/change/"
-               class="btn btn-primary">編集</a>
-        {% endif %}
 
         <div class="card bg-light-subtle my-5 shadow">
+
             <div class="row no-gutters">
 
                 <div class="col-md-5 order-md-1 order-2 p-3">
@@ -106,6 +99,7 @@
                                 {% endfor %}
                             </p>
                         {% endif %}
+
                         {% if show_accept_button %}
                             <form action="{% url 'community:accept' %}" method="post">
                                 {% csrf_token %}
@@ -113,11 +107,15 @@
                                 <button type="submit" class="btn btn-primary">承認</button>
                             </form>
                         {% endif %}
-                        {# タグ #}
-                        {#                      {% for tag in community.tags %}#}
-                        {#    {{ tag_choices|get_item:tag }}#}
-                        {#    {% if not forloop.last %}, {% endif %}#}
-                        {#  {% endfor %}#}
+                        {% if request.user.is_superuser %}
+                            <a href="/admin/community/community/{{ community.pk }}/change/"
+                               class="btn btn-primary">編集(管理者)</a>
+                        {% endif %}
+                        {% if request.user == community.custom_user %}
+                            <a href="{% url 'community:update' community.pk %}"
+                               class="btn btn-primary">編集</a>
+                        {% endif %}
+
                     </div>
                 </div>
             </div>
