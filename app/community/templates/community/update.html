@@ -8,6 +8,13 @@
                     <div class="card-header bg-primary text-white">
                         <h4 class="mb-0">集会情報を編集</h4>
                     </div>
+                    <div>
+                        <form method="post" action="{% url 'event:generate_blog' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="event_detail_id" value="{{ event_detail.id }}">
+                            <button type="submit" class="btn btn-primary">動画からコンテンツを生成</button>
+                        </form>
+                    </div>
                     <div class="card-body">
                         <form method="post" enctype="multipart/form-data">
                             {% csrf_token %}
