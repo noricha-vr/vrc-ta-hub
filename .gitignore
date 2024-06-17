@@ -90,3 +90,4 @@ local_settings.py
 db.sqlite3
 /.local.env
 /app/ta_hub/static/ta_hub/js/*.js
+/output.txt
