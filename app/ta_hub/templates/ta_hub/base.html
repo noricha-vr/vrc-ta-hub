@@ -150,6 +150,10 @@
                         <a class="nav-link text-light" href="{% url 'community:list' %}">集会一覧</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link text-light" href="{% url 'ta_hub:how_to' %}">使い方</a>
+                    </li>
+
+                    <li class="nav-item">
                         <a class="nav-link text-light" href="{% url 'ta_hub:about' %}">運営情報</a>
                     </li>
                     {% if user.is_authenticated %}

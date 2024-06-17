@@ -8,7 +8,16 @@
                     <div class="card-header bg-primary text-white">
                         <h4 class="mb-0">新規登録</h4>
                     </div>
+
                     <div class="card-body">
+                        <div>
+                            <h5 class="">技術系集会</h5>
+                            エンジニアやクリエイターの技術や知識の交流をする集会
+                            <h5 class="">学術系集会</h5>
+                            <div>
+                                一定の理論や方法論に基づいて得られた知識や洞察を共有し、議論を通じて理解を深めるための学術的な集会
+                            </div>
+                        </div>
                         <form method="post">
                             {% csrf_token %}
                             {{ form.as_p }}
