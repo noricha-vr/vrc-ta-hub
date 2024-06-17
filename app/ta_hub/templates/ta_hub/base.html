@@ -161,6 +161,9 @@
                         </li>
                     {% else %}
                         <li class="nav-item">
+                            <a class="nav-link text-light" href="{% url 'account:register' %}">登録</a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link text-light" href="{% url 'account:login' %}">ログイン</a>
                         </li>
                     {% endif %}
