@@ -1,6 +1,7 @@
 from django.db import models
 from datetime import timedelta
 from django.utils import timezone
+from ta_hub.libs import resize_and_convert_image
 
 # Create your models here.
 WEEKDAY_CHOICES = (
@@ -67,3 +68,8 @@ class Community(models.Model):
             sns_parts = self.sns_url.split('/')
             return f"@{sns_parts[-1]}"
         return None
+
+    def save(self, *args, **kwargs):
+        # poster_image をリサイズしてJPEGに変換
+        resize_and_convert_image(self.poster_image, max_size=1000, output_format='JPEG')
+        super().save(*args, **kwargs)
