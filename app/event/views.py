@@ -41,8 +41,9 @@ class EventListView(ListView):
             if weekdays := form.cleaned_data.get('weekday'):
                 queryset = queryset.filter(weekday__in=weekdays)
 
-            if tags := form.cleaned_data.get('tags'):
-                queryset = queryset.filter(community__tags__in=tags)
+            if tags := form.cleaned_data['tags']:
+                for tag in tags:
+                    queryset = queryset.filter(community__tags__contains=[tag])
 
         return queryset
 

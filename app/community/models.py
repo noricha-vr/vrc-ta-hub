@@ -20,8 +20,8 @@ PLATFORM_CHOICES = (
     ('Android', 'Android'),
 )
 TAGS = (
-    ('技術', '技術'),
-    ('学術', '学術'),
+    ('tech', '技術'),
+    ('academic', '学術'),
 )
 
 

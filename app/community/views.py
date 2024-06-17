@@ -23,9 +23,11 @@ class CommunityListView(ListView):
             if query := form.cleaned_data['query']:
                 queryset = queryset.filter(Q(name__icontains=query) | Q(description__icontains=query))
             if weekdays := form.cleaned_data['weekdays']:
-                queryset = queryset.filter(weekday__in=weekdays)
+                for weekday in weekdays:
+                    queryset = queryset.filter(weekdays__contains=[weekday])
             if tags := form.cleaned_data['tags']:
-                queryset = queryset.filter(tags__in=tags)
+                for tag in tags:
+                    queryset = queryset.filter(tags__contains=[tag])
         queryset = queryset.order_by('-updated_at')
         return queryset
 
