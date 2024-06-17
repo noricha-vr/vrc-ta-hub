@@ -35,6 +35,7 @@ class EventDetail(models.Model):
     slide_file = models.FileField('スライド', blank=True, null=True, upload_to='slide/')
     speaker = models.CharField('発表者', max_length=200, blank=True, default='', db_index=True)
     theme = models.CharField('テーマ', max_length=100, blank=True, default='', db_index=True)
+    contents = models.TextField('内容', blank=True, default='')
 
     class Meta:
         verbose_name = 'イベント詳細'
