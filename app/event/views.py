@@ -1,25 +1,23 @@
 import os
 import re
-
-from django.contrib.auth.mixins import LoginRequiredMixin
+import logging
 from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, UpdateView, DeleteView
-from .models import Event, EventDetail
-from event.forms import EventDetailForm
-
-from django.contrib import messages
-from django.shortcuts import redirect
-from django.views.generic import DetailView
-import logging
-from .models import EventDetail, Community
+from django.views import View
+from django.views.generic import CreateView, UpdateView, DeleteView, DetailView, ListView
+from django.http import HttpResponse
+from django.utils import timezone
+from django.contrib.auth.mixins import LoginRequiredMixin
+from event.libs import convert_markdown, get_transcript, genai_model, create_blog_prompt
+from event.forms import EventDetailForm, EventSearchForm
+from event.models import EventDetail, Event
+from community.models import Community
+from datetime import datetime, timedelta
 from googleapiclient.discovery import build
+from website.settings import GOOGLE_API_KEY
 
+REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN')
 logger = logging.getLogger(__name__)
-
-from django.views.generic import ListView
-from .models import Event
-from .forms import EventSearchForm
 
 
 class EventListView(ListView):
@@ -75,36 +73,15 @@ class EventDetailView(DetailView):
         context = super().get_context_data(**kwargs)
         event_detail = self.get_object()
         context['video_id'] = extract_video_id(event_detail.youtube_url)
+        context['html_content'] = convert_markdown(event_detail.content)
         return context
-
-
-from django.utils import timezone
-from datetime import datetime
-
-CALENDAR_API_KEY = os.environ.get('CALENDAR_API_KEY')
-
-from datetime import datetime, timedelta
-
-import logging
-from datetime import datetime, timedelta
-
-from django.http import HttpResponse
-from django.utils import timezone
-from googleapiclient.discovery import build
-
-from .models import Event, Community
-
-logger = logging.getLogger(__name__)
-
-CALENDAR_API_KEY = os.environ.get('CALENDAR_API_KEY')
-REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN')
 
 
 def sync_calendar_events(request):
     if request.method != 'GET':
         return HttpResponse("Invalid request method.", status=405)
 
-    service = build('calendar', 'v3', developerKey=CALENDAR_API_KEY)
+    service = build('calendar', 'v3', developerKey=GOOGLE_API_KEY)
     calendar_id = 'fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7@group.calendar.google.com'
     today = datetime.now().date()
     end_date = today + timedelta(days=60)
@@ -220,17 +197,32 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
         return reverse_lazy('event:detail', kwargs={'pk': self.object.pk})
 
 
+class GenerateBlogView(LoginRequiredMixin, View):
+    def post(self):
+        event_detail_id = self.request.POST.get('event_detail_id')
+        event_detail = EventDetail.objects.get(id=event_detail_id)
+
+        # ユーザーとイベントの所有者が同じかを確認
+        if event_detail.event.community.custom_user != self.request.user:
+            return HttpResponse("Invalid request.", status=403)
+        # URLから動画IDを抽出
+        video_id = extract_video_id(event_detail.youtube_url)
+        if not video_id:
+            return HttpResponse(f"Invalid YouTube URL. {event_detail.youtube_url}", status=400)
+        prompt = create_blog_prompt(event_detail)
+        # 文字起こしを取得
+        transcript = get_transcript(video_id)
+        response = genai_model.generate_content(prompt + transcript, stream=False)
+        summary = response.text
+        return summary
+
+
 class EventDetailDeleteView(LoginRequiredMixin, DeleteView):
     model = EventDetail
     template_name = 'event/detail_confirm_delete.html'
 
     def get_success_url(self):
         return reverse_lazy('event:detail_list')
-
-
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import ListView
-from .models import Event
 
 
 class EventMyList(LoginRequiredMixin, ListView):
