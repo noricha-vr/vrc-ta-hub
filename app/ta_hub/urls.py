@@ -9,6 +9,7 @@ app_name = 'ta_hub'
 urlpatterns = [
                   path('', TemplateView.as_view(template_name='ta_hub/index.html'), name='index'),
                   path('about/', TemplateView.as_view(template_name='ta_hub/about.html'), name='about'),
+                  path('how_to/', TemplateView.as_view(template_name='ta_hub/how_to.html'), name='how_to'),
                   path('manifest.json', serve,
                        {'path': 'site.webmanifest', 'document_root': settings.BASE_DIR / 'site'}),
                   # favicon
