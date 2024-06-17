@@ -16,17 +16,13 @@ class EventSearchForm(forms.Form):
         label='曜日',
         choices=WEEKDAY_CHOICES,
         required=False,
-        widget=forms.CheckboxSelectMultiple(attrs={
-            'class': 'form-check-input',
-        })
+        widget=forms.CheckboxSelectMultiple()
     )
     tags = forms.MultipleChoiceField(
         label='タグ',
         choices=TAGS,
         required=False,
-        widget=forms.CheckboxSelectMultiple(attrs={
-            'class': 'form-check-input',
-        })
+        widget=forms.CheckboxSelectMultiple()
     )
 
 
