@@ -46,6 +46,7 @@ class Community(models.Model):
     description = models.TextField('イベント紹介', default='', blank=True)
     platform = models.CharField('対応プラットフォーム', max_length=10, choices=PLATFORM_CHOICES, default='All')
     tags = models.JSONField('タグ', max_length=10, default=list)
+    is_accepted = models.BooleanField('公開設定', default=False, db_index=True)
 
     class Meta:
         verbose_name = '集会'
