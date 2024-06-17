@@ -106,7 +106,13 @@
                                 {% endfor %}
                             </p>
                         {% endif %}
-
+                        {% if show_accept_button %}
+                            <form action="{% url 'community:accept' %}" method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="community_id" value="{{ community.id }}">
+                                <button type="submit" class="btn btn-primary">承認</button>
+                            </form>
+                        {% endif %}
                         {# タグ #}
                         {#                      {% for tag in community.tags %}#}
                         {#    {{ tag_choices|get_item:tag }}#}
@@ -175,6 +181,7 @@
                                         {{ event.details.theme }}
                                     </a>
                                 </td>
+
                             </tr>
                         {% endfor %}
                         </tbody>

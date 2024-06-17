@@ -23,6 +23,13 @@
                                     <i class="fas fa-calendar-alt me-2"></i>イベント一覧
                                 </a>
                             </li>
+                            {% if community.is_accepted %}
+                                <li class="list-group-item">
+                                    <a href="{% url 'community:waiting_list' %}" class="text-decoration-none">
+                                        <i class="fas fa-calendar-alt me-2"></i>承認待集会一覧
+                                    </a>
+                                </li>
+                            {% endif %}
                             <li class="list-group-item">
                                 <a href="{% url 'account:user_update' %}" class="text-decoration-none">
                                     <i class="fas fa-user me-2"></i>ユーザー情報を更新

@@ -1,13 +1,17 @@
 from django.contrib import messages
 from django.db.models import Q
+from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
+from django.views import View
 from django.views.generic import ListView, DetailView
-
 from event.models import Event
 from .libs import get_join_type
-from .models import Community
-
 from .forms import CommunitySearchForm
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.urls import reverse_lazy
+from django.views.generic import UpdateView
+from .models import Community
+from .forms import CommunityUpdateForm
 
 
 class CommunityListView(ListView):
@@ -18,6 +22,8 @@ class CommunityListView(ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        now = timezone.now()
+        queryset = queryset.filter(is_accepted=True, end_at__isnull=True)
         form = CommunitySearchForm(self.request.GET)
         if form.is_valid():
             if query := form.cleaned_data['query']:
@@ -81,14 +87,10 @@ class CommunityDetailView(DetailView):
         # タグの選択肢をコンテキストに追加
         context['tag_choices'] = dict(TAGS)
 
+        # 承認ボタンの表示
+        if self.request.user != community.custom_user and not community.is_accepted:
+            context['show_accept_button'] = True
         return context
-
-
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.urls import reverse_lazy
-from django.views.generic import UpdateView
-from .models import Community
-from .forms import CommunityUpdateForm
 
 
 class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
@@ -104,3 +106,45 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def form_valid(self, form):
         messages.success(self.request, 'コミュニティ情報が更新されました。')
         return super().form_valid(form)
+
+
+class WaitingCommunityListView(LoginRequiredMixin, ListView):
+    model = Community
+    template_name = 'community/waiting_list.html'
+    context_object_name = 'communities'
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        queryset = queryset.filter(is_accepted=False)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        form = CommunitySearchForm(self.request.GET)
+        context['form'] = form
+        context['search_count'] = self.get_queryset().count()
+        for community in context['communities']:
+            if community.twitter_hashtag:
+                community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
+                                              tag.strip()]
+            community.join_type = get_join_type(community.organizer_url)
+
+        # 曜日の選択肢をコンテキストに追加
+        context['weekday_choices'] = dict(WEEKDAY_CHOICES)
+
+        return context
+
+
+class AcceptView(View):
+    def post(self, request):
+        # 自分の集会が承認されていない場合は権限がない
+        if Community.objects.filter(custom_user=request.user, is_accepted=False).exists():
+            messages.error(request, '権限がありません。')
+            return redirect('community:waiting_list')
+        # 承認する集会を取得、承認する
+        community_id = request.POST.get('community_id')
+        community = get_object_or_404(Community, pk=community_id)
+        community.is_accepted = True
+        community.save()
+        messages.success(request, f'{community.name}を承認しました。')
+        return redirect('community:waiting_list')
