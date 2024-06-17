@@ -1,6 +1,15 @@
 {% extends 'ta_hub/base.html' %}
 
 {% block main %}
+    <style>
+        label {
+            margin-bottom: 0.5rem;
+        }
+
+        span.helptext {
+            color: gray;
+        }
+    </style>
     <div class="container my-4">
         <div class="row">
             <div class="col-md-6 offset-md-3">
@@ -12,11 +21,16 @@
                     <div class="card-body">
                         <div>
                             <h5 class="">技術系集会</h5>
-                            エンジニアやクリエイターの技術や知識の交流をする集会
+                            <p>
+                                エンジニアやクリエイターの技術や知識の交流をする集会
+                            </p>
                             <h5 class="">学術系集会</h5>
-                            <div>
+                            <p>
                                 一定の理論や方法論に基づいて得られた知識や洞察を共有し、議論を通じて理解を深めるための学術的な集会
-                            </div>
+                            </p>
+                            <p>
+                                ※ 登録にはどちらかに該当している必要があります。
+                            </p>
                         </div>
                         <form method="post">
                             {% csrf_token %}
