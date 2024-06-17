@@ -35,14 +35,14 @@ class EventListView(ListView):
 
         form = EventSearchForm(self.request.GET)
         if form.is_valid():
-            name = form.cleaned_data.get('name')
-            weekdays = form.cleaned_data.get('weekday')
-
-            if name:
+            if name := form.cleaned_data.get('name'):
                 queryset = queryset.filter(community__name__icontains=name)
 
-            if weekdays:
+            if weekdays := form.cleaned_data.get('weekday'):
                 queryset = queryset.filter(weekday__in=weekdays)
+
+            if tags := form.cleaned_data.get('tags'):
+                queryset = queryset.filter(community__tags__in=tags)
 
         return queryset
 

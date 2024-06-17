@@ -1,4 +1,4 @@
-from community.models import WEEKDAY_CHOICES
+from community.models import WEEKDAY_CHOICES, TAGS
 from django import forms
 from .models import EventDetail
 
@@ -15,6 +15,14 @@ class EventSearchForm(forms.Form):
     weekday = forms.MultipleChoiceField(
         label='曜日',
         choices=WEEKDAY_CHOICES,
+        required=False,
+        widget=forms.CheckboxSelectMultiple(attrs={
+            'class': 'form-check-input',
+        })
+    )
+    tags = forms.MultipleChoiceField(
+        label='タグ',
+        choices=TAGS,
         required=False,
         widget=forms.CheckboxSelectMultiple(attrs={
             'class': 'form-check-input',

@@ -56,6 +56,17 @@
                     {% endfor %}
                 </div>
             </div>
+            <div class="row mt-3">
+                <div class="col text-center">
+                    {% for choice in form.tags %}
+                        <div class="form-check form-check-inline">
+                            {{ choice.tag }}
+                            <label class="form-check-label"
+                                   for="{{ choice.id_for_label }}">{{ choice.choice_label }}</label>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
             <div class="text-end mt-3">
                 <a href="{% url 'event:list' %}" class="btn btn-secondary">クリア</a>
             </div>
