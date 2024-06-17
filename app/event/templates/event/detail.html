@@ -40,6 +40,9 @@
                             </div>
                         </div>
                     {% endif %}
+                    {% if request.user == event_detail.event.community.custom_user %}
+                        <a href="{% url 'event:detail_update' event_detail.id %}" class="btn btn-primary">編集</a>
+                    {% endif %}
                     <h2 class="zen-kaku-gothic-new-medium">詳細情報</h2>
                     <div class="lead mb-2">
                         <div>{# 集会名・開催日・時 #}
