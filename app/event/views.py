@@ -232,9 +232,9 @@ from django.views.generic import ListView
 from .models import Event
 
 
-class DetailList(LoginRequiredMixin, ListView):
+class EventMyList(LoginRequiredMixin, ListView):
     model = Event
-    template_name = 'event/detail_list.html'
+    template_name = 'event/my_list.html'
     context_object_name = 'events'
 
     def get_queryset(self):

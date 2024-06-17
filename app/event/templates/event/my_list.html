@@ -5,7 +5,7 @@
     <div class="container my-4">
         <a href="{% url 'community:list' %}" class="text-decoration-none text-black">
             <h1 class="text-center my-5 fw-bold keiko_yellow">
-                {{ request.user }} イベント開催一覧
+                {{ request.user }} イベント一覧
             </h1>
         </a>
         {% for event in events %}
@@ -38,7 +38,7 @@
                                         </form>
                                     {% else %}
                                         <div class="d-flex align-items-end mb-2">
-                                            <a href="{% url 'event:detail_create' event.pk %}" class="btn btn-success">スライド・動画を登録</a>
+                                            <a href="{% url 'event:detail_create' event.pk %}" class="btn btn-primary">スライド・動画を登録</a>
                                         </div>
                                     {% endif %}
                                 </div>
