@@ -101,6 +101,13 @@ if 'test' in sys.argv:
 
 print('DB_NAME ' + DATABASES['default']['NAME'])
 
+# Google API
+GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
+assert GOOGLE_API_KEY is None, 'Please set GOOGLE_API_KEY'
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+assert GEMINI_API_KEY is None, 'Please set GEMINI_API_KEY'
+CALENDAR_ID = os.environ.get('CALENDAR_ID')
+assert CALENDAR_ID is None, 'Please set CALENDAR_ID'
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
@@ -183,7 +190,7 @@ LOGGING = {
             'level': 'INFO',
             'propagate': True,
         },
-        'community': {
+        'event_detail': {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': True,
