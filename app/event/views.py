@@ -14,9 +14,8 @@ from event.models import EventDetail, Event
 from community.models import Community
 from datetime import datetime, timedelta
 from googleapiclient.discovery import build
-from website.settings import GOOGLE_API_KEY
+from website.settings import GOOGLE_API_KEY, CALENDAR_ID, REQUEST_TOKEN
 
-REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN')
 logger = logging.getLogger(__name__)
 
 
@@ -81,13 +80,19 @@ def sync_calendar_events(request):
     if request.method != 'GET':
         return HttpResponse("Invalid request method.", status=405)
 
+    # Get the Request-Token
+    request_token = request.headers.get('Request-Token', '')
+
+    # Check if the token is valid
+    if request_token != REQUEST_TOKEN:
+        return HttpResponse("Invalid token.", status=403)
+
     service = build('calendar', 'v3', developerKey=GOOGLE_API_KEY)
-    calendar_id = 'fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7@group.calendar.google.com'
     today = datetime.now().date()
     end_date = today + timedelta(days=60)
 
     events_result = service.events().list(
-        calendarId=calendar_id,
+        calendarId=CALENDAR_ID,
         singleEvents=True,
         orderBy='startTime',
         timeMin=today.isoformat() + 'T00:00:00Z',
