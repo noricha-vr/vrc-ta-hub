@@ -1,7 +1,7 @@
 import os
 import re
 import logging
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, UpdateView, DeleteView, DetailView, ListView
@@ -203,12 +203,12 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
 
 
 class GenerateBlogView(LoginRequiredMixin, View):
-    def post(self):
-        event_detail_id = self.request.POST.get('event_detail_id')
+    def post(self, request):  # request を引数に追加
+        event_detail_id = request.POST.get('event_detail_id')
         event_detail = EventDetail.objects.get(id=event_detail_id)
 
         # ユーザーとイベントの所有者が同じかを確認
-        if event_detail.event.community.custom_user != self.request.user:
+        if event_detail.event.community.custom_user != request.user:
             return HttpResponse("Invalid request.", status=403)
         # URLから動画IDを抽出
         video_id = extract_video_id(event_detail.youtube_url)
@@ -218,8 +218,9 @@ class GenerateBlogView(LoginRequiredMixin, View):
         # 文字起こしを取得
         transcript = get_transcript(video_id)
         response = genai_model.generate_content(prompt + transcript, stream=False)
-        summary = response.text
-        return summary
+        event_detail.contents = response.text
+        event_detail.save()
+        return redirect('event:detail', pk=event_detail.id)
 
 
 class EventDetailDeleteView(LoginRequiredMixin, DeleteView):

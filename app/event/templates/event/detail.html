@@ -27,56 +27,57 @@
         }
     </style>
     <div class="container mt-4">
-        <div class="row post">
+        <div class="row post mb-5">
             <div class="col-lg-12">
-                <div class="jumbotron">
-                    <h1 class="mb-3">{{ event_detail.theme }}</h1>
-                    {% if video_id %}
-                        <div class="mb-3">
-                            <div class="ratio ratio-16x9">
-                                <iframe src="https://www.youtube.com/embed/{{ video_id }}"
-                                        title="{{ event_detail.theme }} - {{ event_detail.speaker }}"
-                                        allowfullscreen></iframe>
-                            </div>
-                        </div>
-                    {% endif %}
-                    {% if request.user == event_detail.event.community.custom_user %}
-                        <div class="d-flex">
-                            <a href="{% url 'event:detail_update' event_detail.id %}"
-                               class="btn btn-primary me-2">編集</a>
-                            <form method="post" action="{% url 'event:generate_blog' %}">
-                                {% csrf_token %}
-                                <input type="hidden" name="event_detail_id" value="{{ event_detail.id }}">
-                                <button type="submit" class="btn btn-primary">動画からコンテンツを生成</button>
-                            </form>
-                        </div>
-                    {% endif %}
-                    <h2 class="zen-kaku-gothic-new-medium">詳細情報</h2>
-                    <div class="lead mb-2">
-                        <div>{# 集会名・開催日・時 #}
-                            集会名：{{ event_detail.event.community.name }}
-                        </div>
-                        <div>
-                            日時：{{ event_detail.event.date|date:"Y年m月d日" }}
-                            {{ event_detail.event.start_time|date:"H:i" }}
-                            - {{ event_detail.event.end_time|date:"H:i" }}
-                        </div>
-                        <div>
-                            発表者：{{ event_detail.speaker }}
-                        </div>
-                        <div>
-                            発表資料:
-
-                            {% if event_detail.slide_url %}
-                                <a href="{{ event_detail.slide_url }}" target="_blank" class="me-2"><i
-                                        class="bi bi-link"></i>リンク</a>
-                            {% endif %}
-                            {% if event_detail.slide_file %}
-                                <a href="{{ event_detail.slide_file.url }}" target="_blank"><i
-                                        class="bi bi-file-earmark-text-fill"></i>ファイル</a>
-                            {% endif %}
+                <h1 class="mb-3">{{ event_detail.theme }}</h1>
+                {% if video_id %}
+                    <div class="mb-3">
+                        <div class="ratio ratio-16x9">
+                            <iframe src="https://www.youtube.com/embed/{{ video_id }}"
+                                    title="{{ event_detail.theme }} - {{ event_detail.speaker }}"
+                                    allowfullscreen></iframe>
                         </div>
                     </div>
+                {% endif %}
+                {% if request.user == event_detail.event.community.custom_user %}
+                    <div class="d-flex">
+                        <a href="{% url 'event:detail_update' event_detail.id %}"
+                           class="btn btn-primary me-2">編集</a>
+                        <form method="post" action="{% url 'event:generate_blog' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="event_detail_id" value="{{ event_detail.id }}">
+                            <button type="submit" class="btn btn-primary">動画からコンテンツを生成</button>
+                        </form>
+                    </div>
+                {% endif %}
+                <h2 class="zen-kaku-gothic-new-medium">詳細情報</h2>
+                <div class="lead mb-2">
+                    <div>{# 集会名・開催日・時 #}
+                        集会名：{{ event_detail.event.community.name }}
+                    </div>
+                    <div>
+                        日時：{{ event_detail.event.date|date:"Y年m月d日" }}
+                        {{ event_detail.event.start_time|date:"H:i" }}
+                        - {{ event_detail.event.end_time|date:"H:i" }}
+                    </div>
+                    <div>
+                        発表者：{{ event_detail.speaker }}
+                    </div>
+                    <div>
+                        発表資料:
+
+                        {% if event_detail.slide_url %}
+                            <a href="{{ event_detail.slide_url }}" target="_blank" class="me-2"><i
+                                    class="bi bi-link"></i>リンク</a>
+                        {% endif %}
+                        {% if event_detail.slide_file %}
+                            <a href="{{ event_detail.slide_file.url }}" target="_blank"><i
+                                    class="bi bi-file-earmark-text-fill"></i>ファイル</a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div>
+                    {{ html_content|safe }}
                 </div>
             </div>
         </div>
