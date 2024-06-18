@@ -47,7 +47,7 @@ def create_blog_prompt(event_detail: EventDetail) -> str:
 
 def convert_markdown(markdown_text: str) -> str:
     """MarkdownをHTMLに変換し、サニタイズする"""
-    allowed_tags = ['a', 'p', 'h1', 'h2', 'h3', 'ul', 'li', 'strong', 'em', 'code', 'pre']
+    allowed_tags = ['a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'li', 'strong', 'em', 'code', 'pre']
     allowed_attributes = {'a': ['href', 'title'], 'pre': ['class']}
     html = markdown.markdown(markdown_text)
     return bleach.clean(html, tags=allowed_tags, attributes=allowed_attributes)
