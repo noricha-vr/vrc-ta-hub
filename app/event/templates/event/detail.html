@@ -9,8 +9,8 @@
           content="{{ event_detail }} {{ event_detail.contents|truncatechars:"100" }}">
     <meta property="og:description"
           content="{{ event_detail }} {{ event_detail.contents|truncatechars:"100" }}">
-    <meta property="og:image" content="https://data.vrc-ta-hub.com/images/VRChat_Hub.png">
-    <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/VRChat_Hub.png">
+    <meta property="og:image" content="{{ event_detail.event.community.poster_image.url }}">
+    <meta name="twitter:image" content="{{ event_detail.event.community.poster_image.url }}">
 {% endblock %}
 {% block main %}
     <style>
