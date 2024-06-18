@@ -33,11 +33,12 @@
                                                     onclick="return confirm('本当に削除しますか？');">削除
                                             </button>
                                         </form>
-                                    {% empty %}
-                                        <div class="d-flex align-items-end mb-2">
-                                            <a href="{% url 'event:detail_create' event.pk %}" class="btn btn-primary">スライド・動画を登録</a>
-                                        </div>
+                                        <hr/>
+
                                     {% endfor %}
+                                    <div class="d-flex align-items-end mb-2 mt-3">
+                                        <a href="{% url 'event:detail_create' event.pk %}" class="btn btn-primary">スライド・動画を登録</a>
+                                    </div>
                                 </div>
                             </div>
                         </div>
