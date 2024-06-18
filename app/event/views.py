@@ -203,9 +203,8 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
 
 
 class GenerateBlogView(LoginRequiredMixin, View):
-    def post(self, request):  # request を引数に追加
-        event_detail_id = request.POST.get('event_detail_id')
-        event_detail = EventDetail.objects.get(id=event_detail_id)
+    def post(self, request, pk):  # request を引数に追加
+        event_detail = EventDetail.objects.get(id=pk)
 
         # ユーザーとイベントの所有者が同じかを確認
         if event_detail.event.community.custom_user != request.user:

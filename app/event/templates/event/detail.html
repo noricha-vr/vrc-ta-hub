@@ -69,16 +69,22 @@
                     <div class="d-flex">
                         <a href="{% url 'event:detail_update' event_detail.id %}"
                            class="btn btn-primary me-2">編集</a>
-                        <form method="post" action="{% url 'event:generate_blog' %}">
+                        <form method="post" action="{% url 'event:generate_blog' event_detail.id %}">
                             {% csrf_token %}
-                            <input type="hidden" name="event_detail_id" value="{{ event_detail.id }}">
-                            <button type="submit" class="btn btn-primary">動画からコンテンツを生成</button>
+                            <button type="submit" class="btn btn-primary" id="generate-button">
+                                動画からコンテンツを生成
+                            </button>
                         </form>
+
+                    </div>
+                    <div class="mt-2">
+                        思い通りのコンテンツができないときは2-3回は生成し直してもらって大丈夫です。<br>
+                        いっぱいリクエストするとのりちゃんが悲しみます😢
                     </div>
                 {% endif %}
                 <h2 class="zen-kaku-gothic-new-medium">詳細情報</h2>
                 <div class="lead mb-2">
-                    <table class="table">
+                    <table class="table table-responsive">
                         <tbody>
                         <tr>
                             <th scope="row">集会名</th>
@@ -120,4 +126,12 @@
             </div>
         </div>
     </div>
+
+    <script>
+        document.getElementById('generate-button').addEventListener('click', function (event) {
+            event.target.disabled = true;
+            event.target.textContent = '生成中...';
+            event.target.form.submit();
+        });
+    </script>
 {% endblock %}

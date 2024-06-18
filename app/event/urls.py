@@ -11,6 +11,6 @@ urlpatterns = [
     path('detail/<int:pk>/update/', EventDetailUpdateView.as_view(), name='detail_update'),
     path('detail/<int:pk>/delete/', EventDetailDeleteView.as_view(), name='detail_delete'),
     path('my_list/', EventMyList.as_view(), name='my_list'),
-    path('generate_blog/', GenerateBlogView.as_view(), name='generate_blog'),
+    path('generate_blog/<int:pk>/', GenerateBlogView.as_view(), name='generate_blog'),
     path('sync/', sync_calendar_events, name='sync_calendar_events'),
 ]
