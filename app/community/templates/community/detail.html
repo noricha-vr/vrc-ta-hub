@@ -138,12 +138,10 @@
                         </thead>
                         <tbody>
                         {% for event in scheduled_events %}
-                            <tr{% if event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
-                                <td>{{ event.date|date:"Y年m月d日" }}</td>
-                                <td>{{ event.start_time|date:"H:i" }} - {{ event.end_time|date:"H:i" }}</td>
-                                <td>{{ event.details.speakers }}</td>
-                                <td>{{ event.details.theme }}</td>
-                            </tr>
+                            {% for detail in event.details.all %}
+                                {{ detail }}
+                                {#                                <a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a>#}
+                            {% endfor %}
                         {% endfor %}
                         </tbody>
                     </table>
@@ -172,12 +170,24 @@
                                 <td>{{ event.date|date:"Y年m月d日" }}</td>
                                 <td>{{ event.start_time|date:"H:i" }} - {{ event.end_time|date:"H:i" }}</td>
                                 <td>
-                                    {{ event.details.speaker }}
+                                    {% for detail in event.details.all %}
+                                        <div class="">
+                                            {{ detail.speaker }}
+                                        </div>
+                                        {% if not forloop.last %}
+                                            <div class="mb-2"></div>
+                                        {% endif %}
+                                    {% endfor %}
                                 </td>
                                 <td>
-                                    <a href="{% url 'event:detail' event.details.pk %}">
-                                        {{ event.details.theme }}
-                                    </a>
+                                    {% for detail in event.details.all %}
+                                        <div class="">
+                                            <a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a>
+                                        </div>
+                                        {% if not forloop.last %}
+                                            <div class="mb-2"></div>
+                                        {% endif %}
+                                    {% endfor %}
                                 </td>
 
                             </tr>
