@@ -39,7 +39,10 @@ class EventDetailForm(forms.ModelForm):
             'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file'}),
             'speaker': forms.TextInput(attrs={'class': 'form-control'}),
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
-            'contents': forms.Textarea(attrs={'class': 'form-control'}),
+            'contents': forms.Textarea(attrs={'class': 'form-control', 'rows': '18'}),
+        }
+        help_texts = {
+            'contents': '※ Markdown形式で記述してください。'
         }
 
     def clean_slide_file(self):
