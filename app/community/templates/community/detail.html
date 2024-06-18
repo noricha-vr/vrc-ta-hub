@@ -156,7 +156,7 @@
                                 <td>
                                     {% for theme in event_dict.themes %}
                                         <div class="mb-1">
-                                            <a href="{% url 'event:detail' event_dict.event.pk %}">{{ theme }}</a>
+                                            {{ theme }}
                                         </div>
                                     {% endfor %}
                                 </td>
