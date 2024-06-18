@@ -258,35 +258,41 @@ class EventMyList(LoginRequiredMixin, ListView):
         return context
 
 
-class EventDetailList(ListView):
+class EventDetailMixin:  # 共通部分をmixinとして定義
+    def filter_queryset(self, queryset):
+        community_name = self.request.GET.get('community_name', '').strip()
+        if community_name:
+            queryset = queryset.filter(event__community__name__icontains=community_name)
+
+        speaker = self.request.GET.get('speaker', '').strip()
+        if speaker:
+            queryset = queryset.filter(speaker__icontains=speaker)
+
+        theme = self.request.GET.get('theme', '').strip()
+        if theme:
+            queryset = queryset.filter(theme__icontains=theme)
+        return queryset
+
+
+class EventDetailList(EventDetailMixin, ListView):  # Mixinを継承
     template_name = 'event/detail_list.html'
     model = EventDetail
     context_object_name = 'event_details'
 
     def get_queryset(self):
         queryset = super().get_queryset().filter(
-            event__date__gte=timezone.now().date()).order_by('-event__date', '-event__start_time')
-        if community_name := self.request.GET.get('community_name'):
-            queryset = queryset.filter(event__community__name__icontains=community_name)
-        if speaker := self.request.GET.get('speaker'):
-            queryset = queryset.filter(speaker__icontains=speaker)
-        if keyword := self.request.GET.get('keyword'):
-            queryset = queryset.filter(Q(speaker__icontains=keyword) | Q(theme__icontains=keyword))
-        return queryset
+            event__date__gte=timezone.now().date()
+        ).order_by('-event__date', '-event__start_time')
+        return self.filter_queryset(queryset)  # 共通メソッドでフィルタリング
 
 
-class EventDetailPastList(ListView):
+class EventDetailPastList(EventDetailMixin, ListView):  # Mixinを継承
     template_name = 'event/detail_past_list.html'
     model = EventDetail
     context_object_name = 'event_details'
 
     def get_queryset(self):
         queryset = super().get_queryset().filter(
-            event__date__lt=timezone.now().date()).order_by('-event__date', '-event__start_time')
-        if community_name := self.request.GET.get('community_name'):
-            queryset = queryset.filter(event__community__name__icontains=community_name)
-        if speaker := self.request.GET.get('speaker'):
-            queryset = queryset.filter(speaker__icontains=speaker)
-        if keyword := self.request.GET.get('keyword'):
-            queryset = queryset.filter(Q(speaker__icontains=keyword) | Q(theme__icontains=keyword))
-        return queryset
+            event__date__lt=timezone.now().date()
+        ).order_by('-event__date', '-event__start_time')
+        return self.filter_queryset(queryset)  # 共通メソッドでフィルタリング
