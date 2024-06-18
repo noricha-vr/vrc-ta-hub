@@ -8,6 +8,17 @@
                 {{ request.user }} イベント一覧
             </h1>
         </a>
+        <div class="d-flex justify-content-center mb-3">
+            <div><a href="{% url 'community:detail' community.pk %}"
+                    class="btn btn-primary me-2">{{ community.name }}</a>
+            </div>
+            <div><a href="{% url 'event:detail_list' %}?community_name={{ community.name }}"
+                    class="btn btn-primary me-2">LT予定</a>
+            </div>
+            <div><a href="{% url 'event:detail_past_list' %}?community_name={{ community.name }}"
+                    class="btn btn-primary me-2">LT履歴</a>
+            </div>
+        </div>
         {% for event in events %}
             <div class="row">
                 <div class="col-12 col-md-8 offset-md-2 mb-4">
