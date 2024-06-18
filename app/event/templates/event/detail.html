@@ -24,7 +24,7 @@
             font-family: "Noto Sans JP", sans-serif;
             font-optical-sizing: auto;
             font-style: normal;
-            font-weight: 500;
+            font-weight: 400;
         }
 
         .post h3 {
@@ -38,6 +38,19 @@
             font-weight: 400;
             font-size: 1.5rem;
         }
+
+        .post h4 {
+            padding: 5px;
+            margin: 10px 0px;
+            padding-left: 10px;
+            border-left: 5px solid #a2d0ff;
+            font-family: "Noto Sans JP", sans-serif;
+            font-optical-sizing: auto;
+            font-style: normal;
+            font-weight: 400;
+            font-size: 1.3rem;
+        }
+
     </style>
     <div class="container mt-4">
         <div class="row post mb-5">
@@ -65,29 +78,41 @@
                 {% endif %}
                 <h2 class="zen-kaku-gothic-new-medium">詳細情報</h2>
                 <div class="lead mb-2">
-                    <div>{# 集会名・開催日・時 #}
-                        集会名：{{ event_detail.event.community.name }}
-                    </div>
-                    <div>
-                        日時：{{ event_detail.event.date|date:"Y年m月d日" }}
-                        {{ event_detail.event.start_time|date:"H:i" }}
-                        - {{ event_detail.event.end_time|date:"H:i" }}
-                    </div>
-                    <div>
-                        発表者：{{ event_detail.speaker }}
-                    </div>
-                    <div>
-                        発表資料:
-
-                        {% if event_detail.slide_url %}
-                            <a href="{{ event_detail.slide_url }}" target="_blank" class="me-2"><i
-                                    class="bi bi-link"></i>リンク</a>
-                        {% endif %}
-                        {% if event_detail.slide_file %}
-                            <a href="{{ event_detail.slide_file.url }}" target="_blank"><i
-                                    class="bi bi-file-earmark-text-fill"></i>ファイル</a>
-                        {% endif %}
-                    </div>
+                    <table class="table">
+                        <tbody>
+                        <tr>
+                            <th scope="row">集会名</th>
+                            <td>{{ event_detail.event.community.name }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">日時</th>
+                            <td>
+                                {{ event_detail.event.date|date:"Y年m月d日" }}
+                                {{ event_detail.event.start_time|date:"H:i" }}
+                                - {{ event_detail.event.end_time|date:"H:i" }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">発表者</th>
+                            <td>{{ event_detail.speaker }}</td>
+                        </tr>
+                        <tr>
+                            <th scope="row">発表資料</th>
+                            <td>
+                                {% if event_detail.slide_url %}
+                                    <a href="{{ event_detail.slide_url }}" target="_blank" class="me-2">
+                                        <i class="bi bi-link"></i>リンク
+                                    </a>
+                                {% endif %}
+                                {% if event_detail.slide_file %}
+                                    <a href="{{ event_detail.slide_file.url }}" target="_blank">
+                                        <i class="bi bi-file-earmark-text-fill"></i>ファイル
+                                    </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
                 </div>
                 <div>
                     {{ html_content|safe }}
