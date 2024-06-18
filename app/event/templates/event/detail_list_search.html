@@ -1,0 +1,28 @@
+<form method="get">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-10 d-flex">
+                <div class="input-group mb-3 me-2">
+                    <input type="text" name="community_name" class="form-control" placeholder="集会名"
+                           value="{{ request.GET.community_name }}">
+                </div>
+                <div class="input-group mb-3 me-2">
+                    <input type="text" name="speaker" class="form-control" placeholder="発表者"
+                           value="{{ request.GET.speaker }}">
+                </div>
+                <div class="input-group mb-3 me-2">
+                    <input type="text" name="keyword" class="form-control" placeholder="テーマ"
+                           value="{{ request.GET.keyword }}">
+                </div>
+                <div>
+                    <button type="submit" class="btn btn-primary me-2" style="min-width: 80px">検索</button>
+                </div>
+                <div>
+                    <a href="{{ request.path }}" type="submit" class="btn btn-secondary"
+                       style="min-width: 80px">クリア</a>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</form>

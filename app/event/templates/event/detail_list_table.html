@@ -1,0 +1,25 @@
+<div class="table-responsive">
+    <table class="table table-hover table-nowrap">
+        <thead class="table-light">
+        <tr>
+            <th scope="col" style="min-width: 140px">集会名</th>
+            <th scope="col" style="min-width: 142px">日付</th>
+            <th scope="col" style="min-width: 115px">時間</th>
+            <th scope="col" style="min-width: 140px">発表者</th>
+            <th scope="col">テーマ</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for detail in event_details %}
+            <tr>
+                <td>{{ detail.event.community.name }}</td>
+                <td>{{ detail.event.date|date:"Y年m月d日" }}</td>
+                <td>{{ detail.event.start_time|date:"H:i" }}
+                    - {{ detail.event.end_time|date:"H:i" }}</td>
+                <td>{{ detail.speaker }}</td>
+                <td><a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a></td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
