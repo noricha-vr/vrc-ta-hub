@@ -12,11 +12,20 @@
         <tbody>
         {% for detail in event_details %}
             <tr>
-                <td>{{ detail.event.community.name }}</td>
+                <td>
+                    <a href="{{ request.path }}?{{ request.GET.urlencode }}&community_name={{ detail.event.community.name }}">
+                        {{ detail.event.community.name }}
+                    </a>
+                </td>
                 <td>{{ detail.event.date|date:"Y年m月d日" }}</td>
                 <td>{{ detail.event.start_time|date:"H:i" }}
                     - {{ detail.event.end_time|date:"H:i" }}</td>
-                <td>{{ detail.speaker }}</td>
+                <td>
+                    <a href="{{ request.path }}?{{ request.GET.urlencode }}&speaker={{ detail.speaker }}">
+                        {{ detail.speaker }}
+                    </a>
+
+                </td>
                 <td><a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a></td>
             </tr>
         {% endfor %}
