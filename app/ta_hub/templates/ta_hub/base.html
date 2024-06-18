@@ -27,9 +27,9 @@
     <link rel="icon" type="image/x-icon" href="https://data.vrc-ta-hub.com/images%2Fsite%2Ffavicon.ico">
     <link rel="mask-icon" href="https://data.vrc-ta-hub.com/images%2Fsite%2Fsafari-pinned-tab.svg" color="#5bbad5">
     {% block meta %}
-        <title>VRChat 技術・学術系イベントHub - VRChat技術学術系集会の世界へ！ようこそ！</title>
-        <meta name="twitter:title" content="VRChat 技術・学術系イベントHub - VRChat技術学術系集会の世界へ！ようこそ！">
-        <meta property="og:title" content="VRChat 技術・学術系イベントHub - VRChat技術学術系集会の世界へ！ようこそ！">
+        <title>VRC 技術・学術系イベントHub - VRChat技術学術系集会の世界へ！ようこそ！</title>
+        <meta name="twitter:title" content="VRC 技術・学術系イベントHub - VRChat技術学術系集会の世界へ！ようこそ！">
+        <meta property="og:title" content="VRC 技術・学術系イベントHub - VRChat技術学術系集会の世界へ！ようこそ！">
         <meta name="description"
               content="VRChat技術学術系のイベント情報を掲載しています。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
         <meta name="twitter:description"
@@ -133,7 +133,7 @@
         <div class="container">
             <a class="navbar-brand text-white fw-bold fs-4" href="{% url 'ta_hub:index' %}"
                id="title"
-            >VRChat 技術・学術系イベントHub</a>
+            >VRC 技術・学術系イベントHub</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
                     aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
@@ -163,9 +163,7 @@
                         <a class="nav-link text-light" href="{% url 'ta_hub:how_to' %}">使い方</a>
                     </li>
 
-                    <li class="nav-item">
-                        <a class="nav-link text-light" href="{% url 'ta_hub:about' %}">運営情報</a>
-                    </li>
+
                     {% if user.is_authenticated %}
                         <li class="nav-item">
                             <a class="nav-link text-light" href="{% url 'account:settings' %}">設定</a>
@@ -190,9 +188,19 @@
 </main>
 <footer class="bg-primary text-center text-lg-start text-white">
     <div class="text-center p-1">
-        <small>
-            &copy; 2024 VRChat 技術・学術系イベントHub
-        </small>
+        <div>
+            <small>
+                <a class="text-light" href="{% url 'ta_hub:about' %}" style="text-decoration: none;">運営情報</a> |
+                <a class="text-light" href="{% url 'ta_hub:privacy' %}"
+                   style="text-decoration: none;">プライバシーポリシー</a> |
+                <a class="text-light" href="{% url 'ta_hub:terms' %}" style="text-decoration: none;">利用規約</a>
+            </small>
+        </div>
+        <div>
+            <small>
+                &copy; 2024 VRC 技術・学術系イベントHub ® All Rights Reserved
+            </small>
+        </div>
     </div>
 </footer>
 
