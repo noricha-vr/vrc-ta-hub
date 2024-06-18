@@ -276,9 +276,17 @@ class EventDetailList(ListView):
 
 
 class EventDetailPastList(ListView):
-    name = 'event/detail_past.list'
+    template_name = 'event/detail_past_list.html'
     model = EventDetail
     context_object_name = 'event_details'
 
     def get_queryset(self):
-        return super().get_queryset().filter(event__date__lt=timezone.now().date()).order_by('-date', '-start_time')
+        queryset = super().get_queryset().filter(
+            event__date__lt=timezone.now().date()).order_by('-event__date', '-event__start_time')
+        if community_name := self.request.GET.get('community_name'):
+            queryset = queryset.filter(event__community__name__icontains=community_name)
+        if speaker := self.request.GET.get('speaker'):
+            queryset = queryset.filter(speaker__icontains=speaker)
+        if keyword := self.request.GET.get('keyword'):
+            queryset = queryset.filter(Q(speaker__icontains=keyword) | Q(theme__icontains=keyword))
+        return queryset
