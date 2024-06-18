@@ -1,15 +1,16 @@
 {% extends 'ta_hub/base.html' %}
 {% load django_bootstrap5 %}
 {% block meta %}
-    <title>LT予定一覧 - VRChat 技術・学術系イベントHub</title>
-    <meta name="twitter:title" content="VRChatイベント開催日程 - VRChat 技術・学術系イベントHub">
-    <meta property="og:title" content="VRChatイベント開催日程 - VRChat 技術・学術系イベントHub">
+    <title>VRChat 技術・学術系 ライトニングトーク開催履歴 - VRChat 技術・学術系イベントHub</title>
+    <meta name="twitter:title"
+          content="VRChat 技術・学術系 ライトニングトーク開催履歴 - VRChat 技術・学術系イベントHub">
+    <meta property="og:title" content="VRChat 技術・学術系 ライトニングトーク開催履歴 - VRChat 技術・学術系イベントHub">
     <meta name="description"
-          content="VRChat技術学術系のイベント開催日程を確認できます。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
+          content="VRChat 技術・学術系 ライトニングトークの履歴を確認できます。集会名、発表者、テーマで検索ができてとても便利です。聞き逃したライトニングトークやもう一度聞きたいライトニングトークを探してみよう！">
     <meta name="twitter:description"
-          content="VRChat技術学術系のイベント開催日程を確認できます。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
+          content="VRChat 技術・学術系 ライトニングトークの履歴を確認できます。集会名、発表者、テーマで検索ができてとても便利です。聞き逃したライトニングトークやもう一度聞きたいライトニングトークを探してみよう！">
     <meta property="og:description"
-          content="VRChat技術学術系のイベント開催日程を確認できます。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
+          content="VRChat 技術・学術系 ライトニングトークの履歴を確認できます。集会名、発表者、テーマで検索ができてとても便利です。聞き逃したライトニングトークやもう一度聞きたいライトニングトークを探してみよう！">
     <meta property="og:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan.png">
     <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan.png">
 {% endblock %}
@@ -18,8 +19,8 @@
     <div class="container my-5">
         <div class="row text-center">
             <div class="col-lg-12">
-                <a href="{% url 'event:list' %}" class="text-decoration-none text-black">
-                    <h1 class="fw-bold keiko_yellow">VRChat 技術・学術系 ライトニングトーク履歴</h1>
+                <a href="{% url 'event:detail_past_list' %}" class="text-decoration-none text-black">
+                    <h1 class="fw-bold keiko_yellow">VRChat 技術・学術系 ライトニングトーク開催履歴</h1>
                 </a>
             </div>
         </div>
