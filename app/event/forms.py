@@ -32,13 +32,14 @@ from django.core.exceptions import ValidationError
 class EventDetailForm(forms.ModelForm):
     class Meta:
         model = EventDetail
-        fields = ['theme', 'speaker', 'slide_url', 'slide_file', 'youtube_url', ]
+        fields = ['theme', 'speaker', 'slide_url', 'slide_file', 'youtube_url', 'contents']
         widgets = {
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file'}),
             'speaker': forms.TextInput(attrs={'class': 'form-control'}),
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
+            'contents': forms.Textarea(attrs={'class': 'form-control'}),
         }
 
     def clean_slide_file(self):
