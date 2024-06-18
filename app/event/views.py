@@ -229,7 +229,7 @@ class EventDetailDeleteView(LoginRequiredMixin, DeleteView):
     template_name = 'event/detail_confirm_delete.html'
 
     def get_success_url(self):
-        return reverse_lazy('event:detail_list')
+        return reverse_lazy('event:my_list')
 
 
 class EventMyList(LoginRequiredMixin, ListView):
