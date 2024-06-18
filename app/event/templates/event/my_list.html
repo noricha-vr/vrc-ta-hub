@@ -20,27 +20,24 @@
                                     <div class="card-text mb-2">開始時刻: {{ event.start_time }}</div>
                                 </div>
                                 <div class="col-md-6">
-                                    {% if event.details %}
-                                        <div class="card-text mb-2">テーマ:
-                                            {{ event.details.theme }}
-                                        </div>
-                                        <div class="card-text mb-2">発表者: {{ event.details.speaker }}</div>
-                                        <a href="{% url 'event:detail' event.details.pk %}"
-                                           class="btn btn-primary">確認</a>
-                                        <a href="{% url 'event:detail_update' event.details.pk %}"
+                                    {% for detail in event.detail_list %}
+                                        <div class="card-text mb-2">テーマ: {{ detail.theme }}</div>
+                                        <div class="card-text mb-2">発表者: {{ detail.speaker }}</div>
+                                        <a href="{% url 'event:detail' detail.pk %}" class="btn btn-primary">確認</a>
+                                        <a href="{% url 'event:detail_update' detail.pk %}"
                                            class="btn btn-success">編集</a>
-                                        <form method="post" action="{% url 'event:detail_delete' event.details.pk %}"
+                                        <form method="post" action="{% url 'event:detail_delete' detail.pk %}"
                                               class="d-inline">
                                             {% csrf_token %}
                                             <button type="submit" class="btn btn-danger"
                                                     onclick="return confirm('本当に削除しますか？');">削除
                                             </button>
                                         </form>
-                                    {% else %}
+                                    {% empty %}
                                         <div class="d-flex align-items-end mb-2">
                                             <a href="{% url 'event:detail_create' event.pk %}" class="btn btn-primary">スライド・動画を登録</a>
                                         </div>
-                                    {% endif %}
+                                    {% endfor %}
                                 </div>
                             </div>
                         </div>
@@ -48,7 +45,7 @@
                 </div>
             </div>
         {% empty %}
-            <div class="">
+            <div class="row">
                 <p>イベントがありません。</p>
             </div>
         {% endfor %}

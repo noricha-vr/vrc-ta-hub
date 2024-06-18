@@ -236,5 +236,21 @@ class EventMyList(LoginRequiredMixin, ListView):
     context_object_name = 'events'
 
     def get_queryset(self):
-        return Event.objects.filter(community__custom_user=self.request.user).prefetch_related('details').order_by(
-            '-date', '-start_time')
+        return Event.objects.filter(community__custom_user=self.request.user).order_by('-date', '-start_time')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        events = context['events']
+        event_ids = events.values_list('id', flat=True)
+        event_details = EventDetail.objects.filter(event_id__in=event_ids).order_by('-created_at')
+
+        event_detail_dict = {}
+        for detail in event_details:
+            if detail.event_id not in event_detail_dict:
+                event_detail_dict[detail.event_id] = []
+            event_detail_dict[detail.event_id].append(detail)
+
+        for event in events:
+            event.detail_list = event_detail_dict.get(event.id, [])
+
+        return context
