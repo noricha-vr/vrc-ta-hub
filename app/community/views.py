@@ -125,7 +125,7 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return self.request.user == community.custom_user
 
     def form_valid(self, form):
-        messages.success(self.request, 'コミュニティ情報が更新されました。')
+        messages.success(self.request, '集会情報が更新されました。')
         return super().form_valid(form)
 
 

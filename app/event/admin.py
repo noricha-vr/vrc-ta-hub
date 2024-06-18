@@ -17,7 +17,7 @@ class EventAdmin(admin.ModelAdmin):
     def get_community_name(self, obj):
         return obj.community.name
 
-    get_community_name.short_description = 'コミュニティ名'
+    get_community_name.short_description = '集会名'
 
 
 @admin.register(EventDetail)

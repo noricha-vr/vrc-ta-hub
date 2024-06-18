@@ -67,18 +67,19 @@
                 {% endif %}
                 {% if request.user == event_detail.event.community.custom_user %}
                     <div class="d-flex">
-                        <a href="{% url 'community:detail' event_detail.event.community.pk %}"
-                           class="btn btn-primary me-2">集会情報</a>
-                        <a href="{% url 'event:my_list' %}"
-                           class="btn btn-primary me-2">イベント一覧</a>
+
                         <a href="{% url 'event:detail_update' event_detail.id %}"
                            class="btn btn-primary me-2">編集</a>
                         <form method="post" action="{% url 'event:generate_blog' event_detail.id %}">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-primary" id="generate-button">
+                            <button type="submit" class="btn btn-primary me-2" id="generate-button">
                                 動画からコンテンツを生成
                             </button>
                         </form>
+                        <a href="{% url 'community:detail' event_detail.event.community.pk %}"
+                           class="btn btn-secondary me-2">集会情報</a>
+                        <a href="{% url 'event:my_list' %}"
+                           class="btn btn-secondary me-2">イベント一覧</a>
                     </div>
                     <div class="mt-2">
                         思い通りのコンテンツができないときは2-3回は生成し直してもらって大丈夫です。<br>
