@@ -69,17 +69,21 @@ class CommunityDetailView(DetailView):
             community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
                                           tag.strip()]
         community.join_type = get_join_type(community.organizer_url)
-        # 予定されているイベント scheduled events
+
         now = timezone.now()
-        context['scheduled_events'] = Event.objects.filter(
-            community=community, date__gte=now).select_related('details').order_by('date', 'start_time')[:4]
+
+        # 予定されているイベント scheduled events
+        scheduled_events = Event.objects.filter(
+            community=community, date__gte=now).prefetch_related('details').order_by('date', 'start_time')[:4]
+        context['scheduled_events'] = self.get_event_details(scheduled_events)
 
         # 過去のイベントを取得。ただし、event_detailが存在するもののみ
-        context['past_events'] = Event.objects.filter(
+        past_events = Event.objects.filter(
             community=community, date__lt=now
         ).filter(
             Q(details__theme__isnull=False) | Q(details__theme__gt='')
-        ).select_related('details').order_by('-date', '-start_time')[:4]
+        ).prefetch_related('details').order_by('-date', '-start_time')[:4]
+        context['past_events'] = self.get_event_details(past_events)
 
         # 曜日の選択肢をコンテキストに追加
         context['weekday_choices'] = dict(WEEKDAY_CHOICES)
@@ -91,6 +95,23 @@ class CommunityDetailView(DetailView):
         if self.request.user != community.custom_user and not community.is_accepted:
             context['show_accept_button'] = True
         return context
+
+    def get_event_details(self, events):
+        event_details_list = []
+        last_event = None
+        for event in events:
+            event_details = event.details.all()
+            speakers = [detail.speaker for detail in event_details]
+            themes = [detail.theme for detail in event_details]
+            if event == last_event:
+                continue
+            event_details_list.append({
+                'event': event,
+                'speakers': speakers,
+                'themes': themes
+            })
+            last_event = event
+        return event_details_list
 
 
 class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):

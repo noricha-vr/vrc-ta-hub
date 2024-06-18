@@ -121,10 +121,11 @@
             </div>
         </div>
 
+
         <div class="card my-5 shadow">
             <div class="card-body">
                 <h2 class="fs-3 fw-bold my-5 text-center">
-                    {{ community.name }}の開催日程
+                    {{ community.name }}の今後の予定
                 </h2>
                 <div class="table-responsive">
                     <table class="table table-hover table-nowrap">
@@ -137,11 +138,29 @@
                         </tr>
                         </thead>
                         <tbody>
-                        {% for event in scheduled_events %}
-                            {% for detail in event.details.all %}
-                                {{ detail }}
-                                {#                                <a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a>#}
-                            {% endfor %}
+
+                        {% for event_dict in scheduled_events %}
+                            <tr{% if event_dict.event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
+                                <td>{{ event_dict.event.date|date:"Y年m月d日" }}</td>
+                                <td>
+                                    {{ event_dict.event.start_time|date:"H:i" }} -
+                                    {{ event_dict.event.end_time|date:"H:i" }}
+                                </td>
+                                <td>
+                                    {% for speaker in event_dict.speakers %}
+                                        <div class="mb-1">
+                                            {{ speaker }}
+                                        </div>
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    {% for theme in event_dict.themes %}
+                                        <div class="mb-1">
+                                            <a href="{% url 'event:detail' event_dict.event.pk %}">{{ theme }}</a>
+                                        </div>
+                                    {% endfor %}
+                                </td>
+                            </tr>
                         {% endfor %}
                         </tbody>
                     </table>
@@ -165,31 +184,28 @@
                         </tr>
                         </thead>
                         <tbody>
-                        {% for event in past_events %}
-                            <tr{% if event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
-                                <td>{{ event.date|date:"Y年m月d日" }}</td>
-                                <td>{{ event.start_time|date:"H:i" }} - {{ event.end_time|date:"H:i" }}</td>
-                                <td>
-                                    {% for detail in event.details.all %}
-                                        <div class="">
-                                            {{ detail.speaker }}
-                                        </div>
-                                        {% if not forloop.last %}
-                                            <div class="mb-2"></div>
-                                        {% endif %}
-                                    {% endfor %}
-                                </td>
-                                <td>
-                                    {% for detail in event.details.all %}
-                                        <div class="">
-                                            <a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a>
-                                        </div>
-                                        {% if not forloop.last %}
-                                            <div class="mb-2"></div>
-                                        {% endif %}
-                                    {% endfor %}
-                                </td>
 
+                        {% for event_dict in past_events %}
+                            <tr{% if event_dict.event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
+                                <td>{{ event_dict.event.date|date:"Y年m月d日" }}</td>
+                                <td>
+                                    {{ event_dict.event.start_time|date:"H:i" }} -
+                                    {{ event_dict.event.end_time|date:"H:i" }}
+                                </td>
+                                <td>
+                                    {% for speaker in event_dict.speakers %}
+                                        <div class="mb-1">
+                                            {{ speaker }}
+                                        </div>
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    {% for theme in event_dict.themes %}
+                                        <div class="mb-1">
+                                            <a href="{% url 'event:detail' event_dict.event.pk %}">{{ theme }}</a>
+                                        </div>
+                                    {% endfor %}
+                                </td>
                             </tr>
                         {% endfor %}
                         </tbody>
