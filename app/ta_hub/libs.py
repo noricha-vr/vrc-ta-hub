@@ -1,8 +1,8 @@
 import os
-from django.db import models
-from django.core.files.base import ContentFile
-from PIL import Image
 from io import BytesIO
+
+from PIL import Image
+from django.core.files.base import ContentFile
 
 
 def resize_and_convert_image(image_field, max_size=720, output_format='JPEG'):
@@ -22,6 +22,10 @@ def resize_and_convert_image(image_field, max_size=720, output_format='JPEG'):
 
         # 画像のモードがパレットモード('P')の場合、RGBモードに変換する
         if img.mode == 'P':
+            img = img.convert('RGB')
+
+        # 画像のモードがRGBAの場合、RGBに変換
+        if img.mode == 'RGBA':
             img = img.convert('RGB')
 
         # 画像のサイズを取得
