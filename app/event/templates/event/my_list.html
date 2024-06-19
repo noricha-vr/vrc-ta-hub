@@ -29,16 +29,26 @@
         </div>
         {% for event in events %}
             <div class="row">
-                <div class="col-12 col-md-8 offset-md-2 mb-4">
+                <div class="col-12 col-md-10 offset-md-1 mb-4">
                     <div class="card shadow-sm">
                         <div class="card-body">
                             <div class="row">
-                                <div class="col-md-6">
-                                    <div class="card-text mb-2">{{ event.community.name }}</div>
+                                <div class="col-md-5">
                                     <div class="card-text mb-2">開催日: {{ event.date }}</div>
                                     <div class="card-text mb-2">開始時刻: {{ event.start_time }}</div>
+                                    <div class="d-flex align-items-end mb-2 mt-3">
+                                        <a href="{% url 'event:detail_create' event.pk %}"
+                                           class="btn btn-outline-primary">スライド・動画を登録</a>
+                                        <form method="post" action="{% url 'event:delete' event.pk %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="_method" value="DELETE">
+                                            <button type="submit" class="btn btn-outline-danger ms-2"
+                                                    onclick="return confirm('本当に削除しますか？');">削除
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-7">
                                     {% for detail in event.detail_list %}
                                         <div class="card-text mb-2">テーマ: {{ detail.theme }}</div>
                                         <div class="card-text mb-2">発表者: {{ detail.speaker }}</div>
@@ -52,20 +62,8 @@
                                                     onclick="return confirm('本当に削除しますか？');">削除
                                             </button>
                                         </form>
-                                        <hr/>
-
                                     {% endfor %}
-                                    <div class="d-flex align-items-end mb-2 mt-3">
-                                        <a href="{% url 'event:detail_create' event.pk %}"
-                                           class="btn btn-outline-primary">スライド・動画を登録</a>
-                                        <form method="post" action="{% url 'event:delete' event.pk %}">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="_method" value="DELETE">
-                                            <button type="submit" class="btn btn-outline-danger ms-2"
-                                                    onclick="return confirm('本当に削除しますか？');">削除
-                                            </button>
-                                        </form>
-                                    </div>
+
 
                                 </div>
                             </div>
