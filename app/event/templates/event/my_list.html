@@ -18,6 +18,9 @@
             <div><a href="{% url 'event:detail_past_list' %}?community_name={{ community.name }}"
                     class="btn btn-primary me-2">LT履歴</a>
             </div>
+            <div><a href="{% url 'event:create' %}"
+                    class="btn btn-primary me-2">過去のイベントを登録</a>
+            </div>
         </div>
         {% for event in events %}
             <div class="row">

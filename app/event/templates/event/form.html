@@ -1,0 +1,25 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block main %}
+    <div class="container my-4">
+        <div class="row">
+            <div class="col-md-6 offset-md-3">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">過去のイベントを登録</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="my-2">
+                            この機能は登録されていない過去のイベントを登録して、LTの資料や動画を登録できるようにするためのものです。
+                        </div>
+                        <form method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            {{ form.as_p }}
+                            <button type="submit" class="btn btn-primary">作成</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

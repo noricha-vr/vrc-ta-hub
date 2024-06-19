@@ -1,7 +1,7 @@
 from django import forms
 from django.core.exceptions import ValidationError
 
-from community.models import WEEKDAY_CHOICES, TAGS
+from community.models import WEEKDAY_CHOICES, TAGS, Community
 from .models import EventDetail
 
 
@@ -26,6 +26,42 @@ class EventSearchForm(forms.Form):
         required=False,
         widget=forms.CheckboxSelectMultiple()
     )
+
+
+from django import forms
+from django.utils import timezone
+from .models import Event
+
+
+class EventCreateForm(forms.ModelForm):
+    class Meta:
+        model = Event
+        fields = ['date', 'start_time', 'duration']
+        widgets = {
+            'date': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'start_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'duration': forms.NumberInput(attrs={'class': 'form-control'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)  # requestオブジェクトを受け取る
+        super().__init__(*args, **kwargs)
+        if self.request and self.request.user.is_authenticated:
+            community = Community.objects.filter(custom_user=self.request.user).first()
+            self.fields['start_time'].initial = community.start_time  # Communityから初期値を設定
+            self.fields['duration'].initial = community.duration  # Communityから初期値を設定
+
+    def clean(self):
+        cleaned_data = super().clean()
+        date = cleaned_data.get('date')
+        start_time = cleaned_data.get('start_time')
+
+        if date and start_time:
+            event_datetime = timezone.datetime.combine(date, start_time)
+            if event_datetime > timezone.now():
+                raise forms.ValidationError("過去のイベントのみ作成できます。")
+
+        return cleaned_data
 
 
 class EventDetailForm(forms.ModelForm):

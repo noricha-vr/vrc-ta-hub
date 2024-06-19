@@ -1,11 +1,12 @@
 from django.urls import path
-from django.views.generic import TemplateView
+
 from .views import EventListView, EventDetailView, sync_calendar_events, EventDetailUpdateView, EventDetailCreateView, \
-    EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailList, EventDetailPastList
+    EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailList, EventDetailPastList, EventCreateView
 
 app_name = 'event'
 urlpatterns = [
     path('', EventListView.as_view(), name='list'),
+    path('create/', EventCreateView.as_view(), name='create'),
     path('<int:event_pk>/detail/create/', EventDetailCreateView.as_view(), name='detail_create'),
     path('detail/<int:pk>/', EventDetailView.as_view(), name='detail'),
     path('detail/<int:pk>/update/', EventDetailUpdateView.as_view(), name='detail_update'),

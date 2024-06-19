@@ -2,6 +2,7 @@ import logging
 import re
 from datetime import datetime, timedelta
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -12,12 +13,33 @@ from django.views.generic import CreateView, UpdateView, DeleteView, DetailView,
 from googleapiclient.discovery import build
 
 from community.models import Community
-from event.forms import EventDetailForm, EventSearchForm
+from event.forms import EventDetailForm, EventSearchForm, EventCreateForm
 from event.libs import convert_markdown, get_transcript, genai_model, create_blog_prompt
 from event.models import EventDetail, Event
 from website.settings import GOOGLE_API_KEY, CALENDAR_ID, REQUEST_TOKEN
 
 logger = logging.getLogger(__name__)
+
+
+class EventCreateView(LoginRequiredMixin, CreateView):
+    model = Event
+    form_class = EventCreateForm  # フォームクラスを設定
+    template_name = 'event/form.html'
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request  # requestオブジェクトを渡す
+        return kwargs
+
+    def form_valid(self, form):
+        form.instance.weekday = form.instance.date.strftime('%a')
+        form.instance.community = Community.objects.filter(custom_user=self.request.user).first()
+        message = f"イベントを追加しました: {form.instance.date} {form.instance.start_time}"
+        messages.success(self.request, message)
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy('event:my_list')
 
 
 class EventListView(ListView):

@@ -9,7 +9,7 @@ class Event(models.Model):
     community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='events', verbose_name='集会')
     date = models.DateField('開催日', db_index=True)
     start_time = models.TimeField('開始時刻', default='22:00')
-    duration = models.IntegerField('開催時間', default=60, help_text='単位は分')
+    duration = models.IntegerField('開催時間（分）', default=60)
     weekday = models.CharField('曜日', max_length=5, choices=WEEKDAY_CHOICES, blank=True)
 
     class Meta:
@@ -33,7 +33,7 @@ class EventDetail(models.Model):
     updated_at = models.DateTimeField('更新日時', auto_now=True)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='details', verbose_name='イベント')
     start_time = models.TimeField('開始時刻', default='22:00')
-    duration = models.IntegerField('発表時間', default=30, help_text='単位は分')
+    duration = models.IntegerField('発表時間（分）', default=30)
     youtube_url = models.URLField('YouTube URL', blank=True, null=True)
     slide_url = models.URLField('スライド URL', blank=True, null=True)
     slide_file = models.FileField('スライド', blank=True, null=True, upload_to='slide/')
