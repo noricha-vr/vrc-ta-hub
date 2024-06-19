@@ -5,11 +5,14 @@ from datetime import datetime, timedelta
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404
+from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
-from django.views.generic import CreateView, UpdateView, DeleteView, DetailView, ListView
+from django.views.generic import CreateView, UpdateView, DetailView, ListView
+from django.views.generic.edit import DeleteView
 from googleapiclient.discovery import build
 
 from community.models import Community
@@ -40,6 +43,20 @@ class EventCreateView(LoginRequiredMixin, CreateView):
 
     def get_success_url(self):
         return reverse_lazy('event:my_list')
+
+
+class EventDeleteView(LoginRequiredMixin, DeleteView):
+    model = Event
+    success_url = reverse_lazy('event:my_list')
+    template_name = ''  # テンプレートを使用しない場合は空文字列を設定
+
+    def post(self, request, *args, **kwargs):
+        message = f"イベントを削除しました: {self.get_object().date} {self.get_object().start_time}"
+        messages.success(self.request, message)
+        return super().delete(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        return HttpResponseRedirect(self.success_url)
 
 
 class EventListView(ListView):
