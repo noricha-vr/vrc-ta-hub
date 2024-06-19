@@ -6,7 +6,7 @@ from .views import EventListView, EventDetailView, sync_calendar_events, EventDe
 
 app_name = 'event'
 urlpatterns = [
-    path('', EventListView.as_view(), name='list'),
+    path('list/', EventListView.as_view(), name='list'),
     path('create/', EventCreateView.as_view(), name='create'),
     path('delete/<int:pk>/', EventDeleteView.as_view(), name='delete'),
     path('my_list/', EventMyList.as_view(), name='my_list'),
