@@ -4,7 +4,7 @@
         <tr>
             <th scope="col" style="min-width: 140px">集会名</th>
             <th scope="col" style="min-width: 142px">日付</th>
-            <th scope="col" style="min-width: 115px">時間</th>
+            <th scope="col" style="min-width: 120px">時間</th>
             <th scope="col" style="min-width: 140px">発表者</th>
             <th scope="col">テーマ</th>
         </tr>
@@ -18,8 +18,8 @@
                     </a>
                 </td>
                 <td>{{ detail.event.date|date:"Y年m月d日" }}</td>
-                <td>{{ detail.event.start_time|date:"H:i" }}
-                    - {{ detail.event.end_time|date:"H:i" }}</td>
+                <td>{{ detail.start_time|date:"H:i" }}
+                    - {{ detail.end_time|date:"H:i" }}</td>
                 <td>
                     <a href="{{ request.path }}?{{ request.GET.urlencode }}&speaker={{ detail.speaker }}">
                         {{ detail.speaker }}
