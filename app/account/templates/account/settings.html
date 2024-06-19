@@ -13,16 +13,18 @@
 
 
                         <ul class="list-group">
-                            <li class="list-group-item">
-                                <a href="{% url 'community:detail' community.pk %}" class="text-decoration-none">
-                                    <i class="fas fa-users me-2"></i>{{ community.name }}
-                                </a>
-                            </li>
-                            <li class="list-group-item">
-                                <a href="{% url 'community:update' community.pk %}" class="text-decoration-none">
-                                    <i class="fas fa-users me-2"></i>集会情報の編集
-                                </a>
-                            </li>
+                            {% if community %}
+                                <li class="list-group-item">
+                                    <a href="{% url 'community:detail' community.pk %}" class="text-decoration-none">
+                                        <i class="fas fa-users me-2"></i>{{ community.name }}
+                                    </a>
+                                </li>
+                                <li class="list-group-item">
+                                    <a href="{% url 'community:update' community.pk %}" class="text-decoration-none">
+                                        <i class="fas fa-users me-2"></i>集会情報の編集
+                                    </a>
+                                </li>
+                            {% endif %}
                             <li class="list-group-item">
                                 <a href="{% url 'event:my_list' %}" class="text-decoration-none">
                                     <i class="fas fa-calendar-alt me-2"></i>イベント一覧
