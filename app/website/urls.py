@@ -22,6 +22,8 @@ urlpatterns = [
     path('community/', include('community.urls')),
     path('event/', include('event.urls')),
     path('account/', include('account.urls')),
+    path('api/v1/', include('api_v1.urls')),
+    path('api-auth/', include('rest_framework.urls')),
     path('', include('ta_hub.urls')),
     path('', include('sitemap.urls')),
 ]

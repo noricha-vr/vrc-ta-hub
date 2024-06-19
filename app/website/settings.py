@@ -42,6 +42,9 @@ INSTALLED_APPS = [
     'sitemap',
     'account',
     'django_bootstrap5',
+    'api_v1',
+    'django_filters',
+    'rest_framework',
 ]
 
 AUTH_USER_MODEL = 'account.CustomUser'
