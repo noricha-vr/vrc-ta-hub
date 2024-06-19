@@ -57,7 +57,8 @@ class EventCreateForm(forms.ModelForm):
         start_time = cleaned_data.get('start_time')
 
         if date and start_time:
-            event_datetime = timezone.datetime.combine(date, start_time)
+            event_datetime = timezone.datetime.combine(date, start_time,
+                                                       tzinfo=timezone.get_current_timezone())  # タイムゾーンを設定
             if event_datetime > timezone.now():
                 raise forms.ValidationError("過去のイベントのみ作成できます。")
 
