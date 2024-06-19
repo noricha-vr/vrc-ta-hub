@@ -1,6 +1,8 @@
-from django.db import models
-from community.models import Community, WEEKDAY_CHOICES
 from datetime import datetime, timedelta
+
+from django.db import models
+
+from community.models import Community, WEEKDAY_CHOICES
 
 
 class Event(models.Model):
@@ -46,3 +48,9 @@ class EventDetail(models.Model):
 
     def __str__(self):
         return f"{self.event} - {self.theme} - {self.speaker}"
+
+    @property
+    def end_time(self):
+        start_datetime = datetime.combine(self.event.date, self.start_time)
+        end_datetime = start_datetime + timedelta(minutes=self.duration)
+        return end_datetime.time()

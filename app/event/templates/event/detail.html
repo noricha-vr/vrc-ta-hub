@@ -98,8 +98,8 @@
                             <th scope="row">日時</th>
                             <td>
                                 {{ event_detail.event.date|date:"Y年m月d日" }}
-                                {{ event_detail.event.start_time|date:"H:i" }}
-                                - {{ event_detail.event.end_time|date:"H:i" }}
+                                {{ event_detail.start_time|date:"H:i" }}
+                                - {{ event_detail.end_time|date:"H:i" }}
                             </td>
                         </tr>
                         <tr>
