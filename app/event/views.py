@@ -1,21 +1,20 @@
-import os
-import re
 import logging
+import re
+from datetime import datetime, timedelta
 
-from django.db.models import Q
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, UpdateView, DeleteView, DetailView, ListView
-from django.http import HttpResponse
-from django.utils import timezone
-from django.contrib.auth.mixins import LoginRequiredMixin
-from event.libs import convert_markdown, get_transcript, genai_model, create_blog_prompt
-from event.forms import EventDetailForm, EventSearchForm
-from event.models import EventDetail, Event
-from community.models import Community
-from datetime import datetime, timedelta
 from googleapiclient.discovery import build
+
+from community.models import Community
+from event.forms import EventDetailForm, EventSearchForm
+from event.libs import convert_markdown, get_transcript, genai_model, create_blog_prompt
+from event.models import EventDetail, Event
 from website.settings import GOOGLE_API_KEY, CALENDAR_ID, REQUEST_TOKEN
 
 logger = logging.getLogger(__name__)
@@ -283,7 +282,7 @@ class EventDetailList(EventDetailMixin, ListView):  # Mixinを継承
     def get_queryset(self):
         queryset = super().get_queryset().filter(
             event__date__gte=timezone.now().date()
-        ).order_by('-event__date', '-event__start_time')
+        ).order_by('-event__date', '-start_time')
         return self.filter_queryset(queryset)  # 共通メソッドでフィルタリング
 
 
@@ -295,5 +294,5 @@ class EventDetailPastList(EventDetailMixin, ListView):  # Mixinを継承
     def get_queryset(self):
         queryset = super().get_queryset().filter(
             event__date__lt=timezone.now().date()
-        ).order_by('-event__date', '-event__start_time')
+        ).order_by('-event__date', '-start_time')
         return self.filter_queryset(queryset)  # 共通メソッドでフィルタリング
