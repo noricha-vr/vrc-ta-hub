@@ -30,6 +30,8 @@ class EventDetail(models.Model):
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='details', verbose_name='イベント')
+    start_time = models.TimeField('開始時刻', default='22:00')
+    duration = models.IntegerField('発表時間', default=30, help_text='単位は分')
     youtube_url = models.URLField('YouTube URL', blank=True, null=True)
     slide_url = models.URLField('スライド URL', blank=True, null=True)
     slide_file = models.FileField('スライド', blank=True, null=True, upload_to='slide/')
