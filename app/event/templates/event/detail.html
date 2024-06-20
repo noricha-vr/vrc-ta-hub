@@ -73,7 +73,7 @@
                         <form method="post" action="{% url 'event:generate_blog' event_detail.id %}">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-primary me-2" id="generate-button">
-                                動画からコンテンツを生成
+                                動画から記事を生成
                             </button>
                         </form>
                         <a href="{% url 'community:detail' event_detail.event.community.pk %}"
@@ -82,7 +82,7 @@
                            class="btn btn-secondary me-2">イベント一覧</a>
                     </div>
                     <div class="mt-2">
-                        思い通りのコンテンツができないときは2-3回は生成し直してもらって大丈夫です。<br>
+                        思い通りの記事ができないときは2-3回は生成し直してもらって大丈夫です。<br>
                         いっぱいリクエストするとのりちゃんが悲しみます😢
                     </div>
                 {% endif %}
