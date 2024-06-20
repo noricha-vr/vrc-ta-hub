@@ -95,6 +95,15 @@ class EventDetailForm(forms.ModelForm):
             'duration': '単位は分'  # help_text を追加
         }
 
+    # start_time と duration の初期値はEventCreateFormと同じにする
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+        if self.request and self.request.user.is_authenticated:
+            community = Community.objects.filter(custom_user=self.request.user).first()
+            self.fields['start_time'].initial = community.start_time
+            self.fields['duration'].initial = 30
+
     def clean_slide_file(self):
         slide_file = self.cleaned_data.get('slide_file')
         if slide_file:

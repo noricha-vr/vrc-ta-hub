@@ -233,6 +233,11 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
         self.event = get_object_or_404(Event, pk=kwargs['event_pk'])
         return super().dispatch(request, *args, **kwargs)
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
     def form_valid(self, form):
         form.instance.event = self.event
         return super().form_valid(form)
