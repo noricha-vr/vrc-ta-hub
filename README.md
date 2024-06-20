@@ -1,5 +1,3 @@
-## README.md (完成形)
-
 # VRC 技術学術ハブ（VRChat Technology and Academic Hub）
 
 このプロジェクトはVRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくためのWeb制作プロジェクトです。
