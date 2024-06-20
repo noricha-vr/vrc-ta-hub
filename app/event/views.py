@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import IntegrityError
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404
@@ -37,9 +38,16 @@ class EventCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.weekday = form.instance.date.strftime('%a')
         form.instance.community = Community.objects.filter(custom_user=self.request.user).first()
-        message = f"イベントを追加しました: {form.instance.date} {form.instance.start_time}"
-        messages.success(self.request, message)
-        return super().form_valid(form)
+
+        try:
+            return super().form_valid(form)
+        except IntegrityError as e:
+            if "Duplicate entry" in str(e):
+                message = f"イベントが重複しています: {form.instance.date} {form.instance.start_time}"
+                messages.error(self.request, message)
+            else:
+                raise e
+        return redirect(self.get_success_url())
 
     def get_success_url(self):
         return reverse_lazy('event:my_list')
