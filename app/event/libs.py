@@ -1,14 +1,12 @@
-import os
-
-import markdown
 import bleach
+import google.generativeai as genai
+import markdown
+from bs4 import BeautifulSoup
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
-import google.generativeai as genai
 
 from event.models import EventDetail
 from website.settings import GEMINI_API_KEY
-from bs4 import BeautifulSoup
 
 # Gemini APIの設定
 genai.configure(api_key=GEMINI_API_KEY)
@@ -49,7 +47,7 @@ def create_blog_prompt(event_detail: EventDetail) -> str:
 
 def convert_markdown(markdown_text: str) -> str:
     """MarkdownをHTMLに変換し、サニタイズする"""
-    allowed_tags = ['a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'li', 'strong', 'em', 'code', 'pre', 'table', 'thead',
+    allowed_tags = ['a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em', 'code', 'pre', 'table', 'thead',
                     'tbody', 'tr', 'th', 'td']
     allowed_attributes = {'a': ['href', 'title'], 'pre': ['class'], 'table': ['class']}
     html = markdown.markdown(markdown_text, extensions=['tables'])
