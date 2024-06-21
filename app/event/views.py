@@ -272,6 +272,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
         response = genai_model.generate_content(prompt + transcript, stream=False)
         h1 = response.text.split('\n')[0]
         content = response.text.replace(h1, '', 1)
+        logger.info(f'content length: {len(content)}')
         event_detail.h1 = h1.strip().replace('# ', '')
         event_detail.contents = content
         event_detail.save()

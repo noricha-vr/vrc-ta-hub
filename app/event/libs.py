@@ -47,6 +47,7 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     - 記事の冒頭に発表のハイライトや重要なポイントをh2で短く示す
     - 記事内で発表テーマに関連するキーワードを適宜使用し、SEOを意識
     - 最後にまとめをつける
+    - 最低1000文字以上の記事を目指す
     """
 
     return prompt
@@ -55,7 +56,7 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
 def convert_markdown(markdown_text: str) -> str:
     """MarkdownをHTMLに変換し、サニタイズする"""
     allowed_tags = ['a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em', 'code', 'pre', 'table', 'thead',
-                    'tbody', 'tr', 'th', 'td']
+                    'tbody', 'tr', 'th', 'td', 'hr']
     allowed_attributes = {'a': ['href', 'title'], 'pre': ['class'], 'table': ['class']}
     html = markdown.markdown(markdown_text, extensions=['tables'])
 
