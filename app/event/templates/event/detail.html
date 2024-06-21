@@ -15,8 +15,14 @@
 {% block main %}
     <style>
         .post h1 {
-        {#font-family: "Noto Sans JP", sans-serif;#} font-size: 2rem;
+            font-size: 2rem;
+            font-weight: 600;
+            color: #333;
+            padding: 10px;
+            border-bottom: 2px solid #3187de;
+            letter-spacing: 2px;
         }
+
 
         .post h2 {
             background-color: #cee7ff;
@@ -28,7 +34,7 @@
             font-family: "Noto Sans JP", sans-serif;
             font-optical-sizing: auto;
             font-style: normal;
-            font-weight: 400;
+            font-weight: 500;
             font-size: 1.6rem;
 
         }
@@ -61,7 +67,7 @@
 
     </style>
     <div class="container mt-5">
-        <div class="row post mb-5 mt-5">
+        <div class="row post mb-5">
             <div class="col-lg-12">
                 <h1 class="mb-3">{{ event_detail.title }}</h1>
                 {% if video_id %}
