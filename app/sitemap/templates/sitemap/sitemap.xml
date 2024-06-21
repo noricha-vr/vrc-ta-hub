@@ -21,6 +21,27 @@
         <loc>{{ base_url }}about/</loc>
         <priority>0.1</priority>
     </url>
+    <url>
+        <loc>{{ base_url }}how_to/</loc>
+        <priority>0.1</priority>
+    </url>
+    <url>
+        <loc>{{ base_url }}event/detail/list/</loc>
+        <priority>0.1</priority>
+    </url>
+    <url>
+        <loc>{{ base_url }}event/detail/history/</loc>
+        <priority>0.1</priority>
+    </url>
+    <url>
+        <loc>{{ base_url }}account/register/</loc>
+        <priority>0.1</priority>
+    </url>
+    <url>
+        <loc>{{ base_url }}account/login/</loc>
+        <priority>0.1</priority>
+    </url>
+
     {% for event_detail in event_details %}
         <url>
             <loc>{{ base_url }}event/detail/{{ event_detail.pk }}/</loc>

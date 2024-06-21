@@ -22,7 +22,7 @@
                 <div><a href="{% url 'event:detail_list' %}?community_name={{ community.name }}"
                         class="btn btn-primary me-2">LT予定</a>
                 </div>
-                <div><a href="{% url 'event:detail_past_list' %}?community_name={{ community.name }}"
+                <div><a href="{% url 'event:detail_history' %}?community_name={{ community.name }}"
                         class="btn btn-primary me-2">LT履歴</a>
                 </div>
                 <div><a href="{% url 'event:create' %}"

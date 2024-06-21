@@ -339,7 +339,7 @@ class EventDetailList(EventDetailMixin, ListView):  # Mixinを継承
 
 
 class EventDetailPastList(EventDetailMixin, ListView):  # Mixinを継承
-    template_name = 'event/detail_past_list.html'
+    template_name = 'event/detail_history.html'
     model = EventDetail
     context_object_name = 'event_details'
 
