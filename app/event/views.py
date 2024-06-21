@@ -266,11 +266,14 @@ class GenerateBlogView(LoginRequiredMixin, View):
         video_id = extract_video_id(event_detail.youtube_url)
         if not video_id:
             return HttpResponse(f"Invalid YouTube URL. {event_detail.youtube_url}", status=400)
-        prompt = create_blog_prompt(event_detail)
         # 文字起こしを取得
         transcript = get_transcript(video_id)
+        prompt = create_blog_prompt(event_detail, transcript)
         response = genai_model.generate_content(prompt + transcript, stream=False)
-        event_detail.contents = response.text
+        h1 = response.text.split('\n')[0]
+        content = response.text.replace(h1, '', 1)
+        event_detail.h1 = h1.replace('# ', '')
+        event_detail.contents = content
         event_detail.save()
         return redirect('event:detail', pk=event_detail.id)
 

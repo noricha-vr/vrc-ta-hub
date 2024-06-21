@@ -30,18 +30,22 @@ def get_transcript(video_id, language='ja') -> str:
     return transcript_text
 
 
-def create_blog_prompt(event_detail: EventDetail) -> str:
+def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     prompt = f"""
-    # 指示
+    ## 文字起こし
+    {transcript}
+    
+    ## 指示
     VRChatの「{event_detail.event.community.name}」で{event_detail.speaker}の発表内容をもとに、ユーザーから入力された文字起こしデータを使ってブログ記事を作成します。
     発表のテーマは「{event_detail.theme}」です。
-    # 制御
-    - マークダウン形式
-    - タイトル不要
-    - 本文はh2 h3に当たる見出しやリストを使ってわかりやすくまとめる
+    
+    ## 制御
+    - マークダウン形式で出力
+    - h1 h2 h3に当たる見出しやリストを使って読者にわかりやすくまとめる
     - 文字起こしは精度が低いためテーマ、前後の文脈から名詞や単語を補ってブログを作成する
     - 最後にまとめをつける
     """
+
     return prompt
 
 

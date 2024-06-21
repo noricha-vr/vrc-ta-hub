@@ -14,10 +14,14 @@
 {% endblock %}
 {% block main %}
     <style>
+        .post h1 {
+        {#font-family: "Noto Sans JP", sans-serif;#} font-size: 2rem;
+        }
+
         .post h2 {
             background-color: #cee7ff;
-            margin-top: 20px;
-            margin-bottom: 15px;
+            margin-top: 2rem;
+            margin-bottom: 2rem;
             padding: 5px;
             padding-left: 10px;
             border-left: 5px solid #3187de;
@@ -25,35 +29,39 @@
             font-optical-sizing: auto;
             font-style: normal;
             font-weight: 400;
+            font-size: 1.6rem;
+
         }
 
         .post h3 {
             padding: 5px;
-            margin: 10px 0px;
+            margin-top: 1.5rem;
+            margin-bottom: 1.5rem;
             padding-left: 10px;
             border-left: 5px solid #3187de;
             font-family: "Noto Sans JP", sans-serif;
             font-optical-sizing: auto;
             font-style: normal;
             font-weight: 400;
-            font-size: 1.5rem;
+            font-size: 1.4rem;
         }
 
         .post h4 {
             padding: 5px;
-            margin: 10px 0px;
+            margin-top: 1.2rem;
+            margin-bottom: 1.2rem;
             padding-left: 10px;
             border-left: 5px solid #a2d0ff;
             font-family: "Noto Sans JP", sans-serif;
             font-optical-sizing: auto;
             font-style: normal;
             font-weight: 400;
-            font-size: 1.3rem;
+            font-size: 1.2rem;
         }
 
     </style>
-    <div class="container mt-4">
-        <div class="row post mb-5">
+    <div class="container mt-5">
+        <div class="row post mb-5 mt-5">
             <div class="col-lg-12">
                 <h1 class="mb-3">{{ event_detail.title }}</h1>
                 {% if video_id %}
@@ -90,8 +98,8 @@
                         いっぱいリクエストするとのりちゃんが悲しみます😢微調整は「編集」からマークダウン形式で行えます。
                     </div>
                 {% endif %}
-                <h2 class="zen-kaku-gothic-new-medium">詳細情報</h2>
-                <div class="lead mb-2">
+                <h2 class="zen-kaku-gothic-new-medium" style="margin-bottom: 1.3rem">詳細情報</h2>
+                <div class="lead">
                     <table class="table table-responsive">
                         <tbody>
                         <tr>
