@@ -39,6 +39,7 @@ class EventDetail(models.Model):
     slide_file = models.FileField('スライド', blank=True, null=True, upload_to='slide/')
     speaker = models.CharField('発表者', max_length=200, blank=True, default='', db_index=True)
     theme = models.CharField('テーマ', max_length=100, blank=True, default='', db_index=True)
+    h1 = models.CharField('タイトル(H1)', max_length=255, blank=True, default='', db_index=True)
     contents = models.TextField('内容', blank=True, default='')
 
     class Meta:
@@ -49,6 +50,10 @@ class EventDetail(models.Model):
     def __str__(self):
         return f"{self.event} - {self.theme} - {self.speaker}"
 
+    @property
+    def title(self):
+        return self.h1 if self.h1 else self.theme
+    
     @property
     def end_time(self):
         start_datetime = datetime.combine(self.event.date, self.start_time)

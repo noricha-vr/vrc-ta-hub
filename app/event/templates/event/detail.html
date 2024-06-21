@@ -1,8 +1,8 @@
 {% extends 'ta_hub/base.html' %}
 {% block meta %}
-    <title>{{ event_detail.theme }} - VRChat 技術・学術系イベントHub</title>
-    <meta name="twitter:title" content="{{ event_detail.theme }} - VRChat 技術・学術系イベントHub">
-    <meta property="og:title" content="{{ event_detail.theme }} - VRChat 技術・学術系イベントHub">
+    <title>{{ event_detail.title }} - VRChat 技術・学術系イベントHub</title>
+    <meta name="twitter:title" content="{{ event_detail.title }} - VRChat 技術・学術系イベントHub">
+    <meta property="og:title" content="{{ event_detail.title }} - VRChat 技術・学術系イベントHub">
     <meta name="description"
           content="{{ event_detail }} {{ event_detail.contents|truncatechars:"100" }}">
     <meta name="twitter:description"
@@ -55,7 +55,7 @@
     <div class="container mt-4">
         <div class="row post mb-5">
             <div class="col-lg-12">
-                <h1 class="mb-3">{{ event_detail.theme }}</h1>
+                <h1 class="mb-3">{{ event_detail.title }}</h1>
                 {% if video_id %}
                     <div class="mb-3">
                         <div class="ratio ratio-16x9">
@@ -67,7 +67,6 @@
                 {% endif %}
                 {% if request.user == event_detail.event.community.custom_user %}
                     <div class="d-flex">
-
                         <a href="{% url 'event:detail_update' event_detail.id %}"
                            class="btn btn-primary me-2">編集</a>
                         {% if video_id %}

@@ -79,7 +79,8 @@ class EventDetailForm(forms.ModelForm):
 
     class Meta:
         model = EventDetail
-        fields = ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url', 'contents']
+        fields = ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url', 'h1',
+                  'contents']
         widgets = {
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
@@ -88,6 +89,7 @@ class EventDetailForm(forms.ModelForm):
             'start_time': forms.TextInput(attrs={'class': 'form-control'}),
             'duration': forms.TextInput(attrs={'class': 'form-control'}),
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
+            'h1': forms.TextInput(attrs={'class': 'form-control'}),
             'contents': forms.Textarea(attrs={'class': 'form-control', 'rows': '18'}),
         }
         help_texts = {
