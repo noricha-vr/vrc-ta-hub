@@ -94,6 +94,7 @@ class EventDetailForm(forms.ModelForm):
         }
         help_texts = {
             'contents': '※ Markdown形式で記述してください。',
+            'h1': '※ 空のときはテーマが使われます。',
             'duration': '単位は分'  # help_text を追加
         }
 
