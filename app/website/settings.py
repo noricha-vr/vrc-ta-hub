@@ -92,6 +92,7 @@ DATABASES = {
     },
     'OPTIONS': {
         'init_command'
+        'charset': 'utf8mb4',
         '': 'SET default_storage_engine=INNODB',
     }
 }
