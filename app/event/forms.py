@@ -90,7 +90,7 @@ class EventDetailForm(forms.ModelForm):
             'duration': forms.TextInput(attrs={'class': 'form-control'}),
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
             'h1': forms.TextInput(attrs={'class': 'form-control'}),
-            'contents': forms.Textarea(attrs={'class': 'form-control', 'rows': '18'}),
+            'contents': forms.Textarea(attrs={'class': 'form-control', 'rows': '8'}),
         }
         help_texts = {
             'contents': '※ Markdown形式で記述してください。',

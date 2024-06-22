@@ -1,17 +1,18 @@
 from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView, DetailView
-from event.models import Event
-from .libs import get_join_type
-from .forms import CommunitySearchForm
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.urls import reverse_lazy
 from django.views.generic import UpdateView
-from .models import Community
+
+from event.models import Event
+from .forms import CommunitySearchForm
 from .forms import CommunityUpdateForm
+from .libs import get_join_type
+from .models import Community
 
 
 class CommunityListView(ListView):
@@ -103,9 +104,11 @@ class CommunityDetailView(DetailView):
             event_details = event.details.all()
             speakers = [detail.speaker for detail in event_details]
             themes = [detail.theme for detail in event_details]
+            details = event_details
             if event == last_event:
                 continue
             event_details_list.append({
+                'details': details,
                 'event': event,
                 'speakers': speakers,
                 'themes': themes

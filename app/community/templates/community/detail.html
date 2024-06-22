@@ -193,16 +193,16 @@
                                     {{ event_dict.event.end_time|date:"H:i" }}
                                 </td>
                                 <td>
-                                    {% for speaker in event_dict.speakers %}
+                                    {% for detail in event_dict.details %}
                                         <div class="mb-1">
-                                            {{ speaker }}
+                                            {{ detail.speaker }}
                                         </div>
                                     {% endfor %}
                                 </td>
                                 <td>
-                                    {% for theme in event_dict.themes %}
+                                    {% for detail in event_dict.details %}
                                         <div class="mb-1">
-                                            <a href="{% url 'event:detail' event_dict.event.pk %}">{{ theme }}</a>
+                                            <a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a>
                                         </div>
                                     {% endfor %}
                                 </td>
