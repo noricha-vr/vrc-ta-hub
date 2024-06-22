@@ -5,11 +5,12 @@
             <th scope="col" style="min-width: 140px">集会名</th>
             <th scope="col" style="min-width: 142px">日付</th>
             <th scope="col" style="min-width: 120px">時間</th>
-            <th scope="col" style="min-width: 140px">発表者</th>
-            <th scope="col" style="min-width: 300px">テーマ</th>
             {% if 'history' in request.path %}
                 <th scope="col" style="min-width: 60px">資料</th>
             {% endif %}
+            <th scope="col" style="min-width: 140px">発表者</th>
+            <th scope="col" style="min-width: 300px">テーマ</th>
+
         </tr>
         </thead>
         <tbody>
@@ -24,12 +25,6 @@
                 <td>{{ detail.start_time|date:"H:i" }}
                     - {{ detail.end_time|date:"H:i" }}</td>
                 <td>
-                    <a href="{{ request.path }}?{{ request.GET.urlencode }}&speaker={{ detail.speaker }}">
-                        {{ detail.speaker }}
-                    </a>
-                </td>
-                <td><a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a></td>
-                <td>
                     {% if detail.youtube_url %}
                         <i class="bi bi-play-circle" title="動画"></i>
                     {% endif %}
@@ -40,6 +35,13 @@
                         <i class="bi bi-file-earmark-check" title="スライド"></i>
                     {% endif %}
                 </td>
+                <td>
+                    <a href="{{ request.path }}?{{ request.GET.urlencode }}&speaker={{ detail.speaker }}">
+                        {{ detail.speaker }}
+                    </a>
+                </td>
+                <td><a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a></td>
+
             </tr>
         {% endfor %}
         </tbody>
