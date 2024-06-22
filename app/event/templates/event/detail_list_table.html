@@ -24,17 +24,20 @@
                 <td>{{ detail.event.date|date:"Y年m月d日" }}</td>
                 <td>{{ detail.start_time|date:"H:i" }}
                     - {{ detail.end_time|date:"H:i" }}</td>
-                <td>
-                    {% if detail.youtube_url %}
-                        <i class="bi bi-play-circle" title="動画"></i>
-                    {% endif %}
-                    {% if detail.slide_url %}
-                        <i class="bi bi-link-45deg" title="リンク"></i>
-                    {% endif %}
-                    {% if detail.slide_file %}
-                        <i class="bi bi-file-earmark-check" title="スライド"></i>
-                    {% endif %}
-                </td>
+                {% if 'history' in request.path %}
+
+                    <td>
+                        {% if detail.youtube_url %}
+                            <i class="bi bi-play-circle" title="動画"></i>
+                        {% endif %}
+                        {% if detail.slide_url %}
+                            <i class="bi bi-link-45deg" title="リンク"></i>
+                        {% endif %}
+                        {% if detail.slide_file %}
+                            <i class="bi bi-file-earmark-check" title="スライド"></i>
+                        {% endif %}
+                    </td>
+                {% endif %}
                 <td>
                     <a href="{{ request.path }}?{{ request.GET.urlencode }}&speaker={{ detail.speaker }}">
                         {{ detail.speaker }}
