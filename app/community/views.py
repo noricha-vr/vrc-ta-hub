@@ -101,17 +101,12 @@ class CommunityDetailView(DetailView):
         event_details_list = []
         last_event = None
         for event in events:
-            event_details = event.details.all()
-            speakers = [detail.speaker for detail in event_details]
-            themes = [detail.theme for detail in event_details]
-            details = event_details
+            details = event.details.all()
             if event == last_event:
                 continue
             event_details_list.append({
                 'details': details,
                 'event': event,
-                'speakers': speakers,
-                'themes': themes
             })
             last_event = event
         return event_details_list
