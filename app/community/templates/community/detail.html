@@ -210,6 +210,11 @@
                         {% endfor %}
                         </tbody>
                     </table>
+                    <div class="text-end">
+                        <a href="{% url 'event:detail_history' %}?&community_name={{ community.name }}"
+                           class=" btn btn-primary">
+                            もっと見る</a>
+                    </div>
                 </div>
             </div>
         </div>
