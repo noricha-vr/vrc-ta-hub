@@ -1,3 +1,4 @@
+import datetime
 import logging
 import re
 from datetime import datetime, timedelta
@@ -14,6 +15,8 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import CreateView, UpdateView, DetailView, ListView
 from django.views.generic.edit import DeleteView
+from google.auth import default
+from google.cloud import bigquery
 from googleapiclient.discovery import build
 
 from community.models import Community
@@ -23,6 +26,10 @@ from event.models import EventDetail, Event
 from website.settings import GOOGLE_API_KEY, CALENDAR_ID, REQUEST_TOKEN
 
 logger = logging.getLogger(__name__)
+
+# デフォルトのクレデンシャルを使用してBigQueryクライアントを設定
+credentials, project = default()
+client = bigquery.Client(credentials=credentials, project=project, location="asia-northeast1")
 
 
 class EventCreateView(LoginRequiredMixin, CreateView):
@@ -256,27 +263,64 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
 
 
 class GenerateBlogView(LoginRequiredMixin, View):
-    def post(self, request, pk):  # request を引数に追加
+    def post(self, request, pk):
         event_detail = EventDetail.objects.get(id=pk)
 
-        # ユーザーとイベントの所有者が同じかを確認
         if event_detail.event.community.custom_user != request.user:
             return HttpResponse("Invalid request.", status=403)
-        # URLから動画IDを抽出
+
         video_id = extract_video_id(event_detail.youtube_url)
         if not video_id:
             return HttpResponse(f"Invalid YouTube URL. {event_detail.youtube_url}", status=400)
-        # 文字起こしを取得
+
         transcript = get_transcript(video_id)
         prompt = create_blog_prompt(event_detail, transcript)
         response = genai_model.generate_content(prompt + transcript, stream=False)
+
         h1 = response.text.split('\n')[0]
         content = response.text.replace(h1, '', 1)
-        logger.info(f'content length: {len(content)}')
+
         event_detail.h1 = h1.strip().replace('# ', '')
         event_detail.contents = content
         event_detail.save()
+
+        # BigQueryにデータを保存（トークン情報を含む）
+        self.save_to_bigquery(pk, video_id, request.user.pk, transcript, prompt, response)
+
         return redirect('event:detail', pk=event_detail.id)
+
+    def save_to_bigquery(self, pk, video_id, user_id, transcript, prompt, response):
+        dataset_id = "web"
+        table_name = "event_blog_generation"
+        table_id = f"{project}.{dataset_id}.{table_name}"
+
+        # トークン情報を取得
+        usage_metadata = response.usage_metadata
+        prompt_token_count = usage_metadata.prompt_token_count
+        candidates_token_count = usage_metadata.candidates_token_count
+        total_token_count = usage_metadata.total_token_count
+
+        rows_to_insert = [
+            {
+                "timestamp": datetime.now().isoformat(),
+                "pk": pk,
+                "video_id": video_id,
+                "user_id": user_id,
+                "transcript": transcript,
+                "prompt": prompt,
+                "response": response.text,
+                "prompt_token_count": prompt_token_count,
+                "output_token_count": candidates_token_count,
+                "total_token_count": total_token_count
+            }
+        ]
+
+        errors = client.insert_rows_json(table_id, rows_to_insert)
+
+        if errors == []:
+            logger.info(f"New rows have been added to {table_id}")
+        else:
+            logger.error(f"Encountered errors while inserting rows: {errors}")
 
 
 class EventDetailDeleteView(LoginRequiredMixin, DeleteView):
