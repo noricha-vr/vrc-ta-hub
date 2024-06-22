@@ -147,16 +147,16 @@
                                     {{ event_dict.event.end_time|date:"H:i" }}
                                 </td>
                                 <td>
-                                    {% for speaker in event_dict.speakers %}
+                                    {% for detail in event_dict.details %}
                                         <div class="mb-1">
-                                            {{ speaker }}
+                                            {{ detail.speaker }}
                                         </div>
                                     {% endfor %}
                                 </td>
                                 <td>
-                                    {% for theme in event_dict.themes %}
+                                    {% for detail in event_dict.details %}
                                         <div class="mb-1">
-                                            {{ theme }}
+                                            {{ detail.theme }}
                                         </div>
                                     {% endfor %}
                                 </td>
