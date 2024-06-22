@@ -6,7 +6,10 @@
             <th scope="col" style="min-width: 142px">日付</th>
             <th scope="col" style="min-width: 120px">時間</th>
             <th scope="col" style="min-width: 140px">発表者</th>
-            <th scope="col">テーマ</th>
+            <th scope="col" style="min-width: 300px">テーマ</th>
+            {% if 'history' in request.path %}
+                <th scope="col" style="min-width: 60px">資料</th>
+            {% endif %}
         </tr>
         </thead>
         <tbody>
@@ -24,9 +27,19 @@
                     <a href="{{ request.path }}?{{ request.GET.urlencode }}&speaker={{ detail.speaker }}">
                         {{ detail.speaker }}
                     </a>
-
                 </td>
                 <td><a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a></td>
+                <td>
+                    {% if detail.youtube_url %}
+                        <i class="bi bi-play-circle" title="動画"></i>
+                    {% endif %}
+                    {% if detail.slide_url %}
+                        <i class="bi bi-link-45deg" title="リンク"></i>
+                    {% endif %}
+                    {% if detail.slide_file %}
+                        <i class="bi bi-file-earmark-check" title="スライド"></i>
+                    {% endif %}
+                </td>
             </tr>
         {% endfor %}
         </tbody>
