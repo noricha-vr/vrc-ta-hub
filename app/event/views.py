@@ -3,16 +3,12 @@ import logging
 import re
 from datetime import datetime, timedelta
 
-from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import IntegrityError
-from django.http import HttpResponse
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404
-from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
-from django.views import View
 from django.views.generic import CreateView, UpdateView, DetailView, ListView
 from django.views.generic.edit import DeleteView
 from google.auth import default
@@ -262,32 +258,55 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
         return reverse_lazy('event:detail', kwargs={'pk': self.object.pk})
 
 
+from django.contrib import messages
+from django.shortcuts import redirect
+from django.views.generic import View
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpResponse
+from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+
+from .models import EventDetail
+
+
 class GenerateBlogView(LoginRequiredMixin, View):
     def post(self, request, pk):
-        event_detail = EventDetail.objects.get(id=pk)
+        try:
+            event_detail = EventDetail.objects.get(id=pk)
 
-        if event_detail.event.community.custom_user != request.user:
-            return HttpResponse("Invalid request.", status=403)
+            if event_detail.event.community.custom_user != request.user:
+                messages.error(request, "Invalid request. You don't have permission to perform this action.")
+                return redirect('event:detail', pk=event_detail.id)
 
-        video_id = extract_video_id(event_detail.youtube_url)
-        if not video_id:
-            return HttpResponse(f"Invalid YouTube URL. {event_detail.youtube_url}", status=400)
+            video_id = extract_video_id(event_detail.youtube_url)
+            if not video_id:
+                messages.error(request, f"Invalid YouTube URL: {event_detail.youtube_url}")
+                return redirect('event:detail', pk=event_detail.id)
 
-        transcript = get_transcript(video_id)
-        prompt = create_blog_prompt(event_detail, transcript)
-        response = genai_model.generate_content(prompt + transcript, stream=False)
+            try:
+                transcript = get_transcript(video_id)
+            except (TranscriptsDisabled, NoTranscriptFound):
+                messages.error(request, "この動画には文字起こし情報が含まれていません。")
+                return redirect('event:detail', pk=event_detail.id)
 
-        h1 = response.text.split('\n')[0]
-        content = response.text.replace(h1, '', 1)
+            prompt = create_blog_prompt(event_detail, transcript)
+            response = genai_model.generate_content(prompt + transcript, stream=False)
 
-        event_detail.h1 = h1.strip().replace('# ', '')
-        event_detail.contents = content
-        event_detail.save()
+            h1 = response.text.split('\n')[0]
+            content = response.text.replace(h1, '', 1)
 
-        # BigQueryにデータを保存（トークン情報を含む）
-        self.save_to_bigquery(pk, video_id, request.user.pk, transcript, prompt, response)
+            event_detail.h1 = h1.strip().replace('# ', '').startswith('#')[1:].strip()
+            event_detail.contents = content
+            event_detail.save()
 
-        return redirect('event:detail', pk=event_detail.id)
+            # BigQueryにデータを保存（トークン情報を含む）
+            self.save_to_bigquery(pk, video_id, request.user.pk, transcript, prompt, response)
+
+            messages.success(request, "ブログ記事が正常に生成されました。")
+            return redirect('event:detail', pk=event_detail.id)
+
+        except Exception as e:
+            messages.error(request, f"エラーが発生しました: {str(e)}")
+            return redirect('event:detail', pk=pk)
 
     def save_to_bigquery(self, pk, video_id, user_id, transcript, prompt, response):
         dataset_id = "web"
