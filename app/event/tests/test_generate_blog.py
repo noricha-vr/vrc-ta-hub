@@ -13,7 +13,6 @@ from event.models import Event, EventDetail
 logger = logging.getLogger(__name__)
 
 genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-genai_model = genai.GenerativeModel('gemini-1.5-flash')
 
 
 class TestGenerateBlog(TestCase):
@@ -37,6 +36,7 @@ class TestGenerateBlog(TestCase):
             )
         )
         prompt = create_blog_prompt(event_detail, transcript)
+        genai_model = genai.GenerativeModel('gemini-1.5-flash')
         response = genai_model.generate_content(prompt, stream=False)
         logger.info(response.text)
         self.assertGreater(len(response.text), 100)
@@ -95,7 +95,7 @@ class TestGenerateBlog(TestCase):
         }
 
         model = genai.GenerativeModel(
-            model_name="gemini-1.5-pro",
+            model_name="gemini-1.5-flash",
             generation_config=generation_config,
             # safety_settings = Adjust safety settings
             # See https://ai.google.dev/gemini-api/docs/safety-settings
