@@ -98,6 +98,8 @@ class EventListView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['form'] = EventSearchForm(self.request.GET or None)
+        context['selected_weekdays'] = self.request.GET.getlist('weekday')
+        context['selected_tags'] = self.request.GET.getlist('tags')
         return context
 
 

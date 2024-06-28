@@ -37,7 +37,6 @@
             </div>
         </div>
 
-
         <form method="get" class="mb-4">
             <div class="row justify-content-center">
                 <div class="col-md-8">
@@ -50,8 +49,9 @@
             <div class="row mt-3">
                 <div class="col text-center">
                     {% for choice in form.weekday.field.choices %}
-                        <a href="{% url 'event:list' %}?weekday={{ choice.0 }}"
-                           class="btn {% if request.GET.weekday == choice.0 %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">
+                        <a href="?
+                                {% for key, value in request.GET.items %}{% if key != 'weekday' %}{{ key }}={{ value }}&{% endif %}{% endfor %}weekday={{ choice.0 }}"
+                           class="btn {% if choice.0 in selected_weekdays %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">
                             {{ choice.1 }}
                         </a>
                     {% endfor %}
@@ -60,8 +60,9 @@
             <div class="row mt-3">
                 <div class="col text-center">
                     {% for choice in form.tags.field.choices %}
-                        <a href="{% url 'event:list' %}?tags={{ choice.0 }}"
-                           class="btn {% if request.GET.tags == choice.0 %}btn-secondary{% else %}btn-outline-secondary{% endif %} me-2 mb-2">
+                        <a href="?
+                                {% for key, value in request.GET.items %}{% if key != 'tags' %}{{ key }}={{ value }}&{% endif %}{% endfor %}tags={{ choice.0 }}"
+                           class="btn {% if choice.0 in selected_tags %}btn-secondary{% else %}btn-outline-secondary{% endif %} me-2 mb-2">
                             {{ choice.1 }}
                         </a>
                     {% endfor %}
