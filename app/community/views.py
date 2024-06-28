@@ -2,13 +2,14 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Q, F, OuterRef, Subquery
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView, DetailView
 from django.views.generic import UpdateView
 
 from event.models import Event
+from ta_hub.libs import get_filtered_url
 from .forms import CommunitySearchForm
 from .forms import CommunityUpdateForm
 from .libs import get_join_type
@@ -57,17 +58,26 @@ class CommunityListView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        form = CommunitySearchForm(self.request.GET)
-        context['form'] = form
-        context['search_count'] = self.get_queryset().count()
-        for community in context['communities']:
-            if community.twitter_hashtag:
-                community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
-                                              tag.strip()]
-            community.join_type = get_join_type(community.organizer_url)
+        context['form'] = CommunitySearchForm(self.request.GET or None)
+        context['selected_weekdays'] = self.request.GET.getlist('weekdays')
+        context['selected_tags'] = self.request.GET.getlist('tags')
+
+        base_url = reverse('community:list')
+        current_params = self.request.GET.copy()
+
+        context['weekday_urls'] = {
+            choice[0]: get_filtered_url(base_url, current_params, 'weekdays', choice[0])
+            for choice in context['form'].fields['weekdays'].choices
+        }
+        context['tag_urls'] = {
+            choice[0]: get_filtered_url(base_url, current_params, 'tags', choice[0])
+            for choice in context['form'].fields['tags'].choices
+        }
 
         # 曜日の選択肢をコンテキストに追加
         context['weekday_choices'] = dict(WEEKDAY_CHOICES)
+        # タグの選択肢をコンテキストに追加
+        context['tag_choices'] = dict(TAGS)
 
         return context
 
