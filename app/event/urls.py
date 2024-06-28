@@ -1,7 +1,7 @@
 from django.urls import path
 
 from .views import EventListView, EventDetailView, sync_calendar_events, EventDetailUpdateView, EventDetailCreateView, \
-    EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailList, EventDetailPastList, EventCreateView, \
+    EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailPastList, EventCreateView, \
     EventDeleteView
 
 app_name = 'event'
@@ -16,7 +16,6 @@ urlpatterns = [
     path('detail/<int:pk>/', EventDetailView.as_view(), name='detail'),
     path('detail/<int:pk>/update/', EventDetailUpdateView.as_view(), name='detail_update'),
     path('detail/<int:pk>/delete/', EventDetailDeleteView.as_view(), name='detail_delete'),
-    path('detail/list/', EventDetailList.as_view(), name='detail_list'),
     path('detail/history/', EventDetailPastList.as_view(), name='detail_history'),
     path('generate_blog/<int:pk>/', GenerateBlogView.as_view(), name='generate_blog'),
 ]
