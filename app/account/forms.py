@@ -1,10 +1,10 @@
-from community.models import Community, TAGS, PLATFORM_CHOICES, WEEKDAY_CHOICES
-
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
-from .models import CustomUser
-from community.models import Community
 from django.core.validators import FileExtensionValidator
+
+from community.models import Community
+from community.models import TAGS, PLATFORM_CHOICES, WEEKDAY_CHOICES
+from .models import CustomUser
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -46,14 +46,18 @@ class CustomUserCreationForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = CustomUser
-        fields = ('user_name', 'email', 'password1', 'password2', 'start_time',
+        fields = ('user_name', 'email', 'discord_id', 'password1', 'password2', 'start_time',
                   'duration', 'weekdays', 'frequency', 'organizers', 'group_url', 'organizer_url', 'sns_url',
                   'discord', 'twitter_hashtag', 'poster_image', 'description', 'platform', 'tags')
         widgets = {
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'discord_id': forms.EmailInput(attrs={'class': 'form-control'}),
             'password1': forms.PasswordInput(attrs={'class': 'form-control'}),
             'password2': forms.PasswordInput(attrs={'class': 'form-control'}),
+        }
+        help_texts = {
+            'discord_id': 'イベント開催日程の調整やアップデートのお知らせなどのためにDiscordサーバーに招待します。'
         }
 
     def save(self, commit=True):
@@ -83,7 +87,6 @@ class CustomUserCreationForm(UserCreationForm):
         return user
 
 
-from django import forms
 from .models import CustomUser
 
 from django import forms
