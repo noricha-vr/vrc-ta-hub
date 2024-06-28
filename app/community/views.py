@@ -20,7 +20,7 @@ class CommunityListView(ListView):
     model = Community
     template_name = 'community/list.html'
     context_object_name = 'communities'
-    paginate_by = 20
+    paginate_by = 18
 
     def get_queryset(self):
         queryset = super().get_queryset()
