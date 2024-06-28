@@ -74,7 +74,7 @@ class EventListView(ListView):
     model = Event
     template_name = 'event/list.html'
     context_object_name = 'events'
-    paginate_by = 50
+    paginate_by = 30
 
     def get_queryset(self):
         queryset = super().get_queryset()
