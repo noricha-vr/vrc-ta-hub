@@ -294,7 +294,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
             h1 = response.text.split('\n')[0]
             content = response.text.replace(h1, '', 1)
 
-            event_detail.h1 = h1.strip().replace('# ', '').startswith('#')[1:].strip()
+            event_detail.h1 = h1.strip().replace('# ', '')
             event_detail.contents = content
             event_detail.save()
 
