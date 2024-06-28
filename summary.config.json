@@ -1,0 +1,8 @@
+{
+    "exclude_dirs": ".git, .svn, .hg, .venv, venv, node_modules, __pycache__, *.egg-info, .mypy_cache, .pytest_cache, .tox, .idea, .vscode, .vs, build, dist, .cache, .coverage, .serverless, .terraform, .stack-work, .next, .nuxt, .DS_Store, migrations, .gradle, locale, *secret*",
+    "include_extensions": [
+        ".py"
+    ],
+    "output_dir": "/Users/main/Desktop",
+    "target_files": "README.md, Dockerfile, docker-compose.yml, requirements.txt, package.json, svelte.config.js, tsconfig.json, *.config.ts"
+}
