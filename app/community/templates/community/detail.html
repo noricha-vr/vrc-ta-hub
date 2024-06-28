@@ -156,7 +156,7 @@
                                 <td>
                                     {% for detail in event_dict.details %}
                                         <div class="mb-1">
-                                            {{ detail.theme }}
+                                            <a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a>
                                         </div>
                                     {% endfor %}
                                 </td>
