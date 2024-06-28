@@ -58,7 +58,7 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
 def convert_markdown(markdown_text: str) -> str:
     """MarkdownをHTMLに変換し、サニタイズする"""
     allowed_tags = ['a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em', 'code', 'pre', 'table', 'thead',
-                    'tbody', 'tr', 'th', 'td', 'hr']
+                    'tbody', 'tr', 'th', 'td', 'hr', 'br']
     allowed_attributes = {'a': ['href', 'title'], 'pre': ['class'], 'table': ['class']}
     html = markdown.markdown(markdown_text, extensions=['tables'])
 
