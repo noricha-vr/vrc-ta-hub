@@ -9,7 +9,7 @@ from django.views.generic import ListView, DetailView
 from django.views.generic import UpdateView
 
 from event.models import Event
-from ta_hub.libs import get_filtered_url
+from url_filters import get_filtered_url
 from .forms import CommunitySearchForm
 from .forms import CommunityUpdateForm
 from .libs import get_join_type
