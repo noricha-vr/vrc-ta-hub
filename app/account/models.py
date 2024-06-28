@@ -1,5 +1,5 @@
-from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -74,6 +74,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     EMAIL_FIELD = 'email'
     USERNAME_FIELD = 'user_name'
     REQUIRED_FIELDS = ['email']
+    discord_id = models.CharField('Discord ID', max_length=50, blank=True, null=True)
 
     class Meta:
         verbose_name = 'ユーザー'
