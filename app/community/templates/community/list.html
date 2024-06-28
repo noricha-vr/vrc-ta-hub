@@ -14,6 +14,22 @@
     <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
 {% endblock %}
 {% block main %}
+
+    <style>
+        .card {
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-title {
+            color: #333;
+            font-size: 1.2rem;
+        }
+    </style>
+
     <div class="container mt-4">
         <a href="{% url 'community:list' %}" class="text-decoration-none text-black">
             <h1 class="text-center my-5 fw-bold keiko_yellow">
@@ -63,90 +79,30 @@
         </div>
         <hr>
         {#    集会一覧   #}
-        {% for community in communities %}
-            <div class="card bg-light-subtle my-5 shadow">
-                <div class="row no-gutters">
-                    <div class="col-md-5 order-md-1 order-2 p-3 d-flex justify-content-center justify-content-md-end">
-                        <a href="{% url 'community:detail' community.id %}">
-                            {% if community.poster_image %}
-                                <img src="{{ community.poster_image.url }}" style="max-width: 350px" loading=”lazy”
-                                     alt="{{ community.name }}" class="img-fluid  card-img">
-                            {% else %}
-                                <img src="https://vrc-ta-hub.com/poster/no-image.png" style="max-width: 350px"
-                                     loading=”lazy”
-                                     alt="{{ community.name }}" class="img-fluid card-img">
-                            {% endif %}
-                        </a>
-                    </div>
-                    <div class="col-md-7 order-md-2 order-1">
-                        <div class="card-body">
-                            <h2><a href="{% url 'community:detail' community.id %}"
-                                   class="text-body text-decoration-none fw-bold">{{ community.name }}</a></h2>
-                            <p><a href="{% url 'community:detail' community.id %}"
-                                  class="text-body text-decoration-none">{{ community.description|linebreaks|slice:":140" }}...</a>
-                            </p>
-                            <p><strong>開催曜日:</strong>
-                                {% for weekday in community.weekdays %}
-                                    {{ weekday_choices|get_item:weekday }}
-                                    {% if not forloop.last %}, {% endif %}
-                                {% endfor %}
-                            </p>
-                            <p><strong>開催時間:</strong> {{ community.start_time|date:"H:i" }}
-                                - {{ community.end_time|date:"H:i" }}</p>
-                            <p><strong>開催周期:</strong> {{ community.frequency }}</p>
-
-                            <div class="mt-4">
-                                <h3 class="h5">参加方法:</h3>
-                                <p><strong>主催・副主催:</strong> <a
-                                        href="https://vrchat.com/home/search/{{ community.organizers }}"
-                                        target="_blank">{{ community.organizers }}</a></p>
-                                <p>
-                                    {% if community.group_url %}
-                                        <strong>VRChatグループ:</strong><a href="{{ community.group_url }}"
-                                                                           target="_blank">{{ community.group_url|slice:"18:" }}</a>
-                                    {% endif %}
-                                    {% if community.join_type == 'user_page' %}
-                                        <strong>Join先:</strong><a href="{{ community.organizer_url }}"
-                                                                   target="_blank">{{ community.organizers }}</a>
-                                    {% elif community.join_type == 'user_name' %}
-                                        <a href="https://vrchat.com/home/search/{{ community.how_to_join }}"
-                                           target="_blank">{{ community.how_to_join }}</a>
-                                    {% elif community.join_type == 'world' %}
-                                        <a href="{{ community.how_to_join }}"
-                                           target="_blank">{{ community.how_to_join }}</a>
+        <div class="my-5">
+            <div class="row g-4"> <!-- g-4 クラスを追加 -->
+                {% for community in communities %}
+                    <div class="col-md-4 mb-4"> <!-- mb-4 クラスを追加してカード間の縦方向の間隔を確保 -->
+                        <div class="card h-100 bg-light-subtle shadow"> <!-- カードを囲む div を追加 -->
+                            <div class="card-body d-flex flex-column"> <!-- カードの内容を card-body で囲む -->
+                                <a href="{% url 'community:detail' community.id %}" class="text-decoration-none">
+                                    {% if community.poster_image %}
+                                        <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
+                                             class="img-fluid mb-3" style="max-width: 100%; height: auto;"
+                                             loading="lazy">
                                     {% else %}
-                                        {{ community.how_to_join }}
+                                        <img src="https://vrc-ta-hub.com/poster/no-image.png" alt="{{ community.name }}"
+                                             class="img-fluid mb-3" style="max-width: 100%; height: auto;"
+                                             loading="lazy">
                                     {% endif %}
-                                </p>
-                                {% if community.discord %}
-                                    <p><strong>Discord:</strong> <a href="{{ community.discord }}"
-                                                                    target="_blank">{{ community.discord }}</a></p>
-                                {% endif %}
-                                {% if community.sns_url %}
-                                    <p><strong>Twitter:</strong> <a href="{{ community.sns_url }}"
-                                                                    target="_blank">{{ community.get_sns_display }}</a>
-                                    </p>
-                                {% endif %}
-                                {% if community.twitter_hashtags %}
-                                    <p>
-                                        <strong>Twitterハッシュタグ:</strong>
-                                        {% for hashtag in community.twitter_hashtags %}
-                                            <a href="https://twitter.com/hashtag/{{ hashtag|slice:"1:" }}?f=live"
-                                               target="_blank">{{ hashtag }}</a>{% if not forloop.last %}, {% endif %}
-                                        {% endfor %}
-                                    </p>
-                                {% endif %}
-                                <div class="d-grid gap-2">
-                                    <a class="btn btn-outline-primary" type="button"
-                                       href="{% url 'community:detail' community.id %}">詳細</a>
-                                </div>
+                                    <h2 class="card-title mt-auto">{{ community.name }}</h2>
+                                </a>
                             </div>
                         </div>
                     </div>
-                </div>
+                {% endfor %}
             </div>
-        {% endfor %}
-
+        </div>
 
 
         {% include "ta_hub/pagination.html" %}
