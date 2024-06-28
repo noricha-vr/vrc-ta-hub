@@ -36,6 +36,16 @@
                                         <i class="fas fa-calendar-alt me-2"></i>承認待集会一覧
                                     </a>
                                 </li>
+                                <li class="list-group-item">
+                                    <a class="text-decoration-none"
+                                       href="https://discord.com/channels/1143765879377645628/1256140981158412369">開催日程調整</a>
+                                </li>
+                            {% else %}
+                                <li class="list-group-item">
+                                    Discord <a class="text-decoration-none"
+                                               href="https://discord.gg/6jCkUUb9VN">技術・学術系Hub </a>にご参加ください
+                                </li>
+
                             {% endif %}
                             <li class="list-group-item">
                                 <a href="{% url 'account:user_update' %}" class="text-decoration-none">
