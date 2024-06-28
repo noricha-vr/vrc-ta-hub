@@ -27,6 +27,24 @@
         .card-title {
             color: #333;
             font-size: 1.2rem;
+            margin-top: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-height: 3em; /* タイトルの最小高さを設定 */
+        }
+
+        .card-body {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .card a {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
         }
     </style>
 
@@ -95,7 +113,7 @@
                                              class="img-fluid mb-3" style="max-width: 100%; height: auto;"
                                              loading="lazy">
                                     {% endif %}
-                                    <h2 class="card-title mt-auto">{{ community.name }}</h2>
+                                    <h2 class="card-title fw-bold mt-auto">{{ community.name }}</h2>
                                 </a>
                             </div>
                         </div>
