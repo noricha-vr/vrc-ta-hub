@@ -70,6 +70,19 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
         return HttpResponseRedirect(self.success_url)
 
 
+from django.urls import reverse
+from urllib.parse import urlencode
+
+
+def get_filtered_url(base_url, current_params, key, value):
+    params = current_params.copy()
+    if value in params.getlist(key):
+        params.getlist(key).remove(value)
+    else:
+        params.appendlist(key, value)
+    return f"{base_url}?{urlencode(params, doseq=True)}"
+
+
 class EventListView(ListView):
     model = Event
     template_name = 'event/list.html'
@@ -100,6 +113,19 @@ class EventListView(ListView):
         context['form'] = EventSearchForm(self.request.GET or None)
         context['selected_weekdays'] = self.request.GET.getlist('weekday')
         context['selected_tags'] = self.request.GET.getlist('tags')
+
+        base_url = reverse('event:list')
+        current_params = self.request.GET.copy()
+
+        context['weekday_urls'] = {
+            choice[0]: get_filtered_url(base_url, current_params, 'weekday', choice[0])
+            for choice in context['form'].fields['weekday'].choices
+        }
+        context['tag_urls'] = {
+            choice[0]: get_filtered_url(base_url, current_params, 'tags', choice[0])
+            for choice in context['form'].fields['tags'].choices
+        }
+
         return context
 
 
