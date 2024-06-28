@@ -82,7 +82,7 @@
                             <th style="min-width: 100px;width:136px">開催日</th>
                             <th style="min-width: 81px">開始時間</th>
                             <th style="min-width: 100px">プラット<br>フォーム</th>
-                            <th style="min-width: 150px">イベント名</th>
+                            <th style="min-width: 150px">イベント名<br>テーマ by 登壇者</th>
                             <th style="min-width: 100px">主催</th>
                             <th style="min-width: 100px">参加方法</th>
                         </tr>
@@ -91,11 +91,23 @@
                             <tr>
                                 <td>{{ event.date|date:"Y年n月j日（D）" }}</td>
                                 <td>{{ event.start_time }}</td>
+                                <td>{{ event.community.get_platform_display }}</td>
+
+                                <!-- パターン3: リスト風デザイン -->
                                 <td>
-                                    {{ event.community.get_platform_display }}</td>
-                                <td>
-                                    <a href="{% url 'community:detail' event.community.pk %}"
-                                    >{{ event.community.name }}</a>
+                                    <a href="{% url 'community:detail' event.community.pk %}">{{ event.community.name }}</a>
+                                    {% if event.details.exists %}
+                                        <ul class="list-group list-group-flush mt-2">
+                                            {% for detail in event.details.all %}
+                                                <div class="mb-2">
+                                                    <span class="text-warning">★</span>
+                                                    <a href="{% url 'event:detail' pk=detail.pk %}"
+                                                       class="text-primary text-decoration-none fw-bold">{{ detail.theme }}</a>
+                                                    <small class="text-success">by {{ detail.speaker }}</small>
+                                                </div>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
                                 </td>
                                 <td>
                                     {% if event.community.organizer_url %}
@@ -111,8 +123,7 @@
                                         <a href="{{ event.community.group_url }}" target="_blank">VRChat<br>グループ</a>
                                     {% else %}
                                         {% if event.community.organizer_url %}
-                                            <a href="{{ event.community.organizer_url }}"
-                                               target="_blank">主催</a>
+                                            <a href="{{ event.community.organizer_url }}" target="_blank">主催</a>
                                         {% else %}
                                             <a href="https://vrchat.com/home/search/{{ event.community.organizers }}"
                                                target="_blank">{{ event.community.organizers }}</a>
