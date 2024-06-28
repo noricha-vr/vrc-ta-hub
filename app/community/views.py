@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.db.models import Q
+from django.db.models import Q, F, OuterRef, Subquery
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -25,6 +25,18 @@ class CommunityListView(ListView):
         queryset = super().get_queryset()
         now = timezone.now()
         queryset = queryset.filter(is_accepted=True, end_at__isnull=True)
+
+        # 最新のイベント日を取得するサブクエリ
+        latest_event = Event.objects.filter(
+            community=OuterRef('pk'),
+            date__gte=now.date()
+        ).order_by('date').values('date')[:1]
+
+        # コミュニティに最新のイベント日を追加
+        queryset = queryset.annotate(
+            latest_event_date=Subquery(latest_event)
+        )
+
         form = CommunitySearchForm(self.request.GET)
         if form.is_valid():
             if query := form.cleaned_data['query']:
@@ -35,7 +47,12 @@ class CommunityListView(ListView):
             if tags := form.cleaned_data['tags']:
                 for tag in tags:
                     queryset = queryset.filter(tags__contains=[tag])
-        queryset = queryset.order_by('-updated_at')
+
+        # 最新のイベント日でソート（NULL値は最後に）
+        queryset = queryset.order_by(
+            F('latest_event_date').asc(nulls_last=True),
+            '-updated_at'
+        )
         return queryset
 
     def get_context_data(self, **kwargs):
