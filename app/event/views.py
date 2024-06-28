@@ -19,6 +19,7 @@ from community.models import Community
 from event.forms import EventDetailForm, EventSearchForm, EventCreateForm
 from event.libs import convert_markdown, get_transcript, genai_model, create_blog_prompt
 from event.models import EventDetail, Event
+from ta_hub.libs import get_filtered_url
 from website.settings import GOOGLE_API_KEY, CALENDAR_ID, REQUEST_TOKEN
 
 logger = logging.getLogger(__name__)
@@ -71,16 +72,6 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
 
 
 from django.urls import reverse
-from urllib.parse import urlencode
-
-
-def get_filtered_url(base_url, current_params, key, value):
-    params = current_params.copy()
-    if value in params.getlist(key):
-        params.getlist(key).remove(value)
-    else:
-        params.appendlist(key, value)
-    return f"{base_url}?{urlencode(params, doseq=True)}"
 
 
 class EventListView(ListView):

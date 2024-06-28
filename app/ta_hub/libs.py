@@ -1,5 +1,6 @@
 import os
 from io import BytesIO
+from urllib.parse import urlencode
 
 from PIL import Image
 from django.core.files.base import ContentFile
@@ -52,3 +53,12 @@ def resize_and_convert_image(image_field, max_size=720, output_format='JPEG'):
         file_name = f"{file_name}-{max_size}.{output_format.lower()}"
 
         image_field.save(file_name, ContentFile(buffer.read()), save=False)
+
+
+def get_filtered_url(base_url, current_params, key, value):
+    params = current_params.copy()
+    if value in params.getlist(key):
+        params.getlist(key).remove(value)
+    else:
+        params.appendlist(key, value)
+    return f"{base_url}?{urlencode(params, doseq=True)}"
