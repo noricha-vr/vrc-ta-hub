@@ -110,8 +110,9 @@ class BootstrapPasswordChangeForm(PasswordChangeForm):
 class CustomUserChangeForm(forms.ModelForm):
     class Meta:
         model = CustomUser
-        fields = ('user_name', 'email')
+        fields = ('user_name', 'email', 'discord_id')
         widgets = {
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.TextInput(attrs={'class': 'form-control'}),
+            'discord_id': forms.TextInput(attrs={'class': 'form-control'}),
         }
