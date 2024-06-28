@@ -51,8 +51,23 @@
                                 </div>
                                 <div class="col-md-7">
                                     {% for detail in event.detail_list %}
+
                                         <div class="card-text mb-2">テーマ: {{ detail.theme }}</div>
                                         <div class="card-text mb-2">発表者: {{ detail.speaker }}</div>
+                                        <div class="mb-2">
+                                            {% if detail.youtube_url %}
+                                                <i class="bi bi-youtube" title="動画あり"></i>
+                                            {% endif %}
+                                            {% if detail.slide_url %}
+                                                <i class="bi bi-link-45deg" title="スライドリンクあり"></i>
+                                            {% endif %}
+                                            {% if detail.slide_file %}
+                                                <i class="bi bi-file-earmark" title="スライドファイルあり"></i>
+                                            {% endif %}
+                                            {% if detail.contents %}
+                                                <i class="bi bi-file-text" title="コンテンツあり"></i>
+                                            {% endif %}
+                                        </div>
                                         <a href="{% url 'event:detail' detail.pk %}" class="btn btn-primary">確認</a>
                                         <a href="{% url 'event:detail_update' detail.pk %}"
                                            class="btn btn-success">編集</a>
@@ -63,9 +78,10 @@
                                                     onclick="return confirm('本当に削除しますか？');">削除
                                             </button>
                                         </form>
+                                        {% if not forloop.last %}
+                                            <hr>
+                                        {% endif %}
                                     {% endfor %}
-
-
                                 </div>
                             </div>
                         </div>
