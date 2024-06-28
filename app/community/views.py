@@ -78,7 +78,8 @@ class CommunityListView(ListView):
         context['weekday_choices'] = dict(WEEKDAY_CHOICES)
         # タグの選択肢をコンテキストに追加
         context['tag_choices'] = dict(TAGS)
-
+        # 検索結果の件数をコンテキストに追加
+        context['search_count'] = self.get_queryset().count()
         return context
 
 
