@@ -19,9 +19,6 @@
                     <a href="{% url 'community:detail' community.pk %}"
                        class="btn btn-primary me-2">{{ community.name }}</a>
                 </div>
-                <div><a href="{% url 'event:detail_list' %}?community_name={{ community.name }}"
-                        class="btn btn-primary me-2">LT予定</a>
-                </div>
                 <div><a href="{% url 'event:detail_history' %}?community_name={{ community.name }}"
                         class="btn btn-primary me-2">LT履歴</a>
                 </div>
