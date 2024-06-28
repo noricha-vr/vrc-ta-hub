@@ -1,0 +1,76 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block main %}
+    <div class="container my-5">
+        <div class="row">
+            <div class="col-md-10 mx-auto">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h2>利用可能なマークダウン</h2>
+                    </div>
+                    <div class="card-body">
+                        <h3>見出し</h3>
+                        <p>
+                            # 見出し1<br>
+                            ## 見出し2<br>
+                            ### 見出し3<br>
+                            #### 見出し4<br>
+                        </p>
+
+                        <h3>テキストスタイル</h3>
+                        <p>
+                            **太字**<br>
+                            *斜体*<br>
+                            ~~取り消し線~~<br>
+                        </p>
+
+                        <h3>リスト</h3>
+                        <p>
+                            順序なしリスト：<br>
+                            - 項目1<br>
+                            - 項目2<br>
+                            - 項目3<br>
+                            <br>
+                            順序付きリスト：<br>
+                            1. 最初の項目<br>
+                            2. 2番目の項目<br>
+                            3. 3番目の項目<br>
+                        </p>
+
+                        <h3>リンク</h3>
+                        <p>[リンクテキスト](https://example.com)</p>
+
+                        <h3>画像</h3>
+                        <p>![代替テキスト](画像のURL)</p>
+
+                        <h3>引用</h3>
+                        <p>> これは引用です。</p>
+
+                        <h3>コード</h3>
+                        <p>
+                            インラインコード： `コード`<br>
+                            <br>
+                            コードブロック：<br>
+                            ```<br>
+                            function example() {<br>
+                            console.log("Hello, world!");<br>
+                            }<br>
+                            ```
+                        </p>
+
+                        <h3>水平線</h3>
+                        <p>---</p>
+
+                        <h3>テーブル</h3>
+                        <p>
+                            | 列1 | 列2 | 列3 |<br>
+                            |-----|-----|-----|<br>
+                            | A1 | B1 | C1 |<br>
+                            | A2 | B2 | C2 |<br>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

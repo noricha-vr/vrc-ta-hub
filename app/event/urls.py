@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import TemplateView
 
 from .views import EventListView, EventDetailView, sync_calendar_events, EventDetailUpdateView, EventDetailCreateView, \
     EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailPastList, EventCreateView, \
@@ -18,4 +19,5 @@ urlpatterns = [
     path('detail/<int:pk>/delete/', EventDetailDeleteView.as_view(), name='detail_delete'),
     path('detail/history/', EventDetailPastList.as_view(), name='detail_history'),
     path('generate_blog/<int:pk>/', GenerateBlogView.as_view(), name='generate_blog'),
+    path('markdown/', TemplateView.as_view(template_name='event/markdown.html'), name='markdown'),
 ]

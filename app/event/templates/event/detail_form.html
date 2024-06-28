@@ -16,14 +16,18 @@
                                 <button type="submit" class="btn btn-primary">保存</button>
                             </div>
                         </form>
-                        <div>
-                            ※ 記事を生成できるのは現時点ではYoutube動画のみです。<br>
-                            ※ 今後、PDFファイルからの記事生成にも対応予定です。<br>
+                        <div class="p-2">
                         </div>
                     </div>
-
                 </div>
             </div>
+
+            <div class="col-md-10 mx-auto mt-2">
+                ※ 記事を生成できるのは現時点ではYoutube動画のみです。<br>
+                ※ 今後、PDFファイルからの記事生成にも対応予定です。<br>
+                ※ 利用可能な<a href="{% url 'event:markdown' %}">markdownの一覧と書き方</a><br>
+            </div>
+
         </div>
     </div>
 {% endblock %}
