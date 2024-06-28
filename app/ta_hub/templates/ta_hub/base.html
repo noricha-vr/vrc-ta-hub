@@ -172,7 +172,9 @@
                     <li class="nav-item">
                         <a class="nav-link text-light" href="{% url 'ta_hub:how_to' %}">使い方</a>
                     </li>
-
+                    <li class="nav-item">
+                        <a class="nav-link text-light" href="{% url 'ta_hub:about' %}">運営情報</a>
+                    </li>
 
                     {% if user.is_authenticated %}
                         <li class="nav-item">
@@ -200,7 +202,6 @@
     <div class="text-center p-1">
         <div>
             <small>
-                <a class="text-light" href="{% url 'ta_hub:about' %}" style="text-decoration: none;">運営情報</a> |
                 <a class="text-light" href="{% url 'ta_hub:privacy' %}"
                    style="text-decoration: none;">プライバシー</a> |
                 <a class="text-light" href="{% url 'ta_hub:terms' %}" style="text-decoration: none;">利用規約</a> |
