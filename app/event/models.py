@@ -32,7 +32,7 @@ class EventDetail(models.Model):
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='details', verbose_name='イベント')
-    start_time = models.TimeField('開始時刻', default='22:00')
+    start_time = models.TimeField('開始時刻', default='22:00', db_index=True)
     duration = models.IntegerField('発表時間（分）', default=30)
     youtube_url = models.URLField('YouTube URL', blank=True, null=True)
     slide_url = models.URLField('スライド URL', blank=True, null=True)
@@ -46,6 +46,10 @@ class EventDetail(models.Model):
         verbose_name = 'イベント詳細'
         verbose_name_plural = 'イベント詳細'
         db_table = 'event_detail'
+        indexes = [
+            models.Index(fields=['event', 'start_time']),
+            models.Index(fields=['event', '-start_time']),
+        ]
 
     def __str__(self):
         return f"{self.event} - {self.theme} - {self.speaker}"
@@ -53,7 +57,7 @@ class EventDetail(models.Model):
     @property
     def title(self):
         return self.h1 if self.h1 else self.theme
-    
+
     @property
     def end_time(self):
         start_datetime = datetime.combine(self.event.date, self.start_time)
