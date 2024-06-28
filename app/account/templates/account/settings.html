@@ -16,53 +16,54 @@
                             {% if community %}
                                 <li class="list-group-item">
                                     <a href="{% url 'community:detail' community.pk %}" class="text-decoration-none">
-                                        <i class="fas fa-users me-2"></i>{{ community.name }}
+                                        <i class="bi bi-people me-2"></i>{{ community.name }}
                                     </a>
                                 </li>
                                 <li class="list-group-item">
                                     <a href="{% url 'community:update' community.pk %}" class="text-decoration-none">
-                                        <i class="fas fa-users me-2"></i>集会情報の編集
+                                        <i class="bi bi-pencil-square me-2"></i>集会情報の編集
                                     </a>
                                 </li>
                             {% endif %}
                             <li class="list-group-item">
                                 <a href="{% url 'event:my_list' %}" class="text-decoration-none">
-                                    <i class="fas fa-calendar-alt me-2"></i>イベント一覧
+                                    <i class="bi bi-calendar-event me-2"></i>イベント一覧
                                 </a>
                             </li>
                             {% if community.is_accepted %}
                                 <li class="list-group-item">
-                                    <a href="{% url 'community:waiting_list' %}" class="text-decoration-none">
-                                        <i class="fas fa-calendar-alt me-2"></i>承認待集会一覧
+                                    <a class="text-decoration-none"
+                                       href="https://discord.com/channels/1143765879377645628/1256140981158412369">
+                                        <i class="bi bi-calendar-check me-2"></i>開催日程調整
                                     </a>
                                 </li>
                                 <li class="list-group-item">
-                                    <a class="text-decoration-none"
-                                       href="https://discord.com/channels/1143765879377645628/1256140981158412369">開催日程調整</a>
-                                </li>
-                            {% else %}
-                                <li class="list-group-item">
-                                    Discord <a class="text-decoration-none"
-                                               href="https://discord.gg/6jCkUUb9VN">技術・学術系Hub </a>にご参加ください
+                                    <a href="{% url 'community:waiting_list' %}" class="text-decoration-none">
+                                        <i class="bi bi-hourglass-split me-2"></i>承認待集会一覧
+                                    </a>
                                 </li>
 
+                            {% else %}
+                                <li class="list-group-item">
+                                    <i class="bi bi-discord me-2"></i>Discord <a class="text-decoration-none"
+                                                                                 href="https://discord.gg/6jCkUUb9VN">技術・学術系Hub </a>にご参加ください
+                                </li>
                             {% endif %}
                             <li class="list-group-item">
                                 <a href="{% url 'account:user_update' %}" class="text-decoration-none">
-                                    <i class="fas fa-user me-2"></i>ユーザー情報を更新
+                                    <i class="bi bi-person me-2"></i>ユーザー情報を更新
                                 </a>
                             </li>
                             <li class="list-group-item">
                                 <a href="{% url 'account:password_change' %}" class="text-decoration-none">
-                                    <i class="fas fa-lock me-2"></i>パスワードを変更
+                                    <i class="bi bi-key me-2"></i>パスワードを変更
                                 </a>
                             </li>
                             <li class="list-group-item">
                                 <a href="{% url 'account:logout' %}" class="text-decoration-none">
-                                    <i class="fas fa-lock me-2"></i>ログアウト
+                                    <i class="bi bi-box-arrow-right me-2"></i>ログアウト
                                 </a>
                             </li>
-
                         </ul>
                     </div>
                 </div>
