@@ -139,7 +139,8 @@ class EventDetailView(DetailView):
         context = super().get_context_data(**kwargs)
         event_detail = self.get_object()
         context['video_id'] = extract_video_id(event_detail.youtube_url)
-        context['is_discord'] = event_detail.youtube_url.startswith('https://discord.com/')
+        context['is_discord'] = event_detail.youtube_url.startswith(
+            'https://discord.com/') if event_detail.youtube_url else False
         context['html_content'] = convert_markdown(event_detail.contents)
         return context
 
