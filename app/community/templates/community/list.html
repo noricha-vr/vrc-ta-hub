@@ -113,7 +113,19 @@
                                     {% endif %}
                                     <h2 class="card-title fw-bold mt-auto">{{ community.name }}</h2>
                                 </a>
+                                <div class="d-flex justify-content-between">
+
+                                    <div class="weekdays-container mt-auto">
+                                        {% for weekday in community.weekdays %}
+                                            <span class="badge bg-primary rounded-pill me-1 mb-1">{{ weekday_choices|get_item:weekday }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    <div class="card-footer bg-transparent border-0 text-end">
+                                        <small class="text-muted">開始時間: {{ community.start_time|time:"H:i" }}</small>
+                                    </div>
+                                </div>
                             </div>
+
                         </div>
                     </div>
                 {% endfor %}
