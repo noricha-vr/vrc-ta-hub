@@ -11,6 +11,8 @@
           content="{{ event_detail }} {{ event_detail.contents|truncatechars:"100" }}">
     <meta property="og:image" content="{{ event_detail.event.community.poster_image.url }}">
     <meta name="twitter:image" content="{{ event_detail.event.community.poster_image.url }}">
+    {#  FontAwesome  #}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 {% endblock %}
 {% block main %}
     <style>
@@ -87,6 +89,7 @@
             <div class="col-lg-12">
                 {% include 'ta_hub/messages.html' %}
                 <h1 class="mb-3">{{ event_detail.title }}</h1>
+                {# Youtube動画を埋め込み#}
                 {% if video_id %}
                     <div class="mb-3">
                         <div class="ratio ratio-16x9">
@@ -96,6 +99,7 @@
                         </div>
                     </div>
                 {% endif %}
+
                 {% if request.user == event_detail.event.community.custom_user %}
                     <div class="d-flex">
                         <a href="{% url 'event:detail_update' event_detail.id %}"
@@ -150,16 +154,27 @@
                             <td>
                                 {% if event_detail.slide_url %}
                                     <a href="{{ event_detail.slide_url }}" target="_blank" class="me-2">
-                                        <i class="bi bi-link"></i>リンク
+                                        <i class="bi bi-link me-1"></i>リンク
                                     </a>
                                 {% endif %}
                                 {% if event_detail.slide_file %}
                                     <a href="{{ event_detail.slide_file.url }}" target="_blank">
-                                        <i class="bi bi-file-earmark-text-fill"></i>ファイル
+                                        <i class="bi bi-file-earmark-text-fill me-1"></i>ファイル
                                     </a>
                                 {% endif %}
                             </td>
                         </tr>
+                        {# 動画がDiscord限定の場合、Discordのリンクを表示 #}
+                        {% if is_discord %}
+
+                            <tr>
+                                <th scope="row">動画</th>
+                                <td>
+                                    <a href="{{ event_detail.youtube_url }}" target="_blank">
+                                        <i class="fab fa-discord me-1"></i>Discordで見る</a>
+                                </td>
+                            </tr>
+                        {% endif %}
                         </tbody>
                     </table>
                 </div>
