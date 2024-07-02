@@ -46,6 +46,49 @@
             flex-direction: column;
             height: 100%;
         }
+
+        /* 日本の文化に基づいた曜日カラースキーム（ソフトバージョン） */
+
+        .weekday-sun {
+            background-color: #FFA07A; /* ライトサーモン: 柔らかな赤 */
+            color: #000000;
+        }
+
+        .weekday-mon {
+            background-color: #FFFACD; /* レモンシフォン: 柔らかな黄色 */
+            color: #000000;
+        }
+
+        .weekday-tue {
+            background-color: #FFDAB9; /* ピーチパフ: 柔らかなオレンジ */
+            color: #000000;
+        }
+
+        .weekday-wed {
+            background-color: #B0E0E6; /* パウダーブルー: 柔らかな青 */
+            color: #000000;
+        }
+
+        .weekday-thu {
+            background-color: #98FB98; /* パレグリーン: 柔らかな緑 */
+            color: #000000;
+        }
+
+        .weekday-fri {
+            background-color: #FFF0F5; /* ラベンダーブラッシュ: 非常に淡いピンク */
+            color: #000000;
+        }
+
+        .weekday-sat {
+            background-color: #E6E6FA; /* ラベンダー: 柔らかな紫 */
+            color: #000000;
+        }
+
+        .weekday-other {
+            background-color: #F5F5F5; /* ホワイトスモーク: 非常に淡いグレー */
+            color: #000000;
+        }
+
     </style>
 
     <div class="container mt-4">
@@ -117,7 +160,9 @@
 
                                     <div class="weekdays-container mt-auto">
                                         {% for weekday in community.weekdays %}
-                                            <span class="badge bg-primary rounded-pill me-1 mb-1">{{ weekday_choices|get_item:weekday }}</span>
+                                            <span class="badge rounded-pill me-1 mb-1 weekday-{{ weekday|lower }} fs-6">
+                                                {{ weekday_choices|get_item:weekday|slice:":1" }}
+                                            </span>
                                         {% endfor %}
                                     </div>
                                     <div class="card-footer bg-transparent border-0 text-end">
