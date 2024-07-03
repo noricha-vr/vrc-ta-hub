@@ -381,7 +381,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         context['community'] = Community.objects.filter(custom_user=self.request.user).first()
         events = context['events']
         event_ids = events.values_list('id', flat=True)
-        event_details = EventDetail.objects.filter(event_id__in=event_ids).order_by('-created_at')
+        event_details = EventDetail.objects.filter(event_id__in=event_ids).order_by('created_at')
 
         event_detail_dict = {}
         for detail in event_details:
