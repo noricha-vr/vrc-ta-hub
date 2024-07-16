@@ -1,12 +1,30 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
-from urllib.parse import urlencode
+from enum import Enum
+from typing import List, Optional
 
-import requests
 from django.test import TestCase
 
 FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSevo0ax6ALIzllRCT7up-3KZkohD3VfG28rcOy8XMqDwRWevQ/formResponse'
+
+
+class AndroidSupport(Enum):
+    PC_ONLY = "PCオンリー"
+    PC_ANDROID = "PC/Android両対応（Android対応）"
+    ANDROID_ONLY = "Android オンリー"
+
+
+class EventGenre(Enum):
+    AVATAR_FITTING = "アバター試着会"
+    MODIFIED_AVATAR_MEETUP = "改変アバター交流会"
+    OTHER_MEETUP = "その他交流会"
+    VR_DRINKING_PARTY = "VR飲み会"
+    STORE_EVENT = "店舗系イベント"
+    MUSIC_EVENT = "音楽系イベント"
+    ACADEMIC_EVENT = "学術系イベント"
+    ROLEPLAY = "ロールプレイ"
+    BEGINNER_EVENT = "初心者向けイベント"
+    REGULAR_EVENT = "定期イベント"
 
 
 @dataclass
@@ -14,14 +32,14 @@ class CalendarEntry:
     name: str
     start_datetime: datetime
     end_datetime: datetime
-    android_support: str
+    android_support: AndroidSupport
     join_condition: str
-    event_type: str
     event_detail: str
     organizer: str
     how_to_join: str
     note: Optional[str] = None
     is_overseas_user: bool = False
+    event_genres: List[EventGenre] = field(default_factory=list)
 
 
 FORM_FIELDS = {
@@ -44,6 +62,8 @@ FORM_FIELDS = {
     'isOverseasUser': 'entry.1607289186',
 }
 
+from urllib.parse import quote_plus
+
 
 def create_calendar_entry_url(entry: CalendarEntry) -> Optional[str]:
     form_data = {
@@ -55,44 +75,42 @@ def create_calendar_entry_url(entry: CalendarEntry) -> Optional[str]:
         FORM_FIELDS['eventDateYear']: entry.start_datetime.strftime('%Y'),
         FORM_FIELDS['eventDateMonth']: entry.start_datetime.strftime('%m'),
         FORM_FIELDS['eventDateDay']: entry.start_datetime.strftime('%d'),
-        FORM_FIELDS['androidSupport']: entry.android_support,
+        FORM_FIELDS['androidSupport']: entry.android_support.value,
         FORM_FIELDS['joinCondition']: entry.join_condition,
-        FORM_FIELDS['eventType']: entry.event_type,
         FORM_FIELDS['organizer']: entry.organizer,
         FORM_FIELDS['howToJoin']: entry.how_to_join,
         FORM_FIELDS['note']: entry.note if entry.note else '',
         FORM_FIELDS['isOverseasUser']: 'Yes' if entry.is_overseas_user else 'No',
         FORM_FIELDS['eventDetail']: entry.event_detail,
     }
-    url_with_params = f"{FORM_URL}?{urlencode(form_data)}"
 
-    try:
-        print(f"Submitting form to {url_with_params}...")
-        return url_with_params
-    except requests.RequestException as e:
-        print(f"Error submitting form: {e}")
-        return None
+    # チェックボックスの各選択肢を個別のパラメータとして追加
+    for genre in entry.event_genres:
+        form_data[f"{FORM_FIELDS['eventType']}"] = genre.value
+
+    # URLエンコーディングを手動で行い、チェックボックスのパラメータを正しく処理
+    encoded_params = "&".join(f"{quote_plus(k)}={quote_plus(str(v))}" for k, v in form_data.items())
+    url_with_params = f"{FORM_URL}?{encoded_params}"
+
+    print(f"Submitting form to {url_with_params}")
+    return url_with_params
 
 
 class CreateCalendarTest(TestCase):
     def test_create_calendar(self):
-        # テストデータ
-
         test_entry = CalendarEntry(
             name="Test Event",
             start_datetime=datetime(2024, 7, 16, 21, 0),
             end_datetime=datetime(2024, 7, 16, 22, 0),
-            android_support="PC/Android両対応（Android対応）",
-            join_condition="誰でも参加可能",  # 例：この値は適切なものに変更してください
-            event_type="ミートアップ",  # 例：この値は適切なものに変更してください
+            android_support=AndroidSupport.PC_ANDROID,
+            join_condition="誰でも参加可能",
+            event_genres=[EventGenre.OTHER_MEETUP, EventGenre.VR_DRINKING_PARTY],
             event_detail="This is a test event for VRC Calendar. Location: VRChat",
-            organizer="Test Organizer",  # 例：この値は適切なものに変更してください
-            how_to_join="VRChatで「Test Event」を検索してください。",  # 例：この値は適切なものに変更してください
+            organizer="Test Organizer",
+            how_to_join="VRChatで「Test Event」を検索してください。",
             note="Tags: test, vrc, calendar. URL: https://example.com",
-            is_overseas_user=False  # 例：この値は適切なものに変更してください
+            is_overseas_user=False
         )
-
-        email = "test@example.com"
 
         print("Submitting test calendar entry...")
         self.assertTrue(type(create_calendar_entry_url(test_entry)), str)
