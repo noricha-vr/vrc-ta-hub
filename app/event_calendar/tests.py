@@ -62,7 +62,7 @@ FORM_FIELDS = {
     'isOverseasUser': 'entry.1607289186',
 }
 
-from urllib.parse import quote_plus
+from urllib.parse import urlencode
 
 
 def create_calendar_entry_url(entry: CalendarEntry) -> Optional[str]:
@@ -84,13 +84,24 @@ def create_calendar_entry_url(entry: CalendarEntry) -> Optional[str]:
         FORM_FIELDS['eventDetail']: entry.event_detail,
     }
 
-    # チェックボックスの各選択肢を個別のパラメータとして追加
+    # 複数選択チェックボックスのための処理
+    event_type_field = FORM_FIELDS['eventType']
     for genre in entry.event_genres:
-        form_data[f"{FORM_FIELDS['eventType']}"] = genre.value
+        if event_type_field in form_data:
+            form_data[event_type_field].append(genre.value)
+        else:
+            form_data[event_type_field] = [genre.value]
 
-    # URLエンコーディングを手動で行い、チェックボックスのパラメータを正しく処理
-    encoded_params = "&".join(f"{quote_plus(k)}={quote_plus(str(v))}" for k, v in form_data.items())
-    url_with_params = f"{FORM_URL}?{encoded_params}"
+    # URLエンコーディング（複数値のパラメータに対応）
+    url_params = []
+    for key, value in form_data.items():
+        if isinstance(value, list):
+            for v in value:
+                url_params.append(f"{key}={urlencode({key: v})[len(key) + 1:]}")
+        else:
+            url_params.append(f"{key}={urlencode({key: value})[len(key) + 1:]}")
+
+    url_with_params = f"{FORM_URL}?{'&'.join(url_params)}"
 
     print(f"Submitting form to {url_with_params}")
     return url_with_params
