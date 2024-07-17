@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db import DataError
 from django.db.models import Q, F, OuterRef, Subquery
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
@@ -162,17 +163,21 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         return obj
 
     def form_valid(self, form):
-        response = super().form_valid(form)
-        calendar_entry = self.object.calendar_entry
-        calendar_entry.join_condition = form.cleaned_data['join_condition']
-        calendar_entry.event_detail = form.cleaned_data['event_detail']
-        calendar_entry.how_to_join = form.cleaned_data['how_to_join']
-        calendar_entry.note = form.cleaned_data['note']
-        calendar_entry.is_overseas_user = form.cleaned_data['is_overseas_user']
-        calendar_entry.event_genres = form.cleaned_data['event_genres']
-        calendar_entry.save()
-        messages.success(self.request, '集会情報とVRCイベントカレンダー用情報が更新されました。')
-        return response
+        try:
+            response = super().form_valid(form)
+            calendar_entry = self.object.calendar_entry
+            calendar_entry.join_condition = form.cleaned_data['join_condition']
+            calendar_entry.event_detail = form.cleaned_data['event_detail']
+            calendar_entry.how_to_join = form.cleaned_data['how_to_join']
+            calendar_entry.note = form.cleaned_data['note']
+            calendar_entry.is_overseas_user = form.cleaned_data['is_overseas_user']
+            calendar_entry.event_genres = form.cleaned_data['event_genres']
+            calendar_entry.save()
+            messages.success(self.request, '集会情報とVRCイベントカレンダー用情報が更新されました。')
+            return response
+        except DataError as e:
+            messages.error(self.request, f'データの保存中にエラーが発生しました: {str(e)}')
+            return self.form_invalid(form)
 
 
 class WaitingCommunityListView(LoginRequiredMixin, ListView):
