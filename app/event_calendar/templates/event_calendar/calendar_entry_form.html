@@ -1,0 +1,33 @@
+{% extends 'ta_hub/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block main %}
+    <div class="container my-5">
+        <div class="row">
+            <div class="col-md-10 offset-md-1">
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    <!-- VRCイベントカレンダー情報カード -->
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="mb-0">VRCイベントカレンダー情報</h4>
+                        </div>
+                        <div class="card-body">
+                            {% bootstrap_field form.event_detail %}
+                            {% bootstrap_field form.event_genres %}
+                            {% bootstrap_field form.join_condition %}
+                            {% bootstrap_field form.how_to_join %}
+                            {% bootstrap_field form.note %}
+                            {% bootstrap_field form.is_overseas_user %}
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">更新</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock %}
