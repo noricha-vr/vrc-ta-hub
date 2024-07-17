@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from community.models import Community
+from event.models import Event
 
 
 class CalendarEntry(models.Model):
@@ -26,33 +27,23 @@ class CalendarEntry(models.Model):
         ('REGULAR_EVENT', '定期イベント'),
     ]
 
-    community = models.OneToOneField(
-        Community,
+    event = models.OneToOneField(
+        Event,
         on_delete=models.CASCADE,
         related_name='calendar_entry',
-        verbose_name='コミュニティ'
-    )
-    name = models.CharField('イベント名', max_length=255)
-    start_datetime = models.DateTimeField('開始日時')
-    end_datetime = models.DateTimeField('終了日時')
-    android_support = models.CharField(
-        '対応プラットフォーム',
-        max_length=20,
-        choices=ANDROID_SUPPORT_CHOICES,
-        default='PC_ANDROID'
+        verbose_name='イベント'
     )
     join_condition = models.TextField('参加条件', blank=True, default='')
     event_detail = models.TextField('イベント詳細', blank=True, default='')
-    organizer = models.CharField('主催者', blank=True, max_length=255)
     how_to_join = models.TextField('参加方法', blank=True, default='')
     note = models.TextField('備考', blank=True, null=True)
     is_overseas_user = models.BooleanField('海外ユーザー向け', default=False)
     event_genres = models.JSONField('イベントジャンル', blank=True, default=list)
 
-    def clean(self):
-        if self.start_datetime >= self.end_datetime:
-            raise ValidationError("開始日時は終了日時よりも前でなければなりません。")
+    class Meta:
+        db_table = 'calendar_entry'
 
+    def clean(self):
         # イベントジャンルのバリデーション
         valid_genres = set(dict(self.EVENT_GENRE_CHOICES).keys())
         if not set(self.event_genres).issubset(valid_genres):
@@ -64,4 +55,4 @@ class CalendarEntry(models.Model):
         return [genre_dict.get(genre, genre) for genre in self.event_genres]
 
     def __str__(self):
-        return f"{self.name} ({self.start_datetime.strftime('%Y-%m-%d %H:%M')} - {self.end_datetime.strftime('%H:%M')})"
+        return f"{self.event.community.name} ({self.event.date} {self.event.start_time} - {self.event.end_time})"
