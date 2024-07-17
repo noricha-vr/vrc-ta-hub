@@ -90,12 +90,11 @@ DATABASES = {
         'USER': os.environ.get('DB_USER'),
         'PASSWORD': os.environ.get('DB_PASSWORD'),
         'HOST': os.environ.get('DB_HOST'),
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
     },
-    'OPTIONS': {
-        'init_command'
-        'charset': 'utf8mb4',
-        '': 'SET default_storage_engine=INNODB',
-    }
 }
 
 if 'test' in sys.argv:
