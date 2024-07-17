@@ -12,54 +12,16 @@
                         {% include 'ta_hub/messages.html' %}
 
                         <div class="accordion" id="settingsAccordion">
-                            <!-- 集会管理 -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="headingCommunity">
-                                    <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                                            data-bs-target="#collapseCommunity" aria-expanded="true"
-                                            aria-controls="collapseCommunity">
-                                        <i class="bi bi-people-fill me-2"></i>集会管理
-                                    </button>
-                                </h2>
-                                <div id="collapseCommunity" class="accordion-collapse collapse show"
-                                     aria-labelledby="headingCommunity" data-bs-parent="#settingsAccordion">
-                                    <div class="accordion-body">
-                                        <ul class="list-group list-group-flush">
-                                            {% if community %}
-                                                <li class="list-group-item">
-                                                    <a href="{% url 'community:detail' community.pk %}"
-                                                       class="text-decoration-none">
-                                                        <i class="bi bi-info-circle me-2"></i>集会情報を確認
-                                                    </a>
-                                                </li>
-                                                <li class="list-group-item">
-                                                    <a href="{% url 'community:update' community.pk %}"
-                                                       class="text-decoration-none">
-                                                        <i class="bi bi-pencil-square me-2"></i>集会情報を編集
-                                                    </a>
-                                                </li>
-                                                <li class="list-group-item">
-                                                    <a href="{% url 'community:calendar_update' community.pk %}"
-                                                       class="text-decoration-none">
-                                                        <i class="bi bi-calendar-check me-2"></i>VRCイベントカレンダー情報を編集
-                                                    </a>
-                                                </li>
-                                            {% endif %}
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- イベント管理 -->
+                            <!-- イベント管理（デフォルトで開く） -->
                             <div class="accordion-item">
                                 <h2 class="accordion-header" id="headingEvents">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                                            data-bs-target="#collapseEvents" aria-expanded="false"
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#collapseEvents" aria-expanded="true"
                                             aria-controls="collapseEvents">
                                         <i class="bi bi-calendar-event-fill me-2"></i>イベント管理
                                     </button>
                                 </h2>
-                                <div id="collapseEvents" class="accordion-collapse collapse"
+                                <div id="collapseEvents" class="accordion-collapse collapse show"
                                      aria-labelledby="headingEvents" data-bs-parent="#settingsAccordion">
                                     <div class="accordion-body">
                                         <ul class="list-group list-group-flush">
@@ -81,6 +43,44 @@
                                                        href="https://discord.com/channels/1143765879377645628/1256140981158412369"
                                                        target="_blank" rel="noopener noreferrer">
                                                         <i class="bi bi-calendar-range me-2"></i>開催日程調整
+                                                    </a>
+                                                </li>
+                                            {% endif %}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 集会管理 -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingCommunity">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#collapseCommunity" aria-expanded="false"
+                                            aria-controls="collapseCommunity">
+                                        <i class="bi bi-people-fill me-2"></i>集会管理
+                                    </button>
+                                </h2>
+                                <div id="collapseCommunity" class="accordion-collapse collapse"
+                                     aria-labelledby="headingCommunity" data-bs-parent="#settingsAccordion">
+                                    <div class="accordion-body">
+                                        <ul class="list-group list-group-flush">
+                                            {% if community %}
+                                                <li class="list-group-item">
+                                                    <a href="{% url 'community:detail' community.pk %}"
+                                                       class="text-decoration-none">
+                                                        <i class="bi bi-info-circle me-2"></i>集会情報を確認
+                                                    </a>
+                                                </li>
+                                                <li class="list-group-item">
+                                                    <a href="{% url 'community:update' community.pk %}"
+                                                       class="text-decoration-none">
+                                                        <i class="bi bi-pencil-square me-2"></i>集会情報を編集
+                                                    </a>
+                                                </li>
+                                                <li class="list-group-item">
+                                                    <a href="{% url 'community:calendar_update' community.pk %}"
+                                                       class="text-decoration-none">
+                                                        <i class="bi bi-calendar-check me-2"></i>VRCイベントカレンダー情報を編集
                                                     </a>
                                                 </li>
                                             {% endif %}
