@@ -1,21 +1,56 @@
 {% extends 'ta_hub/base.html' %}
+{% load django_bootstrap5 %}
 
 {% block main %}
     <div class="container my-5">
         <div class="row">
             <div class="col-md-10 offset-md-1">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0">集会情報を編集</h4>
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    <!-- 基本情報カード -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="mb-0">基本情報</h4>
+                        </div>
+                        <div class="card-body">
+                            {% bootstrap_field form.name %}
+                            {% bootstrap_field form.start_time %}
+                            {% bootstrap_field form.duration %}
+                            {% bootstrap_field form.weekdays %}
+                            {% bootstrap_field form.frequency %}
+                            {% bootstrap_field form.organizers %}
+                            {% bootstrap_field form.group_url %}
+                            {% bootstrap_field form.organizer_url %}
+                            {% bootstrap_field form.sns_url %}
+                            {% bootstrap_field form.discord %}
+                            {% bootstrap_field form.twitter_hashtag %}
+                            {% bootstrap_field form.poster_image %}
+                            {% bootstrap_field form.description %}
+                            {% bootstrap_field form.platform %}
+                            {% bootstrap_field form.tags %}
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <form method="post" enctype="multipart/form-data">
-                            {% csrf_token %}
-                            {{ form.as_p }}
-                            <button type="submit" class="btn btn-primary">更新</button>
-                        </form>
+
+                    <!-- VRCイベントカレンダー情報カード -->
+                    <div class="card">
+                        <div class="card-header bg-primary text-white">
+                            <h4 class="mb-0">VRCイベントカレンダー情報</h4>
+                        </div>
+                        <div class="card-body">
+                            {% bootstrap_field form.event_detail %}
+                            {% bootstrap_field form.event_genres %}
+                            {% bootstrap_field form.join_condition %}
+                            {% bootstrap_field form.how_to_join %}
+                            {% bootstrap_field form.note %}
+                            {% bootstrap_field form.is_overseas_user %}
+                        </div>
                     </div>
-                </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">更新</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

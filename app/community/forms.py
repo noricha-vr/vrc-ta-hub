@@ -1,4 +1,6 @@
 from django import forms
+
+from event_calendar.models import CalendarEntry
 from .models import WEEKDAY_CHOICES, TAGS
 
 
@@ -80,15 +82,36 @@ class CommunityUpdateForm(forms.ModelForm):
         required=False
     )
 
+    # CalendarEntryのフィールドを追加
+    event_detail = forms.CharField(label='イベント内容', widget=forms.Textarea(attrs={'class': 'form-control'}),
+                                   required=False)
+    event_genres = forms.MultipleChoiceField(
+        label='イベントジャンル',
+        choices=CalendarEntry.EVENT_GENRE_CHOICES,
+        widget=forms.CheckboxSelectMultiple,
+        required=False
+    )
+    join_condition = forms.CharField(label='参加条件（モデル、人数制限など）',
+                                     widget=forms.Textarea(attrs={'class': 'form-control'}),
+                                     required=False)
+
+    how_to_join = forms.CharField(label='参加方法', widget=forms.Textarea(attrs={'class': 'form-control'}),
+                                  required=False)
+    note = forms.CharField(label='備考', widget=forms.Textarea(attrs={'class': 'form-control'}), required=False)
+
+    is_overseas_user = forms.BooleanField(label='海外ユーザー向け告知', required=False)
+
     class Meta:
         model = Community
-        fields = ['name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers', 'group_url', 'organizer_url',
-                  'sns_url', 'discord', 'twitter_hashtag', 'poster_image', 'description', 'platform', 'tags']
+        fields = [
+            'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
+            'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
+            'poster_image', 'description', 'platform', 'tags'
+        ]
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'start_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'duration': forms.NumberInput(attrs={'class': 'form-control'}),
-            'weekdays': forms.SelectMultiple(attrs={'class': 'form-control'}),
             'frequency': forms.TextInput(attrs={'class': 'form-control'}),
             'organizers': forms.TextInput(attrs={'class': 'form-control'}),
             'group_url': forms.URLInput(attrs={'class': 'form-control'}),
@@ -99,11 +122,20 @@ class CommunityUpdateForm(forms.ModelForm):
             'poster_image': forms.FileInput(attrs={'class': 'form-control-file'}),
             'description': forms.Textarea(attrs={'class': 'form-control'}),
             'platform': forms.Select(attrs={'class': 'form-control'}),
-            'tags': forms.SelectMultiple(attrs={'class': 'form-control'}),
         }
-        labels = {
-            'sns_url': 'SNS URL',
-        }
-        help_texts = {
-            'name': '※ Googleカレンダーと同期するためにカレンダーの予定名と集会名が完全に一致する必要があります',
-        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields['weekdays'].initial = self.instance.weekdays
+            self.fields['tags'].initial = self.instance.tags
+            try:
+                calendar_entry = self.instance.calendar_entry
+                self.fields['join_condition'].initial = calendar_entry.join_condition
+                self.fields['event_detail'].initial = calendar_entry.event_detail
+                self.fields['how_to_join'].initial = calendar_entry.how_to_join
+                self.fields['note'].initial = calendar_entry.note
+                self.fields['is_overseas_user'].initial = calendar_entry.is_overseas_user
+                self.fields['event_genres'].initial = calendar_entry.event_genres
+            except CalendarEntry.DoesNotExist:
+                pass

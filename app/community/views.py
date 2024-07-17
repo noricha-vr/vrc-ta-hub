@@ -9,6 +9,7 @@ from django.views.generic import ListView, DetailView
 from django.views.generic import UpdateView
 
 from event.models import Event
+from event_calendar.models import CalendarEntry
 from url_filters import get_filtered_url
 from .forms import CommunitySearchForm
 from .forms import CommunityUpdateForm
@@ -150,9 +151,23 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         community = self.get_object()
         return self.request.user == community.custom_user
 
+    def get_object(self, queryset=None):
+        obj = super().get_object(queryset)
+        CalendarEntry.objects.get_or_create(community=obj)
+        return obj
+
     def form_valid(self, form):
-        messages.success(self.request, '集会情報が更新されました。')
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        calendar_entry = self.object.calendar_entry
+        calendar_entry.join_condition = form.cleaned_data['join_condition']
+        calendar_entry.event_detail = form.cleaned_data['event_detail']
+        calendar_entry.how_to_join = form.cleaned_data['how_to_join']
+        calendar_entry.note = form.cleaned_data['note']
+        calendar_entry.is_overseas_user = form.cleaned_data['is_overseas_user']
+        calendar_entry.event_genres = form.cleaned_data['event_genres']
+        calendar_entry.save()
+        messages.success(self.request, '集会情報とVRCイベントカレンダー用情報が更新されました。')
+        return response
 
 
 class WaitingCommunityListView(LoginRequiredMixin, ListView):
