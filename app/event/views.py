@@ -21,7 +21,6 @@ from event.forms import EventDetailForm, EventSearchForm, EventCreateForm
 from event.libs import convert_markdown, get_transcript, genai_model, create_blog_prompt
 from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url
-from event_calendar.models import CalendarEntry
 from url_filters import get_filtered_url
 from website.settings import GOOGLE_API_KEY, CALENDAR_ID, REQUEST_TOKEN
 
@@ -384,15 +383,15 @@ class EventMyList(LoginRequiredMixin, ListView):
         イベントのGoogleフォームのURLを設定する
         """
         for event in queryset:
-            entry = CalendarEntry.create_from_event(event)
-            if entry:
-                event.post_url = create_calendar_entry_url(entry)
+            if timezone.now().date() > event.date:
+                continue
+            event.calendar_url = create_calendar_entry_url(event)
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['community'] = Community.objects.filter(custom_user=self.request.user).first()
-        events = context['events']
+        events = self.set_vrc_event_calendar_post_url(context['events'])
         event_ids = events.values_list('id', flat=True)
 
         # イベント詳細を取得

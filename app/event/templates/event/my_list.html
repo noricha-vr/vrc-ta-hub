@@ -37,14 +37,19 @@
                                 <div class="col-md-5">
                                     <div class="card-text mb-2">開催日: {{ event.date }}</div>
                                     <div class="card-text mb-2">開始時刻: {{ event.start_time }}</div>
-                                    <div class="d-flex align-items-end mb-2 mt-3">
-
-                                        <form method="post" action="{% url 'event:delete' event.pk %}">
+                                    <div class="mb-2 mt-3">
+                                        <div>
+                                            {% if event.calendar_url %}
+                                                <a href="{{ event.calendar_url }}"
+                                                   class="btn btn-outline-success">VRCイベントカレンダーに投稿</a>
+                                            {% endif %}
+                                        </div>
+                                        <form method="post" class="mt-2" action="{% url 'event:delete' event.pk %}">
                                             {% csrf_token %}
-                                            <input type="hidden" name="_method" value="DELETE">
-                                            <button type="submit" class="btn btn-outline-danger ms-2"
+                                            <button type="submit" class="btn btn-outline-danger"
                                                     onclick="return confirm('本当に削除しますか？');">イベントを削除
                                             </button>
+                                            <input type="hidden" name="_method" value="DELETE">
                                         </form>
                                     </div>
                                 </div>
