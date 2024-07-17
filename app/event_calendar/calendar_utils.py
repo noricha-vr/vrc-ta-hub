@@ -1,11 +1,30 @@
 # app/event_calendar/calendar_utils.py
-from urllib.parse import urlencode
 
-from django.utils import timezone
+from datetime import datetime, timedelta
+from urllib.parse import urlencode
 
 from .models import CalendarEntry
 
 FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSevo0ax6ALIzllRCT7up-3KZkohD3VfG28rcOy8XMqDwRWevQ/formResponse'
+
+EVENT_GENRE_MAP = {
+    'OTHER_MEETUP': 'その他交流会',
+    'VR_DRINKING_PARTY': 'VR飲み会',
+    'AVATAR_FITTING': 'アバター試着会',
+    'MODIFIED_AVATAR_MEETUP': '改変アバター交流会',
+    'STORE_EVENT': '店舗系イベント',
+    'MUSIC_EVENT': '音楽系イベント',
+    'ACADEMIC_EVENT': '学術系イベント',
+    'ROLEPLAY': 'ロールプレイ',
+    'BEGINNER_EVENT': '初心者向けイベント',
+    'REGULAR_EVENT': '定期イベント',
+}
+
+PLATFORM_MAP = {
+    'PC': 'PCオンリー',
+    'All': 'PC/Android両対応（Android対応）',
+    'Android': 'Android オンリー',
+}
 
 
 def create_calendar_entry_url(entry: CalendarEntry) -> str:
@@ -20,10 +39,11 @@ def create_calendar_entry_url(entry: CalendarEntry) -> str:
     """
     event = entry.event
     community = event.community
-    start_datetime = timezone.datetime.combine(event.date, event.start_time)
-    end_datetime = start_datetime + timezone.timedelta(minutes=event.duration)
+    start_datetime = datetime.combine(event.date, event.start_time)
+    end_datetime = start_datetime + timedelta(minutes=event.duration)
 
     form_data = {
+        'entry.426573786': community.name,
         'entry.1010494053_hour': start_datetime.strftime('%H'),
         'entry.1010494053_minute': start_datetime.strftime('%M'),
         'entry.203043324_hour': end_datetime.strftime('%H'),
@@ -31,23 +51,23 @@ def create_calendar_entry_url(entry: CalendarEntry) -> str:
         'entry.450203369_year': start_datetime.strftime('%Y'),
         'entry.450203369_month': start_datetime.strftime('%m'),
         'entry.450203369_day': start_datetime.strftime('%d'),
-        'entry.426573786': community.name,
-        'entry.1261006949': community.get_platform_display(),
+        'entry.1261006949': PLATFORM_MAP.get(community.platform, community.platform),
         'entry.2064647146': entry.join_condition,
-        'entry.701384676': entry.event_detail,
         'entry.1540217995': community.organizers,
         'entry.1285455202': entry.how_to_join,
         'entry.586354013': entry.note if entry.note else '',
         'entry.1607289186': 'Yes' if entry.is_overseas_user else 'No',
+        'entry.701384676': entry.event_detail,
     }
 
     # イベントジャンルの処理
     event_type_field = 'entry.1606730788'
     for genre in entry.event_genres:
+        mapped_genre = EVENT_GENRE_MAP.get(genre, genre)
         if event_type_field in form_data:
-            form_data[event_type_field].append(genre)
+            form_data[event_type_field].append(mapped_genre)
         else:
-            form_data[event_type_field] = [genre]
+            form_data[event_type_field] = [mapped_genre]
 
     # URLエンコーディング（複数値のパラメータに対応）
     url_params = []
@@ -58,4 +78,7 @@ def create_calendar_entry_url(entry: CalendarEntry) -> str:
         else:
             url_params.append(f"{key}={urlencode({key: value})[len(key) + 1:]}")
 
-    return f"{FORM_URL}?{'&'.join(url_params)}"
+    url_with_params = f"{FORM_URL}?{'&'.join(url_params)}"
+
+    print(f"Submitting form to {url_with_params}")
+    return url_with_params
