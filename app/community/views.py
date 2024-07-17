@@ -1,21 +1,25 @@
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import DataError
 from django.db.models import Q, F, OuterRef, Subquery
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse_lazy, reverse
+from django.urls import reverse
+from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView, DetailView
 from django.views.generic import UpdateView
 
 from event.models import Event
-from event_calendar.models import CalendarEntry
 from url_filters import get_filtered_url
 from .forms import CommunitySearchForm
 from .forms import CommunityUpdateForm
 from .libs import get_join_type
 from .models import Community
+
+
+# app/community/views.py
 
 
 class CommunityListView(ListView):
@@ -151,16 +155,6 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def test_func(self):
         community = self.get_object()
         return self.request.user == community.custom_user
-
-    def get_object(self, queryset=None):
-        obj = super().get_object(queryset)
-        CalendarEntry.objects.get_or_create(
-            community=obj,
-            defaults={
-                'event_detail': obj.description,
-            }
-        )
-        return obj
 
     def form_valid(self, form):
         try:

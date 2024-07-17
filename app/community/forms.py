@@ -1,6 +1,5 @@
 from django import forms
 
-from event_calendar.models import CalendarEntry
 from .models import WEEKDAY_CHOICES, TAGS
 
 
@@ -82,25 +81,6 @@ class CommunityUpdateForm(forms.ModelForm):
         required=False
     )
 
-    # CalendarEntryのフィールドを追加
-    event_detail = forms.CharField(label='イベント内容', widget=forms.Textarea(attrs={'class': 'form-control'}),
-                                   required=False)
-    event_genres = forms.MultipleChoiceField(
-        label='イベントジャンル',
-        choices=CalendarEntry.EVENT_GENRE_CHOICES,
-        widget=forms.CheckboxSelectMultiple,
-        required=False
-    )
-    join_condition = forms.CharField(label='参加条件（モデル、人数制限など）',
-                                     widget=forms.Textarea(attrs={'class': 'form-control'}),
-                                     required=False)
-
-    how_to_join = forms.CharField(label='参加方法', widget=forms.Textarea(attrs={'class': 'form-control'}),
-                                  required=False)
-    note = forms.CharField(label='備考', widget=forms.Textarea(attrs={'class': 'form-control'}), required=False)
-
-    is_overseas_user = forms.BooleanField(label='海外ユーザー向け告知', required=False)
-
     class Meta:
         model = Community
         fields = [
@@ -129,13 +109,3 @@ class CommunityUpdateForm(forms.ModelForm):
         if self.instance and self.instance.pk:
             self.fields['weekdays'].initial = self.instance.weekdays
             self.fields['tags'].initial = self.instance.tags
-            try:
-                calendar_entry = self.instance.calendar_entry
-                self.fields['join_condition'].initial = calendar_entry.join_condition
-                self.fields['event_detail'].initial = calendar_entry.event_detail
-                self.fields['how_to_join'].initial = calendar_entry.how_to_join
-                self.fields['note'].initial = calendar_entry.note
-                self.fields['is_overseas_user'].initial = calendar_entry.is_overseas_user
-                self.fields['event_genres'].initial = calendar_entry.event_genres
-            except CalendarEntry.DoesNotExist:
-                pass
