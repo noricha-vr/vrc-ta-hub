@@ -1,4 +1,4 @@
-# app/event_calendar/models.py
+from typing import List
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -27,11 +27,10 @@ class CalendarEntry(models.Model):
         ('REGULAR_EVENT', '定期イベント'),
     ]
 
-    event = models.OneToOneField(
-        Event,
+    community = models.OneToOneField(
+        Community,
         on_delete=models.CASCADE,
         related_name='calendar_entry',
-        verbose_name='イベント'
     )
     join_condition = models.TextField('参加条件', blank=True, default='')
     event_detail = models.TextField('イベント詳細', blank=True, default='')
@@ -43,16 +42,32 @@ class CalendarEntry(models.Model):
     class Meta:
         db_table = 'calendar_entry'
 
-    def clean(self):
+    def clean(self) -> None:
         # イベントジャンルのバリデーション
-        valid_genres = set(dict(self.EVENT_GENRE_CHOICES).keys())
+        valid_genres: List[str] = [choice[0] for choice in self.EVENT_GENRE_CHOICES]
         if not set(self.event_genres).issubset(valid_genres):
             raise ValidationError("無効なイベントジャンルが含まれています。")
 
-    def get_event_genres_display(self):
+    def get_event_genres_display(self) -> List[str]:
         """イベントジャンルの表示名を返す"""
         genre_dict = dict(self.EVENT_GENRE_CHOICES)
         return [genre_dict.get(genre, genre) for genre in self.event_genres]
 
-    def __str__(self):
-        return f"{self.event.community.name} ({self.event.date} {self.event.start_time} - {self.event.end_time})"
+    @classmethod
+    def get_or_create_from_event(cls, event: Event) -> 'CalendarEntry':
+        """イベントからCalendarEntryを取得または作成する"""
+        calendar_entry, created = cls.objects.get_or_create(
+            community=event.community,
+            defaults={
+                'join_condition': '',
+                'event_detail': '',
+                'how_to_join': '',
+                'note': '',
+                'is_overseas_user': False,
+                'event_genres': []
+            }
+        )
+        return calendar_entry
+
+    def __str__(self) -> str:
+        return f"Calendar Entry for {self.community.name}"

@@ -27,22 +27,22 @@ PLATFORM_MAP = {
 }
 
 
-def create_calendar_entry_url(entry: CalendarEntry) -> str:
+def create_calendar_entry_url(event: 'Event') -> str:
     """
-    CalendarEntryオブジェクトからGoogleフォームのURLを生成する
+    EventオブジェクトからGoogleフォームのURLを生成する
 
     Args:
-        entry (CalendarEntry): カレンダーエントリオブジェクト
+        event (Event): イベントオブジェクト
 
     Returns:
         str: 生成されたGoogleフォームのURL
     """
-    event = entry.event
+    calendar_entry = CalendarEntry.get_or_create_from_event(event)
     community = event.community
     start_datetime = datetime.combine(event.date, event.start_time)
     end_datetime = start_datetime + timedelta(minutes=event.duration)
 
-    form_data = {
+    form_data: Dict[str, Any] = {
         'entry.426573786': community.name,
         'entry.1010494053_hour': start_datetime.strftime('%H'),
         'entry.1010494053_minute': start_datetime.strftime('%M'),
@@ -52,17 +52,17 @@ def create_calendar_entry_url(entry: CalendarEntry) -> str:
         'entry.450203369_month': start_datetime.strftime('%m'),
         'entry.450203369_day': start_datetime.strftime('%d'),
         'entry.1261006949': PLATFORM_MAP.get(community.platform, community.platform),
-        'entry.2064647146': entry.join_condition,
+        'entry.2064647146': calendar_entry.join_condition,
         'entry.1540217995': community.organizers,
-        'entry.1285455202': entry.how_to_join,
-        'entry.586354013': entry.note if entry.note else '',
-        'entry.1607289186': 'Yes' if entry.is_overseas_user else 'No',
-        'entry.701384676': entry.event_detail,
+        'entry.1285455202': calendar_entry.how_to_join,
+        'entry.586354013': calendar_entry.note if calendar_entry.note else '',
+        'entry.1607289186': 'Yes' if calendar_entry.is_overseas_user else 'No',
+        'entry.701384676': calendar_entry.event_detail,
     }
 
     # イベントジャンルの処理
     event_type_field = 'entry.1606730788'
-    for genre in entry.event_genres:
+    for genre in calendar_entry.event_genres:
         mapped_genre = EVENT_GENRE_MAP.get(genre, genre)
         if event_type_field in form_data:
             form_data[event_type_field].append(mapped_genre)
@@ -80,5 +80,4 @@ def create_calendar_entry_url(entry: CalendarEntry) -> str:
 
     url_with_params = f"{FORM_URL}?{'&'.join(url_params)}"
 
-    print(f"Submitting form to {url_with_params}")
     return url_with_params

@@ -1,16 +1,15 @@
-# app/event_calendar/tests.py
-
 import datetime
 from urllib.parse import quote_plus
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
 from account.models import CustomUser
 from community.models import Community
 from event.models import Event
-from .calendar_utils import create_calendar_entry_url, PLATFORM_MAP
-from .models import CalendarEntry
+from event_calendar.calendar_utils import create_calendar_entry_url, PLATFORM_MAP
+from event_calendar.models import CalendarEntry
 
 
 class CreateCalendarTest(TestCase):
@@ -41,7 +40,7 @@ class CreateCalendarTest(TestCase):
 
     def test_create_calendar_entry_url(self):
         calendar_entry = CalendarEntry.objects.create(
-            event=self.event,
+            community=self.community,
             join_condition="誰でも参加可能",
             event_detail="This is a test event for VRC Calendar. Location: VRChat",
             how_to_join="VRChatで「Test Event」を検索してください。",
@@ -50,7 +49,7 @@ class CreateCalendarTest(TestCase):
             event_genres=["OTHER_MEETUP", "VR_DRINKING_PARTY"]
         )
 
-        url = create_calendar_entry_url(calendar_entry)
+        url = create_calendar_entry_url(self.event)
 
         # URLの基本構造を確認
         self.assertTrue(url.startswith(
@@ -79,3 +78,38 @@ class CreateCalendarTest(TestCase):
 
         print("Generated URL:", url)
         self.assertTrue(isinstance(url, str))
+
+    def test_get_or_create_from_event(self):
+        # 最初の呼び出しで新しいCalendarEntryが作成されることを確認
+        calendar_entry = CalendarEntry.get_or_create_from_event(self.event)
+        self.assertEqual(calendar_entry.community, self.community)
+        self.assertEqual(CalendarEntry.objects.count(), 1)
+
+        # 2回目の呼び出しで同じCalendarEntryが返されることを確認
+        same_calendar_entry = CalendarEntry.get_or_create_from_event(self.event)
+        self.assertEqual(calendar_entry, same_calendar_entry)
+        self.assertEqual(CalendarEntry.objects.count(), 1)
+
+    def test_event_genres_validation(self):
+        # 有効なジャンルでCalendarEntryが作成できることを確認
+        valid_entry = CalendarEntry(
+            community=self.community,
+            event_genres=["AVATAR_FITTING", "VR_DRINKING_PARTY"]
+        )
+        valid_entry.full_clean()  # ValidationErrorが発生しないことを確認
+
+        # 無効なジャンルでValidationErrorが発生することを確認
+        invalid_entry = CalendarEntry(
+            community=self.community,
+            event_genres=["INVALID_GENRE"]
+        )
+        with self.assertRaises(ValidationError):
+            invalid_entry.full_clean()
+
+    def test_get_event_genres_display(self):
+        calendar_entry = CalendarEntry.objects.create(
+            community=self.community,
+            event_genres=["AVATAR_FITTING", "VR_DRINKING_PARTY"]
+        )
+        display_genres = calendar_entry.get_event_genres_display()
+        self.assertEqual(display_genres, ["アバター試着会", "VR飲み会"])

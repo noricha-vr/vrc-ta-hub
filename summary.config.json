@@ -1,8 +1,6 @@
 {
     "exclude_dirs": ".git, .svn, .hg, .venv, venv, node_modules, __pycache__, *.egg-info, .mypy_cache, .pytest_cache, .tox, .idea, .vscode, .vs, build, dist, .cache, .coverage, .serverless, .terraform, .stack-work, .next, .nuxt, .DS_Store, migrations, .gradle, locale, *secret*",
     "include_extensions": [
-        ".md",
-        ".html",
         ".py"
     ],
     "output_dir": "/Users/main/Desktop",

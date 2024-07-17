@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import IntegrityError
+from django.db.models import QuerySet
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy, reverse
@@ -19,6 +20,8 @@ from community.models import Community
 from event.forms import EventDetailForm, EventSearchForm, EventCreateForm
 from event.libs import convert_markdown, get_transcript, genai_model, create_blog_prompt
 from event.models import EventDetail, Event
+from event_calendar.calendar_utils import create_calendar_entry_url
+from event_calendar.models import CalendarEntry
 from url_filters import get_filtered_url
 from website.settings import GOOGLE_API_KEY, CALENDAR_ID, REQUEST_TOKEN
 
@@ -376,11 +379,23 @@ class EventMyList(LoginRequiredMixin, ListView):
     def get_queryset(self):
         return Event.objects.filter(community__custom_user=self.request.user).order_by('-date', '-start_time')
 
+    def set_vrc_event_calendar_post_url(self, queryset: QuerySet) -> QuerySet:
+        """
+        イベントのGoogleフォームのURLを設定する
+        """
+        for event in queryset:
+            entry = CalendarEntry.create_from_event(event)
+            if entry:
+                event.post_url = create_calendar_entry_url(entry)
+        return queryset
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['community'] = Community.objects.filter(custom_user=self.request.user).first()
         events = context['events']
         event_ids = events.values_list('id', flat=True)
+
+        # イベント詳細を取得
         event_details = EventDetail.objects.filter(event_id__in=event_ids).order_by('created_at')
 
         event_detail_dict = {}
