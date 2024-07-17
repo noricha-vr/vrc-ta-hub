@@ -153,7 +153,12 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
     def get_object(self, queryset=None):
         obj = super().get_object(queryset)
-        CalendarEntry.objects.get_or_create(community=obj)
+        CalendarEntry.objects.get_or_create(
+            community=obj,
+            defaults={
+                'event_detail': obj.description,
+            }
+        )
         return obj
 
     def form_valid(self, form):
