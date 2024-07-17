@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'event',
     'sitemap',
     'account',
+    'event_calendar',
     'django_bootstrap5',
     'api_v1',
     'django_filters',
@@ -213,6 +214,31 @@ LOGGING = {
             'propagate': True,
         },
         'website': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'api_v1': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'community': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'account': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'sitemap': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'event_calendar': {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': True,
