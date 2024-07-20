@@ -26,7 +26,6 @@
                         class="btn btn-primary me-2">過去のイベントを登録</a>
                 </div>
             {% endif %}
-
         </div>
         {% for event in events %}
             <div class="row">
@@ -44,21 +43,24 @@
                                             {% endif %}
                                         </div>
                                         <div class="mt-2">
-                                            {% with templates=event.community.twitter_template.all %}
-                                                {% if templates %}
-                                                    {% for template in templates %}
-                                                        <a href="{% url 'twitter:tweet_event_with_template' event.pk template.pk %}"
-                                                           class="btn btn-outline-primary mb-1">
-                                                            <i class="bi bi-twitter"></i> {{ template.name }}
+                                            {% now "Y-m-d" as current_date %}
+                                            {% if event.date|date:"Y-m-d" > current_date %}
+                                                {% with templates=event.community.twitter_template.all %}
+                                                    {% if templates %}
+                                                        {% for template in templates %}
+                                                            <a href="{% url 'twitter:tweet_event_with_template' event.pk template.pk %}"
+                                                               class="btn btn-outline-primary mb-1">
+                                                                <i class="bi bi-twitter"></i> {{ template.name }}
+                                                            </a>
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <a href="{% url 'twitter:template_create' event.pk %}"
+                                                           class="btn btn-outline-primary">
+                                                            <i class="bi bi-twitter"></i> 告知テンプレートを作成
                                                         </a>
-                                                    {% endfor %}
-                                                {% else %}
-                                                    <a href="{% url 'twitter:template_create' event.pk %}"
-                                                       class="btn btn-outline-primary">
-                                                        <i class="bi bi-twitter"></i> 告知テンプレートを作成
-                                                    </a>
-                                                {% endif %}
-                                            {% endwith %}
+                                                    {% endif %}
+                                                {% endwith %}
+                                            {% endif %}
                                         </div>
                                         <form method="post" class="mt-2" action="{% url 'event:delete' event.pk %}">
                                             {% csrf_token %}
@@ -71,7 +73,6 @@
                                 </div>
                                 <div class="col-md-7">
                                     {% for detail in event.detail_list %}
-
                                         <div class="card-text mb-2">テーマ: {{ detail.theme }}</div>
                                         <div class="card-text mb-2">発表者: {{ detail.speaker }}</div>
                                         <div class="card-text mb-2">開始時間: {{ detail.start_time }}</div>
