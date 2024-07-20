@@ -83,11 +83,19 @@
                                                         <i class="bi bi-calendar-check me-2"></i>VRCイベントカレンダー情報を編集
                                                     </a>
                                                 </li>
+                                                <!-- 新しく追加されたTwitterテンプレートリストへのリンク -->
+                                                <li class="list-group-item">
+                                                    <a href="{% url 'twitter:template_list' %}"
+                                                       class="text-decoration-none">
+                                                        <i class="bi bi-twitter me-2"></i>Twitterテンプレート一覧
+                                                    </a>
+                                                </li>
                                             {% endif %}
                                         </ul>
                                     </div>
                                 </div>
                             </div>
+
 
                             <!-- コミュニティ管理 -->
                             {% if community.is_accepted %}
