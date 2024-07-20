@@ -99,16 +99,31 @@
                         </div>
 
                         <div class="mb-4">
-                            <h3 class="h5 fw-bold">5. 発表資料や動画を登録するには？</h3>
+                            <h3 class="h5 fw-bold">5. LTや発表を登録するには？</h3>
                             <p>
-                                集会の詳細ページに発表資料や動画を掲載することができます。ログイン後、
+                                集会の詳細ページにLTや発表を登録できます。更に、資料や動画を掲載することができます。ログイン後、
                                 <a href="{% url 'event:my_list' %}"
                                    class="btn btn-outline-primary btn-sm">イベント一覧</a>から発表資料や動画のURLを登録できます。
                             </p>
                         </div>
 
                         <div class="mb-4">
-                            <h3 class="h5 fw-bold">6. Twitterで告知するには？</h3>
+                            <h3 class="h5 fw-bold">6. 動画や資料から記事を作成するには？</h3>
+                            <p>
+                                登録した動画や資料から自動的に記事を生成することができます。以下の手順で行います：
+                            </p>
+                            <ol>
+                                <li><a href="{% url 'event:my_list' %}"
+                                       class="btn btn-outline-primary btn-sm">イベント一覧</a>ページにアクセスします。
+                                </li>
+                                <li>記事を作成したいイベントの詳細ページに移動します。</li>
+                                <li>「記事を生成」ボタンをクリックします。</li>
+                                <li>生成された記事を確認し、必要に応じて編集できます。</li>
+                            </ol>
+                        </div>
+
+                        <div class="mb-4">
+                            <h3 class="h5 fw-bold">7. Twitterで告知するには？</h3>
                             <p>
                                 Twitterでの告知を効率化するために、告知テンプレートを登録できます。
                             </p>
@@ -123,7 +138,7 @@
                         </div>
 
                         <div class="mb-4">
-                            <h3 class="h5 fw-bold">7. VRChatイベントカレンダーに投稿するには？</h3>
+                            <h3 class="h5 fw-bold">8. VRChatイベントカレンダーに投稿するには？</h3>
                             <p>
                                 VRChatイベントカレンダーに簡単に投稿できます。
                             </p>
