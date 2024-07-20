@@ -92,3 +92,4 @@ db.sqlite3
 /app/ta_hub/static/ta_hub/js/*.js
 /output.txt
 secret
+/summary.config.json
