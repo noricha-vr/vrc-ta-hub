@@ -40,9 +40,25 @@
                                     <div class="mb-2 mt-3">
                                         <div>
                                             {% if event.calendar_url %}
-                                                <a href="{{ event.calendar_url }}"
-                                                   class="btn btn-outline-success">VRCイベントカレンダーに投稿</a>
+                                                <a href="{{ event.calendar_url }}" class="btn btn-outline-success">VRCイベントカレンダーに投稿</a>
                                             {% endif %}
+                                        </div>
+                                        <div class="mt-2">
+                                            {% with templates=event.community.twitter_template.all %}
+                                                {% if templates %}
+                                                    {% for template in templates %}
+                                                        <a href="{% url 'twitter:tweet_event_with_template' event.pk template.pk %}"
+                                                           class="btn btn-outline-primary mb-1">
+                                                            <i class="bi bi-twitter"></i> {{ template.name }}
+                                                        </a>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <a href="{% url 'twitter:template_create' event.pk %}"
+                                                       class="btn btn-outline-primary">
+                                                        <i class="bi bi-twitter"></i> 告知テンプレートを作成
+                                                    </a>
+                                                {% endif %}
+                                            {% endwith %}
                                         </div>
                                         <form method="post" class="mt-2" action="{% url 'event:delete' event.pk %}">
                                             {% csrf_token %}

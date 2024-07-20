@@ -1,0 +1,21 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block main %}
+    <div class="container">
+        <h2>Your Twitter Templates</h2>
+        <a href="{% url 'twitter:template_create' %}" class="btn btn-primary mb-3">Create New Template</a>
+        {% if templates %}
+            <ul class="list-group">
+                {% for template in templates %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ template.name }}
+                        <a href="{% url 'twitter:template_update' template.pk %}"
+                           class="btn btn-sm btn-outline-primary">Edit</a>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>You don't have any templates yet.</p>
+        {% endif %}
+    </div>
+{% endblock %}

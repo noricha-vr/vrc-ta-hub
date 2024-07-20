@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'sitemap',
     'account',
     'event_calendar',
+    'twitter',
     'django_bootstrap5',
     'api_v1',
     'django_filters',
@@ -172,6 +173,9 @@ assert CALENDAR_ID is not None, 'Please set CALENDAR_ID'
 REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN')
 assert REQUEST_TOKEN is not None, 'Please set REQUEST_TOKEN'
 
+# OpenAI API
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -238,6 +242,11 @@ LOGGING = {
             'propagate': True,
         },
         'event_calendar': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'twitter': {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': True,
