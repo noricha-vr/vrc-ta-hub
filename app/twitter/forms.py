@@ -6,6 +6,18 @@ from .models import TwitterTemplate
 
 
 class TwitterTemplateForm(forms.ModelForm):
+    template_initial = (
+        '今夜は{event_name}！\n\n'
+        '【タイムスケジュール】\n'
+        '{date}\n'
+        '{time}～ 開場\n\n'
+        '{time}～ {speaker}さん\n'
+        '『{theme}』\n\n'
+        'みんな遊びに来てね～😊\n'
+        'Join先・VRCグループ : https://**\n\n'
+        '#VRChat'
+    )
+
     class Meta:
         model = TwitterTemplate
         fields = ['name', 'template']
@@ -17,9 +29,12 @@ class TwitterTemplateForm(forms.ModelForm):
             'template': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 18,
-                'placeholder': '今夜は{event_name}！\n\n【タイムスケジュール】\n{date}\n{time}～ 開場\n\n{time}～ {speaker}さん\n『{theme}』\n\nみんな遊びに来てね～😊\nJoin先・VRCグループ : https://**\n\n#{event_name} #VRChat'
             }),
         }
         help_texts = {
             'template': '利用可能な変数: {event_name}, {date}, {time}, {speaker}, {theme}'
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['template'].initial = self.template_initial

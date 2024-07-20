@@ -83,3 +83,20 @@ class TwitterTemplateDeleteView(LoginRequiredMixin, DeleteView):
             return self.form_valid(form)
         else:
             return self.form_invalid(form)
+
+
+# twitter/views.py
+
+
+class TweetEventWithTemplateView(View):
+    def get(self, request, event_pk, template_pk):
+        event = get_object_or_404(Event, pk=event_pk)
+        template = get_object_or_404(TwitterTemplate, pk=template_pk)
+
+        tweet_url = generate_tweet_url(event, template)
+
+        if tweet_url:
+            return redirect(tweet_url)
+        else:
+            messages.error(request, "ツイートURLの生成に失敗しました。")
+            return redirect('event:my_list')
