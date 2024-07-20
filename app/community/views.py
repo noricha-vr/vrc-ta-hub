@@ -117,7 +117,7 @@ class CommunityDetailView(DetailView):
             community=community, date__lt=now
         ).filter(
             Q(details__theme__isnull=False) | Q(details__theme__gt='')
-        ).prefetch_related('details').order_by('-date', '-start_time')[:4]
+        ).prefetch_related('details').order_by('-date', '-start_time')[:6]
         context['past_events'] = self.get_event_details(past_events)
 
         # 曜日の選択肢をコンテキストに追加
