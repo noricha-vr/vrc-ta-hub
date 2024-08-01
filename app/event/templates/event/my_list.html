@@ -44,7 +44,7 @@
                                         </div>
                                         <div class="mt-2">
                                             {% now "Y-m-d" as current_date %}
-                                            {% if event.date|date:"Y-m-d" > current_date %}
+                                            {% if event.date|date:"Y-m-d" >= current_date %}
                                                 {% with templates=event.community.twitter_template.all %}
                                                     {% if templates %}
                                                         {% for template in templates %}
