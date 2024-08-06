@@ -10,7 +10,7 @@ from website.settings import GEMINI_API_KEY
 
 # Gemini APIの設定
 genai.configure(api_key=GEMINI_API_KEY)
-genai_model = genai.GenerativeModel('gemini-1.5-pro')
+genai_model = genai.GenerativeModel('gemini-1.5-pro-exp-0801')
 
 
 def get_transcript(video_id, language='ja') -> str:
