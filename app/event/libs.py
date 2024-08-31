@@ -1,3 +1,7 @@
+import logging
+import os
+import tempfile
+
 import bleach
 import google.generativeai as genai
 import markdown
@@ -8,9 +12,72 @@ from youtube_transcript_api.formatters import TextFormatter
 from event.models import EventDetail
 from website.settings import GEMINI_API_KEY
 
-# Gemini APIの設定
 genai.configure(api_key=GEMINI_API_KEY)
 genai_model = genai.GenerativeModel('gemini-1.5-pro-exp-0801')
+logger = logging.getLogger(__name__)
+
+genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+
+
+def generate_blog(event_detail: EventDetail, model='gemini-1.5-flash') -> str:
+    """
+    EventDetailに関連付けられたスライドファイルをもとにブログ記事を生成する関数
+
+    Args:
+        event_detail (EventDetail): ブログ記事を生成するための情報を含むEventDetailオブジェクト
+
+    Returns:
+        str: 生成されたブログ記事
+    """
+    # YouTube動画から文字起こしを取得
+    genai_model = genai.GenerativeModel(model)
+    transcript = get_transcript(event_detail.video_id, "ja")
+    prompt = create_blog_prompt(event_detail, transcript)
+    uploaded_file = None
+    try:
+        upload_file_to_gemini(event_detail)
+        response = genai_model.generate_content([prompt, uploaded_file], stream=False)
+    except Exception as e:
+        logger.warning(f"Error uploading file to Gemini for EventDetail {event_detail.pk}: {e}")
+        response = genai_model.generate_content(prompt, stream=False)
+    logger.info('text: ' + response.text)
+    return response.text
+
+
+def upload_file_to_gemini(event_detail: EventDetail) -> genai.types.File:
+    """
+    EventDetailに関連付けられたスライドファイルをGemini APIにアップロードする関数
+
+    Args:
+        event_detail (EventDetail): アップロードするファイルを含むEventDetailオブジェクト
+
+    Returns:
+        genai.types.File: アップロードされたファイルオブジェクト
+
+    Raises:
+        ValueError: スライドファイルが存在しない場合
+        Exception: アップロード中に発生したその他のエラー
+    """
+    if not event_detail.slide_file:
+        raise ValueError("No slide file associated with this EventDetail")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+        event_detail.slide_file.seek(0)
+        temp_file.write(event_detail.slide_file.read())
+        temp_file_path = temp_file.name
+
+    try:
+        uploaded_file = genai.upload_file(
+            path=temp_file_path,
+            name=f"{event_detail.pk}_{event_detail.slide_file.name}",
+            mime_type='application/pdf'
+        )
+        return uploaded_file
+    except Exception as e:
+        logger.error(f"Error uploading file to Gemini for EventDetail {event_detail.pk}: {e}")
+        raise
+    finally:
+        os.unlink(temp_file_path)
 
 
 def get_transcript(video_id, language='ja') -> str:
@@ -24,6 +91,8 @@ def get_transcript(video_id, language='ja') -> str:
     Returns:
       文字起こしテキスト
     """
+    if not video_id:
+        return ''
     transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
     formatter = TextFormatter()
     transcript_text = formatter.format_transcript(transcript)

@@ -1,4 +1,6 @@
+import re
 from datetime import datetime, timedelta
+from typing import Optional
 
 from django.db import models
 
@@ -63,3 +65,12 @@ class EventDetail(models.Model):
         start_datetime = datetime.combine(self.event.date, self.start_time)
         end_datetime = start_datetime + timedelta(minutes=self.duration)
         return end_datetime.time()
+
+    @property
+    def video_id(self) -> Optional[str]:
+        if self.youtube_url:
+            # 正規表現を使ってvideo_idを抽出
+            match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11}).*', self.youtube_url)
+            if match:
+                return match.group(1)
+        return None
