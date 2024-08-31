@@ -296,7 +296,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
                 messages.error(request, "Invalid request. You don't have permission to perform this action.")
                 return redirect('event:detail', pk=event_detail.id)
 
-            text = generate_blog(event_detail)
+            text = generate_blog(event_detail, model="gemini-1.5-pro-exp-0827")
 
             h1 = text.split('\n')[0]
             content = text.replace(h1, '', 1)

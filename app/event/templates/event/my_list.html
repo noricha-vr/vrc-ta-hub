@@ -100,6 +100,16 @@
                                                     onclick="return confirm('本当に削除しますか？');">削除
                                             </button>
                                         </form>
+                                        {% if detail.youtube_url or detail.slide_file %}
+                                            {% if detail.contents == '' %}
+                                                <a href="{% url 'event:detail_update' detail.pk %}"
+                                                   class="btn btn-primary text-white">記事生成</a>
+                                            {% endif %}
+                                        {% else %}
+                                            {% if detail.slide_url %}
+                                                <p class="mt-2">※ スライドをアップロードすると記事を生成できます。</p>
+                                            {% endif %}
+                                        {% endif %}
                                         <hr>
                                     {% endfor %}
                                     <div class="">
