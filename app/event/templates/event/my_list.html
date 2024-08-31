@@ -9,7 +9,7 @@
             </h1>
         </a>
         <div class="row">
-            <div class="col-12 col-md-10 offset-md-1 mb-4">
+            <div class="col-12 col-md-10 offset-md-1">
                 {% include 'ta_hub/messages.html' %}
             </div>
         </div>
@@ -17,13 +17,16 @@
             {% if community %}
                 <div>
                     <a href="{% url 'community:detail' community.pk %}"
-                       class="btn btn-primary me-2">{{ community.name }}</a>
+                       class="btn btn-outline-primary me-2">{{ community.name }}</a>
                 </div>
                 <div><a href="{% url 'event:detail_history' %}?community_name={{ community.name }}"
-                        class="btn btn-primary me-2">LT履歴</a>
+                        class="btn btn-outline-primary me-2">LT履歴</a>
+                </div>
+                <div><a href="https://discord.com/channels/1143765879377645628/1272910390942240798"
+                        class="btn btn-outline-primary me-2">イベント登録</a>
                 </div>
                 <div><a href="{% url 'event:create' %}"
-                        class="btn btn-primary me-2">過去のイベントを登録</a>
+                        class="btn btn-outline-secondary me-2">過去のイベントを登録</a>
                 </div>
             {% endif %}
         </div>
@@ -130,5 +133,8 @@
                 </p>
             </div>
         {% endfor %}
+
+        {% include "ta_hub/pagination.html" %}
+
     </div>
 {% endblock %}

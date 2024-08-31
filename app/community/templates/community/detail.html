@@ -125,7 +125,7 @@
         <div class="card my-5 shadow">
             <div class="card-body">
                 <h2 class="fs-3 fw-bold my-5 text-center">
-                    {{ community.name }}の今後の予定
+                    {{ community.name }}の開催日程
                 </h2>
                 <div class="table-responsive">
                     <table class="table table-hover table-nowrap">
@@ -141,7 +141,7 @@
 
                         {% for event_dict in scheduled_events %}
                             <tr{% if event_dict.event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
-                                <td>{{ event_dict.event.date|date:"Y年m月d日" }}</td>
+                                <td>{{ event_dict.event.date|date:"Y年m月d日 (D)" }}</td>
                                 <td>
                                     {{ event_dict.event.start_time|date:"H:i" }} -
                                     {{ event_dict.event.end_time|date:"H:i" }}

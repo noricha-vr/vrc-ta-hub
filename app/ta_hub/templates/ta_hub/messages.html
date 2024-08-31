@@ -1,5 +1,5 @@
 {% if messages %}
-    <div class="">
+    <div class="mb-4">
         {% for message in messages %}
             <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags }}{% endif %} alert-dismissible fade show"
                  role="alert">

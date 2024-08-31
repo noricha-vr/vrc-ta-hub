@@ -104,7 +104,7 @@
                     <div class="d-flex">
                         <a href="{% url 'event:my_list' %}"
                            class="btn btn-primary me-2">イベント一覧</a>
-                    
+
                         {% if event_detail.youtube_url or event_detail.slide_file %}
                             <form method="post" action="{% url 'event:generate_blog' event_detail.id %}">
                                 {% csrf_token %}
@@ -117,12 +117,13 @@
                         <a href="{% url 'event:detail_update' event_detail.id %}"
                            class="btn btn-success me-2">編集</a>
 
-                        <a href="{% url 'community:detail' event_detail.event.community.pk %}"
-                           class="btn btn-secondary me-2">集会情報</a>
 
                         <div><a href="{% url 'event:create' %}"
                                 class="btn btn-secondary me-2">過去のイベントを登録</a>
                         </div>
+
+                        <a href="{% url 'community:detail' event_detail.event.community.pk %}"
+                           class="btn btn-secondary me-2">{{ event_detail.event.community.name }}</a>
                     </div>
                     <div class="mt-2">
                         思い通りの記事ができないときは2-3回は生成し直してもらって大丈夫です。<br>
