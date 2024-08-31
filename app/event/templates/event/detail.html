@@ -102,27 +102,32 @@
 
                 {% if request.user == event_detail.event.community.custom_user %}
                     <div class="d-flex">
-                        <a href="{% url 'event:detail_update' event_detail.id %}"
-                           class="btn btn-primary me-2">編集</a>
-                        {% if video_id %}
+                        <a href="{% url 'event:my_list' %}"
+                           class="btn btn-primary me-2">イベント一覧</a>
+                    
+                        {% if event_detail.youtube_url or event_detail.slide_file %}
                             <form method="post" action="{% url 'event:generate_blog' event_detail.id %}">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-primary me-2" id="generate-button">
-                                    動画から記事を生成
+                                    記事生成
                                 </button>
                             </form>
                         {% endif %}
+
+                        <a href="{% url 'event:detail_update' event_detail.id %}"
+                           class="btn btn-success me-2">編集</a>
+
                         <a href="{% url 'community:detail' event_detail.event.community.pk %}"
                            class="btn btn-secondary me-2">集会情報</a>
-                        <a href="{% url 'event:my_list' %}"
-                           class="btn btn-secondary me-2">イベント一覧</a>
+
                         <div><a href="{% url 'event:create' %}"
                                 class="btn btn-secondary me-2">過去のイベントを登録</a>
                         </div>
                     </div>
                     <div class="mt-2">
                         思い通りの記事ができないときは2-3回は生成し直してもらって大丈夫です。<br>
-                        いっぱいリクエストするとのりちゃんが悲しみます😢微調整は「編集」からマークダウン形式で行えます。
+                        いっぱいリクエストするとのりちゃんが悲しみます😢<br>
+                        微調整は「編集」からマークダウン形式で行えます。
                     </div>
                 {% endif %}
                 <h2 class="zen-kaku-gothic-new-medium" style="margin-bottom: 1.3rem">詳細情報</h2>
