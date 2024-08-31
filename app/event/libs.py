@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import uuid
 
 import bleach
 import google.generativeai as genai
@@ -29,6 +30,9 @@ def generate_blog(event_detail: EventDetail, model='gemini-1.5-flash') -> str:
     Returns:
         str: 生成されたブログ記事
     """
+    # youtube か slide file がない場合は処理を終了
+    if not event_detail.youtube_url and not event_detail.slide_file:
+        return ''
     # YouTube動画から文字起こしを取得
     genai_model = genai.GenerativeModel(model)
     transcript = get_transcript(event_detail.video_id, "ja")
@@ -69,7 +73,7 @@ def upload_file_to_gemini(event_detail: EventDetail) -> genai.types.File:
     try:
         uploaded_file = genai.upload_file(
             path=temp_file_path,
-            name=f"{event_detail.pk}_{event_detail.slide_file.name}",
+            name=str(uuid.uuid4()),
             mime_type='application/pdf'
         )
         return uploaded_file
@@ -105,7 +109,7 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     {transcript}
     
     ## 指示
-    {event_detail.event.date}にVRChatの「{event_detail.event.community.name}」で行われた{event_detail.speaker}の発表内容をもとに、[文字起こし内容]を使ってブログ記事を作成します。
+    {event_detail.event.date}にVRChatの「{event_detail.event.community.name}」で行われた{event_detail.speaker}の発表内容をもとに、[文字起こし内容]とその時に使われたPDF（スライド）情報を使ってブログ記事を作成します。
     発表のテーマは「{event_detail.theme}」です。
     
     ## 制御
@@ -118,7 +122,9 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     - 記事の冒頭に発表のハイライトや重要なポイントをh2で短く示す
     - タイトルや見出し、記事内で発表テーマに関連するキーワードを適宜使用し、SEOを意識する
     - 最後にまとめをつける
+    - 文字起こしされたプレゼンテーションのPDFファイルは記事内に埋め込む
     - 最低1000文字以上の記事を目指す
+    - ポップさ 80%、フォーマルさ 20%で文章を作成する
     """
 
     return prompt

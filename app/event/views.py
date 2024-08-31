@@ -18,7 +18,7 @@ from googleapiclient.discovery import build
 
 from community.models import Community
 from event.forms import EventDetailForm, EventSearchForm, EventCreateForm
-from event.libs import convert_markdown, get_transcript, genai_model, create_blog_prompt
+from event.libs import convert_markdown, generate_blog
 from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url
 from url_filters import get_filtered_url
@@ -283,7 +283,6 @@ from django.shortcuts import redirect
 from django.views.generic import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
-from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
 
 from .models import EventDetail
 
@@ -297,29 +296,14 @@ class GenerateBlogView(LoginRequiredMixin, View):
                 messages.error(request, "Invalid request. You don't have permission to perform this action.")
                 return redirect('event:detail', pk=event_detail.id)
 
-            video_id = extract_video_id(event_detail.youtube_url)
-            if not video_id:
-                messages.error(request, f"Invalid YouTube URL: {event_detail.youtube_url}")
-                return redirect('event:detail', pk=event_detail.id)
+            text = generate_blog(event_detail)
 
-            try:
-                transcript = get_transcript(video_id)
-            except (TranscriptsDisabled, NoTranscriptFound):
-                messages.error(request, "この動画には文字起こし情報が含まれていません。")
-                return redirect('event:detail', pk=event_detail.id)
+            h1 = text.split('\n')[0]
+            content = text.replace(h1, '', 1)
 
-            prompt = create_blog_prompt(event_detail, transcript)
-            response = genai_model.generate_content(prompt, stream=False)
-
-            h1 = response.text.split('\n')[0]
-            content = response.text.replace(h1, '', 1)
-
-            event_detail.h1 = h1.strip().replace('# ', '')
+            event_detail.h1 = h1.strip().replace('## ', '').replace('# ', '')
             event_detail.contents = content
             event_detail.save()
-
-            # BigQueryにデータを保存（トークン情報を含む）
-            self.save_to_bigquery(pk, video_id, request.user.pk, transcript, prompt, response)
 
             messages.success(request, "ブログ記事が正常に生成されました。")
             return redirect('event:detail', pk=event_detail.id)
