@@ -102,14 +102,14 @@ def get_transcript(video_id, language='ja') -> str:
 
 def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     prompt = f"""
-    ## 文字起こし内容
+    # 文字起こし内容
     {transcript}
     
-    ## 指示
+    # 指示
     {event_detail.event.date}にVRChatの「{event_detail.event.community.name}」で行われた{event_detail.speaker}の発表内容をもとに、[文字起こし内容]とその時に使われたPDF（スライド）情報を使ってブログ記事を作成します。
     発表のテーマは「{event_detail.theme}」です。
     
-    ## ブログ記事の作成指示
+    # ブログ記事の作成指示
     - マークダウン形式で出力
     - 1行目 h1(#)でタイトルを出力
     - 2行目以降は h2 h3 h4 にあたる見出しや、リスト、テーブルを使って読者にわかりやすくまとめる
@@ -123,6 +123,7 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     - 最低1000文字以上の記事を目指す
     - ポップさ 80%、フォーマルさ 20%で文章を作成する
     - PDFのURL：{event_detail.slide_file.url}
+    - PDFの内容を画像として記事に埋めこんではいけません
     - 参考文献があればPDFから引用する。ただし、マークダウンの引用ではなく、リストとリンクで参考文献を示す
     """
 
