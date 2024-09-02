@@ -22,7 +22,7 @@ from event.libs import convert_markdown, generate_blog
 from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url
 from url_filters import get_filtered_url
-from website.settings import GOOGLE_API_KEY, CALENDAR_ID, REQUEST_TOKEN
+from website.settings import GOOGLE_API_KEY, CALENDAR_ID, REQUEST_TOKEN, GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -296,7 +296,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
                 messages.error(request, "Invalid request. You don't have permission to perform this action.")
                 return redirect('event:detail', pk=event_detail.id)
 
-            text = generate_blog(event_detail, model="gemini-1.5-pro-exp-0827")
+            text = generate_blog(event_detail, model=GEMINI_MODEL)
 
             h1 = text.split('\n')[0]
             content = text.replace(h1, '', 1)

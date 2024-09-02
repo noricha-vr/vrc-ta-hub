@@ -13,14 +13,11 @@ from youtube_transcript_api.formatters import TextFormatter
 from event.models import EventDetail
 from website.settings import GEMINI_API_KEY
 
-genai.configure(api_key=GEMINI_API_KEY)
-genai_model = genai.GenerativeModel('gemini-1.5-pro-exp-0801')
 logger = logging.getLogger(__name__)
+genai.configure(api_key=GEMINI_API_KEY)
 
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
-
-def generate_blog(event_detail: EventDetail, model='gemini-1.5-flash') -> str:
+def generate_blog(event_detail: EventDetail, model='gemini-1.5-flash-exp-0827') -> str:
     """
     EventDetailに関連付けられたスライドファイルをもとにブログ記事を生成する関数
 
@@ -34,12 +31,12 @@ def generate_blog(event_detail: EventDetail, model='gemini-1.5-flash') -> str:
     if not event_detail.youtube_url and not event_detail.slide_file:
         return ''
     # YouTube動画から文字起こしを取得
+    logger.info(f"Gemini model: {model}")
     genai_model = genai.GenerativeModel(model)
     transcript = get_transcript(event_detail.video_id, "ja")
     prompt = create_blog_prompt(event_detail, transcript)
-    uploaded_file = None
     try:
-        upload_file_to_gemini(event_detail)
+        uploaded_file = upload_file_to_gemini(event_detail)
         response = genai_model.generate_content([prompt, uploaded_file], stream=False)
     except Exception as e:
         logger.warning(f"Error uploading file to Gemini for EventDetail {event_detail.pk}: {e}")
@@ -112,7 +109,7 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     {event_detail.event.date}にVRChatの「{event_detail.event.community.name}」で行われた{event_detail.speaker}の発表内容をもとに、[文字起こし内容]とその時に使われたPDF（スライド）情報を使ってブログ記事を作成します。
     発表のテーマは「{event_detail.theme}」です。
     
-    ## 制御
+    ## ブログ記事の作成指示
     - マークダウン形式で出力
     - 1行目 h1(#)でタイトルを出力
     - 2行目以降は h2 h3 h4 にあたる見出しや、リスト、テーブルを使って読者にわかりやすくまとめる
@@ -125,6 +122,8 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     - 文字起こしされたプレゼンテーションのPDFファイルは記事内に埋め込む
     - 最低1000文字以上の記事を目指す
     - ポップさ 80%、フォーマルさ 20%で文章を作成する
+    - PDFのURL：{event_detail.slide_file.url}
+    - 参考文献があればPDFから引用する。ただし、マークダウンの引用ではなく、リストとリンクで参考文献を示す
     """
 
     return prompt

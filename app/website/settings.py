@@ -168,15 +168,18 @@ AWS_QUERYSTRING_AUTH = False  # 認証付きのURLを生成しない
 # Google API
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 assert GOOGLE_API_KEY is not None, 'Please set GOOGLE_API_KEY'
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
 CALENDAR_ID = os.environ.get('CALENDAR_ID')
 assert CALENDAR_ID is not None, 'Please set CALENDAR_ID'
-REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN')
-assert REQUEST_TOKEN is not None, 'Please set REQUEST_TOKEN'
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-1.5-flash-exp-0827')
 
 # OpenAI API
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+assert OPENAI_API_KEY is not None, 'Please set OPENAI_API_KEY'
+
+REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN')
+assert REQUEST_TOKEN is not None, 'Please set REQUEST_TOKEN'
 
 LOGGING = {
     'version': 1,

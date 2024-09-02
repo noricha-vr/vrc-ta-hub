@@ -2,7 +2,6 @@ import logging
 import os
 import tempfile
 
-import google.generativeai as genai
 from django.core.files import File
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
@@ -13,8 +12,6 @@ from event.libs import generate_blog, upload_file_to_gemini
 from event.models import Event, EventDetail
 
 logger = logging.getLogger(__name__)
-
-genai.configure(api_key=os.environ["GEMINI_API_KEY"])
 
 
 class TestGenerateBlog(TestCase):
