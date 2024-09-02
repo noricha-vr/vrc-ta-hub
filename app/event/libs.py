@@ -126,7 +126,7 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     - ポップさ 80%、フォーマルさ 20%で文章を作成する
     - PDFのURL：{event_detail.slide_file.url}
     - PDFの内容を画像として記事に埋めこんではいけません
-    - 参考文献があればPDFから引用する。ただし、リストとリンクで参考文献を示す。例： - [参考文献](https://example.com)
+    - 参考文献を出力してはいけません
     """
 
     return prompt
