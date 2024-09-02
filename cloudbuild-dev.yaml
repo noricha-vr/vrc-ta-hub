@@ -1,0 +1,33 @@
+steps:
+  # ステップ1：Kanikoを使用してDockerイメージのビルドとプッシュ
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    args:
+      - '--destination=${_DOCKER_PATH}${_SERVICE_NAME}:$SHORT_SHA'
+      - '--destination=${_DOCKER_PATH}${_SERVICE_NAME}:latest'
+      - '--cache=true'
+      - '--cache-ttl=168h'
+      - '--dockerfile=./Dockerfile'
+
+  # ステップ2：Google Cloud Runにイメージをデプロイ
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '--allow-unauthenticated'
+      - '--cpu'
+      - '1'
+      - '--memory'
+      - '2Gi'
+      - '--region'
+      - 'asia-northeast1'
+      - '--image'
+      - '${_DOCKER_PATH}${_SERVICE_NAME}:latest'
+      - '--platform'
+      - 'managed'
+      - '--revision-suffix'
+      - '$SHORT_SHA'
+      - '${_SERVICE_NAME}'
+
+substitutions:
+  _SERVICE_NAME: 'vrc-ta-hub-dev'
+  _DOCKER_PATH: 'asia-northeast1-docker.pkg.dev/vrc-ta-hub/docker/'
