@@ -143,4 +143,13 @@
         {% include "ta_hub/pagination.html" %}
 
     </div>
+
+
+    <script>
+        document.getElementById('generate-button').addEventListener('click', function (event) {
+            event.target.disabled = true;
+            event.target.textContent = '生成中...';
+            event.target.form.submit();
+        });
+    </script>
 {% endblock %}
