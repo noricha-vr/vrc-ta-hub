@@ -305,7 +305,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
             event_detail.contents = content
             event_detail.save()
 
-            messages.success(request, "ブログ記事が正常に生成されました。")
+            messages.success(request, "ブログ記事が生成されました。")
             return redirect('event:detail', pk=event_detail.id)
 
         except Exception as e:

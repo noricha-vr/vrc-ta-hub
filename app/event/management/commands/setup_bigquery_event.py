@@ -58,6 +58,6 @@ class Command(BaseCommand):
 
         errors = client.insert_rows_json(table_id, rows_to_insert)
         if errors == []:
-            self.stdout.write(self.style.SUCCESS("テストデータが正常に挿入されました。"))
+            self.stdout.write(self.style.SUCCESS("テストデータが挿入されました。"))
         else:
             self.stdout.write(self.style.ERROR(f"データ挿入中にエラーが発生しました: {errors}"))

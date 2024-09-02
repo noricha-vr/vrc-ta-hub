@@ -69,7 +69,7 @@ class TwitterTemplateDeleteView(LoginRequiredMixin, DeleteView):
     def form_valid(self, form):
         success_url = self.get_success_url()
         self.object.delete()
-        messages.success(self.request, 'テンプレートが正常に削除されました。')
+        messages.success(self.request, 'テンプレートが削除されました。')
         return JsonResponse({'success': True})
 
     def delete(self, request, *args, **kwargs):

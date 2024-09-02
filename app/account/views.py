@@ -47,7 +47,7 @@ class UserNameChangeView(LoginRequiredMixin, UpdateView):
         return self.request.user
 
     def form_valid(self, form):
-        messages.success(self.request, 'ユーザー名が正常に変更されました。')
+        messages.success(self.request, 'ユーザー名が変更されました。')
         return super().form_valid(form)
 
 
@@ -61,7 +61,7 @@ class CustomPasswordChangeView(LoginRequiredMixin, PasswordChangeView):
     form_class = BootstrapPasswordChangeForm
 
     def form_valid(self, form):
-        messages.success(self.request, 'パスワードが正常に変更されました。')
+        messages.success(self.request, 'パスワードが変更されました。')
         return super().form_valid(form)
 
 
@@ -80,7 +80,7 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
         return self.request.user
 
     def form_valid(self, form):
-        messages.success(self.request, 'ユーザー情報が正常に更新されました。')
+        messages.success(self.request, 'ユーザー情報が更新されました。')
         return super().form_valid(form)
 
 
