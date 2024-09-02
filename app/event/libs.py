@@ -113,6 +113,7 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     - マークダウン形式で出力
     - 1行目 h1(#)でタイトルを出力
     - 2行目以降は h2 h3 h4 にあたる見出しや、リスト、テーブルを使って読者にわかりやすくまとめる
+    - h2は最大7個に制限すること。それ以上になりそうなときはh3 h4を活用しつつh2の数を制限してうまくまとめる。
     - 文字起こしは精度が低いためテーマ、前後の文脈から名詞や単語を補ってブログを作成する
     - 文章の流れが自然になるように見出しと内容の連携を強化
     - 発表者の敬称がない場合は「さん」をつける
@@ -124,7 +125,7 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     - ポップさ 80%、フォーマルさ 20%で文章を作成する
     - PDFのURL：{event_detail.slide_file.url}
     - PDFの内容を画像として記事に埋めこんではいけません
-    - 参考文献があればPDFから引用する。ただし、マークダウンの引用ではなく、リストとリンクで参考文献を示す
+    - 参考文献があればPDFから引用する。ただし、リストとリンクで参考文献を示す。例： - [参考文献](https://example.com)
     """
 
     return prompt
