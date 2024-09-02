@@ -105,8 +105,14 @@
                                         </form>
                                         {% if detail.youtube_url or detail.slide_file %}
                                             {% if detail.contents == '' %}
-                                                <a href="{% url 'event:detail_update' detail.pk %}"
-                                                   class="btn btn-primary text-white">記事生成</a>
+                                                <form method="post" class="d-inline"
+                                                      action="{% url 'event:generate_blog' detail.id %}">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-primary"
+                                                            id="generate-button">
+                                                        記事生成
+                                                    </button>
+                                                </form>
                                             {% endif %}
                                         {% else %}
                                             {% if detail.slide_url %}
