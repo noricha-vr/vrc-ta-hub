@@ -397,6 +397,7 @@ class EventDetailPastList(ListView):
     template_name = 'event/detail_history.html'
     model = EventDetail
     context_object_name = 'event_details'
+    paginate_by = 20
 
     def get_queryset(self):
         queryset = super().get_queryset().filter(
