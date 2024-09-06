@@ -81,16 +81,16 @@
                                         <div class="card-text mb-2">開始時間: {{ detail.start_time }}</div>
                                         <div class="mb-2">
                                             {% if detail.youtube_url %}
-                                                <i class="bi bi-youtube" title="動画あり"></i>
+                                                <i class="bi bi-play-btn" title="動画"></i>
                                             {% endif %}
                                             {% if detail.slide_url %}
-                                                <i class="bi bi-link-45deg" title="スライドリンクあり"></i>
+                                                <i class="bi bi-link-45deg" title="スライドリンク"></i>
                                             {% endif %}
                                             {% if detail.slide_file %}
-                                                <i class="bi bi-file-earmark" title="スライドファイルあり"></i>
+                                                <i class="bi bi-images" title="スライド"></i>
                                             {% endif %}
                                             {% if detail.contents %}
-                                                <i class="bi bi-file-text" title="コンテンツあり"></i>
+                                                <i class="bi bi-file-text" title="コンテンツ"></i>
                                             {% endif %}
                                         </div>
                                         <a href="{% url 'event:detail' detail.pk %}" class="btn btn-primary">確認</a>
