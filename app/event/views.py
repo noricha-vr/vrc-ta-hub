@@ -417,3 +417,15 @@ class EventDetailPastList(ListView):
             queryset = queryset.filter(theme__icontains=theme)
 
         return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # 現在のGETパラメータを取得
+        query_params = self.request.GET.copy()
+        if 'page' in query_params:
+            del query_params['page']
+
+        context['current_query_params'] = query_params.urlencode()
+
+        return context
