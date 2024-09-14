@@ -1,4 +1,5 @@
 # Create your views here.
+from django.utils import timezone
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
@@ -34,7 +35,8 @@ class EventFilter(filters.FilterSet):
 
 
 class EventViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Event.objects.select_related('community').order_by('date', 'start_time')
+    queryset = Event.objects.filter(date__gte=timezone.now().date()).select_related('community').order_by('date',
+                                                                                                          'start_time')
     serializer_class = EventSerializer
     filterset_class = EventFilter
     filter_backends = [DjangoFilterBackend]
@@ -52,7 +54,8 @@ class EventDetailFilter(filters.FilterSet):
 
 
 class EventDetailViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = EventDetail.objects.select_related('event').order_by('-event__date', '-start_time')
+    queryset = EventDetail.objects.select_related('event').filter(event__date__gte=timezone.now().date()).order_by(
+        '-event__date', '-start_time')
     serializer_class = EventDetailSerializer
     filterset_class = EventDetailFilter
     filter_backends = [DjangoFilterBackend]
