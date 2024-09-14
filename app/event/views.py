@@ -402,7 +402,7 @@ class EventDetailPastList(ListView):
     def get_queryset(self):
         queryset = super().get_queryset().filter(
             event__date__lt=timezone.now().date()
-        ).order_by('-event__date', '-start_time')
+        ).select_related('event', 'event__community').order_by('-event__date', '-start_time')
 
         community_name = self.request.GET.get('community_name', '').strip()
         if community_name:
