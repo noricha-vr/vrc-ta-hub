@@ -1,8 +1,9 @@
+# app/community/views.py
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import DataError
-from django.db.models import Q, F, OuterRef, Subquery
+from django.db.models import Min, Q, F
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.urls import reverse_lazy
@@ -19,9 +20,6 @@ from .libs import get_join_type
 from .models import Community
 
 
-# app/community/views.py
-
-
 class CommunityListView(ListView):
     model = Community
     template_name = 'community/list.html'
@@ -33,15 +31,12 @@ class CommunityListView(ListView):
         now = timezone.now()
         queryset = queryset.filter(is_accepted=True, end_at__isnull=True)
 
-        # 最新のイベント日を取得するサブクエリ
-        latest_event = Event.objects.filter(
-            community=OuterRef('pk'),
-            date__gte=now.date()
-        ).order_by('date').values('date')[:1]
-
-        # コミュニティに最新のイベント日を追加
+        # 最新のイベント日を取得
         queryset = queryset.annotate(
-            latest_event_date=Subquery(latest_event)
+            latest_event_date=Min(
+                'events__date',
+                filter=Q(events__date__gte=now.date())
+            )
         )
 
         form = CommunitySearchForm(self.request.GET)
@@ -49,11 +44,9 @@ class CommunityListView(ListView):
             if query := form.cleaned_data['query']:
                 queryset = queryset.filter(Q(name__icontains=query) | Q(description__icontains=query))
             if weekdays := form.cleaned_data['weekdays']:
-                for weekday in weekdays:
-                    queryset = queryset.filter(weekdays__contains=[weekday])
+                queryset = queryset.filter(weekdays__overlap=weekdays)
             if tags := form.cleaned_data['tags']:
-                for tag in tags:
-                    queryset = queryset.filter(tags__contains=[tag])
+                queryset = queryset.filter(tags__overlap=tags)
 
         # 最新のイベント日でソート（NULL値は最後に）
         queryset = queryset.order_by(
