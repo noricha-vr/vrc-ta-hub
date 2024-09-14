@@ -1,4 +1,5 @@
 from django import forms
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.core.validators import FileExtensionValidator
 
@@ -8,9 +9,9 @@ from .models import CustomUser
 
 
 class CustomUserCreationForm(UserCreationForm):
-    start_time = forms.TimeField(label='開始時刻',
+    start_time = forms.TimeField(label='開始時刻', initial='22:00',
                                  widget=forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}))
-    duration = forms.IntegerField(label='開催時間', help_text='単位は分',
+    duration = forms.IntegerField(label='開催時間', help_text='単位は分', initial=60,
                                   widget=forms.NumberInput(attrs={'class': 'form-control'}))
     weekdays = forms.MultipleChoiceField(
         label='曜日',
@@ -19,17 +20,25 @@ class CustomUserCreationForm(UserCreationForm):
         widget=forms.CheckboxSelectMultiple
     )
     frequency = forms.CharField(max_length=100, label='開催周期',
-                                widget=forms.TextInput(attrs={'class': 'form-control'}))
+                                widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': '隔週'}))
     organizers = forms.CharField(max_length=200, label='主催・副主催',
                                  widget=forms.TextInput(attrs={'class': 'form-control'}))
     group_url = forms.URLField(label='VRChatグループURL', required=False,
-                               widget=forms.URLInput(attrs={'class': 'form-control'}))
+                               widget=forms.URLInput(attrs={'class': 'form-control',
+                                                            'placeholder': 'https://vrc.group/XXXXX'}))
     organizer_url = forms.URLField(label='主催プロフィールURL', required=False,
-                                   widget=forms.URLInput(attrs={'class': 'form-control'}))
-    sns_url = forms.URLField(label='SNS', required=False, widget=forms.URLInput(attrs={'class': 'form-control'}))
-    discord = forms.URLField(label='Discord', required=False, widget=forms.URLInput(attrs={'class': 'form-control'}))
+                                   widget=forms.URLInput(attrs={'class': 'form-control',
+                                                                'placeholder': 'https://vrchat.com/home/user/XXXXX'}))
+    sns_url = forms.URLField(label='TwitterURL', required=False, widget=forms.URLInput(attrs={'class': 'form-control'
+        , 'placeholder': 'https://twitter.com/XXXXX'}),
+                             help_text='Twitter以外のSNSのURLも可')
     twitter_hashtag = forms.CharField(max_length=100, label='Twitterハッシュタグ', required=False,
-                                      widget=forms.TextInput(attrs={'class': 'form-control'}))
+                                      widget=forms.TextInput(
+                                          attrs={'class': 'form-control', 'placeholder': '#VRChat'}), )
+    discord = forms.URLField(label='Discordサーバー', required=False,
+                             help_text='招待リンクを入力してください。',
+                             widget=forms.URLInput(
+                                 attrs={'class': 'form-control', 'placeholder': 'https://discord.gg/XXXXXXXXX'}))
 
     poster_image = forms.ImageField(
         label='ポスター',
@@ -52,7 +61,7 @@ class CustomUserCreationForm(UserCreationForm):
         widgets = {
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'discord_id': forms.EmailInput(attrs={'class': 'form-control'}),
+            'discord_id': forms.TextInput(attrs={'class': 'form-control'}),
             'password1': forms.PasswordInput(attrs={'class': 'form-control'}),
             'password2': forms.PasswordInput(attrs={'class': 'form-control'}),
         }
@@ -85,12 +94,6 @@ class CustomUserCreationForm(UserCreationForm):
             user.save()
             community.save()
         return user
-
-
-from .models import CustomUser
-
-from django import forms
-from django.contrib.auth.forms import AuthenticationForm
 
 
 class BootstrapAuthenticationForm(AuthenticationForm):
