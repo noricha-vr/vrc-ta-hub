@@ -82,7 +82,8 @@ class EventListView(ListView):
     def get_queryset(self):
         queryset = super().get_queryset()
         now = timezone.now()
-        queryset = queryset.filter(date__gte=now.date()).select_related('community').order_by('date', 'start_time')
+        queryset = queryset.filter(date__gte=now.date()).select_related('community').prefetch_related(
+            'details').order_by('date', 'start_time')
 
         form = EventSearchForm(self.request.GET)
         if form.is_valid():
