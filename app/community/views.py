@@ -1,4 +1,6 @@
 # app/community/views.py
+import logging
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
@@ -19,6 +21,10 @@ from .forms import CommunityUpdateForm
 from .libs import get_join_type
 from .models import Community
 
+logger = logging.getLogger(__name__)
+
+
+# app/community/views.py
 
 class CommunityListView(ListView):
     model = Community
@@ -44,7 +50,8 @@ class CommunityListView(ListView):
             if query := form.cleaned_data['query']:
                 queryset = queryset.filter(Q(name__icontains=query) | Q(description__icontains=query))
             if weekdays := form.cleaned_data['weekdays']:
-                queryset = queryset.filter(weekdays__overlap=weekdays)
+                logger.debug(f"Filtering by weekdays: {weekdays}")
+                queryset = queryset.filter(weekdays__contains=[weekdays])
             if tags := form.cleaned_data['tags']:
                 queryset = queryset.filter(tags__overlap=tags)
 
