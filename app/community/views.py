@@ -53,7 +53,11 @@ class CommunityListView(ListView):
                 logger.debug(f"Filtering by weekdays: {weekdays}")
                 queryset = queryset.filter(weekdays__contains=[weekdays])
             if tags := form.cleaned_data['tags']:
-                queryset = queryset.filter(tags__overlap=tags)
+                # タグフィルタリングの修正
+                tag_filters = Q()
+                for tag in tags:
+                    tag_filters |= Q(tags__contains=[tag])
+                queryset = queryset.filter(tag_filters)
 
         # 最新のイベント日でソート（NULL値は最後に）
         queryset = queryset.order_by(
