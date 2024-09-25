@@ -50,8 +50,10 @@ class CommunityListView(ListView):
             if query := form.cleaned_data['query']:
                 queryset = queryset.filter(Q(name__icontains=query) | Q(description__icontains=query))
             if weekdays := form.cleaned_data['weekdays']:
-                logger.debug(f"Filtering by weekdays: {weekdays}")
-                queryset = queryset.filter(weekdays__contains=[weekdays])
+                weekday_filters = Q()
+                for weekday in weekdays:
+                    weekday_filters |= Q(weekdays__contains=weekday)
+                queryset = queryset.filter(weekday_filters)
             if tags := form.cleaned_data['tags']:
                 # タグフィルタリングの修正
                 tag_filters = Q()
