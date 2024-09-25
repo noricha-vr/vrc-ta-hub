@@ -23,6 +23,7 @@ def generate_blog(event_detail: EventDetail, model='gemini-1.5-flash-exp-0827') 
 
     Args:
         event_detail (EventDetail): ブログ記事を生成するための情報を含むEventDetailオブジェクト
+        model (str): 使用するGeminiモデル名
 
     Returns:
         str: 生成されたブログ記事
@@ -36,10 +37,13 @@ def generate_blog(event_detail: EventDetail, model='gemini-1.5-flash-exp-0827') 
     transcript = get_transcript(event_detail.video_id, "ja")
     prompt = create_blog_prompt(event_detail, transcript)
     try:
-        uploaded_file = upload_file_to_gemini(event_detail)
-        response = genai_model.generate_content([prompt, uploaded_file], stream=False)
+        if event_detail.slide_file:
+            uploaded_file = upload_file_to_gemini(event_detail)
+            response = genai_model.generate_content([prompt, uploaded_file], stream=False)
+        else:
+            response = genai_model.generate_content(prompt, stream=False)
     except Exception as e:
-        logger.warning(f"Error uploading file to Gemini for EventDetail {event_detail.pk}: {e}")
+        logger.warning(f"Error generating content for EventDetail {event_detail.pk}: {e}")
         response = genai_model.generate_content(prompt, stream=False)
     logger.info('text: ' + response.text)
     return response.text
@@ -104,20 +108,23 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     prompt = f"""
     # 文字起こし内容
     {transcript}
-    
-    ## PDFのURL：{event_detail.slide_file.url}
-    
-    
+
+    """
+
+    if event_detail.slide_file:
+        prompt += f"## PDFのURL：{event_detail.slide_file.url}\n\n"
+
+    prompt += f"""
     # 指示
     {event_detail.event.date}にVRChatの「{event_detail.event.community.name}」で行われた{event_detail.speaker}の発表内容をもとに、[文字起こし内容]とその時に使われたPDF（スライド）情報を使ってブログ記事を作成します。
     発表のテーマは「{event_detail.theme}」です。
-    
+
     # ブログ記事の作成指示
     - 文字起こしされた文章とプレゼンテーションで使用されたスライド（PDFファイル）を使ってブログ記事を作成
     - 文字起こしは精度が低いためテーマやスライドから前後の文脈や名詞、単語を補うこと
     - 文章の流れが自然になるように見出しと内容の連携を強化
     - SEOを意識して、タイトル、見出しを設定し、文中にキーワードを盛り込む
-    
+
     # フォーマット
     - マークダウン形式で出力
     - 1行目 h1(#)でタイトルを出力
@@ -129,15 +136,13 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     - まとめの最後にはスライドのリンクを貼る
     - コンテンツは1000〜1800文字に制限
     - ポップさ 80%、フォーマルさ 20%で文章を作成する
-    
+
     # 禁止事項
     - PDFの内容を画像として記事に埋めこんではいけません
     - 参考文献を出力してはいけません
     - h2の前にインデックス番号をつけてはいけません
     - h2を最大7個以上作ってはいけません
     - 硬い文章表現を控えてください
-    
-    
     """
 
     return prompt
