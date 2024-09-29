@@ -15,17 +15,26 @@
                 <p class="fs-5 my-4">VRChatで開催される多彩な技術学術系集会をお届けします</br>
                     入門者から経験豊富な方まで、みんなが楽しめるイベントが満載です！</p>
                 <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                    <a href="{% url 'event:list' %}" class="btn btn-outline-info btn-lg px-4 me-sm-3 fw-bold">開催日を確認
+                    <a href="{% url 'event:list' %}" class="btn btn-info btn-lg px-4 me-sm-3 fw-bold">開催日を確認
                     </a>
                     <a href="{% url 'community:list' %}"
-                       class="btn btn-outline-info btn-lg fw-bold px-4">集会を探す</a>
+                       class="btn btn-info btn-lg fw-bold px-4">集会を探す</a>
                 </div>
             </div>
         </div>
     </div>
     <!-- hero end -->
 
-
+    {% if not request.GET %}
+        <div class="row my-5">
+            <div class="col-lg-12 text-center">
+                <div class="d-flex justify-content-center">
+                    <iframe src="https://calendar.google.com/calendar/embed?src=fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7%40group.calendar.google.com"
+                            style="border: 0" width="800" height="600" frameborder="0" scrolling="no"></iframe>
+                </div>
+            </div>
+        </div>
+    {% endif %}
 
     <div class="row featurette text-center text-primary mt-5 p-3">
         <h2 class="featurette-heading fw-normal lh-1 fw-bold">
