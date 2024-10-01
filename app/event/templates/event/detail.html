@@ -150,7 +150,11 @@
                         <tbody>
                         <tr>
                             <th scope="row">集会名</th>
-                            <td>{{ event_detail.event.community.name }}</td>
+                            <td>
+                                <a href="{% url 'community:detail' event_detail.event.community.pk %}"
+                                   class="me-2">{{ event_detail.event.community.name }}
+                                </a>
+                            </td>
                         </tr>
                         <tr>
                             <th scope="row">日時</th>
