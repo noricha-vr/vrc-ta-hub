@@ -60,18 +60,29 @@
             height: 55px;
         }
 
+        :root {
+            --custom-primary: rgb(27, 125, 230);
+            --custom-primary-dark: rgb(22, 100, 184);
+            --custom-primary-border: rgb(38, 124, 216);
+        }
+
         .bg-primary {
-            background-color: rgb(43, 128, 220) !important
+            background-color: var(--custom-primary) !important;
         }
 
         .btn-primary {
-            background-color: rgb(27 125 230) !important;
-            border-color: rgb(38 124 216) !important;
+            background-color: var(--custom-primary);
+            border-color: var(--custom-primary-border);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--custom-primary-dark);
+            border-color: var(--custom-primary-dark);
         }
 
         .btn-outline-primary:hover {
-            background-color: rgb(38 124 216) !important; /* ホバー時の背景色 */
-            border-color: rgb(27 125 230) !important; /* ホバー時の枠線の色 */
+            background-color: var(--custom-primary);
+            border-color: var(--custom-primary-border);
         }
 
         .text-primary {
