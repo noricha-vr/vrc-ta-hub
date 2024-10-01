@@ -9,8 +9,10 @@
           content="{{ event_detail }} {{ event_detail.contents|truncatechars:"100" }}">
     <meta property="og:description"
           content="{{ event_detail }} {{ event_detail.contents|truncatechars:"100" }}">
-    <meta property="og:image" content="{{ event_detail.event.community.poster_image.url }}">
-    <meta name="twitter:image" content="{{ event_detail.event.community.poster_image.url }}">
+    {% if event_detail.event.community.poster_image %}
+        <meta property="og:image" content="{{ event_detail.event.community.poster_image.url }}">
+        <meta name="twitter:image" content="{{ event_detail.event.community.poster_image.url }}">
+    {% endif %}
     {#  FontAwesome  #}
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 {% endblock %}
