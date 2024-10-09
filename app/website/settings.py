@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'api_v1',
     'django_filters',
     'rest_framework',
+    'corsheaders',
 ]
 
 REST_FRAMEWORK = {
@@ -60,9 +61,13 @@ REST_FRAMEWORK = {
     }
 }
 
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_URLS_REGEX = r'^/api/.*$'
+
 AUTH_USER_MODEL = 'account.CustomUser'
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

@@ -1,5 +1,8 @@
 # Create your views here.
+from corsheaders.middleware import CorsMiddleware
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
@@ -10,6 +13,13 @@ from event.models import Event, EventDetail
 from .serializers import CommunitySerializer, EventSerializer, EventDetailSerializer
 
 
+class CORSMixin:
+    @classmethod
+    def as_view(cls, *args, **kwargs):
+        view = super().as_view(*args, **kwargs)
+        return CorsMiddleware(view)
+
+
 class CommunityFilter(filters.FilterSet):
     name = filters.CharFilter(lookup_expr='icontains')
 
@@ -18,7 +28,8 @@ class CommunityFilter(filters.FilterSet):
         fields = ['name']
 
 
-class CommunityViewSet(viewsets.ReadOnlyModelViewSet):
+@method_decorator(csrf_exempt, name='dispatch')
+class CommunityViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Community.objects.filter(end_at__isnull=True).order_by('-pk')
     serializer_class = CommunitySerializer
     filterset_class = CommunityFilter
@@ -36,7 +47,7 @@ class EventFilter(filters.FilterSet):
         fields = ['name', 'weekday', 'date']
 
 
-class EventViewSet(viewsets.ReadOnlyModelViewSet):
+class EventViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Event.objects.filter(date__gte=timezone.now().date()).select_related('community').order_by('date',
                                                                                                           'start_time')
     serializer_class = EventSerializer
@@ -56,7 +67,7 @@ class EventDetailFilter(filters.FilterSet):
         fields = ['theme', 'speaker', 'start_date', 'start_time']
 
 
-class EventDetailViewSet(viewsets.ReadOnlyModelViewSet):
+class EventDetailViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
     queryset = EventDetail.objects.select_related('event').filter(event__date__gte=timezone.now().date()).order_by(
         '-event__date', '-start_time')
     serializer_class = EventDetailSerializer
