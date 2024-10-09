@@ -22,10 +22,14 @@ class CORSMixin:
 
 class CommunityFilter(filters.FilterSet):
     name = filters.CharFilter(lookup_expr='icontains')
+    weekdays = filters.CharFilter(method='filter_weekdays')
 
     class Meta:
         model = Community
-        fields = ['name']
+        fields = ['name', 'weekdays']
+
+    def filter_weekdays(self, queryset, name, value):
+        return queryset.filter(weekdays__contains=value)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
