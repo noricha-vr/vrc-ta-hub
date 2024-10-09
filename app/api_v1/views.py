@@ -3,6 +3,7 @@ from django.utils import timezone
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 from community.models import Community
 from event.models import Event, EventDetail
@@ -22,6 +23,7 @@ class CommunityViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CommunitySerializer
     filterset_class = CommunityFilter
     filter_backends = [DjangoFilterBackend]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
 
 class EventFilter(filters.FilterSet):
@@ -40,6 +42,7 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = EventSerializer
     filterset_class = EventFilter
     filter_backends = [DjangoFilterBackend]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
 
 class EventDetailFilter(filters.FilterSet):
@@ -59,3 +62,4 @@ class EventDetailViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = EventDetailSerializer
     filterset_class = EventDetailFilter
     filter_backends = [DjangoFilterBackend]
+    throttle_classes = [AnonRateThrottle, UserRateThrottle]
