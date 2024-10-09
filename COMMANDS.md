@@ -9,8 +9,7 @@ docker compose build
 ### データベーステーブルを更新
 
 ```shell script
-docker exec -it vrc-ta-hub bash
-python manage.py makemigrations && python manage.py migrate
+docker exec -it vrc-ta-hub bash -c "python manage.py makemigrations && python manage.py migrate"
 ```
 
 ### カレンダー更新用ページにリクエストを送る
