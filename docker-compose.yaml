@@ -15,7 +15,7 @@ services:
       - DEBUG=True
       - HTTP_HOST=0.0.0.0
     ports:
-      - '8080:8080'
+      - '8015:8080'
     networks:
       - my_network
 
