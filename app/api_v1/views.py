@@ -42,13 +42,15 @@ class CommunityViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
 
 
 class EventFilter(filters.FilterSet):
-    name = filters.CharFilter(field_name='community__name', lookup_expr='icontains')
+    name = filters.CharFilter(
+        field_name='community__name', lookup_expr='icontains')
     weekday = filters.CharFilter(field_name='weekday')
-    date = filters.DateFilter()
+    start_date = filters.DateFilter(field_name='date', lookup_expr='gte')
+    end_date = filters.DateFilter(field_name='date', lookup_expr='lte')
 
     class Meta:
         model = Event
-        fields = ['name', 'weekday', 'date']
+        fields = ['name', 'weekday', 'start_date', 'end_date']
 
 
 class EventViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
