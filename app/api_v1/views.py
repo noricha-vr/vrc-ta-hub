@@ -65,12 +65,13 @@ class EventViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
 class EventDetailFilter(filters.FilterSet):
     theme = filters.CharFilter(lookup_expr='icontains')
     speaker = filters.CharFilter(lookup_expr='icontains')
-    start_date = filters.DateFilter(field_name='event__date')
+    start_date = filters.DateFilter(field_name='event__date', lookup_expr='gte')
+    end_date = filters.DateFilter(field_name='event__date', lookup_expr='lte')
     start_time = filters.TimeFilter(field_name='start_time')
 
     class Meta:
         model = EventDetail
-        fields = ['theme', 'speaker', 'start_date', 'start_time']
+        fields = ['theme', 'speaker', 'start_date', 'end_date', 'start_time']
 
 
 class EventDetailViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
