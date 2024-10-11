@@ -63,8 +63,9 @@ VRC技術学術ハブは、以下のAPIエンドポイントを提供してい�
 
 各APIエンドポイントは、GET、HEAD、OPTIONSメソッドをサポートしています。レスポンスはJSON形式で返されます。
 
-詳細な使用方法や各エンドポイントの具体的なレスポンス形式については、[APIドキュメント](https://vrc-ta-hub.com/api/v1/)
-を参照してください。
+[エンドポイント](https://vrc-ta-hub.com/api/v1/)
+
+[ドキュメント](app/api_v1/README.md)
 
 ## 使用技術
 
