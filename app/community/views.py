@@ -166,12 +166,6 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         try:
             response = super().form_valid(form)
             calendar_entry = self.object.calendar_entry
-            calendar_entry.join_condition = form.cleaned_data['join_condition']
-            calendar_entry.event_detail = form.cleaned_data['event_detail']
-            calendar_entry.how_to_join = form.cleaned_data['how_to_join']
-            calendar_entry.note = form.cleaned_data['note']
-            calendar_entry.is_overseas_user = form.cleaned_data['is_overseas_user']
-            calendar_entry.event_genres = form.cleaned_data['event_genres']
             calendar_entry.save()
             messages.success(self.request, '集会情報とVRCイベントカレンダー用情報が更新されました。')
             return response
