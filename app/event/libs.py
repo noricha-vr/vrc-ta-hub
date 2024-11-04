@@ -113,8 +113,6 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
         if not video_response['items']:
             raise ValueError('動画が見つかりませんでした')
 
-        video_title = video_response['items'][0]['snippet']['title']
-
         # 字幕を取得 (認証不要)
         transcript_list = YouTubeTranscriptApi.list_transcripts(
             video_id)
@@ -129,7 +127,6 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
         # 字幕テキストを結合
         captions_text = "\n".join([entry['text']
                                     for entry in transcript.fetch()])
-
         return captions_text
 
     except Exception as e:
