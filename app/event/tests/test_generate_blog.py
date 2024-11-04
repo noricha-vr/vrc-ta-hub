@@ -8,7 +8,7 @@ from django.test import TestCase
 
 from account.models import CustomUser
 from community.models import Community
-from event.libs import generate_blog, upload_file_to_gemini
+from event.libs import generate_blog, get_transcript, upload_file_to_gemini
 from event.models import Event, EventDetail
 
 logger = logging.getLogger(__name__)
@@ -103,50 +103,10 @@ class TestGenerateBlog(TestCase):
         self.assertIsNotNone(result)
         self.assertTrue(hasattr(result, 'name'))
 
-    def test_fetch_transcription(self):
-        from googleapiclient.discovery import build
-        from youtube_transcript_api import YouTubeTranscriptApi
-
-        def get_video_info_and_captions(video_id) -> str:
-            try:
-                # YouTube APIクライアントを構築
-                API_KEY = os.environ.get("GOOGLE_API_KEY")
-                # APIキーを設定
-                assert API_KEY is not None, "APIキーが設定されていません"
-                youtube = build('youtube', 'v3', developerKey=API_KEY)
-
-                # 動画の詳細情報を取得
-                video_response = youtube.videos().list(
-                    part='snippet',
-                    id=video_id
-                ).execute()
-
-                if not video_response['items']:
-                    raise ValueError('動画が見つかりませんでした')
-
-                video_title = video_response['items'][0]['snippet']['title']
-
-                # 字幕を取得 (認証不要)
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-
-                # 日本語字幕を優先的に取得し、なければ英語字幕を取得して翻訳
-                try:
-                    transcript = transcript_list.find_transcript(['ja'])
-                except:
-                    transcript = transcript_list.find_transcript(['en']).translate('ja')
-
-                # 字幕テキストを結合
-                captions_text = "\n".join([entry['text'] for entry in transcript.fetch()])
-
-                return captions_text
-
-            except Exception as e:
-                logger.error(f"Youtubeから文字起こしを取得するときにエラーが発生しました: {str(e)}")
-                return None
-
+    def test_get_transcript(self):
         # テスト実行
         video_id = "ewqOnvr8tAU"
-        result = get_video_info_and_captions(video_id)
+        result = get_transcript(video_id)
         self.assertIsNotNone(result)
         self.assertGreater(len(result), 0)
         logger.info(result)

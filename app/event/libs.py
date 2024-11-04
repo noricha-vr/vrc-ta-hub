@@ -1,3 +1,5 @@
+from typing import Optional
+from googleapiclient.discovery import build
 import logging
 import os
 import tempfile
@@ -11,8 +13,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import TextFormatter
 
 from event.models import EventDetail
-from website.settings import GEMINI_API_KEY
-
+from website.settings import GEMINI_API_KEY, GOOGLE_API_KEY
 logger = logging.getLogger(__name__)
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -85,7 +86,7 @@ def upload_file_to_gemini(event_detail: EventDetail) -> genai.types.File:
         os.unlink(temp_file_path)
 
 
-def get_transcript(video_id, language='ja') -> str:
+def get_transcript(video_id, language='ja') -> Optional[str]:
     """
     YouTube動画から文字起こしを取得する関数
 
@@ -98,10 +99,43 @@ def get_transcript(video_id, language='ja') -> str:
     """
     if not video_id:
         return ''
-    transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
-    formatter = TextFormatter()
-    transcript_text = formatter.format_transcript(transcript)
-    return transcript_text
+
+    try:
+        # APIキーを設定
+        youtube = build('youtube', 'v3', developerKey=GOOGLE_API_KEY)
+
+        # 動画の詳細情報を取得
+        video_response = youtube.videos().list(
+            part='snippet',
+            id=video_id
+        ).execute()
+
+        if not video_response['items']:
+            raise ValueError('動画が見つかりませんでした')
+
+        video_title = video_response['items'][0]['snippet']['title']
+
+        # 字幕を取得 (認証不要)
+        transcript_list = YouTubeTranscriptApi.list_transcripts(
+            video_id)
+
+        # 日本語字幕を優先的に取得し、なければ英語字幕を取得して翻訳
+        try:
+            transcript = transcript_list.find_transcript(['ja'])
+        except:
+            transcript = transcript_list.find_transcript(
+                ['en']).translate('ja')
+
+        # 字幕テキストを結合
+        captions_text = "\n".join([entry['text']
+                                    for entry in transcript.fetch()])
+
+        return captions_text
+
+    except Exception as e:
+        logger.error(f"Youtubeから文字起こしを取得するときにエラーが発生しました: {str(e)}")
+        return None
+
 
 
 def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
