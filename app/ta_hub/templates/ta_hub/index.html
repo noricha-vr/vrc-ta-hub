@@ -1,44 +1,56 @@
 {% extends 'ta_hub/base.html' %}
 {% load static %}
 {% block main %}
-    <style>
-        .rounded-custom {
-            border-radius: 40px; /* ボーダー半径を20%に設定 */
-        }
-    </style>
-    <div class="bg-dark text-secondary px-4 py-5 text-center">
-        <div class="py-5">
-            <h1 class="display-5 fw-bold text-white">
-                ようこそ！<br>
-                VRChat技術学術系集会の世界へ！</h1>
-            <div class="col-lg-6 mx-auto text-white">
-                <p class="fs-5 my-4 text-white">VRChatで開催される多彩な技術学術系集会をお届けします</br>
-                    入門者から経験豊富な方まで、みんなが楽しめるイベントが満載です！</p>
-                <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                    <a href="{% url 'event:list' %}"
-                       class="btn btn-primary btn-lg px-4 me-sm-3 fw-bold text-white">開催日を確認
-                    </a>
-                    <a href="{% url 'community:list' %}"
-                       class="btn btn-primary btn-lg fw-bold px-4 text-white">集会を探す</a>
-                </div>
+<style>
+    .rounded-custom {
+        border-radius: 40px;
+        /* ボーダー半径を20%に設定 */
+    }
+
+    /* インデックスページ特有のスタイル */
+    .calender-section {
+        overflow-x: hidden;
+    }
+</style>
+
+<div class="bg-dark text-secondary px-4 py-5 text-center">
+    <div class="py-5">
+        <h1 class="display-5 fw-bold text-white">
+            ようこそ！<br>
+            VRChat技術学術系集会の世界へ！</h1>
+        <div class="col-lg-6 mx-auto text-white">
+            <p class="fs-5 my-4 text-white">VRChatで開催される多彩な技術学術系集会をお届けします</br>
+                入門者から経験豊富な方まで、みんなが楽しめるイベントが満載です！</p>
+            <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+                <a href="{% url 'event:list' %}" class="btn btn-primary btn-lg px-4 me-sm-3 fw-bold text-white">開催日を確認
+                </a>
+                <a href="{% url 'community:list' %}" class="btn btn-primary btn-lg fw-bold px-4 text-white">集会を探す</a>
             </div>
         </div>
     </div>
-    <!-- hero end -->
+</div>
+<!-- hero end -->
+
+<!-- calender section -->
+<div class="calender-section">
     <div class="row featurette text-center text-primary mt-5 p-2">
         <h2 class="featurette-heading fw-normal lh-1 fw-bold">
             VRChat技術学術系イベントカレンダー
         </h2>
     </div>
     {% if not request.GET %}
-        <div class="row my-5">
-            <div class="col-lg-12 text-center">
-                <div class="d-flex justify-content-center">
-                    <iframe src="https://calendar.google.com/calendar/embed?src=fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7%40group.calendar.google.com"
-                            style="border: 0" width="800" height="600" frameborder="0" scrolling="no"></iframe>
+    <div class="row my-5">
+        <div class="col-lg-12 text-center">
+            <div class="d-flex justify-content-center">
+                <div style="max-width: 100%; overflow-x: hidden;">
+                    <iframe
+                        src="https://calendar.google.com/calendar/embed?src=fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7%40group.calendar.google.com"
+                        style="border: 0; max-width: 100%;" width="800" height="600" frameborder="0"
+                        scrolling="no"></iframe>
                 </div>
             </div>
         </div>
+    </div>
     {% endif %}
 
     <div class="row featurette text-center text-primary mt-5 p-3">
@@ -47,407 +59,396 @@
         </h2>
     </div>
 
-    <!-- contents 1 -->
-    <div class="container my-5">
+</div>
 
-        <div class="row featurette text-black">
-            <div class="col-md-7">
-                <p class="lead">
-                    VRChat技術学術系集会は、技術や学問に関心を持つ人々が集まり、VRChat内で集会を開催しています。
-                <p class="lead">
-                    最新の技術や情報を共有しつつ、みんなでワイワイおしゃべりを楽しむ場所です！</p>
-            </div>
-            <div class="col-md-5">
-                <img class="bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto rounded-custom"
-                     width="500"
-                     height="500"
-                     src="https://data.vrc-ta-hub.com/images/noricha-kiri-720.jpeg"
-                     alt="Placeholder: 500x500" loading="lazy">
+<!-- contents 1 -->
+<div class="container my-5">
 
-            </div>
+    <div class="row featurette text-black">
+        <div class="col-md-7">
+            <p class="lead">
+                VRChat技術学術系集会は、技術や学問に関心を持つ人々が集まり、VRChat内で集会を開催しています。
+            <p class="lead">
+                最新の技術や情報を共有しつつ、みんなでワイワイおしゃべりを楽しむ場所です！</p>
+        </div>
+        <div class="col-md-5">
+            <img class="bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto rounded-custom"
+                width="500" height="500" src="https://data.vrc-ta-hub.com/images/noricha-kiri-720.jpeg"
+                alt="Placeholder: 500x500" loading="lazy">
+
         </div>
     </div>
+</div>
 
-    <!-- contents 1 end -->
-    <!-- contents 2 -->
-    <div class="row featurette text-center bg-primary text-white p-3 mb-5">
-        <h2 class="featurette-heading fw-normal lh-1 fw-bold">
-            どんなことをしているの？
-        </h2>
-    </div>
-    <div class="container mb-5">
+<!-- contents 1 end -->
+<!-- contents 2 -->
+<div class="inner-container-small text-center bg-primary fw-bold text-white py-3">
+    <h2 class="mb-0 mt-3 fw-bold">
+        どんなことをしているの？
 
-        <div class="row featurette">
-            <div class="col-md-7 order-md-2 text-black">
-                <div class="lead mb-2 fw-bold">
-                    講演とライトニングトーク
-                </div>
-                <p>
-                    業界のプロフェッショナルによる面白い講演やパネルディスカッション、短時間でできるライトニングトークが大人気！
-                </p>
-                <div class="lead mb-2 fw-bold">
-                    雑談やディスカッション
-                </div>
-                <p>
-                    各集会ごとのテーマはその日の講演やライトニングトークの延長でみんなの興味を深堀り！そこから派生したトピックで盛り上がることも！
-                </p>
+
+    </h2>
+</div>
+<div class="container mb-5">
+
+    <div class="row featurette">
+        <div class="col-md-7 order-md-2 text-black">
+            <div class="lead mb-2 fw-bold">
+                講演とライトニングトーク
             </div>
-            <div class="col-md-5 order-md-1">
-                <img class="bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto rounded-custom"
-                     width="500"
-                     height="500"
-                     src="https://data.vrc-ta-hub.com/images/sekina-lt2-720.jpeg"
-                     alt="Placeholder: 500x500" loading="lazy">
-
+            <p>
+                業界のプロフェッショナルによる面白い講演やパネルディスカッション、短時間でできるライトニングトークが大人気！
+            </p>
+            <div class="lead mb-2 fw-bold">
+                雑談やディスカッション
             </div>
+            <p>
+                各集会ごとのテーマはその日の講演やライトニングトークの延長でみんなの興味を深堀り！そこから派生したトピックで盛り上がることも！
+            </p>
+        </div>
+        <div class="col-md-5 order-md-1">
+            <img class="bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto rounded-custom"
+                width="500" height="500" src="https://data.vrc-ta-hub.com/images/sekina-lt2-720.jpeg"
+                alt="Placeholder: 500x500" loading="lazy">
+
         </div>
     </div>
+</div>
 
-    <!-- contents 2 end -->
+<!-- contents 2 end -->
 
-    <!-- 4 icons -->
+<!-- 4 icons -->
 
-    <div class="bg-light py-5">
-        <div class="container marketing">
-            <!-- Three columns of text below the carousel -->
-            <div class="row text-center">
-                <h2 class="featurette-heading fw-normal lh-1 mb-5 text-center text-primary fw-bold">
-                    集会の特徴</h2>
+<div class="bg-light py-5">
+    <div class="container marketing">
+        <!-- Three columns of text below the carousel -->
+        <div class="row text-center">
+            <h2 class="featurette-heading fw-normal lh-1 mb-5 text-center text-primary fw-bold">
+                集会の特徴</h2>
 
-                <div class="col-lg-4">
-                    <i class="bi bi-people-fill text-primary" style="font-size: 4rem;"></i>
-                    <h3 class="fs-4 fw-normal my-3">誰でも参加しやすい！</h3>
-                    <p>学生や社会人など、いろんなバックグラウンドを持つ人たちが集まり、気軽に意見交換ができる！</p>
-                </div><!-- /.col-lg-4 -->
+            <div class="col-lg-4">
+                <i class="bi bi-people-fill text-primary" style="font-size: 4rem;"></i>
+                <h3 class="fs-4 fw-normal my-3">誰でも参加しやすい！</h3>
+                <p>学生や社会人など、いろんなバックグラウンドを持つ人たちが集まり、気軽に意見交換ができる！</p>
+            </div><!-- /.col-lg-4 -->
 
-                <div class="col-lg-4">
-                    <i class="bi bi-calendar3 text-primary" style="font-size: 4rem;"></i>
-                    <h3 class="fs-4 fw-normal my-3">毎日集会を開催！</h3>
-                    <p>土日や平日の夜も、毎日集会が開催されているので、忙しい人でも参加しやすい！</p>
-                </div><!-- /.col-lg-4 -->
+            <div class="col-lg-4">
+                <i class="bi bi-calendar3 text-primary" style="font-size: 4rem;"></i>
+                <h3 class="fs-4 fw-normal my-3">毎日集会を開催！</h3>
+                <p>土日や平日の夜も、毎日集会が開催されているので、忙しい人でも参加しやすい！</p>
+            </div><!-- /.col-lg-4 -->
 
-                <div class="col-lg-4">
-                    <i class="bi bi-search text-primary" style="font-size: 4rem;"></i>
-                    <h3 class="fs-4 fw-normal my-3">自分にピッタリの集会が見つかる！</h3>
-                    <p>いろんな集会があるので、きっと自分にピッタリの集会が見つかるはず！</p>
-                </div><!-- /.col-lg-4 -->
-            </div>
+            <div class="col-lg-4">
+                <i class="bi bi-search text-primary" style="font-size: 4rem;"></i>
+                <h3 class="fs-4 fw-normal my-3">自分にピッタリの集会が見つかる！</h3>
+                <p>いろんな集会があるので、きっと自分にピッタリの集会が見つかるはず！</p>
+            </div><!-- /.col-lg-4 -->
         </div>
     </div>
+</div>
 
-    <!-- 4 icons　end -->
+<!-- 4 icons　end -->
 
 
-    <!-- メリット -->
+<!-- メリット -->
 
-    <div class="inner-container-small text-center bg-primary fw-bold text-white py-3">
-        <div class="mt-2">
+<div class="inner-container-small text-center bg-primary fw-bold text-white py-3">
+    <div class="mt-2">
 
-            <span class="bg-light heading-color small rounded-3 px-3 py-2 mt- text-dark">🙀
-                ハマると抜け出せなくなる</span>
-        </div>
-        <h2 class="mb-0 mt-3 fw-bold">VRChat技術学術系集会の魅力
-
-        </h2>
+        <span class="bg-light heading-color small rounded-3 px-3 py-2 mt- text-dark">🙀
+            ハマると抜け出せなくなる</span>
     </div>
+    <h2 class="mb-0 mt-3 fw-bold">VRChat技術学術系集会の魅力
 
-    <div class="bg-light-subtle pb-5">
+    </h2>
+</div>
 
-
-        <div class="container">
-            <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 gy-5 gy-md-7 mt-0 py-5">
-                <!-- Service item -->
-                <div class="col">
-                    <div class="card bg-white h-100 shadow">
-                        <div class="card-body pb-0">
-                            <div class="d-flex justify-content-center mt-3 icon-text">
-                                <!-- Icon -->
-                                <span class="text-primary me-2">
-                                    <i class="bi bi-people fs-4"></i>
-                                </span>
-                                <!-- Content -->
-                                <h3 class="mb-3 fs-5 fw-bold mb-0">新しい仲間に出会える！</h3>
-                            </div>
-                            <p class="text-center">
-                                共通の興味を持つ人たちと知り合い、交流が深まる楽しい時間を過ごせます。</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Service item -->
-                <div class="col">
-                    <div class="card bg-white h-100 shadow">
-                        <div class="card-body pb-0">
-                            <div class="d-flex justify-content-center mt-3 icon-text">
-                                <!-- Icon -->
-                                <span class="text-primary me-2">
-                            <i class="bi bi-boxes fs-4"></i>
-                        </span>
-                                <!-- Content -->
-                                <h3 class="mb-3 fs-5 fw-bold mb-0">最先端の情報が満載！</h3>
-                            </div>
-                            <p class="text-center">
-                                VRChat技術学術系集会は、最先端の技術情報の宝庫です。参加するたびに、新しい知識や発見があなたを待っています。
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Service item -->
-                <div class="col">
-                    <div class="card bg-white h-100 shadow">
-                        <div class="card-body pb-0">
-                            <div class="d-flex justify-content-center mt-3 icon-text">
-                                <!-- Icon -->
-                                <span class="text-primary me-2">
-                            <i class="bi bi-circle-square fs-4"></i>
-                        </span>
-                                <!-- Content -->
-                                <h3 class="mb-3 fs-5 fw-bold mb-0">リアルでは得られない経験！</h3>
-                            </div>
-                            <p class="text-center">
-                                地方や海外、どこに住んでいても参加でき、物理的な制約を超えた交流を楽しめます。</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Service item -->
-                <div class="col">
-                    <div class="card bg-white h-100 shadow">
-                        <div class="card-body pb-0">
-                            <div class="d-flex justify-content-center mt-3 icon-text">
-                                <!-- Icon -->
-                                <span class="text-primary me-2">
-                            <i class="bi bi-vector-pen fs-4"></i>
-                        </span>
-                                <!-- Content -->
-                                <h3 class="mb-3 fs-5 fw-bold mb-0">興味の幅が広がる！</h3>
-                            </div>
-                            <p class="text-center">
-                                ライトニングトークでは、普段は接点の少ない分野の最新事情を知ることができ、興味の幅が広がります。
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Service item -->
-                <div class="col">
-                    <div class="card bg-white h-100 shadow">
-                        <div class="card-body pb-0">
-                            <div class="d-flex justify-content-center mt-3 icon-text">
-                                <!-- Icon -->
-                                <span class="text-primary me-2">
-                            <i class="bi bi-briefcase fs-4"></i>
-                        </span>
-                                <!-- Content -->
-                                <h3 class="mb-3 fs-5 fw-bold mb-0">忙しくても参加OK！</h3>
-                            </div>
-                            <p class="text-center">
-                                平日夜や週末に集会があるので、自分のスケジュールに合わせて参加できます。</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Service item -->
-                <div class="col">
-                    <div class="card bg-white h-100 shadow">
-                        <div class="card-body pb-0">
-                            <div class="d-flex justify-content-center mt-3 icon-text">
-                                <!-- Icon -->
-                                <span class="text-primary me-2">
-                            <i class="bi bi-people fs-4"></i>
-                        </span>
-                                <!-- Content -->
-                                <h3 class="mb-3 fs-5 fw-bold mb-0">世代を超えた交流</h3>
-                            </div>
-                            <p class="text-center">
-                                アバターでおしゃべりするので実際の年齢とは関係なく、自分と同じ興味や関心を持つ人と仲良くなれます。</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- メリット end -->
+<div class="bg-light-subtle pb-5">
 
 
-
-    <!-- 雰囲気 -->
-    <h2 class="featurette-heading fw-normal lh-1 bg-primary text-white fw-bold text-center py-3 mb−5">
-        技術学術系集会の雰囲気</h2>
     <div class="container">
-        <div class="row featurette py-5">
-            <div class="col-12 col-md-6 mb-3">
-                <div class="ratio ratio-16x9 rounded">
-                    <img class="img-thumbnail object-fit-cover"
-                         src="https://data.vrc-ta-hub.com/images/cs-720-720.jpeg"
-                         loading="lazy"
-                         alt="Placeholder: 500x500">
-                </div>
-            </div>
-            <div class="col-12 col-md-6 mb-3">
-                <div class="ratio ratio-16x9 rounded">
-                    <img class="img-thumbnail object-fit-cover"
-                         src="https://data.vrc-ta-hub.com/images/uezo-720.jpeg"
-                         loading="lazy"
-                         alt="Placeholder: 500x500">
-                </div>
-            </div>
-
-            <div class="col-12 col-md-6 mb-3">
-                <div class="ratio ratio-16x9 rounded">
-                    <img class="img-thumbnail object-fit-cover"
-                         src="https://data.vrc-ta-hub.com/images/kito-720.jpeg"
-                         loading="lazy"
-                         alt="Placeholder: 500x500">
-                </div>
-            </div>
-
-            <div class="col-12 col-md-6 mb-3">
-                <div class="ratio ratio-16x9 rounded">
-                    <img class="img-thumbnail object-fit-cover"
-                         src="https://data.vrc-ta-hub.com/images/sekina-lt-720.jpeg"
-                         loading="lazy"
-                         alt="Placeholder: 500x500">
-                </div>
-            </div>
-            <div class="col-12 col-md-6 mb-3">
-                <div class="ratio ratio-16x9 rounded">
-                    <img class="img-thumbnail object-fit-cover"
-                         src="https://data.vrc-ta-hub.com/images/VRChat_2023-09-720.jpeg"
-                         loading="lazy"
-                         alt="Placeholder: 500x500">
-                </div>
-            </div>
-            <div class="col-12 col-md-6 mb-3">
-                <div class="ratio ratio-16x9 rounded">
-                    <img class="img-thumbnail object-fit-cover"
-                         src="https://data.vrc-ta-hub.com/images/negipan-720.jpeg"
-                         loading="lazy"
-                         alt="Placeholder: 500x500">
-                </div>
-            </div>
-
-        </div>
-    </div>
-    <!-- 雰囲気 end -->
-
-    <!-- 参加者の声 -->
-    <div class="bg-light mb-5 py-5">
-        <div class="container marketing">
-
-            <!-- Three columns of text below the carousel -->
-            <div class="row text-center">
-                <h2 class="featurette-heading fw-normal lh-1 text-center mb-5 fw-bold text-primary">参加者の声</h2>
-
-                <div class="col-lg-4">
-                    <img src="https://data.vrc-ta-hub.com/images/kiri-240.jpeg"
-                         alt="kiri"
-                         class="rounded-circle mx-auto d-block" width="140" height="140" loading="lazy">
-                    <h3 class="fw-normal my-2">kiriさん</h3>
-                    <p>いろんな分野でユニークなLTと濃すぎる雑談が楽しめます～ 強そうなやつ、大体友達！</p>
-                </div><!-- /.col-lg-4 -->
-
-                <div class="col-lg-4">
-                    <img src="https://data.vrc-ta-hub.com/images/pechi-240.jpeg" alt="petipeti"
-                         class="rounded-circle mx-auto d-block" width="140" height="140" loading="lazy">
-                    <h3 class="fw-normal my-2">PetiPetiさん</h3>
-                    <p id="petipeti">
-                        さまざまなバックグラウンドを持つ人々と交流することで、視野が広がった！！とんがった知識でもバッチコイ！</p>
-                </div><!-- /.col-lg-4 -->
-
-                <div class="col-lg-4">
-                    <img src="https://data.vrc-ta-hub.com/images/noricha-240.jpeg" alt="のりちゃん"
-                         class="rounded-circle mx-auto d-block" width="140" height="140" loading="lazy">
-                    <h3 class="fw-normal my-2">のりちゃん</h3>
-                    <p>地方に住んでいるのでリアルではなかなか出会えないニッチな分野の友達がたくさんできました！</p>
-                </div><!-- /.col-lg-4 -->
-            </div>
-        </div>
-    </div>
-    <!-- 参加者の声　end -->
-
-
-    <!-- 参加方法 -->
-    <h2 class="pb-2 fw-bold primary text-primary text-center">参加方法</h2>
-
-    <div class="container px-4 py-5" id="featured-3">
-        <div class="row g-4 py-3 row-cols-1 row-cols-lg-3">
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 gy-5 gy-md-7 mt-0 py-5">
+            <!-- Service item -->
             <div class="col">
-                <div class="card bg-light-subtle h-100 shadow">
-                    <div class="card-body">
-                        <div class="fs-2">
-                            1.
+                <div class="card bg-white h-100 shadow">
+                    <div class="card-body pb-0">
+                        <div class="d-flex justify-content-center mt-3 icon-text">
+                            <!-- Icon -->
+                            <span class="text-primary me-2">
+                                <i class="bi bi-people fs-4"></i>
+                            </span>
+                            <!-- Content -->
+                            <h3 class="mb-3 fs-5 fw-bold mb-0">新しい仲間に出会える！</h3>
                         </div>
-                        <h3 class="fs-4 text-body-emphasis">興味のある集会を見つける</h3>
-                        <p>どんな分野に興味がありますか？いろんな種類の集会から、興味のある集会を選んでね。</p>
-                        <a href="{% url 'community:list' %}" class="btn btn-primary fw-bold">
-                            集会を探す
+                        <p class="text-center">
+                            共通の興味を持つ人たちと知り合い、交流が深まる楽しい時間を過ごせます。</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service item -->
+            <div class="col">
+                <div class="card bg-white h-100 shadow">
+                    <div class="card-body pb-0">
+                        <div class="d-flex justify-content-center mt-3 icon-text">
+                            <!-- Icon -->
+                            <span class="text-primary me-2">
+                                <i class="bi bi-boxes fs-4"></i>
+                            </span>
+                            <!-- Content -->
+                            <h3 class="mb-3 fs-5 fw-bold mb-0">最先端の情報が満載！</h3>
+                        </div>
+                        <p class="text-center">
+                            VRChat技術学術系集会は、最先端の技術情報の宝庫です。参加するたびに、新しい知識や発見があなたを待っています。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service item -->
+            <div class="col">
+                <div class="card bg-white h-100 shadow">
+                    <div class="card-body pb-0">
+                        <div class="d-flex justify-content-center mt-3 icon-text">
+                            <!-- Icon -->
+                            <span class="text-primary me-2">
+                                <i class="bi bi-circle-square fs-4"></i>
+                            </span>
+                            <!-- Content -->
+                            <h3 class="mb-3 fs-5 fw-bold mb-0">リアルでは得られない経験！</h3>
+                        </div>
+                        <p class="text-center">
+                            地方や海外、どこに住んでいても参加でき、物理的な制約を超えた交流を楽しめます。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service item -->
+            <div class="col">
+                <div class="card bg-white h-100 shadow">
+                    <div class="card-body pb-0">
+                        <div class="d-flex justify-content-center mt-3 icon-text">
+                            <!-- Icon -->
+                            <span class="text-primary me-2">
+                                <i class="bi bi-vector-pen fs-4"></i>
+                            </span>
+                            <!-- Content -->
+                            <h3 class="mb-3 fs-5 fw-bold mb-0">興味の幅が広がる！</h3>
+                        </div>
+                        <p class="text-center">
+                            ライトニングトークでは、普段は接点の少ない分野の最新事情を知ることができ、興味の幅が広がります。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service item -->
+            <div class="col">
+                <div class="card bg-white h-100 shadow">
+                    <div class="card-body pb-0">
+                        <div class="d-flex justify-content-center mt-3 icon-text">
+                            <!-- Icon -->
+                            <span class="text-primary me-2">
+                                <i class="bi bi-briefcase fs-4"></i>
+                            </span>
+                            <!-- Content -->
+                            <h3 class="mb-3 fs-5 fw-bold mb-0">忙しくても参加OK！</h3>
+                        </div>
+                        <p class="text-center">
+                            平日夜や週末に集会があるので、自分のスケジュールに合わせて参加できます。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service item -->
+            <div class="col">
+                <div class="card bg-white h-100 shadow">
+                    <div class="card-body pb-0">
+                        <div class="d-flex justify-content-center mt-3 icon-text">
+                            <!-- Icon -->
+                            <span class="text-primary me-2">
+                                <i class="bi bi-people fs-4"></i>
+                            </span>
+                            <!-- Content -->
+                            <h3 class="mb-3 fs-5 fw-bold mb-0">世代を超えた交流</h3>
+                        </div>
+                        <p class="text-center">
+                            アバターでおしゃべりするので実際の年齢とは関係なく、自分と同じ興味や関心を持つ人と仲良くなれます。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- メリット end -->
+
+
+
+<!-- 雰囲気 -->
+<h2 class="featurette-heading fw-normal lh-1 bg-primary text-white fw-bold text-center py-3 mb−5">
+    技術学術系集会の雰囲気</h2>
+<div class="container">
+    <div class="row featurette py-5">
+        <div class="col-12 col-md-6 mb-3">
+            <div class="ratio ratio-16x9 rounded">
+                <img class="img-thumbnail object-fit-cover" src="https://data.vrc-ta-hub.com/images/cs-720-720.jpeg"
+                    loading="lazy" alt="Placeholder: 500x500">
+            </div>
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+            <div class="ratio ratio-16x9 rounded">
+                <img class="img-thumbnail object-fit-cover" src="https://data.vrc-ta-hub.com/images/uezo-720.jpeg"
+                    loading="lazy" alt="Placeholder: 500x500">
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 mb-3">
+            <div class="ratio ratio-16x9 rounded">
+                <img class="img-thumbnail object-fit-cover" src="https://data.vrc-ta-hub.com/images/kito-720.jpeg"
+                    loading="lazy" alt="Placeholder: 500x500">
+            </div>
+        </div>
+
+        <div class="col-12 col-md-6 mb-3">
+            <div class="ratio ratio-16x9 rounded">
+                <img class="img-thumbnail object-fit-cover" src="https://data.vrc-ta-hub.com/images/sekina-lt-720.jpeg"
+                    loading="lazy" alt="Placeholder: 500x500">
+            </div>
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+            <div class="ratio ratio-16x9 rounded">
+                <img class="img-thumbnail object-fit-cover"
+                    src="https://data.vrc-ta-hub.com/images/VRChat_2023-09-720.jpeg" loading="lazy"
+                    alt="Placeholder: 500x500">
+            </div>
+        </div>
+        <div class="col-12 col-md-6 mb-3">
+            <div class="ratio ratio-16x9 rounded">
+                <img class="img-thumbnail object-fit-cover" src="https://data.vrc-ta-hub.com/images/negipan-720.jpeg"
+                    loading="lazy" alt="Placeholder: 500x500">
+            </div>
+        </div>
+
+    </div>
+</div>
+<!-- 雰囲気 end -->
+
+<!-- 参加者の声 -->
+<div class="bg-light mb-5 py-5">
+    <div class="container marketing">
+
+        <!-- Three columns of text below the carousel -->
+        <div class="row text-center">
+            <h2 class="featurette-heading fw-normal lh-1 text-center mb-5 fw-bold text-primary">参加者の声</h2>
+
+            <div class="col-lg-4">
+                <img src="https://data.vrc-ta-hub.com/images/kiri-240.jpeg" alt="kiri"
+                    class="rounded-circle mx-auto d-block" width="140" height="140" loading="lazy">
+                <h3 class="fw-normal my-2">kiriさん</h3>
+                <p>いろんな分野でユニークなLTと濃すぎる雑談が楽しめます～ 強そうなやつ、大体友達！</p>
+            </div><!-- /.col-lg-4 -->
+
+            <div class="col-lg-4">
+                <img src="https://data.vrc-ta-hub.com/images/pechi-240.jpeg" alt="petipeti"
+                    class="rounded-circle mx-auto d-block" width="140" height="140" loading="lazy">
+                <h3 class="fw-normal my-2">PetiPetiさん</h3>
+                <p id="petipeti">
+                    さまざまなバックグラウンドを持つ人々と交流することで、視野が広がった！！とんがった知識でもバッチコイ！</p>
+            </div><!-- /.col-lg-4 -->
+
+            <div class="col-lg-4">
+                <img src="https://data.vrc-ta-hub.com/images/noricha-240.jpeg" alt="のりちゃん"
+                    class="rounded-circle mx-auto d-block" width="140" height="140" loading="lazy">
+                <h3 class="fw-normal my-2">のりちゃん</h3>
+                <p>地方に住んでいるのでリアルではなかなか出会えないニッチな分野の友達がたくさんできました！</p>
+            </div><!-- /.col-lg-4 -->
+        </div>
+    </div>
+</div>
+<!-- 参加者の声　end -->
+
+
+<!-- 参加方法 -->
+<h2 class="pb-2 fw-bold primary text-primary text-center">参加方法</h2>
+
+<div class="container px-4 py-5" id="featured-3">
+    <div class="row g-4 py-3 row-cols-1 row-cols-lg-3">
+        <div class="col">
+            <div class="card bg-light-subtle h-100 shadow">
+                <div class="card-body">
+                    <div class="fs-2">
+                        1.
+                    </div>
+                    <h3 class="fs-4 text-body-emphasis">興味のある集会を見つける</h3>
+                    <p>どんな分野に興味がありますか？いろんな種類の集会から、興味のある集会を選んでね。</p>
+                    <a href="{% url 'community:list' %}" class="btn btn-primary fw-bold">
+                        集会を探す
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card bg-light-subtle h-100 shadow">
+                <div class="card-body">
+                    <div class="fs-2">
+                        2.
+                    </div>
+                    <h3 class="fs-5 text-body-emphasis">
+                        VRChatグループ、Discordに参加したり、主催者にフレンド申請をする</h3>
+                    <p>
+                        「いきなりフレンド申請しても大丈夫かな？」と心配しなくても大丈夫！主催者はあなたが参加してくれるのを楽しみにしています。</p>
+                </div>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card bg-light-subtle h-100 shadow">
+                <div class="card-body">
+                    <div class="fs-2">
+                        3.
+                    </div>
+                    <h3 class="fs-5 text-body-emphasis">集会当日、グループや主催にJOINする</h3>
+                    <p>
+                        あとは当日、その時間に主催やグループにJOINするだけ！初めて参加するときは緊張するかもしれないけど、みんな優しく迎えてくれるので安心してね。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 参加方法　end -->
+
+<!-- 3 icons end -->
+
+<section class="py-5 bg-light" data-cue="fadeIn" data-show="true"
+    style="animation-name: fadeIn; animation-duration: 600ms; animation-timing-function: ease; animation-delay: 0ms; animation-direction: normal; animation-fill-mode: both;">
+    <div class="container my-lg-7" data-cues="zoomIn" data-disabled="true">
+        <div class="row justify-content-center text-center" data-cue="zoomIn" data-show="true"
+            style="animation-name: zoomIn; animation-duration: 600ms; animation-timing-function: ease; animation-delay: 0ms; animation-direction: normal; animation-fill-mode: both;">
+            <div class="col-lg-6 col-md-9 col-12 d-flex flex-column gap-4">
+                <div class="fs-1">
+                    🚀
+                </div>
+                <div>
+                    <h2 class="fs-2">VRの世界に飛び込もう！</h2>
+                    {# <p class="mb-0">VRの世界に飛び込もう！</p>#}
+                    <div class="my-3">あなたにピッタリの集会がそこにある🐱</div>
+                </div>
+                <div>
+                    <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+                        <a href="{% url 'event:list' %}" class="btn btn-primary btn-lg px-4 me-sm-3 fw-bold">開催日を確認
                         </a>
-                    </div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="card bg-light-subtle h-100 shadow">
-                    <div class="card-body">
-                        <div class="fs-2">
-                            2.
-                        </div>
-                        <h3 class="fs-5 text-body-emphasis">
-                            VRChatグループ、Discordに参加したり、主催者にフレンド申請をする</h3>
-                        <p>
-                            「いきなりフレンド申請しても大丈夫かな？」と心配しなくても大丈夫！主催者はあなたが参加してくれるのを楽しみにしています。</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col">
-                <div class="card bg-light-subtle h-100 shadow">
-                    <div class="card-body">
-                        <div class="fs-2">
-                            3.
-                        </div>
-                        <h3 class="fs-5 text-body-emphasis">集会当日、グループや主催にJOINする</h3>
-                        <p>
-                            あとは当日、その時間に主催やグループにJOINするだけ！初めて参加するときは緊張するかもしれないけど、みんな優しく迎えてくれるので安心してね。</p>
+                        <a href="{% url 'community:list' %}" class="btn btn-primary btn-lg px-4 fw-bold">集会を探す</a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</section>
 
-    <!-- 参加方法　end -->
-
-    <!-- 3 icons end -->
-
-    <section class="py-5 bg-light" data-cue="fadeIn" data-show="true"
-             style="animation-name: fadeIn; animation-duration: 600ms; animation-timing-function: ease; animation-delay: 0ms; animation-direction: normal; animation-fill-mode: both;">
-        <div class="container my-lg-7" data-cues="zoomIn" data-disabled="true">
-            <div class="row justify-content-center text-center" data-cue="zoomIn" data-show="true"
-                 style="animation-name: zoomIn; animation-duration: 600ms; animation-timing-function: ease; animation-delay: 0ms; animation-direction: normal; animation-fill-mode: both;">
-                <div class="col-lg-6 col-md-9 col-12 d-flex flex-column gap-4">
-                    <div class="fs-1">
-                        🚀
-                    </div>
-                    <div>
-                        <h2 class="fs-2">VRの世界に飛び込もう！</h2>
-                        {#                            <p class="mb-0">VRの世界に飛び込もう！</p>#}
-                        <div class="my-3">あなたにピッタリの集会がそこにある🐱</div>
-                    </div>
-                    <div>
-                        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                            <a href="{% url 'event:list' %}"
-                               class="btn btn-primary btn-lg px-4 me-sm-3 fw-bold">開催日を確認
-                            </a>
-                            <a href="{% url 'community:list' %}"
-                               class="btn btn-primary btn-lg px-4 fw-bold">集会を探す</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <script src="{% static 'ta_hub/js/index.js' %}"></script>
+<script src="{% static 'ta_hub/js/index.js' %}"></script>
 
 
 {% endblock %}
