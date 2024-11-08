@@ -11,7 +11,23 @@
     .calender-section {
         overflow-x: hidden;
     }
+
+    /* 既存のスタイルの上部に追加 */
+    .calendar-wrapper {
+        padding: 20px;
+        overflow: hidden;
+        /* はみ出し防止 */
+    }
+
+    /* カレンダーコンポーネントのスタイル調整 */
+    pp-calendar {
+        display: block;
+        min-height: 400px;
+        /* カレンダーの最小高さを確保 */
+    }
 </style>
+<link rel="stylesheet" href="https://petipeti-object-storage.work/dist/style.css">
+
 
 <div class="bg-dark text-secondary px-4 py-5 text-center">
     <div class="py-5">
@@ -30,6 +46,10 @@
     </div>
 </div>
 <!-- hero end -->
+<!-- petipeti calender section -->
+<div class="calendar-wrapper"> <!-- カレンダーを包むコンテナを追加 -->
+    <pp-calendar></pp-calendar>
+</div>
 
 <!-- calender section -->
 <div class="calender-section">
@@ -85,8 +105,6 @@
 <div class="inner-container-small text-center bg-primary fw-bold text-white py-3">
     <h2 class="mb-0 mt-3 fw-bold">
         どんなことをしているの？
-
-
     </h2>
 </div>
 <div class="container mb-5">
@@ -449,6 +467,7 @@
 </section>
 
 <script src="{% static 'ta_hub/js/index.js' %}"></script>
+<script type="text/javascript" src="https://petipeti-object-storage.work/dist/pp-calendar.umd.js"></script>
 
 
 {% endblock %}
