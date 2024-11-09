@@ -96,7 +96,8 @@ class EventDetailForm(forms.ModelForm):
             'contents': '※ Markdown形式で記述してください。',
             'h1': '※ 空のときはテーマが使われます。',
             'duration': '単位は分',
-            'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。'
+            'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
+            'slide_url': '外部のスライドシステムのURLや、参考ページのURLを入力してください。',
         }
 
     # start_time と duration の初期値はEventCreateFormと同じにする
