@@ -400,6 +400,20 @@ class EventDetailPastList(ListView):
     context_object_name = 'event_details'
     paginate_by = 20
 
+    def get(self, request, *args, **kwargs):
+        # 通常のget処理の前にページ番号をチェック
+        page = request.GET.get('page', 1)
+        self.object_list = self.get_queryset()
+
+        paginator = self.get_paginator(self.object_list, self.paginate_by)
+        if int(page) > paginator.num_pages and paginator.num_pages > 0:
+            # クエリパラメータを維持したまま1ページ目にリダイレクト
+            params = request.GET.copy()
+            params['page'] = 1
+            return redirect(f"{request.path}?{params.urlencode()}")
+
+        return super().get(request, *args, **kwargs)
+
     def get_queryset(self):
         queryset = super().get_queryset().filter(
         ).select_related('event', 'event__community').order_by('-event__date', '-start_time')
