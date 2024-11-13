@@ -102,8 +102,8 @@
 
 <!-- contents 1 end -->
 <!-- contents 2 -->
-<div class="inner-container-small text-center bg-primary fw-bold text-white py-3">
-    <h2 class="mb-0 mt-3 fw-bold">
+<div class="inner-container-small text-center bg-primary fw-bold text-white py-3 mb-5">
+    <h2 class="mb-0 fw-bold">
         どんなことをしているの？
     </h2>
 </div>
@@ -123,13 +123,22 @@
             <p>
                 各集会ごとのテーマはその日の講演やライトニングトークの延長でみんなの興味を深堀り！そこから派生したトピックで盛り上がることも！
             </p>
+
+            <div class="text-center mt-4">
+                <a href="{% url 'event:detail_history' %}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-collection-play me-2"></i>過去の発表一覧はここからチェック！
+                </a>
+            </div>
         </div>
+
         <div class="col-md-5 order-md-1">
             <img class="bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto rounded-custom"
                 width="500" height="500" src="https://data.vrc-ta-hub.com/images/sekina-lt2-720.jpeg"
                 alt="Placeholder: 500x500" loading="lazy">
-
         </div>
+
+
+
     </div>
 </div>
 
