@@ -204,8 +204,21 @@
                 <div>
                     {{ html_content|safe }}
                 </div>
+                <div>
+                    <h2>{{ event_detail.event.community.name }}の他の発表を見る</h2>
+                    <ul class="list-unstyled">
+                        {% for same_event_detail in same_event_details %}
+                            <li class="mb-2">
+                                <a href="{% url 'event:detail' same_event_detail.id %}">
+                                    <i class="bi bi-arrow-right-circle me-2"></i>{{ same_event_detail.h1 }}
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
             </div>
         </div>
+    </div>
     </div>
 
     <script>

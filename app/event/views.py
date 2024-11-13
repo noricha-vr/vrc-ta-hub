@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.cache import cache
 from django.db import IntegrityError
 from django.db.models import QuerySet
 from django.http import HttpResponseRedirect
@@ -145,7 +146,27 @@ class EventDetailView(DetailView):
         context['is_discord'] = event_detail.youtube_url.startswith(
             'https://discord.com/') if event_detail.youtube_url else False
         context['html_content'] = convert_markdown(event_detail.contents)
+        context['same_event_details'] = self._fetch_same_event_details(event_detail)
         return context
+
+    def _fetch_same_event_details(self, event_detail: EventDetail) -> QuerySet:
+        # キャッシュキーを生成
+        cache_key = f'same_event_details_{event_detail.event_id}'
+        same_event_details = cache.get(cache_key)
+
+        if same_event_details is None:
+            # キャッシュがない場合のみDBクエリを実行
+            same_event_details = list(EventDetail.objects.filter(
+                event=event_detail.event,
+                h1__isnull=False
+            ).exclude(
+                id=event_detail.id
+            ).only('id', 'h1').order_by('-created_at')[:6])
+
+            # 1時間キャッシュする
+            cache.set(cache_key, same_event_details, 60 * 60)
+
+        return same_event_details
 
 
 def sync_calendar_events(request):
