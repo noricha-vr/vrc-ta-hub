@@ -147,17 +147,17 @@ class EventDetailView(DetailView):
         context['is_discord'] = event_detail.youtube_url.startswith(
             'https://discord.com/') if event_detail.youtube_url else False
         context['html_content'] = convert_markdown(event_detail.contents)
-        context['same_event_details'] = self._fetch_same_event_details(event_detail)
+        context['related_event_details'] = self._fetch_related_event_details(event_detail)
         return context
 
-    def _fetch_same_event_details(self, event_detail: EventDetail) -> List[EventDetail]:
+    def _fetch_related_event_details(self, event_detail: EventDetail) -> List[EventDetail]:
         # キャッシュキーを生成
-        cache_key = f'same_event_details_{event_detail.event_id}'
-        same_event_details = cache.get(cache_key)
-        same_event_details = None
-        if same_event_details is None:
+        cache_key = f'related_event_details_{event_detail.event_id}'
+        related_event_details = cache.get(cache_key)
+        related_event_details = None
+        if related_event_details is None:
             # キャッシュがない場合のみDBクエリを実行
-            same_event_details = list(
+            related_event_details = list(
                 EventDetail.objects
                 .filter(
                     event__community=event_detail.event.community,
@@ -170,9 +170,9 @@ class EventDetailView(DetailView):
             )
 
             # 1時間キャッシュする
-            cache.set(cache_key, same_event_details, 60 * 60)
+            cache.set(cache_key, related_event_details, 60 * 60)
 
-        return same_event_details
+        return related_event_details
 
 
 def sync_calendar_events(request):
