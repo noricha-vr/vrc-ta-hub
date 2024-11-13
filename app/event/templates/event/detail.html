@@ -206,15 +206,21 @@
                 </div>
                 <div>
                     <h2>{{ event_detail.event.community.name }}の他の発表を見る</h2>
-                    <ul class="list-unstyled">
+                    <div class="row g-4">
                         {% for related_event_detail in related_event_details %}
-                            <li class="mb-2">
-                                <a href="{% url 'event:detail' related_event_detail.id %}">
-                                    <i class="bi bi-arrow-right-circle me-2"></i>{{ related_event_detail.h1 }}
-                                </a>
-                            </li>
+                            <div class="col-12">
+                                <div class="card h-100 shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="card-title text-truncate mb-0">
+                                            {{ related_event_detail.h1 }}
+                                        </h5>
+                                        <a href="{% url 'event:detail' related_event_detail.id %}"
+                                           class="stretched-link"></a>
+                                    </div>
+                                </div>
+                            </div>
                         {% endfor %}
-                    </ul>
+                    </div>
                 </div>
             </div>
         </div>
