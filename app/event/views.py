@@ -2,6 +2,7 @@ import datetime
 import logging
 import re
 from datetime import datetime, timedelta
+from typing import List
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
@@ -149,19 +150,24 @@ class EventDetailView(DetailView):
         context['same_event_details'] = self._fetch_same_event_details(event_detail)
         return context
 
-    def _fetch_same_event_details(self, event_detail: EventDetail) -> QuerySet:
+    def _fetch_same_event_details(self, event_detail: EventDetail) -> List[EventDetail]:
         # キャッシュキーを生成
         cache_key = f'same_event_details_{event_detail.event_id}'
         same_event_details = cache.get(cache_key)
-
+        same_event_details = None
         if same_event_details is None:
             # キャッシュがない場合のみDBクエリを実行
-            same_event_details = list(EventDetail.objects.filter(
-                event=event_detail.event,
-                h1__isnull=False
-            ).exclude(
-                id=event_detail.id
-            ).only('id', 'h1').order_by('-created_at')[:6])
+            same_event_details = list(
+                EventDetail.objects
+                .filter(
+                    event__community=event_detail.event.community,
+                    h1__isnull=False,
+                    h1__gt=''  # より効率的な空文字列の除外
+                )
+                .exclude(id=event_detail.id)
+                .order_by('-created_at')
+                .values('id', 'h1')[:6]
+            )
 
             # 1時間キャッシュする
             cache.set(cache_key, same_event_details, 60 * 60)
