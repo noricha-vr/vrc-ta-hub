@@ -95,7 +95,13 @@
             font-weight: 400;
         }
 
+        .shadow-hover {
+            transition: box-shadow 0.3s ease-in-out;
+        }
 
+        .shadow-hover:hover {
+            box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
+        }
     </style>
     <div class="container mt-5">
         <div class="row post mb-5">
@@ -208,12 +214,14 @@
                     <h2>{{ event_detail.event.community.name }}の他の発表もチェック！</h2>
                     <div class="row g-4">
                         {% for related_event_detail in related_event_details %}
+
                             <div class="col-12">
-                                <div class="card h-100 shadow-sm">
+                                <div class="card h-100 shadow-sm shadow-hover">
                                     <div class="card-body">
-                                        <h5 class="card-title text-truncate mb-0">
+                                        <h3 class="card-title text-truncate mb-0"
+                                            style="all: revert; font-size: 1.25rem; margin: 0;font-weight: 400;">
                                             {{ related_event_detail.h1 }}
-                                        </h5>
+                                        </h3>
                                         <a href="{% url 'event:detail' related_event_detail.id %}"
                                            class="stretched-link"></a>
                                     </div>
