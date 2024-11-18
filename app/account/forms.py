@@ -61,12 +61,12 @@ class CustomUserCreationForm(UserCreationForm):
         widgets = {
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
-            'discord_id': forms.TextInput(attrs={'class': 'form-control'}),
+            'discord_id': forms.TextInput(attrs={'class': 'form-control', 'required': 'required'}),
             'password1': forms.PasswordInput(attrs={'class': 'form-control'}),
             'password2': forms.PasswordInput(attrs={'class': 'form-control'}),
         }
         help_texts = {
-            'discord_id': 'イベント開催日程の調整やアップデートのお知らせなどのためにDiscordサーバーに招待します。'
+            'discord_id': 'イベント開催日程の調整やお知らせなどのためにDiscordサーバーに招待します。ホームページには公開されません。'
         }
 
     def save(self, commit=True):
