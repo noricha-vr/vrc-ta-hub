@@ -1,6 +1,7 @@
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, TemplateView
+from django.utils.safestring import mark_safe
 
 from community.models import Community
 from .forms import CustomUserCreationForm, BootstrapAuthenticationForm, BootstrapPasswordChangeForm
@@ -28,7 +29,7 @@ class CustomUserCreateView(CreateView):
     def form_valid(self, form):
         messages.success(self.request, 'ユーザー登録が完了しました。集会は承認後に公開されます。')
         message = 'Discordサーバー「<a href="https://discord.gg/6jCkUUb9VN">技術・学術系イベントHub</a>」にご参加ください。'
-        messages.warning(self.request, message)
+        messages.warning(self.request, mark_safe(message))
         return super().form_valid(form)
 
 
