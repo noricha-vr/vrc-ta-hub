@@ -93,3 +93,4 @@ db.sqlite3
 /output.txt
 secret
 /summary.config.json
+/app/summary.config.json
