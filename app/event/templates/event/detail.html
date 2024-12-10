@@ -178,7 +178,9 @@
                         </tr>
                         <tr>
                             <th scope="row">発表者</th>
-                            <td>{{ event_detail.speaker }}</td>
+                            <td>
+                                <a href="{% url 'event:detail_history' %}?speaker={{ event_detail.speaker }}"
+                                   class="me-2">{{ event_detail.speaker }}</a></td>
                         </tr>
                         <tr>
                             <th scope="row">発表資料</th>
