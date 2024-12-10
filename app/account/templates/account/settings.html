@@ -1,185 +1,192 @@
 {% extends 'ta_hub/base.html' %}
 
 {% block main %}
-<div class="container my-4">
-    <div class="row">
-        <div class="col-md-8 offset-md-2">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">管理（{{ community.name }}）</h4>
-                </div>
-                <div class="card-body">
-                    {% include 'ta_hub/messages.html' %}
+    <div class="container my-4">
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">管理（{{ community.name }}）</h4>
+                    </div>
+                    <div class="card-body">
+                        {% include 'ta_hub/messages.html' %}
 
-                    <div class="accordion" id="settingsAccordion">
-                        <!-- イベント管理（デフォルトで開く） -->
-                        <div class="accordion-item">
-                            <h2 class="accordion-header" id="headingEvents">
-                                <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                                    data-bs-target="#collapseEvents" aria-expanded="true"
-                                    aria-controls="collapseEvents">
-                                    <i class="bi bi-calendar-event-fill me-2"></i>イベント管理
-                                </button>
-                            </h2>
-                            <div id="collapseEvents" class="accordion-collapse collapse show"
-                                aria-labelledby="headingEvents" data-bs-parent="#settingsAccordion">
-                                <div class="accordion-body">
-                                    <ul class="list-group list-group-flush">
-                                        <li class="list-group-item">
-                                            <a href="{% url 'event:my_list' %}" class="text-decoration-none">
-                                                <i class="bi bi-list-ul me-2"></i>イベント一覧 (LT登録・編集・削除・告知)
-                                            </a>
-                                        </li>
-                                        <li class="list-group-item">
-                                            <a href="https://docs.google.com/spreadsheets/d/17-WmBANylV9Y7u3gut-qlmO6KTxxRBDz_JpLvvZwZ2I/edit?usp=sharing"
-                                                class="text-decoration-none" target="_blank" rel="noopener noreferrer">
-                                                <i class="bi bi-file-earmark-spreadsheet me-2"></i>過去イベント一括登録
-                                            </a>
-                                        </li>
-                                        {% if community.is_accepted %}
-                                        <li class="list-group-item">
-                                            <a class="text-decoration-none"
-                                                href="https://discord.com/channels/1143765879377645628/1272910390942240798/1272910523683438612"
-                                                target="_blank" rel="noopener noreferrer">
-                                                <i class="bi bi-calendar-range me-2"></i>開催日程調整
-                                            </a>
-                                        </li>
-                                        {% endif %}
-                                    </ul>
+                        <div class="accordion" id="settingsAccordion">
+                            <!-- イベント管理（デフォルトで開く） -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingEvents">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#collapseEvents" aria-expanded="true"
+                                            aria-controls="collapseEvents">
+                                        <i class="bi bi-calendar-event-fill me-2"></i>イベント管理
+                                    </button>
+                                </h2>
+                                <div id="collapseEvents" class="accordion-collapse collapse show"
+                                     aria-labelledby="headingEvents" data-bs-parent="#settingsAccordion">
+                                    <div class="accordion-body">
+                                        <ul class="list-group list-group-flush">
+                                            <li class="list-group-item">
+                                                <a href="{% url 'event:my_list' %}" class="text-decoration-none">
+                                                    <i class="bi bi-list-ul me-2"></i>イベント一覧 (LT登録・編集・削除・告知)
+                                                </a>
+                                            </li>
+                                            <li class="list-group-item">
+                                                <a href="https://docs.google.com/spreadsheets/d/17-WmBANylV9Y7u3gut-qlmO6KTxxRBDz_JpLvvZwZ2I/edit?usp=sharing"
+                                                   class="text-decoration-none" target="_blank"
+                                                   rel="noopener noreferrer">
+                                                    <i class="bi bi-file-earmark-spreadsheet me-2"></i>過去イベント一括登録
+                                                </a>
+                                            </li>
+                                            {% if community.is_accepted %}
+                                                <li class="list-group-item">
+                                                    <a class="text-decoration-none"
+                                                       href="https://discord.gg/zxXXM6MwXq"
+                                                       target="_blank" rel="noopener noreferrer">
+                                                        <i class="bi bi-calendar-range me-2"></i>開催日程調整
+                                                    </a>
+                                                </li>
+                                            {% endif %}
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- 集会管理 -->
-                        <div class="accordion-item">
-                            <h2 class="accordion-header" id="headingCommunity">
-                                <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                                    data-bs-target="#collapseCommunity" aria-expanded="true"
-                                    aria-controls="collapseCommunity">
-                                    <i class="bi bi-people-fill me-2"></i>集会管理
-                                </button>
-                            </h2>
-                            <div id="collapseCommunity" class="accordion-collapse collapse show"
-                                aria-labelledby="headingCommunity" data-bs-parent="#settingsAccordion">
-                                <div class="accordion-body">
-                                    <ul class="list-group list-group-flush">
-                                        {% if community %}
-                                        <li class="list-group-item">
-                                            <a href="{% url 'community:detail' community.pk %}"
-                                                class="text-decoration-none">
-                                                <i class="bi bi-info-circle me-2"></i>集会情報を確認
-                                            </a>
-                                        </li>
-                                        <li class="list-group-item">
-                                            <a href="{% url 'community:update' community.pk %}"
-                                                class="text-decoration-none">
-                                                <i class="bi bi-pencil-square me-2"></i>集会情報を編集
-                                            </a>
-                                        </li>
-                                        <li class="list-group-item">
-                                            <a href="{% url 'community:calendar_update' community.pk %}"
-                                                class="text-decoration-none">
-                                                <i class="bi bi-calendar-check me-2"></i>VRCイベントカレンダー情報を編集
-                                            </a>
-                                        </li>
-                                        <!-- 新しく追加されたTwitterテンプレートリストへのリンク -->
-                                        <li class="list-group-item">
-                                            <a href="{% url 'twitter:template_list' %}" class="text-decoration-none">
-                                                <i class="bi bi-twitter me-2"></i>Twitterテンプレート一覧
-                                            </a>
-                                        </li>
-                                        {% endif %}
-                                    </ul>
+                            <!-- 集会管理 -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingCommunity">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#collapseCommunity" aria-expanded="true"
+                                            aria-controls="collapseCommunity">
+                                        <i class="bi bi-people-fill me-2"></i>集会管理
+                                    </button>
+                                </h2>
+                                <div id="collapseCommunity" class="accordion-collapse collapse show"
+                                     aria-labelledby="headingCommunity" data-bs-parent="#settingsAccordion">
+                                    <div class="accordion-body">
+                                        <ul class="list-group list-group-flush">
+                                            {% if community %}
+                                                <li class="list-group-item">
+                                                    <a href="{% url 'community:detail' community.pk %}"
+                                                       class="text-decoration-none">
+                                                        <i class="bi bi-info-circle me-2"></i>集会情報を確認
+                                                    </a>
+                                                </li>
+                                                <li class="list-group-item">
+                                                    <a href="{% url 'community:update' community.pk %}"
+                                                       class="text-decoration-none">
+                                                        <i class="bi bi-pencil-square me-2"></i>集会情報を編集
+                                                    </a>
+                                                </li>
+                                                <li class="list-group-item">
+                                                    <a href="{% url 'community:calendar_update' community.pk %}"
+                                                       class="text-decoration-none">
+                                                        <i class="bi bi-calendar-check me-2"></i>VRCイベントカレンダー情報を編集
+                                                    </a>
+                                                </li>
+                                                <!-- 新しく追加されたTwitterテンプレートリストへのリンク -->
+                                                <li class="list-group-item">
+                                                    <a href="{% url 'twitter:template_list' %}"
+                                                       class="text-decoration-none">
+                                                        <i class="bi bi-twitter me-2"></i>Twitterテンプレート一覧
+                                                    </a>
+                                                </li>
+                                            {% endif %}
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
 
-                        <!-- コミュニティ管理 -->
-                        {% if user.is_staff %}
-                        <div class="accordion-item">
-                            <h2 class="accordion-header" id="headingCommunityManagement">
-                                <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                                    data-bs-target="#collapseCommunityManagement" aria-expanded="true"
-                                    aria-controls="collapseCommunityManagement">
-                                    <i class="bi bi-gear-fill me-2"></i>コミュニティ管理
-                                </button>
-                            </h2>
-                            <div id="collapseCommunityManagement" class="accordion-collapse collapse show"
-                                aria-labelledby="headingCommunityManagement" data-bs-parent="#settingsAccordion">
-                                <div class="accordion-body">
-                                    <ul class="list-group list-group-flush">
-                                        <li class="list-group-item">
-                                            <a href="{% url 'community:waiting_list' %}" class="text-decoration-none">
-                                                <i class="bi bi-hourglass-split me-2"></i>承認待集会一覧
-                                            </a>
-                                        </li>
-                                    </ul>
+                            <!-- コミュニティ管理 -->
+                            {% if user.is_staff %}
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="headingCommunityManagement">
+                                        <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                                                data-bs-target="#collapseCommunityManagement" aria-expanded="true"
+                                                aria-controls="collapseCommunityManagement">
+                                            <i class="bi bi-gear-fill me-2"></i>コミュニティ管理
+                                        </button>
+                                    </h2>
+                                    <div id="collapseCommunityManagement" class="accordion-collapse collapse show"
+                                         aria-labelledby="headingCommunityManagement"
+                                         data-bs-parent="#settingsAccordion">
+                                        <div class="accordion-body">
+                                            <ul class="list-group list-group-flush">
+                                                <li class="list-group-item">
+                                                    <a href="{% url 'community:waiting_list' %}"
+                                                       class="text-decoration-none">
+                                                        <i class="bi bi-hourglass-split me-2"></i>承認待集会一覧
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            <!-- アカウント設定 -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingAccount">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#collapseAccount" aria-expanded="true"
+                                            aria-controls="collapseAccount">
+                                        <i class="bi bi-person-fill me-2"></i>アカウント設定
+                                    </button>
+                                </h2>
+                                <div id="collapseAccount" class="accordion-collapse collapse show"
+                                     aria-labelledby="headingAccount" data-bs-parent="#settingsAccordion">
+                                    <div class="accordion-body">
+                                        <ul class="list-group list-group-flush">
+                                            <li class="list-group-item">
+                                                <a href="{% url 'account:user_update' %}" class="text-decoration-none">
+                                                    <i class="bi bi-person-lines-fill me-2"></i>ユーザー情報を更新
+                                                </a>
+                                            </li>
+                                            <li class="list-group-item">
+                                                <a href="{% url 'account:password_change' %}"
+                                                   class="text-decoration-none">
+                                                    <i class="bi bi-key-fill me-2"></i>パスワードを変更
+                                                </a>
+                                            </li>
+                                            <li class="list-group-item">
+                                                <a href="{% url 'account:logout' %}" class="text-decoration-none">
+                                                    <i class="bi bi-box-arrow-right me-2"></i>ログアウト
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        {% endif %}
 
-                        <!-- アカウント設定 -->
-                        <div class="accordion-item">
-                            <h2 class="accordion-header" id="headingAccount">
-                                <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                                    data-bs-target="#collapseAccount" aria-expanded="true"
-                                    aria-controls="collapseAccount">
-                                    <i class="bi bi-person-fill me-2"></i>アカウント設定
-                                </button>
-                            </h2>
-                            <div id="collapseAccount" class="accordion-collapse collapse show"
-                                aria-labelledby="headingAccount" data-bs-parent="#settingsAccordion">
-                                <div class="accordion-body">
-                                    <ul class="list-group list-group-flush">
-                                        <li class="list-group-item">
-                                            <a href="{% url 'account:user_update' %}" class="text-decoration-none">
-                                                <i class="bi bi-person-lines-fill me-2"></i>ユーザー情報を更新
-                                            </a>
-                                        </li>
-                                        <li class="list-group-item">
-                                            <a href="{% url 'account:password_change' %}" class="text-decoration-none">
-                                                <i class="bi bi-key-fill me-2"></i>パスワードを変更
-                                            </a>
-                                        </li>
-                                        <li class="list-group-item">
-                                            <a href="{% url 'account:logout' %}" class="text-decoration-none">
-                                                <i class="bi bi-box-arrow-right me-2"></i>ログアウト
-                                            </a>
-                                        </li>
-                                    </ul>
+                            <!-- その他 -->
+                            {% if not community.is_accepted %}
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="headingOther">
+                                        <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                                                data-bs-target="#collapseOther" aria-expanded="true"
+                                                aria-controls="collapseOther">
+                                            <i class="bi bi-three-dots me-2"></i>その他
+                                        </button>
+                                    </h2>
+                                    <div id="collapseOther" class="accordion-collapse collapse show"
+                                         aria-labelledby="headingOther" data-bs-parent="#settingsAccordion">
+                                        <div class="accordion-body">
+                                            <ul class="list-group list-group-flush">
+                                                <li class="list-group-item">
+                                                    <i class="bi bi-discord me-2"></i>Discord <a
+                                                        class="text-decoration-none"
+                                                        href="https://discord.gg/6jCkUUb9VN" target="_blank"
+                                                        rel="noopener noreferrer">技術・学術系Hub </a>にご参加ください
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            {% endif %}
                         </div>
-
-                        <!-- その他 -->
-                        {% if not community.is_accepted %}
-                        <div class="accordion-item">
-                            <h2 class="accordion-header" id="headingOther">
-                                <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                                    data-bs-target="#collapseOther" aria-expanded="true" aria-controls="collapseOther">
-                                    <i class="bi bi-three-dots me-2"></i>その他
-                                </button>
-                            </h2>
-                            <div id="collapseOther" class="accordion-collapse collapse show"
-                                aria-labelledby="headingOther" data-bs-parent="#settingsAccordion">
-                                <div class="accordion-body">
-                                    <ul class="list-group list-group-flush">
-                                        <li class="list-group-item">
-                                            <i class="bi bi-discord me-2"></i>Discord <a class="text-decoration-none"
-                                                href="https://discord.gg/6jCkUUb9VN" target="_blank"
-                                                rel="noopener noreferrer">技術・学術系Hub </a>にご参加ください
-                                        </li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 {% endblock %}
