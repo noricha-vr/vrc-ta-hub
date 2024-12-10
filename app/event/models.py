@@ -39,7 +39,9 @@ class EventDetail(models.Model):
     youtube_url = models.URLField('YouTube URL', blank=True, null=True)
     slide_url = models.URLField('スライド URL', blank=True, null=True)
     slide_file = models.FileField('スライド', blank=True, null=True, upload_to='slide/')
-    speaker = models.CharField('発表者', max_length=200, blank=True, default='', db_index=True)
+    speaker = models.CharField('発表者', max_length=200, blank=True, default='',
+                               help_text="VRChat表示名が望ましい。ただし、表記揺れはそのうち勝手に調整します",
+                               db_index=True)
     theme = models.CharField('テーマ', max_length=100, blank=True, default='', db_index=True)
     h1 = models.CharField('タイトル(H1)', max_length=255, blank=True, default='', db_index=True)
     contents = models.TextField('内容', blank=True, default='')
