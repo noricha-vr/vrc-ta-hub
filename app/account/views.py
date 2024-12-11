@@ -1,9 +1,14 @@
+from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth.views import PasswordChangeView
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, TemplateView
 from django.utils.safestring import mark_safe
+from django.views.generic import CreateView, TemplateView
+from django.views.generic import UpdateView
 
 from community.models import Community
+from .forms import CustomUserChangeForm
 from .forms import CustomUserCreationForm, BootstrapAuthenticationForm, BootstrapPasswordChangeForm
 
 
@@ -33,12 +38,6 @@ class CustomUserCreateView(CreateView):
         return super().form_valid(form)
 
 
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.urls import reverse_lazy
-from django.views.generic import UpdateView
-from .forms import CustomUserChangeForm
-
-
 class UserNameChangeView(LoginRequiredMixin, UpdateView):
     form_class = CustomUserChangeForm
     success_url = reverse_lazy('account:settings')
@@ -52,10 +51,6 @@ class UserNameChangeView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
-from django.urls import reverse_lazy
-from django.contrib.auth.views import PasswordChangeView
-
-
 class CustomPasswordChangeView(LoginRequiredMixin, PasswordChangeView):
     success_url = reverse_lazy('account:settings')
     template_name = 'account/password_change.html'
@@ -64,12 +59,6 @@ class CustomPasswordChangeView(LoginRequiredMixin, PasswordChangeView):
     def form_valid(self, form):
         messages.success(self.request, 'パスワードが変更されました。')
         return super().form_valid(form)
-
-
-from django.contrib import messages
-from django.urls import reverse_lazy
-from django.views.generic import UpdateView
-from .forms import CustomUserChangeForm
 
 
 class UserUpdateView(LoginRequiredMixin, UpdateView):
