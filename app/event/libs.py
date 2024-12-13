@@ -154,6 +154,8 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     - 文字起こしは精度が低いためテーマやスライドから前後の文脈や名詞、単語を補うこと
     - 文章の流れが自然になるように見出しと内容の連携を強化
     - SEOを意識して、タイトル、見出しを設定し、文中にキーワードを盛り込む
+    - 発表者の話を聞いた人の視点で文章を書くこと
+    
 
     # フォーマット
     - マークダウン形式で出力
@@ -166,6 +168,7 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     - まとめの最後にはスライドのリンクを貼る
     - コンテンツは1000〜1800文字に制限
     - ポップさ 80%、フォーマルさ 20%で文章を作成する
+    - 積極的に空行を追加することで、読みやすさを重視
 
     # 禁止事項
     - PDFの内容を画像として記事に埋めこんではいけません
@@ -173,6 +176,9 @@ def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:
     - h2の前にインデックス番号をつけてはいけません
     - h2を最大7個以上作ってはいけません
     - 硬い文章表現を控えてください
+    
+    # 禁止ワード
+    - ブログ
     """
 
     return prompt
