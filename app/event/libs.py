@@ -1,24 +1,24 @@
-from typing import Optional
-from googleapiclient.discovery import build
 import logging
 import os
 import tempfile
 import uuid
+from typing import Optional
 
 import bleach
 import google.generativeai as genai
 import markdown
 from bs4 import BeautifulSoup
+from googleapiclient.discovery import build
 from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api.formatters import TextFormatter
 
 from event.models import EventDetail
 from website.settings import GEMINI_API_KEY, GOOGLE_API_KEY
+
 logger = logging.getLogger(__name__)
 genai.configure(api_key=GEMINI_API_KEY)
 
 
-def generate_blog(event_detail: EventDetail, model='gemini-1.5-flash-exp-0827') -> str:
+def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> str:
     """
     EventDetailに関連付けられたスライドファイルをもとにブログ記事を生成する関数
 
@@ -126,13 +126,12 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
 
         # 字幕テキストを結合
         captions_text = "\n".join([entry['text']
-                                    for entry in transcript.fetch()])
+                                   for entry in transcript.fetch()])
         return captions_text
 
     except Exception as e:
         logger.error(f"Youtubeから文字起こしを取得するときにエラーが発生しました: {str(e)}")
         return None
-
 
 
 def create_blog_prompt(event_detail: EventDetail, transcript: str) -> str:

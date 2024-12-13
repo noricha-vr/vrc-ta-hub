@@ -190,7 +190,7 @@ CALENDAR_ID = os.environ.get('CALENDAR_ID')
 assert CALENDAR_ID is not None, 'Please set CALENDAR_ID'
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
-GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-1.5-flash-002')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash-exp')
 
 # OpenAI API
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
