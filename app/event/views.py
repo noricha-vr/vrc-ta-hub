@@ -427,13 +427,23 @@ class EventDetailPastList(ListView):
     context_object_name = 'event_details'
     paginate_by = 20
 
+    def get_client_ip(request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            # X-Forwarded-For は複数のIPがカンマ区切りで入っている場合がある
+            # 例: "203.0.113.1, 169.254.169.126"
+            ip = x_forwarded_for.split(',')[0].strip()
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
+
     def get(self, request, *args, **kwargs):
         # 通常のget処理の前にページ番号をチェック
         page = request.GET.get('page', 1)
         self.object_list = self.get_queryset()
 
         # アクセス元ipアドレスを取得
-        ip = request.META.get('REMOTE_ADDR')
+        ip = self.get_client_ip(request)
         logger.info(f"EventDetailPastList get ip: {ip}")
 
         paginator = self.get_paginator(self.object_list, self.paginate_by)
