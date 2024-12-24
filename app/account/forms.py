@@ -42,7 +42,7 @@ class CustomUserCreationForm(UserCreationForm):
 
     poster_image = forms.ImageField(
         label='ポスター',
-        required=False,
+        required=True,
         help_text="""最大サイズ: 30MB\n
 対応フォーマット: jpg, jpeg, png\n
 このサイトやイベント紹介、ワールドに設置されているアセット、APIなどで利用されます""",
