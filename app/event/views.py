@@ -432,6 +432,10 @@ class EventDetailPastList(ListView):
         page = request.GET.get('page', 1)
         self.object_list = self.get_queryset()
 
+        # アクセス元ipアドレスを取得
+        ip = request.META.get('REMOTE_ADDR')
+        logger.info(f"EventDetailPastList get ip: {ip}")
+
         paginator = self.get_paginator(self.object_list, self.paginate_by)
         if int(page) > paginator.num_pages and paginator.num_pages > 0:
             # クエリパラメータを維持したまま1ページ目にリダイレクト
