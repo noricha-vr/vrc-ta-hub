@@ -246,9 +246,6 @@ def generate_meta_description(text: str) -> str:
         response = llm.invoke([HumanMessage(content=prompt)])
         meta_description = response.content.strip()
 
-        # 120文字を超える場合はカット
-        if len(meta_description) > 120:
-            meta_description = meta_description[:120]
 
         return meta_description
 
