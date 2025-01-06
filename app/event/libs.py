@@ -194,3 +194,76 @@ def convert_markdown(markdown_text: str) -> str:
     html = str(soup)
 
     return bleach.clean(html, tags=allowed_tags, attributes=allowed_attributes)
+
+
+def generate_meta_description(text: str) -> str:
+    """
+    Geminiを使用してブログ記事のテキストからメタディスクリプションを生成する関数
+
+    Args:
+        text (str): ブログ記事の全文テキスト
+
+    Returns:
+        str: 生成されたメタディスクリプション（120文字以内）
+    """
+    try:
+        # Langchainのモデルを初期化
+        llm = ChatGoogleGenerativeAI(
+            model='gemini-1.0-pro',
+            google_api_key=GEMINI_API_KEY,
+            temperature=0.3,
+        )
+
+        # プロンプトテンプレートを作成
+        prompt_template = PromptTemplate.from_template("""
+        # 指示
+        以下の内容をもとにメタディスクリプションを生成してください。
+
+        # メタディスクリプションの要件
+        - 主題や主要ポイントを簡潔に要約する
+        - SEOを意識し、検索結果で魅力的に見える説明にする
+        - 120文字以内で作成する
+        - 文末に「...」を付けない
+        - キーワードを自然に含める
+        - VRChatやコミュニティ名、発表者名など固有名詞があれば必ず含める
+        - 読者が思わずクリックしたくなるような表現を心がける
+
+        # 禁止事項
+        - 120文字を超えてはいけない
+        - 「記事」「ブログ」という単語を使わない
+        - 「まとめ」「解説」という単語を使わない
+        - 「！」「？」などの記号は使わない
+        - 開催日時などは含めない
+
+        # 入力テキスト
+        {text}
+        """)
+
+        # プロンプトを生成
+        prompt = prompt_template.format(text=text)
+
+        # LangChainを使用してメタディスクリプションを生成
+        response = llm.invoke([HumanMessage(content=prompt)])
+        meta_description = response.content.strip()
+
+        # 120文字を超える場合はカット
+        if len(meta_description) > 120:
+            meta_description = meta_description[:120]
+
+        return meta_description
+
+    except Exception as e:
+        logger.warning(f"メタディスクリプションの生成中にエラーが発生しました: {str(e)}")
+        # エラーが発生した場合は従来の方法でメタディスクリプションを生成
+        lines = text.split('\n')
+        lines = [line.strip() for line in lines if line.strip()]
+        if lines and (lines[0].startswith('# ') or lines[0].startswith('#')):
+            lines = lines[1:]
+        content = ' '.join([
+            line.replace('## ', '').replace('### ', '').replace('#### ', '')
+            for line in lines
+            if not line.startswith('>')
+        ])
+        if len(content) > 120:
+            content = content[:117] + '...'
+        return content.strip()

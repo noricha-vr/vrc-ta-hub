@@ -20,7 +20,7 @@ from googleapiclient.discovery import build
 
 from community.models import Community, WEEKDAY_CHOICES
 from event.forms import EventDetailForm, EventSearchForm, EventCreateForm
-from event.libs import convert_markdown, generate_blog
+from event.libs import convert_markdown, generate_blog, generate_meta_description
 from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url
 from url_filters import get_filtered_url
@@ -341,8 +341,12 @@ class GenerateBlogView(LoginRequiredMixin, View):
 
             event_detail.h1 = h1.strip().replace('## ', '').replace('# ', '')
             event_detail.contents = content
+            event_detail.meta_description = generate_meta_description(text)
             event_detail.save()
 
+            logger.info(f"ブログ記事が生成されました。: {event_detail.id}")
+            logger.info(f"ブログ記事のメタディスクリプション: {event_detail.meta_description}")
+            
             messages.success(request, "ブログ記事が生成されました。")
             return redirect('event:detail', pk=event_detail.id)
 

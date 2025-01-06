@@ -45,6 +45,8 @@ class EventDetail(models.Model):
     theme = models.CharField('テーマ', max_length=100, blank=True, default='', db_index=True)
     h1 = models.CharField('タイトル(H1)', max_length=255, blank=True, default='', db_index=True)
     contents = models.TextField('内容', blank=True, default='')
+    meta_description = models.CharField(
+        'メタディスクリプション', max_length=255, blank=True, default='')
 
     class Meta:
         verbose_name = 'イベント詳細'

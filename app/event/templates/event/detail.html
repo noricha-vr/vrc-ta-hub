@@ -4,11 +4,11 @@
     <meta name="twitter:title" content="{{ event_detail.title }} - VRChat 技術・学術系イベントHub">
     <meta property="og:title" content="{{ event_detail.title }} - VRChat 技術・学術系イベントHub">
     <meta name="description"
-          content="{{ event_detail }} {{ event_detail.contents|truncatechars:"100" }}">
+          content="{{ event_detail }} {{ event_detail.meta_description }}">
     <meta name="twitter:description"
-          content="{{ event_detail }} {{ event_detail.contents|truncatechars:"100" }}">
+          content="{{ event_detail }} {{ event_detail.meta_description }}">
     <meta property="og:description"
-          content="{{ event_detail }} {{ event_detail.contents|truncatechars:"100" }}">
+          content="{{ event_detail }} {{ event_detail.meta_description }}">
     {% if event_detail.event.community.poster_image %}
         <meta property="og:image" content="{{ event_detail.event.community.poster_image.url }}">
         <meta name="twitter:image" content="{{ event_detail.event.community.poster_image.url }}">
