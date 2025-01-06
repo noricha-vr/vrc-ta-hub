@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from django import forms
 from django.core.exceptions import ValidationError
 
@@ -115,3 +116,124 @@ class EventDetailForm(forms.ModelForm):
             if slide_file.size > 30 * 1024 * 1024:  # 30MB
                 raise ValidationError('ファイルサイズが30MBを超えています。')
         return slide_file
+
+
+RECURRENCE_CHOICES = [
+    ('none', '単発イベント'),
+    ('weekly', '毎週'),
+    ('biweekly', '隔週'),
+    ('monthly_by_day', '毎月同じ曜日（例：第2月曜日）'),
+    ('monthly_by_date', '毎月同じ日（例：毎月15日）'),
+]
+
+CALENDAR_WEEKDAY_CHOICES = [
+    ('MO', '月曜日'),
+    ('TU', '火曜日'),
+    ('WE', '水曜日'),
+    ('TH', '木曜日'),
+    ('FR', '金曜日'),
+    ('SA', '土曜日'),
+    ('SU', '日曜日'),
+]
+
+
+class GoogleCalendarEventForm(forms.Form):
+    community = forms.ModelChoiceField(
+        queryset=Community.objects.all(),
+        label='コミュニティ',
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text='イベントを登録するコミュニティを選択してください'
+    )
+
+    start_date = forms.DateField(
+        label='開始日',
+        widget=forms.DateInput(attrs={
+            'type': 'date',
+            'class': 'form-control'
+        }),
+        help_text='イベントの開始日を選択してください'
+    )
+
+    start_time = forms.TimeField(
+        label='開始時刻',
+        widget=forms.TimeInput(attrs={
+            'type': 'time',
+            'class': 'form-control'
+        }),
+        initial='22:00',
+        help_text='イベントの開始時刻を選択してください'
+    )
+
+    duration = forms.IntegerField(
+        label='開催時間（分）',
+        initial=60,
+        min_value=15,
+        max_value=480,
+        widget=forms.NumberInput(attrs={'class': 'form-control'}),
+        help_text='イベントの開催時間を分単位で入力してください'
+    )
+
+    recurrence_type = forms.ChoiceField(
+        choices=RECURRENCE_CHOICES,
+        label='開催周期',
+        initial='none',
+        widget=forms.RadioSelect(attrs={'class': 'form-check-input'}),
+        help_text='イベントの開催周期を選択してください'
+    )
+
+    weekday = forms.ChoiceField(
+        choices=CALENDAR_WEEKDAY_CHOICES,
+        label='曜日',
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text='週次・隔週・毎月同じ曜日の場合、開催する曜日を選択してください'
+    )
+
+    monthly_day = forms.IntegerField(
+        label='開催日',
+        required=False,
+        min_value=1,
+        max_value=31,
+        widget=forms.NumberInput(attrs={'class': 'form-control'}),
+        help_text='毎月同じ日に開催する場合、その日付を選択してください（1-31）'
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # コミュニティが選択されている場合、そのコミュニティの設定を初期値として使用
+        if 'initial' in kwargs and 'community' in kwargs['initial']:
+            community = kwargs['initial']['community']
+            if community:
+                self.fields['start_time'].initial = community.start_time
+                self.fields['duration'].initial = community.duration
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get('start_date')
+        recurrence_type = cleaned_data.get('recurrence_type')
+
+        if start_date:
+            # 過去の日付をチェック
+            if start_date < datetime.now().date():
+                raise ValidationError('過去の日付は選択できません')
+
+            # 6ヶ月以上先の日付をチェック
+            max_date = datetime.now().date() + timedelta(days=180)
+            if start_date > max_date:
+                raise ValidationError('6ヶ月以上先の日付は選択できません')
+
+        # 定期開催の場合の追加バリデーション
+        if recurrence_type in ['weekly', 'biweekly', 'monthly_by_day']:
+            if not cleaned_data.get('weekday'):
+                raise ValidationError('週次・隔週・毎月同じ曜日の場合は曜日を選択してください')
+
+        elif recurrence_type == 'monthly_by_date':
+            if not cleaned_data.get('monthly_day'):
+                raise ValidationError('月次（日付指定）の場合は開催日を選択してください')
+
+            # 31日がない月もあるため、28日までを推奨
+            if cleaned_data.get('monthly_day') > 28:
+                self.add_error(
+                    'monthly_day', '月末の日付は月によって異なるため、28日以前の選択を推奨します')
+
+        return cleaned_data

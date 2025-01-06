@@ -4,21 +4,23 @@ import re
 from datetime import datetime, timedelta
 from typing import List
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.db import IntegrityError
 from django.db.models import QuerySet
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
-from django.views.generic import CreateView, UpdateView, DetailView, ListView
+from django.views.generic import CreateView, UpdateView, DetailView, ListView, FormView
 from django.views.generic.edit import DeleteView
 from google.auth import default
 from google.cloud import bigquery
 from googleapiclient.discovery import build
+import requests
 
 from community.models import Community, WEEKDAY_CHOICES
-from event.forms import EventDetailForm, EventSearchForm, EventCreateForm
+from event.forms import EventDetailForm, EventSearchForm, EventCreateForm, GoogleCalendarEventForm
 from event.libs import convert_markdown, generate_blog, generate_meta_description
 from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url
@@ -524,4 +526,87 @@ class EventDetailPastList(ListView):
 
         context['current_query_params'] = query_params.urlencode()
 
+        return context
+
+
+class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
+    template_name = 'event/calendar_form.html'
+    form_class = GoogleCalendarEventForm
+    success_url = reverse_lazy('event:my_list')
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        # ログインユーザーのコミュニティを初期値として設定
+        if self.request.user.is_authenticated:
+            community = Community.objects.filter(custom_user=self.request.user).first()
+            if community:
+                kwargs['initial'] = {'community': community}
+        return kwargs
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        # ログインユーザーのコミュニティのみを選択肢として表示
+        form.fields['community'].queryset = Community.objects.filter(custom_user=self.request.user)
+        return form
+
+    def form_valid(self, form):
+        try:
+            calendar_service = GoogleCalendarService(
+                calendar_id=GOOGLE_CALENDAR_ID,
+                credentials_path=GOOGLE_CALENDAR_CREDENTIALS
+            )
+
+            start_date = form.cleaned_data['start_date']
+            start_time = form.cleaned_data['start_time']
+            duration = form.cleaned_data['duration']
+            community = form.cleaned_data['community']
+            recurrence_type = form.cleaned_data['recurrence_type']
+
+            # 開始時刻と終了時刻を設定
+            start_datetime = datetime.combine(start_date, start_time)
+            end_datetime = start_datetime + timedelta(minutes=duration)
+
+            # 繰り返しルールの設定
+            recurrence = None
+            if recurrence_type != 'none':
+                if recurrence_type == 'weekly':
+                    recurrence = [calendar_service._create_weekly_rrule([form.cleaned_data['weekday']])]
+                elif recurrence_type == 'biweekly':
+                    recurrence = [calendar_service._create_weekly_rrule([form.cleaned_data['weekday']], interval=2)]
+                elif recurrence_type == 'monthly_by_date':
+                    recurrence = [calendar_service._create_monthly_by_date_rrule([form.cleaned_data['monthly_day']])]
+                elif recurrence_type == 'monthly_by_day':
+                    # 第何週かを計算
+                    week_number = (start_date.day - 1) // 7 + 1
+                    recurrence = [calendar_service._create_monthly_by_week_rrule(week_number, form.cleaned_data['weekday'])]
+
+            # Googleカレンダーにイベントを作成
+            event = calendar_service.create_event(
+                summary=community.name,
+                start_time=start_datetime,
+                end_time=end_datetime,
+                recurrence=recurrence
+            )
+
+            if event:
+                # イベントの同期を実行
+                response = requests.get(
+                    f"{self.request.build_absolute_uri('/')[:-1]}/event/sync/",
+                    headers={'Request-Token': REQUEST_TOKEN}
+                )
+                
+                if response.status_code == 200:
+                    messages.success(self.request, 'イベントが正常に登録されました')
+                else:
+                    messages.warning(self.request, 'イベントは登録されましたが、同期に失敗しました')
+            
+            return super().form_valid(form)
+
+        except Exception as e:
+            messages.error(self.request, f'イベントの登録に失敗しました: {str(e)}')
+            return self.form_invalid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'イベント登録'
         return context
