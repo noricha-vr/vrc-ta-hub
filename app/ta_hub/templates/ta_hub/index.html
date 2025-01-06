@@ -404,7 +404,7 @@
     {% endif %}
 
     <!-- upcoming events section -->
-    <section class="bg-light py-5">
+    <section class="py-5">
         <div class="container">
             <div class="row featurette text-center text-primary mb-4">
                 <h2 class="featurette-heading fw-normal lh-1 fw-bold">
@@ -420,7 +420,7 @@
                 {% for event in upcoming_events %}
                     <div class="col">
                         <a href="{% url 'community:detail' event.community.id %}" class="text-decoration-none">
-                            <div class="card event-card weekday-{{ event.weekday|lower }}">
+                            <div class="card event-card weekday-{{ event.weekday|lower }} shadow">
                                 <div class="row g-0 h-100">
                                     <div class="col-4">
                                         <div class="event-image-container">
