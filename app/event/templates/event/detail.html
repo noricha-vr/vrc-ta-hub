@@ -156,14 +156,7 @@
                 <div class="lead">
                     <table class="table table-responsive">
                         <tbody>
-                        <tr>
-                            <th scope="row">集会名</th>
-                            <td>
-                                <a href="{% url 'community:detail' event_detail.event.community.pk %}"
-                                   class="me-2">{{ event_detail.event.community.name }}
-                                </a>
-                            </td>
-                        </tr>
+                      
                         <tr>
                             <th scope="row">日時</th>
                             <td>
@@ -182,18 +175,27 @@
                                 <a href="{% url 'event:detail_history' %}?speaker={{ event_detail.speaker }}"
                                    class="me-2">{{ event_detail.speaker }}</a></td>
                         </tr>
+                       
+                        <tr>
+                            <th scope="row">集会名</th>
+                            <td>
+                                <a href="{% url 'event:detail_history' %}?community_name={{ event_detail.event.community.name }}" class="me-2">
+                                    {{event_detail.event.community.name }}
+                                </a>
+                            </td>
+                        </tr>
                         <tr>
                             <th scope="row">発表資料</th>
                             <td>
                                 {% if event_detail.slide_url %}
-                                    <a href="{{ event_detail.slide_url }}" target="_blank" class="me-2">
-                                        <i class="bi bi-link me-1"></i>リンク
-                                    </a>
+                                <a href="{{ event_detail.slide_url }}" target="_blank" class="me-2">
+                                    <i class="bi bi-link me-1"></i>リンク
+                                </a>
                                 {% endif %}
                                 {% if event_detail.slide_file %}
-                                    <a href="{{ event_detail.slide_file.url }}" target="_blank">
-                                        <i class="bi bi-file-earmark-text-fill me-1"></i>ファイル
-                                    </a>
+                                <a href="{{ event_detail.slide_file.url }}" target="_blank">
+                                    <i class="bi bi-file-earmark-text-fill me-1"></i>ファイル
+                                </a>
                                 {% endif %}
                             </td>
                         </tr>
