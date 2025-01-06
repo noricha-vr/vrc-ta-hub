@@ -19,6 +19,87 @@
             /* はみ出し防止 */
         }
 
+        /* 予約済み発表カードのスタイル */
+        .presentation-card {
+            height: auto;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border: none;
+            background: #ffffff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .presentation-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+
+        .presentation-image-container {
+            height: 100%;
+            min-height: 200px;
+            background: #f8fafc;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .presentation-image-container .no-image {
+            height: 100%;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f1f5f9;
+            min-height: 200px;
+        }
+
+        .presentation-image-container .no-image i {
+            font-size: 2.5rem;
+            color: #cbd5e1;
+        }
+
+        .presentation-info {
+            padding: 1.5rem;
+        }
+
+        .presentation-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+        }
+
+        .presentation-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .presentation-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #64748b;
+        }
+
+        .presentation-meta-item i {
+            width: 1.25rem;
+            color: #475569;
+        }
+
+        .presentation-description {
+            color: #64748b;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
         /* カレンダーコンポーネントのスタイル調整 */
         pp-calendar {
             display: block;
@@ -28,114 +109,90 @@
 
         /* イベントカード用のスタイル */
         .event-card {
-            height: auto;
-            min-height: 160px;
+            height: 200px;
             transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
             border: none;
             background: #ffffff;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             position: relative;
             overflow: hidden;
-            margin-bottom: 1rem;
         }
-        
+
         .event-card:hover {
             transform: translateY(-4px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
         }
-        
+
         .event-card .card-body {
-            padding: 1.5rem;
+            padding: 1.25rem;
         }
 
         .event-card .card-title {
-            font-size: 1.3rem;
+            font-size: 1.1rem;
             font-weight: 600;
-            margin-bottom: 1rem;
-            line-height: 1.4;
+            margin-bottom: 0.75rem;
+            line-height: 1.3;
             color: #2c3e50;
         }
 
         .event-info {
             display: flex;
             flex-direction: column;
-            gap: 1rem;
-        }
-
-        .speaker-info {
-            display: flex;
-            align-items: center;
             gap: 0.5rem;
-            color: #64748b;
-            font-size: 1rem;
-        }
-
-        .speaker-info i {
-            color: #94a3b8;
-        }
-
-        .speaker-info span {
-            font-weight: 600;
-            color: #475569;
         }
 
         .datetime-container {
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
+            gap: 0.35rem;
         }
 
-        .datetime-info, .time-info {
+        .datetime-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .datetime-info {
             display: flex;
             align-items: center;
             gap: 0.5rem;
             color: #64748b;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
         }
 
-        .datetime-info span, .time-info span {
-            font-weight: 500;
-            color: #475569;
-        }
-
-        .datetime-info i, .time-info i {
-            color: #94a3b8;
-        }
-
-        .community-info {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-        }
-
-        .community-name {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 1rem;
-            color: #64748b;
-        }
-
-        .community-name i {
-            color: #94a3b8;
-        }
-
-        .community-name span {
+        .datetime-info span {
             font-weight: 600;
             color: #475569;
         }
 
-        .community-description {
-            font-size: 0.9rem;
+        .time-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
             color: #64748b;
-            line-height: 1.5;
-            margin-top: 0.25rem;
+            font-size: 0.85rem;
+        }
+
+        .time-info span {
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .time-info i {
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+
+        .description {
+            margin-top: 0.75rem;
+            color: #64748b;
+            font-size: 0.85rem;
+            line-height: 1.4;
         }
 
         .event-image-container {
-            height: 100%;
-            min-height: 160px;
+            height: 200px;
             overflow: hidden;
             border-radius: 8px 0 0 8px;
             background: #f8fafc;
@@ -186,22 +243,62 @@
         }
 
         /* 曜日カラースキーム（より洗練された配色） */
-        .weekday-sun { color: #dc2626; }
-        .weekday-mon { color: #b45309; }
-        .weekday-tue { color: #b45309; }
-        .weekday-wed { color: #0369a1; }
-        .weekday-thu { color: #047857; }
-        .weekday-fri { color: #9d174d; }
-        .weekday-sat { color: #5b21b6; }
+        .weekday-sun {
+            color: #dc2626;
+        }
+
+        .weekday-mon {
+            color: #b45309;
+        }
+
+        .weekday-tue {
+            color: #b45309;
+        }
+
+        .weekday-wed {
+            color: #0369a1;
+        }
+
+        .weekday-thu {
+            color: #047857;
+        }
+
+        .weekday-fri {
+            color: #9d174d;
+        }
+
+        .weekday-sat {
+            color: #5b21b6;
+        }
 
         /* 曜日マーカーの背景（より繊細な表現） */
-        .weekday-sun::before { background-color: rgba(254, 202, 202, 0.4); }
-        .weekday-mon::before { background-color: rgba(254, 243, 199, 0.4); }
-        .weekday-tue::before { background-color: rgba(253, 230, 138, 0.4); }
-        .weekday-wed::before { background-color: rgba(186, 230, 253, 0.4); }
-        .weekday-thu::before { background-color: rgba(167, 243, 208, 0.4); }
-        .weekday-fri::before { background-color: rgba(251, 207, 232, 0.4); }
-        .weekday-sat::before { background-color: rgba(224, 231, 255, 0.4); }
+        .weekday-sun::before {
+            background-color: rgba(254, 202, 202, 0.4);
+        }
+
+        .weekday-mon::before {
+            background-color: rgba(254, 243, 199, 0.4);
+        }
+
+        .weekday-tue::before {
+            background-color: rgba(253, 230, 138, 0.4);
+        }
+
+        .weekday-wed::before {
+            background-color: rgba(186, 230, 253, 0.4);
+        }
+
+        .weekday-thu::before {
+            background-color: rgba(167, 243, 208, 0.4);
+        }
+
+        .weekday-fri::before {
+            background-color: rgba(251, 207, 232, 0.4);
+        }
+
+        .weekday-sat::before {
+            background-color: rgba(224, 231, 255, 0.4);
+        }
 
         .weekday-badge::before {
             content: '';
@@ -237,74 +334,73 @@
 
     <!-- upcoming event details section -->
     {% if upcoming_event_details %}
-    <section class="bg-white py-5">
-        <div class="container">
-            <div class="row featurette text-center text-primary mb-4">
-                <h2 class="featurette-heading fw-normal lh-1 fw-bold">
-                    <div class="fs-2">📅 予定されている発表一覧</div>
-                </h2>
-            </div>
-            <p class="text-center text-muted mb-5">
-                <i class="bi bi-calendar-check me-2"></i>
-                予約済みの発表をチェックしよう！
-            </p>
-            <div class="row row-cols-1 g-4">
-                {% for detail in upcoming_event_details %}
-                <div class="col">
-                    <a href="{% url 'community:detail' detail.event.community.id %}" class="text-decoration-none">
-                        <div class="card event-card weekday-{{ detail.event.weekday|lower }}">
-                            <div class="row g-0 h-100">
-                                <div class="col-3">
-                                    <div class="event-image-container">
-                                        {% if detail.event.community.poster_image %}
-                                        <img src="{{ detail.event.community.poster_image.url }}" 
-                                             class="img-fluid" 
-                                             alt="{{ detail.event.community.name }}のポスター">
-                                        {% else %}
-                                        <div class="no-image">
-                                            <i class="bi bi-image"></i>
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <div class="col-9">
-                                    <div class="card-body d-flex flex-column h-100">
-                                        <h5 class="card-title">{{ detail.title }}</h5>
-                                        <div class="event-info">
-                                            <div class="speaker-info">
-                                                <i class="bi bi-person"></i>
-                                                <span>{{ detail.speaker }}</span>
-                                            </div>
-                                            <div class="datetime-container">
-                                                <div class="datetime-info">
-                                                    <i class="bi bi-calendar3"></i>
-                                                    <span>{{ detail.event.date|date:"Y/m/d" }}</span>
-                                                </div>
-                                                <div class="time-info">
-                                                    <i class="bi bi-clock"></i>
-                                                    <span>{{ detail.start_time|time:"H:i" }} - {{ detail.end_time|time:"H:i" }}</span>
-                                                </div>
-                                            </div>
-                                            <div class="community-info">
-                                                <div class="community-name">
-                                                    <i class="bi bi-people"></i>
-                                                    <span>{{ detail.event.community.name }}</span>
-                                                </div>
-                                                <div class="community-description">
-                                                    {{ detail.event.community.description|truncatechars:100 }}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </a>
+        <section class="bg-white py-5">
+            <div class="container">
+                <div class="row featurette text-center text-primary mb-4">
+                    <h2 class="featurette-heading fw-normal lh-1 fw-bold">
+                        <div class="fs-2">📅 予定されている発表一覧</div>
+                    </h2>
                 </div>
-                {% endfor %}
+                <p class="text-center text-muted mb-5">
+                    <i class="bi bi-calendar-check me-2"></i>
+                    予約済みの発表をチェックしましょう！
+                </p>
+                <div class="row">
+                    {% for detail in upcoming_event_details %}
+                        <div class="col-12">
+                            <a href="{% url 'community:detail' detail.event.community.id %}"
+                               class="text-decoration-none">
+                                <div class="presentation-card">
+                                    <div class="row g-0">
+                                        <div class="col-3">
+                                            <div class="presentation-image-container">
+                                                {% if detail.event.community.poster_image %}
+                                                    <img src="{{ detail.event.community.poster_image.url }}"
+                                                         class="img-fluid rounded-start h-100 w-100"
+                                                         alt="{{ detail.event.community.name }}のポスター"
+                                                         style="object-fit: cover;">
+                                                {% else %}
+                                                    <div class="no-image">
+                                                        <i class="bi bi-image"></i>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="col-9">
+                                            <div class="presentation-info">
+                                                <h3 class="presentation-title">{{ detail.title }}</h3>
+                                                <div class="presentation-meta">
+
+                                                    <div class="presentation-meta-item">
+                                                        <i class="bi bi-person-fill"></i>
+                                                        <span>発表者: <strong>{{ detail.speaker }}</strong></span>
+                                                    </div>
+                                                    <div class="presentation-meta-item">
+                                                        <i class="bi bi-calendar3"></i>
+                                                        <span>{{ detail.event.date|date:"Y/m/d" }}</span>
+                                                    </div>
+                                                    <div class="presentation-meta-item">
+                                                        <i class="bi bi-clock-fill"></i>
+                                                        <span>{{ detail.start_time|time:"H:i" }} - {{ detail.end_time|time:"H:i" }}</span>
+                                                    </div>
+                                                    <div class="presentation-meta-item">
+                                                        <i class="bi bi-people-fill"></i>
+                                                        <span>{{ detail.event.community.name }}</span>
+                                                    </div>
+                                                </div>
+                                                <div class="presentation-description">
+                                                    {{ detail.event.community.description|truncatechars:200 }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
             </div>
-        </div>
-    </section>
+        </section>
     {% endif %}
 
     <!-- upcoming events section -->
@@ -322,76 +418,76 @@
             </p>
             <div class="row row-cols-1 row-cols-md-2 g-4">
                 {% for event in upcoming_events %}
-                <div class="col">
-                    <a href="{% url 'community:detail' event.community.id %}" class="text-decoration-none">
-                        <div class="card event-card weekday-{{ event.weekday|lower }}">
-                            <div class="row g-0 h-100">
-                                <div class="col-4">
-                                    <div class="event-image-container">
-                                        {% if event.community.poster_image %}
-                                        <img src="{{ event.community.poster_image.url }}" 
-                                             class="img-fluid" 
-                                             alt="{{ event.community.name }}のポスター">
-                                        {% else %}
-                                        <div class="no-image">
-                                            <i class="bi bi-image"></i>
-                                        </div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <div class="col-8">
-                                    <div class="card-body d-flex flex-column h-100">
-                                        <h5 class="card-title">{{ event.community.name }}</h5>
-                                        <div class="event-info">
-                                            <div class="datetime-container">
-                                                <div class="datetime-row">
-                                                    <div class="datetime-info">
-                                                        <i class="bi bi-calendar-event"></i>
-                                                        <span>{{ event.date|date:"Y/m/d" }}</span>
-                                                    </div>
-                                                    <div class="weekday-badge">
-                                                        {% if event.weekday == 'Sun' %}
-                                                            日曜日
-                                                        {% elif event.weekday == 'Mon' %}
-                                                            月曜日
-                                                        {% elif event.weekday == 'Tue' %}
-                                                            火曜日
-                                                        {% elif event.weekday == 'Wed' %}
-                                                            水曜日
-                                                        {% elif event.weekday == 'Thu' %}
-                                                            木曜日
-                                                        {% elif event.weekday == 'Fri' %}
-                                                            金曜日
-                                                        {% elif event.weekday == 'Sat' %}
-                                                            土曜日
-                                                        {% else %}
-                                                            {{ event.weekday }}
-                                                        {% endif %}
-                                                    </div>
+                    <div class="col">
+                        <a href="{% url 'community:detail' event.community.id %}" class="text-decoration-none">
+                            <div class="card event-card weekday-{{ event.weekday|lower }}">
+                                <div class="row g-0 h-100">
+                                    <div class="col-4">
+                                        <div class="event-image-container">
+                                            {% if event.community.poster_image %}
+                                                <img src="{{ event.community.poster_image.url }}"
+                                                     class="img-fluid"
+                                                     alt="{{ event.community.name }}のポスター">
+                                            {% else %}
+                                                <div class="no-image">
+                                                    <i class="bi bi-image"></i>
                                                 </div>
-                                                <div class="time-info">
-                                                    <i class="bi bi-clock"></i>
-                                                    <span>{{ event.start_time|time:"H:i" }} 〜 {{ event.end_time|time:"H:i" }}</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="col-8">
+                                        <div class="card-body d-flex flex-column h-100">
+                                            <h5 class="card-title">{{ event.community.name }}</h5>
+                                            <div class="event-info">
+                                                <div class="datetime-container">
+                                                    <div class="datetime-row">
+                                                        <div class="datetime-info">
+                                                            <i class="bi bi-calendar-event"></i>
+                                                            <span>{{ event.date|date:"Y/m/d" }}</span>
+                                                        </div>
+                                                        <div class="weekday-badge">
+                                                            {% if event.weekday == 'Sun' %}
+                                                                日曜日
+                                                            {% elif event.weekday == 'Mon' %}
+                                                                月曜日
+                                                            {% elif event.weekday == 'Tue' %}
+                                                                火曜日
+                                                            {% elif event.weekday == 'Wed' %}
+                                                                水曜日
+                                                            {% elif event.weekday == 'Thu' %}
+                                                                木曜日
+                                                            {% elif event.weekday == 'Fri' %}
+                                                                金曜日
+                                                            {% elif event.weekday == 'Sat' %}
+                                                                土曜日
+                                                            {% else %}
+                                                                {{ event.weekday }}
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                    <div class="time-info">
+                                                        <i class="bi bi-clock"></i>
+                                                        <span>{{ event.start_time|time:"H:i" }} 〜 {{ event.end_time|time:"H:i" }}</span>
+                                                    </div>
                                                 </div>
                                             </div>
+                                            <p class="description">
+                                                {{ event.community.description|truncatechars:50 }}
+                                            </p>
                                         </div>
-                                        <p class="description">
-                                            {{ event.community.description|truncatechars:50 }}
-                                        </p>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </a>
-                </div>
+                        </a>
+                    </div>
                 {% empty %}
-                <div class="col-12">
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <p class="mb-0">現在予定されているイベントはありません</p>
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body text-center">
+                                <p class="mb-0">現在予定されているイベントはありません</p>
+                            </div>
                         </div>
                     </div>
-                </div>
                 {% endfor %}
             </div>
             <div class="text-center mt-5">
