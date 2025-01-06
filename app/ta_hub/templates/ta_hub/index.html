@@ -74,7 +74,11 @@
 
     <!-- upcoming events -->
     <div class="container my-5">
-        <h2 class="text-center text-primary mb-4">直近のイベント</h2>
+        <h2 class="text-center text-primary mb-4">直近のVRChat技術学術系イベント</h2>
+        <p class="text-center text-muted mb-4">
+            <i class="bi bi-search me-2"></i>
+            注目の直近イベントをチェック！お見逃しなく！
+        </p>
         <div class="row row-cols-1 row-cols-md-2 g-4">
             {% for event in upcoming_events %}
             <div class="col">
@@ -119,6 +123,11 @@
                 </div>
             </div>
             {% endfor %}
+        </div>
+        <div class="text-center mt-4">
+            <a href="{% url 'event:list' %}" class="btn btn-outline-primary">
+                <i class="bi bi-calendar-week me-2"></i>すべてのイベントを見る
+            </a>
         </div>
     </div>
     <!-- upcoming events end -->
