@@ -1,7 +1,7 @@
 from django.views.generic import TemplateView, ListView, DetailView
 from django.views.static import serve
 from django.utils import timezone
-from event.models import Event
+from event.models import Event, EventDetail
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,12 @@ class IndexView(TemplateView):
             date__gte=today,
             date__lte=end_date
         ).select_related('community').order_by('date', 'start_time')
+        
+        # 予約済みのイベント詳細を取得
+        context['upcoming_event_details'] = EventDetail.objects.filter(
+            event__date__gte=today
+        ).select_related('event', 'event__community').order_by('event__date', 'start_time')
+        
         logger.info(context['upcoming_events'])
         return context
 

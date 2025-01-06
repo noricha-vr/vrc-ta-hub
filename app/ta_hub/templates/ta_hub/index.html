@@ -211,6 +211,71 @@
     </div>
     <!-- hero end -->
 
+    <!-- upcoming event details section -->
+    {% if upcoming_event_details %}
+    <section class="bg-white py-5">
+        <div class="container">
+            <div class="row featurette text-center text-primary mb-4">
+                <h2 class="featurette-heading fw-normal lh-1 fw-bold">
+                    <div class="fs-2">📅 予定されている発表一覧</div>
+                </h2>
+            </div>
+            <p class="text-center text-muted mb-5">
+                <i class="bi bi-calendar-check me-2"></i>
+                予約済みの発表をチェックしましょう！
+            </p>
+            <div class="row row-cols-1 row-cols-md-2 g-4">
+                {% for detail in upcoming_event_details %}
+                <div class="col">
+                    <a href="{% url 'event:detail' detail.event.id %}" class="text-decoration-none">
+                        <div class="card event-card weekday-{{ detail.event.weekday|lower }}">
+                            <div class="row g-0 h-100">
+                                <div class="col-4">
+                                    <div class="event-image-container">
+                                        {% if detail.event.community.poster_image %}
+                                        <img src="{{ detail.event.community.poster_image.url }}" 
+                                             class="img-fluid" 
+                                             alt="{{ detail.event.community.name }}のポスター">
+                                        {% else %}
+                                        <div class="no-image">
+                                            <i class="bi bi-image"></i>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-8">
+                                    <div class="card-body d-flex flex-column h-100">
+                                        <h5 class="card-title">{{ detail.title }}</h5>
+                                        <div class="event-info">
+                                            <div class="datetime-container">
+                                                <div class="datetime-row">
+                                                    <div class="datetime-info">
+                                                        <i class="bi bi-calendar3"></i>
+                                                        <span>{{ detail.event.date|date:"Y/m/d" }}</span>
+                                                    </div>
+                                                    <div class="time-info">
+                                                        <i class="bi bi-clock"></i>
+                                                        <span>{{ detail.start_time|time:"H:i" }} - {{ detail.end_time|time:"H:i" }}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="description">
+                                                <div>発表者: {{ detail.speaker }}</div>
+                                                <div>集会: {{ detail.event.community.name }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+    {% endif %}
+
     <!-- upcoming events section -->
     <section class="bg-light py-5">
         <div class="container">
