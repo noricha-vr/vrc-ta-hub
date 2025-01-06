@@ -234,6 +234,34 @@
                         {% endfor %}
                     </div>
                 </div>
+                <div>
+                    <h2>開催コミュニティー</h2>
+                    <div class="card h-100 shadow-sm shadow-hover">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    {% if event_detail.event.community.poster_image %}
+                                        <img src="{{ event_detail.event.community.poster_image.url }}" 
+                                             class="img-fluid rounded" 
+                                             alt="{{ event_detail.event.community.name }}のポスター">
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-8">
+                                    <h3 class="card-title" style="all: revert; font-size: 1.25rem; margin: 0 0 1rem 0;font-weight: 400;">
+                                        {{ event_detail.event.community.name }}
+                                    </h3>
+                                    <p class="mb-2">
+                                        <i class="bi bi-calendar-event me-2"></i>
+                                        開催日時: {{ event_detail.event.community.schedule }}
+                                    </p>
+                                    <p class="mb-3">{{ event_detail.event.community.description }}</p>
+                                </div>
+                            </div>
+                            <a href="{% url 'community:detail' event_detail.event.community.pk %}" 
+                               class="stretched-link"></a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
