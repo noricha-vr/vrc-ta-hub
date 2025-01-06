@@ -1,0 +1,37 @@
+{% extends 'ta_hub/base.html' %}
+{% load static %}
+
+{% block main %}
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">ツイートプレビュー</h5>
+            </div>
+            <div class="card-body">
+                <div class="tweet-content p-3 bg-light rounded mb-3">
+                    <p id="tweet-text">{{ tweet_text }}</p>
+                </div>
+                <button class="btn btn-primary" onclick="copyTweet()">
+                    <i class="fas fa-copy me-2"></i>ツイートをコピー
+                </button>
+                <a href="{% url 'event:my_list' %}" class="btn btn-secondary ms-2">
+                    戻る
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% block extra_js %}
+        <script>
+            function copyTweet() {
+                const tweetText = document.getElementById('tweet-text').innerText;
+                navigator.clipboard.writeText(tweetText).then(() => {
+                    alert('ツイートをクリップボードにコピーしました！');
+                }).catch(err => {
+                    console.error('コピーに失敗しました:', err);
+                    alert('コピーに失敗しました。');
+                });
+            }
+        </script>
+    {% endblock %}
+{% endblock %} 

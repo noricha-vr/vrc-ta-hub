@@ -3,16 +3,16 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views import View
-from django.views.generic import CreateView, UpdateView, ListView, DeleteView
+from django.views.generic import CreateView, UpdateView, ListView, DeleteView, TemplateView
 
 from community.models import Community
 from event.models import Event
 from .forms import TwitterTemplateForm
 from .models import TwitterTemplate
-from .utils import generate_tweet_url
+from .utils import format_event_info, generate_tweet, generate_tweet_url
 
 
 class TwitterTemplateBaseView(LoginRequiredMixin, UserPassesTestMixin):
@@ -88,15 +88,21 @@ class TwitterTemplateDeleteView(LoginRequiredMixin, DeleteView):
 # twitter/views.py
 
 
-class TweetEventWithTemplateView(View):
-    def get(self, request, event_pk, template_pk):
-        event = get_object_or_404(Event, pk=event_pk)
-        template = get_object_or_404(TwitterTemplate, pk=template_pk)
+class TweetEventWithTemplateView(TemplateView):
+    template_name = 'twitter/tweet_preview.html'
 
-        tweet_url = generate_tweet_url(event, template)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        event = get_object_or_404(Event, pk=self.kwargs['event_pk'])
+        template = get_object_or_404(TwitterTemplate, pk=self.kwargs['template_pk'])
 
-        if tweet_url:
-            return redirect(tweet_url)
-        else:
-            messages.error(request, "ツイートURLの生成に失敗しました。")
-            return redirect('event:my_list')
+        # Format event info before generating tweet
+        event_info = format_event_info(event)
+        tweet_text = generate_tweet(template.template, event_info)
+        
+        context.update({
+            'tweet_text': tweet_text,
+            'event': event,
+            'template': template,
+        })
+        return context
