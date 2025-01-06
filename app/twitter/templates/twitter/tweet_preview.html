@@ -9,7 +9,7 @@
             </div>
             <div class="card-body">
                 <div class="tweet-content p-3 bg-light rounded mb-3">
-                    <p id="tweet-text">{{ tweet_text }}</p>
+                    <p id="tweet-text">{{ tweet_text|safe }}</p>
                 </div>
                 <button class="btn btn-primary" onclick="copyTweet()">
                     <i class="fas fa-copy me-2"></i>ツイートをコピー

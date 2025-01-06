@@ -1,4 +1,5 @@
 # twitter/views.py
+import logging
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
@@ -7,6 +8,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, UpdateView, ListView, DeleteView, TemplateView
+
+logger = logging.getLogger(__name__)
 
 from community.models import Community
 from event.models import Event
@@ -99,6 +102,13 @@ class TweetEventWithTemplateView(TemplateView):
         # Format event info before generating tweet
         event_info = format_event_info(event)
         tweet_text = generate_tweet(template.template, event_info)
+        
+        # Add debug logging
+        logger.debug(f"Generated tweet_text: {tweet_text}")
+        
+        # Replace newlines with HTML line breaks
+        if tweet_text:
+            tweet_text = tweet_text.replace('\n', '<br>')
         
         context.update({
             'tweet_text': tweet_text,
