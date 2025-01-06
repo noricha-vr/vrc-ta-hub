@@ -94,3 +94,4 @@ db.sqlite3
 secret
 /summary.config.json
 /app/summary.config.json
+/app/credentials.json
