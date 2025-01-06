@@ -138,11 +138,11 @@ CALENDAR_WEEKDAY_CHOICES = [
 
 
 class GoogleCalendarEventForm(forms.Form):
-    community = forms.ModelChoiceField(
-        queryset=Community.objects.all(),
+
+    community_name = forms.CharField(
         label='コミュニティ',
-        widget=forms.Select(attrs={'class': 'form-control'}),
-        help_text='イベントを登録するコミュニティを選択してください'
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control', 'readonly': True}),
     )
 
     start_date = forms.DateField(

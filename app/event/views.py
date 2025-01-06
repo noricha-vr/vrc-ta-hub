@@ -4,20 +4,18 @@ import re
 from datetime import datetime, timedelta
 from typing import List
 
-from django.contrib import messages
+import requests
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.db import IntegrityError
 from django.db.models import QuerySet
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
 from django.views.generic import CreateView, UpdateView, DetailView, ListView, FormView
 from django.views.generic.edit import DeleteView
 from google.auth import default
 from google.cloud import bigquery
-from googleapiclient.discovery import build
-import requests
 
 from community.models import Community, WEEKDAY_CHOICES
 from event.forms import EventDetailForm, EventSearchForm, EventCreateForm, GoogleCalendarEventForm
@@ -25,7 +23,7 @@ from event.libs import convert_markdown, generate_blog, generate_meta_descriptio
 from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url
 from url_filters import get_filtered_url
-from website.settings import GOOGLE_API_KEY, GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, REQUEST_TOKEN, \
+from website.settings import GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, REQUEST_TOKEN, \
     GEMINI_MODEL
 from .google_calendar import GoogleCalendarService
 
@@ -70,7 +68,8 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
 
     def post(self, request, *args, **kwargs):
         event = self.get_object()
-        logger.info(f"イベント削除開始: ID={event.id}, コミュニティ={event.community.name}, 日付={event.date}, 開始時間={event.start_time}")
+        logger.info(
+            f"イベント削除開始: ID={event.id}, コミュニティ={event.community.name}, 日付={event.date}, 開始時間={event.start_time}")
         logger.info(f"Google Calendar Event ID: {event.google_calendar_event_id}")
 
         # 過去のイベントは削除できないようにする
@@ -92,7 +91,8 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
                 logger.info(f"Googleカレンダーからの削除成功: Event ID={event.google_calendar_event_id}")
                 messages.success(request, "イベントをGoogleカレンダーから削除しました。")
             except Exception as e:
-                logger.error(f"Googleカレンダーからの削除失敗: Event ID={event.google_calendar_event_id}, エラー={str(e)}")
+                logger.error(
+                    f"Googleカレンダーからの削除失敗: Event ID={event.google_calendar_event_id}, エラー={str(e)}")
                 messages.error(request, f"Googleカレンダーからの削除中にエラーが発生しました: {str(e)}")
                 return redirect('event:my_list')
 
@@ -233,7 +233,7 @@ def sync_calendar_events(request):
         calendar_id=GOOGLE_CALENDAR_ID,
         credentials_path=GOOGLE_CALENDAR_CREDENTIALS
     )
-    
+
     today = datetime.now()
     end_date = today + timedelta(days=60)
 
@@ -254,7 +254,7 @@ def sync_calendar_events(request):
             f"Events synchronized successfully. {Event.objects.count()} events found."
         )
         return HttpResponse("Calendar events synchronized successfully.")
-        
+
     except Exception as e:
         logger.error(f"Failed to sync calendar events: {str(e)}")
         return HttpResponse("Failed to sync calendar events.", status=500)
@@ -310,7 +310,7 @@ def register_calendar_events(calendar_events):
 
         if existing_event:
             if (existing_event.duration != (end - start).total_seconds() // 60 or
-                existing_event.google_calendar_event_id != event['id']):
+                    existing_event.google_calendar_event_id != event['id']):
                 existing_event.duration = (end - start).total_seconds() // 60
                 existing_event.google_calendar_event_id = event['id']
                 existing_event.save()
@@ -543,12 +543,6 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 kwargs['initial'] = {'community': community}
         return kwargs
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-        # ログインユーザーのコミュニティのみを選択肢として表示
-        form.fields['community'].queryset = Community.objects.filter(custom_user=self.request.user)
-        return form
-
     def form_valid(self, form):
         try:
             calendar_service = GoogleCalendarService(
@@ -578,7 +572,8 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 elif recurrence_type == 'monthly_by_day':
                     # 第何週かを計算
                     week_number = (start_date.day - 1) // 7 + 1
-                    recurrence = [calendar_service._create_monthly_by_week_rrule(week_number, form.cleaned_data['weekday'])]
+                    recurrence = [
+                        calendar_service._create_monthly_by_week_rrule(week_number, form.cleaned_data['weekday'])]
 
             # Googleカレンダーにイベントを作成
             event = calendar_service.create_event(
@@ -594,12 +589,12 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                     f"{self.request.build_absolute_uri('/')[:-1]}/event/sync/",
                     headers={'Request-Token': REQUEST_TOKEN}
                 )
-                
+
                 if response.status_code == 200:
                     messages.success(self.request, 'イベントが正常に登録されました')
                 else:
                     messages.warning(self.request, 'イベントは登録されましたが、同期に失敗しました')
-            
+
             return super().form_valid(form)
 
         except Exception as e:
