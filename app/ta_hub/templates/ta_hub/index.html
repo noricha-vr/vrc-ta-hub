@@ -28,13 +28,15 @@
 
         /* イベントカード用のスタイル */
         .event-card {
-            height: 200px;
+            height: auto;
+            min-height: 160px;
             transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
             border: none;
             background: #ffffff;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             position: relative;
             overflow: hidden;
+            margin-bottom: 1rem;
         }
         
         .event-card:hover {
@@ -43,75 +45,97 @@
         }
         
         .event-card .card-body {
-            padding: 1.25rem;
+            padding: 1.5rem;
         }
 
         .event-card .card-title {
-            font-size: 1.1rem;
+            font-size: 1.3rem;
             font-weight: 600;
-            margin-bottom: 0.75rem;
-            line-height: 1.3;
+            margin-bottom: 1rem;
+            line-height: 1.4;
             color: #2c3e50;
         }
 
         .event-info {
             display: flex;
             flex-direction: column;
+            gap: 1rem;
+        }
+
+        .speaker-info {
+            display: flex;
+            align-items: center;
             gap: 0.5rem;
+            color: #64748b;
+            font-size: 1rem;
+        }
+
+        .speaker-info i {
+            color: #94a3b8;
+        }
+
+        .speaker-info span {
+            font-weight: 600;
+            color: #475569;
         }
 
         .datetime-container {
             display: flex;
             flex-direction: column;
-            gap: 0.35rem;
+            gap: 0.5rem;
         }
 
-        .datetime-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .datetime-info {
+        .datetime-info, .time-info {
             display: flex;
             align-items: center;
             gap: 0.5rem;
             color: #64748b;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
         }
 
-        .datetime-info span {
-            font-weight: 600;
+        .datetime-info span, .time-info span {
+            font-weight: 500;
             color: #475569;
         }
 
-        .time-info {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: #64748b;
-            font-size: 0.85rem;
-        }
-
-        .time-info span {
-            font-weight: 600;
-            color: #475569;
-        }
-
-        .time-info i {
-            font-size: 0.9rem;
+        .datetime-info i, .time-info i {
             color: #94a3b8;
         }
 
-        .description {
-            margin-top: 0.75rem;
+        .community-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .community-name {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1rem;
             color: #64748b;
-            font-size: 0.85rem;
-            line-height: 1.4;
+        }
+
+        .community-name i {
+            color: #94a3b8;
+        }
+
+        .community-name span {
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .community-description {
+            font-size: 0.9rem;
+            color: #64748b;
+            line-height: 1.5;
+            margin-top: 0.25rem;
         }
 
         .event-image-container {
-            height: 200px;
+            height: 100%;
+            min-height: 160px;
             overflow: hidden;
             border-radius: 8px 0 0 8px;
             background: #f8fafc;
@@ -224,13 +248,13 @@
                 <i class="bi bi-calendar-check me-2"></i>
                 予約済みの発表をチェックしましょう！
             </p>
-            <div class="row row-cols-1 row-cols-md-2 g-4">
+            <div class="row row-cols-1 g-4">
                 {% for detail in upcoming_event_details %}
                 <div class="col">
-                    <a href="{% url 'event:detail' detail.event.id %}" class="text-decoration-none">
+                    <a href="{% url 'community:detail' detail.event.community.id %}" class="text-decoration-none">
                         <div class="card event-card weekday-{{ detail.event.weekday|lower }}">
                             <div class="row g-0 h-100">
-                                <div class="col-4">
+                                <div class="col-3">
                                     <div class="event-image-container">
                                         {% if detail.event.community.poster_image %}
                                         <img src="{{ detail.event.community.poster_image.url }}" 
@@ -243,25 +267,32 @@
                                         {% endif %}
                                     </div>
                                 </div>
-                                <div class="col-8">
+                                <div class="col-9">
                                     <div class="card-body d-flex flex-column h-100">
                                         <h5 class="card-title">{{ detail.title }}</h5>
                                         <div class="event-info">
+                                            <div class="speaker-info">
+                                                <i class="bi bi-person"></i>
+                                                <span>{{ detail.speaker }}</span>
+                                            </div>
                                             <div class="datetime-container">
-                                                <div class="datetime-row">
-                                                    <div class="datetime-info">
-                                                        <i class="bi bi-calendar3"></i>
-                                                        <span>{{ detail.event.date|date:"Y/m/d" }}</span>
-                                                    </div>
-                                                    <div class="time-info">
-                                                        <i class="bi bi-clock"></i>
-                                                        <span>{{ detail.start_time|time:"H:i" }} - {{ detail.end_time|time:"H:i" }}</span>
-                                                    </div>
+                                                <div class="datetime-info">
+                                                    <i class="bi bi-calendar3"></i>
+                                                    <span>{{ detail.event.date|date:"Y/m/d" }}</span>
+                                                </div>
+                                                <div class="time-info">
+                                                    <i class="bi bi-clock"></i>
+                                                    <span>{{ detail.start_time|time:"H:i" }} - {{ detail.end_time|time:"H:i" }}</span>
                                                 </div>
                                             </div>
-                                            <div class="description">
-                                                <div>発表者: {{ detail.speaker }}</div>
-                                                <div>集会: {{ detail.event.community.name }}</div>
+                                            <div class="community-info">
+                                                <div class="community-name">
+                                                    <i class="bi bi-people"></i>
+                                                    <span>{{ detail.event.community.name }}</span>
+                                                </div>
+                                                <div class="community-description">
+                                                    {{ detail.event.community.description|truncatechars:100 }}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
