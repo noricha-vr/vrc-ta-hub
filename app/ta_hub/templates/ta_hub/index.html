@@ -188,132 +188,105 @@
     </div>
     <!-- hero end -->
 
-    <!-- upcoming events -->
-    <div class="container my-5">
-            <div class="row featurette text-center text-primary mt-5 mb-4">
+    <!-- upcoming events section -->
+    <section class="bg-light py-5">
+        <div class="container">
+            <div class="row featurette text-center text-primary mb-4">
                 <h2 class="featurette-heading fw-normal lh-1 fw-bold">
-                    <div class="fs-1 mb-3">毎日が技術学術祭！!</div><div class="fs-2">VRChat技術学術系イベント</div>
+                    <div class="fs-1 mb-3">毎日が技術学術祭！!</div>
+                    <div class="fs-2">VRChat技術学術系イベント</div>
                 </h2>
             </div>
-        <h2 class="text-center text-primary mb-4"></h2>
-        <p class="text-center text-muted mb-5">
-            <i class="bi bi-search me-2"></i>
-            注目の技術学中イベントをチェック！お見逃しなく！
-        </p>
-        <div class="row row-cols-1 row-cols-md-2 g-4">
-            {% for event in upcoming_events %}
-            <div class="col">
-                <a href="{% url 'community:detail' event.community.id %}" class="text-decoration-none">
-                    <div class="card event-card weekday-{{ event.weekday|lower }}">
-                        <div class="row g-0 h-100">
-                            <div class="col-4">
-                                <div class="event-image-container">
-                                    {% if event.community.poster_image %}
-                                    <img src="{{ event.community.poster_image.url }}" class="img-fluid rounded-start h-100 w-100 object-fit-cover" alt="{{ event.community.name }}のポスター">
-                                    {% else %}
-                                    <div class="bg-light h-100 d-flex align-items-center justify-content-center">
-                                        <i class="bi bi-image text-muted" style="font-size: 2rem;"></i>
+            <p class="text-center text-muted mb-5">
+                <i class="bi bi-search me-2"></i>
+                注目の技術学中イベントをチェック！お見逃しなく！
+            </p>
+            <div class="row row-cols-1 row-cols-md-2 g-4">
+                {% for event in upcoming_events %}
+                <div class="col">
+                    <a href="{% url 'community:detail' event.community.id %}" class="text-decoration-none">
+                        <div class="card event-card weekday-{{ event.weekday|lower }}">
+                            <div class="row g-0 h-100">
+                                <div class="col-4">
+                                    <div class="event-image-container">
+                                        {% if event.community.poster_image %}
+                                        <img src="{{ event.community.poster_image.url }}" class="img-fluid rounded-start h-100 w-100 object-fit-cover" alt="{{ event.community.name }}のポスター">
+                                        {% else %}
+                                        <div class="bg-light h-100 d-flex align-items-center justify-content-center">
+                                            <i class="bi bi-image text-muted" style="font-size: 2rem;"></i>
+                                        </div>
+                                        {% endif %}
                                     </div>
-                                    {% endif %}
                                 </div>
-                            </div>
-                            <div class="col-8">
-                                <div class="card-body d-flex flex-column h-100">
-                                    <h5 class="card-title">{{ event.community.name }}</h5>
-                                    <div class="event-info">
-                                        <div class="datetime-container">
-                                            <div class="datetime-row">
-                                                <div class="datetime-info">
-                                                    <i class="bi bi-calendar-event"></i>
-                                                    <span>{{ event.date|date:"Y/m/d" }}</span>
+                                <div class="col-8">
+                                    <div class="card-body d-flex flex-column h-100">
+                                        <h5 class="card-title">{{ event.community.name }}</h5>
+                                        <div class="event-info">
+                                            <div class="datetime-container">
+                                                <div class="datetime-row">
+                                                    <div class="datetime-info">
+                                                        <i class="bi bi-calendar-event"></i>
+                                                        <span>{{ event.date|date:"Y/m/d" }}</span>
+                                                    </div>
+                                                    <div class="weekday-badge">
+                                                        {% if event.weekday == 'Sun' %}
+                                                            日曜日
+                                                        {% elif event.weekday == 'Mon' %}
+                                                            月曜日
+                                                        {% elif event.weekday == 'Tue' %}
+                                                            火曜日
+                                                        {% elif event.weekday == 'Wed' %}
+                                                            水曜日
+                                                        {% elif event.weekday == 'Thu' %}
+                                                            木曜日
+                                                        {% elif event.weekday == 'Fri' %}
+                                                            金曜日
+                                                        {% elif event.weekday == 'Sat' %}
+                                                            土曜日
+                                                        {% else %}
+                                                            {{ event.weekday }}
+                                                        {% endif %}
+                                                    </div>
                                                 </div>
-                                                <div class="weekday-badge">
-                                                    {% if event.weekday == 'Sun' %}
-                                                        日曜日
-                                                    {% elif event.weekday == 'Mon' %}
-                                                        月曜日
-                                                    {% elif event.weekday == 'Tue' %}
-                                                        火曜日
-                                                    {% elif event.weekday == 'Wed' %}
-                                                        水曜日
-                                                    {% elif event.weekday == 'Thu' %}
-                                                        木曜日
-                                                    {% elif event.weekday == 'Fri' %}
-                                                        金曜日
-                                                    {% elif event.weekday == 'Sat' %}
-                                                        土曜日
-                                                    {% else %}
-                                                        {{ event.weekday }}
-                                                    {% endif %}
+                                                <div class="time-info">
+                                                    <i class="bi bi-clock"></i>
+                                                    <span>{{ event.start_time|time:"H:i" }} 〜 {{ event.end_time|time:"H:i" }}</span>
                                                 </div>
-                                            </div>
-                                            <div class="time-info">
-                                                <i class="bi bi-clock"></i>
-                                                <span>{{ event.start_time|time:"H:i" }} 〜 {{ event.end_time|time:"H:i" }}</span>
                                             </div>
                                         </div>
+                                        <p class="description">
+                                            {{ event.community.description|truncatechars:50 }}
+                                        </p>
                                     </div>
-                                    <p class="description">
-                                        {{ event.community.description|truncatechars:50 }}
-                                    </p>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </a>
-            </div>
-            {% empty %}
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-body text-center">
-                        <p class="mb-0">現在予定されているイベントはありません</p>
-                    </div>
+                    </a>
                 </div>
-            </div>
-            {% endfor %}
-        </div>
-        <div class="text-center mt-4">
-            <a href="{% url 'event:list' %}" class="btn btn-outline-primary">
-                <i class="bi bi-calendar-week me-2"></i>すべてのイベントを見る
-            </a>
-        </div>
-    </div>
-    <!-- upcoming events end -->
-
-    <div class="row featurette text-center text-primary mt-5 mb-4">
-        <h2 class="featurette-heading fw-normal lh-1 fw-bold">
-            VRChat技術学術系イベントカレンダー
-        </h2>
-    </div>
-    <!-- petipeti calender section -->
-    <pp-calendar></pp-calendar>
-
-    <!-- calender section -->
-    <div class="calender-section">
-
-        {% if not request.GET %}
-            <div class="row my-5">
-                <div class="col-lg-12 text-center">
-                    <div class="d-flex justify-content-center">
-                        <div style="max-width: 100%; overflow-x: hidden;">
-                            <iframe
-                                    src="https://calendar.google.com/calendar/embed?src=fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7%40group.calendar.google.com"
-                                    style="border: 0; max-width: 100%;" width="800" height="600" frameborder="0"
-                                    scrolling="no"></iframe>
+                {% empty %}
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <p class="mb-0">現在予定されているイベントはありません</p>
                         </div>
                     </div>
                 </div>
+                {% endfor %}
             </div>
-        {% endif %}
-
-        <div class="row featurette text-center text-primary mt-5 p-3">
-            <h2 class="featurette-heading fw-normal lh-1 fw-bold">
-                VRChat技術学術系集会ってなに？
-            </h2>
+            <div class="text-center mt-4">
+                <a href="{% url 'event:list' %}" class="btn btn-outline-primary">
+                    <i class="bi bi-calendar-week me-2"></i>すべてのイベントを見る
+                </a>
+            </div>
         </div>
+    </section>
+    <!-- upcoming events section end -->
 
+    <div class="row featurette text-center text-primary mt-5 p-3">
+        <h2 class="featurette-heading fw-normal lh-1 fw-bold">
+            VRChat技術学術系集会ってなに？
+        </h2>
     </div>
-
     <!-- contents 1 -->
     <div class="container my-5">
 
