@@ -80,22 +80,29 @@
                             {% endif %}
                         </p>
 
-                        {% if community.discord %}
-                            <p>Discord: <a href="{{ community.discord }}"
-                                           target="_blank">{{ community.discord }}</a></p>
-                        {% endif %}
+                        <p class="d-flex gap-3">
+                            {% if community.discord %}
+                                <a href="{{ community.discord }}" target="_blank" class="text-decoration-none">
+                                    <i class="fab fa-discord fa-2x" style="color: #5865F2;"></i>
+                                </a>
+                            {% endif %}
 
-                        {% if community.sns_url %}
-                            <p>Twitter: <a href="{{ community.sns_url }}"
-                                           target="_blank">{{ community.get_sns_display }}</a></p>
-                        {% endif %}
+                            {% if community.sns_url %}
+                                <a href="{{ community.sns_url }}" target="_blank" class="text-decoration-none">
+                                    <i class="fab fa-twitter fa-2x" style="color: #1DA1F2;"></i>
+                                </a>
+                            {% endif %}
+                        </p>
 
                         {% if community.twitter_hashtags %}
                             <p>
-                                Twitterハッシュタグ:
                                 {% for hashtag in community.twitter_hashtags %}
                                     <a href="https://twitter.com/hashtag/{{ hashtag|slice:"1:" }}?f=live"
-                                       target="_blank">{{ hashtag }}</a>{% if not forloop.last %}, {% endif %}
+                                       class="badge rounded-pill text-bg-light text-decoration-none border"
+                                       target="_blank">
+                                        <i class="fas fa-hashtag"></i>
+                                        {{ hashtag|slice:"1:" }}
+                                    </a>{% if not forloop.last %} {% endif %}
                                 {% endfor %}
                             </p>
                         {% endif %}
