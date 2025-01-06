@@ -4,7 +4,7 @@
 {% block main %}
 <div class="container my-4">
     <div class="row">
-        <div class="col-12 col-md-10 offset-md-1">
+        <div class="col-12 col-md-8 offset-md-2">
 
             <h1 class="text-center my-5 fw-bold keiko_yellow">
                 {{ community.name }} のイベントを登録
@@ -90,18 +90,36 @@
                         </div>
                         
                         <div class="mb-3 recurrence-fields" id="weekday-field" style="display: none;">
-                            <label for="{{ form.weekday.id_for_label }}" class="form-label">{{ form.weekday.label }}</label>
-                            {{ form.weekday }}
-                            {% if form.weekday.help_text %}
-                            <div class="form-text">{{ form.weekday.help_text }}</div>
-                            {% endif %}
-                            {% if form.weekday.errors %}
-                            <div class="invalid-feedback d-block">
-                                {% for error in form.weekday.errors %}
-                                {{ error }}
-                                {% endfor %}
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label for="{{ form.weekday.id_for_label }}" class="form-label">{{ form.weekday.label }}</label>
+                                    {{ form.weekday }}
+                                    {% if form.weekday.help_text %}
+                                    <div class="form-text">{{ form.weekday.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.weekday.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.weekday.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6" id="week-number-field" style="display: none;">
+                                    <label for="{{ form.week_number.id_for_label }}" class="form-label">{{ form.week_number.label }}</label>
+                                    {{ form.week_number }}
+                                    {% if form.week_number.help_text %}
+                                    <div class="form-text">{{ form.week_number.help_text }}</div>
+                                    {% endif %}
+                                    {% if form.week_number.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.week_number.errors %}
+                                        {{ error }}
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
                             </div>
-                            {% endif %}
                         </div>
                         
                         <div class="mb-3 recurrence-fields" id="monthly-day-field" style="display: none;">
@@ -135,16 +153,22 @@
 document.addEventListener('DOMContentLoaded', function() {
     const recurrenceType = document.querySelector('input[name="recurrence_type"]:checked');
     const weekdayField = document.getElementById('weekday-field');
+    const weekNumberField = document.getElementById('week-number-field');
     const monthlyDayField = document.getElementById('monthly-day-field');
     
     function updateFields() {
         const selectedValue = document.querySelector('input[name="recurrence_type"]:checked').value;
         
         weekdayField.style.display = 'none';
+        weekNumberField.style.display = 'none';
         monthlyDayField.style.display = 'none';
         
-        if (['weekly', 'biweekly', 'monthly_by_day'].includes(selectedValue)) {
+        if (['weekly', 'biweekly'].includes(selectedValue)) {
             weekdayField.style.display = 'block';
+            weekNumberField.style.display = 'none';
+        } else if (selectedValue === 'monthly_by_day') {
+            weekdayField.style.display = 'block';
+            weekNumberField.style.display = 'block';
         } else if (selectedValue === 'monthly_by_date') {
             monthlyDayField.style.display = 'block';
         }

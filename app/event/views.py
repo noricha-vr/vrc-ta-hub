@@ -578,9 +578,10 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 elif recurrence_type == 'monthly_by_date':
                     recurrence = [calendar_service._create_monthly_by_date_rrule([form.cleaned_data['monthly_day']])]
                 elif recurrence_type == 'monthly_by_day':
-                    # 第何週かを計算
-                    week_number = (start_date.day - 1) // 7 + 1
-                    recurrence = [calendar_service._create_monthly_by_week_rrule(week_number, form.cleaned_data['weekday'])]
+                    week_number = int(form.cleaned_data['week_number'])
+                    weekday = form.cleaned_data['weekday']
+                    # 週番号が-1（最終週）の場合は-1を使用、それ以外は指定された週番号を使用
+                    recurrence = [calendar_service._create_monthly_by_week_rrule(week_number, weekday)]
 
             # Googleカレンダーにイベントを作成
             event = calendar_service.create_event(

@@ -136,6 +136,14 @@ CALENDAR_WEEKDAY_CHOICES = [
     ('SU', '日曜日'),
 ]
 
+WEEK_NUMBER_CHOICES = [
+    (1, '第1'),
+    (2, '第2'),
+    (3, '第3'),
+    (4, '第4'),
+    (-1, '最終'),
+]
+
 
 class GoogleCalendarEventForm(forms.Form):
 
@@ -198,6 +206,14 @@ class GoogleCalendarEventForm(forms.Form):
         help_text='毎月同じ日に開催する場合、その日付を選択してください（1-31）'
     )
 
+    week_number = forms.ChoiceField(
+        choices=WEEK_NUMBER_CHOICES,
+        label='週',
+        required=False,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        help_text='毎月同じ曜日の場合、第何週かを選択してください'
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # コミュニティが選択されている場合、そのコミュニティの設定を初期値として使用
@@ -223,9 +239,15 @@ class GoogleCalendarEventForm(forms.Form):
                 raise ValidationError('6ヶ月以上先の日付は選択できません')
 
         # 定期開催の場合の追加バリデーション
-        if recurrence_type in ['weekly', 'biweekly', 'monthly_by_day']:
+        if recurrence_type in ['weekly', 'biweekly']:
             if not cleaned_data.get('weekday'):
-                raise ValidationError('週次・隔週・毎月同じ曜日の場合は曜日を選択してください')
+                raise ValidationError('週次・隔週の場合は曜日を選択してください')
+
+        elif recurrence_type == 'monthly_by_day':
+            if not cleaned_data.get('weekday'):
+                raise ValidationError('毎月同じ曜日の場合は曜日を選択してください')
+            if not cleaned_data.get('week_number'):
+                raise ValidationError('毎月同じ曜日の場合は第何週かを選択してください')
 
         elif recurrence_type == 'monthly_by_date':
             if not cleaned_data.get('monthly_day'):
