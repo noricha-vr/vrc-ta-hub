@@ -28,70 +28,142 @@
 
         /* イベントカード用のスタイル */
         .event-card {
-            height: 200px; /* カードの固定高さを設定 */
+            height: 200px;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            border: none;
+            background: #ffffff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .event-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
         }
         
         .event-card .card-body {
-            padding: 1rem;
+            padding: 1.25rem;
         }
 
         .event-card .card-title {
             font-size: 1.1rem;
-            margin-bottom: 0.5rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            line-height: 1.3;
+            color: #2c3e50;
         }
 
-        .event-card .card-text {
+        .event-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .datetime-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .datetime-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .datetime-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #64748b;
             font-size: 0.9rem;
-            margin-bottom: 0.5rem;
+        }
+
+        .datetime-info span {
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .time-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #64748b;
+            font-size: 0.85rem;
+        }
+
+        .time-info span {
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .time-info i {
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+
+        .description {
+            margin-top: 0.75rem;
+            color: #64748b;
+            font-size: 0.85rem;
+            line-height: 1.4;
         }
 
         .event-image-container {
             height: 200px;
             overflow: hidden;
+            border-radius: 8px 0 0 8px;
+            background: #f8fafc;
+            position: relative;
         }
 
-        /* 曜日カラースキーム */
-        .weekday-sun {
-            background-color: #FFA07A;
-            color: #000000;
+        .event-image-container img {
+            transition: transform 0.3s ease;
         }
 
-        .weekday-mon {
-            background-color: #FFFACD;
-            color: #000000;
+        .event-card:hover .event-image-container img {
+            transform: scale(1.05);
         }
 
-        .weekday-tue {
-            background-color: #FFDAB9;
-            color: #000000;
-        }
-
-        .weekday-wed {
-            background-color: #B0E0E6;
-            color: #000000;
-        }
-
-        .weekday-thu {
-            background-color: #98FB98;
-            color: #000000;
-        }
-
-        .weekday-fri {
-            background-color: #FFF0F5;
-            color: #000000;
-        }
-
-        .weekday-sat {
-            background-color: #E6E6FA;
-            color: #000000;
-        }
-
+        /* 曜日バッジのテキストスタイル */
         .weekday-badge {
-            font-size: 0.8rem;
-            padding: 0.2rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            padding: 0.15rem 0.5rem;
             border-radius: 4px;
-            margin-top: 0.25rem;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            white-space: nowrap;
+        }
+
+        /* 曜日カラースキーム（より洗練された配色） */
+        .weekday-sun { color: #dc2626; }
+        .weekday-mon { color: #b45309; }
+        .weekday-tue { color: #b45309; }
+        .weekday-wed { color: #0369a1; }
+        .weekday-thu { color: #047857; }
+        .weekday-fri { color: #9d174d; }
+        .weekday-sat { color: #5b21b6; }
+
+        /* 曜日マーカーの背景（より繊細な表現） */
+        .weekday-sun::before { background-color: rgba(254, 202, 202, 0.4); }
+        .weekday-mon::before { background-color: rgba(254, 243, 199, 0.4); }
+        .weekday-tue::before { background-color: rgba(253, 230, 138, 0.4); }
+        .weekday-wed::before { background-color: rgba(186, 230, 253, 0.4); }
+        .weekday-thu::before { background-color: rgba(167, 243, 208, 0.4); }
+        .weekday-fri::before { background-color: rgba(251, 207, 232, 0.4); }
+        .weekday-sat::before { background-color: rgba(224, 231, 255, 0.4); }
+
+        .weekday-badge::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            opacity: 0.8;
         }
     </style>
     <link rel="stylesheet" href="https://petipeti-object-storage.work/dist/style.css">
@@ -127,7 +199,7 @@
             {% for event in upcoming_events %}
             <div class="col">
                 <a href="{% url 'community:detail' event.community.id %}" class="text-decoration-none">
-                    <div class="card event-card">
+                    <div class="card event-card weekday-{{ event.weekday|lower }}">
                         <div class="row g-0 h-100">
                             <div class="col-4">
                                 <div class="event-image-container">
@@ -142,18 +214,42 @@
                             </div>
                             <div class="col-8">
                                 <div class="card-body d-flex flex-column h-100">
-                                    <h5 class="card-title text-body">{{ event.community.name }}</h5>
-                                    <div class="card-text mb-2 text-body">
-                                        <i class="bi bi-calendar-event"></i>
-                                        {{ event.date|date:"Y/m/d" }} {{ event.start_time|time:"H:i" }} 〜 {{ event.end_time|time:"H:i" }}
+                                    <h5 class="card-title">{{ event.community.name }}</h5>
+                                    <div class="event-info">
+                                        <div class="datetime-container">
+                                            <div class="datetime-row">
+                                                <div class="datetime-info">
+                                                    <i class="bi bi-calendar-event"></i>
+                                                    <span>{{ event.date|date:"Y/m/d" }}</span>
+                                                </div>
+                                                <div class="weekday-badge">
+                                                    {% if event.weekday == 'Sun' %}
+                                                        日曜日
+                                                    {% elif event.weekday == 'Mon' %}
+                                                        月曜日
+                                                    {% elif event.weekday == 'Tue' %}
+                                                        火曜日
+                                                    {% elif event.weekday == 'Wed' %}
+                                                        水曜日
+                                                    {% elif event.weekday == 'Thu' %}
+                                                        木曜日
+                                                    {% elif event.weekday == 'Fri' %}
+                                                        金曜日
+                                                    {% elif event.weekday == 'Sat' %}
+                                                        土曜日
+                                                    {% else %}
+                                                        {{ event.weekday }}
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="time-info">
+                                                <i class="bi bi-clock"></i>
+                                                <span>{{ event.start_time|time:"H:i" }} 〜 {{ event.end_time|time:"H:i" }}</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="weekday-badge weekday-{{ event.weekday|lower }}">
-                                        {{ event.weekday }}曜日
-                                    </div>
-                                    <p class="card-text flex-grow-1">
-                                        <small class="text-muted">
-                                            {{ event.community.description|truncatechars:50 }}
-                                        </small>
+                                    <p class="description">
+                                        {{ event.community.description|truncatechars:50 }}
                                     </p>
                                 </div>
                             </div>
