@@ -1,6 +1,7 @@
 import datetime
 import logging
 import re
+from asyncio.tasks import sleep
 from datetime import datetime, timedelta
 from typing import List
 
@@ -157,7 +158,7 @@ class EventDetailView(DetailView):
             'end_time': community.end_time,
             'frequency': community.frequency
         }
-        
+
         return context
 
     def _fetch_related_event_details(self, event_detail: EventDetail) -> List[EventDetail]:
@@ -346,7 +347,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
 
             logger.info(f"ブログ記事が生成されました。: {event_detail.id}")
             logger.info(f"ブログ記事のメタディスクリプション: {event_detail.meta_description}")
-            
+
             messages.success(request, "ブログ記事が生成されました。")
             return redirect('event:detail', pk=event_detail.id)
 
@@ -484,3 +485,21 @@ class EventDetailPastList(ListView):
         context['current_query_params'] = query_params.urlencode()
 
         return context
+
+
+def generate_meta_description_view(request) -> HttpResponse:
+    # meta description が空のEventDetailを取得
+    event_details: QuerySet = EventDetail.objects.filter(meta_description='', contents__isnull=False).exclude(
+        contents='')
+    if not event_details:
+        return HttpResponse("該当するイベントがありません。")
+
+    # メタディスクリプションが空の場合は生成
+    for event_detail in event_details:
+        event_detail.meta_description = generate_meta_description(event_detail.contents)
+        logger.info(f"メタディスクリプションが生成されました: {event_detail.id}")
+        logger.info(f"メタディスクリプション: {event_detail.meta_description}")
+        event_detail.save()
+        sleep(5)
+
+    return HttpResponse("メタディスクリプションが生成されました。")

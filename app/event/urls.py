@@ -3,7 +3,7 @@ from django.views.generic import TemplateView
 
 from .views import EventListView, EventDetailView, sync_calendar_events, EventDetailUpdateView, EventDetailCreateView, \
     EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailPastList, EventCreateView, \
-    EventDeleteView
+    EventDeleteView, generate_meta_description_view
 
 app_name = 'event'
 urlpatterns = [
@@ -20,4 +20,5 @@ urlpatterns = [
     path('detail/history/', EventDetailPastList.as_view(), name='detail_history'),
     path('generate_blog/<int:pk>/', GenerateBlogView.as_view(), name='generate_blog'),
     path('markdown/', TemplateView.as_view(template_name='event/markdown.html'), name='markdown'),
+    path('generate_meta_description/', generate_meta_description_view, name='generate_meta_description'),
 ]
