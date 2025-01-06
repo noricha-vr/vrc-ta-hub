@@ -550,10 +550,14 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 credentials_path=GOOGLE_CALENDAR_CREDENTIALS
             )
 
+            community = Community.objects.filter(custom_user=self.request.user).first()
+            if not community:
+                messages.error(self.request, 'コミュニティが見つかりません')
+                return self.form_invalid(form)
+
             start_date = form.cleaned_data['start_date']
             start_time = form.cleaned_data['start_time']
             duration = form.cleaned_data['duration']
-            community = form.cleaned_data['community']
             recurrence_type = form.cleaned_data['recurrence_type']
 
             # 開始時刻と終了時刻を設定
@@ -572,8 +576,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 elif recurrence_type == 'monthly_by_day':
                     # 第何週かを計算
                     week_number = (start_date.day - 1) // 7 + 1
-                    recurrence = [
-                        calendar_service._create_monthly_by_week_rrule(week_number, form.cleaned_data['weekday'])]
+                    recurrence = [calendar_service._create_monthly_by_week_rrule(week_number, form.cleaned_data['weekday'])]
 
             # Googleカレンダーにイベントを作成
             event = calendar_service.create_event(
@@ -589,12 +592,12 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                     f"{self.request.build_absolute_uri('/')[:-1]}/event/sync/",
                     headers={'Request-Token': REQUEST_TOKEN}
                 )
-
+                
                 if response.status_code == 200:
                     messages.success(self.request, 'イベントが正常に登録されました')
                 else:
                     messages.warning(self.request, 'イベントは登録されましたが、同期に失敗しました')
-
+            
             return super().form_valid(form)
 
         except Exception as e:
@@ -604,4 +607,5 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'イベント登録'
+        context['community'] = Community.objects.filter(custom_user=self.request.user).first()
         return context
