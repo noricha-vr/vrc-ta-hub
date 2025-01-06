@@ -19,10 +19,13 @@ class IndexView(TemplateView):
             date__lte=end_date
         ).select_related('community').order_by('date', 'start_time')
         
-        # 予約済みのイベント詳細を取得
+        # 予約済みのイベント詳細を取得（コミュニティ情報も含める）
         context['upcoming_event_details'] = EventDetail.objects.filter(
             event__date__gte=today
-        ).select_related('event', 'event__community').order_by('event__date', 'start_time')
+        ).select_related(
+            'event', 
+            'event__community'
+        ).order_by('event__date', 'start_time')
         
         logger.info(context['upcoming_events'])
         return context
