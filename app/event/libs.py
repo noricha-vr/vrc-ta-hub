@@ -247,7 +247,7 @@ def generate_meta_description(text: str) -> str:
         meta_description = response.content.strip()
 
 
-        return meta_description
+        return meta_description[:250]
 
     except Exception as e:
         logger.warning(f"メタディスクリプションの生成中にエラーが発生しました: {str(e)}")
