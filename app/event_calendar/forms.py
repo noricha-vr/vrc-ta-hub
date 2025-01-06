@@ -26,10 +26,5 @@ class CalendarEntryForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['event_genres'].choices = CalendarEntry.EVENT_GENRE_CHOICES
-        calendar_entry = self.instance.calendar_entry
-        self.fields['join_condition'].initial = calendar_entry.join_condition
-        self.fields['event_detail'].initial = calendar_entry.event_detail
-        self.fields['how_to_join'].initial = calendar_entry.how_to_join
-        self.fields['note'].initial = calendar_entry.note
-        self.fields['is_overseas_user'].initial = calendar_entry.is_overseas_user
-        self.fields['event_genres'].initial = calendar_entry.event_genres
+        if self.instance and self.instance.pk:
+            self.fields['event_genres'].initial = self.instance.event_genres

@@ -8,24 +8,24 @@ from .models import Community, CalendarEntry
 
 
 class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):
-    model = Community
+    model = CalendarEntry
     form_class = CalendarEntryForm
     template_name = 'event_calendar/calendar_entry_form.html'
     success_url = reverse_lazy('account:settings')
 
     def test_func(self):
-        community = self.get_object()
-        return self.request.user == community.custom_user
+        calendar_entry = self.get_object()
+        return self.request.user == calendar_entry.community.custom_user
 
     def get_object(self, queryset=None):
-        obj = super().get_object(queryset)
-        CalendarEntry.objects.get_or_create(
-            community=obj,
+        community = Community.objects.get(pk=self.kwargs['pk'])
+        calendar_entry, created = CalendarEntry.objects.get_or_create(
+            community=community,
             defaults={
-                'event_detail': obj.description,
+                'event_detail': community.description,
             }
         )
-        return obj
+        return calendar_entry
 
     def form_valid(self, form):
         response = super().form_valid(form)
