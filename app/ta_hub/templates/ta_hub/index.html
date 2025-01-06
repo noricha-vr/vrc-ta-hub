@@ -48,6 +48,29 @@
     </div>
     <!-- hero end -->
 
+    <!-- upcoming events -->
+    <div class="container my-5">
+        <h2 class="text-center text-primary mb-4">直近のイベント</h2>
+        <div class="list-group">
+            {% for event in upcoming_events %}
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">{{ event.community.name }}</h5>
+                        <p class="mb-1">{{ event.date|date:"Y/m/d" }} {{ event.start_time|time:"H:i" }} 〜 {{ event.end_time|time:"H:i" }}</p>
+                    </div>
+                    <a href="{% url 'event:detail' event.id %}" class="btn btn-primary btn-sm">詳細</a>
+                </div>
+            </div>
+            {% empty %}
+            <div class="list-group-item text-center">
+                <p class="mb-0">現在予定されているイベントはありません</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <!-- upcoming events end -->
+
     <div class="row featurette text-center text-primary mt-5 mb-4">
         <h2 class="featurette-heading fw-normal lh-1 fw-bold">
             VRChat技術学術系イベントカレンダー
