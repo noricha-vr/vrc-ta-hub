@@ -103,15 +103,12 @@
                                                     onclick="return confirm('本当に削除しますか？');">削除
                                             </button>
                                         </form>
-                                        {% if detail.youtube_url or detail.slide_file %}
+
+                                        {% if detail.slide_file or detail.youtube_url %}
                                             {% if detail.contents == '' %}
                                                 <a href="{% url 'event:generate_blog' detail.pk %}"
-                                                   class="btn btn-outline-primary mt-2">記事生成</a>
+                                                   class="btn btn-primary d-inline-block">記事生成</a>
                                             {% endif %}
-                                        {% endif %}
-                                        {% if detail.slide_file and not detail.h1 %}
-                                            <a href="{% url 'event:generate_blog' detail.pk %}"
-                                               class="btn btn-outline-primary mt-2">記事生成</a>
                                         {% endif %}
                                         <hr>
                                     {% endfor %}
