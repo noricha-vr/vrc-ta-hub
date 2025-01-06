@@ -17,7 +17,7 @@ class IndexView(TemplateView):
         context['upcoming_events'] = Event.objects.filter(
             date__gte=today,
             date__lte=end_date
-        ).order_by('date', 'start_time')
+        ).select_related('community').order_by('date', 'start_time')
         logger.info(context['upcoming_events'])
         return context
 

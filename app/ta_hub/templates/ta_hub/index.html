@@ -58,8 +58,11 @@
                     <div>
                         <h5 class="mb-1">{{ event.community.name }}</h5>
                         <p class="mb-1">{{ event.date|date:"Y/m/d" }} {{ event.start_time|time:"H:i" }} 〜 {{ event.end_time|time:"H:i" }}</p>
+                        <small class="text-muted">
+                            {{ event.community.description|truncatechars:100 }}
+                        </small>
                     </div>
-                    <a href="{% url 'event:detail' event.id %}" class="btn btn-primary btn-sm">詳細</a>
+                    <a href="{% url 'community:detail' event.community.id %}" class="btn btn-primary btn-sm">集会詳細</a>
                 </div>
             </div>
             {% empty %}
