@@ -540,20 +540,24 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
         if self.request.user.is_authenticated:
             community = Community.objects.filter(custom_user=self.request.user).first()
             if community:
-                kwargs['initial'] = {'community': community}
+                kwargs['initial'] = {
+                    'start_time': community.start_time,
+                    'duration': community.duration
+                }
         return kwargs
 
     def form_valid(self, form):
         try:
-            calendar_service = GoogleCalendarService(
-                calendar_id=GOOGLE_CALENDAR_ID,
-                credentials_path=GOOGLE_CALENDAR_CREDENTIALS
-            )
-
+            # フォームのバリデーション後にコミュニティを取得
             community = Community.objects.filter(custom_user=self.request.user).first()
             if not community:
                 messages.error(self.request, 'コミュニティが見つかりません')
                 return self.form_invalid(form)
+
+            calendar_service = GoogleCalendarService(
+                calendar_id=GOOGLE_CALENDAR_ID,
+                credentials_path=GOOGLE_CALENDAR_CREDENTIALS
+            )
 
             start_date = form.cleaned_data['start_date']
             start_time = form.cleaned_data['start_time']
@@ -606,6 +610,5 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'イベント登録'
         context['community'] = Community.objects.filter(custom_user=self.request.user).first()
         return context
