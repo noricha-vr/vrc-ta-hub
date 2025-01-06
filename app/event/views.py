@@ -23,7 +23,7 @@ from event.libs import convert_markdown, generate_blog, generate_meta_descriptio
 from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url
 from url_filters import get_filtered_url
-from website.settings import GOOGLE_API_KEY, CALENDAR_ID, REQUEST_TOKEN, GEMINI_MODEL
+from website.settings import GOOGLE_API_KEY, CALENDAR_ID, GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, REQUEST_TOKEN, GEMINI_MODEL
 from .google_calendar import GoogleCalendarService
 
 logger = logging.getLogger(__name__)
@@ -78,8 +78,8 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
         if event.google_calendar_event_id:
             try:
                 calendar_service = GoogleCalendarService(
-                    calendar_id=settings.GOOGLE_CALENDAR_ID,
-                    credentials_path=settings.GOOGLE_CALENDAR_CREDENTIALS
+                    calendar_id=GOOGLE_CALENDAR_ID,
+                    credentials_path=GOOGLE_CALENDAR_CREDENTIALS
                 )
                 calendar_service.delete_event(event.google_calendar_event_id)
                 messages.success(request, "イベントをGoogleカレンダーから削除しました。")
