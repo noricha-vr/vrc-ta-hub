@@ -105,19 +105,13 @@
                                         </form>
                                         {% if detail.youtube_url or detail.slide_file %}
                                             {% if detail.contents == '' %}
-                                                <form method="post" class="d-inline"
-                                                      action="{% url 'event:generate_blog' detail.id %}">
-                                                    {% csrf_token %}
-                                                    <button type="submit" class="btn btn-primary"
-                                                            id="generate-button">
-                                                        記事生成
-                                                    </button>
-                                                </form>
+                                                <a href="{% url 'event:generate_blog' detail.pk %}"
+                                                   class="btn btn-outline-primary mt-2">記事生成</a>
                                             {% endif %}
-                                        {% else %}
-                                            {% if detail.slide_url %}
-                                                <p class="mt-2">※ スライドをアップロードすると記事を生成できます。</p>
-                                            {% endif %}
+                                        {% endif %}
+                                        {% if detail.slide_file and not detail.h1 %}
+                                            <a href="{% url 'event:generate_blog' detail.pk %}"
+                                               class="btn btn-outline-primary mt-2">記事生成</a>
                                         {% endif %}
                                         <hr>
                                     {% endfor %}
