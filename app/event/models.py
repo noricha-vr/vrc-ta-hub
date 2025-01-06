@@ -13,7 +13,8 @@ class Event(models.Model):
     start_time = models.TimeField('開始時刻', default='22:00')
     duration = models.IntegerField('開催時間（分）', default=60)
     weekday = models.CharField('曜日', max_length=5, choices=WEEKDAY_CHOICES, blank=True)
-
+    google_calendar_event_id = models.CharField('GoogleカレンダーイベントID', max_length=255, blank=True, null=True)
+    
     class Meta:
         verbose_name = 'イベント'
         verbose_name_plural = 'イベント'
