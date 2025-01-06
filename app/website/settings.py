@@ -124,6 +124,14 @@ if 'test' in sys.argv:
 
 print('DB_NAME ' + DATABASES['default']['NAME'])
 
+# Cache settings
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
