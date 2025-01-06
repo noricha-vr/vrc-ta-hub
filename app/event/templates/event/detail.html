@@ -235,7 +235,7 @@
                     </div>
                 </div>
                 <div>
-                    <h2>開催コミュニティー</h2>
+                    <h2>開催集会</h2>
                     <div class="card h-100 shadow-sm shadow-hover">
                         <div class="card-body">
                             <div class="row">
@@ -252,7 +252,12 @@
                                     </h3>
                                     <p class="mb-2">
                                         <i class="bi bi-calendar-event me-2"></i>
-                                        開催日時: {{ event_detail.event.community.schedule }}
+                                        開催日時: {% for weekday in community_schedule.weekdays %}{{ weekday }}{% if not forloop.last %}・{% endif %}{% endfor %}
+                                        {{ community_schedule.start_time|date:"H:i" }} - {{ community_schedule.end_time|date:"H:i" }}
+                                    </p>
+                                    <p class="mb-2">
+                                        <i class="bi bi-clock-history me-2"></i>
+                                        開催周期: {{ community_schedule.frequency }}
                                     </p>
                                     <p class="mb-3">{{ event_detail.event.community.description }}</p>
                                 </div>

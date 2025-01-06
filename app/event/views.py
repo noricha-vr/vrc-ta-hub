@@ -18,7 +18,7 @@ from google.auth import default
 from google.cloud import bigquery
 from googleapiclient.discovery import build
 
-from community.models import Community
+from community.models import Community, WEEKDAY_CHOICES
 from event.forms import EventDetailForm, EventSearchForm, EventCreateForm
 from event.libs import convert_markdown, generate_blog
 from event.models import EventDetail, Event
@@ -148,6 +148,16 @@ class EventDetailView(DetailView):
             'https://discord.com/') if event_detail.youtube_url else False
         context['html_content'] = convert_markdown(event_detail.contents)
         context['related_event_details'] = self._fetch_related_event_details(event_detail)
+
+        # コミュニティの開催情報を追加
+        community = event_detail.event.community
+        context['community_schedule'] = {
+            'weekdays': [dict(WEEKDAY_CHOICES)[day] for day in community.weekdays],
+            'start_time': community.start_time,
+            'end_time': community.end_time,
+            'frequency': community.frequency
+        }
+        
         return context
 
     def _fetch_related_event_details(self, event_detail: EventDetail) -> List[EventDetail]:
