@@ -251,20 +251,20 @@
                                         {{ event_detail.event.community.name }}
                                     </h3>
                                     <p class="mb-2">
-                                        <i class="bi bi-calendar me-2"></i>
+                                        <i class="bi bi-calendar-event me-2"></i>
                                         開催日: {{ event_detail.event.date|date:"Y年m月d日" }}
                                     </p>
                                   
                                     <p class="mb-2">
-                                        <i class="bi bi-clock me-2"></i>
+                                        <i class="bi bi-alarm me-2"></i>
                                         開催時間: {{ community_schedule.start_time|date:"H:i" }} - {{ community_schedule.end_time|date:"H:i" }}
                                     </p>
-                                    <p class="mb-2">
+                                    <p class="mb-2"></p>
                                         <i class="bi bi-calendar-week me-2"></i>
                                         開催曜日: {% for weekday in community_schedule.weekdays %}{{ weekday }}{% if not forloop.last %}・{% endif %}{% endfor %}
                                     </p>
                                     <p class="mb-2">
-                                        <i class="bi bi-clock-history me-2"></i>
+                                        <i class="bi bi-arrow-repeat me-2"></i>
                                         開催周期: {{ community_schedule.frequency }}
                                     </p>
                                     <p class="mb-3">{{ event_detail.event.community.description }}</p>
