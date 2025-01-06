@@ -1,15 +1,16 @@
-import os
 from datetime import datetime, timedelta
 from unittest import TestCase
 
 from event.google_calendar import GoogleCalendarService
+from website.settings import GOOGLE_CALENDAR_ID, GOOGLE_CALENDAR_CREDENTIALS
 
 
 class TestGoogleCalendarService(TestCase):
     def setUp(self):
         """テストの前準備"""
-        self.calendar_id = 'fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7@group.calendar.google.com'
-        self.credentials_path = os.getenv('GOOGLE_CALENDAR_CREDENTIALS', '/app/credentials.json')
+        self.calendar_id = GOOGLE_CALENDAR_ID
+        self.credentials_path = GOOGLE_CALENDAR_CREDENTIALS
+
         self.service = GoogleCalendarService(self.calendar_id, self.credentials_path)
 
     def test_create_and_delete_event(self):
@@ -125,3 +126,107 @@ class TestGoogleCalendarService(TestCase):
                     self.service.delete_event(event['id'])
                 except Exception:
                     pass
+
+    def test_create_weekly_recurring_event(self):
+        """毎週月曜日の繰り返しイベントのテスト"""
+        # テスト用のイベントデータ
+        summary = '毎週月曜日のイベント'
+        start_time = datetime.now() + timedelta(days=1)
+        end_time = start_time + timedelta(hours=2)
+
+        try:
+            # 毎週月曜日の繰り返しルール
+            recurrence = [self.service._create_weekly_rrule(['MO'])]
+
+            # イベントを作成
+            event = self.service.create_event(
+                summary=summary,
+                start_time=start_time,
+                end_time=end_time,
+                recurrence=recurrence
+            )
+
+            # 繰り返しルールが設定されていることを確認
+            self.assertIn('recurrence', event)
+            self.assertEqual(event['recurrence'], recurrence)
+
+            # イベントを削除
+            self.service.delete_event(event['id'])
+
+        except Exception as e:
+            self.fail(f'テストが失敗しました: {str(e)}')
+
+    def test_create_biweekly_recurring_event(self):
+        """隔週火曜日の繰り返しイベントのテスト"""
+        summary = '隔週火曜日のイベント'
+        start_time = datetime.now() + timedelta(days=1)
+        end_time = start_time + timedelta(hours=2)
+
+        try:
+            # 隔週火曜日の繰り返しルール
+            recurrence = [self.service._create_weekly_rrule(['TU'], interval=2)]
+
+            event = self.service.create_event(
+                summary=summary,
+                start_time=start_time,
+                end_time=end_time,
+                recurrence=recurrence
+            )
+
+            self.assertIn('recurrence', event)
+            self.assertEqual(event['recurrence'], recurrence)
+
+            self.service.delete_event(event['id'])
+
+        except Exception as e:
+            self.fail(f'テストが失敗しました: {str(e)}')
+
+    def test_create_monthly_recurring_event(self):
+        """毎月第4土曜日の繰り返しイベントのテスト"""
+        summary = '毎月第4土曜日のイベント'
+        start_time = datetime.now() + timedelta(days=1)
+        end_time = start_time + timedelta(hours=2)
+
+        try:
+            # 毎月第4土曜日の繰り返しルール
+            recurrence = [self.service._create_monthly_by_week_rrule(4, 'SA')]
+
+            event = self.service.create_event(
+                summary=summary,
+                start_time=start_time,
+                end_time=end_time,
+                recurrence=recurrence
+            )
+
+            self.assertIn('recurrence', event)
+            self.assertEqual(event['recurrence'], recurrence)
+
+            self.service.delete_event(event['id'])
+
+        except Exception as e:
+            self.fail(f'テストが失敗しました: {str(e)}')
+
+    def test_create_monthly_by_date_recurring_event(self):
+        """毎月8のつく日の繰り返しイベントのテスト"""
+        summary = '毎月8のつく日のイベント'
+        start_time = datetime.now() + timedelta(days=1)
+        end_time = start_time + timedelta(hours=2)
+
+        try:
+            # 8のつく日（8日、18日、28日）の繰り返しルール
+            recurrence = [self.service._create_monthly_by_date_rrule([8, 18, 28])]
+
+            event = self.service.create_event(
+                summary=summary,
+                start_time=start_time,
+                end_time=end_time,
+                recurrence=recurrence
+            )
+
+            self.assertIn('recurrence', event)
+            self.assertEqual(event['recurrence'], recurrence)
+
+            self.service.delete_event(event['id'])
+
+        except Exception as e:
+            self.fail(f'テストが失敗しました: {str(e)}')

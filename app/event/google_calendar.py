@@ -21,12 +21,50 @@ class GoogleCalendarService:
             credentials_path, scopes=self.SCOPES)
         self.service = build('calendar', 'v3', credentials=credentials)
 
+    def _create_weekly_rrule(self, days: List[str], interval: int = 1) -> str:
+        """週次の繰り返しルールを作成する
+
+        Args:
+            days: 繰り返す曜日のリスト（例: ['MO', 'WE', 'FR']）
+            interval: 繰り返し間隔（1なら毎週、2なら隔週）
+
+        Returns:
+            RFC 5545形式の繰り返しルール
+        """
+        days_str = ','.join(days)
+        return f'RRULE:FREQ=WEEKLY;INTERVAL={interval};BYDAY={days_str}'
+
+    def _create_monthly_by_date_rrule(self, dates: List[int]) -> str:
+        """月次の日付指定の繰り返しルールを作成する
+
+        Args:
+            dates: 繰り返す日付のリスト（例: [8, 18, 28]）
+
+        Returns:
+            RFC 5545形式の繰り返しルール
+        """
+        dates_str = ','.join(str(d) for d in dates)
+        return f'RRULE:FREQ=MONTHLY;BYMONTHDAY={dates_str}'
+
+    def _create_monthly_by_week_rrule(self, week_number: int, day: str) -> str:
+        """月次の第N週X曜日の繰り返しルールを作成する
+
+        Args:
+            week_number: 何週目か（1-5, -1で最終週）
+            day: 曜日（MO, TU, WE, TH, FR, SA, SU）
+
+        Returns:
+            RFC 5545形式の繰り返しルール
+        """
+        return f'RRULE:FREQ=MONTHLY;BYDAY={week_number}{day}'
+
     def create_event(self, 
                     summary: str,
                     start_time: datetime,
                     end_time: datetime,
                     description: Optional[str] = None,
-                    location: Optional[str] = None) -> Dict[str, Any]:
+                    location: Optional[str] = None,
+                    recurrence: Optional[List[str]] = None) -> Dict[str, Any]:
         """イベントを作成する
 
         Args:
@@ -35,6 +73,7 @@ class GoogleCalendarService:
             end_time: 終了時刻
             description: イベントの説明
             location: 場所
+            recurrence: 繰り返しルール（RFC 5545形式）のリスト
 
         Returns:
             作成されたイベントの情報
@@ -55,6 +94,8 @@ class GoogleCalendarService:
             event['description'] = description
         if location:
             event['location'] = location
+        if recurrence:
+            event['recurrence'] = recurrence
 
         try:
             event = self.service.events().insert(

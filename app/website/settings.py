@@ -176,6 +176,10 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')  # ローカルに静的ファイ
 
 LOGIN_URL = '/account/login/'
 
+# Google Calendar APIの設定
+GOOGLE_CALENDAR_ID = 'fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7@group.calendar.google.com'
+GOOGLE_CALENDAR_CREDENTIALS = os.getenv('GOOGLE_CALENDAR_CREDENTIALS', '/app/credentials.json')
+
 # Cloudflare R2の設定
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')

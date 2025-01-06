@@ -8,7 +8,6 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.db import IntegrityError
 from django.db.models import QuerySet
-from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
@@ -25,6 +24,7 @@ from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url
 from url_filters import get_filtered_url
 from website.settings import GOOGLE_API_KEY, CALENDAR_ID, REQUEST_TOKEN, GEMINI_MODEL
+from .google_calendar import GoogleCalendarService
 
 logger = logging.getLogger(__name__)
 
@@ -64,15 +64,33 @@ class EventCreateView(LoginRequiredMixin, CreateView):
 class EventDeleteView(LoginRequiredMixin, DeleteView):
     model = Event
     success_url = reverse_lazy('event:my_list')
-    template_name = ''  # テンプレートを使用しない場合は空文字列を設定
 
-    def post(self, request, *args, **kwargs):
-        message = f"イベントを削除しました: {self.get_object().date} {self.get_object().start_time}"
-        messages.success(self.request, message)
-        return super().delete(request, *args, **kwargs)
+    def delete(self, request, *args, **kwargs):
+        event = self.get_object()
 
-    def get(self, request, *args, **kwargs):
-        return HttpResponseRedirect(self.success_url)
+        # 過去のイベントは削除できないようにする
+        today = datetime.now().date()
+        if event.date < today:
+            messages.error(request, "過去のイベントは削除できません。")
+            return redirect('event:my_list')
+
+        # Googleカレンダーからイベントを削除
+        if event.google_calendar_event_id:
+            try:
+                calendar_service = GoogleCalendarService(
+                    calendar_id=settings.GOOGLE_CALENDAR_ID,
+                    credentials_path=settings.GOOGLE_CALENDAR_CREDENTIALS
+                )
+                calendar_service.delete_event(event.google_calendar_event_id)
+                messages.success(request, "イベントをGoogleカレンダーから削除しました。")
+            except Exception as e:
+                messages.error(request, f"Googleカレンダーからの削除中にエラーが発生しました: {str(e)}")
+                return redirect('event:my_list')
+
+        # データベースからイベントを削除
+        response = super().delete(request, *args, **kwargs)
+        messages.success(request, "イベントを削除しました。")
+        return response
 
 
 class EventListView(ListView):
@@ -157,7 +175,7 @@ class EventDetailView(DetailView):
             'end_time': community.end_time,
             'frequency': community.frequency
         }
-        
+
         return context
 
     def _fetch_related_event_details(self, event_detail: EventDetail) -> List[EventDetail]:
@@ -347,7 +365,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
 
             logger.info(f"ブログ記事が生成されました。: {event_detail.id}")
             logger.info(f"ブログ記事のメタディスクリプション: {event_detail.meta_description}")
-            
+
             messages.success(request, "ブログ記事が生成されました。")
             return redirect('event:detail', pk=event_detail.id)
 
