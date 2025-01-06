@@ -177,7 +177,6 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')  # ローカルに静的ファイ
 LOGIN_URL = '/account/login/'
 
 # Google Calendar APIの設定
-GOOGLE_CALENDAR_ID = 'fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7@group.calendar.google.com'
 GOOGLE_CALENDAR_CREDENTIALS = os.getenv('GOOGLE_CALENDAR_CREDENTIALS', '/app/credentials.json')
 
 # Cloudflare R2の設定
@@ -198,8 +197,8 @@ AWS_QUERYSTRING_AUTH = False  # 認証付きのURLを生成しない
 # Google API
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 assert GOOGLE_API_KEY is not None, 'Please set GOOGLE_API_KEY'
-CALENDAR_ID = os.environ.get('CALENDAR_ID')
-assert CALENDAR_ID is not None, 'Please set CALENDAR_ID'
+GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
+assert GOOGLE_CALENDAR_ID is not None, 'Please set GOOGLE_CALENDAR_ID'
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash-exp')
