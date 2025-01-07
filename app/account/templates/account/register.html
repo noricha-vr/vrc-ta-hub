@@ -1,8 +1,21 @@
 {% extends 'ta_hub/base.html' %}
+{% load account_tags %}
 
 {% block main %}
     <style>
-
+        .errorlist {
+            color: #dc3545;
+            list-style: none;
+            padding-left: 0;
+            margin-bottom: 0.5rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .required-field::after {
+            content: " *";
+            color: #dc3545;
+        }
     </style>
     <div class="container my-4">
         <div class="row">
@@ -26,9 +39,38 @@
                                 ※ 登録にはVRChat内の活動でどちらかに該当している必要があります。
                             </p>
                         </div>
-                        <form method="post">
+                        {% if form.errors %}
+                            <div class="alert alert-danger">
+                                <strong>以下の項目を確認してください：</strong>
+                                <ul class="mb-0">
+                                    {% for field, errors in form.errors.items %}
+                                        {% for error in errors %}
+                                            <li>{{ form|get_field_label:field }}: {{ error }}</li>
+                                        {% endfor %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                        <form method="post" enctype="multipart/form-data">
                             {% csrf_token %}
-                            {{ form.as_p }}
+                            {% for field in form %}
+                                <div class="form-group">
+                                    <label for="{{ field.id_for_label }}" class="{% if field.field.required %}required-field{% endif %}">
+                                        {{ field.label }}
+                                    </label>
+                                    {{ field }}
+                                    {% if field.help_text %}
+                                        <small class="form-text text-muted">{{ field.help_text }}</small>
+                                    {% endif %}
+                                    {% if field.errors %}
+                                        <ul class="errorlist">
+                                            {% for error in field.errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
                             <button type="submit" class="btn btn-primary">登録</button>
                         </form>
                     </div>

@@ -48,12 +48,34 @@ class CustomUserCreationForm(UserCreationForm):
 このサイトやイベント紹介、ワールドに設置されているアセット、APIなどで利用されます""",
         widget=forms.ClearableFileInput(attrs={'class': 'form-control'}),
         validators=[FileExtensionValidator(['jpg', 'jpeg', 'png'])],
+        error_messages={
+            'required': 'ポスター画像は必須項目です。',
+            'invalid': '有効な画像ファイルを選択してください。',
+        }
     )
-    description = forms.CharField(label='イベント紹介', widget=forms.Textarea(attrs={'class': 'form-control'}))
-    platform = forms.ChoiceField(label='対応プラットフォーム', choices=PLATFORM_CHOICES,
-                                 widget=forms.Select(attrs={'class': 'form-control'}))
-    tags = forms.MultipleChoiceField(label='タグ', choices=TAGS,
-                                     widget=forms.CheckboxSelectMultiple())
+    description = forms.CharField(
+        label='イベント紹介', 
+        widget=forms.Textarea(attrs={'class': 'form-control'}),
+        error_messages={
+            'required': 'イベント紹介は必須項目です。',
+        }
+    )
+    platform = forms.ChoiceField(
+        label='対応プラットフォーム', 
+        choices=PLATFORM_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        error_messages={
+            'required': '対応プラットフォームは必須項目です。',
+        }
+    )
+    tags = forms.MultipleChoiceField(
+        label='タグ', 
+        choices=TAGS,
+        widget=forms.CheckboxSelectMultiple(),
+        error_messages={
+            'required': '少なくとも1つのタグを選択してください。',
+        }
+    )
 
     class Meta(UserCreationForm.Meta):
         model = CustomUser
@@ -70,6 +92,19 @@ class CustomUserCreationForm(UserCreationForm):
         help_texts = {
             'email': 'メールアドレスは公開されません。連絡用として使用します。',
             'discord_id': 'ディスコードIDは公開されません。イベント開催日程の調整やお知らせなどのためにDiscordサーバーに招待します。'
+        }
+        error_messages = {
+            'user_name': {
+                'required': '集会名は必須項目です。',
+                'unique': 'この集会名は既に使用されています。',
+            },
+            'email': {
+                'required': 'メールアドレスは必須項目です。',
+                'invalid': '有効なメールアドレスを入力してください。',
+            },
+            'discord_id': {
+                'required': 'Discord IDは必須項目です。',
+            },
         }
 
     def save(self, commit=True):
