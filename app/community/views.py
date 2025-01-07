@@ -13,6 +13,9 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView, DetailView
 from django.views.generic import UpdateView
+from django.core.mail import send_mail
+from django.conf import settings
+from django.template.loader import render_to_string
 
 from event.models import Event
 from url_filters import get_filtered_url
@@ -229,5 +232,25 @@ class AcceptView(View):
         community = get_object_or_404(Community, pk=community_id)
         community.is_accepted = True
         community.save()
+
+        # 承認通知メールを送信
+        subject = f'{community.name}が承認されました'
+        my_list_url = request.build_absolute_uri(reverse('event:my_list'))
+        context = {
+            'community': community,
+            'my_list_url': my_list_url,
+        }
+
+        # HTMLメールを生成
+        html_message = render_to_string('community/email/accept.html', context)
+
+        send_mail(
+            subject=subject,
+            message='',  # プレーンテキストは空文字列を設定
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[community.custom_user.email],
+            html_message=html_message,
+        )
+
         messages.success(request, f'{community.name}を承認しました。')
         return redirect('community:waiting_list')
