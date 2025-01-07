@@ -8,8 +8,8 @@ services:
     volumes:
       - ./app:/app
     env_file:
-      - .env
-    #      - .env.local
+      # - .env
+      - .env.local
     environment:
       - DEBUG=True
       - HTTP_HOST=0.0.0.0
