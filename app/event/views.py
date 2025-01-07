@@ -28,9 +28,16 @@ from .google_calendar import GoogleCalendarService
 
 logger = logging.getLogger(__name__)
 
-# デフォルトのクレデンシャルを使用してBigQueryクライアントを設定
-credentials, project = default()
-client = bigquery.Client(credentials=credentials, project=project, location="asia-northeast1")
+# Google認証とBigQueryをモック化
+import os
+if os.environ.get('TESTING'):
+    from unittest.mock import MagicMock
+    credentials = MagicMock()
+    project = 'test-project'
+    client = MagicMock()
+else:
+    credentials, project = default()
+    client = bigquery.Client(credentials=credentials, project=project, location="asia-northeast1")
 
 
 class EventCreateView(LoginRequiredMixin, CreateView):

@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    working_dir: /app/app
+    env_file:
+      - .env.local
+    environment:
+      - DJANGO_SETTINGS_MODULE=website.settings
+      - DEBUG=True
+      - SECRET_KEY=test-key
+      - DB_NAME=test_db
+      - DB_USER=test_user
+      - DB_PASSWORD=test_password
+      - DB_HOST=db
+      - GOOGLE_API_KEY=dummy
+      - GOOGLE_CALENDAR_ID=dummy
+      - GEMINI_API_KEY=dummy
+      - OPENAI_API_KEY=dummy
+      - REQUEST_TOKEN=dummy
+      - TESTING=True
+    command: python manage.py test account.tests.test_mail.EmailTest -v 2 

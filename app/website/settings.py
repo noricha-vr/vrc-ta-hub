@@ -213,9 +213,10 @@ assert REQUEST_TOKEN is not None, 'Please set REQUEST_TOKEN'
 # メール設定 (Amazon SES)
 EMAIL_BACKEND = 'django_ses.SESBackend'
 AWS_SES_REGION_NAME = os.environ.get('AWS_SES_REGION_NAME', 'ap-northeast-1')
+AWS_SES_REGION_ENDPOINT = os.environ.get('AWS_SES_REGION_ENDPOINT', 'email.ap-northeast-1.amazonaws.com')
 AWS_SES_ACCESS_KEY_ID = os.environ.get('AWS_SES_ACCESS_KEY_ID')  # SES専用のアクセスキー
 AWS_SES_SECRET_ACCESS_KEY = os.environ.get('AWS_SES_SECRET_ACCESS_KEY')  # SES専用のシークレットキー
-DEFAULT_FROM_EMAIL = 'VRC技術学術系Hub <info@vrc-ta-hub.com>'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'VRC技術学術系Hub <info@vrc-ta-hub.com>')
 
 LOGGING = {
     'version': 1,
