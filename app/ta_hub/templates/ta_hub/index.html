@@ -270,6 +270,16 @@
         .weekday-sat {
             color: #5b21b6;
         }
+
+        .card-hover-container {
+            transition: transform 0.2s ease;
+        }
+        .card-hover-container:hover {
+            transform: translateY(-5px);
+        }
+        .calendar-add-button {
+            transition: transform 0.2s ease;
+        }
     </style>
     <link rel="stylesheet" href="https://petipeti-object-storage.work/dist/style.css">
 
@@ -380,7 +390,7 @@
             <div class="row row-cols-1 row-cols-md-2 g-4">
                 {% for event in upcoming_events %}
                     <div class="col">
-                        <div class="position-relative">
+                        <div class="position-relative card-hover-container">
                             <a href="{% url 'community:detail' event.community.id %}" class="text-decoration-none">
                                 <div class="card event-card shadow">
                                     <div class="row g-0 h-100">
@@ -442,7 +452,7 @@
                                 </div>
                             </a>
                             <a href="{{ event.google_calendar_url }}" target="_blank" 
-                               class="position-absolute top-0 end-0 p-2 text-decoration-none" 
+                               class="position-absolute top-0 end-0 p-2 text-decoration-none calendar-add-button" 
                                data-bs-toggle="tooltip" data-bs-placement="left" 
                                title="Googleカレンダーに予定を追加"
                                style="z-index: 10;">

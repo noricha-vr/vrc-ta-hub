@@ -3,6 +3,7 @@ from django.views.static import serve
 from django.utils import timezone
 from event.models import Event, EventDetail
 from django.core.cache import cache
+from event.views import EventListView
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,11 @@ class IndexView(TemplateView):
         # キャッシュからデータを取得
         cached_data = cache.get(cache_key)
         if cached_data is not None:
+            # キャッシュされたデータにGoogle Calendar URLを追加
+            event_list_view = EventListView()
+            event_list_view.request = self.request
+            for event in cached_data['upcoming_events']:
+                event.google_calendar_url = event_list_view.generate_google_calendar_url(event)
             context.update(cached_data)
             return context
             
@@ -29,6 +35,12 @@ class IndexView(TemplateView):
             date__gte=today,
             date__lte=end_date
         ).select_related('community').order_by('date', 'start_time')
+        
+        # Google Calendar URLを生成
+        event_list_view = EventListView()
+        event_list_view.request = self.request
+        for event in upcoming_events:
+            event.google_calendar_url = event_list_view.generate_google_calendar_url(event)
         
         upcoming_event_details = EventDetail.objects.filter(
             event__date__gte=today
