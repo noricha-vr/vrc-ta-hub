@@ -193,7 +193,7 @@
                         <tbody>
 
                         {% for event_dict in past_events %}
-                            <tr{% if event_dict.event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
+                            <tr {% if event_dict.event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
                                 <td>{{ event_dict.event.date|date:"Y年m月d日" }}</td>
                                 <td>
                                     {{ event_dict.event.start_time|date:"H:i" }} -
@@ -226,6 +226,22 @@
             </div>
         </div>
     </div>
+    <!-- Superuserの場合はコミュニティーのユーザーの連絡先を表示 -->
+    {% if request.user.is_superuser %}
+        <div class="card my-5 shadow">
+            <div class="card-body">
+                <h2 class="fs-3 fw-bold my-5 text-center">
+                    コミュニティーのユーザーの連絡先
+                </h2>
+                <p>
+                    {{ community.custom_user.email }}
+                </p>
+                <p>
+                    {{ community.custom_user.discord_id }}
+                </p>
+            </div>
+        </div>
+    {% endif %}
 
 
 {% endblock %}
