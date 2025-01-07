@@ -149,6 +149,33 @@ class EventListView(ListView):
     context_object_name = 'events'
     paginate_by = 30
 
+    def get(self, request, *args, **kwargs):
+        # 通常のget処理の前にページ番号をチェック
+        page_str = request.GET.get('page', '1')
+        
+        try:
+            # ページ番号のみを抽出（数字以外を除去）
+            page = int(''.join(filter(str.isdigit, page_str)) or '1')
+        except (ValueError, TypeError):
+            # 無効なページ番号の場合は1ページ目にリダイレクト
+            params = request.GET.copy()
+            params['page'] = '1'
+            return redirect(f"{request.path}?{params.urlencode()}")
+
+        self.object_list = self.get_queryset()
+        paginator = self.get_paginator(self.object_list, self.paginate_by)
+
+        if page > paginator.num_pages and paginator.num_pages > 0:
+            # 存在しないページ番号の場合は1ページ目にリダイレクト
+            params = request.GET.copy()
+            params['page'] = '1'
+            return redirect(f"{request.path}?{params.urlencode()}")
+
+        # ページ番号が有効な場合は通常の処理を続行
+        request.GET = request.GET.copy()
+        request.GET['page'] = str(page)
+        return super().get(request, *args, **kwargs)
+
     def get_queryset(self):
         queryset = super().get_queryset()
         now = timezone.now()
