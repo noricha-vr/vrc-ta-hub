@@ -78,33 +78,59 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
             messages.error(request, "過去のイベントは削除できません。")
             return redirect('event:my_list')
 
-        # Googleカレンダーからイベントを削除
-        if event.google_calendar_event_id:
-            try:
-                calendar_service = GoogleCalendarService(
-                    calendar_id=GOOGLE_CALENDAR_ID,
-                    credentials_path=GOOGLE_CALENDAR_CREDENTIALS
-                )
-                logger.info(f"Googleカレンダーからの削除を試行: Event ID={event.google_calendar_event_id}")
-                calendar_service.delete_event(event.google_calendar_event_id)
-                logger.info(f"Googleカレンダーからの削除成功: Event ID={event.google_calendar_event_id}")
-                messages.success(request, "イベントをGoogleカレンダーから削除しました。")
-            except Exception as e:
-                logger.error(
-                    f"Googleカレンダーからの削除失敗: Event ID={event.google_calendar_event_id}, エラー={str(e)}")
-                messages.error(request, f"Googleカレンダーからの削除中にエラーが発生しました: {str(e)}")
-                return redirect('event:my_list')
+        # 以降のイベントも削除するかどうかのチェック
+        delete_subsequent = request.POST.get('delete_subsequent') == 'on'
+        events_to_delete = [event]
 
-        # データベースからイベントを削除
-        try:
-            response = super().delete(request, *args, **kwargs)
-            logger.info(f"データベースからの削除成功: ID={event.id}")
-            messages.success(request, "イベントを削除しました。")
-            return response
-        except Exception as e:
-            logger.error(f"データベースからの削除失敗: ID={event.id}, エラー={str(e)}")
-            messages.error(request, f"データベースからの削除中にエラーが発生しました: {str(e)}")
-            return redirect('event:my_list')
+        if delete_subsequent:
+            # 同じコミュニティの、選択したイベント以降のイベントを取得
+            subsequent_events = Event.objects.filter(
+                community=event.community,
+                date__gt=event.date
+            ).order_by('date', 'start_time')
+            events_to_delete.extend(subsequent_events)
+            logger.info(f"以降のイベントも削除します: {len(subsequent_events)}件")
+
+        success_count = 0
+        error_count = 0
+
+        for event_to_delete in events_to_delete:
+            try:
+                # Googleカレンダーからイベントを削除
+                if event_to_delete.google_calendar_event_id:
+                    try:
+                        calendar_service = GoogleCalendarService(
+                            calendar_id=GOOGLE_CALENDAR_ID,
+                            credentials_path=GOOGLE_CALENDAR_CREDENTIALS
+                        )
+                        logger.info(f"Googleカレンダーからの削除を試行: Event ID={event_to_delete.google_calendar_event_id}")
+                        calendar_service.delete_event(event_to_delete.google_calendar_event_id)
+                        logger.info(f"Googleカレンダーからの削除成功: Event ID={event_to_delete.google_calendar_event_id}")
+                    except Exception as e:
+                        logger.error(
+                            f"Googleカレンダーからの削除失敗: Event ID={event_to_delete.google_calendar_event_id}, エラー={str(e)}")
+                        error_count += 1
+                        continue
+
+                # データベースからイベントを削除
+                event_to_delete.delete()
+                success_count += 1
+                logger.info(f"データベースからの削除成功: ID={event_to_delete.id}")
+
+            except Exception as e:
+                logger.error(f"イベントの削除に失敗: ID={event_to_delete.id}, エラー={str(e)}")
+                error_count += 1
+
+        if success_count > 0:
+            if delete_subsequent:
+                messages.success(request, f"{success_count}件のイベントを削除しました。")
+            else:
+                messages.success(request, "イベントを削除しました。")
+
+        if error_count > 0:
+            messages.error(request, f"{error_count}件のイベントの削除中にエラーが発生しました。")
+
+        return redirect('event:my_list')
 
 
 class EventListView(ListView):
