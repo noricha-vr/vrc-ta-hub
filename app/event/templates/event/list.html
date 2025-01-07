@@ -68,7 +68,7 @@
                     <table class="table table-hover table-nowrap">
                         <thead class="table-light">
                         <tr>
-                            <th style="min-width: 100px;width:136px">開催日</th>
+                            <th style="min-width: 150px;width:150px">開催日</th>
                             <th style="min-width: 81px">開始時間</th>
                             <th style="min-width: 100px">プラット<br>フォーム</th>
                             <th style="min-width: 150px">イベント名<br>テーマ by 登壇者</th>
@@ -79,17 +79,14 @@
                         {% for event in events %}
                             <tr>
                                 <td>
-                                    <div class="d-flex flex-column">
+                                    <div class="d-flex align-items-center">
+                                        <a href="{{ event.google_calendar_url }}" target="_blank" 
+                                           class="text-decoration-none me-2" 
+                                           data-bs-toggle="tooltip" data-bs-placement="left" 
+                                           title="Googleカレンダーに予定を追加">
+                                            <i class="bi bi-plus-circle-fill fs-5 text-primary opacity-75"></i>
+                                        </a>
                                         <div>{{ event.date|date:"n月j日（D）" }}</div>
-                                        <div>
-                                            <a href="{{ event.google_calendar_url }}" target="_blank" 
-                                               class="text-muted text-decoration-none small d-inline-flex align-items-center mt-1"
-                                               data-bs-toggle="tooltip" data-bs-placement="right" 
-                                               title="Googleカレンダーに予定を追加します">
-                                                <i class="bi bi-calendar"></i>
-                                                <span class="ms-1 text-nowrap">カレンダーに追加</span>
-                                            </a>
-                                        </div>
                                     </div>
                                 </td>
                                 <td>{{ event.start_time }}</td>
