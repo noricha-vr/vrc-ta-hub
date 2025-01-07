@@ -10,6 +10,7 @@
             max-width: 600px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #ffffff;
         }
         .header {
             margin-bottom: 30px;
@@ -18,60 +19,92 @@
         }
         .content {
             margin-bottom: 30px;
+            background-color: #ffffff;
         }
         .button {
             display: inline-block;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
+            padding: 12px 24px;
+            background-color: #0066cc;
+            color: #ffffff !important;
             text-decoration: none;
             border-radius: 5px;
             margin: 10px 0;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .button:hover {
+            background-color: #0052a3;
         }
         .features {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
             margin: 20px 0;
+            border: 1px solid #e1e4e8;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
         .features h3 {
-            color: #007bff;
+            color: #0066cc;
             margin-top: 0;
+            font-size: 1.2em;
         }
         .features ul {
             margin: 0;
             padding-left: 20px;
         }
         .site-features {
-            background-color: #e9ecef;
-            padding: 20px;
+            background-color: #ffffff;
+            padding: 25px;
             border-radius: 8px;
             margin: 30px 0;
+            border: 1px solid #e1e4e8;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
         .site-features h2 {
-            color: #0056b3;
+            color: #0066cc;
             margin-top: 0;
-            border-bottom: 1px solid #dee2e6;
+            border-bottom: 1px solid #e1e4e8;
             padding-bottom: 10px;
+            font-size: 1.5em;
         }
         .feature-group {
-            margin: 15px 0;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
         }
         .feature-group h3 {
-            color: #495057;
-            font-size: 1.1em;
-            margin: 10px 0;
+            color: #2c3e50;
+            font-size: 1.2em;
+            margin: 0 0 10px 0;
         }
         .feature-group p {
+            margin: 10px 0;
+            color: #2c3e50;
+        }
+        .feature-group ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .feature-group li {
             margin: 5px 0;
-            color: #495057;
+            color: #2c3e50;
         }
         .footer {
             margin-top: 30px;
             padding-top: 20px;
-            border-top: 1px solid #eee;
+            border-top: 1px solid #e1e4e8;
             font-size: 0.9em;
             color: #666;
+        }
+        .link {
+            color: #0066cc;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .link:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -107,7 +140,7 @@
                 <ul>
                     <li>発表資料（PDF、スライド）のリンクを保存</li>
                     <li>YouTubeの発表動画を埋め込み可能</li>
-                    <li>過去の発表を簡単に検索・閲覧</li>
+                    <li><a href="http://0.0.0.0:8015/event/detail/history/" class="link">過去の発表を検索・閲覧</a></li>
                 </ul>
             </div>
 

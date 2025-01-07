@@ -10,28 +10,81 @@
             max-width: 600px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #ffffff;
         }
         .header {
             margin-bottom: 30px;
+            border-bottom: 2px solid #0066cc;
+            padding-bottom: 10px;
         }
         .content {
             margin-bottom: 30px;
+            background-color: #ffffff;
         }
         .button {
             display: inline-block;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
+            padding: 12px 24px;
+            background-color: #0066cc;
+            color: #ffffff !important;
             text-decoration: none;
             border-radius: 5px;
             margin: 10px 0;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .button:hover {
+            background-color: #0052a3;
+        }
+        .features {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #e1e4e8;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .features h3 {
+            color: #0066cc;
+            margin-top: 0;
+            font-size: 1.2em;
+        }
+        .features ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .features li {
+            margin: 5px 0;
+            color: #2c3e50;
+        }
+        .link {
+            color: #0066cc;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .link:hover {
+            text-decoration: underline;
         }
         .footer {
             margin-top: 30px;
             padding-top: 20px;
-            border-top: 1px solid #eee;
+            border-top: 1px solid #e1e4e8;
             font-size: 0.9em;
             color: #666;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #2c3e50;
+            font-size: 1.5em;
+            margin: 25px 0 15px;
+        }
+        p {
+            color: #2c3e50;
+            margin: 10px 0;
         }
     </style>
 </head>
@@ -41,18 +94,22 @@
     </div>
 
     <div class="content">
-        <p>{{ user.user_name }} 様</p>
+        <p>{{ user_name }} 様</p>
 
         <p>VRC技術学術系Hub へのご登録ありがとうございます。</p>
 
         <p>以下のURLからログインしてサービスをご利用いただけます：</p>
         <p><a href="{{ login_url }}" class="button">ログインページへ</a></p>
 
-        <p>また、コミュニティの最新情報や交流の場として、Discordサーバーを用意しています。</p>
-        <p>ぜひご参加ください：</p>
-        <p><a href="{{ discord_url }}" class="button">Discordサーバーに参加</a></p>
+        <div class="features">
+            <h3>コミュニティの最新情報や交流の場として、Discordサーバーを用意しています。</h3>
+            <p>ぜひご参加ください：</p>
+            <p><a href="{{ discord_url }}" class="button">Discordサーバーに参加</a></p>
+        </div>
 
-        <p>集会を作成する場合は、既存の技術・学術系集会に承認されると公開されるようになります。</p>
+        <div class="features">
+            <h3>集会を作成する場合は、既存の技術・学術系集会に承認されると公開されるようになります。</h3>
+        </div>
     </div>
 
     <div class="footer">
