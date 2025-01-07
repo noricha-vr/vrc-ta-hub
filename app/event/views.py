@@ -67,6 +67,15 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
 
     def post(self, request, *args, **kwargs):
         event = self.get_object()
+        
+        # ユーザーが所有するコミュニティを取得
+        user_community = Community.objects.filter(custom_user=request.user).first()
+        
+        # イベントが自分のコミュニティのものでない場合は削除を許可しない
+        if not user_community or event.community != user_community:
+            messages.error(request, "このイベントを削除する権限がありません。")
+            return redirect('event:my_list')
+            
         logger.info(
             f"イベント削除開始: ID={event.id}, コミュニティ={event.community.name}, 日付={event.date}, 開始時間={event.start_time}")
         logger.info(f"Google Calendar Event ID: {event.google_calendar_event_id}")
@@ -84,8 +93,9 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
 
         if delete_subsequent:
             # 同じコミュニティの、選択したイベント以降のイベントを取得
+            # ユーザーのコミュニティのイベントのみに制限
             subsequent_events = Event.objects.filter(
-                community=event.community,
+                community=user_community,
                 date__gt=event.date
             ).order_by('date', 'start_time')
             events_to_delete.extend(subsequent_events)
@@ -157,7 +167,42 @@ class EventListView(ListView):
                 for tag in tags:
                     queryset = queryset.filter(community__tags__contains=[tag])
 
+        # 各イベントにGoogleカレンダー追加用URLを設定
+        for event in queryset:
+            event.google_calendar_url = self.generate_google_calendar_url(event)
+
         return queryset
+
+    def generate_google_calendar_url(self, event):
+        """Googleカレンダーにイベントを追加するためのURLを生成する"""
+        from urllib.parse import quote
+        
+        # イベントの開始と終了の日時を設定
+        start_datetime = datetime.combine(event.date, event.start_time)
+        end_datetime = start_datetime + timedelta(minutes=event.duration)
+        
+        # タイムゾーンを設定
+        start_datetime = timezone.localtime(timezone.make_aware(start_datetime))
+        end_datetime = timezone.localtime(timezone.make_aware(end_datetime))
+        
+        # URLパラメータを作成
+        params = {
+            'action': 'TEMPLATE',
+            'text': f"{event.community.name}",  # イベントのタイトル
+            'dates': f"{start_datetime.strftime('%Y%m%dT%H%M%S')}/{end_datetime.strftime('%Y%m%dT%H%M%S')}",
+            'ctz': 'Asia/Tokyo',  # タイムゾーン
+        }
+        
+        # 説明文を追加（存在する場合）
+        if event.details.exists():
+            details = [f"発表者: {detail.speaker}\nテーマ: {detail.theme}" for detail in event.details.all()]
+            params['details'] = "\n\n".join(details)
+        
+        # URLを構築
+        base_url = "https://www.google.com/calendar/render?"
+        param_strings = [f"{k}={quote(str(v))}" for k, v in params.items()]
+        
+        return base_url + "&".join(param_strings)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

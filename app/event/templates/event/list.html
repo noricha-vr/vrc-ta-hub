@@ -89,7 +89,11 @@
                         </thead>
                         {% for event in events %}
                             <tr>
-                                <td>{{ event.date|date:"Y年n月j日（D）" }}</td>
+                                <td>{{ event.date|date:"n月j日（D）" }}<br />
+                                <a href="{{ event.google_calendar_url }}" target="_blank" class="text-muted text-decoration-none ms-2"
+                                    title="Googleカレンダーに追加">
+                                    <i class="bi bi-calendar-plus"></i> 予定を追加
+                                </a></td>
                                 <td>{{ event.start_time }}</td>
                                 <td>{{ event.community.get_platform_display }}</td>
 
@@ -102,7 +106,7 @@
                                                 <div class="mb-2">
                                                     <span class="text-warning">★</span>
                                                     <a href="{% url 'event:detail' pk=detail.pk %}"
-                                                       class="text-primary text-decoration-none fw-bold">{{ detail.theme }}</a>
+                                                       class="text-primary text-decoration-none fw-bold">{{ detail.theme }}</a><br>
                                                     <small class="text-success">by {{ detail.speaker }}</small>
                                                 </div>
                                             {% endfor %}
