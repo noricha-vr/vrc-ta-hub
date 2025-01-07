@@ -18,12 +18,16 @@ class CustomLoginView(LoginView):
     form_class = BootstrapAuthenticationForm
 
     def get_success_url(self):
-        messages.success(self.request, 'ログインしました。')
+        messages.info(self.request, 'ログインしました。')
         return self.success_url
 
 
 class CustomLogoutView(LogoutView):
     next_page = reverse_lazy('account:login')  # ログアウト後のリダイレクト先
+
+    def dispatch(self, request, *args, **kwargs):
+        messages.info(request, 'ログアウトしました。')
+        return super().dispatch(request, *args, **kwargs)
 
 
 class CustomUserCreateView(CreateView):
