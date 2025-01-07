@@ -22,7 +22,7 @@ from event.libs import convert_markdown, generate_blog, generate_meta_descriptio
 from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url
 from url_filters import get_filtered_url
-from website.settings import GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, REQUEST_TOKEN, \
+from website.settings import DEBUG, GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, REQUEST_TOKEN, \
     GEMINI_MODEL
 from .google_calendar import GoogleCalendarService
 
@@ -594,7 +594,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
             logger.info(f'Googleカレンダーにイベントを登録します: {community.name} Calendar ID={GOOGLE_CALENDAR_ID}')
             calendar_service = GoogleCalendarService(
                 calendar_id=GOOGLE_CALENDAR_ID,
-                credentials_path=GOOGLE_CALENDAR_CREDENTIALS
+                credentials_path=GOOGLE_CALENDAR_CREDENTIALS if DEBUG else None
             )
 
             start_date = form.cleaned_data['start_date']

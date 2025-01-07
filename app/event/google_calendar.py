@@ -1,24 +1,34 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 
+from google.auth import default
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+from website.settings import DEBUG
 
 
 class GoogleCalendarService:
     """Googleカレンダーを操作するためのサービスクラス"""
     SCOPES = ['https://www.googleapis.com/auth/calendar']
-    
-    def __init__(self, calendar_id: str, credentials_path: str):
+
+    def __init__(self, calendar_id: str, credentials_path: str = None):
         """
         Args:
             calendar_id: 操作対象のカレンダーID
-            credentials_path: サービスアカウントのクレデンシャルファイルのパス
+            credentials_path: サービスアカウントのクレデンシャルファイルのパス（開発環境用）
         """
         self.calendar_id = calendar_id
-        credentials = service_account.Credentials.from_service_account_file(
-            credentials_path, scopes=self.SCOPES)
+
+        # 本番環境（DEBUG=False）ではデフォルトの認証情報を使用
+        if not DEBUG:
+            credentials, _ = default(scopes=self.SCOPES)
+        else:
+            # 開発環境（DEBUG=True）ではcredentials.jsonを使用
+            credentials = service_account.Credentials.from_service_account_file(
+                credentials_path, scopes=self.SCOPES)
+
         self.service = build('calendar', 'v3', credentials=credentials)
 
     def _create_weekly_rrule(self, days: List[str], interval: int = 1) -> str:
@@ -58,13 +68,13 @@ class GoogleCalendarService:
         """
         return f'RRULE:FREQ=MONTHLY;BYDAY={week_number}{day}'
 
-    def create_event(self, 
-                    summary: str,
-                    start_time: datetime,
-                    end_time: datetime,
-                    description: Optional[str] = None,
-                    location: Optional[str] = None,
-                    recurrence: Optional[List[str]] = None) -> Dict[str, Any]:
+    def create_event(self,
+                     summary: str,
+                     start_time: datetime,
+                     end_time: datetime,
+                     description: Optional[str] = None,
+                     location: Optional[str] = None,
+                     recurrence: Optional[List[str]] = None) -> Dict[str, Any]:
         """イベントを作成する
 
         Args:
@@ -108,12 +118,12 @@ class GoogleCalendarService:
             raise
 
     def update_event(self,
-                    event_id: str,
-                    summary: Optional[str] = None,
-                    start_time: Optional[datetime] = None,
-                    end_time: Optional[datetime] = None,
-                    description: Optional[str] = None,
-                    location: Optional[str] = None) -> Dict[str, Any]:
+                     event_id: str,
+                     summary: Optional[str] = None,
+                     start_time: Optional[datetime] = None,
+                     end_time: Optional[datetime] = None,
+                     description: Optional[str] = None,
+                     location: Optional[str] = None) -> Dict[str, Any]:
         """イベントを更新する
 
         Args:
@@ -176,9 +186,9 @@ class GoogleCalendarService:
             raise
 
     def list_events(self,
-                   max_results: int = 10,
-                   time_min: Optional[datetime] = None,
-                   time_max: Optional[datetime] = None) -> List[Dict[str, Any]]:
+                    max_results: int = 10,
+                    time_min: Optional[datetime] = None,
+                    time_max: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """イベントの一覧を取得する
 
         Args:
@@ -201,4 +211,4 @@ class GoogleCalendarService:
             return events_result.get('items', [])
         except HttpError as error:
             print(f'An error occurred: {error}')
-            raise 
+            raise
