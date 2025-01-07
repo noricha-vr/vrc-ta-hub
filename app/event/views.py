@@ -4,7 +4,6 @@ import re
 from datetime import datetime, timedelta
 from typing import List
 
-import requests
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.db import IntegrityError
@@ -487,7 +486,7 @@ class EventDetailPastList(ListView):
     def get(self, request, *args, **kwargs):
         # 通常のget処理の前にページ番号をチェック
         page_str = request.GET.get('page', '1')
-        
+
         try:
             # ページ番号のみを抽出（数字以外を除去）
             page = int(''.join(filter(str.isdigit, page_str)) or '1')
@@ -499,7 +498,7 @@ class EventDetailPastList(ListView):
 
         self.object_list = self.get_queryset()
         paginator = self.get_paginator(self.object_list, self.paginate_by)
-        
+
         if page > paginator.num_pages and paginator.num_pages > 0:
             # 存在しないページ番号の場合は1ページ目にリダイレクト
             params = request.GET.copy()
@@ -566,7 +565,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
             if not community:
                 messages.error(self.request, 'コミュニティが見つかりません')
                 return self.form_invalid(form)
-
+            logger.info(f'Googleカレンダーにイベントを登録します: {community.name} Calendar ID={GOOGLE_CALENDAR_ID}')
             calendar_service = GoogleCalendarService(
                 calendar_id=GOOGLE_CALENDAR_ID,
                 credentials_path=GOOGLE_CALENDAR_CREDENTIALS
@@ -606,16 +605,23 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
 
             if event:
                 # イベントの同期を実行
-                response = requests.get(
-                    f"{self.request.build_absolute_uri('/')[:-1]}/event/sync/",
-                    headers={'Request-Token': REQUEST_TOKEN}
-                )
-                
-                if response.status_code == 200:
-                    messages.success(self.request, 'イベントが正常に登録されました')
-                else:
+                try:
+                    # 内部的にGETリクエストを作成
+                    from django.http import HttpRequest
+                    sync_request = HttpRequest()
+                    sync_request.method = 'GET'
+                    sync_request.META = self.request.META
+                    sync_request.headers = {'Request-Token': REQUEST_TOKEN}
+
+                    response = sync_calendar_events(sync_request)
+                    if response.status_code == 200:
+                        messages.success(self.request, 'イベントが正常に登録されました')
+                    else:
+                        messages.warning(self.request, 'イベントは登録されましたが、同期に失敗しました')
+                except Exception as e:
+                    logger.error(f'イベント同期中にエラーが発生しました: {str(e)}')
                     messages.warning(self.request, 'イベントは登録されましたが、同期に失敗しました')
-            
+
             return super().form_valid(form)
 
         except Exception as e:
