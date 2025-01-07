@@ -6,6 +6,9 @@ from django.urls import reverse_lazy
 from django.utils.safestring import mark_safe
 from django.views.generic import CreateView, TemplateView
 from django.views.generic import UpdateView
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
 
 from community.models import Community
 from .forms import CustomUserChangeForm
@@ -36,10 +39,31 @@ class CustomUserCreateView(CreateView):
     success_url = reverse_lazy('account:login')
 
     def form_valid(self, form):
+        response = super().form_valid(form)
+        user = form.instance
+        
+        # メール本文の作成
+        context = {
+            'user': user,
+            'login_url': self.request.build_absolute_uri(reverse_lazy('account:login')),
+            'discord_url': 'https://discord.gg/6jCkUUb9VN'
+        }
+        html_message = render_to_string('account/email/welcome.html', context)
+        plain_message = strip_tags(html_message)
+        
+        # メール送信
+        send_mail(
+            subject='VRC技術学術系Hub 登録完了のお知らせ',
+            message=plain_message,
+            from_email=None,  # settings.pyのDEFAULT_FROM_EMAILが使用されます
+            recipient_list=[user.email],
+            html_message=html_message,
+        )
+        
         messages.success(self.request, 'ユーザー登録が完了しました。集会は承認後に公開されます。')
         message = 'Discordサーバー「<a href="https://discord.gg/6jCkUUb9VN">技術・学術系イベントHub</a>」にご参加ください。'
         messages.warning(self.request, mark_safe(message))
-        return super().form_valid(form)
+        return response
 
 
 class UserNameChangeView(LoginRequiredMixin, UpdateView):
