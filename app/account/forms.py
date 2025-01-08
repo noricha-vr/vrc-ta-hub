@@ -107,10 +107,6 @@ class CustomUserCreationForm(UserCreationForm):
             },
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['email'].required = True
-        self.fields['email'].help_text = '必須。有効なメールアドレスを入力してください。'
 
     def save(self, commit=True):
         user = super().save(commit=False)
