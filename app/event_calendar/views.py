@@ -61,3 +61,45 @@ class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):
         response = super().form_valid(form)
         messages.success(self.request, 'VRCイベントカレンダー情報が更新されました。')
         return response
+
+    def generate_google_calendar_url(self, event):
+        """Googleカレンダーにイベントを追加するためのURLを生成する"""
+        from urllib.parse import quote
+        from django.urls import reverse
+
+        # イベントの開始と終了の日時を設定
+        start_datetime = datetime.combine(event.date, event.start_time)
+        end_datetime = start_datetime + timedelta(minutes=event.duration)
+
+        # タイムゾーンを設定
+        start_datetime = timezone.localtime(
+            timezone.make_aware(start_datetime))
+        end_datetime = timezone.localtime(timezone.make_aware(end_datetime))
+
+        # コミュニティページのURLを生成
+        community_url = self.request.build_absolute_uri(
+            reverse('community:detail', kwargs={'pk': event.community.pk})
+        )
+
+        # 説明文を作成
+        description = [f"参加方法: {community_url}"]
+
+        # 発表情報を追加（存在する場合）
+        if event.details.exists():
+            description.extend([f"発表者: {detail.speaker}\nテーマ: {
+                               detail.theme}" for detail in event.details.all()])
+
+        # URLパラメータを作成
+        params = {
+            'action': 'TEMPLATE',
+            'text': f"{event.community.name}",  # イベントのタイトル
+            'dates': f"{start_datetime.strftime('%Y%m%dT%H%M%S')}/{end_datetime.strftime('%Y%m%dT%H%M%S')}",
+            'ctz': 'Asia/Tokyo',  # タイムゾーン
+            'details': "\n\n".join(description)  # 説明文
+        }
+
+        # URLを構築
+        base_url = "https://www.google.com/calendar/render?"
+        param_strings = [f"{k}={quote(str(v))}" for k, v in params.items()]
+
+        return base_url + "&".join(param_strings)

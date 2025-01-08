@@ -20,7 +20,7 @@ from community.models import Community, WEEKDAY_CHOICES
 from event.forms import EventDetailForm, EventSearchForm, EventCreateForm, GoogleCalendarEventForm
 from event.libs import convert_markdown, generate_blog, generate_meta_description
 from event.models import EventDetail, Event
-from event_calendar.calendar_utils import create_calendar_entry_url
+from event_calendar.calendar_utils import create_calendar_entry_url, generate_google_calendar_url
 from url_filters import get_filtered_url
 from website.settings import DEBUG, GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, REQUEST_TOKEN, \
     GEMINI_MODEL
@@ -203,49 +203,9 @@ class EventListView(ListView):
 
         # 各イベントにGoogleカレンダー追加用URLを設定
         for event in queryset:
-            event.google_calendar_url = self.generate_google_calendar_url(event)
+            event.google_calendar_url = generate_google_calendar_url(self.request, event)
 
         return queryset
-
-    def generate_google_calendar_url(self, event):
-        """Googleカレンダーにイベントを追加するためのURLを生成する"""
-        from urllib.parse import quote
-        from django.urls import reverse
-        
-        # イベントの開始と終了の日時を設定
-        start_datetime = datetime.combine(event.date, event.start_time)
-        end_datetime = start_datetime + timedelta(minutes=event.duration)
-        
-        # タイムゾーンを設定
-        start_datetime = timezone.localtime(timezone.make_aware(start_datetime))
-        end_datetime = timezone.localtime(timezone.make_aware(end_datetime))
-        
-        # コミュニティページのURLを生成
-        community_url = self.request.build_absolute_uri(
-            reverse('community:detail', kwargs={'pk': event.community.pk})
-        )
-        
-        # 説明文を作成
-        description = [f"参加方法: {community_url}"]
-        
-        # 発表情報を追加（存在する場合）
-        if event.details.exists():
-            description.extend([f"発表者: {detail.speaker}\nテーマ: {detail.theme}" for detail in event.details.all()])
-        
-        # URLパラメータを作成
-        params = {
-            'action': 'TEMPLATE',
-            'text': f"{event.community.name}",  # イベントのタイトル
-            'dates': f"{start_datetime.strftime('%Y%m%dT%H%M%S')}/{end_datetime.strftime('%Y%m%dT%H%M%S')}",
-            'ctz': 'Asia/Tokyo',  # タイムゾーン
-            'details': "\n\n".join(description)  # 説明文
-        }
-        
-        # URLを構築
-        base_url = "https://www.google.com/calendar/render?"
-        param_strings = [f"{k}={quote(str(v))}" for k, v in params.items()]
-        
-        return base_url + "&".join(param_strings)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
