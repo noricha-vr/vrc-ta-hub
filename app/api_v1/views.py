@@ -54,8 +54,10 @@ class EventFilter(filters.FilterSet):
 
 
 class EventViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
-    queryset = Event.objects.filter(date__gte=timezone.now().date()).select_related('community').order_by('date',
-                                                                                                          'start_time')
+    queryset = Event.objects.filter(
+        date__gte=timezone.now().date(),
+        community__status='approved'
+    ).select_related('community').order_by('date', 'start_time')
     serializer_class = EventSerializer
     filterset_class = EventFilter
     filter_backends = [DjangoFilterBackend]
@@ -75,8 +77,9 @@ class EventDetailFilter(filters.FilterSet):
 
 
 class EventDetailViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
-    queryset = EventDetail.objects.select_related('event').filter(event__date__gte=timezone.now().date()).order_by(
-        '-event__date', '-start_time')
+    queryset = EventDetail.objects.filter(
+        event__community__status='approved'
+    ).select_related('event', 'event__community').order_by('event__date', 'start_time')
     serializer_class = EventDetailSerializer
     filterset_class = EventDetailFilter
     filter_backends = [DjangoFilterBackend]
