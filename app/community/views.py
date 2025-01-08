@@ -1,21 +1,21 @@
 # app/community/views.py
 import logging
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.core.mail import send_mail
 from django.db import DataError
 from django.db.models import Min, Q, F
 from django.shortcuts import get_object_or_404, redirect
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView, DetailView
 from django.views.generic import UpdateView
-from django.core.mail import send_mail
-from django.conf import settings
-from django.template.loader import render_to_string
 
 from event.models import Event
 from url_filters import get_filtered_url
@@ -223,10 +223,6 @@ class WaitingCommunityListView(LoginRequiredMixin, ListView):
 
 class AcceptView(View):
     def post(self, request):
-        # 自分の集会が承認されていない場合は権限がない
-        if Community.objects.filter(custom_user=request.user, status='pending').exists():
-            messages.error(request, '権限がありません。')
-            return redirect('community:waiting_list')
         # 承認する集会を取得、承認する
         community_id = request.POST.get('community_id')
         community = get_object_or_404(Community, pk=community_id)
