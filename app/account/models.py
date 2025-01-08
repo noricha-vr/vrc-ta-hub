@@ -36,7 +36,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
             'unique': "その集会名はすでに使用されています。",
         },
     )
-    email = models.EmailField('メールアドレス', blank=True)
+    email = models.EmailField(
+        'メールアドレス',
+        blank=False,
+        null=False,
+        help_text='必須。有効なメールアドレスを入力してください。',
+    )
     is_staff = models.BooleanField(
         'スタッフ権限',
         default=False,
