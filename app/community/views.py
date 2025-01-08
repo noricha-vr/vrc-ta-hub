@@ -153,8 +153,10 @@ class CommunityDetailView(DetailView):
         context['tag_choices'] = dict(TAGS)
 
         # 承認ボタンの表示
-        if self.request.user != community.custom_user and not community.is_accepted:
+        if self.request.user.is_superuser and community.status == 'pending':
             context['show_accept_button'] = True
+            context['show_reject_button'] = True
+
         return context
 
     def get_event_details(self, events):
@@ -221,15 +223,13 @@ class WaitingCommunityListView(LoginRequiredMixin, ListView):
         return context
 
 
-class AcceptView(View):
-    def post(self, request):
-        # スーパーユーザーでない場合は権限がない
+class AcceptView(LoginRequiredMixin, View):
+    def post(self, request, pk):
         if not request.user.is_superuser:
             messages.error(request, '権限がありません。')
             return redirect('community:waiting_list')
-        # 承認する集会を取得、承認する
-        community_id = request.POST.get('community_id')
-        community = get_object_or_404(Community, pk=community_id)
+
+        community = get_object_or_404(Community, pk=pk)
         community.status = 'approved'
         community.save()
 
@@ -257,4 +257,39 @@ class AcceptView(View):
             logger.warning(f'承認メール送信失敗: {community.name} to {community.custom_user.email}')
 
         messages.success(request, f'{community.name}を承認しました。')
+        return redirect('community:waiting_list')
+
+
+class RejectView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if not request.user.is_superuser:
+            messages.error(request, '権限がありません。')
+            return redirect('community:waiting_list')
+
+        community = get_object_or_404(Community, pk=pk)
+        community.status = 'rejected'
+        community.save()
+
+        # 非承認メールを送信
+        subject = f'{community.name}が非承認になりました'
+        context = {
+            'community': community,
+        }
+
+        # HTMLメールを生成
+        html_message = render_to_string('community/email/reject.html', context)
+
+        sent = send_mail(
+            subject=subject,
+            message='',  # プレーンテキストは空文字列を設定
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[community.custom_user.email],
+            html_message=html_message,
+        )
+        if sent:
+            logger.info(f'非承認メール送信成功: {community.name} to {community.custom_user.email}')
+        else:
+            logger.warning(f'非承認メール送信失敗: {community.name} to {community.custom_user.email}')
+
+        messages.success(request, f'{community.name}を非承認にしました。')
         return redirect('community:waiting_list')

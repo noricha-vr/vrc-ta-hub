@@ -108,11 +108,16 @@
                         {% endif %}
 
                         {% if show_accept_button %}
-                            <form action="{% url 'community:accept' %}" method="post">
-                                {% csrf_token %}
-                                <input type="hidden" name="community_id" value="{{ community.id }}">
-                                <button type="submit" class="btn btn-primary">承認</button>
-                            </form>
+                            <div class="d-flex gap-2">
+                                <form action="{% url 'community:accept' community.pk %}" method="post" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success">承認</button>
+                                </form>
+                                <form action="{% url 'community:reject' community.pk %}" method="post" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger">非承認</button>
+                                </form>
+                            </div>
                         {% endif %}
                         {% if request.user.is_superuser %}
                             <a href="/admin/community/community/{{ community.pk }}/change/"
