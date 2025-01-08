@@ -96,7 +96,7 @@ class EmailTest(SimpleTestCase):
         print("\nStarting accept email test")
         logger.debug('Starting accept email test')
 
-        subject = 'コミュニティが承認されました'
+        subject = '集会が承認されました'
         message = 'これはプレーンテキストバージョンです。'
         from_email = settings.DEFAULT_FROM_EMAIL
         recipient_list = ['test@example.com']
