@@ -660,6 +660,14 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
     form_class = GoogleCalendarEventForm
     success_url = reverse_lazy('event:my_list')
 
+    def dispatch(self, request, *args, **kwargs):
+        # コミュニティの承認状態をチェック
+        community = Community.objects.filter(custom_user=request.user).first()
+        if not community or community.status != 'approved':
+            messages.error(request, '集会が承認されていないため、カレンダーにイベントを登録できません。')
+            return redirect('event:my_list')
+        return super().dispatch(request, *args, **kwargs)
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         # ログインユーザーのコミュニティを初期値として設定
