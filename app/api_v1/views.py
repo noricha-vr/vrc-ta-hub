@@ -34,7 +34,10 @@ class CommunityFilter(filters.FilterSet):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class CommunityViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
-    queryset = Community.objects.filter(end_at__isnull=True).order_by('-pk')
+    queryset = Community.objects.filter(
+        end_at__isnull=True,
+        status='approved'
+    ).order_by('-pk')
     serializer_class = CommunitySerializer
     filterset_class = CommunityFilter
     filter_backends = [DjangoFilterBackend]

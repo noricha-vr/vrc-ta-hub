@@ -6,8 +6,8 @@ from .forms import CommunityForm
 @admin.register(Community)
 class CommunityAdmin(admin.ModelAdmin):
     form = CommunityForm
-    list_display = ('name', 'get_weekdays', 'start_time', 'frequency', 'organizers', 'get_tags')
-    list_filter = ('weekdays', 'frequency', 'tags')  # tags をフィルタに追加
+    list_display = ('name', 'get_weekdays', 'start_time', 'frequency', 'organizers', 'get_tags', 'status')
+    list_filter = ('weekdays', 'frequency', 'tags', 'status')  # statusをフィルタに追加
     search_fields = ('name', 'organizers')
 
     def get_weekdays(self, obj):

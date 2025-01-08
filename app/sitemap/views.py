@@ -12,7 +12,7 @@ class SitemapView(TemplateView):
         context = super().get_context_data(**kwargs)
         event_details = EventDetail.objects.all().order_by('-pk')
         context['event_details'] = event_details
-        communities = Community.objects.all().order_by('-pk')
+        communities = Community.objects.filter(status='approved').order_by('-pk')
         context['communities'] = communities
         context['base_url'] = f'https://{self.request.get_host()}/'
         return context
