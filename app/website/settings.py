@@ -218,6 +218,9 @@ AWS_SES_ACCESS_KEY_ID = os.environ.get('AWS_SES_ACCESS_KEY_ID')  # SES専用の�
 AWS_SES_SECRET_ACCESS_KEY = os.environ.get('AWS_SES_SECRET_ACCESS_KEY')  # SES専用のシークレットキー
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'VRC技術学術系Hub <info@vrc-ta-hub.com>')
 
+# Admin email for notifications
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', DEFAULT_FROM_EMAIL)
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,

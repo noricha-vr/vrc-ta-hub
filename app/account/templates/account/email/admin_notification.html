@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>集会の仮登録申請通知</title>
+</head>
+<body>
+    <h2>新しい集会の仮登録申請がありました</h2>
+    
+    <h3>申請情報</h3>
+    <ul>
+        <li>集会名: {{ user.user_name }}</li>
+        <li>メールアドレス: {{ user.email }}</li>
+        <li>申請日時: {{ user.date_joined|date:"Y/m/d H:i" }}</li>
+    </ul>
+
+    <p>
+        <a href="{{ admin_url }}">管理画面で申請内容を確認し、承認または却下を行ってください</a>
+    </p>
+
+    <hr>
+    <p>
+        このメールは自動送信されています。<br>
+        VRC技術学術系Hub
+    </p>
+</body>
+</html> 
