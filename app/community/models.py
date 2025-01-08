@@ -25,6 +25,12 @@ TAGS = (
     ('academic', '学術'),
 )
 
+STATUS_CHOICES = (
+    ('pending', '承認待ち'),
+    ('approved', '承認済み'),
+    ('rejected', '非承認'),
+)
+
 
 class Community(models.Model):
     custom_user = models.ForeignKey('account.CustomUser', on_delete=models.CASCADE, verbose_name='ユーザー',
@@ -47,7 +53,7 @@ class Community(models.Model):
     description = models.TextField('イベント紹介', default='', blank=True)
     platform = models.CharField('対応プラットフォーム', max_length=10, choices=PLATFORM_CHOICES, default='All')
     tags = models.JSONField('タグ', max_length=10, default=list)
-    is_accepted = models.BooleanField('公開設定', default=False, db_index=True)
+    status = models.CharField('承認状態', max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True)
 
     class Meta:
         verbose_name = '集会'
@@ -68,6 +74,10 @@ class Community(models.Model):
             sns_parts = self.sns_url.split('/')
             return f"@{sns_parts[-1]}"
         return None
+
+    @property
+    def is_accepted(self):
+        return self.status == 'approved'
 
     def save(self, *args, **kwargs):
         # poster_image をリサイズしてJPEGに変換

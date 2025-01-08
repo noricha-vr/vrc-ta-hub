@@ -19,7 +19,7 @@ class AcceptViewTest(TestCase):
         self.accepted_community = Community.objects.create(
             name='承認済み集会',
             custom_user=self.accepted_user,
-            is_accepted=True
+            status='approved'
         )
 
         # 未承認ユーザー（承認申請者）
@@ -31,7 +31,7 @@ class AcceptViewTest(TestCase):
         self.pending_community = Community.objects.create(
             name='未承認集会',
             custom_user=self.pending_user,
-            is_accepted=False
+            status='pending'
         )
 
         self.client = Client()

@@ -52,7 +52,7 @@ class CommunityListView(ListView):
     def get_queryset(self):
         queryset = super().get_queryset()
         now = timezone.now()
-        queryset = queryset.filter(is_accepted=True, end_at__isnull=True)
+        queryset = queryset.filter(status='approved', end_at__isnull=True)
 
         # 最新のイベント日を取得
         queryset = queryset.annotate(
@@ -201,7 +201,7 @@ class WaitingCommunityListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        queryset = queryset.filter(is_accepted=False)
+        queryset = queryset.filter(status='pending')
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -224,13 +224,13 @@ class WaitingCommunityListView(LoginRequiredMixin, ListView):
 class AcceptView(View):
     def post(self, request):
         # 自分の集会が承認されていない場合は権限がない
-        if Community.objects.filter(custom_user=request.user, is_accepted=False).exists():
+        if Community.objects.filter(custom_user=request.user, status='pending').exists():
             messages.error(request, '権限がありません。')
             return redirect('community:waiting_list')
         # 承認する集会を取得、承認する
         community_id = request.POST.get('community_id')
         community = get_object_or_404(Community, pk=community_id)
-        community.is_accepted = True
+        community.status = 'approved'
         community.save()
 
         # 承認通知メールを送信
