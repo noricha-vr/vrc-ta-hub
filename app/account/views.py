@@ -4,7 +4,7 @@ from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth.views import PasswordChangeView
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
 from django.views.generic import CreateView, TemplateView
@@ -64,7 +64,7 @@ class CustomUserCreateView(CreateView):
         # 管理者への通知メール
         admin_context = {
             'user': user,
-            'admin_url': self.request.build_absolute_uri(f'/admin/account/customuser/{user.id}/change/'),
+            'admin_url': self.request.build_absolute_uri(reverse('community:waiting_list')),
         }
         admin_html_message = render_to_string('account/email/admin_notification.html', admin_context)
         admin_plain_message = strip_tags(admin_html_message)
