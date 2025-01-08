@@ -244,13 +244,17 @@ class AcceptView(View):
         # HTMLメールを生成
         html_message = render_to_string('community/email/accept.html', context)
 
-        send_mail(
+        sent = send_mail(
             subject=subject,
             message='',  # プレーンテキストは空文字列を設定
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[community.custom_user.email],
             html_message=html_message,
         )
+        if sent:
+            logger.info(f'承認メール送信成功: {community.name} to {community.custom_user.email}')
+        else:
+            logger.warning(f'承認メール送信失敗: {community.name} to {community.custom_user.email}')
 
         messages.success(request, f'{community.name}を承認しました。')
         return redirect('community:waiting_list')
