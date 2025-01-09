@@ -1,9 +1,12 @@
 # app/event_calendar/calendar_utils.py
 
 from datetime import datetime, timedelta
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 from django.utils import timezone
 from django.urls import reverse
+from django.core.cache import cache
+from django.utils.decorators import method_decorator
+from functools import lru_cache
 
 from .models import CalendarEntry
 
@@ -29,9 +32,11 @@ PLATFORM_MAP = {
 }
 
 
+@lru_cache(maxsize=128)
 def create_calendar_entry_url(event: 'Event') -> str:
     """
     EventオブジェクトからGoogleフォームのURLを生成する
+    キャッシュ有効時間: 1時間
 
     Args:
         event (Event): イベントオブジェクト
@@ -39,6 +44,11 @@ def create_calendar_entry_url(event: 'Event') -> str:
     Returns:
         str: 生成されたGoogleフォームのURL
     """
+    cache_key = f'calendar_entry_url_{event.id}'
+    cached_url = cache.get(cache_key)
+    if cached_url:
+        return cached_url
+
     calendar_entry = CalendarEntry.get_or_create_from_event(event)
     community = event.community
     start_datetime = datetime.combine(event.date, event.start_time)
@@ -81,14 +91,24 @@ def create_calendar_entry_url(event: 'Event') -> str:
             url_params.append(f"{key}={urlencode({key: value})[len(key) + 1:]}")
 
     url_with_params = f"{FORM_URL}?{'&'.join(url_params)}"
-
+    
+    # キャッシュに保存（1時間）
+    cache.set(cache_key, url_with_params, 60 * 60)
+    
     return url_with_params
 
 
+@lru_cache(maxsize=128)
 def generate_google_calendar_url(request, event):
-    """Googleカレンダーにイベントを追加するためのURLを生成する"""
-    from urllib.parse import quote
-    
+    """
+    Googleカレンダーにイベントを追加するためのURLを生成する
+    キャッシュ有効時間: 1時間
+    """
+    cache_key = f'google_calendar_url_{event.id}'
+    cached_url = cache.get(cache_key)
+    if cached_url:
+        return cached_url
+
     # イベントの開始と終了の日時を設定
     start_datetime = datetime.combine(event.date, event.start_time)
     end_datetime = start_datetime + timedelta(minutes=event.duration)
@@ -122,4 +142,9 @@ def generate_google_calendar_url(request, event):
     base_url = "https://www.google.com/calendar/render?"
     param_strings = [f"{k}={quote(str(v))}" for k, v in params.items()]
     
-    return base_url + "&".join(param_strings)
+    url = base_url + "&".join(param_strings)
+    
+    # キャッシュに保存（1時間）
+    cache.set(cache_key, url, 60 * 60)
+    
+    return url
