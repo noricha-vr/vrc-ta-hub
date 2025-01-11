@@ -640,14 +640,27 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
             if not community:
                 messages.error(self.request, 'コミュニティが見つかりません')
                 return self.form_invalid(form)
+
+            start_date = form.cleaned_data['start_date']
+            start_time = form.cleaned_data['start_time']
+
+            # 同じ日時のイベントが存在するかチェック
+            existing_event = Event.objects.filter(
+                date=start_date,
+                start_time=start_time,
+                community=community
+            ).first()
+
+            if existing_event:
+                messages.error(self.request, f'同じ日時（{start_date} {start_time}）にすでにイベントが登録されています。')
+                return self.form_invalid(form)
+
             logger.info(f'Googleカレンダーにイベントを登録します: {community.name} Calendar ID={GOOGLE_CALENDAR_ID}')
             calendar_service = GoogleCalendarService(
                 calendar_id=GOOGLE_CALENDAR_ID,
                 credentials_path=GOOGLE_CALENDAR_CREDENTIALS if DEBUG else None
             )
 
-            start_date = form.cleaned_data['start_date']
-            start_time = form.cleaned_data['start_time']
             duration = form.cleaned_data['duration']
             recurrence_type = form.cleaned_data['recurrence_type']
 
