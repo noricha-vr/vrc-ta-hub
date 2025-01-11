@@ -509,9 +509,12 @@ class EventMyList(LoginRequiredMixin, ListView):
     model = Event
     template_name = 'event/my_list.html'
     context_object_name = 'events'
+    paginate_by = 10
 
     def get_queryset(self):
-        return Event.objects.filter(community__custom_user=self.request.user).order_by('-date', '-start_time')
+        return Event.objects.filter(
+            community__custom_user=self.request.user
+        ).select_related('community').order_by('-date', '-start_time')
 
     def set_vrc_event_calendar_post_url(self, queryset: QuerySet) -> QuerySet:
         """
@@ -525,21 +528,37 @@ class EventMyList(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        
+        # コミュニティ情報を取得
         context['community'] = Community.objects.filter(custom_user=self.request.user).first()
-        events = self.set_vrc_event_calendar_post_url(context['events'])
-        event_ids = events.values_list('id', flat=True)
-
-        # イベント詳細を取得
-        event_details = EventDetail.objects.filter(event_id__in=event_ids).order_by('created_at')
-
-        event_detail_dict = {}
-        for detail in event_details:
-            if detail.event_id not in event_detail_dict:
-                event_detail_dict[detail.event_id] = []
-            event_detail_dict[detail.event_id].append(detail)
-
-        for event in events:
-            event.detail_list = event_detail_dict.get(event.id, [])
+        
+        # イベントにカレンダーURLを設定
+        events = context['events']
+        self.set_vrc_event_calendar_post_url(events)
+        
+        # イベントIDのリストを取得（ページネーション後のイベントのみ）
+        event_ids = [event.id for event in events]
+        
+        if event_ids:
+            # イベント詳細を一括取得
+            event_details = EventDetail.objects.filter(
+                event_id__in=event_ids
+            ).select_related('event').order_by('created_at')
+            
+            # イベント詳細をイベントIDごとに整理
+            event_detail_dict = {}
+            for detail in event_details:
+                if detail.event_id not in event_detail_dict:
+                    event_detail_dict[detail.event_id] = []
+                event_detail_dict[detail.event_id].append(detail)
+            
+            # 各イベントに詳細リストを設定
+            for event in events:
+                event.detail_list = event_detail_dict.get(event.id, [])
+        else:
+            # イベントが存在しない場合は空のリストを設定
+            for event in events:
+                event.detail_list = []
 
         return context
 
