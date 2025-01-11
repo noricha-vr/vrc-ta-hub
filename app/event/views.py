@@ -509,7 +509,7 @@ class EventMyList(LoginRequiredMixin, ListView):
     model = Event
     template_name = 'event/my_list.html'
     context_object_name = 'events'
-    paginate_by = 10
+    paginate_by = 20
 
     def get_queryset(self):
         return Event.objects.filter(
@@ -559,6 +559,12 @@ class EventMyList(LoginRequiredMixin, ListView):
             # イベントが存在しない場合は空のリストを設定
             for event in events:
                 event.detail_list = []
+
+        # 現在のGETパラメータを取得（ページネーション用）
+        query_params = self.request.GET.copy()
+        if 'page' in query_params:
+            del query_params['page']
+        context['current_query_params'] = query_params.urlencode()
 
         return context
 
