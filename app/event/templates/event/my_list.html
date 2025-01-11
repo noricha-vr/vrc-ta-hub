@@ -34,7 +34,8 @@
         {% for event in events %}
             <div class="row">
                 <div class="col-12 col-md-10 offset-md-1 mb-4">
-                    <div class="card shadow-sm">
+                    {% now "Y-m-d" as current_date %}
+                    <div class="card shadow-sm {% if event.date|date:"Y-m-d" < current_date %}bg-light{% endif %}">
                         <div class="card-body">
                             <div class="row">
                                 <div class="col-md-5">
