@@ -87,13 +87,6 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
             f"イベント削除開始: ID={event.id}, コミュニティ={event.community.name}, 日付={event.date}, 開始時間={event.start_time}")
         logger.info(f"Google Calendar Event ID: {event.google_calendar_event_id}")
 
-        # 過去のイベントは削除できないようにする
-        today = datetime.now().date()
-        if event.date < today:
-            logger.info(f"過去のイベントの削除が試行されました: ID={event.id}, 日付={event.date}")
-            messages.error(request, "過去のイベントは削除できません。")
-            return redirect('event:my_list')
-
         # 以降のイベントも削除するかどうかのチェック
         delete_subsequent = request.POST.get('delete_subsequent') == 'on'
         events_to_delete = [event]

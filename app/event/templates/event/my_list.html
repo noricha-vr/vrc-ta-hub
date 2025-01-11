@@ -64,21 +64,23 @@
                                                         </a>
                                                     {% endif %}
                                                 {% endwith %}
-                                                
-                                                <form method="post" class="mt-2" action="{% url 'event:delete' event.pk %}">
-                                                    {% csrf_token %}
-                                                    <div class="form-check mb-2">
-                                                        <input class="form-check-input" type="checkbox" name="delete_subsequent" id="delete_subsequent_{{ event.pk }}">
-                                                        <label class="form-check-label" for="delete_subsequent_{{ event.pk }}">
-                                                            以降のイベントも削除する
-                                                        </label>
-                                                    </div>
-                                                    <button type="submit" class="btn btn-outline-danger"
-                                                            onclick="return confirm(this.form.delete_subsequent.checked ? 'このイベントと以降のイベントをGoogleカレンダーから削除しますか？\nこの操作は取り消せません。' : 'このイベントをGoogleカレンダーから削除しますか？\nこの操作は取り消せません。');">
-                                                        <i class="bi bi-calendar-x"></i> カレンダーから削除
-                                                    </button>
-                                                </form>
                                             {% endif %}
+                                            
+                                            <form method="post" class="mt-2" action="{% url 'event:delete' event.pk %}">
+                                                {% csrf_token %}
+                                                {% if event.date|date:"Y-m-d" >= current_date %}
+                                                <div class="form-check mb-2">
+                                                    <input class="form-check-input" type="checkbox" name="delete_subsequent" id="delete_subsequent_{{ event.pk }}">
+                                                    <label class="form-check-label" for="delete_subsequent_{{ event.pk }}">
+                                                        以降のイベントも削除する
+                                                    </label>
+                                                </div>
+                                                {% endif %}
+                                                <button type="submit" class="btn btn-outline-danger"
+                                                        onclick="return confirm(this.form.delete_subsequent.checked ? 'このイベントと以降のイベントをGoogleカレンダーから削除しますか？\nこの操作は取り消せません。' : 'このイベントをGoogleカレンダーから削除しますか？\nこの操作は取り消せません。');">
+                                                    <i class="bi bi-calendar-x"></i> カレンダーから削除
+                                                </button>
+                                            </form>
                                         </div>
                                     </div>
                                 </div>
