@@ -409,7 +409,15 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.event = self.event
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        
+        # トップページのキャッシュをクリア
+        today = timezone.now().date()
+        cache_key = f'index_view_data_{today}'
+        cache.delete(cache_key)
+        logger.info(f"Cleared index page cache: {cache_key}")
+        
+        return response
 
     def get_success_url(self):
         return reverse_lazy('event:detail', kwargs={'pk': self.object.pk})
