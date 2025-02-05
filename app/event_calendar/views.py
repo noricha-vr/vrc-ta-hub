@@ -1,6 +1,9 @@
+from datetime import datetime, timedelta
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views.generic import UpdateView
 
 from .forms import CalendarEntryForm
@@ -87,7 +90,7 @@ class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):
         # 発表情報を追加（存在する場合）
         if event.details.exists():
             description.extend([f"発表者: {detail.speaker}\nテーマ: {
-                               detail.theme}" for detail in event.details.all()])
+            detail.theme}" for detail in event.details.all()])
 
         # URLパラメータを作成
         params = {

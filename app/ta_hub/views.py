@@ -30,6 +30,9 @@ class IndexView(TemplateView):
             event_list_view.request = self.request
             for event in cached_data['upcoming_events']:
                 event.google_calendar_url = generate_google_calendar_url(self.request, event)
+            # イベント詳細のイベントにもGoogle Calendar URLを追加
+            for detail in cached_data['upcoming_event_details']:
+                detail.event.google_calendar_url = generate_google_calendar_url(self.request, detail.event)
             context.update(cached_data)
             return context
 
@@ -49,6 +52,10 @@ class IndexView(TemplateView):
         upcoming_event_details = EventDetail.objects.filter(
             event__date__gte=today
         ).select_related('event', 'event__community').order_by('event__date', 'start_time')
+
+        # イベント詳細のイベントにGoogle Calendar URLを追加
+        for detail in upcoming_event_details:
+            detail.event.google_calendar_url = generate_google_calendar_url(self.request, detail.event)
 
         # データをキャッシュに保存（1時間）
         cache_data = {

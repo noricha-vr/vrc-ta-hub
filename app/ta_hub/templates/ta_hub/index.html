@@ -274,9 +274,11 @@
         .card-hover-container {
             transition: transform 0.2s ease;
         }
+
         .card-hover-container:hover {
             transform: translateY(-5px);
         }
+
         .calendar-add-button {
             transition: transform 0.2s ease;
         }
@@ -321,8 +323,8 @@
                     {% for event_group in event_list %}
                         <div class="col-12 col-md-10 offset-md-1">
                             <div class="card shadow h-100" style="position: relative;">
-                                <a href="{% url 'community:detail' event_group.grouper.community.pk %}" 
-                                   class="text-decoration-none position-absolute w-100 h-100" 
+                                <a href="{% url 'community:detail' event_group.grouper.community.pk %}"
+                                   class="text-decoration-none position-absolute w-100 h-100"
                                    style="z-index: 1;">
                                     <span class="visually-hidden">{{ event_group.grouper.community.name }}の詳細を見る</span>
                                 </a>
@@ -343,10 +345,11 @@
                                         <div class="card-body">
                                             <div class="d-flex justify-content-between align-items-start mb-3">
                                                 <h3 class="card-title mb-0 font-monospace">{{ event_group.grouper.community.name }}</h3>
-                                                <a href="{{ event_group.grouper.google_calendar_url }}" target="_blank" 
+                                                <a href="{{ event_group.grouper.google_calendar_url }}"
+                                                   target="_blank"
                                                    class="btn btn-outline-primary btn-sm"
                                                    style="position: relative; z-index: 2;"
-                                                   data-bs-toggle="tooltip" data-bs-placement="left" 
+                                                   data-bs-toggle="tooltip" data-bs-placement="left"
                                                    title="Googleカレンダーに予定を追加">
                                                     <i class="bi bi-calendar-plus"></i>
                                                 </a>
@@ -354,7 +357,8 @@
                                             <p class="card-text">
                                                 <i class="bi bi-calendar3"></i> {{ event_group.grouper.date|date:"Y/m/d" }}
                                                 <small class="text-muted">（{{ event_group.grouper.date|date:"D" }}）</small><br>
-                                                <i class="bi bi-clock"></i> {{ event_group.grouper.start_time|time:"H:i" }}<small class="text-muted">（日本時間）</small>
+                                                <i class="bi bi-clock"></i> {{ event_group.grouper.start_time|time:"H:i" }}<small
+                                                    class="text-muted">（日本時間）</small>
                                             </p>
                                             <div class="list-group list-group-flush">
                                                 {% for detail in event_group.list %}
@@ -466,9 +470,9 @@
                                     </div>
                                 </div>
                             </a>
-                            <a href="{{ event.google_calendar_url }}" target="_blank" 
-                               class="position-absolute top-0 end-0 p-2 text-decoration-none calendar-add-button" 
-                               data-bs-toggle="tooltip" data-bs-placement="left" 
+                            <a href="{{ event.google_calendar_url }}" target="_blank"
+                               class="position-absolute top-0 end-0 p-2 text-decoration-none calendar-add-button"
+                               data-bs-toggle="tooltip" data-bs-placement="left"
                                title="Googleカレンダーに予定を追加"
                                style="z-index: 10;">
                                 <i class="bi bi-plus-circle-fill fs-5 text-primary opacity-75"></i>
