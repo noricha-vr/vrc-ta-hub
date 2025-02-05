@@ -357,13 +357,20 @@
                                                             <div>
                                                                 <p class="mb-1">
                                                                     <span class="badge bg-primary">{{ detail.start_time|time:"H:i" }} - {{ detail.end_time|time:"H:i" }}</span>
-                                                                    <strong class="ms-2">{{ detail.speaker }}</strong>
+                                                                    <strong class="ms-2 fs-5">{{ detail.speaker }}さん</strong>
                                                                 </p>
-                                                                <h5 class="mb-1 fs-6">{{ detail.theme }}</h5>
+                                                                <h5 class="mb-1 fs-5 fw-bold">{{ detail.theme }}</h5>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 {% endfor %}
+                                            </div>
+                                            <hr class="my-3">
+                                            <div class="community-description">
+                                                <p class="text-muted mb-0">
+                                                    <i class="bi bi-info-circle me-2"></i>
+                                                    {{ event_group.grouper.community.description|truncatechars:200 }}
+                                                </p>
                                             </div>
                                         </div>
                                     </div>
