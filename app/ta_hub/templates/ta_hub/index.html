@@ -320,7 +320,12 @@
                     {% regroup upcoming_event_details by event as event_list %}
                     {% for event_group in event_list %}
                         <div class="col-12 col-md-10 offset-md-1">
-                            <div class="card shadow h-100">
+                            <div class="card shadow h-100" style="position: relative;">
+                                <a href="{% url 'community:detail' event_group.grouper.community.pk %}" 
+                                   class="text-decoration-none position-absolute w-100 h-100" 
+                                   style="z-index: 1;">
+                                    <span class="visually-hidden">{{ event_group.grouper.community.name }}の詳細を見る</span>
+                                </a>
                                 <div class="row g-0">
                                     <div class="col-md-4">
                                         {% if event_group.grouper.community.poster_image %}
@@ -340,6 +345,7 @@
                                                 <h3 class="card-title mb-0">{{ event_group.grouper.community.name }}</h3>
                                                 <a href="{{ event_group.grouper.google_calendar_url }}" target="_blank" 
                                                    class="btn btn-outline-primary btn-sm"
+                                                   style="position: relative; z-index: 2;"
                                                    data-bs-toggle="tooltip" data-bs-placement="left" 
                                                    title="Googleカレンダーに予定を追加">
                                                     <i class="bi bi-calendar-plus"></i>
