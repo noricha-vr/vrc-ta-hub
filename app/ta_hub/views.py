@@ -25,14 +25,6 @@ class IndexView(TemplateView):
         # キャッシュからデータを取得
         cached_data = cache.get(cache_key)
         if cached_data is not None:
-            # キャッシュされたデータにGoogle Calendar URLを追加
-            event_list_view = EventListView()
-            event_list_view.request = self.request
-            for event in cached_data['upcoming_events']:
-                event.google_calendar_url = generate_google_calendar_url(self.request, event)
-            # イベント詳細のイベントにもGoogle Calendar URLを追加
-            for detail in cached_data['upcoming_event_details']:
-                detail.event.google_calendar_url = generate_google_calendar_url(self.request, detail.event)
             context.update(cached_data)
             return context
 
@@ -43,24 +35,51 @@ class IndexView(TemplateView):
             date__lte=end_date
         ).select_related('community').order_by('date', 'start_time')
 
-        # Google Calendar URLを生成
-        event_list_view = EventListView()
-        event_list_view.request = self.request
-        for event in upcoming_events:
-            event.google_calendar_url = generate_google_calendar_url(self.request, event)
-
         upcoming_event_details = EventDetail.objects.filter(
             event__date__gte=today
         ).select_related('event', 'event__community').order_by('event__date', 'start_time')
 
-        # イベント詳細のイベントにGoogle Calendar URLを追加
+        # Google Calendar URLを生成
+        event_list_view = EventListView()
+        event_list_view.request = self.request
+
+        # イベントとイベント詳細のGoogle Calendar URLを生成
+        events_with_urls = []
+        for event in upcoming_events:
+            event_dict = {
+                'id': event.id,
+                'date': event.date,
+                'start_time': event.start_time,
+                'end_time': event.end_time,
+                'community': event.community,
+                'google_calendar_url': generate_google_calendar_url(self.request, event),
+                'weekday': event.weekday,
+            }
+            events_with_urls.append(event_dict)
+
+        details_with_urls = []
         for detail in upcoming_event_details:
-            detail.event.google_calendar_url = generate_google_calendar_url(self.request, detail.event)
+            detail_dict = {
+                'id': detail.id,
+                'event': {
+                    'id': detail.event.id,
+                    'date': detail.event.date,
+                    'start_time': detail.event.start_time,
+                    'end_time': detail.event.end_time,
+                    'community': detail.event.community,
+                    'google_calendar_url': generate_google_calendar_url(self.request, detail.event),
+                },
+                'start_time': detail.start_time,
+                'end_time': detail.end_time,
+                'speaker': detail.speaker,
+                'theme': detail.theme,
+            }
+            details_with_urls.append(detail_dict)
 
         # データをキャッシュに保存（1時間）
         cache_data = {
-            'upcoming_events': upcoming_events,
-            'upcoming_event_details': upcoming_event_details,
+            'upcoming_events': events_with_urls,
+            'upcoming_event_details': details_with_urls,
         }
         cache.set(cache_key, cache_data, 60 * 60)  # 60分 * 60秒
 
