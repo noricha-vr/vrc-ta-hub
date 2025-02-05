@@ -316,57 +316,59 @@
                     <i class="bi bi-calendar-check me-2"></i>
                     予約済みの発表をチェックしましょう！
                 </p>
-                <div class="row">
-                    {% for detail in upcoming_event_details %}
+                <div class="row g-4">
+                    {% regroup upcoming_event_details by event as event_list %}
+                    {% for event_group in event_list %}
                         <div class="col-12">
-                            <a href="{% url 'community:detail' detail.event.community.id %}"
-                               class="text-decoration-none">
-                                <div class="presentation-card">
-                                    <div class="row g-0">
-                                        <div class="col-12 col-lg-4 order-2 order-lg-1">
-                                            <div class="presentation-image-container">
-                                                {% if detail.event.community.poster_image %}
-                                                    <img src="{{ detail.event.community.poster_image.url }}"
-                                                         class="img-fluid rounded-start h-100 w-100"
-                                                         alt="{{ detail.event.community.name }}のポスター"
-                                                         style="object-fit: cover;">
-                                                {% else %}
-                                                    <div class="no-image">
-                                                        <i class="bi bi-image"></i>
-                                                    </div>
-                                                {% endif %}
+                            <div class="card shadow h-100">
+                                <div class="row g-0">
+                                    <div class="col-md-4">
+                                        {% if event_group.grouper.community.poster_image %}
+                                            <img src="{{ event_group.grouper.community.poster_image.url }}"
+                                                 class="img-fluid h-100 w-100"
+                                                 alt="{{ event_group.grouper.community.name }}のポスター"
+                                                 style="object-fit: cover;">
+                                        {% else %}
+                                            <div class="d-flex align-items-center justify-content-center h-100 bg-light">
+                                                <i class="bi bi-image text-muted" style="font-size: 3rem;"></i>
                                             </div>
-                                        </div>
-                                        <div class="col-12 col-lg-8 order-1 order-lg-2">
-                                            <div class="presentation-info">
-                                                <h3 class="presentation-title">{{ detail.title }}</h3>
-                                                <div class="presentation-meta">
-
-                                                    <div class="presentation-meta-item">
-                                                        <i class="bi bi-person-fill"></i>
-                                                        <span>発表者: <strong>{{ detail.speaker }}</strong></span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-8">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                                <h3 class="card-title mb-0">{{ event_group.grouper.community.name }}</h3>
+                                                <a href="{{ event_group.grouper.google_calendar_url }}" target="_blank" 
+                                                   class="btn btn-outline-primary btn-sm"
+                                                   data-bs-toggle="tooltip" data-bs-placement="left" 
+                                                   title="Googleカレンダーに予定を追加">
+                                                    <i class="bi bi-calendar-plus"></i>
+                                                </a>
+                                            </div>
+                                            <p class="card-text">
+                                                <i class="bi bi-calendar3"></i> {{ event_group.grouper.date|date:"Y/m/d" }}
+                                                <small class="text-muted">（{{ event_group.grouper.date|date:"D" }}）</small><br>
+                                                <i class="bi bi-clock"></i> {{ event_group.grouper.start_time|time:"H:i" }}<small class="text-muted">（日本時間）</small>
+                                            </p>
+                                            <div class="list-group list-group-flush">
+                                                {% for detail in event_group.list %}
+                                                    <div class="list-group-item border-0 px-0">
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <div>
+                                                                <p class="mb-1">
+                                                                    <span class="badge bg-primary">{{ detail.start_time|time:"H:i" }} - {{ detail.end_time|time:"H:i" }}</span>
+                                                                    <strong class="ms-2">{{ detail.speaker }}</strong>
+                                                                </p>
+                                                                <h5 class="mb-1 fs-6">{{ detail.theme }}</h5>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div class="presentation-meta-item">
-                                                        <i class="bi bi-calendar3"></i>
-                                                        <span>{{ detail.event.date|date:"Y/m/d" }}</span>
-                                                    </div>
-                                                    <div class="presentation-meta-item">
-                                                        <i class="bi bi-clock-fill"></i>
-                                                        <span>{{ detail.start_time|time:"H:i" }} - {{ detail.end_time|time:"H:i" }}</span>
-                                                    </div>
-                                                    <div class="presentation-meta-item">
-                                                        <i class="bi bi-people-fill"></i>
-                                                        <span>{{ detail.event.community.name }}</span>
-                                                    </div>
-                                                </div>
-                                                <div class="presentation-description">
-                                                    {{ detail.event.community.description|truncatechars:200 }}
-                                                </div>
+                                                {% endfor %}
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            </a>
+                            </div>
                         </div>
                     {% endfor %}
                 </div>
