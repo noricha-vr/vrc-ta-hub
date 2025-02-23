@@ -83,7 +83,8 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> Bl
 
     # PDFの内容とURLを取得
     pdf_content = ""
-    pdf_url = ""
+    pdf_url = event_detail.slide_url or (event_detail.slide_file.url if event_detail.slide_file else "")
+    
     if event_detail.slide_file:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
             event_detail.slide_file.seek(0)
@@ -94,7 +95,6 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> Bl
             loader = PyPDFLoader(temp_file_path)
             pages = loader.load()
             pdf_content = "\n".join([page.page_content for page in pages])
-            pdf_url = event_detail.slide_file.url if event_detail.slide_file else ""
         except Exception as e:
             logger.warning(f"Error loading PDF for EventDetail {event_detail.pk}: {e}")
         finally:
