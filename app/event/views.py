@@ -298,10 +298,6 @@ def sync_calendar_events(request):
     # Get the Request-Token
     request_token = request.headers.get('Request-Token', '')
 
-    # Check if the token is valid
-    # if request_token != REQUEST_TOKEN:
-    #     return HttpResponse("Invalid token.", status=403)
-
     calendar_service = GoogleCalendarService(
         calendar_id=GOOGLE_CALENDAR_ID,
         credentials_path=GOOGLE_CALENDAR_CREDENTIALS
@@ -311,25 +307,29 @@ def sync_calendar_events(request):
     end_date = today + timedelta(days=60)
 
     try:
+        logger.info(f'カレンダー同期開始: 期間={today} から {end_date}')
         calendar_events = calendar_service.list_events(
             time_min=today,
             time_max=end_date,
             max_results=1000  # 十分大きな数を指定
         )
+        logger.info(f'Googleカレンダーからのイベント取得成功: {len(calendar_events)}件')
 
         # データベースのイベントを削除
         delete_outdated_events(calendar_events, today.date())
+        logger.info('古いイベントの削除完了')
 
         # カレンダーイベントを登録/更新
         register_calendar_events(calendar_events)
+        logger.info('イベントの登録/更新完了')
 
         logger.info(
-            f"Events synchronized successfully. {Event.objects.count()} events found."
+            f"同期完了: 現在のイベント総数={Event.objects.count()}件"
         )
         return HttpResponse("Calendar events synchronized successfully.")
 
     except Exception as e:
-        logger.error(f"Failed to sync calendar events: {str(e)}")
+        logger.error(f"同期失敗: {str(e)}", exc_info=True)
         return HttpResponse("Failed to sync calendar events.", status=500)
 
 
@@ -711,6 +711,8 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
             start_date = form.cleaned_data['start_date']
             start_time = form.cleaned_data['start_time']
 
+            logger.info(f'イベント登録開始: コミュニティ={community.name}, 日付={start_date}, 開始時間={start_time}')
+
             # 同じ日時のイベントが存在するかチェック
             existing_event = Event.objects.filter(
                 date=start_date,
@@ -719,6 +721,8 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
             ).first()
 
             if existing_event:
+                logger.warning(
+                    f'重複イベント検出: ID={existing_event.id}, コミュニティ={community.name}, 日付={start_date}, 開始時間={start_time}')
                 messages.error(self.request, f'同じ日時（{start_date} {start_time}）にすでにイベントが登録されています。')
                 return self.form_invalid(form)
 
@@ -747,8 +751,8 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 elif recurrence_type == 'monthly_by_day':
                     week_number = int(form.cleaned_data['week_number'])
                     weekday = form.cleaned_data['weekday']
-                    # 週番号が-1（最終週）の場合は-1を使用、それ以外は指定された週番号を使用
                     recurrence = [calendar_service._create_monthly_by_week_rrule(week_number, weekday)]
+                logger.info(f'繰り返しルール設定: type={recurrence_type}, rule={recurrence}')
 
             # Googleカレンダーにイベントを作成
             event = calendar_service.create_event(
@@ -759,6 +763,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
             )
 
             if event:
+                logger.info(f'Googleカレンダーイベント作成成功: ID={event["id"]}, コミュニティ={community.name}')
                 # イベントの同期を実行
                 try:
                     # 内部的にGETリクエストを作成
