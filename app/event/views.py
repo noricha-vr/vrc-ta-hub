@@ -16,6 +16,13 @@ from django.views.generic.edit import DeleteView
 from google.auth import default
 from google.cloud import bigquery
 
+from django.contrib import messages
+from django.shortcuts import redirect
+from django.views.generic import View
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import HttpResponse
+
+from .models import EventDetail
 from community.models import Community, WEEKDAY_CHOICES
 from event.forms import EventDetailForm, EventSearchForm, EventCreateForm, GoogleCalendarEventForm
 from event.libs import convert_markdown, generate_blog, generate_meta_description
@@ -411,6 +418,20 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
         form.instance.event = self.event
         response = super().form_valid(form)
         
+        # PDFまたは動画がセットされていて、タイトルが空の場合は自動生成
+        if (form.instance.slide_file or form.instance.youtube_url) and not form.instance.meta_description:
+            try:
+                blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
+                form.instance.h1 = blog_output.title
+                form.instance.contents = blog_output.text
+                form.instance.meta_description = blog_output.meta_description
+                form.instance.save()
+                messages.success(self.request, "記事を自動生成しました。")
+                logger.info(f"記事を自動生成しました: {form.instance.id}")
+            except Exception as e:
+                logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
+                messages.warning(self.request, "記事の自動生成に失敗しました。")
+        
         # トップページのキャッシュをクリア
         today = timezone.now().date()
         cache_key = f'index_view_data_{today}'
@@ -428,17 +449,31 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
     form_class = EventDetailForm
     template_name = 'event/detail_form.html'
 
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        
+        # PDFまたは動画がセットされていて、タイトルが空の場合は自動生成
+        if (form.instance.slide_file or form.instance.youtube_url) and not form.instance.meta_description:
+            try:
+                blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
+                form.instance.h1 = blog_output.title
+                form.instance.contents = blog_output.text
+                form.instance.meta_description = blog_output.meta_description
+                form.instance.save()
+                messages.success(self.request, "記事を自動生成しました。")
+                logger.info(f"記事を自動生成しました: {form.instance.id}")
+            except Exception as e:
+                logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
+                messages.warning(self.request, "記事の自動生成に失敗しました。")
+        
+        return response
+
     def get_success_url(self):
         return reverse_lazy('event:detail', kwargs={'pk': self.object.pk})
 
 
-from django.contrib import messages
-from django.shortcuts import redirect
-from django.views.generic import View
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse
-
-from .models import EventDetail
+    def is_valid_request(self, request, pk):
+        pass
 
 
 class GenerateBlogView(LoginRequiredMixin, View):
