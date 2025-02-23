@@ -220,6 +220,9 @@ def convert_markdown(markdown_text: str) -> str:
     # 連続する空行を2行に制限
     markdown_text = re.sub(r'\n{3,}', '\n\n', markdown_text)
     
+    # 感嘆符・疑問符と閉じ括弧の間の改行を削除
+    markdown_text = re.sub(r'([！!？?])\n+([」）\)])', r'\1\2', markdown_text)
+    
     logger.debug("Normalized markdown text:")
     logger.debug(markdown_text)
     
