@@ -2,6 +2,7 @@ import logging
 import os
 import tempfile
 from typing import Optional
+import re
 
 import bleach
 import markdown
@@ -178,22 +179,62 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
 
 def convert_markdown(markdown_text: str) -> str:
     """MarkdownをHTMLに変換し、サニタイズする"""
+    logger.debug("Original markdown text:")
+    logger.debug(markdown_text)
+    
+    # 改行を正規化
+    markdown_text = markdown_text.replace('\r\n', '\n').replace('\r', '\n')
+    
+    # 各行の先頭スペースを削除
+    markdown_text = '\n'.join(line.lstrip() for line in markdown_text.split('\n'))
+    
+    # 段落間の空行を確保
+    markdown_text = re.sub(r'\n{2,}', '\n\n', markdown_text)
+    
+    logger.debug("Normalized markdown text:")
+    logger.debug(markdown_text)
+    
     allowed_tags = ['a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em', 'code', 'pre', 'table', 'thead',
                     'tbody', 'tr', 'th', 'td', 'hr', 'br', 'blockquote']
     allowed_attributes = {'a': ['href', 'title'], 'pre': ['class'], 'table': ['class']}
-    html = markdown.markdown(markdown_text, extensions=['tables'])
-
+    
+    # Markdownの拡張機能を追加
+    extensions = [
+        'tables',
+        'nl2br',  # 改行を<br>に変換
+        'fenced_code',  # コードブロックのサポート
+    ]
+    
+    # マークダウンをHTMLに変換
+    html = markdown.markdown(markdown_text, extensions=extensions)
+    
+    logger.debug("Generated HTML before BeautifulSoup:")
+    logger.debug(html)
+    
     # BeautifulSoupを使ってHTMLをパース
     soup = BeautifulSoup(html, 'html.parser')
-
+    
     # テーブルタグにクラスを追加
     for table in soup.find_all('table'):
         table['class'] = table.get('class', []) + ['table', 'table-responsive']
-
+    
+    # 段落タグの後に改行を追加
+    for p in soup.find_all('p'):
+        p.append('\n')
+    
     # パース後のHTMLを文字列に変換
     html = str(soup)
-
-    return bleach.clean(html, tags=allowed_tags, attributes=allowed_attributes)
+    
+    logger.debug("Generated HTML before sanitization:")
+    logger.debug(html)
+    
+    # HTMLをサニタイズして返す
+    sanitized_html = bleach.clean(html, tags=allowed_tags, attributes=allowed_attributes)
+    
+    logger.debug("Final sanitized HTML:")
+    logger.debug(sanitized_html)
+    
+    return sanitized_html
 
 
 def generate_meta_description(text: str) -> str:
