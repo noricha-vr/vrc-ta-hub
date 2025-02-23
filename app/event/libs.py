@@ -106,6 +106,7 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> Bl
         input_variables=["transcript", "pdf_content", "date", "community_name", "speaker", "theme", "pdf_url"],
         partial_variables={"format_instructions": parser.get_format_instructions()}
     )
+    logger.info(f'prompt: {prompt}')
 
     # チェーンを作成
     chain = LLMChain(llm=llm, prompt=prompt)
