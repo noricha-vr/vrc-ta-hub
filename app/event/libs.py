@@ -20,6 +20,7 @@ from langchain_core.pydantic_v1 import validator
 
 from event.models import EventDetail
 from website.settings import GEMINI_API_KEY, GOOGLE_API_KEY
+from event.prompts import BLOG_GENERATION_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
@@ -98,50 +99,7 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> Bl
 
     # プロンプトテンプレートを作成
     prompt = PromptTemplate(
-        template="""
-    # 文字起こし内容
-    {transcript}
-
-    # PDFの内容
-    {pdf_content}
-
-    # 指示
-    {date}にVRChatの「{community_name}」で行われた{speaker}の発表内容をもとに、[文字起こし内容]とその時に使われたPDF（スライド）情報を使ってブログ記事を作成します。
-    発表のテーマは「{theme}」です。
-
-    # ブログ記事の作成指示
-    - 文字起こしされた文章とプレゼンテーションで使用されたスライド（PDFファイル）を使ってブログ記事を作成
-    - 文字起こしは精度が低いためテーマやスライドから前後の文脈や名詞、単語を補うこと
-    - 文章の流れが自然になるように見出しと内容の連携を強化
-    - SEOを意識して、タイトル、見出しを設定し、文中にキーワードを盛り込む
-    - 発表を聞いた人の視点で、発表を聞けなかった人のためにわかりやすくまとめる
-
-    # フォーマット
-    - マークダウン形式で出力
-    - 1行目 h1(#)でタイトルを出力
-    - 2行目以降は h2 h3 h4 にあたる見出しや、リスト、テーブルを使って読者にわかりやすくまとめる
-    - h3 h4を積極的に活用する
-    - 記事の冒頭に発表のハイライトや重要なポイントをh2で短く示す
-    - 発表者の敬称がない場合は「さん」をつける
-    - 最後にまとめをつける
-    - まとめの最後にはスライドのリンクを貼る
-    - コンテンツは1000〜1800文字に制限
-    - ポップさ 80%、フォーマルさ 20%で文章を作成する
-    - 積極的に空行を追加することで、読みやすさを重視
-    - PDFがあればスライドのダウンロードリンクを含める
-
-    # 禁止事項
-    - PDFの内容を画像として記事に埋めこんではいけません
-    - 参考文献を出力してはいけません
-    - h2の前にインデックス番号をつけてはいけません
-    - h2を最大7個以上作ってはいけません
-    - 硬い文章表現を控えてください
-    
-    # 禁止ワード
-    - ブログ
-
-    {format_instructions}
-    """,
+        template=BLOG_GENERATION_TEMPLATE,
         input_variables=["transcript", "pdf_content", "date", "community_name", "speaker", "theme"],
         partial_variables={"format_instructions": parser.get_format_instructions()}
     )
