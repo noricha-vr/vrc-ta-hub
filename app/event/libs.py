@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 from youtube_transcript_api import YouTubeTranscriptApi
 from langchain.chains import LLMChain
 from langchain.output_parsers import PydanticOutputParser
-from langchain_core.pydantic_v1 import validator
 
 from event.models import EventDetail
 from website.settings import GEMINI_API_KEY, GOOGLE_API_KEY
@@ -31,25 +30,6 @@ class BlogOutput(BaseModel):
     title: str = Field(description="ブログ記事のタイトル。SEOを意識した40文字以内の魅力的なタイトル。")
     meta_description: str = Field(description="ブログ記事のメタディスクリプション。120文字以内でコンテンツの要約を記述。")
     text: str = Field(description="ブログ記事の本文。マークダウン形式で記述された1000〜1800文字の記事。")
-
-    @validator('title')
-    def validate_title_length(cls, v):
-        if len(v) > 40:
-            raise ValueError('タイトルは40文字以内である必要があります')
-        return v
-
-    @validator('meta_description')
-    def validate_meta_description_length(cls, v):
-        if len(v) > 120:
-            raise ValueError('メタディスクリプションは120文字以内である必要があります')
-        return v
-
-    @validator('text')
-    def validate_text_length(cls, v):
-        text_length = len(v)
-        if not (1000 <= text_length <= 1800):
-            raise ValueError('本文は1000〜1800文字の間である必要があります')
-        return v
 
 
 def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> BlogOutput:
