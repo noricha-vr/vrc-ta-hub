@@ -15,7 +15,6 @@ from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import BaseModel, Field
 from youtube_transcript_api import YouTubeTranscriptApi
-from langchain.chains import LLMChain
 from langchain.output_parsers import PydanticOutputParser
 
 from event.models import EventDetail
@@ -88,23 +87,21 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> Bl
     )
     logger.info(f'prompt: {prompt}')
 
-    # チェーンを作成
-    chain = LLMChain(llm=llm, prompt=prompt)
+    # RunnableSequenceを作成
+    chain = prompt | llm | parser
 
     try:
         # チェーンを実行してコンテンツを生成
-        output = chain.run(
-            transcript=transcript or "",
-            pdf_content=pdf_content,
-            date=event_detail.event.date,
-            community_name=event_detail.event.community.name,
-            speaker=event_detail.speaker,
-            theme=event_detail.theme,
-            pdf_url=pdf_url
-        )
+        blog_output = chain.invoke({
+            "transcript": transcript or "",
+            "pdf_content": pdf_content,
+            "date": event_detail.event.date,
+            "community_name": event_detail.event.community.name,
+            "speaker": event_detail.speaker,
+            "theme": event_detail.theme,
+            "pdf_url": pdf_url
+        })
         
-        # 出力をパース
-        blog_output = parser.parse(output)
         logger.info('Generated content: ' + str(blog_output))
         return blog_output
 
