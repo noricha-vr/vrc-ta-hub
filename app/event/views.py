@@ -450,15 +450,13 @@ class GenerateBlogView(LoginRequiredMixin, View):
                 messages.error(request, "Invalid request. You don't have permission to perform this action.")
                 return redirect('event:detail', pk=event_detail.id)
 
-            text = generate_blog(event_detail, model=GEMINI_MODEL)
+            # BlogOutputモデルを受け取る
+            blog_output = generate_blog(event_detail, model=GEMINI_MODEL)
 
-            h1 = text.split('\n')[0]
-            content = text.replace(h1, '', 1)
-            content = re.sub(r'```\S+', '```', content)
-
-            event_detail.h1 = h1.strip().replace('## ', '').replace('# ', '')
-            event_detail.contents = content
-            event_detail.meta_description = generate_meta_description(text)
+            # BlogOutputの各フィールドを保存
+            event_detail.h1 = blog_output.title
+            event_detail.contents = blog_output.text
+            event_detail.meta_description = blog_output.meta_description
             event_detail.save()
 
             logger.info(f"ブログ記事が生成されました。: {event_detail.id}")
@@ -468,6 +466,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
             return redirect('event:detail', pk=event_detail.id)
 
         except Exception as e:
+            logger.error(f"ブログ記事の生成中にエラーが発生しました: {str(e)}")
             messages.error(request, f"エラーが発生しました: {str(e)}")
             return redirect('event:detail', pk=pk)
 
