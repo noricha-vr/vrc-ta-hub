@@ -1,25 +1,56 @@
 import logging
 import os
 import tempfile
-import uuid
 from typing import Optional
 
 import bleach
 import markdown
 from bs4 import BeautifulSoup
 from googleapiclient.discovery import build
-from youtube_transcript_api import YouTubeTranscriptApi
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import PromptTemplate
-from langchain_core.messages import HumanMessage
+from langchain.output_parsers import ResponseSchema, StructuredOutputParser
+from langchain.prompts import PromptTemplate, ChatPromptTemplate, HumanMessagePromptTemplate
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_core.messages import HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from pydantic import BaseModel, Field
+from youtube_transcript_api import YouTubeTranscriptApi
+from langchain.chains import LLMChain
+from langchain.output_parsers import PydanticOutputParser
+from langchain_core.pydantic_v1 import validator
 
 from event.models import EventDetail
 from website.settings import GEMINI_API_KEY, GOOGLE_API_KEY
 
 logger = logging.getLogger(__name__)
 
-def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> str:
+
+class BlogOutput(BaseModel):
+    """ブログ記事の出力形式を定義するPydanticモデル"""
+    title: str = Field(description="ブログ記事のタイトル。SEOを意識した40文字以内の魅力的なタイトル。")
+    meta_description: str = Field(description="ブログ記事のメタディスクリプション。120文字以内でコンテンツの要約を記述。")
+    text: str = Field(description="ブログ記事の本文。マークダウン形式で記述された1000〜1800文字の記事。")
+
+    @validator('title')
+    def validate_title_length(cls, v):
+        if len(v) > 40:
+            raise ValueError('タイトルは40文字以内である必要があります')
+        return v
+
+    @validator('meta_description')
+    def validate_meta_description_length(cls, v):
+        if len(v) > 120:
+            raise ValueError('メタディスクリプションは120文字以内である必要があります')
+        return v
+
+    @validator('text')
+    def validate_text_length(cls, v):
+        text_length = len(v)
+        if not (1000 <= text_length <= 1800):
+            raise ValueError('本文は1000〜1800文字の間である必要があります')
+        return v
+
+
+def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> BlogOutput:
     """
     EventDetailに関連付けられたスライドファイルをもとにブログ記事を生成する関数
 
@@ -28,11 +59,14 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> st
         model (str): 使用するGeminiモデル名
 
     Returns:
-        str: 生成されたブログ記事
+        BlogOutput: タイトル、メタディスクリプション、本文を含むPydanticモデル
     """
     # youtube か slide file がない場合は処理を終了
     if not event_detail.youtube_url and not event_detail.slide_file:
-        return ''
+        return BlogOutput(title='', meta_description='', text='')
+
+    # Pydantic出力パーサーを設定
+    parser = PydanticOutputParser(pydantic_object=BlogOutput)
 
     # Langchainのモデルを初期化
     llm = ChatGoogleGenerativeAI(
@@ -63,7 +97,8 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> st
             os.unlink(temp_file_path)
 
     # プロンプトテンプレートを作成
-    prompt_template = PromptTemplate.from_template("""
+    prompt = PromptTemplate(
+        template="""
     # 文字起こし内容
     {transcript}
 
@@ -80,7 +115,6 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> st
     - 文章の流れが自然になるように見出しと内容の連携を強化
     - SEOを意識して、タイトル、見出しを設定し、文中にキーワードを盛り込む
     - 発表を聞いた人の視点で、発表を聞けなかった人のためにわかりやすくまとめる
-    
 
     # フォーマット
     - マークダウン形式で出力
@@ -105,27 +139,35 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> st
     
     # 禁止ワード
     - ブログ
-    """)
 
-    # プロンプトを生成
-    prompt = prompt_template.format(
-        transcript=transcript or "",
-        pdf_content=pdf_content,
-        date=event_detail.event.date,
-        community_name=event_detail.event.community.name,
-        speaker=event_detail.speaker,
-        theme=event_detail.theme
+    {format_instructions}
+    """,
+        input_variables=["transcript", "pdf_content", "date", "community_name", "speaker", "theme"],
+        partial_variables={"format_instructions": parser.get_format_instructions()}
     )
 
+    # チェーンを作成
+    chain = LLMChain(llm=llm, prompt=prompt)
+
     try:
-        # LangChainを使用してコンテンツを生成
-        response = llm.invoke([HumanMessage(content=prompt)])
-        generated_text = response.content
-        logger.info('text: ' + generated_text)
-        return generated_text
+        # チェーンを実行してコンテンツを生成
+        output = chain.run(
+            transcript=transcript or "",
+            pdf_content=pdf_content,
+            date=event_detail.event.date,
+            community_name=event_detail.event.community.name,
+            speaker=event_detail.speaker,
+            theme=event_detail.theme
+        )
+        
+        # 出力をパース
+        blog_output = parser.parse(output)
+        logger.info('Generated content: ' + str(blog_output))
+        return blog_output
+
     except Exception as e:
         logger.warning(f"Error generating content for EventDetail {event_detail.pk}: {e}")
-        return ""
+        return BlogOutput(title='', meta_description='', text='')
 
 
 def get_transcript(video_id, language='ja') -> Optional[str]:
@@ -245,7 +287,6 @@ def generate_meta_description(text: str) -> str:
         # LangChainを使用してメタディスクリプションを生成
         response = llm.invoke([HumanMessage(content=prompt)])
         meta_description = response.content.strip()
-
 
         return meta_description[:250]
 

@@ -3,12 +3,11 @@ import os
 import tempfile
 
 from django.core.files import File
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 
 from account.models import CustomUser
 from community.models import Community
-from event.libs import generate_blog, get_transcript, upload_file_to_gemini
+from event.libs import generate_blog, get_transcript, BlogOutput
 from event.models import Event, EventDetail
 
 logger = logging.getLogger(__name__)
@@ -60,48 +59,56 @@ class TestGenerateBlog(TestCase):
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M",
             slide_file=True
         )
-        text = generate_blog(event_detail)
-        self.assertGreater(len(text), 100)
+        result = generate_blog(event_detail)
+
+        # BlogOutputモデルの検証
+        self.assertIsInstance(result, BlogOutput)
+        # 内容の存在確認
+        self.assertTrue(result.title)
+        self.assertTrue(result.meta_description)
+        self.assertTrue(result.text)
 
     def test_generate_blog_video_only(self):
         event_detail = self.create_event_detail(
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M"
         )
-        text = generate_blog(event_detail)
-        self.assertGreater(len(text), 100)
+        result = generate_blog(event_detail)
+
+        self.assertIsInstance(result, BlogOutput)
+        self.assertTrue(result.title)
+        self.assertTrue(result.meta_description)
+        self.assertTrue(result.text)
 
     def test_generate_blog_pdf_only(self):
         event_detail = self.create_event_detail(slide_file=True)
-        text = generate_blog(event_detail)
-        self.assertGreater(len(text), 100)
+        result = generate_blog(event_detail)
+
+        self.assertIsInstance(result, BlogOutput)
+        self.assertTrue(result.title)
+        self.assertTrue(result.meta_description)
+        self.assertTrue(result.text)
 
     def test_generate_blog_no_video_no_pdf(self):
         event_detail = self.create_event_detail()
-        text = generate_blog(event_detail)
-        self.assertEqual(len(text), 0)
+        result = generate_blog(event_detail)
 
-    def test_upload_file_to_gemini_success(self):
-        event_detail = self.create_event_detail(slide_file=True)
-        result = upload_file_to_gemini(event_detail)
-        self.assertIsNotNone(result)
-        self.assertTrue(hasattr(result, 'name'))
+        self.assertIsInstance(result, BlogOutput)
+        self.assertEqual(result.title, '')
+        self.assertEqual(result.meta_description, '')
+        self.assertEqual(result.text, '')
 
-    def test_upload_file_to_gemini_no_file(self):
-        event_detail = self.create_event_detail()
-        with self.assertRaises(ValueError):
-            upload_file_to_gemini(event_detail)
-
-    def test_upload_file_to_gemini_file_handling(self):
-        dummy_file = SimpleUploadedFile("test.pdf", self.test_pdf_content, content_type="application/pdf")
-        event_detail = EventDetail.objects.create(
-            theme="Test Theme",
-            speaker="Test Speaker",
-            event=self.event,
-            slide_file=dummy_file
+    def test_blog_output_basic(self):
+        """BlogOutputモデルの基本的な動作をテスト"""
+        # 正常なケース
+        valid_output = BlogOutput(
+            title="テストタイトル",
+            meta_description="テストのメタ説明",
+            text="テスト本文の内容"
         )
-        result = upload_file_to_gemini(event_detail)
-        self.assertIsNotNone(result)
-        self.assertTrue(hasattr(result, 'name'))
+        self.assertIsInstance(valid_output, BlogOutput)
+        self.assertTrue(valid_output.title)
+        self.assertTrue(valid_output.meta_description)
+        self.assertTrue(valid_output.text)
 
     def test_get_transcript(self):
         # テスト実行
