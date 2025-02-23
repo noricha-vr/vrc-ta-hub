@@ -81,8 +81,9 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> Bl
     logger.info(f"Gemini model: {model}")
     transcript = get_transcript(event_detail.video_id, "ja")
 
-    # PDFの内容を取得
+    # PDFの内容とURLを取得
     pdf_content = ""
+    pdf_url = ""
     if event_detail.slide_file:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
             event_detail.slide_file.seek(0)
@@ -93,6 +94,7 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> Bl
             loader = PyPDFLoader(temp_file_path)
             pages = loader.load()
             pdf_content = "\n".join([page.page_content for page in pages])
+            pdf_url = event_detail.slide_file.url if event_detail.slide_file else ""
         except Exception as e:
             logger.warning(f"Error loading PDF for EventDetail {event_detail.pk}: {e}")
         finally:
@@ -101,7 +103,7 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> Bl
     # プロンプトテンプレートを作成
     prompt = PromptTemplate(
         template=BLOG_GENERATION_TEMPLATE,
-        input_variables=["transcript", "pdf_content", "date", "community_name", "speaker", "theme"],
+        input_variables=["transcript", "pdf_content", "date", "community_name", "speaker", "theme", "pdf_url"],
         partial_variables={"format_instructions": parser.get_format_instructions()}
     )
 
@@ -116,7 +118,8 @@ def generate_blog(event_detail: EventDetail, model='gemini-2.0-flash-exp') -> Bl
             date=event_detail.event.date,
             community_name=event_detail.event.community.name,
             speaker=event_detail.speaker,
-            theme=event_detail.theme
+            theme=event_detail.theme,
+            pdf_url=pdf_url
         )
         
         # 出力をパース
@@ -185,11 +188,36 @@ def convert_markdown(markdown_text: str) -> str:
     # 改行を正規化
     markdown_text = markdown_text.replace('\r\n', '\n').replace('\r', '\n')
     
-    # 各行の先頭スペースを削除
-    markdown_text = '\n'.join(line.lstrip() for line in markdown_text.split('\n'))
+    # 各行の先頭スペースを削除（リストを除く）
+    lines = markdown_text.split('\n')
+    normalized_lines = []
+    in_list = False
     
-    # 段落間の空行を確保
-    markdown_text = re.sub(r'\n{2,}', '\n\n', markdown_text)
+    for line in lines:
+        # リストアイテムの検出
+        if line.lstrip().startswith(('- ', '* ', '+ ', '1. ', '2. ', '3. ')):
+            in_list = True
+            normalized_lines.append(line)
+        elif line.strip() == '':
+            in_list = False
+            normalized_lines.append(line)
+        else:
+            if in_list:
+                normalized_lines.append(line)
+            else:
+                # 非リスト行の場合、文を分割して空行を追加
+                sentences = re.split(r'([。！？])', line.lstrip())
+                for i in range(0, len(sentences)-1, 2):
+                    if sentences[i].strip():
+                        normalized_lines.append(sentences[i] + (sentences[i+1] if i+1 < len(sentences) else ''))
+                        normalized_lines.append('')  # 空行を追加
+                if sentences[-1].strip() and not sentences[-1][-1] in '。！？':
+                    normalized_lines.append(sentences[-1])
+    
+    markdown_text = '\n'.join(normalized_lines)
+    
+    # 連続する空行を2行に制限
+    markdown_text = re.sub(r'\n{3,}', '\n\n', markdown_text)
     
     logger.debug("Normalized markdown text:")
     logger.debug(markdown_text)
@@ -217,10 +245,6 @@ def convert_markdown(markdown_text: str) -> str:
     # テーブルタグにクラスを追加
     for table in soup.find_all('table'):
         table['class'] = table.get('class', []) + ['table', 'table-responsive']
-    
-    # 段落タグの後に改行を追加
-    for p in soup.find_all('p'):
-        p.append('\n')
     
     # パース後のHTMLを文字列に変換
     html = str(soup)
