@@ -197,8 +197,15 @@ def convert_markdown(markdown_text: str) -> str:
     # 連続する空行を2行に制限
     markdown_text = re.sub(r'\n{3,}', '\n\n', markdown_text)
     
-    # 感嘆符・疑問符と閉じ括弧の間の改行を削除
-    markdown_text = re.sub(r'([！!？?])\n+([」）\)])', r'\1\2', markdown_text)
+    # 感嘆符・疑問符と閉じ括弧または絵文字の間の改行を削除
+    # Unicode絵文字のパターン
+    emoji_pattern = r'[\U0001F300-\U0001F9FF\u200d\u2600-\u26FF\u2700-\u27BF]'
+    # 改行を削除するパターン
+    markdown_text = re.sub(
+        rf'([！!？?])\n+((?:{emoji_pattern}+|[」）\)]))',
+        r'\1\2',
+        markdown_text
+    )
     
     logger.debug("Normalized markdown text:")
     logger.debug(markdown_text)
@@ -255,7 +262,7 @@ def generate_meta_description(text: str) -> str:
     try:
         # Langchainのモデルを初期化
         llm = ChatGoogleGenerativeAI(
-            model='gemini-1.0-pro',
+            model='gemini-2.0-flash-exp',
             google_api_key=GEMINI_API_KEY,
             temperature=0.3,
         )
