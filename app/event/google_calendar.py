@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
+from django.utils import timezone
 from google.auth import default
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -200,11 +201,21 @@ class GoogleCalendarService:
             イベントのリスト
         """
         try:
+            # タイムゾーン情報を持っていない場合、現在のタイムゾーンを設定
+            if time_min and time_min.tzinfo is None:
+                time_min = timezone.make_aware(time_min)
+            if time_max and time_max.tzinfo is None:
+                time_max = timezone.make_aware(time_max)
+
+            # ISO形式に変換して'Z'を付加（UTCで送信）
+            time_min_str = time_min.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ') if time_min else None
+            time_max_str = time_max.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ') if time_max else None
+
             events_result = self.service.events().list(
                 calendarId=self.calendar_id,
                 maxResults=max_results,
-                timeMin=time_min.isoformat() + 'Z' if time_min else None,
-                timeMax=time_max.isoformat() + 'Z' if time_max else None,
+                timeMin=time_min_str,
+                timeMax=time_max_str,
                 singleEvents=True,
                 orderBy='startTime'
             ).execute()

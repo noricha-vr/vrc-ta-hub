@@ -303,7 +303,8 @@ def sync_calendar_events(request):
         credentials_path=GOOGLE_CALENDAR_CREDENTIALS
     )
 
-    today = datetime.now()
+    # タイムゾーン付きの現在時刻を取得
+    today = timezone.now()
     end_date = today + timedelta(days=60)
 
     try:
@@ -340,16 +341,20 @@ def delete_outdated_events(calendar_events, today):
     )
 
     for db_event in future_events:
-        db_event_datetime = datetime.combine(
+        # アウェアなdatetimeオブジェクトを作成
+        db_event_naive = datetime.combine(
             db_event['date'], db_event['start_time']
-        ).astimezone(timezone.utc)
+        )
+        db_event_datetime = timezone.make_aware(db_event_naive, timezone.get_current_timezone())
         db_event_str = f"{db_event_datetime.isoformat()} {db_event['community__name']}"
 
         found = any(
             datetime.strptime(
                 e['start'].get('dateTime', e['start'].get('date')), '%Y-%m-%dT%H:%M:%S%z'
-            ).astimezone(timezone.utc)
-            == db_event_datetime
+            ).astimezone(timezone.get_current_timezone()).replace(tzinfo=None).date() == db_event['date']
+            and datetime.strptime(
+                e['start'].get('dateTime', e['start'].get('date')), '%Y-%m-%dT%H:%M:%S%z'
+            ).astimezone(timezone.get_current_timezone()).replace(tzinfo=None).time() == db_event['start_time']
             and e['summary'].strip() == db_event['community__name']
             for e in calendar_events
         )
@@ -366,35 +371,44 @@ def register_calendar_events(calendar_events):
         end_datetime = event['end'].get('dateTime', event['end'].get('date'))
         summary = event['summary'].strip()
 
+        # タイムゾーン付きの日時を解析
         start = datetime.strptime(start_datetime, '%Y-%m-%dT%H:%M:%S%z')
         end = datetime.strptime(end_datetime, '%Y-%m-%dT%H:%M:%S%z')
+        
+        # 現地タイムゾーン（Asia/Tokyo）に変換
+        current_tz = timezone.get_current_timezone()
+        start_local = start.astimezone(current_tz)
+        end_local = end.astimezone(current_tz)
 
         community = Community.objects.filter(name=summary).first()
         if not community:
             logger.warning(f"Community not found: {summary}")
             continue
 
-        event_str = f"{start} - {end} {summary}"
+        event_str = f"{start_local} - {end_local} {summary}"
         logger.info(f"Event: {event_str}")
 
+        # ローカル時間でデータベースを検索
         existing_event = Event.objects.filter(
-            community=community, date=start.date(), start_time=start.time()
+            community=community, 
+            date=start_local.date(), 
+            start_time=start_local.time()
         ).first()
 
         if existing_event:
-            if (existing_event.duration != (end - start).total_seconds() // 60 or
+            if (existing_event.duration != (end_local - start_local).total_seconds() // 60 or
                     existing_event.google_calendar_event_id != event['id']):
-                existing_event.duration = (end - start).total_seconds() // 60
+                existing_event.duration = (end_local - start_local).total_seconds() // 60
                 existing_event.google_calendar_event_id = event['id']
                 existing_event.save()
                 logger.info(f"Event updated: {event_str}")
         else:
             Event.objects.create(
                 community=community,
-                date=start.date(),
-                start_time=start.time(),
-                duration=(end - start).total_seconds() // 60,
-                weekday=start.strftime("%a"),
+                date=start_local.date(),
+                start_time=start_local.time(),
+                duration=(end_local - start_local).total_seconds() // 60,
+                weekday=start_local.strftime("%a"),
                 google_calendar_event_id=event['id']
             )
             logger.info(f"Event created: {event_str}")

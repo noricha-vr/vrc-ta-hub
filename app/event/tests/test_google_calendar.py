@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta
 from unittest import TestCase
 
+import pytz
+from django.utils import timezone
+
 from event.google_calendar import GoogleCalendarService
 from website.settings import GOOGLE_CALENDAR_ID, GOOGLE_CALENDAR_CREDENTIALS
 
@@ -228,5 +231,59 @@ class TestGoogleCalendarService(TestCase):
 
             self.service.delete_event(event['id'])
 
+        except Exception as e:
+            self.fail(f'テストが失敗しました: {str(e)}')
+
+    def test_timezone_handling(self):
+        """タイムゾーン処理のテスト、特に数時間後のイベント"""
+        # テスト用のイベントデータ
+        summary = 'タイムゾーンテストイベント'
+        
+        # 現在のタイムゾーンでの日時
+        local_tz = timezone.get_current_timezone()
+        now = timezone.now()
+        
+        # 数時間後のイベントを作成
+        start_time = now + timedelta(hours=3)
+        end_time = start_time + timedelta(hours=1)
+        
+        try:
+            # イベントを作成
+            event = self.service.create_event(
+                summary=summary,
+                start_time=start_time,
+                end_time=end_time
+            )
+            
+            # 作成されたイベントのIDを確認
+            self.assertIsNotNone(event['id'])
+            
+            # イベント一覧を取得
+            time_min = now
+            time_max = now + timedelta(hours=24)
+            listed_events = self.service.list_events(
+                max_results=10,
+                time_min=time_min,
+                time_max=time_max
+            )
+            
+            # 作成したイベントが存在するか確認
+            created_event = next((e for e in listed_events if e['id'] == event['id']), None)
+            self.assertIsNotNone(created_event, "作成したイベントがリストに存在しません")
+            
+            # イベントの開始時刻を確認（タイムゾーンの変換が正しいか）
+            event_start = datetime.strptime(
+                created_event['start'].get('dateTime'), 
+                '%Y-%m-%dT%H:%M:%S%z'
+            )
+            
+            # タイムゾーン変換後の時間が元の時間に近いことを確認
+            event_start_local = event_start.astimezone(local_tz)
+            time_diff = abs((event_start_local - start_time).total_seconds())
+            self.assertLess(time_diff, 60, "タイムゾーン変換後の時間差が1分以上あります")
+            
+            # イベントを削除
+            self.service.delete_event(event['id'])
+        
         except Exception as e:
             self.fail(f'テストが失敗しました: {str(e)}')
