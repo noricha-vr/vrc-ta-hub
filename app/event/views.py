@@ -554,9 +554,21 @@ class EventMyList(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        return Event.objects.filter(
-            community__custom_user=self.request.user
+        today = timezone.now().date()
+        # 未来のイベントを最大2つまで取得
+        future_events = Event.objects.filter(
+            community__custom_user=self.request.user,
+            date__gte=today
+        ).select_related('community').order_by('date', 'start_time')[:2]
+        
+        # 過去のイベントを取得
+        past_events = Event.objects.filter(
+            community__custom_user=self.request.user,
+            date__lt=today
         ).select_related('community').order_by('-date', '-start_time')
+        
+        # 未来のイベントと過去のイベントを結合
+        return list(future_events) + list(past_events)
 
     def set_vrc_event_calendar_post_url(self, queryset: QuerySet) -> QuerySet:
         """
