@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.core.cache import cache
 from django.utils.decorators import method_decorator
 from functools import lru_cache
+from typing import Dict, Any
 
 from .models import CalendarEntry
 
@@ -68,9 +69,12 @@ def create_calendar_entry_url(event: 'Event') -> str:
         'entry.1540217995': community.organizers,
         'entry.1285455202': calendar_entry.how_to_join,
         'entry.586354013': calendar_entry.note if calendar_entry.note else '',
-        'entry.1607289186': 'Yes' if calendar_entry.is_overseas_user else 'No',
         'entry.701384676': calendar_entry.event_detail,
     }
+
+    # 海外ユーザー向け告知の処理 (修正後)
+    if calendar_entry.is_overseas_user:
+        form_data['entry.1607289186'] = '希望する' # チェックボックスの値に合わせる
 
     # イベントジャンルの処理
     event_type_field = 'entry.1606730788'
@@ -85,10 +89,13 @@ def create_calendar_entry_url(event: 'Event') -> str:
     url_params = []
     for key, value in form_data.items():
         if isinstance(value, list):
+            # リストの場合、各値を個別のパラメータとして追加
             for v in value:
-                url_params.append(f"{key}={urlencode({key: v})[len(key) + 1:]}")
+                # quoteを使用して値を適切にエンコード
+                url_params.append(f"{key}={quote(str(v))}")
         else:
-            url_params.append(f"{key}={urlencode({key: value})[len(key) + 1:]}")
+            # quoteを使用して値を適切にエンコード
+            url_params.append(f"{key}={quote(str(value))}")
 
     url_with_params = f"{FORM_URL}?{'&'.join(url_params)}"
     
@@ -145,6 +152,6 @@ def generate_google_calendar_url(request, event):
     url = base_url + "&".join(param_strings)
     
     # キャッシュに保存（1時間）
-    cache.set(cache_key, url, 60 * 60)
+    cache.set(cache_key, url, 0)
     
     return url
