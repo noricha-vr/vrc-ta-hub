@@ -76,7 +76,7 @@
                         <thead class="table-light">
                         <tr>
                             <th style="min-width: 150px;width:150px">開催日</th>
-                            <th style="min-width: 81px">開始時間</th>
+                            <th style="min-width: 81px">開始時間<br>(日本時間)</th>
                             <th style="min-width: 100px">プラット<br>フォーム</th>
                             <th style="min-width: 150px">イベント名<br>テーマ by 登壇者</th>
                             <th style="min-width: 100px">主催</th>
@@ -96,7 +96,7 @@
                                         <div>{{ event.date|date:"n月j日（D）" }}</div>
                                     </div>
                                 </td>
-                                <td>{{ event.start_time }} <small class="text-muted">（日本時間）</small></td>
+                                <td>{{ event.start_time }}</td>
                                 <td>{{ event.community.get_platform_display }}</td>
 
                                 <!-- パターン3: リスト風デザイン -->
