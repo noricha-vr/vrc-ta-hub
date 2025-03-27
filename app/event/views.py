@@ -776,7 +776,25 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
 
             if event:
                 logger.info(f'Googleカレンダーイベント作成成功: ID={event["id"]}, コミュニティ={community.name}')
-                # イベントの同期を実行
+                
+                # 同期に頼らず、イベントをローカルで直接登録
+                try:
+                    # 新しいイベントをDBに保存
+                    new_event = Event.objects.create(
+                        community=community,
+                        date=start_date,
+                        start_time=start_time,
+                        duration=duration,
+                        weekday=start_datetime.strftime("%a"),
+                        google_calendar_event_id=event['id']
+                    )
+                    logger.info(f'イベントをDBに直接登録: ID={new_event.id}, 日付={start_date}, 開始時間={start_time}')
+                    messages.success(self.request, 'イベントが正常に登録されました')
+                except Exception as e:
+                    logger.error(f'イベントのDB登録でエラー: {str(e)}', exc_info=True)
+                    messages.warning(self.request, 'イベントはGoogleカレンダーに登録されましたが、DBへの保存に失敗しました')
+                
+                # バックグラウンドで同期処理も実行
                 try:
                     # 内部的にGETリクエストを作成
                     from django.http import HttpRequest
@@ -785,14 +803,12 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                     sync_request.META = self.request.META
                     sync_request.headers = {'Request-Token': REQUEST_TOKEN}
 
+                    # 同期処理を実行（エラーがあっても継続）
                     response = sync_calendar_events(sync_request)
-                    if response.status_code == 200:
-                        messages.success(self.request, 'イベントが正常に登録されました')
-                    else:
-                        messages.warning(self.request, 'イベントは登録されましたが、同期に失敗しました')
+                    if response.status_code != 200:
+                        logger.warning(f'カレンダー同期で警告: ステータスコード={response.status_code}')
                 except Exception as e:
-                    logger.error(f'イベント同期中にエラーが発生しました: {str(e)}')
-                    messages.warning(self.request, 'イベントは登録されましたが、同期に失敗しました')
+                    logger.error(f'イベント同期中にエラーが発生しました: {str(e)}', exc_info=True)
 
             return super().form_valid(form)
 

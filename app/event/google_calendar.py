@@ -200,15 +200,36 @@ class GoogleCalendarService:
             イベントのリスト
         """
         try:
+            # タイムゾーン処理を修正
+            time_min_str = None
+            if time_min:
+                # JSTのタイムスタンプをUTCに変換せずに、タイムゾーン情報を保持したまま送信
+                time_min_str = time_min.isoformat()
+                
+            time_max_str = None
+            if time_max:
+                # JSTのタイムスタンプをUTCに変換せずに、タイムゾーン情報を保持したまま送信
+                time_max_str = time_max.isoformat()
+                
+            # APIリクエストのログ
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Google Calendar API呼び出し: timeMin={time_min_str}, timeMax={time_max_str}")
+            
             events_result = self.service.events().list(
                 calendarId=self.calendar_id,
                 maxResults=max_results,
-                timeMin=time_min.isoformat() + 'Z' if time_min else None,
-                timeMax=time_max.isoformat() + 'Z' if time_max else None,
+                timeMin=time_min_str,
+                timeMax=time_max_str,
                 singleEvents=True,
                 orderBy='startTime'
             ).execute()
-            return events_result.get('items', [])
+            
+            events = events_result.get('items', [])
+            logger.info(f"Google Calendar APIから{len(events)}件のイベントを取得")
+            return events
         except HttpError as error:
-            print(f'An error occurred: {error}')
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f'Google Calendar API呼び出しエラー: {error}', exc_info=True)
             raise
