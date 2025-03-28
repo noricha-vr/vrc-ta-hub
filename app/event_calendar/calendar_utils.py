@@ -110,6 +110,13 @@ def generate_google_calendar_url(request, event):
     """
     Googleカレンダーにイベントを追加するためのURLを生成する
     キャッシュ有効時間: 1時間
+    
+    Args:
+        request: HTTPリクエストオブジェクト
+        event: イベントオブジェクト
+
+    Returns:
+        str: GoogleカレンダーのイベントURL
     """
     cache_key = f'google_calendar_url_{event.id}'
     cached_url = cache.get(cache_key)
