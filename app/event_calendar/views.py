@@ -5,9 +5,11 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import UpdateView
+from django.core.cache import cache
 
 from .forms import CalendarEntryForm
 from .models import Community, CalendarEntry
+from .calendar_utils import create_calendar_entry_url
 
 
 class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):
@@ -62,6 +64,13 @@ class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):
             HttpResponse: 成功メッセージを含むレスポンス
         """
         response = super().form_valid(form)
+        
+        # カレンダーエントリーに関連するイベントのキャッシュを削除
+        community = self.object.community
+        for event in community.events.all():
+            cache_key = f'calendar_entry_url_{event.id}'
+            cache.delete(cache_key)
+            
         messages.success(self.request, 'VRCイベントカレンダー情報が更新されました。')
         return response
 

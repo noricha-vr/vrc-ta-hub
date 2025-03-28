@@ -152,6 +152,6 @@ def generate_google_calendar_url(request, event):
     url = base_url + "&".join(param_strings)
     
     # キャッシュに保存（1時間）
-    cache.set(cache_key, url, 0)
+    cache.set(cache_key, url, 60 * 60)
     
     return url

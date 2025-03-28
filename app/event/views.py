@@ -62,7 +62,13 @@ class EventCreateView(LoginRequiredMixin, CreateView):
         form.instance.community = Community.objects.filter(custom_user=self.request.user).first()
 
         try:
-            return super().form_valid(form)
+            response = super().form_valid(form)
+            
+            # 新しく作成されたイベントのキャッシュをクリア
+            cache_key = f'calendar_entry_url_{self.object.id}'
+            cache.delete(cache_key)
+            
+            return response
         except IntegrityError as e:
             if "Duplicate entry" in str(e):
                 message = f"イベントが重複しています: {form.instance.date} {form.instance.start_time}"
@@ -401,9 +407,14 @@ def register_calendar_events(calendar_events):
                 existing_event.duration = (end_local - start_local).total_seconds() // 60
                 existing_event.google_calendar_event_id = event['id']
                 existing_event.save()
+                
+                # 更新されたイベントのキャッシュをクリア
+                cache_key = f'calendar_entry_url_{existing_event.id}'
+                cache.delete(cache_key)
+                
                 logger.info(f"Event updated: {event_str}")
         else:
-            Event.objects.create(
+            new_event = Event.objects.create(
                 community=community,
                 date=start_local.date(),
                 start_time=start_local.time(),
@@ -823,6 +834,14 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                         logger.warning(f'カレンダー同期で警告: ステータスコード={response.status_code}')
                 except Exception as e:
                     logger.error(f'イベント同期中にエラーが発生しました: {str(e)}', exc_info=True)
+
+            # イベントの作成が成功した場合、キャッシュをクリア
+            if event:
+                event_id = event['id']
+                event = Event.objects.filter(google_calendar_event_id=event_id).first()
+                if event:
+                    cache_key = f'calendar_entry_url_{event.id}'
+                    cache.delete(cache_key)
 
             return super().form_valid(form)
 

@@ -16,6 +16,7 @@ from django.views.generic import UpdateView
 from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
+from django.core.cache import cache
 
 from event.models import Event
 from url_filters import get_filtered_url
@@ -189,6 +190,12 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             response = super().form_valid(form)
             calendar_entry = self.object.calendar_entry
             calendar_entry.save()
+            
+            # カレンダーエントリーに関連するイベントのキャッシュを削除
+            for event in self.object.events.all():
+                cache_key = f'calendar_entry_url_{event.id}'
+                cache.delete(cache_key)
+                
             messages.success(self.request, '集会情報とVRCイベントカレンダー用情報が更新されました。')
             return response
         except DataError as e:
