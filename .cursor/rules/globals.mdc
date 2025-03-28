@@ -1,0 +1,262 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# VRC 技術学術ハブ
+
+## 概要
+
+VRChat技術学術ハブは、VRChat内で開催される技術・学術系イベントの情報を集約し、利用者が簡単にイベントの情報にアクセスできるようにするためのWebサイトです。
+
+https://vrc-ta-hub.com
+
+## 主な機能
+
+1. **ホームページ（ランディングページ）:**
+    - プロジェクトの概要と主要な機能について説明します。
+
+2. **開催日程ページ:**
+    - GoogleカレンダーをAPIで埋め込み、今後開催予定のイベントをカレンダー形式で表示します。
+    - 各イベントの詳細情報へのリンクを提供します。
+
+3. **集会一覧ページ:**
+    - これまでに開催された全てのイベントをリスト形式で表示します。
+    - 検索（フィルター）機能を実装し、ユーザーが関心のあるイベントを見つけやすくします。
+    - 各イベントの詳細ページへのリンクを提供します。
+
+4. **集会詳細ページ:**
+    - 各イベントの詳細情報を提供します。
+    - イベントの概要、開催日時、登壇者、関連資料などの情報を掲載します。
+    - 各回のイベントで行われたライトニングトークの資料やYouTube動画を埋め込みます。
+
+5. **LTアーカイブページ:**
+    - 過去に開催されたライトニングトークの資料やYouTube動画を一覧で表示します。
+    - 各資料や動画へのリンクを提供します。
+
+6. **ユーザーアカウント:**
+    - イベント主催者はアカウントを作成し、集会情報とイベント情報を登録・管理できます。
+    - 承認機能により、新規登録された集会は管理者または既存の承認済み集会運営者によって承認されるまで公開されません。
+    - 設定画面では、ユーザーは自身のプロフィール情報、集会情報、パスワードなどを変更できます。
+
+
+7. **API (api/v1):**
+    - WebサイトのデータはRESTful APIを通して取得できます。
+    - APIはJSON形式でデータを提供します。
+    - APIを通して、集会情報、イベント情報、イベント詳細情報などを取得可能です。
+    - APIドキュメントは[こちら](https://vrc-ta-hub.com/api/v1/)からアクセスできます。
+
+## API エンドポイント
+
+VRC技術学術ハブは、以下のAPIエンドポイントを提供しています：
+
+1. **集会情報 API:**
+    - エンドポイント: `http://vrc-ta-hub.com/api/v1/community/`
+    - 説明: 全ての集会の情報を取得します。
+
+2. **イベント情報 API:**
+    - エンドポイント: `http://vrc-ta-hub.com/api/v1/event/`
+    - 説明: 全てのイベントの情報を取得します。
+
+3. **イベント詳細情報 API:**
+    - エンドポイント: `http://vrc-ta-hub.com/api/v1/event_detail/`
+    - 説明: 全てのイベント詳細（ライトニングトークなど）の情報を取得します。
+
+各APIエンドポイントは、GET、HEAD、OPTIONSメソッドをサポートしています。レスポンスはJSON形式で返されます。
+
+[エンドポイント](https://vrc-ta-hub.com/api/v1/)
+
+[ドキュメント](app/api_v1/README.md)
+
+## 使用技術
+
+- Django（Python）
+- Bootstrap 5.3
+- SQLite (開発用)
+- MySQL (本番用)
+- Google Calendar API
+- Google Gemini API
+- django_filters
+- djangorestframework
+- youtube_transcript_api
+- google-generativeai
+- bleach
+- markdown
+
+## 開発環境構築
+
+### 前提条件
+
+- Python 3.9以上
+- Docker
+- Docker Compose
+
+# 実行環境
+
+- docker compose 内でDjangoが動いています
+- 実行するときは既存のコンテナがあるかを確認して、あれば、その中でプログラムを実行します
+- 実行されていない場合は docker compose で起動します
+
+# ディレクトリ構造
+
+tree -L 3
+.
+├── COMMANDS.md
+├── Dockerfile
+├── LICENSE
+├── README.md
+├── app
+│   ├── __pycache__
+│   │   ├── manage.cpython-312.pyc
+│   │   └── url_filters.cpython-312.pyc
+│   ├── account
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── forms.py
+│   │   ├── migrations
+│   │   ├── models.py
+│   │   ├── templates
+│   │   ├── templatetags
+│   │   ├── tests
+│   │   ├── tests.py
+│   │   ├── urls.py
+│   │   └── views.py
+│   ├── api_v1
+│   │   ├── README.md
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── migrations
+│   │   ├── serializers.py
+│   │   ├── tests.py
+│   │   ├── urls.py
+│   │   └── views.py
+│   ├── app
+│   │   └── event
+│   ├── community
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── forms.py
+│   │   ├── libs.py
+│   │   ├── migrations
+│   │   ├── models.py
+│   │   ├── templates
+│   │   ├── templatetags
+│   │   ├── tests
+│   │   ├── tests.py
+│   │   ├── urls.py
+│   │   └── views.py
+│   ├── credentials.json
+│   ├── db.sqlite3
+│   ├── event
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── forms.py
+│   │   ├── google_calendar.py
+│   │   ├── libs.py
+│   │   ├── management
+│   │   ├── migrations
+│   │   ├── models.py
+│   │   ├── prompts.py
+│   │   ├── templates
+│   │   ├── tests
+│   │   ├── tests.py
+│   │   ├── urls.py
+│   │   └── views.py
+│   ├── event_calendar
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── calendar_utils.py
+│   │   ├── forms.py
+│   │   ├── migrations
+│   │   ├── models.py
+│   │   ├── templates
+│   │   ├── tests
+│   │   ├── tests.py
+│   │   └── views.py
+│   ├── manage.py
+│   ├── secret
+│   │   └── credentials.json
+│   ├── site
+│   │   ├── android-chrome-192x192.png
+│   │   ├── android-chrome-512x512.png
+│   │   ├── apple-touch-icon.png
+│   │   ├── favicon-16x16.png
+│   │   ├── favicon-32x32.png
+│   │   ├── favicon.ico
+│   │   └── site.webmanifest
+│   ├── sitemap
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── migrations
+│   │   ├── models.py
+│   │   ├── templates
+│   │   ├── tests.py
+│   │   ├── urls.py
+│   │   └── views.py
+│   ├── static
+│   ├── summary.config.json
+│   ├── ta_hub
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── libs.py
+│   │   ├── migrations
+│   │   ├── models.py
+│   │   ├── static
+│   │   ├── templates
+│   │   ├── templatetags
+│   │   ├── tests
+│   │   ├── urls.py
+│   │   └── views.py
+│   ├── test-emails
+│   │   ├── 20250108-010532-281472304701584.html
+│   │   ├── 20250108-010622-281472494665696.log
+│   │   ├── 20250108-010622-281472498172272.log
+│   │   ├── 20250108-010753-281472882899424.html
+│   │   ├── 20250108-011240-281472904561920.html
+│   │   ├── 20250108-011240-281472914749728.html
+│   │   └── 20250108-011503-281472278930176.html
+│   ├── twitter
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   ├── admin.py
+│   │   ├── apps.py
+│   │   ├── forms.py
+│   │   ├── migrations
+│   │   ├── models.py
+│   │   ├── templates
+│   │   ├── tests.py
+│   │   ├── urls.py
+│   │   ├── utils.py
+│   │   └── views.py
+│   ├── url_filters.py
+│   └── website
+│       ├── __init__.py
+│       ├── __pycache__
+│       ├── asgi.py
+│       ├── settings.py
+│       ├── urls.py
+│       └── wsgi.py
+├── cloudbuild-dev.yaml
+├── cloudbuild.yaml
+├── docker-compose.test.yml
+├── docker-compose.yaml
+├── nginx-app.conf
+├── requirements.txt
+├── summary.config.json
+├── supervisor-app.conf
+├── uwsgi.ini
+└── uwsgi_params
