@@ -4,7 +4,7 @@
         <tr>
             <th scope="col" style="min-width: 140px">集会名</th>
             <th scope="col" style="min-width: 142px">日付</th>
-            <th scope="col" style="min-width: 120px">時間</th>
+            <th scope="col" style="min-width: 120px">時間<br/>(日本時間)</th>
             {% if 'history' in request.path %}
                 <th scope="col" style="min-width: 73px">資料</th>
             {% endif %}
@@ -22,7 +22,7 @@
                     </a>
                 </td>
                 <td>{{ detail.event.date|date:"Y年m月d日" }}</td>
-                <td>{{ detail.start_time|date:"H:i" }} - {{ detail.end_time|date:"H:i" }} <small class="text-muted">（日本時間）</small></td>
+                <td>{{ detail.start_time|date:"H:i" }} - {{ detail.end_time|date:"H:i" }}</td>
                 {% if 'history' in request.path %}
 
                     <td>
