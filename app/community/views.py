@@ -98,6 +98,12 @@ class CommunityListView(ListView):
         base_url = reverse('community:list')
         current_params = self.request.GET.copy()
 
+        # ページネーションリンク用に既存の 'page' パラメータを削除
+        query_params_for_pagination = current_params.copy()
+        if 'page' in query_params_for_pagination:
+            del query_params_for_pagination['page']
+        context['current_query_params'] = query_params_for_pagination.urlencode()
+
         context['weekday_urls'] = {
             choice[0]: get_filtered_url(base_url, current_params, 'weekdays', choice[0])
             for choice in context['form'].fields['weekdays'].choices
