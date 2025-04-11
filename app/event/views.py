@@ -315,21 +315,24 @@ def sync_calendar_events(request):
         credentials_path=GOOGLE_CALENDAR_CREDENTIALS
     )
 
-    # タイムゾーン付きの現在時刻を取得
-    today = timezone.now()
-    end_date = today + timedelta(days=60)
+    # 現在の日付の開始時刻（00:00:00 JST）
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # より安全に：前日の開始時刻を使用
+    time_min = today_start - timedelta(days=1)
+    end_date = today_start + timedelta(days=60)
 
     try:
-        logger.info(f'カレンダー同期開始: 期間={today} から {end_date}')
+        logger.info(f'カレンダー同期開始: 期間={time_min} から {end_date}')
         calendar_events = calendar_service.list_events(
-            time_min=today,
+            time_min=time_min,
             time_max=end_date,
             max_results=1000  # 十分大きな数を指定
         )
         logger.info(f'Googleカレンダーからのイベント取得成功: {len(calendar_events)}件')
 
         # データベースのイベントを削除
-        delete_outdated_events(calendar_events, today.date())
+        delete_outdated_events(calendar_events, today_start.date())
         logger.info('古いイベントの削除完了')
 
         # カレンダーイベントを登録/更新
