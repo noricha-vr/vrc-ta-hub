@@ -243,6 +243,18 @@ class EventDetailView(DetailView):
             'frequency': community.frequency
         }
 
+        # Twitterボタン表示用のフラグとテンプレートを追加
+        today = timezone.now().date()
+        twitter_display_until = event_detail.event.date + timedelta(days=7)
+        context['twitter_button_active'] = today <= twitter_display_until
+        context['twitter_templates'] = event_detail.event.community.twitter_template.all()
+        
+        # ユーザーがログインしていて、このイベントのコミュニティオーナーであるか確認
+        if self.request.user.is_authenticated and self.request.user == event_detail.event.community.custom_user:
+            context['is_community_owner'] = True
+        else:
+            context['is_community_owner'] = False
+
         return context
 
     def _fetch_related_event_details(self, event_detail: EventDetail) -> List[EventDetail]:

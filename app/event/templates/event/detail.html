@@ -142,6 +142,28 @@
                         <a href="{% url 'community:detail' event_detail.event.community.pk %}"
                            class="btn btn-secondary me-2">{{ event_detail.event.community.name }}</a>
                     </div>
+                    
+                    {# Twitter告知ボタン（ログインユーザーがコミュニティオーナーかつイベント日から1週間以内の場合） #}
+                    {% if is_community_owner and twitter_button_active %}
+                    <div class="mt-2">
+                        {% with templates=twitter_templates %}
+                            {% if templates %}
+                                {% for template in templates %}
+                                    <a href="{% url 'twitter:tweet_event_with_template' event_detail.event.pk template.pk %}"
+                                       class="btn btn-outline-primary mb-1">
+                                        <i class="bi bi-twitter"></i> {{ template.name }}
+                                    </a>
+                                {% endfor %}
+                            {% else %}
+                                <a href="{% url 'twitter:template_create' %}"
+                                   class="btn btn-outline-primary">
+                                    <i class="bi bi-twitter"></i> 告知テンプレートを作成
+                                </a>
+                            {% endif %}
+                        {% endwith %}
+                    </div>
+                    {% endif %}
+                    
                     <div class="mt-3">
                         <ul>
                             <li>希望の記事が作成されない場合、「記事生成」ボタンを押して再生成が可能です</li>
