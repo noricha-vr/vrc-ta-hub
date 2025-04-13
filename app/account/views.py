@@ -18,12 +18,14 @@ from .forms import CustomUserCreationForm, BootstrapAuthenticationForm, Bootstra
 
 class CustomLoginView(LoginView):
     template_name = 'account/login.html'
-    success_url = reverse_lazy('account:settings')  # ログイン成功後のリダイレクト先
+    # success_url = reverse_lazy('account:settings')  # ログイン成功後のリダイレクト先
     form_class = BootstrapAuthenticationForm
 
     def get_success_url(self):
         messages.info(self.request, 'ログインしました。')
-        return self.success_url
+        # settings.LOGIN_REDIRECT_URL を使うように変更
+        redirect_to = settings.LOGIN_REDIRECT_URL
+        return redirect_to
 
 
 class CustomLogoutView(LogoutView):

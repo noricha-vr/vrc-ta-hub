@@ -175,6 +175,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')  # ローカルに静的ファイルを収集するディレクトリ
 
 LOGIN_URL = '/account/login/'
+LOGIN_REDIRECT_URL = '/event/my_list/'
 
 # Google Calendar APIの設定
 GOOGLE_CALENDAR_CREDENTIALS = os.getenv('GOOGLE_CALENDAR_CREDENTIALS', '/app/credentials.json')
