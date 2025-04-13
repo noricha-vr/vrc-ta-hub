@@ -656,26 +656,45 @@ class EventMyList(LoginRequiredMixin, ListView):
                 continue
             event.calendar_url = create_calendar_entry_url(event)
         return queryset
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
+    
+    def _get_community_info(self):
+        """
+        ログインユーザーのコミュニティ情報を取得する
         
-        # コミュニティ情報を取得
-        context['community'] = Community.objects.filter(custom_user=self.request.user).first()
+        Returns:
+            Community: ユーザーのコミュニティ情報
+        """
+        return Community.objects.filter(custom_user=self.request.user).first()
+    
+    def _set_twitter_button_flags(self, events):
+        """
+        イベントごとにTwitterボタン表示フラグを設定する
         
-        # イベントにカレンダーURLを設定
-        events = context['events']
-        self.set_vrc_event_calendar_post_url(events)
-        
-        # Twitterボタン表示用のフラグを設定（イベント日から1週間以内）
+        Args:
+            events (list): イベントリスト
+            
+        Returns:
+            list: Twitterボタン表示フラグが設定されたイベントリスト
+        """
         today = timezone.now().date()
         for event in events:
             # イベント日から1週間後の日付を計算
             twitter_display_until = event.date + timedelta(days=7)
             # イベント日から1週間以内ならTwitterボタンを表示
             event.twitter_button_active = today <= twitter_display_until
+        return events
+    
+    def _attach_event_details(self, events):
+        """
+        イベントごとにイベント詳細情報を取得・設定する
         
-        # イベントIDのリストを取得（ページネーション後のイベントのみ）
+        Args:
+            events (list): イベントリスト
+            
+        Returns:
+            list: イベント詳細が添付されたイベントリスト
+        """
+        # イベントIDのリストを取得
         event_ids = [event.id for event in events]
         
         if event_ids:
@@ -698,12 +717,50 @@ class EventMyList(LoginRequiredMixin, ListView):
             # イベントが存在しない場合は空のリストを設定
             for event in events:
                 event.detail_list = []
-
-        # 現在のGETパラメータを取得（ページネーション用）
+                
+        return events
+    
+    def _prepare_pagination_params(self):
+        """
+        ページネーション用のGETパラメータを準備する
+        
+        Returns:
+            str: エンコードされたクエリパラメータ
+        """
         query_params = self.request.GET.copy()
         if 'page' in query_params:
             del query_params['page']
-        context['current_query_params'] = query_params.urlencode()
+        return query_params.urlencode()
+
+    def get_context_data(self, **kwargs):
+        """
+        テンプレートに渡すコンテキストデータを準備する
+        
+        各機能は専用のプライベートメソッドに分割され、
+        このメソッドではそれらを順番に呼び出して結果を組み合わせる
+        """
+        context = super().get_context_data(**kwargs)
+        
+        # コミュニティ情報を取得
+        context['community'] = self._get_community_info()
+        
+        # イベントリストを取得
+        events = context['events']
+        
+        # イベントにカレンダーURLを設定
+        events = self.set_vrc_event_calendar_post_url(events)
+        
+        # Twitterボタン表示用のフラグを設定
+        events = self._set_twitter_button_flags(events)
+        
+        # イベント詳細情報を取得・設定
+        events = self._attach_event_details(events)
+        
+        # 更新されたイベントリストをコンテキストに再設定
+        context['events'] = events
+        
+        # ページネーション用のパラメータを設定
+        context['current_query_params'] = self._prepare_pagination_params()
 
         return context
 
