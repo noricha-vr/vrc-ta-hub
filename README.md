@@ -38,8 +38,12 @@ VRChat技術学術ハブは、VRChat内で開催される技術・学術系イ�
     - 承認機能により、新規登録された集会は管理者または既存の承認済み集会運営者によって承認されるまで公開されません。
     - 設定画面では、ユーザーは自身のプロフィール情報、集会情報、パスワードなどを変更できます。
 
+7. **自動コンテンツ生成機能:**
+    - Google Gemini APIとOpenRouter APIを使用して、イベント情報からブログ記事を自動生成します。
+    - YouTube動画の文字起こしとPDFスライドの内容を分析し、イベント内容を要約します。
+    - メタディスクリプションやタイトルを自動生成し、SEO最適化を支援します。
 
-7. **API (api/v1):**
+8. **API (api/v1):**
     - WebサイトのデータはRESTful APIを通して取得できます。
     - APIはJSON形式でデータを提供します。
     - APIを通して、集会情報、イベント情報、イベント詳細情報などを取得可能です。
@@ -59,7 +63,7 @@ VRC技術学術ハブは、以下のAPIエンドポイントを提供してい�
 
 3. **イベント詳細情報 API:**
     - エンドポイント: `http://vrc-ta-hub.com/api/v1/event_detail/`
-    - 説明: 全てのイベント詳細（ライトニングトークなど）の情報を取得します。
+    - 説明: 全てのイベント詳細（ライトニングトークなど）の情報を取得可能です。
 
 各APIエンドポイントは、GET、HEAD、OPTIONSメソッドをサポートしています。レスポンスはJSON形式で返されます。
 
@@ -75,12 +79,16 @@ VRC技術学術ハブは、以下のAPIエンドポイントを提供してい�
 - MySQL (本番用)
 - Google Calendar API
 - Google Gemini API
+- OpenRouter API
+- YouTube Data API
 - django_filters
 - djangorestframework
 - youtube_transcript_api
-- google-generativeai
+- openai（OpenRouterとの互換クライアント）
+- PyPDF（PDFファイルの解析）
 - bleach
 - markdown
+- pydantic
 
 ## 開発環境構築
 
@@ -107,6 +115,11 @@ VRC技術学術ハブは、以下のAPIエンドポイントを提供してい�
 
    `.env` ファイルを編集し、必要な環境変数を設定します。
 
+   主要な環境変数:
+   - `OPENROUTER_API_KEY`: OpenRouter APIのキー（自動コンテンツ生成に必要）
+   - `GOOGLE_API_KEY`: Google APIのキー（YouTube動画処理に必要）
+   - `GEMINI_MODEL`: 使用するGeminiモデル名（例: `google/gemini-2.0-flash-001`）
+
 3. **Dockerコンテナのビルドと起動:**
 
    ```bash
@@ -131,6 +144,30 @@ VRC技術学術ハブは、以下のAPIエンドポイントを提供してい�
 
    ブラウザで `http://localhost:8000` にアクセスします。
 
+### テスト環境のセットアップ
+
+本プロジェクトでは実際のAPIを使用したテストを実行します。
+
+1. **テスト用環境変数の設定:**
+
+   `.env`ファイルに以下の環境変数が設定されていることを確認します：
+   ```
+   OPENROUTER_API_KEY=your_api_key
+   GOOGLE_API_KEY=your_api_key
+   GEMINI_MODEL=google/gemini-2.0-flash-001
+   ```
+
+2. **テストの実行:**
+
+   ```bash
+   docker compose exec vrc-ta-hub python manage.py test
+   ```
+
+   特定のテストを実行する場合：
+   ```bash
+   docker compose exec vrc-ta-hub python manage.py test event.tests.test_generate_blog
+   ```
+
 ## データモデル
 
 1. **集会モデル:**
@@ -144,11 +181,61 @@ VRC技術学術ハブは、以下のAPIエンドポイントを提供してい�
 
 3. **イベント詳細モデル:**
     - 各イベントのライトニングトークの詳細情報を管理します。
-    - フィールド：イベント（外部キー）、開始時刻、発表時間、発表者、テーマ、資料、YouTube動画のURLなど
+    - フィールド：イベント（外部キー）、開始時刻、発表時間、発表者、テーマ、資料、YouTube動画のURL、自動生成コンテンツなど
     - イベントモデルとの1対多の関係を持ちます。
+
+## 実装の特徴
+
+### JSONパーシングの堅牢性向上
+
+外部APIとの連携時に発生するJSONパーシングの問題に対応するため、以下の工夫を施しています：
+
+1. **正規表現を使用したJSON正規化**:
+   ```python
+   normalized_json = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_str)
+   ```
+
+2. **不正なエスケープシーケンスの処理**:
+   ```python
+   clean_json = re.sub(r'\\([^"\\/bfnrtu])', r'\1', json_str)
+   ```
+
+3. **複数のフォールバック機構**:
+   - 正規化されたJSONでパースを試行
+   - 失敗した場合はクリーニングされたJSONで試行
+   - さらに失敗した場合は制御文字を削除したバージョンで試行
+   - 最終手段として積極的なクリーニングを実施
+
+これらの対策により、外部APIが返す不正確なJSONに対しても堅牢にデータを抽出できます。
+
+### テスト戦略
+
+1. **統合テスト**:
+   - 実際のAPIを使用したエンドツーエンドのテスト
+   - 環境変数が適切に設定されている場合のみ実行
+
+2. **単体テスト**:
+   - 基本的な機能の検証
+   - 外部依存性のないコンポーネントのテスト
+
+3. **例外処理に重点**:
+   - APIエラーに対する適切な処理
+   - フォールバックメカニズムのテスト
 
 ## 開発への貢献
 
 本プロジェクトはGitHubで公開されています。開発への貢献を歓迎します！
 
 - [https://github.com/noricha-vr/vrc-ta-hub](https://github.com/noricha-vr/vrc-ta-hub)
+
+コントリビューション方法:
+
+1. リポジトリをフォーク
+2. 機能ブランチを作成（`git checkout -b feature/amazing-feature`）
+3. 変更をコミット（`git commit -m 'Add some amazing feature'`）
+4. ブランチにプッシュ（`git push origin feature/amazing-feature`）
+5. プルリクエストを作成
+
+## ライセンス
+
+MITライセンスの下で公開されています。詳細はLICENSEファイルを参照してください。
