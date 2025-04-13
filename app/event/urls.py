@@ -2,13 +2,12 @@ from django.urls import path
 from django.views.generic import TemplateView
 
 from .views import EventListView, EventDetailView, sync_calendar_events, EventDetailUpdateView, EventDetailCreateView, \
-    EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailPastList, EventCreateView, \
+    EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailPastList, \
     EventDeleteView, GoogleCalendarEventCreateView
 
 app_name = 'event'
 urlpatterns = [
     path('list/', EventListView.as_view(), name='list'),
-    path('create/', EventCreateView.as_view(), name='create'),
     path('delete/<int:pk>/', EventDeleteView.as_view(), name='delete'),
     path('my_list/', EventMyList.as_view(), name='my_list'),
     path('sync/', sync_calendar_events, name='sync_calendar_events'),

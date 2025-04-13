@@ -139,10 +139,6 @@
                            class="btn btn-success me-2">編集</a>
 
 
-                        <div><a href="{% url 'event:create' %}"
-                                class="btn btn-secondary me-2">過去のイベントを登録</a>
-                        </div>
-
                         <a href="{% url 'community:detail' event_detail.event.community.pk %}"
                            class="btn btn-secondary me-2">{{ event_detail.event.community.name }}</a>
                     </div>

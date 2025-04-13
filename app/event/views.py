@@ -46,40 +46,6 @@ else:
     client = bigquery.Client(credentials=credentials, project=project, location="asia-northeast1")
 
 
-class EventCreateView(LoginRequiredMixin, CreateView):
-    model = Event
-    form_class = EventCreateForm  # フォームクラスを設定
-    template_name = 'event/form.html'
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['request'] = self.request  # requestオブジェクトを渡す
-        return kwargs
-
-    def form_valid(self, form):
-        form.instance.weekday = form.instance.date.strftime('%a')
-        form.instance.community = Community.objects.filter(custom_user=self.request.user).first()
-
-        try:
-            response = super().form_valid(form)
-
-            # 新しく作成されたイベントのキャッシュをクリア
-            cache_key = f'calendar_entry_url_{self.object.id}'
-            cache.delete(cache_key)
-
-            return response
-        except IntegrityError as e:
-            if "Duplicate entry" in str(e):
-                message = f"イベントが重複しています: {form.instance.date} {form.instance.start_time}"
-                messages.error(self.request, message)
-            else:
-                raise e
-        return redirect(self.get_success_url())
-
-    def get_success_url(self):
-        return reverse_lazy('event:my_list')
-
-
 class EventDeleteView(LoginRequiredMixin, DeleteView):
     model = Event
     success_url = reverse_lazy('event:my_list')
