@@ -63,26 +63,28 @@ class TestGenerateBlog(TestCase):
         mock_chat = mock_client.chat
         mock_completions = mock_chat.completions
         mock_create = mock_completions.create
-
-        # モックレスポンスの設定
+        
+        # Function Callingのモックレスポンスを設定
         mock_response = mock_create.return_value
-        mock_response.choices = [type('obj', (object,), {
-            'message': type('obj', (object,), {
-                'content': '''```json
-{
- "title": "テストタイトル",
- "meta_description": "テストのメタ説明",
- "text": "テスト本文の内容"
-}
-```'''
+        mock_tool_call = type('obj', (object,), {
+            'function': type('obj', (object,), {
+                'name': 'generate_blog_post',
+                'arguments': '{"title": "テストタイトル", "meta_description": "テストのメタ説明", "text": "テスト本文の内容"}'
             })
-        })]
-
+        })
+        
+        # モックレスポンスのchoicesとmessageを設定
+        mock_message = type('obj', (object,), {
+            'tool_calls': [mock_tool_call],
+            'content': None  # Function Callingの場合、contentはNoneになる可能性がある
+        })
+        mock_response.choices = [type('obj', (object,), {'message': mock_message})]
+        
         event_detail = self.create_event_detail(
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M",
             slide_file=True
         )
-
+        
         # get_transcriptをモック
         with patch('event.libs.get_transcript', return_value="テスト文字起こし"):
             result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
@@ -101,25 +103,27 @@ class TestGenerateBlog(TestCase):
         mock_chat = mock_client.chat
         mock_completions = mock_chat.completions
         mock_create = mock_completions.create
-
-        # モックレスポンスの設定
+        
+        # Function Callingのモックレスポンスを設定
         mock_response = mock_create.return_value
-        mock_response.choices = [type('obj', (object,), {
-            'message': type('obj', (object,), {
-                'content': '''```json
-{
- "title": "動画のみのテストタイトル",
- "meta_description": "動画のみのテストメタ説明",
- "text": "動画のみのテスト本文"
-}
-```'''
+        mock_tool_call = type('obj', (object,), {
+            'function': type('obj', (object,), {
+                'name': 'generate_blog_post',
+                'arguments': '{"title": "動画のみのテストタイトル", "meta_description": "動画のみのテストメタ説明", "text": "動画のみのテスト本文"}'
             })
-        })]
-
+        })
+        
+        # モックレスポンスのchoicesとmessageを設定
+        mock_message = type('obj', (object,), {
+            'tool_calls': [mock_tool_call],
+            'content': None
+        })
+        mock_response.choices = [type('obj', (object,), {'message': mock_message})]
+        
         event_detail = self.create_event_detail(
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M"
         )
-
+        
         # get_transcriptをモック
         with patch('event.libs.get_transcript', return_value="テスト文字起こし"):
             result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
@@ -136,23 +140,25 @@ class TestGenerateBlog(TestCase):
         mock_chat = mock_client.chat
         mock_completions = mock_chat.completions
         mock_create = mock_completions.create
-
-        # モックレスポンスの設定
+        
+        # Function Callingのモックレスポンスを設定
         mock_response = mock_create.return_value
-        mock_response.choices = [type('obj', (object,), {
-            'message': type('obj', (object,), {
-                'content': '''```json
-{
- "title": "PDFのみのテストタイトル",
- "meta_description": "PDFのみのテストメタ説明",
- "text": "PDFのみのテスト本文"
-}
-```'''
+        mock_tool_call = type('obj', (object,), {
+            'function': type('obj', (object,), {
+                'name': 'generate_blog_post',
+                'arguments': '{"title": "PDFのみのテストタイトル", "meta_description": "PDFのみのテストメタ説明", "text": "PDFのみのテスト本文"}'
             })
-        })]
-
+        })
+        
+        # モックレスポンスのchoicesとmessageを設定
+        mock_message = type('obj', (object,), {
+            'tool_calls': [mock_tool_call],
+            'content': None
+        })
+        mock_response.choices = [type('obj', (object,), {'message': mock_message})]
+        
         event_detail = self.create_event_detail(slide_file=True)
-
+        
         result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
 
         self.assertIsInstance(result, BlogOutput)

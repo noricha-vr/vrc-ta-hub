@@ -132,7 +132,15 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
         logger.info(f"Starting API request at {request_start_time}")
 
         try:
-            # ヘッダーを追加してリクエスト
+            # BlogOutputスキーマを関数定義形式に変換
+            blog_output_schema = {
+                "name": "generate_blog_post",
+                "description": "VRChatイベントの発表内容に基づいてブログ記事を生成する",
+                "parameters": BlogOutput.model_json_schema(),
+                "required": ["title", "meta_description", "text"]
+            }
+            
+            # Function Callingを使用したリクエスト
             completion = client.chat.completions.create(
                 extra_headers={
                     "HTTP-Referer": "https://vrc-ta-hub.com/",  # OpenRouterのランキング用サイトURL
@@ -143,7 +151,9 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
                     {"role": "user", "content": prompt_text}
                 ],
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=2000,
+                tools=[{"type": "function", "function": blog_output_schema}],
+                tool_choice={"type": "function", "function": {"name": "generate_blog_post"}}
             )
 
             # デバッグ用：APIリクエスト終了時刻とかかった時間を記録
@@ -157,26 +167,57 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
             logger.error(f"Request details: base_url=https://openrouter.ai/api/v1, model={model}")
             raise  # 例外を再スロー
 
-        # レスポンスからテキストを取得
-        response_text = completion.choices[0].message.content
-        logger.info(f"Raw response from OpenRouter:\n{response_text[:500]}...")
-
-        # 応答テキストからJSON部分を抽出（```json ... ``` のようなマークダウンを考慮）
-        json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(1)
-            logger.info(f"Extracted JSON from markdown block: {len(json_str)} chars")
-        else:
-            # JSONマークダウンが見つからない場合は、応答全体がJSONであると仮定
-            logger.warning(
-                "JSON markdown block (```json ... ```) not found in the response. Attempting to parse the entire response.")
-            json_str = response_text.strip()  # 前後の空白を除去
-            logger.info(f"Using entire response as JSON: {len(json_str)} chars")
-
-        # JSON文字列をパース
+        # Function Callingのレスポンスを処理
         try:
+            # ツール呼び出しの確認
+            message = completion.choices[0].message
+            
+            # ツール呼び出しの結果がある場合
+            if hasattr(message, 'tool_calls') and message.tool_calls:
+                tool_call = message.tool_calls[0]
+                # 関数レスポンスのJSONを取得
+                blog_output_json = tool_call.function.arguments
+                logger.info(f"Raw response from Function Call: {blog_output_json[:500]}...")
+                
+                # 直接Pydanticモデルに変換を試みる
+                try:
+                    blog_output = BlogOutput.model_validate_json(blog_output_json)
+                    logger.info(f"Successfully parsed BlogOutput from function call response")
+                    return blog_output
+                except Exception as validate_error:
+                    logger.warning(f"Failed to validate BlogOutput from function call: {str(validate_error)}")
+                    # 検証に失敗した場合、JSONとして解析して手動でモデルを作成
+                    try:
+                        output_data = json.loads(blog_output_json)
+                        blog_output = BlogOutput(**output_data)
+                        logger.info(f"Created BlogOutput manually from function call data")
+                        return blog_output
+                    except Exception as e:
+                        logger.error(f"Failed to parse function call response: {str(e)}")
+                        # 失敗した場合は通常のJSONパース処理に続く
+            else:
+                # Function Callingがサポートされていない場合、通常のコンテンツレスポンスになる
+                logger.warning("No tool_calls in response. Model might not support function calling.")
+                
+            # レスポンスからテキストを取得（Function Calling未対応の場合のフォールバック）
+            response_text = message.content
+            logger.info(f"Raw response from OpenRouter:\n{response_text[:500]}...")
+
+            # 以下はJSON抽出の既存コード
+            # 応答テキストからJSON部分を抽出（```json ... ``` のようなマークダウンを考慮）
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+                logger.info(f"Extracted JSON from markdown block: {len(json_str)} chars")
+            else:
+                # JSONマークダウンが見つからない場合は、応答全体がJSONであると仮定
+                logger.warning(
+                    "JSON markdown block (```json ... ```) not found in the response. Attempting to parse the entire response.")
+                json_str = response_text.strip()  # 前後の空白を除去
+                logger.info(f"Using entire response as JSON: {len(json_str)} chars")
+
+            # 既存のJSON処理コードをそのまま使用
             # エスケープシーケンスを正規化して修正
-            # バックスラッシュが単独で現れる場合に対処
             normalized_json = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_str)
             logger.info(f"Normalized JSON string length: {len(normalized_json)}")
 
@@ -248,14 +289,10 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
                 logger.error(f"Failed to create BlogOutput from parsed JSON: {str(validation_error)}")
                 logger.error(f"Parsed data: {output_data}")
                 raise
-
-        except json.JSONDecodeError as json_error:
-            logger.error(f"Failed to decode JSON response from OpenRouter: {json_error}")
-            logger.error(f"Attempted JSON string: {json_str[:500]}...")
-            # JSONパース失敗時は空を返す
-            return BlogOutput(title='', meta_description='', text='')
-        except Exception as e:
-            logger.error(f"Unexpected error while processing response: {str(e)}")
+                
+        except Exception as process_error:
+            logger.error(f"Error processing response: {str(process_error)}")
+            # レスポンス処理エラー時は空のBlogOutputを返す
             return BlogOutput(title='', meta_description='', text='')
 
     except Exception as e:
