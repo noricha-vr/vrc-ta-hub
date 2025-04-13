@@ -54,17 +54,6 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
         logger.warning(f"No YouTube URL or slide file provided for EventDetail {event_detail.pk}")
         return BlogOutput(title='', meta_description='', text='')
 
-    # テスト環境チェック
-    is_testing = 'TESTING' in os.environ or (
-                event_detail.event and event_detail.event.community and 'test' in event_detail.event.community.name.lower())
-    if is_testing:
-        logger.info("テスト環境のため、モックレスポンスを返します")
-        return BlogOutput(
-            title="テストタイトル",
-            meta_description="テストのメタ説明",
-            text="テスト本文の内容"
-        )
-
     # OpenAI SDKを使用してOpenRouterにリクエスト
     try:
         # APIキーを取得
@@ -437,11 +426,6 @@ def generate_meta_description(text: str, model=None) -> str:
         if ':' in model:
             model = model.split(':')[0]
         logger.info(f"Using model from environment for meta description: {model}")
-
-    # テスト環境チェック
-    if 'TESTING' in os.environ:
-        logger.info("テスト環境のため、モックメタディスクリプションを返します")
-        return "テスト用のメタディスクリプションです。"
 
     try:
         # APIキーを取得
