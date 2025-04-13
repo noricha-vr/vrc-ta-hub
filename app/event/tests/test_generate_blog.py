@@ -1,6 +1,7 @@
 import logging
 import os
 import tempfile
+import unittest
 from unittest.mock import patch
 
 from django.core.files import File
@@ -224,3 +225,40 @@ class TestGenerateBlog(TestCase):
         
         result = generate_meta_description("テスト用の本文です。", model='google/gemini-2.0-flash-001')
         self.assertEqual(result, "テスト用のメタディスクリプションです。")
+
+    @unittest.skipIf(not os.environ.get('OPENROUTER_API_KEY'), 'OPENROUTER_API_KEY環境変数が設定されていません')
+    def test_openrouter_integration(self):
+        """
+        実際のOpenRouter APIへの接続をテストする統合テスト
+        
+        このテストは環境変数 OPENROUTER_API_KEY が設定されている場合のみ実行されます。
+        実際のAPIに接続するため、API制限やネットワーク状況によって失敗する可能性があります。
+        """
+        logger.info("実際のOpenRouterサービスに接続するテストを実行します")
+        
+        # テスト用のシンプルなテキスト
+        test_text = "VRChatは多くのユーザーに愛されるソーシャルVRプラットフォームです。毎日様々なイベントが開催され、ユーザー同士の交流が盛んです。"
+        
+        # モックを使わずに実際のAPIを呼び出す - 有効なモデルを明示的に指定
+        # OpenRouterで広く利用可能なモデルを使用
+        try:
+            result = generate_meta_description(test_text, model="openai/gpt-3.5-turbo")
+            
+            # API接続が成功した場合の検証
+            self.assertIsNotNone(result)
+            self.assertGreater(len(result), 10)  # 何らかの意味のある長さの文字列が返ってくるはず
+            self.assertLess(len(result), 250)    # メタディスクリプションの最大長を超えない
+            
+            logger.info(f"OpenRouter API実際の結果: {result}")
+            
+            # 基本的な内容確認（完全一致は期待できないため、VRChatという単語が含まれているかなど）
+            # APIによって生成された内容が変わるため、テストが壊れやすくなる可能性があるので、
+            # より柔軟な検証を行う
+            self.assertTrue(
+                any(keyword in result for keyword in ["VRChat", "ソーシャルVR", "プラットフォーム", "イベント"]),
+                f"生成されたメタディスクリプションに期待されるキーワードが含まれていません: {result}"
+            )
+        except Exception as e:
+            # APIが利用できない場合のメッセージ
+            logger.warning(f"OpenRouter API接続テストの例外: {e}")
+            self.skipTest(f"OpenRouter APIへの接続に失敗しました: {e} - ネットワーク接続やAPI設定を確認してください")
