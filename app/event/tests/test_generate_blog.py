@@ -63,7 +63,7 @@ class TestGenerateBlog(TestCase):
         mock_chat = mock_client.chat
         mock_completions = mock_chat.completions
         mock_create = mock_completions.create
-        
+
         # モックレスポンスの設定
         mock_response = mock_create.return_value
         mock_response.choices = [type('obj', (object,), {
@@ -77,12 +77,12 @@ class TestGenerateBlog(TestCase):
 ```'''
             })
         })]
-        
+
         event_detail = self.create_event_detail(
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M",
             slide_file=True
         )
-        
+
         # get_transcriptをモック
         with patch('event.libs.get_transcript', return_value="テスト文字起こし"):
             result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
@@ -101,7 +101,7 @@ class TestGenerateBlog(TestCase):
         mock_chat = mock_client.chat
         mock_completions = mock_chat.completions
         mock_create = mock_completions.create
-        
+
         # モックレスポンスの設定
         mock_response = mock_create.return_value
         mock_response.choices = [type('obj', (object,), {
@@ -115,11 +115,11 @@ class TestGenerateBlog(TestCase):
 ```'''
             })
         })]
-        
+
         event_detail = self.create_event_detail(
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M"
         )
-        
+
         # get_transcriptをモック
         with patch('event.libs.get_transcript', return_value="テスト文字起こし"):
             result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
@@ -136,7 +136,7 @@ class TestGenerateBlog(TestCase):
         mock_chat = mock_client.chat
         mock_completions = mock_chat.completions
         mock_create = mock_completions.create
-        
+
         # モックレスポンスの設定
         mock_response = mock_create.return_value
         mock_response.choices = [type('obj', (object,), {
@@ -150,9 +150,9 @@ class TestGenerateBlog(TestCase):
 ```'''
             })
         })]
-        
+
         event_detail = self.create_event_detail(slide_file=True)
-        
+
         result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
 
         self.assertIsInstance(result, BlogOutput)
@@ -192,13 +192,13 @@ class TestGenerateBlog(TestCase):
             {'text': 'これはテスト文字起こしです。'},
             {'text': 'モックによるテストです。'}
         ]
-        
+
         # YouTubeのAPIレスポンスをモック
         mock_youtube = mock_build.return_value
         mock_youtube_videos = mock_youtube.videos.return_value
         mock_youtube_list = mock_youtube_videos.list.return_value
         mock_youtube_list.execute.return_value = {'items': ['dummy_item']}
-        
+
         # テスト実行
         video_id = "ewqOnvr8tAU"
         result = get_transcript(video_id)
@@ -214,7 +214,7 @@ class TestGenerateBlog(TestCase):
         mock_chat = mock_client.chat
         mock_completions = mock_chat.completions
         mock_create = mock_completions.create
-        
+
         # モックレスポンスの設定
         mock_response = mock_create.return_value
         mock_response.choices = [type('obj', (object,), {
@@ -222,7 +222,7 @@ class TestGenerateBlog(TestCase):
                 'content': "テスト用のメタディスクリプションです。"
             })
         })]
-        
+
         result = generate_meta_description("テスト用の本文です。", model='google/gemini-2.0-flash-001')
         self.assertEqual(result, "テスト用のメタディスクリプションです。")
 
@@ -235,22 +235,22 @@ class TestGenerateBlog(TestCase):
         実際のAPIに接続するため、API制限やネットワーク状況によって失敗する可能性があります。
         """
         logger.info("実際のOpenRouterサービスに接続するテストを実行します")
-        
+
         # テスト用のシンプルなテキスト
         test_text = "VRChatは多くのユーザーに愛されるソーシャルVRプラットフォームです。毎日様々なイベントが開催され、ユーザー同士の交流が盛んです。"
-        
+
         # モックを使わずに実際のAPIを呼び出す - 有効なモデルを明示的に指定
         # OpenRouterで広く利用可能なモデルを使用
         try:
-            result = generate_meta_description(test_text, model="openai/gpt-3.5-turbo")
-            
+            result = generate_meta_description(test_text, model="google/gemini-2.0-flash-exp:free")
+
             # API接続が成功した場合の検証
             self.assertIsNotNone(result)
             self.assertGreater(len(result), 10)  # 何らかの意味のある長さの文字列が返ってくるはず
-            self.assertLess(len(result), 250)    # メタディスクリプションの最大長を超えない
-            
+            self.assertLess(len(result), 250)  # メタディスクリプションの最大長を超えない
+
             logger.info(f"OpenRouter API実際の結果: {result}")
-            
+
             # 基本的な内容確認（完全一致は期待できないため、VRChatという単語が含まれているかなど）
             # APIによって生成された内容が変わるため、テストが壊れやすくなる可能性があるので、
             # より柔軟な検証を行う
