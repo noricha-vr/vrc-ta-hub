@@ -4,28 +4,25 @@ import re
 from datetime import datetime, timedelta, date
 from typing import List, Dict
 
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.db import IntegrityError
 from django.db.models import QuerySet
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.shortcuts import redirect
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
 from django.views.generic import CreateView, UpdateView, DetailView, ListView, FormView
+from django.views.generic import View
 from django.views.generic.edit import DeleteView
 from google.auth import default
 from google.cloud import bigquery
 
-from django.contrib import messages
-from django.shortcuts import redirect
-from django.views.generic import View
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse
-
-from .models import EventDetail
 from community.models import Community, WEEKDAY_CHOICES
 from event.forms import EventDetailForm, EventSearchForm, EventCreateForm, GoogleCalendarEventForm
-from event.libs import convert_markdown, generate_blog, generate_meta_description
+from event.libs import convert_markdown, generate_blog
 from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url, generate_google_calendar_url
 from url_filters import get_filtered_url
@@ -37,8 +34,10 @@ logger = logging.getLogger(__name__)
 
 # Google認証とBigQueryをモック化
 import os
+
 if os.environ.get('TESTING'):
     from unittest.mock import MagicMock
+
     credentials = MagicMock()
     project = 'test-project'
     client = MagicMock()
@@ -63,11 +62,11 @@ class EventCreateView(LoginRequiredMixin, CreateView):
 
         try:
             response = super().form_valid(form)
-            
+
             # 新しく作成されたイベントのキャッシュをクリア
             cache_key = f'calendar_entry_url_{self.object.id}'
             cache.delete(cache_key)
-            
+
             return response
         except IntegrityError as e:
             if "Duplicate entry" in str(e):
@@ -87,15 +86,15 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
 
     def post(self, request, *args, **kwargs):
         event = self.get_object()
-        
+
         # ユーザーが所有するコミュニティを取得
         user_community = Community.objects.filter(custom_user=request.user).first()
-        
+
         # イベントが自分のコミュニティのものでない場合は削除を許可しない
         if not user_community or event.community != user_community:
             messages.error(request, "このイベントを削除する権限がありません。")
             return redirect('event:my_list')
-            
+
         logger.info(
             f"イベント削除開始: ID={event.id}, コミュニティ={event.community.name}, 日付={event.date}, 開始時間={event.start_time}")
         logger.info(f"Google Calendar Event ID: {event.google_calendar_event_id}")
@@ -126,9 +125,11 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
                             calendar_id=GOOGLE_CALENDAR_ID,
                             credentials_path=GOOGLE_CALENDAR_CREDENTIALS
                         )
-                        logger.info(f"Googleカレンダーからの削除を試行: Event ID={event_to_delete.google_calendar_event_id}")
+                        logger.info(
+                            f"Googleカレンダーからの削除を試行: Event ID={event_to_delete.google_calendar_event_id}")
                         calendar_service.delete_event(event_to_delete.google_calendar_event_id)
-                        logger.info(f"Googleカレンダーからの削除成功: Event ID={event_to_delete.google_calendar_event_id}")
+                        logger.info(
+                            f"Googleカレンダーからの削除成功: Event ID={event_to_delete.google_calendar_event_id}")
                     except Exception as e:
                         logger.error(
                             f"Googleカレンダーからの削除失敗: Event ID={event_to_delete.google_calendar_event_id}, エラー={str(e)}")
@@ -165,7 +166,7 @@ class EventListView(ListView):
     def get(self, request, *args, **kwargs):
         # 通常のget処理の前にページ番号をチェック
         page_str = request.GET.get('page', '1')
-        
+
         try:
             # ページ番号のみを抽出（数字以外を除去）
             page = int(''.join(filter(str.isdigit, page_str)) or '1')
@@ -317,7 +318,7 @@ def sync_calendar_events(request):
 
     # 現在の日付の開始時刻（00:00:00 JST）
     today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    
+
     # より安全に：前日の開始時刻を使用
     time_min = today_start - timedelta(days=1)
     end_date = today_start + timedelta(days=60)
@@ -385,16 +386,17 @@ def delete_outdated_events(calendar_events: List[Dict], today: date) -> None:
             try:
                 calendar_start = datetime.strptime(calendar_start_str, '%Y-%m-%dT%H:%M:%S%z')
                 calendar_start_local = calendar_start.astimezone(timezone.get_current_timezone())
-                
+
                 # 日付と時間を比較（時間は時と分だけを比較）
                 same_date = calendar_start_local.date() == db_event['date']
-                same_time = (calendar_start_local.hour == db_event['start_time'].hour and 
-                            calendar_start_local.minute == db_event['start_time'].minute)
+                same_time = (calendar_start_local.hour == db_event['start_time'].hour and
+                             calendar_start_local.minute == db_event['start_time'].minute)
                 same_name = e['summary'].strip() == db_event['community__name']
-                
+
                 if same_date and same_time and same_name:
                     found = True
-                    logger.info(f"イベント一致確認: DB={db_event_str}, Calendar={calendar_start_local.isoformat()} {e['summary']}")
+                    logger.info(
+                        f"イベント一致確認: DB={db_event_str}, Calendar={calendar_start_local.isoformat()} {e['summary']}")
                     break
             except Exception as parsing_err:
                 logger.warning(f"カレンダーイベント解析エラー: {str(parsing_err)} - {calendar_start_str}")
@@ -431,7 +433,7 @@ def register_calendar_events(calendar_events: List[Dict]) -> None:
         # タイムゾーン付きの日時を解析
         start = datetime.strptime(start_datetime, '%Y-%m-%dT%H:%M:%S%z')
         end = datetime.strptime(end_datetime, '%Y-%m-%dT%H:%M:%S%z')
-        
+
         # 現地タイムゾーン（Asia/Tokyo）に変換
         current_tz = timezone.get_current_timezone()
         start_local = start.astimezone(current_tz)
@@ -447,8 +449,8 @@ def register_calendar_events(calendar_events: List[Dict]) -> None:
 
         # ローカル時間でデータベースを検索
         existing_event = Event.objects.filter(
-            community=community, 
-            date=start_local.date(), 
+            community=community,
+            date=start_local.date(),
             start_time=start_local.time()
         ).first()
 
@@ -458,11 +460,11 @@ def register_calendar_events(calendar_events: List[Dict]) -> None:
                 existing_event.duration = (end_local - start_local).total_seconds() // 60
                 existing_event.google_calendar_event_id = event['id']
                 existing_event.save()
-                
+
                 # 更新されたイベントのキャッシュをクリア
                 cache_key = f'calendar_entry_url_{existing_event.id}'
                 cache.delete(cache_key)
-                
+
                 logger.info(f"Event updated: {event_str}")
         else:
             new_event = Event.objects.create(
@@ -493,7 +495,7 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.event = self.event
         response = super().form_valid(form)
-        
+
         # PDFまたは動画がセットされていて、タイトルが空の場合は自動生成
         if (form.instance.slide_file or form.instance.youtube_url) and not form.instance.meta_description:
             try:
@@ -507,13 +509,13 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
             except Exception as e:
                 logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
                 messages.warning(self.request, "記事の自動生成に失敗しました。")
-        
+
         # トップページのキャッシュをクリア
         today = timezone.now().date()
         cache_key = f'index_view_data_{today}'
         cache.delete(cache_key)
         logger.info(f"Cleared index page cache: {cache_key}")
-        
+
         return response
 
     def get_success_url(self):
@@ -527,7 +529,7 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
-        
+
         # PDFまたは動画がセットされていて、タイトルが空の場合は自動生成
         if (form.instance.slide_file or form.instance.youtube_url) and not form.instance.meta_description:
             try:
@@ -541,12 +543,11 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
             except Exception as e:
                 logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
                 messages.warning(self.request, "記事の自動生成に失敗しました。")
-        
+
         return response
 
     def get_success_url(self):
         return reverse_lazy('event:detail', kwargs={'pk': self.object.pk})
-
 
     def is_valid_request(self, request, pk):
         pass
@@ -636,13 +637,13 @@ class EventMyList(LoginRequiredMixin, ListView):
             community__custom_user=self.request.user,
             date__gte=today
         ).select_related('community').order_by('date', 'start_time')[:2]
-        
+
         # 過去のイベントを取得
         past_events = Event.objects.filter(
             community__custom_user=self.request.user,
             date__lt=today
         ).select_related('community').order_by('-date', '-start_time')
-        
+
         # 未来のイベントと過去のイベントを結合
         return list(future_events) + list(past_events)
 
@@ -658,30 +659,30 @@ class EventMyList(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        
+
         # コミュニティ情報を取得
         context['community'] = Community.objects.filter(custom_user=self.request.user).first()
-        
+
         # イベントにカレンダーURLを設定
         events = context['events']
         self.set_vrc_event_calendar_post_url(events)
-        
+
         # イベントIDのリストを取得（ページネーション後のイベントのみ）
         event_ids = [event.id for event in events]
-        
+
         if event_ids:
             # イベント詳細を一括取得
             event_details = EventDetail.objects.filter(
                 event_id__in=event_ids
             ).select_related('event').order_by('created_at')
-            
+
             # イベント詳細をイベントIDごとに整理
             event_detail_dict = {}
             for detail in event_details:
                 if detail.event_id not in event_detail_dict:
                     event_detail_dict[detail.event_id] = []
                 event_detail_dict[detail.event_id].append(detail)
-            
+
             # 各イベントに詳細リストを設定
             for event in events:
                 event.detail_list = event_detail_dict.get(event.id, [])
@@ -852,7 +853,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
 
             if event:
                 logger.info(f'Googleカレンダーイベント作成成功: ID={event["id"]}, コミュニティ={community.name}')
-                
+
                 # 同期に頼らず、イベントをローカルで直接登録
                 try:
                     # 新しいイベントをDBに保存
@@ -868,8 +869,9 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                     messages.success(self.request, 'イベントが正常に登録されました')
                 except Exception as e:
                     logger.error(f'イベントのDB登録でエラー: {str(e)}', exc_info=True)
-                    messages.warning(self.request, 'イベントはGoogleカレンダーに登録されましたが、DBへの保存に失敗しました')
-                
+                    messages.warning(self.request,
+                                     'イベントはGoogleカレンダーに登録されましたが、DBへの保存に失敗しました')
+
                 # バックグラウンドで同期処理も実行
                 try:
                     # 内部的にGETリクエストを作成

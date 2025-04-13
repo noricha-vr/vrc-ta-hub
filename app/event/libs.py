@@ -139,7 +139,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
                 "parameters": BlogOutput.model_json_schema(),
                 "required": ["title", "meta_description", "text"]
             }
-            
+
             # Function Callingを使用したリクエスト
             completion = client.chat.completions.create(
                 extra_headers={
@@ -171,14 +171,14 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
         try:
             # ツール呼び出しの確認
             message = completion.choices[0].message
-            
+
             # ツール呼び出しの結果がある場合
             if hasattr(message, 'tool_calls') and message.tool_calls:
                 tool_call = message.tool_calls[0]
                 # 関数レスポンスのJSONを取得
                 blog_output_json = tool_call.function.arguments
                 logger.info(f"Raw response from Function Call: {blog_output_json[:500]}...")
-                
+
                 # 直接Pydanticモデルに変換を試みる
                 try:
                     blog_output = BlogOutput.model_validate_json(blog_output_json)
@@ -198,7 +198,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
             else:
                 # Function Callingがサポートされていない場合、通常のコンテンツレスポンスになる
                 logger.warning("No tool_calls in response. Model might not support function calling.")
-                
+
             # レスポンスからテキストを取得（Function Calling未対応の場合のフォールバック）
             response_text = message.content
             logger.info(f"Raw response from OpenRouter:\n{response_text[:500]}...")
@@ -289,7 +289,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
                 logger.error(f"Failed to create BlogOutput from parsed JSON: {str(validation_error)}")
                 logger.error(f"Parsed data: {output_data}")
                 raise
-                
+
         except Exception as process_error:
             logger.error(f"Error processing response: {str(process_error)}")
             # レスポンス処理エラー時は空のBlogOutputを返す
@@ -443,133 +443,3 @@ def convert_markdown(markdown_text: str) -> str:
     logger.debug(sanitized_html)
 
     return sanitized_html
-
-
-def generate_meta_description(text: str, model=None) -> str:
-    """
-    OpenRouterを使用してブログ記事のテキストからメタディスクリプションを生成する関数
-
-    Args:
-        text (str): ブログ記事の全文テキスト
-        model (str): 使用するOpenRouterモデル名。Noneの場合は環境変数から取得
-
-    Returns:
-        str: 生成されたメタディスクリプション（120文字以内）
-    """
-    # 環境変数からモデル名を取得（指定がない場合のデフォルト値）
-    if model is None:
-        model = os.environ.get('GEMINI_MODEL', 'google/gemini-2.0-flash-001')
-        # `:free`のような接尾辞が付いている場合は削除（OpenRouterでは不要）
-        if ':' in model:
-            model = model.split(':')[0]
-        logger.info(f"Using model from environment for meta description: {model}")
-
-    try:
-        # APIキーを取得
-        api_key = os.environ.get("OPENROUTER_API_KEY")
-        if not api_key:
-            logger.warning("OPENROUTER_API_KEY environment variable is not set")
-            raise ValueError("OPENROUTER_API_KEY is required")
-
-        # プロンプトテンプレートを作成
-        prompt_template_str = """
-        # 指示
-        以下の内容をもとにメタディスクリプションを生成してください。
-
-        # メタディスクリプションの要件
-        - 主題や主要ポイントを簡潔に要約する
-        - SEOを意識し、検索結果で魅力的に見える説明にする
-        - 120文字以内で作成する
-        - 文末に「...」を付けない
-        - キーワードを自然に含める
-        - VRChatやコミュニティ名、発表者名など固有名詞があれば自然に含める
-        - 読者が思わずクリックしたくなるような表現を心がける
-
-        # 禁止事項
-        - 120文字を超えてはいけない
-        - 「記事」「ブログ」という単語を使わない
-        - 「まとめ」「解説」という単語を使わない
-        - 「！」「？」などの記号は使わない
-        - 開催日時などは含めない
-
-        # 入力テキスト
-        {text}
-
-        # 出力
-        メタディスクリプションだけを出力してください。他の余計なテキストは含めないでください。
-        """
-        prompt = prompt_template_str.format(text=text)
-        logger.info(f"Meta description prompt length: {len(prompt)} chars")
-
-        # OpenAI SDKを使用してOpenRouterにリクエスト
-        client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key
-        )
-
-        # デバッグ用：APIリクエスト開始時刻を記録
-        request_start_time = datetime.now()
-        logger.info(f"Starting meta description API request at {request_start_time}")
-
-        try:
-            # ヘッダーを追加してリクエスト
-            completion = client.chat.completions.create(
-                extra_headers={
-                    "HTTP-Referer": "https://vrc-ta-hub.com/",  # OpenRouterのランキング用サイトURL
-                    "X-Title": "VRC TA Hub"  # OpenRouterのランキング用サイト名
-                },
-                model=model,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=300
-            )
-
-            # デバッグ用：APIリクエスト終了時刻とかかった時間を記録
-            request_end_time = datetime.now()
-            request_duration = (request_end_time - request_start_time).total_seconds()
-            logger.info(f"Meta description API request completed in {request_duration:.2f} seconds")
-
-        except Exception as api_error:
-            logger.error(f"Meta description API request failed: {str(api_error)}")
-            # API URL情報を詳細に記録
-            logger.error(f"Request details: base_url=https://openrouter.ai/api/v1, model={model}")
-            raise  # 例外を再スロー
-
-        # レスポンスからテキストを取得
-        meta_description = completion.choices[0].message.content.strip()
-        logger.info(f"Raw meta description from OpenRouter: '{meta_description}'")
-
-        # 250文字の制限は維持 (ただし、プロンプトでは120文字を指示)
-        # 念のため、モデルが指示を守らなかった場合を考慮してトリミング
-        if len(meta_description) > 250:
-            logger.warning(f"Generated meta description exceeded 250 characters ({len(meta_description)}). Trimming.")
-            meta_description = meta_description[:250]
-
-        return meta_description
-
-    except Exception as e:
-        logger.warning(f"メタディスクリプションの生成中にエラーが発生しました: {str(e)}")
-        if "API key" in str(e):
-            logger.error("OPENROUTER_API_KEY environment variable might be missing or invalid.")
-
-        # エラーが発生した場合は従来の方法でメタディスクリプションを生成 (フォールバック)
-        logger.info("Falling back to text extraction method for meta description")
-        lines = text.split('\n')
-        lines = [line.strip() for line in lines if line.strip()]
-        if lines and (lines[0].startswith('# ') or lines[0].startswith('#')):
-            lines = lines[1:]
-        content = ' '.join([
-            line.replace('## ', '').replace('### ', '').replace('#### ', '')
-            for line in lines
-            if not line.startswith('>')
-        ])
-        # フォールバックの長さ制限も厳密にする
-        max_fallback_len = 120
-        if len(content) > max_fallback_len:
-            # 日本語を考慮し、単純な文字数でカット（'...'は含めない）
-            content = content[:max_fallback_len]
-
-        logger.info(f"Generated fallback meta description: '{content}'")
-        return content.strip()

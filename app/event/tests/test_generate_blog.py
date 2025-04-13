@@ -1,7 +1,6 @@
 import logging
 import os
 import tempfile
-import unittest
 from unittest.mock import patch
 
 from django.core.files import File
@@ -9,7 +8,7 @@ from django.test import TestCase
 
 from account.models import CustomUser
 from community.models import Community
-from event.libs import generate_blog, get_transcript, BlogOutput, generate_meta_description
+from event.libs import generate_blog, get_transcript, BlogOutput
 from event.models import Event, EventDetail
 
 logger = logging.getLogger(__name__)
@@ -63,7 +62,7 @@ class TestGenerateBlog(TestCase):
         mock_chat = mock_client.chat
         mock_completions = mock_chat.completions
         mock_create = mock_completions.create
-        
+
         # Function Callingのモックレスポンスを設定
         mock_response = mock_create.return_value
         mock_tool_call = type('obj', (object,), {
@@ -72,19 +71,19 @@ class TestGenerateBlog(TestCase):
                 'arguments': '{"title": "テストタイトル", "meta_description": "テストのメタ説明", "text": "テスト本文の内容"}'
             })
         })
-        
+
         # モックレスポンスのchoicesとmessageを設定
         mock_message = type('obj', (object,), {
             'tool_calls': [mock_tool_call],
             'content': None  # Function Callingの場合、contentはNoneになる可能性がある
         })
         mock_response.choices = [type('obj', (object,), {'message': mock_message})]
-        
+
         event_detail = self.create_event_detail(
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M",
             slide_file=True
         )
-        
+
         # get_transcriptをモック
         with patch('event.libs.get_transcript', return_value="テスト文字起こし"):
             result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
@@ -103,7 +102,7 @@ class TestGenerateBlog(TestCase):
         mock_chat = mock_client.chat
         mock_completions = mock_chat.completions
         mock_create = mock_completions.create
-        
+
         # Function Callingのモックレスポンスを設定
         mock_response = mock_create.return_value
         mock_tool_call = type('obj', (object,), {
@@ -112,18 +111,18 @@ class TestGenerateBlog(TestCase):
                 'arguments': '{"title": "動画のみのテストタイトル", "meta_description": "動画のみのテストメタ説明", "text": "動画のみのテスト本文"}'
             })
         })
-        
+
         # モックレスポンスのchoicesとmessageを設定
         mock_message = type('obj', (object,), {
             'tool_calls': [mock_tool_call],
             'content': None
         })
         mock_response.choices = [type('obj', (object,), {'message': mock_message})]
-        
+
         event_detail = self.create_event_detail(
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M"
         )
-        
+
         # get_transcriptをモック
         with patch('event.libs.get_transcript', return_value="テスト文字起こし"):
             result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
@@ -140,7 +139,7 @@ class TestGenerateBlog(TestCase):
         mock_chat = mock_client.chat
         mock_completions = mock_chat.completions
         mock_create = mock_completions.create
-        
+
         # Function Callingのモックレスポンスを設定
         mock_response = mock_create.return_value
         mock_tool_call = type('obj', (object,), {
@@ -149,16 +148,16 @@ class TestGenerateBlog(TestCase):
                 'arguments': '{"title": "PDFのみのテストタイトル", "meta_description": "PDFのみのテストメタ説明", "text": "PDFのみのテスト本文"}'
             })
         })
-        
+
         # モックレスポンスのchoicesとmessageを設定
         mock_message = type('obj', (object,), {
             'tool_calls': [mock_tool_call],
             'content': None
         })
         mock_response.choices = [type('obj', (object,), {'message': mock_message})]
-        
+
         event_detail = self.create_event_detail(slide_file=True)
-        
+
         result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
 
         self.assertIsInstance(result, BlogOutput)
@@ -212,59 +211,3 @@ class TestGenerateBlog(TestCase):
         self.assertGreater(len(result), 0)
         self.assertEqual(result, "これはテスト文字起こしです。\nモックによるテストです。")
         logger.info(result)
-
-    @patch('event.libs.OpenAI')
-    def test_generate_meta_description(self, mock_openai):
-        # モックの設定
-        mock_client = mock_openai.return_value
-        mock_chat = mock_client.chat
-        mock_completions = mock_chat.completions
-        mock_create = mock_completions.create
-
-        # モックレスポンスの設定
-        mock_response = mock_create.return_value
-        mock_response.choices = [type('obj', (object,), {
-            'message': type('obj', (object,), {
-                'content': "テスト用のメタディスクリプションです。"
-            })
-        })]
-
-        result = generate_meta_description("テスト用の本文です。", model='google/gemini-2.0-flash-001')
-        self.assertEqual(result, "テスト用のメタディスクリプションです。")
-
-    @unittest.skipIf(not os.environ.get('OPENROUTER_API_KEY'), 'OPENROUTER_API_KEY環境変数が設定されていません')
-    def test_openrouter_integration(self):
-        """
-        実際のOpenRouter APIへの接続をテストする統合テスト
-        
-        このテストは環境変数 OPENROUTER_API_KEY が設定されている場合のみ実行されます。
-        実際のAPIに接続するため、API制限やネットワーク状況によって失敗する可能性があります。
-        """
-        logger.info("実際のOpenRouterサービスに接続するテストを実行します")
-
-        # テスト用のシンプルなテキスト
-        test_text = "VRChatは多くのユーザーに愛されるソーシャルVRプラットフォームです。毎日様々なイベントが開催され、ユーザー同士の交流が盛んです。"
-
-        # モックを使わずに実際のAPIを呼び出す - 有効なモデルを明示的に指定
-        # OpenRouterで広く利用可能なモデルを使用
-        try:
-            result = generate_meta_description(test_text, model="google/gemini-2.0-flash-exp:free")
-
-            # API接続が成功した場合の検証
-            self.assertIsNotNone(result)
-            self.assertGreater(len(result), 10)  # 何らかの意味のある長さの文字列が返ってくるはず
-            self.assertLess(len(result), 250)  # メタディスクリプションの最大長を超えない
-
-            logger.info(f"OpenRouter API実際の結果: {result}")
-
-            # 基本的な内容確認（完全一致は期待できないため、VRChatという単語が含まれているかなど）
-            # APIによって生成された内容が変わるため、テストが壊れやすくなる可能性があるので、
-            # より柔軟な検証を行う
-            self.assertTrue(
-                any(keyword in result for keyword in ["VRChat", "ソーシャルVR", "プラットフォーム", "イベント"]),
-                f"生成されたメタディスクリプションに期待されるキーワードが含まれていません: {result}"
-            )
-        except Exception as e:
-            # APIが利用できない場合のメッセージ
-            logger.warning(f"OpenRouter API接続テストの例外: {e}")
-            self.skipTest(f"OpenRouter APIへの接続に失敗しました: {e} - ネットワーク接続やAPI設定を確認してください")
