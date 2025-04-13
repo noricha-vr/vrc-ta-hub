@@ -11,8 +11,8 @@
                 <div class="tweet-content p-3 bg-light rounded mb-3">
                     <p id="tweet-text">{{ tweet_text|safe }}</p>
                 </div>
-                <button class="btn btn-primary" onclick="copyTweet()">
-                    <i class="fas fa-copy me-2"></i>ツイートをコピー
+                <button id="copy-button" class="btn btn-primary" onclick="copyTweet()">
+                    <i id="copy-icon" class="fas fa-copy me-2"></i><span id="copy-text">ツイートをコピー</span>
                 </button>
                 <a href="https://twitter.com" target="_blank" class="btn btn-success ms-2">
                     <i class="fab fa-twitter me-2"></i>Twitterを開く
@@ -23,18 +23,50 @@
             </div>
         </div>
     </div>
+{% endblock %}
 
-    {% block extra_js %}
-        <script>
-            function copyTweet() {
-                const tweetText = document.getElementById('tweet-text').innerText;
-                navigator.clipboard.writeText(tweetText).then(() => {
-                    alert('ツイートをクリップボードにコピーしました！');
-                }).catch(err => {
-                    console.error('コピーに失敗しました:', err);
-                    alert('コピーに失敗しました。');
-                });
-            }
-        </script>
-    {% endblock %}
+{% block extra_js %}
+    <script>
+        function copyTweet() {
+            const tweetText = document.getElementById('tweet-text').innerText;
+            const copyButton = document.getElementById('copy-button');
+            const copyIcon = document.getElementById('copy-icon');
+            const copyText = document.getElementById('copy-text');
+
+            navigator.clipboard.writeText(tweetText).then(() => {
+                // コピー成功時の表示変更
+                copyIcon.className = 'fas fa-check me-2'; // アイコンをチェックマークに変更
+                copyText.textContent = 'コピーしました！'; // テキストを変更
+                copyButton.classList.remove('btn-primary');
+                copyButton.classList.add('btn-success'); // ボタンの色を緑に変更
+                copyButton.disabled = true; // ボタンを一時的に無効化
+
+                // 2秒後に元の表示に戻す
+                setTimeout(() => {
+                    copyIcon.className = 'fas fa-copy me-2'; // アイコンをコピーアイコンに戻す
+                    copyText.textContent = 'ツイートをコピー'; // テキストを元に戻す
+                    copyButton.classList.remove('btn-success');
+                    copyButton.classList.add('btn-primary'); // ボタンの色を元に戻す
+                    copyButton.disabled = false; // ボタンを再度有効化
+                }, 2000);
+            }).catch(err => {
+                console.error('コピーに失敗しました:', err);
+                // コピー失敗時の表示変更 (任意)
+                copyIcon.className = 'fas fa-times me-2'; // アイコンをバツ印に変更
+                copyText.textContent = 'コピー失敗';
+                copyButton.classList.remove('btn-primary');
+                copyButton.classList.add('btn-danger'); // ボタンの色を赤に変更
+                copyButton.disabled = true;
+
+                // 3秒後に元の表示に戻す
+                setTimeout(() => {
+                    copyIcon.className = 'fas fa-copy me-2';
+                    copyText.textContent = 'ツイートをコピー';
+                    copyButton.classList.remove('btn-danger');
+                    copyButton.classList.add('btn-primary');
+                    copyButton.disabled = false;
+                }, 3000);
+            });
+        }
+    </script>
 {% endblock %} 

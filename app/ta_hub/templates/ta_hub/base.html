@@ -238,18 +238,32 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
         crossorigin="anonymous"></script>
-</body>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const pushMenu = document.getElementById('pushMenu');
-        const navbarToggler = document.querySelector('.navbar-toggler');
+    {# 個別ページ用JavaScriptブロック #}
+    {% block extra_js %}
+    {% endblock %}
 
-        navbarToggler.addEventListener('click', function () {
-            pushMenu.classList.toggle('open');
+    {# フッター年表示用など、ベーステンプレート固有のJS #}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const pushMenu = document.getElementById('pushMenu'); // このIDの要素は存在しない可能性があります
+            const navbarToggler = document.querySelector('.navbar-toggler');
+
+            if (navbarToggler) { // navbarTogglerが存在するか確認
+                navbarToggler.addEventListener('click', function () {
+                    // pushMenuが存在すればクラスをトグルしますが、なければ何もしません
+                    if (pushMenu) {
+                         pushMenu.classList.toggle('open');
+                    }
+                });
+            }
         });
-    });
-    document.getElementById('thisYear').textContent = new Date().getFullYear();
-</script>
+        // thisYear要素が存在するか確認してからテキストを設定
+        const yearSpan = document.getElementById('thisYear');
+        if (yearSpan) {
+            yearSpan.textContent = new Date().getFullYear();
+        }
+    </script>
+</body>
 
 </html>
