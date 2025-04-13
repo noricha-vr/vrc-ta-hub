@@ -59,7 +59,7 @@ class TestGenerateBlog(TestCase):
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M",
             slide_file=True
         )
-        result = generate_blog(event_detail)
+        result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
 
         # BlogOutputモデルの検証
         self.assertIsInstance(result, BlogOutput)
@@ -72,7 +72,7 @@ class TestGenerateBlog(TestCase):
         event_detail = self.create_event_detail(
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M"
         )
-        result = generate_blog(event_detail)
+        result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
 
         self.assertIsInstance(result, BlogOutput)
         self.assertTrue(result.title)
@@ -81,7 +81,7 @@ class TestGenerateBlog(TestCase):
 
     def test_generate_blog_pdf_only(self):
         event_detail = self.create_event_detail(slide_file=True)
-        result = generate_blog(event_detail)
+        result = generate_blog(event_detail, model='google/gemini-2.0-flash-001')
 
         self.assertIsInstance(result, BlogOutput)
         self.assertTrue(result.title)
