@@ -637,13 +637,13 @@ class EventMyList(LoginRequiredMixin, ListView):
             community__custom_user=self.request.user,
             date__gte=today
         ).select_related('community').order_by('date', 'start_time')[:2]
-
+        
         # 過去のイベントを取得
         past_events = Event.objects.filter(
             community__custom_user=self.request.user,
             date__lt=today
         ).select_related('community').order_by('-date', '-start_time')
-
+        
         # 未来のイベントと過去のイベントを結合
         return list(future_events) + list(past_events)
 
@@ -659,30 +659,38 @@ class EventMyList(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-
+        
         # コミュニティ情報を取得
         context['community'] = Community.objects.filter(custom_user=self.request.user).first()
-
+        
         # イベントにカレンダーURLを設定
         events = context['events']
         self.set_vrc_event_calendar_post_url(events)
-
+        
+        # Twitterボタン表示用のフラグを設定（イベント日から1週間以内）
+        today = timezone.now().date()
+        for event in events:
+            # イベント日から1週間後の日付を計算
+            twitter_display_until = event.date + timedelta(days=7)
+            # イベント日から1週間以内ならTwitterボタンを表示
+            event.twitter_button_active = today <= twitter_display_until
+        
         # イベントIDのリストを取得（ページネーション後のイベントのみ）
         event_ids = [event.id for event in events]
-
+        
         if event_ids:
             # イベント詳細を一括取得
             event_details = EventDetail.objects.filter(
                 event_id__in=event_ids
             ).select_related('event').order_by('created_at')
-
+            
             # イベント詳細をイベントIDごとに整理
             event_detail_dict = {}
             for detail in event_details:
                 if detail.event_id not in event_detail_dict:
                     event_detail_dict[detail.event_id] = []
                 event_detail_dict[detail.event_id].append(detail)
-
+            
             # 各イベントに詳細リストを設定
             for event in events:
                 event.detail_list = event_detail_dict.get(event.id, [])
