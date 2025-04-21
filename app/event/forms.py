@@ -54,15 +54,7 @@ class EventCreateForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        date = cleaned_data.get('date')
-        start_time = cleaned_data.get('start_time')
-
-        if date and start_time:
-            event_datetime = timezone.datetime.combine(date, start_time,
-                                                       tzinfo=timezone.get_current_timezone())  # タイムゾーンを設定
-            if event_datetime > timezone.now():
-                raise forms.ValidationError("過去のイベントのみ作成できます。")
-
+        # 過去日付のバリデーションを解除（何もしない）
         return cleaned_data
 
 
@@ -229,9 +221,8 @@ class GoogleCalendarEventForm(forms.Form):
         recurrence_type = cleaned_data.get('recurrence_type')
 
         if start_date:
-            # 過去の日付をチェック
-            if start_date < datetime.now().date():
-                raise ValidationError('過去の日付は選択できません')
+            # 過去の日付バリデーションを解除
+            pass
 
             # 6ヶ月以上先の日付をチェック
             max_date = datetime.now().date() + timedelta(days=180)
