@@ -194,14 +194,13 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def form_valid(self, form):
         try:
             response = super().form_valid(form)
-            calendar_entry = self.object.calendar_entry
-            calendar_entry.save()
-            
+            calendar_entry = getattr(self.object, 'calendar_entry', None)
+            if calendar_entry:
+                calendar_entry.save()
             # カレンダーエントリーに関連するイベントのキャッシュを削除
             for event in self.object.events.all():
                 cache_key = f'calendar_entry_url_{event.id}'
                 cache.delete(cache_key)
-                
             messages.success(self.request, '集会情報とVRCイベントカレンダー用情報が更新されました。')
             return response
         except DataError as e:

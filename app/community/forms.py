@@ -42,10 +42,18 @@ class CommunityForm(forms.ModelForm):
         widget=CheckboxSelectMultiple(),
         required=False,
     )
+    allow_poster_repost = forms.BooleanField(
+        label='集会を紹介するためのポスターの転載を許可する',
+        required=False,
+    )
 
     class Meta:
         model = Community
         fields = '__all__'
+        # 追加: BooleanFieldもフォームで扱えるようにする
+        widgets = {
+            'allow_poster_repost': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -86,7 +94,7 @@ class CommunityUpdateForm(forms.ModelForm):
         fields = [
             'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
-            'poster_image', 'description', 'platform', 'tags'
+            'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags'
         ]
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
@@ -100,6 +108,7 @@ class CommunityUpdateForm(forms.ModelForm):
             'discord': forms.URLInput(attrs={'class': 'form-control'}),
             'twitter_hashtag': forms.TextInput(attrs={'class': 'form-control'}),
             'poster_image': forms.FileInput(attrs={'class': 'form-control-file'}),
+            'allow_poster_repost': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'description': forms.Textarea(attrs={'class': 'form-control'}),
             'platform': forms.Select(attrs={'class': 'form-control'}),
         }

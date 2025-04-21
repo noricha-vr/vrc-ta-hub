@@ -54,22 +54,24 @@
                         <form method="post" enctype="multipart/form-data">
                             {% csrf_token %}
                             {% for field in form %}
-                                <div class="form-group">
-                                    <label for="{{ field.id_for_label }}" class="{% if field.field.required %}required-field{% endif %}">
-                                        {{ field.label }}
-                                    </label>
-                                    {{ field }}
-                                    {% if field.help_text %}
-                                        <small class="form-text text-muted">{{ field.help_text }}</small>
-                                    {% endif %}
-                                    {% if field.errors %}
-                                        <ul class="errorlist">
-                                            {% for error in field.errors %}
-                                                <li>{{ error }}</li>
-                                            {% endfor %}
-                                        </ul>
-                                    {% endif %}
-                                </div>
+                                {% if field.name == "allow_poster_repost" %}
+                                    <div class="form-group form-check mb-3">
+                                        {{ field }}
+                                        <label class="form-check-label" for="{{ field.id_for_label }}">
+                                            {{ field.label }} <small class="form-text text-muted">{{ field.help_text }}</small>
+                                        </label>
+                                    </div>
+                                {% else %}
+                                    <div class="form-group">
+                                        <label for="{{ field.id_for_label }}" class="{% if field.field.required %}required-field{% endif %}">
+                                            {{ field.label }}
+                                        </label>
+                                        {{ field }}
+                                        {% if field.help_text %}
+                                            <small class="form-text text-muted">{{ field.help_text }}</small>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
                             {% endfor %}
                             <button type="submit" class="btn btn-primary">登録</button>
                         </form>

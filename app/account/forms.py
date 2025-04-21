@@ -53,6 +53,12 @@ class CustomUserCreationForm(UserCreationForm):
             'invalid': '有効な画像ファイルを選択してください。',
         }
     )
+    allow_poster_repost = forms.BooleanField(
+        label='転載を許可する',
+        required=False,
+        help_text='(集会を紹介する目的に限る)'
+    )
+
     description = forms.CharField(
         label='イベント紹介', 
         widget=forms.Textarea(attrs={'class': 'form-control'}),
@@ -81,13 +87,14 @@ class CustomUserCreationForm(UserCreationForm):
         model = CustomUser
         fields = ('user_name', 'email', 'discord_id', 'password1', 'password2', 'start_time',
                   'duration', 'weekdays', 'frequency', 'organizers', 'group_url', 'organizer_url', 'sns_url',
-                  'discord', 'twitter_hashtag', 'poster_image', 'description', 'platform', 'tags')
+                  'discord', 'twitter_hashtag', 'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags')
         widgets = {
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control', 'required': 'required'}),
             'discord_id': forms.TextInput(attrs={'class': 'form-control'}),
             'password1': forms.PasswordInput(attrs={'class': 'form-control'}),
             'password2': forms.PasswordInput(attrs={'class': 'form-control'}),
+            'allow_poster_repost': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
         help_texts = {
             'email': 'メールアドレスは公開されません。連絡用として使用します。',
@@ -127,7 +134,8 @@ class CustomUserCreationForm(UserCreationForm):
             poster_image=self.cleaned_data['poster_image'],
             description=self.cleaned_data['description'],
             platform=self.cleaned_data['platform'],
-            tags=self.cleaned_data['tags']
+            tags=self.cleaned_data['tags'],
+            allow_poster_repost=self.cleaned_data.get('allow_poster_repost', False)
         )
         if commit:
             user.save()

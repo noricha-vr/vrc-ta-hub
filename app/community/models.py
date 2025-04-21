@@ -50,10 +50,14 @@ class Community(models.Model):
     discord = models.URLField('Discord', blank=True)
     twitter_hashtag = models.CharField('Twitterハッシュタグ', max_length=100, blank=True)
     poster_image = models.ImageField('ポスター', upload_to='poster/', blank=True)
-    description = models.TextField('イベント紹介', default='', blank=True)
+    description = models.TextField('集会紹介', default='', blank=True)
     platform = models.CharField('対応プラットフォーム', max_length=10, choices=PLATFORM_CHOICES, default='All')
     tags = models.JSONField('タグ', max_length=10, default=list)
     status = models.CharField('承認状態', max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True)
+    allow_poster_repost = models.BooleanField(
+        '集会を紹介するためのポスターの転載を許可する',
+        default=False,
+    )
 
     class Meta:
         verbose_name = '集会'
