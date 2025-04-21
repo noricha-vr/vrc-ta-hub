@@ -54,9 +54,8 @@ class CustomUserCreationForm(UserCreationForm):
         }
     )
     allow_poster_repost = forms.BooleanField(
-        label='転載を許可する',
+        label='集会を紹介するためのポスターの転載を許可する',
         required=False,
-        help_text='(集会を紹介する目的に限る)'
     )
 
     description = forms.CharField(
