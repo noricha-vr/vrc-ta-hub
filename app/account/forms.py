@@ -55,7 +55,10 @@ class CustomUserCreationForm(UserCreationForm):
     )
     allow_poster_repost = forms.BooleanField(
         label='集会を紹介するためのポスター転載を許可する',
-        required=False,
+        required=True,
+        initial=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'})
+
     )
 
     description = forms.CharField(

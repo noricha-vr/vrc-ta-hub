@@ -9,17 +9,19 @@
             padding-left: 0;
             margin-bottom: 0.5rem;
         }
+
         .form-group {
             margin-bottom: 1rem;
         }
+
         .required-field::after {
             content: " *";
             color: #dc3545;
         }
     </style>
-    <div class="container my-4">
+    <div class="container my-5">
         <div class="row">
-            <div class="col-md-12">
+            <div class="col-12 col-md-10 col-lg-9 mx-auto mt-3 mb-3">
                 <div class="card">
                     <div class="card-header bg-primary text-white">
                         <h4 class="mb-0">新規登録</h4>
@@ -58,12 +60,14 @@
                                     <div class="form-group form-check mb-3">
                                         {{ field }}
                                         <label class="form-check-label" for="{{ field.id_for_label }}">
-                                            {{ field.label }} <small class="form-text text-muted">{{ field.help_text }}</small>
+                                            {{ field.label }} <small
+                                                class="form-text text-muted">{{ field.help_text }}</small>
                                         </label>
                                     </div>
                                 {% else %}
                                     <div class="form-group">
-                                        <label for="{{ field.id_for_label }}" class="{% if field.field.required %}required-field{% endif %}">
+                                        <label for="{{ field.id_for_label }}"
+                                               class="{% if field.field.required %}required-field{% endif %}">
                                             {{ field.label }}
                                         </label>
                                         {{ field }}
