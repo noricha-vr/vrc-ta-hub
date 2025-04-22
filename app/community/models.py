@@ -1,6 +1,8 @@
-from django.db import models
 from datetime import timedelta
+
+from django.db import models
 from django.utils import timezone
+
 from ta_hub.libs import resize_and_convert_image
 
 # Create your models here.
@@ -55,7 +57,7 @@ class Community(models.Model):
     tags = models.JSONField('タグ', max_length=10, default=list)
     status = models.CharField('承認状態', max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True)
     allow_poster_repost = models.BooleanField(
-        '集会を紹介するためのポスターの転載を許可する',
+        '集会を紹介するためのポスター転載を許可する',
         default=False,
     )
 

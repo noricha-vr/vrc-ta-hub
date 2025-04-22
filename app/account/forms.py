@@ -54,19 +54,19 @@ class CustomUserCreationForm(UserCreationForm):
         }
     )
     allow_poster_repost = forms.BooleanField(
-        label='集会を紹介するためのポスターの転載を許可する',
+        label='集会を紹介するためのポスター転載を許可する',
         required=False,
     )
 
     description = forms.CharField(
-        label='イベント紹介', 
+        label='イベント紹介',
         widget=forms.Textarea(attrs={'class': 'form-control'}),
         error_messages={
             'required': 'イベント紹介は必須項目です。',
         }
     )
     platform = forms.ChoiceField(
-        label='対応プラットフォーム', 
+        label='対応プラットフォーム',
         choices=PLATFORM_CHOICES,
         widget=forms.Select(attrs={'class': 'form-control'}),
         error_messages={
@@ -74,7 +74,7 @@ class CustomUserCreationForm(UserCreationForm):
         }
     )
     tags = forms.MultipleChoiceField(
-        label='タグ', 
+        label='タグ',
         choices=TAGS,
         widget=forms.CheckboxSelectMultiple(),
         error_messages={
@@ -86,7 +86,8 @@ class CustomUserCreationForm(UserCreationForm):
         model = CustomUser
         fields = ('user_name', 'email', 'discord_id', 'password1', 'password2', 'start_time',
                   'duration', 'weekdays', 'frequency', 'organizers', 'group_url', 'organizer_url', 'sns_url',
-                  'discord', 'twitter_hashtag', 'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags')
+                  'discord', 'twitter_hashtag', 'poster_image', 'allow_poster_repost', 'description', 'platform',
+                  'tags')
         widgets = {
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control', 'required': 'required'}),
@@ -112,7 +113,6 @@ class CustomUserCreationForm(UserCreationForm):
                 'required': 'Discord IDは必須項目です。',
             },
         }
-
 
     def save(self, commit=True):
         user = super().save(commit=False)

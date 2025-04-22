@@ -43,7 +43,7 @@ class CommunityForm(forms.ModelForm):
         required=False,
     )
     allow_poster_repost = forms.BooleanField(
-        label='集会を紹介するためのポスターの転載を許可する',
+        label='集会を紹介するためのポスター転載を許可する',
         required=False,
     )
 
