@@ -77,7 +77,7 @@ class EventDetailForm(forms.ModelForm):
         widgets = {
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
-            'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file'}),
+            'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': '.pdf'}),
             'speaker': forms.TextInput(attrs={'class': 'form-control'}),
             'start_time': forms.TextInput(attrs={'class': 'form-control'}),
             'duration': forms.TextInput(attrs={'class': 'form-control'}),
@@ -91,6 +91,7 @@ class EventDetailForm(forms.ModelForm):
             'duration': '単位は分',
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
             'slide_url': '外部のスライドシステムのURLや、参考ページのURLを入力してください。',
+            'slide_file': '※ PDFファイルのみアップロード可能です（最大30MB）。',
         }
 
     # start_time と duration の初期値はEventCreateFormと同じにする
@@ -105,6 +106,11 @@ class EventDetailForm(forms.ModelForm):
     def clean_slide_file(self):
         slide_file = self.cleaned_data.get('slide_file')
         if slide_file:
+            # ファイル形式チェック（PDFのみ許可）
+            if not slide_file.name.lower().endswith('.pdf'):
+                raise ValidationError('PDFファイルのみアップロード可能です。')
+            
+            # ファイルサイズチェック
             if slide_file.size > 30 * 1024 * 1024:  # 30MB
                 raise ValidationError('ファイルサイズが30MBを超えています。')
         return slide_file

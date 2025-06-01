@@ -25,3 +25,10 @@ class EventDetailAdmin(admin.ModelAdmin):
     list_display = ('created_at', 'updated_at', 'theme', 'speaker')
     list_filter = ('theme', 'speaker')
     readonly_fields = ('event',)
+    
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        field = super().formfield_for_dbfield(db_field, **kwargs)
+        if db_field.name == 'slide_file':
+            field.help_text = 'PDFファイルのみアップロード可能です（最大30MB）'
+            field.widget.attrs['accept'] = '.pdf'
+        return field
