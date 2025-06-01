@@ -174,67 +174,13 @@
                     </div>
                     {% endif %}
                 {% endif %}
-                <h2 class="zen-kaku-gothic-new-medium" style="margin-bottom: 1.3rem">詳細情報</h2>
-                <div class="lead">
-                    <table class="table table-responsive">
-                        <tbody>
-                      
-                        <tr>
-                            <th scope="row">日時</th>
-                            <td>
-                                {{ event_detail.event.date|date:"Y年m月d日" }}
-                                {{ event_detail.start_time|date:"H:i" }}
-                                - {{ event_detail.end_time|date:"H:i" }}
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">テーマ</th>
-                            <td>{{ event_detail.theme }}</td>
-                        </tr>
-                        <tr>
-                            <th scope="row">発表者</th>
-                            <td>
-                                <a href="{% url 'event:detail_history' %}?speaker={{ event_detail.speaker }}"
-                                   class="me-2">{{ event_detail.speaker }}</a></td>
-                        </tr>
-                       
-                        <tr>
-                            <th scope="row">集会名</th>
-                            <td>
-                                <a href="{% url 'event:detail_history' %}?community_name={{ event_detail.event.community.name }}" class="me-2">
-                                    {{event_detail.event.community.name }}
-                                </a>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th scope="row">発表資料</th>
-                            <td>
-                                {% if event_detail.slide_url %}
-                                <a href="{{ event_detail.slide_url }}" target="_blank" class="me-2">
-                                    <i class="bi bi-link me-1"></i>リンク
-                                </a>
-                                {% endif %}
-                                {% if event_detail.slide_file %}
-                                <a href="{{ event_detail.slide_file.url }}" target="_blank">
-                                    <i class="bi bi-file-earmark-text-fill me-1"></i>ファイル
-                                </a>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {# 動画がDiscord限定の場合、Discordのリンクを表示 #}
-                        {% if is_discord %}
-
-                            <tr>
-                                <th scope="row">動画</th>
-                                <td>
-                                    <a href="{{ event_detail.youtube_url }}" target="_blank">
-                                        <i class="fab fa-discord me-1"></i>Discordで見る</a>
-                                </td>
-                            </tr>
-                        {% endif %}
-                        </tbody>
-                    </table>
-                </div>
+                
+                {# detail_typeによって詳細情報の表示を切り替え #}
+                {% if event_detail.detail_type == 'LT' %}
+                    {% include 'event/detail_info_lt.html' %}
+                {% elif event_detail.detail_type == 'SPECIAL' %}
+                    {% include 'event/detail_info_special.html' %}
+                {% endif %}
                 <div>
                     {{ html_content|safe }}
                 </div>

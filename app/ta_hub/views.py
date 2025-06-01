@@ -40,11 +40,10 @@ class IndexView(TemplateView):
             detail_type='LT'  # LTのみ
         ).select_related('event', 'event__community').order_by('event__date', 'start_time')
 
-        # 特別企画を取得（イベント終了日の24時まで表示）
-        tomorrow = today + timezone.timedelta(days=1)
+        # 特別企画を取得（今日からイベント終了日の24時まで表示）
         special_events = EventDetail.objects.filter(
             detail_type='SPECIAL',
-            event__date__lt=tomorrow  # 明日より前（今日まで）のイベント
+            event__date__gte=today  # 今日以降のイベント
         ).select_related('event', 'event__community').order_by('-event__date', '-start_time')[:10]
 
         # Google Calendar URLを生成

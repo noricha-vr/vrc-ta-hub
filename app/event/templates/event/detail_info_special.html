@@ -1,0 +1,22 @@
+{# 特別企画用の詳細情報表示 #}
+<h2 class="zen-kaku-gothic-new-medium" style="margin-bottom: 1.3rem">詳細情報</h2>
+<div class="lead">
+    <table class="table table-responsive">
+        <tbody>
+        <tr>
+            <th scope="row">集会名</th>
+            <td>
+                <a href="{% url 'event:detail_history' %}?community_name={{ event_detail.event.community.name }}" class="me-2">
+                    {{ event_detail.event.community.name }}
+                </a>
+            </td>
+        </tr>
+        <tr>
+            <th scope="row">開催日</th>
+            <td>
+                {{ event_detail.event.date|date:"Y年m月d日" }}
+            </td>
+        </tr>
+        </tbody>
+    </table>
+</div>

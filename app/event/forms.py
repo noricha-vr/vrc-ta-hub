@@ -73,6 +73,7 @@ class EventDetailForm(forms.ModelForm):
     # フィールドのラベルをオーバーライド
     theme = forms.CharField(
         label='テーマ',
+        required=False,  # 特別企画とブログでは不要なため
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
     h1 = forms.CharField(
@@ -96,8 +97,8 @@ class EventDetailForm(forms.ModelForm):
             'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': '.pdf'}),
             'speaker': forms.TextInput(attrs={'class': 'form-control'}),
-            'start_time': forms.TextInput(attrs={'class': 'form-control'}),
-            'duration': forms.TextInput(attrs={'class': 'form-control'}),
+            'start_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control w-25'}),
+            'duration': forms.NumberInput(attrs={'class': 'form-control w-25'}),
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
             'h1': forms.TextInput(attrs={'class': 'form-control'}),
             'contents': forms.Textarea(attrs={'class': 'form-control', 'rows': '8'}),
@@ -121,6 +122,26 @@ class EventDetailForm(forms.ModelForm):
             self.fields['start_time'].initial = community.start_time
             self.fields['duration'].initial = 30
 
+    def clean(self):
+        cleaned_data = super().clean()
+        detail_type = cleaned_data.get('detail_type')
+        
+        # 特別企画とブログの場合、非表示フィールドにデフォルト値を設定
+        if detail_type == 'SPECIAL':
+            # 特別企画のデフォルト値
+            cleaned_data['theme'] = 'Special Event'
+            cleaned_data['speaker'] = ''
+            cleaned_data['start_time'] = self.instance.event.start_time if self.instance.pk else self.fields['start_time'].initial
+            cleaned_data['duration'] = 60
+        elif detail_type == 'BLOG':
+            # ブログのデフォルト値
+            cleaned_data['theme'] = 'Blog'
+            cleaned_data['speaker'] = ''
+            cleaned_data['start_time'] = self.instance.event.start_time if self.instance.pk else self.fields['start_time'].initial
+            cleaned_data['duration'] = 30
+        
+        return cleaned_data
+    
     def clean_slide_file(self):
         slide_file = self.cleaned_data.get('slide_file')
         if slide_file:

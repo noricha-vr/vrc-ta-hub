@@ -91,12 +91,12 @@
                     hide: []
                 },
                 'SPECIAL': {
-                    show: ['theme', 'start_time', 'h1', 'contents'],
-                    hide: ['speaker', 'duration', 'slide_url', 'slide_file', 'youtube_url']
+                    show: ['h1', 'contents'],
+                    hide: ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url']
                 },
                 'BLOG': {
-                    show: ['theme', 'h1', 'contents'],
-                    hide: ['speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url']
+                    show: ['h1', 'contents'],
+                    hide: ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url']
                 }
             };
             
@@ -113,14 +113,6 @@
                     }
                 });
                 
-                // 特別な処理
-                if (detailType === 'SPECIAL') {
-                    // 開始時間のラベルを変更
-                    const startTimeLabel = document.querySelector('label[for="id_start_time"]');
-                    if (startTimeLabel) {
-                        startTimeLabel.textContent = 'イベント開始時刻';
-                    }
-                }
                 
             }
             
