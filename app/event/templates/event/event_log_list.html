@@ -4,88 +4,88 @@
 {% block title %}イベントログ - {{ block.super }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
-    <h1 class="h3 mb-4">イベントログ</h1>
+    <div class="container-fluid mt-4">
+        <h1 class="h3 mb-4">イベントログ</h1>
 
-    <div class="mb-4">
-        <p class="text-muted">特別イベントやブログ記事の一覧です。</p>
-    </div>
-
-    <!-- 検索フォーム -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="get" class="row g-3">
-                <div class="col-md-6">
-                    <label for="community_name" class="form-label">集会名</label>
-                    <input type="text" class="form-control" id="community_name" name="community_name" 
-                           value="{{ request.GET.community_name }}" placeholder="集会名で検索">
-                </div>
-                <div class="col-md-6">
-                    <label for="theme" class="form-label">タイトル</label>
-                    <input type="text" class="form-control" id="theme" name="theme" 
-                           value="{{ request.GET.theme }}" placeholder="タイトルで検索">
-                </div>
-                <div class="col-12">
-                    <button type="submit" class="btn btn-primary">検索</button>
-                    <a href="{% url 'event:event_log_list' %}" class="btn btn-secondary">クリア</a>
-                </div>
-            </form>
+        <div class="mb-4">
+            <p class="text-muted">特別企画やブログ記事の一覧です。</p>
         </div>
-    </div>
 
-    <!-- イベントログ一覧 -->
-    <div class="row">
-        {% for log in event_logs %}
-        <div class="col-12 mb-3">
-            <div class="card">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <h5 class="card-title mb-1">
-                                <a href="{% url 'event:detail' log.id %}" class="text-decoration-none">
-                                    {% if log.h1 %}
-                                        {{ log.h1 }}
-                                    {% else %}
-                                        {{ log.theme }}
+        <!-- 検索フォーム -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="get" class="row g-3">
+                    <div class="col-md-6">
+                        <label for="community_name" class="form-label">集会名</label>
+                        <input type="text" class="form-control" id="community_name" name="community_name"
+                               value="{{ request.GET.community_name }}" placeholder="集会名で検索">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="theme" class="form-label">タイトル</label>
+                        <input type="text" class="form-control" id="theme" name="theme"
+                               value="{{ request.GET.theme }}" placeholder="タイトルで検索">
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary">検索</button>
+                        <a href="{% url 'event:event_log_list' %}" class="btn btn-secondary">クリア</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- イベントログ一覧 -->
+        <div class="row">
+            {% for log in event_logs %}
+                <div class="col-12 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <h5 class="card-title mb-1">
+                                        <a href="{% url 'event:detail' log.id %}" class="text-decoration-none">
+                                            {% if log.h1 %}
+                                                {{ log.h1 }}
+                                            {% else %}
+                                                {{ log.theme }}
+                                            {% endif %}
+                                        </a>
+                                    </h5>
+                                    <p class="text-muted mb-2">
+                                        <small>
+                                            {{ log.event.community.name }} -
+                                            {{ log.event.date|date:"Y年n月j日" }}
+                                            {% if log.detail_type == 'SPECIAL' %}
+                                                <span class="badge bg-warning text-dark">特別企画</span>
+                                            {% else %}
+                                                <span class="badge bg-info">ブログ</span>
+                                            {% endif %}
+                                        </small>
+                                    </p>
+                                    {% if log.meta_description %}
+                                        <p class="card-text text-truncate">{{ log.meta_description }}</p>
                                     {% endif %}
-                                </a>
-                            </h5>
-                            <p class="text-muted mb-2">
-                                <small>
-                                    {{ log.event.community.name }} - 
-                                    {{ log.event.date|date:"Y年n月j日" }}
-                                    {% if log.detail_type == 'SPECIAL' %}
-                                        <span class="badge bg-warning text-dark">特別イベント</span>
-                                    {% else %}
-                                        <span class="badge bg-info">ブログ</span>
-                                    {% endif %}
-                                </small>
-                            </p>
-                            {% if log.meta_description %}
-                            <p class="card-text text-truncate">{{ log.meta_description }}</p>
-                            {% endif %}
-                        </div>
-                        <div class="col-md-4 text-md-end">
-                            <a href="{% url 'event:detail' log.id %}" class="btn btn-sm btn-outline-primary">
-                                詳細を見る
-                            </a>
+                                </div>
+                                <div class="col-md-4 text-md-end">
+                                    <a href="{% url 'event:detail' log.id %}" class="btn btn-sm btn-outline-primary">
+                                        詳細を見る
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-info" role="alert">
+                        該当するイベントログが見つかりませんでした。
+                    </div>
+                </div>
+            {% endfor %}
         </div>
-        {% empty %}
-        <div class="col-12">
-            <div class="alert alert-info" role="alert">
-                該当するイベントログが見つかりませんでした。
-            </div>
-        </div>
-        {% endfor %}
-    </div>
 
-    <!-- ページネーション -->
-    {% if is_paginated %}
-        {% include 'ta_hub/pagination.html' %}
-    {% endif %}
-</div>
+        <!-- ページネーション -->
+        {% if is_paginated %}
+            {% include 'ta_hub/pagination.html' %}
+        {% endif %}
+    </div>
 {% endblock %}

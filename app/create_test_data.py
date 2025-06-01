@@ -1,7 +1,7 @@
-from event.models import Event, EventDetail
-from community.models import Community
 from django.utils import timezone
-from datetime import timedelta
+
+from community.models import Community
+from event.models import Event, EventDetail
 
 # 今日の日付を取得
 today = timezone.now().date()
@@ -20,8 +20,8 @@ if community:
             'weekday': today.strftime("%a"),
         }
     )
-    
-    # 特別イベントを作成
+
+    # 特別企画を作成
     special_event, created = EventDetail.objects.get_or_create(
         event=event,
         detail_type='SPECIAL',
@@ -29,14 +29,14 @@ if community:
         defaults={
             'start_time': '22:00',
             'duration': 120,
-            'h1': '【特別イベント】年末特別企画：2024年の技術振り返り',
+            'h1': '【特別企画】年末特別企画：2024年の技術振り返り',
             'meta_description': 'VRChat技術学術系集会の年末特別企画！2024年の技術トレンドを振り返り、来年の展望を語り合います。',
             'contents': '''# 年末特別企画：2024年の技術振り返り
 
 ## イベント概要
 
 2024年も残りわずか！今年一年のVRChat技術学術系集会での活動を振り返り、
-来年に向けての展望を語り合う特別イベントを開催します。
+来年に向けての展望を語り合う特別企画を開催します。
 
 ## プログラム
 
@@ -51,7 +51,7 @@ if community:
 ''',
         }
     )
-    
+
     # ブログ記事を作成
     blog_post, created = EventDetail.objects.get_or_create(
         event=event,
@@ -93,10 +93,10 @@ VRChat技術学術系集会は、技術や学問に関心を持つ人々が集�
 ''',
         }
     )
-    
+
     print(f"テストデータを作成しました:")
     print(f"- イベント: {event}")
-    print(f"- 特別イベント: {special_event} (新規作成: {created})")
+    print(f"- 特別企画: {special_event} (新規作成: {created})")
     print(f"- ブログ記事: {blog_post} (新規作成: {created})")
 else:
     print("コミュニティが見つかりません。先にコミュニティを作成してください。")

@@ -39,8 +39,8 @@ class IndexView(TemplateView):
             event__date__gte=today,
             detail_type='LT'  # LTのみ
         ).select_related('event', 'event__community').order_by('event__date', 'start_time')
-        
-        # 特別イベントを取得（イベント終了日の24時まで表示）
+
+        # 特別企画を取得（イベント終了日の24時まで表示）
         tomorrow = today + timezone.timedelta(days=1)
         special_events = EventDetail.objects.filter(
             detail_type='SPECIAL',
@@ -84,7 +84,7 @@ class IndexView(TemplateView):
             }
             details_with_urls.append(detail_dict)
 
-        # 特別イベントの情報を整形
+        # 特別企画の情報を整形
         special_events_data = []
         for special in special_events:
             special_dict = {

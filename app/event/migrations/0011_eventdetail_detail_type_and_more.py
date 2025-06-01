@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ('event', '0010_add_pdf_validation'),
     ]
@@ -13,7 +12,8 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='eventdetail',
             name='detail_type',
-            field=models.CharField(choices=[('LT', 'LT（発表）'), ('SPECIAL', '特別イベント'), ('BLOG', 'ブログ')], db_index=True, default='LT', max_length=10, verbose_name='タイプ'),
+            field=models.CharField(choices=[('LT', 'LT（発表）'), ('SPECIAL', '特別企画'), ('BLOG', 'ブログ')],
+                                   db_index=True, default='LT', max_length=10, verbose_name='タイプ'),
         ),
         migrations.AddIndex(
             model_name='eventdetail',

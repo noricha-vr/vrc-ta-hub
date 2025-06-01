@@ -22,7 +22,7 @@ class Event(models.Model):
     duration = models.IntegerField('開催時間（分）', default=60)
     weekday = models.CharField('曜日', max_length=5, choices=WEEKDAY_CHOICES, blank=True)
     google_calendar_event_id = models.CharField('GoogleカレンダーイベントID', max_length=255, blank=True, null=True)
-    
+
     class Meta:
         verbose_name = 'イベント'
         verbose_name_plural = 'イベント'
@@ -42,10 +42,10 @@ class Event(models.Model):
 class EventDetail(models.Model):
     TYPE_CHOICES = [
         ('LT', 'LT（発表）'),
-        ('SPECIAL', '特別イベント'),
+        ('SPECIAL', '特別企画'),
         ('BLOG', 'ブログ'),
     ]
-    
+
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='details', verbose_name='イベント')

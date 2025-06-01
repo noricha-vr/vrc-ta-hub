@@ -7,7 +7,6 @@ from typing import List, Dict
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
-from django.db import IntegrityError
 from django.db.models import QuerySet
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -21,7 +20,7 @@ from google.auth import default
 from google.cloud import bigquery
 
 from community.models import Community, WEEKDAY_CHOICES
-from event.forms import EventDetailForm, EventSearchForm, EventCreateForm, GoogleCalendarEventForm
+from event.forms import EventDetailForm, EventSearchForm, GoogleCalendarEventForm
 from event.libs import convert_markdown, generate_blog
 from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url, generate_google_calendar_url
@@ -248,7 +247,7 @@ class EventDetailView(DetailView):
         twitter_display_until = event_detail.event.date + timedelta(days=7)
         context['twitter_button_active'] = today <= twitter_display_until
         context['twitter_templates'] = event_detail.event.community.twitter_template.all()
-        
+
         # ユーザーがログインしていて、このイベントのコミュニティオーナーであるか確認
         if self.request.user.is_authenticated and self.request.user == event_detail.event.community.custom_user:
             context['is_community_owner'] = True
@@ -615,13 +614,13 @@ class EventMyList(LoginRequiredMixin, ListView):
             community__custom_user=self.request.user,
             date__gte=today
         ).select_related('community').order_by('date', 'start_time')[:2]
-        
+
         # 過去のイベントを取得
         past_events = Event.objects.filter(
             community__custom_user=self.request.user,
             date__lt=today
         ).select_related('community').order_by('-date', '-start_time')
-        
+
         # 未来のイベントと過去のイベントを結合
         return list(future_events) + list(past_events)
 
@@ -634,7 +633,7 @@ class EventMyList(LoginRequiredMixin, ListView):
                 continue
             event.calendar_url = create_calendar_entry_url(event)
         return queryset
-    
+
     def _get_community_info(self):
         """
         ログインユーザーのコミュニティ情報を取得する
@@ -643,7 +642,7 @@ class EventMyList(LoginRequiredMixin, ListView):
             Community: ユーザーのコミュニティ情報
         """
         return Community.objects.filter(custom_user=self.request.user).first()
-    
+
     def _set_twitter_button_flags(self, events):
         """
         イベントごとにTwitterボタン表示フラグを設定する
@@ -661,7 +660,7 @@ class EventMyList(LoginRequiredMixin, ListView):
             # イベント日から1週間以内ならTwitterボタンを表示
             event.twitter_button_active = today <= twitter_display_until
         return events
-    
+
     def _attach_event_details(self, events):
         """
         イベントごとにイベント詳細情報を取得・設定する
@@ -674,20 +673,20 @@ class EventMyList(LoginRequiredMixin, ListView):
         """
         # イベントIDのリストを取得
         event_ids = [event.id for event in events]
-        
+
         if event_ids:
             # イベント詳細を一括取得
             event_details = EventDetail.objects.filter(
                 event_id__in=event_ids
             ).select_related('event').order_by('created_at')
-            
+
             # イベント詳細をイベントIDごとに整理
             event_detail_dict = {}
             for detail in event_details:
                 if detail.event_id not in event_detail_dict:
                     event_detail_dict[detail.event_id] = []
                 event_detail_dict[detail.event_id].append(detail)
-            
+
             # 各イベントに詳細リストを設定
             for event in events:
                 event.detail_list = event_detail_dict.get(event.id, [])
@@ -695,9 +694,9 @@ class EventMyList(LoginRequiredMixin, ListView):
             # イベントが存在しない場合は空のリストを設定
             for event in events:
                 event.detail_list = []
-                
+
         return events
-    
+
     def _prepare_pagination_params(self):
         """
         ページネーション用のGETパラメータを準備する
@@ -718,25 +717,25 @@ class EventMyList(LoginRequiredMixin, ListView):
         このメソッドではそれらを順番に呼び出して結果を組み合わせる
         """
         context = super().get_context_data(**kwargs)
-        
+
         # コミュニティ情報を取得
         context['community'] = self._get_community_info()
-        
+
         # イベントリストを取得
         events = context['events']
-        
+
         # イベントにカレンダーURLを設定
         events = self.set_vrc_event_calendar_post_url(events)
-        
+
         # Twitterボタン表示用のフラグを設定
         events = self._set_twitter_button_flags(events)
-        
+
         # イベント詳細情報を取得・設定
         events = self._attach_event_details(events)
-        
+
         # 更新されたイベントリストをコンテキストに再設定
         context['events'] = events
-        
+
         # ページネーション用のパラメータを設定
         context['current_query_params'] = self._prepare_pagination_params()
 
@@ -809,7 +808,7 @@ class EventDetailPastList(ListView):
 
 
 class EventLogListView(ListView):
-    """特別イベントとブログの一覧表示"""
+    """特別企画とブログの一覧表示"""
     template_name = 'event/event_log_list.html'
     model = EventDetail
     context_object_name = 'event_logs'
@@ -844,7 +843,7 @@ class EventLogListView(ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset().filter(
-            detail_type__in=['SPECIAL', 'BLOG']  # 特別イベントとブログのみ表示
+            detail_type__in=['SPECIAL', 'BLOG']  # 特別企画とブログのみ表示
         ).select_related('event', 'event__community').order_by('-event__date', '-start_time')
 
         community_name = self.request.GET.get('community_name', '').strip()

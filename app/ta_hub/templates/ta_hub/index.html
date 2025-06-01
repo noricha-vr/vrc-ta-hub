@@ -309,9 +309,9 @@
     {% if special_events %}
         <section class="bg-warning bg-opacity-10 py-5">
             <div class="container">
-                <div class="row featurette text-center mb-4">
+                <div class="row featurette text-center text-primary mb-4">
                     <h2 class="featurette-heading fw-normal lh-1 fw-bold">
-                        <div class="fs-2">✨ 特別イベント</div>
+                        <div class="fs-2">✨ 特別企画</div>
                     </h2>
                 </div>
                 <p class="text-center text-muted mb-5">
@@ -319,42 +319,79 @@
                     期間限定の特別なイベントをお見逃しなく！
                 </p>
                 <div class="row g-4">
-                    {% for special in special_events %}
-                        <div class="col-12 col-md-6">
-                            <div class="card shadow-sm h-100 border-warning">
-                                <div class="card-body">
-                                    <div class="d-flex justify-content-between align-items-start mb-3">
-                                        <h5 class="card-title mb-0">
-                                            <a href="{% url 'event:detail' special.id %}" class="text-decoration-none text-dark">
-                                                {% if special.h1 %}
-                                                    {{ special.h1 }}
-                                                {% else %}
-                                                    {{ special.theme }}
-                                                {% endif %}
-                                            </a>
-                                        </h5>
-                                        <span class="badge bg-warning text-dark">特別イベント</span>
+                    {% regroup special_events by event as special_event_list %}
+                    {% for event_group in special_event_list %}
+                        <div class="col-12 col-md-10 offset-md-1">
+                            <div class="card shadow h-100" style="position: relative;">
+                                <a href="{% url 'community:detail' event_group.grouper.community.pk %}"
+                                   class="text-decoration-none position-absolute w-100 h-100"
+                                   style="z-index: 1;">
+                                    <span class="visually-hidden">{{ event_group.grouper.community.name }}の詳細を見る</span>
+                                </a>
+                                <div class="row g-0">
+                                    <div class="col-md-4">
+                                        {% if event_group.grouper.community.poster_image %}
+                                            <img src="{{ event_group.grouper.community.poster_image.url }}"
+                                                 class="img-fluid h-100 w-100"
+                                                 alt="{{ event_group.grouper.community.name }}のポスター"
+                                                 style="object-fit: cover;">
+                                        {% else %}
+                                            <div class="d-flex align-items-center justify-content-center h-100 bg-light">
+                                                <i class="bi bi-image text-muted" style="font-size: 3rem;"></i>
+                                            </div>
+                                        {% endif %}
                                     </div>
-                                    <p class="card-text text-muted mb-2">
-                                        <i class="bi bi-building"></i> {{ special.event.community.name }}<br>
-                                        <i class="bi bi-calendar3"></i> {{ special.event.date|date:"Y/m/d" }}
-                                        <small class="text-muted">（{{ special.event.date|date:"D" }}）</small><br>
-                                        <i class="bi bi-clock"></i> {{ special.event.start_time|time:"H:i" }}
-                                    </p>
-                                    {% if special.meta_description %}
-                                        <p class="card-text">{{ special.meta_description|truncatechars:100 }}</p>
-                                    {% endif %}
-                                    <a href="{% url 'event:detail' special.id %}" class="btn btn-warning btn-sm">
-                                        詳細を見る <i class="bi bi-arrow-right"></i>
-                                    </a>
+                                    <div class="col-md-8">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                                <h3 class="card-title mb-0 font-monospace">{{ event_group.grouper.community.name }}</h3>
+                                                <span class="badge bg-warning text-dark"
+                                                      style="position: relative; z-index: 2;">特別企画</span>
+                                            </div>
+                                            <p class="card-text">
+                                                <i class="bi bi-calendar3"></i> {{ event_group.grouper.date|date:"Y/m/d" }}
+                                                <small class="text-muted">（{{ event_group.grouper.date|date:"D" }}）</small><br>
+                                                <i class="bi bi-clock"></i> {{ event_group.grouper.start_time|time:"H:i" }}<small
+                                                    class="text-muted">（日本時間）</small>
+                                            </p>
+                                            <div class="list-group list-group-flush">
+                                                {% for special in event_group.list %}
+                                                    <div class="list-group-item border-0 px-0">
+                                                        <a href="{% url 'event:detail' special.id %}"
+                                                           class="text-decoration-none"
+                                                           style="position: relative; z-index: 2;">
+                                                            <div class="d-flex justify-content-between align-items-start">
+                                                                <div>
+                                                                    <h5 class="mb-1 fs-5 fw-bold text-primary">
+                                                                        {% if special.h1 %}{{ special.h1 }}{% else %}
+                                                                            {{ special.theme }}{% endif %}
+                                                                    </h5>
+                                                                    {% if special.meta_description %}
+                                                                        <p class="mb-0 text-muted small">{{ special.meta_description|truncatechars:150 }}</p>
+                                                                    {% endif %}
+                                                                </div>
+                                                            </div>
+                                                        </a>
+                                                    </div>
+                                                {% endfor %}
+                                            </div>
+                                            <hr class="my-3">
+                                            <div class="community-description">
+                                                <p class="text-muted mb-0">
+                                                    <i class="bi bi-info-circle me-2"></i>
+                                                    {{ event_group.grouper.community.description|truncatechars:200 }}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     {% endfor %}
                 </div>
                 <div class="text-center mt-4">
-                    <a href="{% url 'event:event_log_list' %}" class="btn btn-outline-warning">
-                        <i class="bi bi-list-ul me-2"></i>すべての特別イベント・ブログを見る
+                    <a href="{% url 'event:event_log_list' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-list-ul me-2"></i>すべての特別企画・ブログを見る
                     </a>
                 </div>
             </div>
