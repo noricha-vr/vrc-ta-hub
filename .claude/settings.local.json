@@ -1,0 +1,49 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(find:*)",
+            "Bash(grep:*)",
+            "Bash(rm:*)",
+            "Bash(git:*)",
+            "Bash(gh:*)",
+            "Bash(ripgrep:*)",
+            "Bash(bun:*)",
+            "Bash(ls:*)",
+            "Bash(mv:*)",
+            "Bash(node:*)",
+            "Bash(python3:*)",
+            "Bash(source:*)",
+            "Bash(tree:*)",
+            "Bash(sed:*)",
+            "Bash(curl:*)",
+            "Bash(wget:*)",
+            "Bash(curl:*)",
+            "mcp__playwright__browser_navigate",
+            "mcp__playwright__browser_network_requests",
+            "mcp__playwright__browser_console_messages",
+            "mcp__playwright__browser_close",
+            "mcp__supabase__list_projects",
+            "mcp__supabase__execute_sql",
+            "Bash(gcloud builds list:*)",
+            "Bash(gcloud builds log:*)",
+            "Bash(gcloud config set:*)",
+            "Bash(gcloud builds submit:*)",
+            "Bash(gcloud iam service-accounts create:*)",
+            "Bash(gcloud projects add-iam-policy-binding:*)",
+            "Bash(gcloud builds describe:*)",
+            "Bash(gcloud run services describe:*)",
+            "Bash(gcloud run services add-iam-policy-binding:*)",
+            "Bash(gcloud run services list:*)",
+            "Bash(gcloud run services logs read:*)",
+            "mcp__playwright__browser_snapshot",
+            "WebFetch(domain:github.com)",
+            "mcp__supabase__list_tables",
+            "mcp__supabase__apply_migration"
+        ],
+        "deny": [
+            "Bash(pnpm:*)",
+            "Bash(npm:*)"
+        ]
+    },
+    "enableAllProjectMcpServers": true
+}
