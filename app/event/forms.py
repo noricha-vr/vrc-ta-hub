@@ -131,7 +131,7 @@ class EventDetailForm(forms.ModelForm):
             # 特別企画のデフォルト値
             cleaned_data['theme'] = 'Special Event'
             cleaned_data['speaker'] = ''
-            cleaned_data['start_time'] = self.instance.event.start_time if self.instance.pk else self.fields['start_time'].initial
+            # start_timeは入力されたものを使用
             cleaned_data['duration'] = 60
         elif detail_type == 'BLOG':
             # ブログのデフォルト値

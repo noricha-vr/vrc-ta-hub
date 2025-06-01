@@ -126,7 +126,10 @@
                         <a href="{% url 'event:my_list' %}"
                            class="btn btn-primary me-2">イベント一覧</a>
 
-                        {% if event_detail.detail_type == 'LT' and (event_detail.youtube_url or event_detail.slide_file) %}
+                        {# 注意: Djangoテンプレートのif文では括弧を使わないこと。括弧を使うとTemplateSyntaxErrorが発生します #}
+                        {# 誤: {% if condition and (condition2 or condition3) %} #}
+                        {# 正: {% if condition and condition2 or condition and condition3 %} #}
+                        {% if event_detail.detail_type == 'LT' and event_detail.youtube_url or event_detail.detail_type == 'LT' and event_detail.slide_file %}
                             <form method="post" action="{% url 'event:generate_blog' event_detail.id %}">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-primary me-2" id="generate-button">
