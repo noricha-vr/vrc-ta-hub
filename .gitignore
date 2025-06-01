@@ -96,3 +96,4 @@ secret
 /app/summary.config.json
 /app/credentials.json
 /app/test-emails
+.mcp.json
