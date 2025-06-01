@@ -40,9 +40,16 @@ class Event(models.Model):
 
 
 class EventDetail(models.Model):
+    TYPE_CHOICES = [
+        ('LT', 'LT（発表）'),
+        ('SPECIAL', '特別イベント'),
+        ('BLOG', 'ブログ'),
+    ]
+    
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='details', verbose_name='イベント')
+    detail_type = models.CharField('タイプ', max_length=10, choices=TYPE_CHOICES, default='LT', db_index=True)
     start_time = models.TimeField('開始時刻', default='22:00', db_index=True)
     duration = models.IntegerField('発表時間（分）', default=30)
     youtube_url = models.URLField('YouTube URL', blank=True, null=True)
@@ -64,6 +71,7 @@ class EventDetail(models.Model):
         indexes = [
             models.Index(fields=['event', 'start_time']),
             models.Index(fields=['event', '-start_time']),
+            models.Index(fields=['detail_type']),
         ]
 
     def __str__(self):

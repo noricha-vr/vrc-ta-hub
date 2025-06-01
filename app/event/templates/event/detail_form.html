@@ -17,7 +17,44 @@
                     <div class="card-body">
                         <form method="post" enctype="multipart/form-data">
                             {% csrf_token %}
-                            {{ form.as_p }}
+                            
+                            <!-- detail_type フィールドを特別に表示 -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">{{ form.detail_type.label }}</label>
+                                <div class="d-flex gap-3">
+                                    {% for radio in form.detail_type %}
+                                        <div class="form-check">
+                                            {{ radio.tag }}
+                                            <label class="form-check-label" for="{{ radio.id_for_label }}">
+                                                {{ radio.choice_label }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                {% if form.detail_type.help_text %}
+                                    <div class="form-text">{{ form.detail_type.help_text }}</div>
+                                {% endif %}
+                                {% if form.detail_type.errors %}
+                                    <div class="text-danger">{{ form.detail_type.errors }}</div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- その他のフィールド -->
+                            {% for field in form %}
+                                {% if field.name != 'detail_type' %}
+                                    <div class="mb-3">
+                                        {{ field.label_tag }}
+                                        {{ field }}
+                                        {% if field.help_text %}
+                                            <div class="form-text">{{ field.help_text }}</div>
+                                        {% endif %}
+                                        {% if field.errors %}
+                                            <div class="text-danger">{{ field.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                            
                             <div class="text-end">
                                 <button type="submit" class="btn btn-primary">保存</button>
                             </div>

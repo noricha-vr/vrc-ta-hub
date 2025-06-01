@@ -778,6 +778,7 @@ class EventDetailPastList(ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset().filter(
+            detail_type='LT'  # LTのみ表示
         ).select_related('event', 'event__community').order_by('-event__date', '-start_time')
 
         community_name = self.request.GET.get('community_name', '').strip()
@@ -787,6 +788,68 @@ class EventDetailPastList(ListView):
         speaker = self.request.GET.get('speaker', '').strip()
         if speaker:
             queryset = queryset.filter(speaker__icontains=speaker)
+
+        theme = self.request.GET.get('theme', '').strip()
+        if theme:
+            queryset = queryset.filter(theme__icontains=theme)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # 現在のGETパラメータを取得
+        query_params = self.request.GET.copy()
+        if 'page' in query_params:
+            del query_params['page']
+
+        context['current_query_params'] = query_params.urlencode()
+
+        return context
+
+
+class EventLogListView(ListView):
+    """特別イベントとブログの一覧表示"""
+    template_name = 'event/event_log_list.html'
+    model = EventDetail
+    context_object_name = 'event_logs'
+    paginate_by = 20
+
+    def get(self, request, *args, **kwargs):
+        # 通常のget処理の前にページ番号をチェック
+        page_str = request.GET.get('page', '1')
+
+        try:
+            # ページ番号のみを抽出（数字以外を除去）
+            page = int(''.join(filter(str.isdigit, page_str)) or '1')
+        except (ValueError, TypeError):
+            # 無効なページ番号の場合は1ページ目にリダイレクト
+            params = request.GET.copy()
+            params['page'] = '1'
+            return redirect(f"{request.path}?{params.urlencode()}")
+
+        self.object_list = self.get_queryset()
+        paginator = self.get_paginator(self.object_list, self.paginate_by)
+
+        if page > paginator.num_pages and paginator.num_pages > 0:
+            # 存在しないページ番号の場合は1ページ目にリダイレクト
+            params = request.GET.copy()
+            params['page'] = '1'
+            return redirect(f"{request.path}?{params.urlencode()}")
+
+        # ページ番号が有効な場合は通常の処理を続行
+        request.GET = request.GET.copy()
+        request.GET['page'] = str(page)
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        queryset = super().get_queryset().filter(
+            detail_type__in=['SPECIAL', 'BLOG']  # 特別イベントとブログのみ表示
+        ).select_related('event', 'event__community').order_by('-event__date', '-start_time')
+
+        community_name = self.request.GET.get('community_name', '').strip()
+        if community_name:
+            queryset = queryset.filter(event__community__name__icontains=community_name)
 
         theme = self.request.GET.get('theme', '').strip()
         if theme:

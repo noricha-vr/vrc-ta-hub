@@ -72,9 +72,10 @@ class EventDetailForm(forms.ModelForm):
 
     class Meta:
         model = EventDetail
-        fields = ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url', 'h1',
+        fields = ['detail_type', 'theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url', 'h1',
                   'contents']
         widgets = {
+            'detail_type': forms.RadioSelect(attrs={'class': 'form-check-input'}),
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': '.pdf'}),
@@ -86,6 +87,7 @@ class EventDetailForm(forms.ModelForm):
             'contents': forms.Textarea(attrs={'class': 'form-control', 'rows': '8'}),
         }
         help_texts = {
+            'detail_type': '※ 記事の種類を選択してください。',
             'contents': '※ Markdown形式で記述してください。',
             'h1': '※ 空のときはテーマが使われます。',
             'duration': '単位は分',

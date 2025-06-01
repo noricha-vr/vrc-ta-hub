@@ -36,8 +36,16 @@ class IndexView(TemplateView):
         ).select_related('community').order_by('date', 'start_time')
 
         upcoming_event_details = EventDetail.objects.filter(
-            event__date__gte=today
+            event__date__gte=today,
+            detail_type='LT'  # LTのみ
         ).select_related('event', 'event__community').order_by('event__date', 'start_time')
+        
+        # 特別イベントを取得（イベント終了日の24時まで表示）
+        tomorrow = today + timezone.timedelta(days=1)
+        special_events = EventDetail.objects.filter(
+            detail_type='SPECIAL',
+            event__date__lt=tomorrow  # 明日より前（今日まで）のイベント
+        ).select_related('event', 'event__community').order_by('-event__date', '-start_time')[:10]
 
         # Google Calendar URLを生成
         event_list_view = EventListView()
@@ -76,10 +84,29 @@ class IndexView(TemplateView):
             }
             details_with_urls.append(detail_dict)
 
+        # 特別イベントの情報を整形
+        special_events_data = []
+        for special in special_events:
+            special_dict = {
+                'id': special.id,
+                'event': {
+                    'id': special.event.id,
+                    'date': special.event.date,
+                    'start_time': special.event.start_time,
+                    'end_time': special.event.end_time,
+                    'community': special.event.community,
+                },
+                'h1': special.h1,
+                'theme': special.theme,
+                'meta_description': special.meta_description,
+            }
+            special_events_data.append(special_dict)
+
         # データをキャッシュに保存（1時間）
         cache_data = {
             'upcoming_events': events_with_urls,
             'upcoming_event_details': details_with_urls,
+            'special_events': special_events_data,
         }
         cache.set(cache_key, cache_data, 60 * 60)  # 60分 * 60秒
 
