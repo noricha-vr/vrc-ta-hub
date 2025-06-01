@@ -22,8 +22,8 @@ class EventAdmin(admin.ModelAdmin):
 
 @admin.register(EventDetail)
 class EventDetailAdmin(admin.ModelAdmin):
-    list_display = ('created_at', 'updated_at', 'theme', 'speaker')
-    list_filter = ('theme', 'speaker')
+    list_display = ('created_at', 'updated_at', 'detail_type', 'theme', 'speaker')
+    list_filter = ('detail_type', 'theme', 'speaker')
     readonly_fields = ('event',)
     
     def formfield_for_dbfield(self, db_field, **kwargs):

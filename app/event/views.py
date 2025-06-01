@@ -473,8 +473,10 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
         form.instance.event = self.event
         response = super().form_valid(form)
 
-        # PDFまたは動画がセットされていて、タイトルが空の場合は自動生成
-        if (form.instance.slide_file or form.instance.youtube_url) and not form.instance.meta_description:
+        # LTタイプで、PDFまたは動画がセットされていて、タイトルが空の場合は自動生成
+        if (form.instance.detail_type == 'LT' and 
+            (form.instance.slide_file or form.instance.youtube_url) and 
+            not form.instance.meta_description):
             try:
                 blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
                 form.instance.h1 = blog_output.title
@@ -507,8 +509,10 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         response = super().form_valid(form)
 
-        # PDFまたは動画がセットされていて、タイトルが空の場合は自動生成
-        if (form.instance.slide_file or form.instance.youtube_url) and not form.instance.meta_description:
+        # LTタイプで、PDFまたは動画がセットされていて、タイトルが空の場合は自動生成
+        if (form.instance.detail_type == 'LT' and 
+            (form.instance.slide_file or form.instance.youtube_url) and 
+            not form.instance.meta_description):
             try:
                 blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
                 form.instance.h1 = blog_output.title
@@ -537,6 +541,11 @@ class GenerateBlogView(LoginRequiredMixin, View):
 
             if event_detail.event.community.custom_user != request.user:
                 messages.error(request, "Invalid request. You don't have permission to perform this action.")
+                return redirect('event:detail', pk=event_detail.id)
+
+            # LTタイプのみ記事生成を許可
+            if event_detail.detail_type != 'LT':
+                messages.error(request, "記事の自動生成はLT（発表）タイプのみ利用可能です。")
                 return redirect('event:detail', pk=event_detail.id)
 
             # BlogOutputモデルを受け取る

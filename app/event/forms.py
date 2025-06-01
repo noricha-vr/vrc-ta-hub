@@ -69,6 +69,22 @@ class EventDetailForm(forms.ModelForm):
         min_value=1,
         widget=forms.NumberInput(attrs={'class': 'form-control w-25'})
     )
+    
+    # フィールドのラベルをオーバーライド
+    theme = forms.CharField(
+        label='テーマ',
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    h1 = forms.CharField(
+        label='タイトル(H1)',
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    contents = forms.CharField(
+        label='内容',
+        required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': '8'})
+    )
 
     class Meta:
         model = EventDetail

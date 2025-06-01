@@ -5,7 +5,12 @@
         label {
             margin-bottom: 0.5rem;
         }
-
+        .field-wrapper {
+            transition: opacity 0.3s ease, max-height 0.3s ease;
+        }
+        .field-hidden {
+            display: none;
+        }
     </style>
     <div class="container my-5">
         <div class="row">
@@ -42,7 +47,7 @@
                             <!-- その他のフィールド -->
                             {% for field in form %}
                                 {% if field.name != 'detail_type' %}
-                                    <div class="mb-3">
+                                    <div class="mb-3 field-wrapper" data-field="{{ field.name }}">
                                         {{ field.label_tag }}
                                         {{ field }}
                                         {% if field.help_text %}
@@ -73,4 +78,66 @@
 
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const detailTypeRadios = document.querySelectorAll('input[name="detail_type"]');
+            const fieldWrappers = document.querySelectorAll('.field-wrapper');
+            
+            // フィールドの表示設定
+            const fieldVisibility = {
+                'LT': {
+                    show: ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url', 'h1', 'contents'],
+                    hide: []
+                },
+                'SPECIAL': {
+                    show: ['theme', 'start_time', 'h1', 'contents'],
+                    hide: ['speaker', 'duration', 'slide_url', 'slide_file', 'youtube_url']
+                },
+                'BLOG': {
+                    show: ['theme', 'h1', 'contents'],
+                    hide: ['speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url']
+                }
+            };
+            
+            function updateFieldVisibility(detailType) {
+                const config = fieldVisibility[detailType];
+                if (!config) return;
+                
+                fieldWrappers.forEach(wrapper => {
+                    const fieldName = wrapper.getAttribute('data-field');
+                    if (config.hide.includes(fieldName)) {
+                        wrapper.classList.add('field-hidden');
+                    } else {
+                        wrapper.classList.remove('field-hidden');
+                    }
+                });
+                
+                // 特別な処理
+                if (detailType === 'SPECIAL') {
+                    // 開始時間のラベルを変更
+                    const startTimeLabel = document.querySelector('label[for="id_start_time"]');
+                    if (startTimeLabel) {
+                        startTimeLabel.textContent = 'イベント開始時刻';
+                    }
+                }
+                
+            }
+            
+            // 初期表示の設定
+            const checkedRadio = document.querySelector('input[name="detail_type"]:checked');
+            if (checkedRadio) {
+                updateFieldVisibility(checkedRadio.value);
+            }
+            
+            // ラジオボタンの変更イベント
+            detailTypeRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.checked) {
+                        updateFieldVisibility(this.value);
+                    }
+                });
+            });
+        });
+    </script>
 {% endblock %}
