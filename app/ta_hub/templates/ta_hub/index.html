@@ -323,11 +323,13 @@
                     {% for event_group in special_event_list %}
                         <div class="col-12 col-md-10 offset-md-1">
                             <div class="card shadow h-100" style="position: relative;">
-                                <a href="{% url 'community:detail' event_group.grouper.community.pk %}"
+                                {% with first_special=event_group.list|first %}
+                                <a href="{% url 'event:detail' first_special.pk %}"
                                    class="text-decoration-none position-absolute w-100 h-100"
                                    style="z-index: 1;">
-                                    <span class="visually-hidden">{{ event_group.grouper.community.name }}の詳細を見る</span>
+                                    <span class="visually-hidden">{{ first_special.title }}の詳細を見る</span>
                                 </a>
+                                {% endwith %}
                                 <div class="row g-0">
                                     <div class="col-md-4">
                                         {% if event_group.grouper.community.poster_image %}
@@ -385,6 +387,7 @@
                                         </div>
                                     </div>
                                 </div>
+                                {% endwith %}
                             </div>
                         </div>
                     {% endfor %}
