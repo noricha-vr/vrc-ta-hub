@@ -46,30 +46,67 @@ VRChat技術学術ハブは、VRChat内で開催される技術・学術系イ�
 8. **API (api/v1):**
     - WebサイトのデータはRESTful APIを通して取得できます。
     - APIはJSON形式でデータを提供します。
-    - APIを通して、集会情報、イベント情報、イベント詳細情報などを取得可能です。
-    - APIドキュメントは[こちら](https://vrc-ta-hub.com/api/v1/)からアクセスできます。
+    - 読み取り専用の公開APIと、認証が必要な管理APIの両方を提供しています。
+    - Swagger UIによる対話的なAPIドキュメントを提供しています。
 
 ## API エンドポイント
 
-VRC技術学術ハブは、以下のAPIエンドポイントを提供しています：
+### 公開API（認証不要）
+
+読み取り専用のAPIエンドポイント：
 
 1. **集会情報 API:**
-    - エンドポイント: `http://vrc-ta-hub.com/api/v1/community/`
-    - 説明: 全ての集会の情報を取得します。
+    - エンドポイント: `https://vrc-ta-hub.com/api/v1/community/`
+    - 説明: 承認済み集会の情報を取得します。
 
 2. **イベント情報 API:**
-    - エンドポイント: `http://vrc-ta-hub.com/api/v1/event/`
-    - 説明: 全てのイベントの情報を取得します。
+    - エンドポイント: `https://vrc-ta-hub.com/api/v1/event/`
+    - 説明: 今後開催予定のイベント情報を取得します。
 
 3. **イベント詳細情報 API:**
-    - エンドポイント: `http://vrc-ta-hub.com/api/v1/event_detail/`
-    - 説明: 全てのイベント詳細（ライトニングトークなど）の情報を取得可能です。
+    - エンドポイント: `https://vrc-ta-hub.com/api/v1/event_detail/`
+    - 説明: 公開されているイベント詳細（ライトニングトークなど）の情報を取得します。
 
-各APIエンドポイントは、GET、HEAD、OPTIONSメソッドをサポートしています。レスポンスはJSON形式で返されます。
+### 管理API（認証必要）
 
-[エンドポイント](https://vrc-ta-hub.com/api/v1/)
+イベント詳細の作成・編集・削除が可能なAPIエンドポイント：
 
-[ドキュメント](app/api_v1/README.md)
+- エンドポイント: `https://vrc-ta-hub.com/api/v1/event-details/`
+- 認証方法: APIキー認証（Bearer Token）またはセッション認証
+- 権限: コミュニティオーナーは自分のイベントのみ、管理者は全イベントを操作可能
+
+#### APIキーの取得方法
+
+1. [アカウント設定](https://vrc-ta-hub.com/account/settings/)にログイン
+2. 「API管理」セクションから「APIキー管理」ページへ移動
+3. 新規APIキーを作成（キーは一度しか表示されません）
+
+#### リクエスト例
+
+```bash
+# イベント詳細の作成
+curl -X POST \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": 1,
+    "detail_type": "LT",
+    "speaker": "発表者名",
+    "theme": "発表テーマ",
+    "start_time": "20:00:00",
+    "duration": 30,
+    "generate_from_pdf": true
+  }' \
+  https://vrc-ta-hub.com/api/v1/event-details/
+```
+
+### APIドキュメント
+
+- **Swagger UI**: [https://vrc-ta-hub.com/api/docs/](https://vrc-ta-hub.com/api/docs/)
+- **ReDoc**: [https://vrc-ta-hub.com/api/redoc/](https://vrc-ta-hub.com/api/redoc/)
+- **OpenAPIスキーマ**: [https://vrc-ta-hub.com/api/schema/](https://vrc-ta-hub.com/api/schema/)
+
+Swagger UIでは、APIをブラウザから直接テストすることができます。
 
 ## 使用技術
 
@@ -83,6 +120,7 @@ VRC技術学術ハブは、以下のAPIエンドポイントを提供してい�
 - YouTube Data API
 - django_filters
 - djangorestframework
+- drf-spectacular（OpenAPI/Swagger対応）
 - youtube_transcript_api
 - openai（OpenRouterとの互換クライアント）
 - PyPDF（PDFファイルの解析）
@@ -168,6 +206,11 @@ VRC技術学術ハブは、以下のAPIエンドポイントを提供してい�
    docker compose exec vrc-ta-hub python manage.py test event.tests.test_generate_blog
    ```
 
+   API認証のテストを実行する場合：
+   ```bash
+   docker compose exec vrc-ta-hub python manage.py test api_v1.tests.test_event_detail_api
+   ```
+
 ## データモデル
 
 1. **集会モデル:**
@@ -183,6 +226,12 @@ VRC技術学術ハブは、以下のAPIエンドポイントを提供してい�
     - 各イベントのライトニングトークの詳細情報を管理します。
     - フィールド：イベント（外部キー）、開始時刻、発表時間、発表者、テーマ、資料、YouTube動画のURL、自動生成コンテンツなど
     - イベントモデルとの1対多の関係を持ちます。
+    - タイプ（LT、特別企画、ブログ）による分類をサポートします。
+
+4. **APIキーモデル:**
+    - API認証用のキーを管理します。
+    - ユーザーごとに複数のAPIキーを作成可能です。
+    - 最終使用日時の追跡機能を持ちます。
 
 ## 実装の特徴
 
