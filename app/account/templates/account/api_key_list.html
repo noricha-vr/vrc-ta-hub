@@ -68,7 +68,12 @@ curl -H "X-API-Key: YOUR_API_KEY" https://vrc-ta-hub.com/api/v1/event-details/</
                         </div>
                         
                         <!-- APIキー一覧 -->
-                        <h5 class="mb-3">APIキー一覧</h5>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="mb-0">APIキー一覧</h5>
+                            <a href="/api/docs/" target="_blank" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-book"></i> API仕様書（Swagger）
+                            </a>
+                        </div>
                         {% if api_keys %}
                             <div class="table-responsive">
                                 <table class="table table-hover">
