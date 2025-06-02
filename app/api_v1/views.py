@@ -12,6 +12,8 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 
 from community.models import Community
 from event.models import Event, EventDetail
@@ -38,6 +40,18 @@ class CommunityFilter(filters.FilterSet):
         return queryset.filter(weekdays__contains=value)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="集会一覧取得",
+        description="承認済みでアクティブな集会の一覧を取得します。",
+        tags=["Community"]
+    ),
+    retrieve=extend_schema(
+        summary="集会詳細取得",
+        description="指定IDの集会詳細情報を取得します。",
+        tags=["Community"]
+    )
+)
 @method_decorator(csrf_exempt, name='dispatch')
 class CommunityViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Community.objects.filter(
@@ -62,6 +76,18 @@ class EventFilter(filters.FilterSet):
         fields = ['name', 'weekday', 'start_date', 'end_date']
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="イベント一覧取得",
+        description="今後開催予定のイベント一覧を取得します。",
+        tags=["Event"]
+    ),
+    retrieve=extend_schema(
+        summary="イベント詳細取得",
+        description="指定IDのイベント詳細情報を取得します。",
+        tags=["Event"]
+    )
+)
 class EventViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Event.objects.filter(
         date__gte=timezone.now().date(),
@@ -85,6 +111,18 @@ class EventDetailFilter(filters.FilterSet):
         fields = ['theme', 'speaker', 'start_date', 'end_date', 'start_time']
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="イベント詳細一覧取得（公開）",
+        description="承認済み集会のイベント詳細一覧を取得します。",
+        tags=["EventDetail"]
+    ),
+    retrieve=extend_schema(
+        summary="イベント詳細取得（公開）",
+        description="指定IDのイベント詳細情報を取得します。",
+        tags=["EventDetail"]
+    )
+)
 class EventDetailViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
     queryset = EventDetail.objects.filter(
         event__community__status='approved'
@@ -95,6 +133,68 @@ class EventDetailViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
 
 
+@extend_schema_view(
+    list=extend_schema(
+        summary="イベント詳細一覧取得（認証必須）",
+        description="認証ユーザーのイベント詳細一覧を取得します。コミュニティオーナーは自分のイベントのみ、Superuserは全イベントを取得できます。",
+        tags=["EventDetail API"],
+        parameters=[
+            OpenApiParameter(
+                name="Authorization",
+                description="Bearer {APIキー} 形式で指定",
+                required=True,
+                type=str,
+                location=OpenApiParameter.HEADER,
+            ),
+        ],
+    ),
+    create=extend_schema(
+        summary="イベント詳細作成",
+        description="新しいイベント詳細を作成します。generate_from_pdfをtrueに設定し、slide_fileにPDFをアップロードすると内容が自動生成されます。",
+        tags=["EventDetail API"],
+        examples=[
+            OpenApiExample(
+                "LT作成例",
+                value={
+                    "event": 1,
+                    "detail_type": "LT",
+                    "start_time": "20:00:00",
+                    "duration": 30,
+                    "speaker": "発表者名",
+                    "theme": "発表テーマ",
+                    "h1": "タイトル",
+                    "contents": "内容",
+                    "generate_from_pdf": False
+                },
+            ),
+        ],
+    ),
+    retrieve=extend_schema(
+        summary="イベント詳細取得",
+        description="指定IDのイベント詳細を取得します。",
+        tags=["EventDetail API"]
+    ),
+    update=extend_schema(
+        summary="イベント詳細更新",
+        description="イベント詳細を更新します。",
+        tags=["EventDetail API"]
+    ),
+    partial_update=extend_schema(
+        summary="イベント詳細部分更新",
+        description="イベント詳細を部分的に更新します。",
+        tags=["EventDetail API"]
+    ),
+    destroy=extend_schema(
+        summary="イベント詳細削除",
+        description="イベント詳細を削除します。",
+        tags=["EventDetail API"]
+    ),
+    my_events=extend_schema(
+        summary="自分のイベント詳細一覧",
+        description="認証ユーザーのコミュニティに紐づくイベント詳細一覧を取得します。",
+        tags=["EventDetail API"]
+    )
+)
 class EventDetailAPIViewSet(viewsets.ModelViewSet):
     """
     EventDetailのCRUD API
