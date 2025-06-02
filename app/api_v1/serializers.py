@@ -40,3 +40,51 @@ class EventDetailSerializer(serializers.ModelSerializer):
             'id', 'event', 'start_time', 'duration', 'youtube_url', 'slide_url',
             'speaker', 'theme'
         ]
+
+
+class EventDetailWriteSerializer(serializers.ModelSerializer):
+    """EventDetail作成・更新用シリアライザー"""
+    generate_from_pdf = serializers.BooleanField(write_only=True, required=False, default=False)
+    
+    class Meta:
+        model = EventDetail
+        fields = [
+            'id', 'event', 'detail_type', 'start_time', 'duration', 'youtube_url', 
+            'slide_url', 'slide_file', 'speaker', 'theme', 'h1', 'contents', 
+            'meta_description', 'generate_from_pdf'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+        
+    def validate_event(self, value):
+        """イベントの所有者確認"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            # Superuserは全てのイベントにアクセス可能
+            if request.user.is_superuser:
+                return value
+            # 一般ユーザーは自分のコミュニティのイベントのみ
+            if value.community.custom_user != request.user:
+                raise serializers.ValidationError("このイベントへの権限がありません。")
+        return value
+    
+    def create(self, validated_data):
+        generate_from_pdf = validated_data.pop('generate_from_pdf', False)
+        instance = super().create(validated_data)
+        
+        # PDF自動生成が有効で、PDFファイルがある場合
+        if generate_from_pdf and instance.slide_file:
+            # ここでPDF処理タスクをトリガー（後で実装）
+            pass
+            
+        return instance
+    
+    def update(self, instance, validated_data):
+        generate_from_pdf = validated_data.pop('generate_from_pdf', False)
+        instance = super().update(instance, validated_data)
+        
+        # PDF自動生成が有効で、PDFファイルがある場合
+        if generate_from_pdf and instance.slide_file:
+            # ここでPDF処理タスクをトリガー（後で実装）
+            pass
+            
+        return instance

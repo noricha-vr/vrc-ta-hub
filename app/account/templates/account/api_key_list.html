@@ -1,0 +1,140 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block main %}
+    <div class="container my-4">
+        <div class="row">
+            <div class="col-md-10 offset-md-1">
+                <div class="card">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0"><i class="bi bi-code-square me-2"></i>API管理</h4>
+                        <a href="{% url 'account:settings' %}" class="btn btn-sm btn-light">
+                            <i class="bi bi-arrow-left"></i> 設定に戻る
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        {% include 'ta_hub/messages.html' %}
+                        
+                        <!-- API使用方法 -->
+                        <div class="accordion mb-4" id="apiDocAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingApiDoc">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#collapseApiDoc" aria-expanded="false"
+                                            aria-controls="collapseApiDoc">
+                                        <i class="bi bi-book me-2"></i>API使用方法
+                                    </button>
+                                </h2>
+                                <div id="collapseApiDoc" class="accordion-collapse collapse" 
+                                     aria-labelledby="headingApiDoc" data-bs-parent="#apiDocAccordion">
+                                    <div class="accordion-body">
+                                        <h6>認証方法</h6>
+                                        <p>以下のいずれかの方法でAPIキーを送信してください：</p>
+                                        <pre class="bg-light p-2"><code># Authorizationヘッダー
+curl -H "Authorization: Bearer YOUR_API_KEY" https://vrc-ta-hub.com/api/v1/event-details/
+
+# X-API-Keyヘッダー
+curl -H "X-API-Key: YOUR_API_KEY" https://vrc-ta-hub.com/api/v1/event-details/</code></pre>
+                                        
+                                        <h6 class="mt-3">エンドポイント</h6>
+                                        <ul>
+                                            <li><code>GET /api/v1/event-details/</code> - イベント詳細一覧</li>
+                                            <li><code>POST /api/v1/event-details/</code> - イベント詳細作成</li>
+                                            <li><code>GET /api/v1/event-details/{id}/</code> - イベント詳細取得</li>
+                                            <li><code>PUT /api/v1/event-details/{id}/</code> - イベント詳細更新</li>
+                                            <li><code>DELETE /api/v1/event-details/{id}/</code> - イベント詳細削除</li>
+                                            <li><code>GET /api/v1/event-details/my_events/</code> - 自分のイベント一覧</li>
+                                        </ul>
+                                        
+                                        <h6 class="mt-3">リクエスト例</h6>
+                                        <pre class="bg-light p-2"><code>curl -X POST \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "event": 1,
+    "detail_type": "LT",
+    "speaker": "発表者名",
+    "theme": "発表テーマ",
+    "start_time": "20:00:00",
+    "duration": 30,
+    "generate_from_pdf": true
+  }' \
+  https://vrc-ta-hub.com/api/v1/event-details/</code></pre>
+                                        
+                                        <h6 class="mt-3">PDFからの自動生成</h6>
+                                        <p><code>generate_from_pdf</code>パラメーターを<code>true</code>に設定し、<code>slide_file</code>にPDFファイルをアップロードすると、内容が自動生成されます。</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- APIキー一覧 -->
+                        <h5 class="mb-3">APIキー一覧</h5>
+                        {% if api_keys %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>名前</th>
+                                            <th>キー（一部）</th>
+                                            <th>作成日時</th>
+                                            <th>最終使用</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for key in api_keys %}
+                                            <tr>
+                                                <td>{{ key.name|default:"名前なし" }}</td>
+                                                <td>
+                                                    <code>{{ key.key|slice:":8" }}...{{ key.key|slice:"-4:" }}</code>
+                                                </td>
+                                                <td>{{ key.created_at|date:"Y/m/d H:i" }}</td>
+                                                <td>{{ key.last_used|date:"Y/m/d H:i"|default:"未使用" }}</td>
+                                                <td>
+                                                    <form method="post" action="{% url 'account:api_key_delete' key.pk %}" style="display: inline;">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-sm btn-danger" 
+                                                                onclick="return confirm('このAPIキーを無効化しますか？この操作は取り消せません。');">
+                                                            <i class="bi bi-trash"></i> 無効化
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i> APIキーはまだ作成されていません。
+                            </div>
+                        {% endif %}
+                        
+                        <hr>
+                        
+                        <!-- 新規APIキー作成 -->
+                        <h5 class="mb-3">新規APIキー作成</h5>
+                        <form method="post" action="{% url 'account:api_key_create' %}" class="mb-3">
+                            {% csrf_token %}
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="keyName" class="form-label">キー名（オプション）</label>
+                                    <input type="text" class="form-control" id="keyName" name="name" 
+                                           placeholder="例: ブログ自動投稿用" maxlength="100">
+                                    <div class="form-text">わかりやすい名前を付けておくと管理しやすくなります</div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-plus-circle"></i> APIキーを作成
+                            </button>
+                        </form>
+                        
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> <strong>重要：</strong>APIキーは作成時に一度だけ表示されます。必ず安全な場所に保管してください。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

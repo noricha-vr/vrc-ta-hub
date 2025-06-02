@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.forms import UserChangeForm, UserCreationForm
 
-from account.models import CustomUser
+from account.models import CustomUser, APIKey
 
 
 class CustomUserChangeForm(UserChangeForm):
@@ -39,6 +39,20 @@ class CustomUserAdmin(UserAdmin):
             'classes': ('wide',),
             'fields': ('user_name', 'email', 'password1', 'password2'),
         }),
+    )
+
+
+@admin.register(APIKey)
+class APIKeyAdmin(admin.ModelAdmin):
+    list_display = ('user', 'name', 'created_at', 'last_used', 'is_active')
+    list_filter = ('is_active', 'created_at', 'last_used')
+    search_fields = ('user__user_name', 'name', 'key')
+    readonly_fields = ('key', 'created_at', 'last_used')
+    
+    fieldsets = (
+        (None, {'fields': ('user', 'name', 'key')}),
+        ('ステータス', {'fields': ('is_active',)}),
+        ('履歴', {'fields': ('created_at', 'last_used')}),
     )
 
 

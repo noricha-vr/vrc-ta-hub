@@ -108,6 +108,29 @@
                                 </div>
                             {% endif %}
 
+                            <!-- API管理 -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingAPI">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#collapseAPI" aria-expanded="false"
+                                            aria-controls="collapseAPI">
+                                        <i class="bi bi-code-square me-2"></i>API管理
+                                    </button>
+                                </h2>
+                                <div id="collapseAPI" class="accordion-collapse collapse"
+                                     aria-labelledby="headingAPI" data-bs-parent="#settingsAccordion">
+                                    <div class="accordion-body">
+                                        <ul class="list-group list-group-flush">
+                                            <li class="list-group-item">
+                                                <a href="{% url 'account:api_key_list' %}" class="text-decoration-none">
+                                                    <i class="bi bi-key-fill me-2"></i>APIキー管理
+                                                </a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- アカウント設定 -->
                             <div class="accordion-item">
                                 <h2 class="accordion-header" id="headingAccount">

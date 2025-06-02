@@ -2,6 +2,8 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+import secrets
+import string
 
 
 class CustomUserManager(BaseUserManager):
@@ -91,3 +93,30 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def clean(self):
         super().clean()
         self.email = self.__class__.objects.normalize_email(self.email)
+
+
+class APIKey(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='api_keys')
+    key = models.CharField('APIキー', max_length=64, unique=True)
+    name = models.CharField('キー名', max_length=100, blank=True)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    last_used = models.DateTimeField('最終使用日時', blank=True, null=True)
+    is_active = models.BooleanField('有効', default=True)
+    
+    class Meta:
+        verbose_name = 'APIキー'
+        verbose_name_plural = 'APIキー'
+        
+    def __str__(self):
+        return f"{self.user.user_name} - {self.name or 'API Key'}"
+    
+    @classmethod
+    def generate_key(cls):
+        """ランダムなAPIキーを生成"""
+        alphabet = string.ascii_letters + string.digits
+        return ''.join(secrets.choice(alphabet) for _ in range(64))
+    
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = self.generate_key()
+        super().save(*args, **kwargs)

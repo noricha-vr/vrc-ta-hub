@@ -5,12 +5,18 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets
+from rest_framework import viewsets, status
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 
 from community.models import Community
 from event.models import Event, EventDetail
-from .serializers import CommunitySerializer, EventSerializer, EventDetailSerializer
+from .authentication import APIKeyAuthentication
+from .serializers import CommunitySerializer, EventSerializer, EventDetailSerializer, EventDetailWriteSerializer
 
 
 class CORSMixin:
@@ -87,3 +93,64 @@ class EventDetailViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
     filterset_class = EventDetailFilter
     filter_backends = [DjangoFilterBackend]
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
+
+
+class EventDetailAPIViewSet(viewsets.ModelViewSet):
+    """
+    EventDetailのCRUD API
+    認証: APIキーまたはセッション認証
+    権限: コミュニティオーナーまたはSuperuser
+    """
+    authentication_classes = [APIKeyAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    throttle_classes = [UserRateThrottle]
+    
+    def get_serializer_class(self):
+        if self.action in ['list', 'retrieve']:
+            return EventDetailSerializer
+        return EventDetailWriteSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Superuserは全て表示
+        if user.is_superuser:
+            return EventDetail.objects.all().select_related('event', 'event__community')
+        
+        # 一般ユーザーは自分のコミュニティのみ
+        return EventDetail.objects.filter(
+            event__community__custom_user=user
+        ).select_related('event', 'event__community')
+    
+    def perform_create(self, serializer):
+        serializer.save()
+        
+    def perform_update(self, serializer):
+        serializer.save()
+        
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        
+        # 権限チェック
+        if not request.user.is_superuser:
+            if instance.event.community.custom_user != request.user:
+                return Response(
+                    {"エラー": "このイベント詳細を削除する権限がありません。"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    @action(detail=False, methods=['get'])
+    def my_events(self, request):
+        """自分のコミュニティのイベント詳細一覧"""
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

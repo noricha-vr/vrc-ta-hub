@@ -3,17 +3,22 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib.auth.views import PasswordChangeView
 from django.core.mail import send_mail
+from django.http import JsonResponse
+from django.shortcuts import redirect
 from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
 from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
-from django.views.generic import CreateView, TemplateView
+from django.views import View
+from django.views.generic import CreateView, TemplateView, ListView
 from django.views.generic import UpdateView
 from django.conf import settings
+from django.utils import timezone
 
 from community.models import Community
 from .forms import CustomUserChangeForm
 from .forms import CustomUserCreationForm, BootstrapAuthenticationForm, BootstrapPasswordChangeForm
+from .models import APIKey
 
 
 class CustomLoginView(LoginView):
@@ -133,6 +138,39 @@ class SettingsView(LoginRequiredMixin, TemplateView):
             message = 'この集会は現在承認待ちです。既に公開されている技術・学術系集会に承認されると公開されるようになります。'
             messages.warning(self.request, message)
         return context
+
+
+class APIKeyListView(LoginRequiredMixin, ListView):
+    model = APIKey
+    template_name = 'account/api_key_list.html'
+    context_object_name = 'api_keys'
+    
+    def get_queryset(self):
+        return self.request.user.api_keys.filter(is_active=True).order_by('-created_at')
+
+
+class APIKeyCreateView(LoginRequiredMixin, View):
+    def post(self, request):
+        name = request.POST.get('name', '')
+        api_key = APIKey.objects.create(
+            user=request.user,
+            name=name
+        )
+        messages.success(request, f'APIキー「{api_key.name or "APIキー"}」を作成しました。キーは一度しか表示されませんので必ず保管してください。')
+        messages.warning(request, f'APIキー: {api_key.key}')
+        return redirect('account:api_key_list')
+
+
+class APIKeyDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        try:
+            api_key = APIKey.objects.get(pk=pk, user=request.user)
+            api_key.is_active = False
+            api_key.save()
+            messages.success(request, f'APIキー「{api_key.name or "APIキー"}」を無効化しました。')
+        except APIKey.DoesNotExist:
+            messages.error(request, 'APIキーが見つかりません。')
+        return redirect('account:api_key_list')
 
 # for user in CustomUser.objects.all():
 #     password = secrets.token_hex(12)  # ランダムな16文字のパスワードを生成
