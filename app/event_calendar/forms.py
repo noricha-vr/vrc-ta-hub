@@ -13,7 +13,7 @@ class CalendarEntryForm(forms.ModelForm):
 
     class Meta:
         model = CalendarEntry
-        fields = ['join_condition', 'event_detail', 'how_to_join', 'note', 'is_overseas_user', 'event_genres']
+        fields = ['join_condition', 'event_detail', 'how_to_join', 'note', 'is_overseas_user', 'event_genres', 'x_post_text']
         widgets = {
             'join_condition': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'event_detail': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
@@ -21,6 +21,7 @@ class CalendarEntryForm(forms.ModelForm):
             'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'is_overseas_user': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'event_genres': forms.CheckboxSelectMultiple(attrs={'class': 'form-check-input'}),
+            'x_post_text': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
         }
 
     def __init__(self, *args, **kwargs):

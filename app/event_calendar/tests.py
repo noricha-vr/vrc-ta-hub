@@ -133,3 +133,34 @@ class CreateCalendarTest(TestCase):
         )
         display_genres = calendar_entry.get_event_genres_display()
         self.assertEqual(display_genres, ["アバター試着会", "VR飲み会"])
+
+    def test_overseas_user_setting(self):
+        calendar_entry = CalendarEntry.get_or_create_from_event(self.event)
+        calendar_entry.join_condition = "誰でも参加可能"
+        calendar_entry.event_detail = "This is a test event for overseas users"
+        calendar_entry.how_to_join = "Search for Test Event in VRChat"
+        calendar_entry.note = "International event"
+        calendar_entry.is_overseas_user = True  # 海外ユーザー向けを有効化
+        calendar_entry.event_genres = ["REGULAR_EVENT"]
+        calendar_entry.x_post_text = "International event announcement"
+        calendar_entry.save()
+
+        # キャッシュをクリア
+        cache.clear()
+        url = create_calendar_entry_url(self.event)
+
+        # 海外ユーザー向けパラメータが含まれていることを確認
+        self.assertIn('entry.686419094=dlut', url)
+        
+        print("Generated URL (overseas):", url)
+        
+        # 別のイベントで海外ユーザー向けが無効の場合
+        calendar_entry.is_overseas_user = False
+        calendar_entry.save()
+        
+        # キャッシュをクリア
+        cache.clear()
+        url_non_overseas = create_calendar_entry_url(self.event)
+        
+        # 海外ユーザー向けパラメータが含まれていないことを確認
+        self.assertNotIn('entry.686419094=', url_non_overseas)
