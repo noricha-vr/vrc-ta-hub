@@ -77,11 +77,9 @@ def create_calendar_entry_url(event: 'Event') -> str:
         'entry.1957263813': calendar_entry.x_post_text,
     }
 
-    # 海外ユーザー向け告知は 'dlut' という値で送信されるが、
-    # ユーザー設定で削除されたため、ここでは何も設定しない。
-    # 必要であれば、以下のコメントを解除し、calendar_entryにis_overseas_userフィールドを追加
-    # if calendar_entry.is_overseas_user:
-    #     form_data['entry.686419094'] = 'dlut' # 'dlut'はダミー値
+    # 海外ユーザー向け告知
+    if calendar_entry.is_overseas_user:
+        form_data['entry.686419094'] = 'dlut'
 
     # プラットフォームの処理 (ラジオボタン)
     platform_field = 'entry.412548841'
