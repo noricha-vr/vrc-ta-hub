@@ -38,6 +38,7 @@ class CalendarEntry(models.Model):
     note = models.TextField('備考', blank=True, null=True)
     is_overseas_user = models.BooleanField('海外ユーザー向け', default=False)
     event_genres = models.JSONField('イベントジャンル', blank=True, default=list)
+    x_post_text = models.TextField('X告知文', blank=True, default='')
 
     class Meta:
         db_table = 'calendar_entry'
@@ -64,7 +65,8 @@ class CalendarEntry(models.Model):
                 'how_to_join': '',
                 'note': '',
                 'is_overseas_user': False,
-                'event_genres': []
+                'event_genres': [],
+                'x_post_text': ''
             }
         )
         return calendar_entry

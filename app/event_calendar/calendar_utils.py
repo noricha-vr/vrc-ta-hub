@@ -56,36 +56,48 @@ def create_calendar_entry_url(event: 'Event') -> str:
     end_datetime = start_datetime + timedelta(minutes=event.duration)
 
     form_data: Dict[str, Any] = {
+        'usp': 'pp_url',
         'entry.1319903296': community.name,
-        'entry.1310854397_hour': start_datetime.strftime('%H'),
-        'entry.1310854397_minute': start_datetime.strftime('%M'),
-        'entry.2042374434_hour': end_datetime.strftime('%H'),
-        'entry.2042374434_minute': end_datetime.strftime('%M'),
         'entry.1310854397_year': start_datetime.strftime('%Y'),
         'entry.1310854397_month': start_datetime.strftime('%m'),
         'entry.1310854397_day': start_datetime.strftime('%d'),
+        'entry.1310854397_hour': start_datetime.strftime('%H'),
+        'entry.1310854397_minute': start_datetime.strftime('%M'),
         'entry.2042374434_year': end_datetime.strftime('%Y'),
         'entry.2042374434_month': end_datetime.strftime('%m'),
         'entry.2042374434_day': end_datetime.strftime('%d'),
-        'entry.412548841': PLATFORM_MAP.get(community.platform, community.platform),
-        'entry.2088975420': calendar_entry.join_condition,
-        'entry.2133450237': community.organizers,
-        'entry.1586528439': calendar_entry.how_to_join,
-        'entry.1500825998': calendar_entry.note if calendar_entry.note else '',
-        'entry.1644563241': calendar_entry.event_detail,
+        'entry.2042374434_hour': end_datetime.strftime('%H'),
+        'entry.2042374434_minute': end_datetime.strftime('%M'),
         'entry.1704463647': 'イベントを登録する',
+        'entry.1354615990': community.organizers,
+        'entry.402615171': calendar_entry.event_detail,
+        'entry.1470688692': calendar_entry.join_condition,
+        'entry.43975396': calendar_entry.how_to_join,
+        'entry.131997623': calendar_entry.note if calendar_entry.note else '',
+        'entry.1957263813': calendar_entry.x_post_text,
     }
 
-    # 海外ユーザー向け告知はしない
+    # 海外ユーザー向け告知は 'dlut' という値で送信されるが、
+    # ユーザー設定で削除されたため、ここでは何も設定しない。
+    # 必要であれば、以下のコメントを解除し、calendar_entryにis_overseas_userフィールドを追加
+    # if calendar_entry.is_overseas_user:
+    #     form_data['entry.686419094'] = 'dlut' # 'dlut'はダミー値
 
-    # イベントジャンルの処理
+    # プラットフォームの処理 (ラジオボタン)
+    platform_field = 'entry.412548841'
+    platform_value = PLATFORM_MAP.get(community.platform, community.platform)
+    if platform_value:
+        form_data[f'{platform_field}_sentinel'] = ''
+        form_data[platform_field] = platform_value
+
+    # イベントジャンルの処理 (チェックボックス)
     event_type_field = 'entry.1923252134'
-    for genre in calendar_entry.event_genres:
-        mapped_genre = EVENT_GENRE_MAP.get(genre, genre)
-        if event_type_field in form_data:
+    if calendar_entry.event_genres:
+        form_data[f'{event_type_field}_sentinel'] = ''
+        form_data[event_type_field] = []
+        for genre in calendar_entry.event_genres:
+            mapped_genre = EVENT_GENRE_MAP.get(genre, genre)
             form_data[event_type_field].append(mapped_genre)
-        else:
-            form_data[event_type_field] = [mapped_genre]
 
     # URLエンコーディング（複数値のパラメータに対応）
     # Googleフォームのviewformエンドポイントではurlencodeを使用
@@ -102,7 +114,7 @@ def create_calendar_entry_url(event: 'Event') -> str:
     url_with_params = f"{FORM_URL}?{urlencode(params)}"
     
     # ページ履歴を追加して複数ページのフォームに対応
-    url_with_params += "&pageHistory=0,1"
+    url_with_params += "&pageHistory=0,1,2"
     
     # キャッシュに保存（1時間）
     cache.set(cache_key, url_with_params, 60 * 60)
