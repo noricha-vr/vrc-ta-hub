@@ -1,7 +1,7 @@
 # app/event_calendar/calendar_utils.py
 
 from datetime import datetime, timedelta
-from urllib.parse import urlencode, quote
+from urllib.parse import urlencode, quote, quote_plus
 from django.utils import timezone
 from django.urls import reverse
 from django.core.cache import cache
@@ -11,7 +11,7 @@ from typing import Dict, Any
 
 from .models import CalendarEntry
 
-FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSevo0ax6ALIzllRCT7up-3KZkohD3VfG28rcOy8XMqDwRWevQ/formResponse'
+FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfJlabb7niRTf4rX2Q0wRc3ua9MuOEIKveo7NirR6zuOo6D9A/viewform'
 
 EVENT_GENRE_MAP = {
     'OTHER_MEETUP': 'その他交流会',
@@ -72,9 +72,10 @@ def create_calendar_entry_url(event: 'Event') -> str:
         'entry.701384676': calendar_entry.event_detail,
     }
 
-    # 海外ユーザー向け告知の処理 (修正後)
-    if calendar_entry.is_overseas_user:
-        form_data['entry.1607289186'] = '希望する' # チェックボックスの値に合わせる
+    # 海外ユーザー向け告知の処理
+    # 注: 新しいフォームでは海外ユーザー向けフィールドが存在しない可能性があるため、一時的にコメントアウト
+    # if calendar_entry.is_overseas_user:
+    #     form_data['entry.1607289186'] = '希望する'
 
     # イベントジャンルの処理
     event_type_field = 'entry.1606730788'
@@ -86,18 +87,18 @@ def create_calendar_entry_url(event: 'Event') -> str:
             form_data[event_type_field] = [mapped_genre]
 
     # URLエンコーディング（複数値のパラメータに対応）
-    url_params = []
+    # Googleフォームのviewformエンドポイントではurlencodeを使用
+    params = []
     for key, value in form_data.items():
         if isinstance(value, list):
             # リストの場合、各値を個別のパラメータとして追加
             for v in value:
-                # quoteを使用して値を適切にエンコード
-                url_params.append(f"{key}={quote(str(v))}")
+                params.append((key, str(v)))
         else:
-            # quoteを使用して値を適切にエンコード
-            url_params.append(f"{key}={quote(str(value))}")
-
-    url_with_params = f"{FORM_URL}?{'&'.join(url_params)}"
+            params.append((key, str(value)))
+    
+    # urlencodeを使用してパラメータをエンコード
+    url_with_params = f"{FORM_URL}?{urlencode(params)}"
     
     # キャッシュに保存（1時間）
     cache.set(cache_key, url_with_params, 60 * 60)
