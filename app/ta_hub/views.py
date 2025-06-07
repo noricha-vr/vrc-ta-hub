@@ -88,6 +88,7 @@ class IndexView(TemplateView):
         for special in special_events:
             special_dict = {
                 'id': special.id,
+                'pk': special.pk,  # テンプレートでpkを使用しているため追加
                 'event': {
                     'id': special.event.id,
                     'date': special.event.date,
@@ -98,6 +99,7 @@ class IndexView(TemplateView):
                 'h1': special.h1,
                 'theme': special.theme,
                 'meta_description': special.meta_description,
+                'contents': special.contents,  # 記事本文を追加
             }
             special_events_data.append(special_dict)
 

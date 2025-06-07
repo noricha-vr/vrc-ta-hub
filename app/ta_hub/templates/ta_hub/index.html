@@ -377,8 +377,6 @@
                                                     {% with first_special=event_group.list|first %}
                                                         {% if first_special.contents %}
                                                             {{ first_special.contents|striptags|truncatechars:200 }}
-                                                        {% else %}
-                                                            {{ event_group.grouper.community.description|truncatechars:200 }}
                                                         {% endif %}
                                                     {% endwith %}
                                                 </p>
@@ -477,8 +475,6 @@
                                                     {% with first_special=event_group.list|first %}
                                                         {% if first_special.contents %}
                                                             {{ first_special.contents|striptags|truncatechars:200 }}
-                                                        {% else %}
-                                                            {{ event_group.grouper.community.description|truncatechars:200 }}
                                                         {% endif %}
                                                     {% endwith %}
                                                 </p>

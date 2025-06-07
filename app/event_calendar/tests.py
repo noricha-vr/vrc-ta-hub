@@ -1,10 +1,10 @@
 import datetime
 from urllib.parse import quote_plus
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
-from django.core.cache import cache
 
 from account.models import CustomUser
 from community.models import Community
@@ -74,7 +74,7 @@ class CreateCalendarTest(TestCase):
         self.assertIn(f'entry.2042374434_day={self.end_date.day:02d}', url)
         self.assertIn('entry.2042374434_hour=22', url)
         self.assertIn('entry.2042374434_minute=00', url)
-        
+
         # プラットフォームのテスト
         self.assertIn('entry.412548841_sentinel=', url)
         self.assertIn(f'entry.412548841={quote_plus(PLATFORM_MAP["All"])}', url)
@@ -92,7 +92,7 @@ class CreateCalendarTest(TestCase):
         self.assertIn(f'entry.1923252134={quote_plus("その他交流会")}', url)
         self.assertIn(f'entry.1923252134={quote_plus("VR飲み会")}', url)
 
-        self.assertNotIn('entry.686419094=', url) # 海外ユーザー告知はオフ
+        self.assertNotIn('entry.686419094=', url)
         self.assertIn(f'entry.1704463647={quote_plus("イベントを登録する")}', url)
         self.assertIn('&pageHistory=0,1,2', url)
 
@@ -151,16 +151,16 @@ class CreateCalendarTest(TestCase):
 
         # 海外ユーザー向けパラメータが含まれていることを確認
         self.assertIn('entry.686419094=dlut', url)
-        
+
         print("Generated URL (overseas):", url)
-        
+
         # 別のイベントで海外ユーザー向けが無効の場合
         calendar_entry.is_overseas_user = False
         calendar_entry.save()
-        
+
         # キャッシュをクリア
         cache.clear()
         url_non_overseas = create_calendar_entry_url(self.event)
-        
+
         # 海外ユーザー向けパラメータが含まれていないことを確認
         self.assertNotIn('entry.686419094=', url_non_overseas)
