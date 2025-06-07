@@ -27,13 +27,12 @@ EVENT_GENRE_MAP = {
 }
 
 PLATFORM_MAP = {
-    'PC': 'PCオンリー',
-    'All': 'PC/Android両対応（Android対応）',
-    'Android': 'Android オンリー',
+    'PC': 'PC',
+    'All': 'PC/android',
+    'Android': 'android only',
 }
 
 
-@lru_cache(maxsize=128)
 def create_calendar_entry_url(event: 'Event') -> str:
     """
     EventオブジェクトからGoogleフォームのURLを生成する
@@ -45,40 +44,42 @@ def create_calendar_entry_url(event: 'Event') -> str:
     Returns:
         str: 生成されたGoogleフォームのURL
     """
-    cache_key = f'calendar_entry_url_{event.id}'
+    calendar_entry = CalendarEntry.get_or_create_from_event(event)
+
+    cache_key = f'calendar_entry_url_{event.id}_{calendar_entry.is_overseas_user}'
     cached_url = cache.get(cache_key)
     if cached_url:
         return cached_url
 
-    calendar_entry = CalendarEntry.get_or_create_from_event(event)
     community = event.community
     start_datetime = datetime.combine(event.date, event.start_time)
     end_datetime = start_datetime + timedelta(minutes=event.duration)
 
     form_data: Dict[str, Any] = {
-        'entry.426573786': community.name,
-        'entry.1010494053_hour': start_datetime.strftime('%H'),
-        'entry.1010494053_minute': start_datetime.strftime('%M'),
-        'entry.203043324_hour': end_datetime.strftime('%H'),
-        'entry.203043324_minute': end_datetime.strftime('%M'),
-        'entry.450203369_year': start_datetime.strftime('%Y'),
-        'entry.450203369_month': start_datetime.strftime('%m'),
-        'entry.450203369_day': start_datetime.strftime('%d'),
-        'entry.1261006949': PLATFORM_MAP.get(community.platform, community.platform),
-        'entry.2064647146': calendar_entry.join_condition,
-        'entry.1540217995': community.organizers,
-        'entry.1285455202': calendar_entry.how_to_join,
-        'entry.586354013': calendar_entry.note if calendar_entry.note else '',
-        'entry.701384676': calendar_entry.event_detail,
+        'entry.1319903296': community.name,
+        'entry.1310854397_hour': start_datetime.strftime('%H'),
+        'entry.1310854397_minute': start_datetime.strftime('%M'),
+        'entry.2042374434_hour': end_datetime.strftime('%H'),
+        'entry.2042374434_minute': end_datetime.strftime('%M'),
+        'entry.1310854397_year': start_datetime.strftime('%Y'),
+        'entry.1310854397_month': start_datetime.strftime('%m'),
+        'entry.1310854397_day': start_datetime.strftime('%d'),
+        'entry.2042374434_year': end_datetime.strftime('%Y'),
+        'entry.2042374434_month': end_datetime.strftime('%m'),
+        'entry.2042374434_day': end_datetime.strftime('%d'),
+        'entry.412548841': PLATFORM_MAP.get(community.platform, community.platform),
+        'entry.2088975420': calendar_entry.join_condition,
+        'entry.2133450237': community.organizers,
+        'entry.1586528439': calendar_entry.how_to_join,
+        'entry.1500825998': calendar_entry.note if calendar_entry.note else '',
+        'entry.1644563241': calendar_entry.event_detail,
+        'entry.1704463647': 'イベントを登録する',
     }
 
-    # 海外ユーザー向け告知の処理
-    # 注: 新しいフォームでは海外ユーザー向けフィールドが存在しない可能性があるため、一時的にコメントアウト
-    # if calendar_entry.is_overseas_user:
-    #     form_data['entry.1607289186'] = '希望する'
+    # 海外ユーザー向け告知はしない
 
     # イベントジャンルの処理
-    event_type_field = 'entry.1606730788'
+    event_type_field = 'entry.1923252134'
     for genre in calendar_entry.event_genres:
         mapped_genre = EVENT_GENRE_MAP.get(genre, genre)
         if event_type_field in form_data:
@@ -99,6 +100,9 @@ def create_calendar_entry_url(event: 'Event') -> str:
     
     # urlencodeを使用してパラメータをエンコード
     url_with_params = f"{FORM_URL}?{urlencode(params)}"
+    
+    # ページ履歴を追加して複数ページのフォームに対応
+    url_with_params += "&pageHistory=0,1"
     
     # キャッシュに保存（1時間）
     cache.set(cache_key, url_with_params, 60 * 60)

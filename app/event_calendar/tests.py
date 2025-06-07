@@ -4,6 +4,7 @@ from urllib.parse import quote_plus
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
+from django.core.cache import cache
 
 from account.models import CustomUser
 from community.models import Community
@@ -37,46 +38,102 @@ class CreateCalendarTest(TestCase):
             duration=60,
             weekday="Mon"
         )
+        self.end_date = self.event.date
+        if (self.event.start_time.hour * 60 + self.event.start_time.minute + self.event.duration) >= 24 * 60:
+            self.end_date += datetime.timedelta(days=1)
 
     def test_create_calendar_entry_url(self):
-        calendar_entry = CalendarEntry.objects.create(
-            community=self.community,
-            join_condition="誰でも参加可能",
-            event_detail="This is a test event for VRC Calendar. Location: VRChat",
-            how_to_join="VRChatで「Test Event」を検索してください。",
-            note="Tags: test, vrc, calendar. URL: https://example.com",
-            is_overseas_user=False,
-            event_genres=["OTHER_MEETUP", "VR_DRINKING_PARTY"]
-        )
+        calendar_entry = CalendarEntry.get_or_create_from_event(self.event)
+        calendar_entry.join_condition = "誰でも参加可能"
+        calendar_entry.event_detail = "This is a test event for VRC Calendar. Location: VRChat"
+        calendar_entry.how_to_join = "VRChatで「Test Event」を検索してください。"
+        calendar_entry.note = "Tags: test, vrc, calendar. URL: https://example.com"
+        calendar_entry.is_overseas_user = False
+        calendar_entry.event_genres = ["OTHER_MEETUP", "VR_DRINKING_PARTY"]
+        calendar_entry.save()
 
+        # キャッシュをクリア
+        cache.clear()
         url = create_calendar_entry_url(self.event)
 
         # URLの基本構造を確認
         self.assertTrue(url.startswith(
-            'https://docs.google.com/forms/d/e/1FAIpQLSevo0ax6ALIzllRCT7up-3KZkohD3VfG28rcOy8XMqDwRWevQ/formResponse?'))
+            'https://docs.google.com/forms/d/e/1FAIpQLSfJlabb7niRTf4rX2Q0wRc3ua9MuOEIKveo7NirR6zuOo6D9A/viewform?'))
 
         # 重要なパラメータの存在を確認
-        self.assertIn('entry.426573786=Test+Community', url)  # イベント名
-        self.assertIn(f'entry.450203369_year={self.event.date.year}', url)  # 年
-        self.assertIn(f'entry.450203369_month={self.event.date.month:02d}', url)  # 月
-        self.assertIn(f'entry.450203369_day={self.event.date.day:02d}', url)  # 日
-        self.assertIn('entry.1010494053_hour=21', url)  # 開始時間（時）
-        self.assertIn('entry.1010494053_minute=00', url)  # 開始時間（分）
-        self.assertIn('entry.203043324_hour=22', url)  # 終了時間（時）
-        self.assertIn('entry.203043324_minute=00', url)  # 終了時間（分）
-        self.assertIn(f'entry.1261006949={quote_plus(PLATFORM_MAP["All"])}', url)  # プラットフォーム
-        self.assertIn('entry.2064647146=%E8%AA%B0%E3%81%A7%E3%82%82%E5%8F%82%E5%8A%A0%E5%8F%AF%E8%83%BD', url)  # 参加条件
-        self.assertIn('entry.701384676=This+is+a+test+event+for+VRC+Calendar.+Location%3A+VRChat', url)  # イベント詳細
-        self.assertIn('entry.1540217995=Test+Organizer', url)  # 主催者
-        self.assertIn(
-            'entry.1285455202=VRChat%E3%81%A7%E3%80%8CTest+Event%E3%80%8D%E3%82%92%E6%A4%9C%E7%B4%A2%E3%81%97%E3%81%A6%E3%81%8F%E3%81%A0%E3%81%95%E3%81%84%E3%80%82',
-            url)  # 参加方法
-        self.assertIn('entry.586354013=Tags%3A+test%2C+vrc%2C+calendar.+URL%3A+https%3A%2F%2Fexample.com', url)  # 備考
-        self.assertIn('entry.1607289186=No', url)  # 海外ユーザー向け
-        self.assertIn('entry.1606730788=%E3%81%9D%E3%81%AE%E4%BB%96%E4%BA%A4%E6%B5%81%E4%BC%9A', url)  # イベントジャンル
-        self.assertIn('entry.1606730788=VR%E9%A3%B2%E3%81%BF%E4%BC%9A', url)  # イベントジャンル
+        self.assertIn('entry.1319903296=Test+Community', url)
+        self.assertIn(f'entry.1310854397_year={self.event.date.year}', url)
+        self.assertIn(f'entry.1310854397_month={self.event.date.month:02d}', url)
+        self.assertIn(f'entry.1310854397_day={self.event.date.day:02d}', url)
+        self.assertIn('entry.1310854397_hour=21', url)
+        self.assertIn('entry.1310854397_minute=00', url)
+        self.assertIn(f'entry.2042374434_year={self.end_date.year}', url)
+        self.assertIn(f'entry.2042374434_month={self.end_date.month:02d}', url)
+        self.assertIn(f'entry.2042374434_day={self.end_date.day:02d}', url)
+        self.assertIn('entry.2042374434_hour=22', url)
+        self.assertIn('entry.2042374434_minute=00', url)
+        self.assertIn(f'entry.412548841={quote_plus(PLATFORM_MAP["All"])}', url)
 
-        print("Generated URL:", url)
+        # 新しいフォームのフィールドをテスト
+        self.assertIn(f'entry.2088975420={quote_plus("誰でも参加可能")}', url)
+        self.assertIn(f'entry.1644563241={quote_plus("This is a test event for VRC Calendar. Location: VRChat")}', url)
+        self.assertIn(f'entry.2133450237={quote_plus("Test Organizer")}', url)
+        self.assertIn(f'entry.1586528439={quote_plus("VRChatで「Test Event」を検索してください。")}', url)
+        self.assertIn(f'entry.1500825998={quote_plus("Tags: test, vrc, calendar. URL: https://example.com")}', url)
+        self.assertIn(f'entry.1923252134={quote_plus("その他交流会")}', url)
+        self.assertIn(f'entry.1923252134={quote_plus("VR飲み会")}', url)
+        self.assertNotIn(f'entry.1104706069={quote_plus("希望する")}', url)
+        self.assertIn(f'entry.1704463647={quote_plus("イベントを登録する")}', url)
+        self.assertIn('&pageHistory=0,1', url)
+
+        print("Generated URL (non-overseas):", url)
+        self.assertTrue(isinstance(url, str))
+
+    def test_create_calendar_entry_url_overseas(self):
+        calendar_entry = CalendarEntry.get_or_create_from_event(self.event)
+        calendar_entry.join_condition = "誰でも参加可能"
+        calendar_entry.event_detail = "This is a test event for VRC Calendar. Location: VRChat"
+        calendar_entry.how_to_join = "VRChatで「Test Event」を検索してください。"
+        calendar_entry.note = "Tags: test, vrc, calendar. URL: https://example.com"
+        calendar_entry.is_overseas_user = True
+        calendar_entry.event_genres = ["OTHER_MEETUP", "VR_DRINKING_PARTY"]
+        calendar_entry.save()
+
+        # キャッシュをクリア
+        cache.clear()
+        url = create_calendar_entry_url(self.event)
+
+        # URLの基本構造を確認
+        self.assertTrue(url.startswith(
+            'https://docs.google.com/forms/d/e/1FAIpQLSfJlabb7niRTf4rX2Q0wRc3ua9MuOEIKveo7NirR6zuOo6D9A/viewform?'))
+
+        # 重要なパラメータの存在を確認
+        self.assertIn('entry.1319903296=Test+Community', url)
+        self.assertIn(f'entry.1310854397_year={self.event.date.year}', url)
+        self.assertIn(f'entry.1310854397_month={self.event.date.month:02d}', url)
+        self.assertIn(f'entry.1310854397_day={self.event.date.day:02d}', url)
+        self.assertIn('entry.1310854397_hour=21', url)
+        self.assertIn('entry.1310854397_minute=00', url)
+        self.assertIn(f'entry.2042374434_year={self.end_date.year}', url)
+        self.assertIn(f'entry.2042374434_month={self.end_date.month:02d}', url)
+        self.assertIn(f'entry.2042374434_day={self.end_date.day:02d}', url)
+        self.assertIn('entry.2042374434_hour=22', url)
+        self.assertIn('entry.2042374434_minute=00', url)
+        self.assertIn(f'entry.412548841={quote_plus(PLATFORM_MAP["All"])}', url)
+
+        # 新しいフォームのフィールドをテスト
+        self.assertIn(f'entry.2088975420={quote_plus("誰でも参加可能")}', url)
+        self.assertIn(f'entry.1644563241={quote_plus("This is a test event for VRC Calendar. Location: VRChat")}', url)
+        self.assertIn(f'entry.2133450237={quote_plus("Test Organizer")}', url)
+        self.assertIn(f'entry.1586528439={quote_plus("VRChatで「Test Event」を検索してください。")}', url)
+        self.assertIn(f'entry.1500825998={quote_plus("Tags: test, vrc, calendar. URL: https://example.com")}', url)
+        self.assertIn(f'entry.1923252134={quote_plus("その他交流会")}', url)
+        self.assertIn(f'entry.1923252134={quote_plus("VR飲み会")}', url)
+        self.assertIn(f'entry.1104706069={quote_plus("希望する")}', url)
+        self.assertIn(f'entry.1704463647={quote_plus("イベントを登録する")}', url)
+        self.assertIn('&pageHistory=0,1', url)
+
+        print("Generated URL (overseas):", url)
         self.assertTrue(isinstance(url, str))
 
     def test_get_or_create_from_event(self):
