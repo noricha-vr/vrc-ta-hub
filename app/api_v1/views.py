@@ -1,5 +1,5 @@
 # Create your views here.
-from corsheaders.middleware import CorsMiddleware
+# from corsheaders.middleware import CorsMiddleware  # No longer needed
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -21,11 +21,7 @@ from .authentication import APIKeyAuthentication
 from .serializers import CommunitySerializer, EventSerializer, EventDetailSerializer, EventDetailWriteSerializer
 
 
-class CORSMixin:
-    @classmethod
-    def as_view(cls, *args, **kwargs):
-        view = super().as_view(*args, **kwargs)
-        return CorsMiddleware(view)
+# CORSMixin is no longer needed as CORS is handled by Django middleware
 
 
 class CommunityFilter(filters.FilterSet):
@@ -53,7 +49,7 @@ class CommunityFilter(filters.FilterSet):
     )
 )
 @method_decorator(csrf_exempt, name='dispatch')
-class CommunityViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
+class CommunityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Community.objects.filter(
         end_at__isnull=True,
         status='approved'
@@ -88,7 +84,8 @@ class EventFilter(filters.FilterSet):
         tags=["Event"]
     )
 )
-class EventViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
+@method_decorator(csrf_exempt, name='dispatch')
+class EventViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Event.objects.filter(
         date__gte=timezone.now().date(),
         community__status='approved'
@@ -123,7 +120,8 @@ class EventDetailFilter(filters.FilterSet):
         tags=["EventDetail"]
     )
 )
-class EventDetailViewSet(CORSMixin, viewsets.ReadOnlyModelViewSet):
+@method_decorator(csrf_exempt, name='dispatch')
+class EventDetailViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = EventDetail.objects.filter(
         event__community__status='approved'
     ).select_related('event', 'event__community').order_by('event__date', 'start_time')
