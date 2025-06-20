@@ -1,0 +1,3112 @@
+[
+  {
+    "id": 1804,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-06-20",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "0if9okjlfujn5a0lhiumkjjjjs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1820,
+    "community": "VRC Blender集会",
+    "date": "2025-06-20",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "300fakd3jv9ntsef8891a67sqo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1864,
+    "community": "CS集会",
+    "date": "2025-06-20",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "0hrjq2ogbv7go53mkd3jtr8lis",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1922,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-06-20",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "o96idbtlihe18fqs0cm1u8d28s",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1943,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-06-20",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "i8dm16hq60993kbtap1n569ueo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1568,
+    "community": "量子力学のたわいのない雑談の会",
+    "date": "2025-06-21",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "pdoff5rjpnhp903fok8c4k31a4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1569,
+    "community": "株式投資座談会",
+    "date": "2025-06-21",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "cikd3pbbbkgfd8cj01cnib31a4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1570,
+    "community": "セキュリティ集会 in VRChat",
+    "date": "2025-06-21",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "lk9lv62fbdl1ln10valvobr298",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1573,
+    "community": "ITインフラ集会",
+    "date": "2025-06-21",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "h2rqergb8ea2cafitff849b5gk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1714,
+    "community": "「計算と自然」集会",
+    "date": "2025-06-21",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "jefbphn81492gouc4rdshhs8gk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1574,
+    "community": "VRCHoudini勉強会",
+    "date": "2025-06-22",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "tf5686kqgv59j7cucshsdqo174",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1575,
+    "community": "ゲーム開発集会Ⅲ",
+    "date": "2025-06-22",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "48pivffo3ke83a3iv3fvo2ebfs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1578,
+    "community": "論文紹介集会",
+    "date": "2025-06-23",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ki5p3g2f9ea8lf84ffmigpsk3o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1615,
+    "community": "AI集会テックWeek",
+    "date": "2025-06-23",
+    "start_time": "21:00:00",
+    "duration": 119,
+    "google_calendar_event_id": "7br1282crepeg19np5gv5g5fko",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1622,
+    "community": "XR開発者集会",
+    "date": "2025-06-23",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "r69bn2qfl147m6gv59fi4ijek0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1579,
+    "community": "社会科学集会",
+    "date": "2025-06-24",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "rh62hae7rlhcfpbjhaml8cm8v4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1581,
+    "community": "VRC博物喫茶",
+    "date": "2025-06-24",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "16p64cn598r4mscogmf82jd030",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1835,
+    "community": "C# Tokyo もくもく会",
+    "date": "2025-06-24",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ta8gkhc35vbn65lvi7qejf7bm8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1582,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-06-25",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ajfp6sppac15lucb5gvoe9bssc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1583,
+    "community": "怪し火定例会「いろりばたの会」",
+    "date": "2025-06-25",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "n0vruomlq5uvfmknmatf2660ts",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1584,
+    "community": "ML集会",
+    "date": "2025-06-25",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "09prjm592qgp02ess2714jt34k",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1585,
+    "community": "ブラックホール集会",
+    "date": "2025-06-25",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "o6uuhc0a07nv7dvjra903kkns4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1586,
+    "community": "Web技術集会",
+    "date": "2025-06-25",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "2v9k5hp13m75006aqmoppfe98c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1999,
+    "community": "アバター改変なんもわからん集会",
+    "date": "2025-06-25",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": null,
+    "is_recurring_master": true,
+    "recurrence_rule_id": 64
+  },
+  {
+    "id": 1588,
+    "community": "データサイエンティスト集会",
+    "date": "2025-06-26",
+    "start_time": "21:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "89t2sd2m5a1ae7u9rmc0a88l34",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1589,
+    "community": "分散SNS集会",
+    "date": "2025-06-26",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "mje20mh99cgt659vucali0fvj8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1805,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-06-27",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "j28ptmeucor72sa3fukvakcmu0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1821,
+    "community": "VRC Blender集会",
+    "date": "2025-06-27",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "uhf675ns3laad9dsld6usd2h14",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1923,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-06-27",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "lbhk1vtpdmusu6e7lv645l9c0o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1944,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-06-27",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "dl6a5im6cok4i3egln99gpbof4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1595,
+    "community": "VRホビーロボット集会",
+    "date": "2025-06-28",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "t7d7ek2t2od234h2ov91n6s26o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1596,
+    "community": "マネジメント集会",
+    "date": "2025-06-28",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "83nlri6l7632aijmdr1bgibc94",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1598,
+    "community": "セキュリティ集会 in VRChat",
+    "date": "2025-06-28",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "9370l75qjm4l7cltcrb5vl6ogs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1599,
+    "community": "株式投資座談会",
+    "date": "2025-06-28",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "0i2a8co5dok91c5dcaqi5tk4e0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1602,
+    "community": "バックエンド集会",
+    "date": "2025-06-28",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "dmdt0s0fstdgpn346i43mh3d9k",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1603,
+    "community": "VRChat物理学集会",
+    "date": "2025-06-28",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "34d1sheursna8odj65eij3cijk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1623,
+    "community": "ITエンジニア キャリア相談・雑談集会",
+    "date": "2025-06-29",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "oh9dt5i7r1nj41e9oru2gt3cls",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1624,
+    "community": "自作PC交流会",
+    "date": "2025-06-29",
+    "start_time": "21:30:00",
+    "duration": 90,
+    "google_calendar_event_id": "tou4u8u6r509078vmoiabm72ao",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1625,
+    "community": "AI集会ゆる雑談Week",
+    "date": "2025-06-30",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "r3i9kqn53uvtmvjrgp9srtp338",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1626,
+    "community": "アバターホビー集会",
+    "date": "2025-06-30",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "dv17rp6h4nhska460v16e22eqs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1627,
+    "community": "化学のおはなし会",
+    "date": "2025-06-30",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "3cb8du3mutb580jg17mj015tjs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1628,
+    "community": "CS集会",
+    "date": "2025-07-01",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "64hsu1f3si7tvcsl6bkl48t9do",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1630,
+    "community": "VRC博物喫茶",
+    "date": "2025-07-01",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "1gghvn2ennkcr2cngarbmlcifk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1637,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-07-02",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "8ordn96icrl16stqh5uc0fqbk8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1638,
+    "community": "ML集会",
+    "date": "2025-07-02",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "2hvojfqigpjofo79cjogkp92js",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1639,
+    "community": "Web技術集会",
+    "date": "2025-07-02",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "i5kdpfp0bqlg5kbpirc7itqvf8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1690,
+    "community": "妖怪好き交流所『怪し火-AYASHIBI-』",
+    "date": "2025-07-02",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "642urgvdpctsgt7o4n430fhu6o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1644,
+    "community": "仮想学生集会",
+    "date": "2025-07-03",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "kk54kvc9dsfodf44fstfgqpsao",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1645,
+    "community": "個人開発集会",
+    "date": "2025-07-03",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "fqkt22h5ms1cnifrj5ml7eov6o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1646,
+    "community": "OSS集会（オープンソースソフトウェア集会）",
+    "date": "2025-07-03",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "6va3cmjo5raj5gtob2qocm1lfc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1647,
+    "community": "分解技術集会",
+    "date": "2025-07-03",
+    "start_time": "22:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "j7bi9a1r0bbbnucij5e4n3halo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1649,
+    "community": "VRC微分音集会",
+    "date": "2025-07-04",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "qtkj5ce090fndrp1o09m49abvo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1806,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-07-04",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "bl9c3blpnj27tcfoh5g3ts1jqs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1822,
+    "community": "VRC Blender集会",
+    "date": "2025-07-04",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "lp0ruktp64ukrenv8896a8nddc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1865,
+    "community": "CS集会",
+    "date": "2025-07-04",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "jh8em6ttj91b3naupct7tk5na8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1924,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-07-04",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "udt4ubi0g47ur9anck6hnuts84",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1945,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-07-04",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "iiid3n4ac572v2bmj2ano4dvc0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1651,
+    "community": "量子力学のたわいのない雑談の会",
+    "date": "2025-07-05",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ut731uqse840fq9ti1jicuee00",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1652,
+    "community": "株式投資座談会",
+    "date": "2025-07-05",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "2meeom84mfceupnole6j6tehvg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1653,
+    "community": "セキュリティ集会 in VRChat",
+    "date": "2025-07-05",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "uhbdqsbbdlbjhtk96qk98jfdhc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1656,
+    "community": "ITインフラ集会",
+    "date": "2025-07-05",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "9fqoj2gb0mjkbvka34kgoivog4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1778,
+    "community": "「計算と自然」集会",
+    "date": "2025-07-05",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "h1jdj7facguqpskvebmlabd28s",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1657,
+    "community": "VRCHoudini勉強会",
+    "date": "2025-07-06",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "6pqrek4l2p5ns2263ipaqfnago",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1658,
+    "community": "ゲーム開発集会Ⅲ",
+    "date": "2025-07-06",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "9fu6ieup9ng6rgqi2oasrbopkc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1659,
+    "community": "AI集会テックWeek",
+    "date": "2025-07-07",
+    "start_time": "21:00:00",
+    "duration": 119,
+    "google_calendar_event_id": "cp9q4nc2a530n8jsl9dtvqna8o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1660,
+    "community": "VRC歴史集会",
+    "date": "2025-07-07",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "va15tq722n26mvefc4gjf80mf0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1661,
+    "community": "社会科学集会",
+    "date": "2025-07-08",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "qqj5tqrk1lhpfpb8jfjrnorrko",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1663,
+    "community": "VRChatデザイン集会",
+    "date": "2025-07-08",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "74dvd7ne21trod47ielsh5s9n4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1664,
+    "community": "VRC博物喫茶",
+    "date": "2025-07-08",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "a8on71jf1507ji5o0v65ttbds4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1665,
+    "community": "VRC Bio Journal RTA",
+    "date": "2025-07-08",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "7ijrmqt77h40396d57omtobkj8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1836,
+    "community": "C# Tokyo もくもく会",
+    "date": "2025-07-08",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "mvttg10d2oaresvv1fe64a8t3s",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1666,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-07-09",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "hrl3povi83mbuotamimro3vok4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1667,
+    "community": "ML集会",
+    "date": "2025-07-09",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "nclle1c8p17h6oioqf0s7lpis8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1668,
+    "community": "Web技術集会",
+    "date": "2025-07-09",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "3fdtlhajakasgv0dektf480868",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1669,
+    "community": "仮想学生集会",
+    "date": "2025-07-10",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "bqiqimca75li1vqq0jl1ek0114",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1670,
+    "community": "データサイエンティスト集会",
+    "date": "2025-07-10",
+    "start_time": "21:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "jlosmdh6dmf2nlb4kp07eog5h8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1671,
+    "community": "分散SNS集会",
+    "date": "2025-07-10",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ireh9t0shue8ca8kc1ap8sc3co",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1673,
+    "community": "UIUXデザイン集会",
+    "date": "2025-07-11",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "14n4mm2ggbp4a9kh692bg3mnj0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1807,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-07-11",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "d59jo4oeorp8khgc4cdtojhs84",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1823,
+    "community": "VRC Blender集会",
+    "date": "2025-07-11",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "31l7qg2rlafa1ge7p3nthvk2sk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1925,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-07-11",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "g04arkmkcutph3r01ftfgv30as",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1946,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-07-11",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "1798532gsda6j6kgmqv2dv6am8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1675,
+    "community": "セキュリティ集会 in VRChat",
+    "date": "2025-07-12",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "97kupotke4l5gbkedqfqiup1fs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1676,
+    "community": "株式投資座談会",
+    "date": "2025-07-12",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "gbug5se3te1jb8cckojuik7bc8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1679,
+    "community": "バックエンド集会",
+    "date": "2025-07-12",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ug57gu8vch923q37oots2o9deg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1680,
+    "community": "VRChat物理学集会",
+    "date": "2025-07-12",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "c7mfmvq1nq6d42vt4pffm615r4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1681,
+    "community": "ITエンジニア キャリア相談・雑談集会",
+    "date": "2025-07-13",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "o17abvtp1ms9m04eh8devuinas",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1682,
+    "community": "技術オタク交流会 (Tech Geek Cafe)",
+    "date": "2025-07-13",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "oae5cda19aaloqvp0ddolcvgm4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1685,
+    "community": "論文紹介集会",
+    "date": "2025-07-14",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "l1scgrj397qc2v8e1ef09j9jbo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1686,
+    "community": "AI集会ゆる雑談Week",
+    "date": "2025-07-14",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "9t3eap36fffr1o0du8gna5o9e4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1687,
+    "community": "アバターホビー集会",
+    "date": "2025-07-14",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "oqnntcbufrfk51r1e20cb76u0c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1688,
+    "community": "化学のおはなし会",
+    "date": "2025-07-14",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "r0emtjope6moj41ec6oflnech8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1691,
+    "community": "CS集会",
+    "date": "2025-07-15",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "nmc5k26712uedrrhntmb6e4hlo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1693,
+    "community": "VRC博物喫茶",
+    "date": "2025-07-15",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "1s2a6p4bqbcm8scqlmopgp3mbs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1837,
+    "community": "C# Tokyo もくもく会",
+    "date": "2025-07-15",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "gr68i7cuiepe7ajpgt6t46463c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1695,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-07-16",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "jr6v3ftth3422md5g5s2o550kk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1696,
+    "community": "妖怪好き交流所『怪し火-AYASHIBI-』",
+    "date": "2025-07-16",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "494ldqu65fn4dr0q6tjjj31hk4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1697,
+    "community": "ML集会",
+    "date": "2025-07-16",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "tsmse96fh005j1snfrq83tnqlk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1698,
+    "community": "VRC歴史集会",
+    "date": "2025-07-16",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "if6od4toooma3dknn4qpgpfvmc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1699,
+    "community": "Web技術集会",
+    "date": "2025-07-16",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "k9vf82vvnk80kg945mrk2vhqoc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1700,
+    "community": "仮想学生集会",
+    "date": "2025-07-17",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "o4tiajpc3blcpjv6oe22f3nas0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1701,
+    "community": "個人開発集会",
+    "date": "2025-07-17",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ansvfmugqrmpkafuq4slds9qkk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1702,
+    "community": "OSS集会（オープンソースソフトウェア集会）",
+    "date": "2025-07-17",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "nafo0d6vc66rs8crb38knpd35g",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1703,
+    "community": "分解技術集会",
+    "date": "2025-07-17",
+    "start_time": "22:30:00",
+    "duration": 30,
+    "google_calendar_event_id": "5o5f5spa64gtic3dllkrqbdue4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1966,
+    "community": "VRC歴史集会",
+    "date": "2025-07-17",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "is8p4gfll178ogddvc4j7oimls",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1808,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-07-18",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "256nav3ia4uka0hmv44nerfaro",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1824,
+    "community": "VRC Blender集会",
+    "date": "2025-07-18",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "5jflhcldqikm0m3pk6927h0bdk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1866,
+    "community": "CS集会",
+    "date": "2025-07-18",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "adbbhjlsutitfn8fa6l43pujto",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1926,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-07-18",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "m8o671i7rnotlc0h1p1ouhr4ho",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1947,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-07-18",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "4p7c9ddp1dnrcletcr3uoa2aks",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1704,
+    "community": "量子力学のたわいのない雑談の会",
+    "date": "2025-07-19",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "dh03pabb9mb9a57hbt36cph5d4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1705,
+    "community": "株式投資座談会",
+    "date": "2025-07-19",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "2rtrmjngqs1aet5km5drfmk1ts",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1706,
+    "community": "セキュリティ集会 in VRChat",
+    "date": "2025-07-19",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "3h5h6jl4aoflptq71nn52v6br4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1709,
+    "community": "ITインフラ集会",
+    "date": "2025-07-19",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "jcoup31q20vnmv96aqi3kuqpkk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1715,
+    "community": "「計算と自然」集会",
+    "date": "2025-07-19",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "9j6cu16bqpcnc4qahsl9ji6vn8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1712,
+    "community": "VRCHoudini勉強会",
+    "date": "2025-07-20",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "jjvo7ncoid6tiaqq2e17anm6co",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1713,
+    "community": "ゲーム開発集会Ⅲ",
+    "date": "2025-07-20",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "29tapcgo3mkm41u63beppnvcfg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1716,
+    "community": "AI集会テックWeek",
+    "date": "2025-07-21",
+    "start_time": "21:00:00",
+    "duration": 119,
+    "google_calendar_event_id": "rch1pq9f10dv57rd4s1ufj7ro0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1718,
+    "community": "社会科学集会",
+    "date": "2025-07-22",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "b2509vf9jmnv3htq8iovr8ng78",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1720,
+    "community": "VRC博物喫茶",
+    "date": "2025-07-22",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "2urpl1st367nttiojecidgivso",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1838,
+    "community": "C# Tokyo もくもく会",
+    "date": "2025-07-22",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "6148o32kvbchnjv8ks3tffo2bo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1721,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-07-23",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "550marva5tu182q44fb7091c5c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1722,
+    "community": "怪し火定例会「いろりばたの会」",
+    "date": "2025-07-23",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "pvuvq3phan9n877c50grcq7qns",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1723,
+    "community": "ML集会",
+    "date": "2025-07-23",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "kk4vg03s76e4a6gfneboig5c5o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1724,
+    "community": "ブラックホール集会",
+    "date": "2025-07-23",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ks1cjgois0cens204jm1oj9s0g",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1725,
+    "community": "Web技術集会",
+    "date": "2025-07-23",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "6i5hb53svfa6j09co08kakocek",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1726,
+    "community": "仮想学生集会",
+    "date": "2025-07-24",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "cdl93g9fq8fsd58db810it60b4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1727,
+    "community": "データサイエンティスト集会",
+    "date": "2025-07-24",
+    "start_time": "21:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "bs1s0rpmg4gelc02aog4gh4fs4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1728,
+    "community": "分散SNS集会",
+    "date": "2025-07-24",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ubhn6tri482d0s652m6qohk9mc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1981,
+    "community": "怪し火定例会「いろりばたの会」",
+    "date": "2025-07-24",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "ma0n6benuh156jvrvo14tbvmvs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1809,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-07-25",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "1ekfi2us7nnl36cb0uarn2qov4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1825,
+    "community": "VRC Blender集会",
+    "date": "2025-07-25",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "8dub36tbfvevng45qjpj23j718",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1927,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-07-25",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "q6vph199qvqnf2lgaj9ev2lvts",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1948,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-07-25",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "u7penut5h3kq3vk4dr5ksdcsos",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1730,
+    "community": "VRホビーロボット集会",
+    "date": "2025-07-26",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "qjd73rtnlp9v4ndj56b5fm08ck",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1731,
+    "community": "マネジメント集会",
+    "date": "2025-07-26",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "9igakqhahb44glngv0opc2a41c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1733,
+    "community": "セキュリティ集会 in VRChat",
+    "date": "2025-07-26",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "5b91kesm6vi93lh8s1s2thjlvs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1734,
+    "community": "株式投資座談会",
+    "date": "2025-07-26",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "05v4cgkvtek4tnn583ravfvbf0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1735,
+    "community": "「計算と自然」集会",
+    "date": "2025-07-26",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ld5g1cka3pj5pmk67uov7l0a8o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1737,
+    "community": "バックエンド集会",
+    "date": "2025-07-26",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "bl38sgm9e1eakpdtrp8rk2unbo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1738,
+    "community": "VRChat物理学集会",
+    "date": "2025-07-26",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "8dum0ueeuu6santi0se6q7k0ho",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1739,
+    "community": "ITエンジニア キャリア相談・雑談集会",
+    "date": "2025-07-27",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "l5ar0u5u2mbt3a53j5clrlmnfk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1740,
+    "community": "自作PC交流会",
+    "date": "2025-07-27",
+    "start_time": "21:30:00",
+    "duration": 90,
+    "google_calendar_event_id": "7e090sk1t61ucodg9vphmbkvuo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1741,
+    "community": "論文紹介集会",
+    "date": "2025-07-28",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "bis91o725smc8s841qa0or365o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1742,
+    "community": "AI集会ゆる雑談Week",
+    "date": "2025-07-28",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "8soq6snl4jqdug42protf2lqis",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1743,
+    "community": "XR開発者集会",
+    "date": "2025-07-28",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "bfk1rc2badt0uft2fe0e54aosc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1744,
+    "community": "アバターホビー集会",
+    "date": "2025-07-28",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "sbbgf599hhe8esi525mcufcc08",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1745,
+    "community": "化学のおはなし会",
+    "date": "2025-07-28",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "abkpdpggq29u0qatgq61dh2pno",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1746,
+    "community": "CS集会",
+    "date": "2025-07-29",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "76n2eikq1cligiobf3qksafjb0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1748,
+    "community": "VRC博物喫茶",
+    "date": "2025-07-29",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "0tib54jum8t9onams7gqdoem7o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1839,
+    "community": "C# Tokyo もくもく会",
+    "date": "2025-07-29",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "l4mkm8c7c198h1c6196kf4crf4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1749,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-07-30",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "0v076qo2duh67e7kumo4phr9m4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1750,
+    "community": "ML集会",
+    "date": "2025-07-30",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "hg2qkiqkl9rjrki5kc98ebke3o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1751,
+    "community": "Web技術集会",
+    "date": "2025-07-30",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "b0fac7sg60k3kkpfrm5804lboc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1752,
+    "community": "仮想学生集会",
+    "date": "2025-07-31",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "iun60ndlrqji6d508u29nhs678",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1753,
+    "community": "個人開発集会",
+    "date": "2025-07-31",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "m8baj8k8m2p3m4p4fal67lcl2o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1754,
+    "community": "OSS集会（オープンソースソフトウェア集会）",
+    "date": "2025-07-31",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "q0m1h77sce158k1jjp9k9fu3e4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1755,
+    "community": "分解技術集会",
+    "date": "2025-07-31",
+    "start_time": "22:30:00",
+    "duration": 30,
+    "google_calendar_event_id": "gqk696t6spsrv7ttlq9qe44ca4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1759,
+    "community": "VRC微分音集会",
+    "date": "2025-08-01",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "tsd50nsl5r5f1k4h0h53vil9kg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1810,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-08-01",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "43fs4ln3r2sutta85n6g5975uo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1826,
+    "community": "VRC Blender集会",
+    "date": "2025-08-01",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "to8ctdq71vda7pqlv5av2bvep0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1867,
+    "community": "CS集会",
+    "date": "2025-08-01",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "b2d6sotilaa2tra9hsv5l540oc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1928,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-08-01",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "mge0pqupjklilq1ok94j7sfsmo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1949,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-08-01",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "kd419758addsgp7q129cd46pvg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1760,
+    "community": "量子力学のたわいのない雑談の会",
+    "date": "2025-08-02",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "eiqe9e38mt2jj4baiidv9s7d2c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1761,
+    "community": "株式投資座談会",
+    "date": "2025-08-02",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "6bhndphcmjv9bm4ki4d16r0e60",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1762,
+    "community": "セキュリティ集会 in VRChat",
+    "date": "2025-08-02",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "frlq67hqi0of39inustrhfqr6g",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1765,
+    "community": "ITインフラ集会",
+    "date": "2025-08-02",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ihk3slfofaf3dbc7gvdd154a3s",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1766,
+    "community": "「計算と自然」集会",
+    "date": "2025-08-02",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "tug2a136un8089e1kgf9giqmbo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1767,
+    "community": "VRCHoudini勉強会",
+    "date": "2025-08-03",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "m0njas2v7l04bppmi35udgt0p8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1768,
+    "community": "ゲーム開発集会Ⅲ",
+    "date": "2025-08-03",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "17ek3p5djbju2c57ttss46g7r8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1769,
+    "community": "AI集会テックWeek",
+    "date": "2025-08-04",
+    "start_time": "21:00:00",
+    "duration": 119,
+    "google_calendar_event_id": "h1j9s32m5kpbpidpdfvc7730n8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1770,
+    "community": "VRC歴史集会",
+    "date": "2025-08-04",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "9vdslvpcen4dpn8qec1m48b99s",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1771,
+    "community": "社会科学集会",
+    "date": "2025-08-05",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "1to3nc7pr3adk2mnfu8jmoul8c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1773,
+    "community": "VRC博物喫茶",
+    "date": "2025-08-05",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "0gfr4p3v1msp4p3vggf2i2qa44",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1840,
+    "community": "C# Tokyo もくもく会",
+    "date": "2025-08-05",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "iis9gi8oq64r6aqn1md0gl7mts",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1986,
+    "community": "AI集会テックWeek",
+    "date": "2025-08-05",
+    "start_time": "21:00:00",
+    "duration": 119,
+    "google_calendar_event_id": "5d3d5v78o3m53qckf3ubpoer0o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1774,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-08-06",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "3cciekj9drdcbcc9lljhumi164",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1775,
+    "community": "妖怪好き交流所『怪し火-AYASHIBI-』",
+    "date": "2025-08-06",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "4jbmea822lps5rcbeqijq4e7tg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1776,
+    "community": "ML集会",
+    "date": "2025-08-06",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "etd8kt783a33ps5heat8klhh3s",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1777,
+    "community": "Web技術集会",
+    "date": "2025-08-06",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "bmvh3lude02ls5a9jju0a4mii4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1962,
+    "community": "社会科学集会",
+    "date": "2025-08-06",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "1uj7au21ao7fm4trdnor8sdj2g",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1779,
+    "community": "仮想学生集会",
+    "date": "2025-08-07",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "c869318agttol9j9andc1l8s6o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1780,
+    "community": "データサイエンティスト集会",
+    "date": "2025-08-07",
+    "start_time": "21:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "f3v2kkp1q1hbnq3psb1njiamko",
+    "is_recurring_master": true,
+    "recurrence_rule_id": 59
+  },
+  {
+    "id": 1781,
+    "community": "分散SNS集会",
+    "date": "2025-08-07",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "se8ru441gaj2r0lc9hu2lef52g",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1782,
+    "community": "分解技術集会",
+    "date": "2025-08-07",
+    "start_time": "22:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "l8u2s45nncqg97mgooqijum2ik",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1990,
+    "community": "妖怪好き交流所『怪し火-AYASHIBI-』",
+    "date": "2025-08-07",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "8s41rs3gmeo7ldes0m95j66isc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1784,
+    "community": "VRC Bio Journal RTA",
+    "date": "2025-08-08",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "79699c47dq0rjge91f5hqi3tu0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1811,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-08-08",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "tvu67obsiqbl2fmibpb3tdg2vg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1827,
+    "community": "VRC Blender集会",
+    "date": "2025-08-08",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "6p567injjp7iiuh3djn6mos5es",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1861,
+    "community": "分散SNS集会",
+    "date": "2025-08-08",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "96tmpidansoic6opb58rij38n0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1929,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-08-08",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "m617pq888bg5qcfpkus3b4mvbs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1950,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-08-08",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ospiqm0p8c2iomrl1p7gnblbn8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1794,
+    "community": "セキュリティ集会 in VRChat",
+    "date": "2025-08-09",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "fj5jq9f6p5emod6s13rt2ugkvs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1795,
+    "community": "株式投資座談会",
+    "date": "2025-08-09",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "u94iidbngev8ejhqm4qpesq5pg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1796,
+    "community": "「計算と自然」集会",
+    "date": "2025-08-09",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "7gpk4ldmquck14j17mg3qccfek",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1797,
+    "community": "バックエンド集会",
+    "date": "2025-08-09",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "3p37i9ercmuqaoi4lbseo7r280",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1798,
+    "community": "VRChat物理学集会",
+    "date": "2025-08-09",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "v5spksjueoe70bj3d8498id45c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1812,
+    "community": "ITエンジニア キャリア相談・雑談集会",
+    "date": "2025-08-10",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ffvfl2ldbr4nodsqu411s478so",
+    "is_recurring_master": true,
+    "recurrence_rule_id": 58
+  },
+  {
+    "id": 1813,
+    "community": "技術オタク交流会 (Tech Geek Cafe)",
+    "date": "2025-08-10",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "t0k3jpuarfe3vat0529kd96a0o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1978,
+    "community": "VRChat物理学集会",
+    "date": "2025-08-10",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "gfrjgs5b07fuhkmd6qk8gd7jac",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1814,
+    "community": "論文紹介集会",
+    "date": "2025-08-11",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "easdl2j22nto85d9nvnje7iqh4",
+    "is_recurring_master": true,
+    "recurrence_rule_id": 60
+  },
+  {
+    "id": 1815,
+    "community": "AI集会ゆる雑談Week",
+    "date": "2025-08-11",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "ra5jbkgkiik90g0hvk147asu3o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1816,
+    "community": "アバターホビー集会",
+    "date": "2025-08-11",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "gega985gn0sl8g8vt3puek1fro",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1817,
+    "community": "化学のおはなし会",
+    "date": "2025-08-11",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "g0ape84qhg69ujdg61ju7kf7hk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1818,
+    "community": "UIUXデザイン集会",
+    "date": "2025-08-11",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "38s8psjegpq4mqjvauh0eaf3mk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1828,
+    "community": "CS集会",
+    "date": "2025-08-12",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "filf0f7a04kbti9u5u8jlbrv8c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1830,
+    "community": "VRC博物喫茶",
+    "date": "2025-08-12",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "erel7t8sd8d9hhmuqmptoh1mkg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1831,
+    "community": "VRChatデザイン集会",
+    "date": "2025-08-12",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "deri0nm97ei7kcvukkcochsklk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1841,
+    "community": "C# Tokyo もくもく会",
+    "date": "2025-08-12",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "gfpq27neq8s2ct4kliuqmsppcc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1858,
+    "community": "アバターホビー集会",
+    "date": "2025-08-12",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "g7epnddoefokpfcs2l41ukenhk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1959,
+    "community": "化学のおはなし会",
+    "date": "2025-08-12",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "29k9h85ea0q0smi0gl18ovtfqg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1983,
+    "community": "AI集会ゆる雑談Week",
+    "date": "2025-08-12",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "mu50ejs7euamk2rgtr96kd9qk8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1832,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-08-13",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "429qmkvq5cshkh89t0t3um6ffo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1833,
+    "community": "ML集会",
+    "date": "2025-08-13",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "q09a6fgl0pg7c2mj8396lri854",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1834,
+    "community": "Web技術集会",
+    "date": "2025-08-13",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "shfl6ipqb46qk9ma9973n73fmo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1975,
+    "community": "VRC博物喫茶",
+    "date": "2025-08-13",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "06dkm6bldh5q5uu0eh8sta1has",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1842,
+    "community": "仮想学生集会",
+    "date": "2025-08-14",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "aguoqao5n40m0j1bck9aevup1c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1843,
+    "community": "個人開発集会",
+    "date": "2025-08-14",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "etjo395snh49dq8p5jd04n07fo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1844,
+    "community": "OSS集会（オープンソースソフトウェア集会）",
+    "date": "2025-08-14",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "en9i7kbk51qnam0ipkvg5kh7ug",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1845,
+    "community": "分解技術集会",
+    "date": "2025-08-14",
+    "start_time": "22:30:00",
+    "duration": 30,
+    "google_calendar_event_id": "fgme1qg9de7c6mf51ult7e397g",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1871,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-08-14",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "e8fgordub9k8bglktoq9sk25ok",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1969,
+    "community": "Web技術集会",
+    "date": "2025-08-14",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "9768v4qbsevrkf80ka7s4okhss",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1846,
+    "community": "VRC Blender集会",
+    "date": "2025-08-15",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "4d4hemdbdu92qup8358uvqaf5c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1847,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-08-15",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "bopltusoa6kr7lsb6mvrr5pgns",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1868,
+    "community": "CS集会",
+    "date": "2025-08-15",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "pgrkn09f4i3ope745lps98o08g",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1909,
+    "community": "個人開発集会",
+    "date": "2025-08-15",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "rebt8aulc3b8t260tcapitd518",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1912,
+    "community": "OSS集会（オープンソースソフトウェア集会）",
+    "date": "2025-08-15",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "vq7gd8meug8730754altufokbk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1930,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-08-15",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "tniveg2rhf7sbl7ggtq52ionls",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1951,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-08-15",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ptrjcugso0h2eol0k5379hev40",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1848,
+    "community": "量子力学のたわいのない雑談の会",
+    "date": "2025-08-16",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "fj1g5um1i0ajb555a4tpb7lfo4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1849,
+    "community": "株式投資座談会",
+    "date": "2025-08-16",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "gkflm9d6d6l7v5hq41q66rbntk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1850,
+    "community": "セキュリティ集会 in VRChat",
+    "date": "2025-08-16",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "8e2p6rl52uv3g2f4ovrf0crk4o",
+    "is_recurring_master": true,
+    "recurrence_rule_id": 61
+  },
+  {
+    "id": 1851,
+    "community": "ITインフラ集会",
+    "date": "2025-08-16",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "8chhc083kj8d2g5lu2v15bc65o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1852,
+    "community": "「計算と自然」集会",
+    "date": "2025-08-16",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "8uqmu7l6n875jb1vedb0q5lt2s",
+    "is_recurring_master": true,
+    "recurrence_rule_id": 62
+  },
+  {
+    "id": 1917,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-08-16",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "unfl3iahhlnvg43bnf75kcheh8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1994,
+    "community": "VRC Blender集会",
+    "date": "2025-08-16",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "cn7ntsa3k094qudtj238ug6ktc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1853,
+    "community": "VRCHoudini勉強会",
+    "date": "2025-08-17",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "f5p2d3jv2t628av2etnpdalq4c",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1854,
+    "community": "ゲーム開発集会Ⅲ",
+    "date": "2025-08-17",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "1o0mbv7bm448d1fiudi1tfpbts",
+    "is_recurring_master": true,
+    "recurrence_rule_id": 57
+  },
+  {
+    "id": 1935,
+    "community": "量子力学のたわいのない雑談の会",
+    "date": "2025-08-17",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ja7essfj2es2s9rmvhfmfujjjo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1938,
+    "community": "株式投資座談会",
+    "date": "2025-08-17",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "slgk5neahh5dfse4enboj124e0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1956,
+    "community": "ITインフラ集会",
+    "date": "2025-08-17",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "4rgvpt6rtc5sl7vv5fpdf3sh10",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1855,
+    "community": "VRCHoudini勉強会",
+    "date": "2025-08-18",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "fbun8j2uu185mgltpb1641ha34",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1987,
+    "community": "AI集会テックWeek",
+    "date": "2025-08-19",
+    "start_time": "21:00:00",
+    "duration": 119,
+    "google_calendar_event_id": "ifk3lif18okvr88ko2s135lo1g",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1963,
+    "community": "社会科学集会",
+    "date": "2025-08-20",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ol743out1scm56a2tclkqq39b0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1872,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-08-21",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "p9k7vjjtt3dfqvua0j61blsvbo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1967,
+    "community": "VRC歴史集会",
+    "date": "2025-08-21",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "3061ri2o7fg6jcte345l4l5fi4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1970,
+    "community": "Web技術集会",
+    "date": "2025-08-21",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "a3l1ustcmuifa9h8rip613nl54",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1991,
+    "community": "妖怪好き交流所『怪し火-AYASHIBI-』",
+    "date": "2025-08-21",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "aopp42sra8am1r2o5dlf78rr08",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1862,
+    "community": "分散SNS集会",
+    "date": "2025-08-22",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "l3suu09700mpmc2eglphu185ik",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1931,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-08-22",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "kv1lefbglar80ism2mhag80rg0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1952,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-08-22",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "av6csjid83hmv3cb56ui57fi88",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1918,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-08-23",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "aj3nur0cn2028ih05uteeodcms",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1995,
+    "community": "VRC Blender集会",
+    "date": "2025-08-23",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "nfr0iggq60m4pdgh08285ge848",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1939,
+    "community": "株式投資座談会",
+    "date": "2025-08-24",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "99jrsosm08eu6i2ifeece6606s",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1979,
+    "community": "VRChat物理学集会",
+    "date": "2025-08-24",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "bgd29ad36chd5euueh94q7bcis",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1859,
+    "community": "アバターホビー集会",
+    "date": "2025-08-26",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "men7b4vu0hlu4o5gett1ing36o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1960,
+    "community": "化学のおはなし会",
+    "date": "2025-08-26",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "455usgvkd812cpe8onbdij94to",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1984,
+    "community": "AI集会ゆる雑談Week",
+    "date": "2025-08-26",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "uf1tategpfui4pmit5l96t9d44",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1976,
+    "community": "VRC博物喫茶",
+    "date": "2025-08-27",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "91tdl735r50hie2gb3o73k5km0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1873,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-08-28",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "hms7888l5knpp1nkciavu3qflc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1971,
+    "community": "Web技術集会",
+    "date": "2025-08-28",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "7v58qeb7d94vbf3subjbd1j1tc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1982,
+    "community": "怪し火定例会「いろりばたの会」",
+    "date": "2025-08-28",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "p8396g9mjrvmtbcipemmot6aso",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1869,
+    "community": "CS集会",
+    "date": "2025-08-29",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "alh1ksfsv6887b2sj6565pfva4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1910,
+    "community": "個人開発集会",
+    "date": "2025-08-29",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "9106qtq93hcisbqingqkafhtbo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1913,
+    "community": "OSS集会（オープンソースソフトウェア集会）",
+    "date": "2025-08-29",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "j2glivnu9rt74keoet61pri4l8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1915,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-08-29",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "5kbchcv4al6g8a12ghn5f1dnu4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1932,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-08-29",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "q7ji86dnggin02hurub1eak8kg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1953,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-08-29",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "b06u4pclr7e7dkr9u83k3qcufk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1919,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-08-30",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "ncdmsn22trbk7avd0lb7r54etg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1996,
+    "community": "VRC Blender集会",
+    "date": "2025-08-30",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "aihmofu0j6slospld3ck6m34ps",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1936,
+    "community": "量子力学のたわいのない雑談の会",
+    "date": "2025-08-31",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "uu07vdirvtcq9sc0ss78v5d2n0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1940,
+    "community": "株式投資座談会",
+    "date": "2025-08-31",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "asufomp64hrdjsi2plkvq8viec",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1957,
+    "community": "ITインフラ集会",
+    "date": "2025-08-31",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "u9llmb6m0ahr4jver8f48dh678",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1856,
+    "community": "VRCHoudini勉強会",
+    "date": "2025-09-01",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "20401sbkhle1lh7blh8jotrtr0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1988,
+    "community": "AI集会テックWeek",
+    "date": "2025-09-02",
+    "start_time": "21:00:00",
+    "duration": 119,
+    "google_calendar_event_id": "u53p4pp9bvrc1d17oeris7pp98",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1964,
+    "community": "社会科学集会",
+    "date": "2025-09-03",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "ovpjp73kmeh5opcdhh69i6k1d0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1874,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-09-04",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "sn5ckq9j0hlmf1mcaepaj6erko",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1972,
+    "community": "Web技術集会",
+    "date": "2025-09-04",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "38f01p0tnk15oeh5s1ofbjtab0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1992,
+    "community": "妖怪好き交流所『怪し火-AYASHIBI-』",
+    "date": "2025-09-04",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "cm4tu2r2ue3f3dv4kqro6ks0fk",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1863,
+    "community": "分散SNS集会",
+    "date": "2025-09-05",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "9eov2pgahg47ulmd3vaaopjoso",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1933,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-09-05",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "k1k5gpq7ls66a78tuqne3qbvkc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1954,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-09-05",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "bdilusgdsujkpe8c4lrft0lpkc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1920,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-09-06",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "oh7nr0dooj5k26olr9p6ltdcn4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1997,
+    "community": "VRC Blender集会",
+    "date": "2025-09-06",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "quebhuai4s22us4rlq58plaf64",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1941,
+    "community": "株式投資座談会",
+    "date": "2025-09-07",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "trnpcj5jntbnbbipo8gvdmn85o",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1980,
+    "community": "VRChat物理学集会",
+    "date": "2025-09-07",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "lc1k1853j7efi3opuf826nlic8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1860,
+    "community": "アバターホビー集会",
+    "date": "2025-09-09",
+    "start_time": "21:30:00",
+    "duration": 60,
+    "google_calendar_event_id": "duhp6ehofdfg7nkcu7bqp9ob5g",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1961,
+    "community": "化学のおはなし会",
+    "date": "2025-09-09",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "gofnjc9gu1hcs23onhcl3o7juo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1985,
+    "community": "AI集会ゆる雑談Week",
+    "date": "2025-09-09",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "rlb1kosoni22snmaib0n4a2td8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1977,
+    "community": "VRC博物喫茶",
+    "date": "2025-09-10",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "kj2oqj7sk7v8sfgrq1diebk4qc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1875,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-09-11",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "gcilqqkue9slg0r95v8cjrablg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1973,
+    "community": "Web技術集会",
+    "date": "2025-09-11",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "en1m47l1spgm31jn457l9vetog",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1870,
+    "community": "CS集会",
+    "date": "2025-09-12",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "u6v6s4btk34n99hsnkifq8gqjo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1911,
+    "community": "個人開発集会",
+    "date": "2025-09-12",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "8kn18r40j564ubadgt6anantbg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1914,
+    "community": "OSS集会（オープンソースソフトウェア集会）",
+    "date": "2025-09-12",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "0lvm5333s188cs4hb5ddcg0tis",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1916,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-09-12",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "2hcl91qq0rh5ct1pkomh2b7noo",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1934,
+    "community": "Blender＆Unity技術交流会",
+    "date": "2025-09-12",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "r8j0788n37huibka9v8fbfgi54",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1955,
+    "community": "VRC Blender集会(Mimi)",
+    "date": "2025-09-12",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "basa8g0oamcua81ej5me6mcgs4",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1921,
+    "community": "エンジニア作業飲み集会",
+    "date": "2025-09-13",
+    "start_time": "22:00:00",
+    "duration": 90,
+    "google_calendar_event_id": "imk5epru86chgo4rm9hjo9balg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1998,
+    "community": "VRC Blender集会",
+    "date": "2025-09-13",
+    "start_time": "21:00:00",
+    "duration": 30,
+    "google_calendar_event_id": "ukjp3n9jtf4no8ftqjq4ucfejg",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1937,
+    "community": "量子力学のたわいのない雑談の会",
+    "date": "2025-09-14",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "713da3fpufcr941k4pg1aq7l8s",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1942,
+    "community": "株式投資座談会",
+    "date": "2025-09-14",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "rqpdt2jq0uo0jq746hn9tlsiis",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1958,
+    "community": "ITインフラ集会",
+    "date": "2025-09-14",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "veoenv2k31m15d61esr38501m8",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1857,
+    "community": "VRCHoudini勉強会",
+    "date": "2025-09-15",
+    "start_time": "20:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "1u1notrv1j7hqk22ksr8eimhrc",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1989,
+    "community": "AI集会テックWeek",
+    "date": "2025-09-16",
+    "start_time": "21:00:00",
+    "duration": 119,
+    "google_calendar_event_id": "7mbb8q6jia7sa1tpd4h5a9jtas",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1965,
+    "community": "社会科学集会",
+    "date": "2025-09-17",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "kqc6relrv65t7v06lb0e8a6od0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1876,
+    "community": "電子工作の興味人と趣味人『EDIY HOBBYIST GATHERING PLACE』に集まろう",
+    "date": "2025-09-18",
+    "start_time": "21:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "qt65g91j9vigtc5honteed1om0",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1968,
+    "community": "VRC歴史集会",
+    "date": "2025-09-18",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "lh0cjmk062nsujkjdhh1s9qujs",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1974,
+    "community": "Web技術集会",
+    "date": "2025-09-18",
+    "start_time": "22:00:00",
+    "duration": 60,
+    "google_calendar_event_id": "nmfo4vui8g93v6ib3ta2gkum30",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  },
+  {
+    "id": 1993,
+    "community": "妖怪好き交流所『怪し火-AYASHIBI-』",
+    "date": "2025-09-18",
+    "start_time": "21:00:00",
+    "duration": 120,
+    "google_calendar_event_id": "vgss5ic851g346h1j6jj84001k",
+    "is_recurring_master": false,
+    "recurrence_rule_id": null
+  }
+]
