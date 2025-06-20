@@ -1,0 +1,85 @@
+{% extends "admin/base_site.html" %}
+
+{% block title %}未来のイベントを削除 - {{ recurrence_rule }}{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>未来のイベントを削除</h1>
+    
+    <div class="module">
+        <h2>定期ルール情報</h2>
+        <table>
+            <tr>
+                <th>頻度:</th>
+                <td>{{ recurrence_rule.get_frequency_display }}</td>
+            </tr>
+            {% if recurrence_rule.custom_rule %}
+            <tr>
+                <th>カスタムルール:</th>
+                <td>{{ recurrence_rule.custom_rule }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+                <th>未来のイベント数:</th>
+                <td>{{ future_events|length }}件</td>
+            </tr>
+        </table>
+    </div>
+    
+    {% if future_events %}
+    <div class="module">
+        <h2>削除対象のイベント一覧</h2>
+        <table class="change-list">
+            <thead>
+                <tr>
+                    <th>日付</th>
+                    <th>開始時刻</th>
+                    <th>集会名</th>
+                    <th>タイプ</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in future_events %}
+                <tr>
+                    <td>{{ event.date|date:"Y-m-d" }}</td>
+                    <td>{{ event.start_time|time:"H:i" }}</td>
+                    <td>{{ event.community.name }}</td>
+                    <td>
+                        {% if event.is_recurring_master %}
+                            <strong>マスター</strong>
+                        {% else %}
+                            インスタンス
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p>未来のイベントはありません。</p>
+    {% endif %}
+    
+    <form method="post">
+        {% csrf_token %}
+        <div class="form-row">
+            <label for="delete_from_date">削除開始日:</label>
+            <input type="date" name="delete_from_date" id="delete_from_date" value="{{ today|date:'Y-m-d' }}" />
+            <p class="help">この日付以降のイベントが削除されます。</p>
+        </div>
+        
+        <div class="form-row">
+            <label for="delete_rule">
+                <input type="checkbox" name="delete_rule" id="delete_rule" />
+                定期ルールも削除する
+            </label>
+            <p class="help">チェックすると、イベント削除後に定期ルール自体も削除されます。</p>
+        </div>
+        
+        <div class="submit-row">
+            <input type="submit" value="削除実行" class="default" onclick="return confirm('本当に削除しますか？この操作は取り消せません。');" />
+            <a href="{% url 'admin:event_recurrencerule_change' recurrence_rule.pk %}" class="button cancel-link">キャンセル</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
