@@ -15,6 +15,35 @@ def validate_pdf_file(value):
             raise ValidationError('PDFファイルのみアップロード可能です。')
 
 
+class RecurrenceRule(models.Model):
+    """定期イベントのルール"""
+    FREQUENCY_CHOICES = [
+        ('WEEKLY', '毎週'),
+        ('MONTHLY_BY_DATE', '毎月（日付指定）'),
+        ('MONTHLY_BY_WEEK', '毎月（第N曜日）'),
+        ('OTHER', 'その他（自由記述）'),
+    ]
+    
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, verbose_name='頻度')
+    interval = models.IntegerField(default=1, verbose_name='間隔')  # 何週間/月ごとか
+    week_of_month = models.IntegerField(null=True, blank=True, verbose_name='第N週')  # MONTHLY_BY_WEEKの場合
+    custom_rule = models.TextField(null=True, blank=True, verbose_name='カスタムルール')  # OTHERの場合の自由記述
+    end_date = models.DateField(null=True, blank=True, verbose_name='終了日')
+    
+    # 管理用フィールド
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = '定期ルール'
+        verbose_name_plural = '定期ルール'
+    
+    def __str__(self):
+        if self.frequency == 'OTHER':
+            return f"{self.custom_rule[:50]}..."
+        return dict(self.FREQUENCY_CHOICES).get(self.frequency, '')
+
+
 class Event(models.Model):
     community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='events', verbose_name='集会')
     date = models.DateField('開催日', db_index=True)
@@ -22,6 +51,11 @@ class Event(models.Model):
     duration = models.IntegerField('開催時間（分）', default=60)
     weekday = models.CharField('曜日', max_length=5, choices=WEEKDAY_CHOICES, blank=True)
     google_calendar_event_id = models.CharField('GoogleカレンダーイベントID', max_length=255, blank=True, null=True)
+    
+    # 定期イベント関連フィールド
+    recurrence_rule = models.ForeignKey(RecurrenceRule, null=True, blank=True, on_delete=models.SET_NULL, verbose_name='定期ルール')
+    is_recurring_master = models.BooleanField(default=False, verbose_name='定期イベントの親')
+    recurring_master = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='recurring_instances', verbose_name='親イベント')
 
     class Meta:
         verbose_name = 'イベント'
@@ -37,6 +71,18 @@ class Event(models.Model):
         start_datetime = datetime.combine(self.date, self.start_time)
         end_datetime = start_datetime + timedelta(minutes=self.duration)
         return end_datetime.time()
+    
+    @property
+    def is_recurring_instance(self):
+        """定期イベントのインスタンスかどうか"""
+        return self.recurring_master is not None
+    
+    @property
+    def start_at(self):
+        """開始日時"""
+        if self.start_time:
+            return datetime.combine(self.date, self.start_time)
+        return datetime.combine(self.date, datetime.min.time())
 
 
 class EventDetail(models.Model):

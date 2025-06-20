@@ -28,6 +28,7 @@ from url_filters import get_filtered_url
 from website.settings import DEBUG, GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, REQUEST_TOKEN, \
     GEMINI_MODEL
 from .google_calendar import GoogleCalendarService
+from .sync_to_google import DatabaseToGoogleSync
 
 logger = logging.getLogger(__name__)
 
@@ -282,41 +283,24 @@ class EventDetailView(DetailView):
 
 
 def sync_calendar_events(request):
+    """データベースからGoogleカレンダーへの同期"""
     if request.method != 'GET':
         return HttpResponse("Invalid request method.", status=405)
 
     # Get the Request-Token
     request_token = request.headers.get('Request-Token', '')
-
-    calendar_service = GoogleCalendarService(
-        calendar_id=GOOGLE_CALENDAR_ID,
-        credentials_path=GOOGLE_CALENDAR_CREDENTIALS
-    )
-
-    # 現在の日付の開始時刻（00:00:00 JST）
-    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-
-    # より安全に：前日の開始時刻を使用
-    time_min = today_start - timedelta(days=1)
-    end_date = today_start + timedelta(days=60)
+    
+    # セキュリティチェック（必要に応じて）
+    if request_token != REQUEST_TOKEN:
+        return HttpResponse("Unauthorized", status=401)
 
     try:
-        logger.info(f'カレンダー同期開始: 期間={time_min} から {end_date}')
-        calendar_events = calendar_service.list_events(
-            time_min=time_min,
-            time_max=end_date,
-            max_results=1000  # 十分大きな数を指定
-        )
-        logger.info(f'Googleカレンダーからのイベント取得成功: {len(calendar_events)}件')
-
-        # データベースのイベントを削除
-        delete_outdated_events(calendar_events, today_start.date())
-        logger.info('古いイベントの削除完了')
-
-        # カレンダーイベントを登録/更新
-        register_calendar_events(calendar_events)
-        logger.info('イベントの登録/更新完了')
-
+        logger.info('データベースからGoogleカレンダーへの同期開始')
+        
+        # 新しい同期処理を実行
+        sync = DatabaseToGoogleSync()
+        sync.sync_all_communities(months_ahead=3)
+        
         logger.info(
             f"同期完了: 現在のイベント総数={Event.objects.count()}件"
         )
