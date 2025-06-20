@@ -9,14 +9,14 @@ from event.recurrence_service import RecurrenceService
 
 
 class Command(BaseCommand):
-    help = '定期イベントのインスタンスを生成（3ヶ月先まで）'
+    help = '定期イベントのインスタンスを生成（1ヶ月先まで）'
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--months',
             type=int,
-            default=3,
-            help='何ヶ月先まで生成するか（デフォルト: 3）'
+            default=1,
+            help='何ヶ月先まで生成するか（デフォルト: 1）'
         )
         parser.add_argument(
             '--dry-run',
@@ -78,7 +78,8 @@ class Command(BaseCommand):
                 rule=rule,
                 base_date=base_date,
                 base_time=master.start_time,
-                months=months
+                months=months,
+                community=community
             )
             
             # 既存のイベントを除外

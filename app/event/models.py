@@ -4,6 +4,7 @@ from typing import Optional
 
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from community.models import Community, WEEKDAY_CHOICES
 
@@ -28,6 +29,8 @@ class RecurrenceRule(models.Model):
     interval = models.IntegerField(default=1, verbose_name='間隔')  # 何週間/月ごとか
     week_of_month = models.IntegerField(null=True, blank=True, verbose_name='第N週')  # MONTHLY_BY_WEEKの場合
     custom_rule = models.TextField(null=True, blank=True, verbose_name='カスタムルール')  # OTHERの場合の自由記述
+    start_date = models.DateField(null=True, blank=True, verbose_name='起点日', 
+                                  help_text='定期イベントの起点となる日付。隔週の場合はこの日付を基準に計算されます。')
     end_date = models.DateField(null=True, blank=True, verbose_name='終了日')
     
     # 管理用フィールド
@@ -42,6 +45,101 @@ class RecurrenceRule(models.Model):
         if self.frequency == 'OTHER':
             return f"{self.custom_rule[:50]}..."
         return dict(self.FREQUENCY_CHOICES).get(self.frequency, '')
+    
+    def is_occurrence_date(self, check_date):
+        """指定された日付がこのルールに従う開催日かどうかを判定"""
+        if not self.start_date:
+            return True  # 起点日が設定されていない場合は常にTrue
+        
+        if self.end_date and check_date > self.end_date:
+            return False  # 終了日を過ぎている場合はFalse
+        
+        if self.frequency == 'WEEKLY':
+            # 曜日が一致しているかチェック
+            if check_date.weekday() != self.start_date.weekday():
+                return False
+            
+            # 起点日からの経過週数を計算
+            days_diff = (check_date - self.start_date).days
+            weeks_diff = days_diff // 7
+            
+            # intervalごとに開催されるかチェック
+            return weeks_diff % self.interval == 0
+        
+        # その他の頻度の場合は現在の実装を維持
+        return True
+    
+    def get_next_occurrence(self, after_date):
+        """指定日以降の次回開催日を取得"""
+        if not self.start_date:
+            return None
+        
+        if self.frequency == 'WEEKLY':
+            # 起点日の曜日を取得
+            start_weekday = self.start_date.weekday()
+            
+            # after_dateを起点日の曜日に合わせる
+            current_date = after_date
+            while current_date.weekday() != start_weekday:
+                current_date += timedelta(days=1)
+            
+            # 開催日になるまで進める
+            while not self.is_occurrence_date(current_date):
+                current_date += timedelta(days=7)
+            
+            return current_date
+        
+        return None
+    
+    def delete_future_events(self, delete_from_date=None):
+        """この定期ルールに関連する未来のイベントを削除
+        
+        Args:
+            delete_from_date: この日付以降のイベントを削除（指定しない場合は今日以降）
+        
+        Returns:
+            削除されたイベント数
+        """
+        if delete_from_date is None:
+            delete_from_date = timezone.now().date()
+        
+        # このルールに関連するマスターイベントを取得
+        master_events = Event.objects.filter(
+            recurrence_rule=self,
+            is_recurring_master=True
+        )
+        
+        deleted_count = 0
+        
+        for master_event in master_events:
+            # マスターイベント自体が未来の場合
+            if master_event.date >= delete_from_date:
+                # マスターイベントとその全てのインスタンスを削除
+                instance_count = master_event.recurring_instances.count()
+                master_event.delete()  # カスケード削除でインスタンスも削除される
+                deleted_count += instance_count + 1
+            else:
+                # マスターイベントは過去だが、インスタンスに未来のものがある場合
+                future_instances = master_event.recurring_instances.filter(
+                    date__gte=delete_from_date
+                )
+                deleted_count += future_instances.count()
+                future_instances.delete()
+        
+        return deleted_count
+    
+    def delete(self, *args, **kwargs):
+        """定期ルールを削除する際のカスタム処理
+        
+        delete_future_events: 未来のイベントも削除するかどうか（デフォルト：True）
+        """
+        delete_future_events = kwargs.pop('delete_future_events', True)
+        
+        if delete_future_events:
+            deleted_count = self.delete_future_events()
+            print(f"Deleted {deleted_count} future events related to this recurrence rule.")
+        
+        super().delete(*args, **kwargs)
 
 
 class Event(models.Model):
