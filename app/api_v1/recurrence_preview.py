@@ -22,6 +22,7 @@ class RecurrencePreviewAPIView(APIView):
         interval = int(request.data.get('interval', 1))
         week_of_month = request.data.get('week_of_month')
         months = int(request.data.get('months', 3))
+        community_id = request.data.get('community_id')
         
         # バリデーション
         if not base_date_str:
@@ -41,6 +42,15 @@ class RecurrencePreviewAPIView(APIView):
             base_date = datetime.strptime(base_date_str, '%Y-%m-%d').date()
             base_time = datetime.strptime(base_time_str, '%H:%M').time()
             
+            # コミュニティを取得（オプション）
+            community = None
+            if community_id:
+                from community.models import Community
+                try:
+                    community = Community.objects.get(id=community_id)
+                except Community.DoesNotExist:
+                    pass
+            
             # RecurrenceServiceを使用してプレビュー生成
             service = RecurrenceService()
             result = service.preview_dates(
@@ -50,7 +60,8 @@ class RecurrencePreviewAPIView(APIView):
                 base_time=base_time,
                 interval=interval,
                 week_of_month=week_of_month,
-                months=months
+                months=months,
+                community=community
             )
             
             if result['success']:

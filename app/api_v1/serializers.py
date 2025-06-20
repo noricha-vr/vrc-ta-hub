@@ -2,7 +2,7 @@
 from rest_framework import serializers
 
 from community.models import Community
-from event.models import Event, EventDetail
+from event.models import Event, EventDetail, RecurrenceRule
 
 
 class CommunitySerializer(serializers.ModelSerializer):
@@ -88,3 +88,47 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
             pass
             
         return instance
+
+
+class RecurrenceRuleSerializer(serializers.ModelSerializer):
+    """RecurrenceRuleのシリアライザー"""
+    future_events_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = RecurrenceRule
+        fields = [
+            'id', 'frequency', 'interval', 'week_of_month', 'custom_rule',
+            'start_date', 'end_date', 'created_at', 'updated_at', 'future_events_count'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'future_events_count']
+    
+    def get_future_events_count(self, obj):
+        """未来のイベント数を取得"""
+        from django.utils import timezone
+        today = timezone.now().date()
+        count = Event.objects.filter(
+            recurrence_rule=obj,
+            date__gte=today
+        ).count()
+        
+        # インスタンスイベントも含める
+        master_events = Event.objects.filter(
+            recurrence_rule=obj,
+            is_recurring_master=True
+        )
+        for master in master_events:
+            count += master.recurring_instances.filter(date__gte=today).count()
+        
+        return count
+
+
+class RecurrenceRuleDeleteSerializer(serializers.Serializer):
+    """RecurrenceRule削除用のシリアライザー"""
+    delete_from_date = serializers.DateField(
+        required=False,
+        help_text="この日付以降のイベントを削除（指定しない場合は今日以降）"
+    )
+    delete_rule = serializers.BooleanField(
+        default=True,
+        help_text="定期ルール自体も削除するか"
+    )

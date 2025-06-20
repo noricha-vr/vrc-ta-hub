@@ -16,9 +16,12 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiPara
 from drf_spectacular.types import OpenApiTypes
 
 from community.models import Community
-from event.models import Event, EventDetail
+from event.models import Event, EventDetail, RecurrenceRule
 from .authentication import APIKeyAuthentication
-from .serializers import CommunitySerializer, EventSerializer, EventDetailSerializer, EventDetailWriteSerializer
+from .serializers import (
+    CommunitySerializer, EventSerializer, EventDetailSerializer, EventDetailWriteSerializer,
+    RecurrenceRuleSerializer, RecurrenceRuleDeleteSerializer
+)
 
 
 # CORSMixin is no longer needed as CORS is handled by Django middleware
@@ -252,3 +255,106 @@ class EventDetailAPIViewSet(viewsets.ModelViewSet):
         
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="定期ルール一覧取得",
+        description="定期イベントのルール一覧を取得します。",
+        tags=["RecurrenceRule API"],
+        parameters=[
+            OpenApiParameter(
+                name="Authorization",
+                description="Bearer {APIキー} 形式で指定",
+                required=True,
+                type=str,
+                location=OpenApiParameter.HEADER,
+            ),
+        ],
+    ),
+    retrieve=extend_schema(
+        summary="定期ルール詳細取得",
+        description="指定IDの定期ルール詳細を取得します。",
+        tags=["RecurrenceRule API"]
+    ),
+    destroy=extend_schema(
+        summary="定期ルール削除",
+        description="定期ルールを削除します。関連する未来のイベントも削除されます。",
+        tags=["RecurrenceRule API"]
+    ),
+    delete_future_events=extend_schema(
+        summary="未来のイベントを削除",
+        description="指定された定期ルールに関連する未来のイベントを削除します。",
+        tags=["RecurrenceRule API"],
+        request=RecurrenceRuleDeleteSerializer,
+        responses={200: OpenApiTypes.OBJECT}
+    )
+)
+class RecurrenceRuleViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    RecurrenceRuleのAPI
+    認証: APIキーまたはセッション認証
+    権限: Superuserのみ
+    """
+    authentication_classes = [APIKeyAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+    serializer_class = RecurrenceRuleSerializer
+    queryset = RecurrenceRule.objects.all()
+    
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Superuserのみアクセス可能
+        if not user.is_superuser:
+            return RecurrenceRule.objects.none()
+        
+        return RecurrenceRule.objects.all()
+    
+    @action(detail=True, methods=['post'])
+    def delete_future_events(self, request, pk=None):
+        """未来のイベントを削除"""
+        recurrence_rule = self.get_object()
+        serializer = RecurrenceRuleDeleteSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            delete_from_date = serializer.validated_data.get('delete_from_date')
+            delete_rule = serializer.validated_data.get('delete_rule', True)
+            
+            # 未来のイベントを削除
+            deleted_count = recurrence_rule.delete_future_events(delete_from_date)
+            
+            # ルール自体も削除する場合
+            if delete_rule:
+                recurrence_rule.delete(delete_future_events=False)  # 既に削除済みなのでFalse
+                
+                return Response({
+                    'success': True,
+                    'deleted_events_count': deleted_count,
+                    'rule_deleted': True,
+                    'message': f'{deleted_count}件のイベントを削除し、定期ルールも削除しました。'
+                })
+            
+            return Response({
+                'success': True,
+                'deleted_events_count': deleted_count,
+                'rule_deleted': False,
+                'message': f'{deleted_count}件のイベントを削除しました。'
+            })
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def destroy(self, request, *args, **kwargs):
+        """定期ルールを削除（未来のイベントも削除）"""
+        instance = self.get_object()
+        
+        # 未来のイベント数を取得
+        future_count = instance.delete_future_events()
+        
+        # ルールを削除
+        instance.delete(delete_future_events=False)  # 既に削除済みなのでFalse
+        
+        return Response({
+            'success': True,
+            'deleted_events_count': future_count,
+            'message': f'定期ルールと{future_count}件の未来のイベントを削除しました。'
+        }, status=status.HTTP_200_OK)
