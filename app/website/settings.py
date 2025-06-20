@@ -221,7 +221,7 @@ assert GOOGLE_CALENDAR_ID is not None, 'Please set GOOGLE_CALENDAR_ID'
 print('GOOGLE_CALENDAR_ID: ' + GOOGLE_CALENDAR_ID)
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
-GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.0-flash-exp')
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'google/gemini-2.5-flash-lite-preview-06-17')
 
 # OpenAI API
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
@@ -240,6 +240,12 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'VRC技術学術系Hub
 
 # Admin email for notifications
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', DEFAULT_FROM_EMAIL)
+
+# ログディレクトリの設定
+LOG_DIR = BASE_DIR / 'logs'
+if DEBUG:
+    # デバッグモード時はログディレクトリを作成
+    LOG_DIR.mkdir(exist_ok=True)
 
 LOGGING = {
     'version': 1,
@@ -318,3 +324,18 @@ LOGGING = {
         },
     },
 }
+
+# デバッグモード時はファイルハンドラーを追加
+if DEBUG:
+    LOGGING['handlers']['file'] = {
+        'level': 'DEBUG',
+        'class': 'logging.handlers.RotatingFileHandler',
+        'filename': LOG_DIR / 'django.log',
+        'maxBytes': 1024 * 1024 * 10,  # 10MB
+        'backupCount': 5,
+        'formatter': 'verbose',
+    }
+    # 各ロガーにファイルハンドラーを追加
+    for logger_name in LOGGING['loggers']:
+        LOGGING['loggers'][logger_name]['handlers'].append('file')
+        LOGGING['loggers'][logger_name]['level'] = 'DEBUG'
