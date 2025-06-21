@@ -21,6 +21,7 @@ class RecurrencePreviewAPIView(APIView):
         base_time_str = request.data.get('base_time', '22:00')
         interval = int(request.data.get('interval', 1))
         week_of_month = request.data.get('week_of_month')
+        weekday = request.data.get('weekday')  # 曜日（0=月曜、6=日曜）
         months = int(request.data.get('months', 3))
         community_id = request.data.get('community_id')
         
@@ -60,6 +61,7 @@ class RecurrencePreviewAPIView(APIView):
                 base_time=base_time,
                 interval=interval,
                 week_of_month=week_of_month,
+                weekday=weekday,
                 months=months,
                 community=community
             )

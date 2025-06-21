@@ -87,12 +87,35 @@ class RecurrenceService:
         
         elif rule.frequency == 'MONTHLY_BY_WEEK':
             # 毎月（第N曜日）
-            while current_date <= end_date:
+            # 使用する曜日を決定（weekdayが指定されていればそれを使用、なければ基準日の曜日）
+            target_weekday = rule.weekday if rule.weekday is not None else current_date.weekday()
+            
+            # 最初の日付を第N曜日に調整
+            first_date = self._get_nth_weekday_of_month(
+                current_date.replace(day=1),
+                target_weekday,
+                rule.week_of_month or 1
+            )
+            if first_date and first_date >= base_date:
+                current_date = first_date
+            else:
+                # 次の月から開始
+                next_month = (current_date.month % 12) + 1
+                next_year = current_date.year + (1 if next_month == 1 else 0)
+                current_date = self._get_nth_weekday_of_month(
+                    date(next_year, next_month, 1),
+                    target_weekday,
+                    rule.week_of_month or 1
+                )
+            
+            while current_date and current_date <= end_date:
                 dates.append(current_date)
                 # 次の月の第N曜日を計算
+                next_month = (current_date.month % 12) + 1
+                next_year = current_date.year + (1 if next_month == 1 else 0)
                 next_date = self._get_nth_weekday_of_month(
-                    current_date + timedelta(days=32),
-                    current_date.weekday(),
+                    date(next_year, next_month, 1),
+                    target_weekday,
                     rule.week_of_month or 1
                 )
                 if next_date:
@@ -124,9 +147,15 @@ class RecurrenceService:
         return None
     
     def _get_week_of_month(self, date_obj: date) -> int:
-        """日付が月の第何週かを取得"""
-        first_day = date_obj.replace(day=1)
-        return ((date_obj.day - 1) + first_day.weekday()) // 7 + 1
+        """日付が月の第何週かを取得（その曜日の第何回目の出現か）"""
+        # 同じ曜日の第何回目かを計算
+        # 例: 2024-11-25（月曜日）は11月の第4月曜日
+        count = 0
+        for day in range(1, date_obj.day + 1):
+            check_date = date_obj.replace(day=day)
+            if check_date.weekday() == date_obj.weekday():
+                count += 1
+        return count
     
     def _get_recent_events_history(self, rule: RecurrenceRule, base_date: date, community=None) -> str:
         """直近5回の開催履歴を取得してフォーマット"""
@@ -290,7 +319,8 @@ class RecurrenceService:
         return []
     
     def preview_dates(self, frequency: str, custom_rule: str, base_date: date, base_time: datetime.time, 
-                     interval: int = 1, week_of_month: Optional[int] = None, months: int = 3, community=None) -> Dict:
+                     interval: int = 1, week_of_month: Optional[int] = None, weekday: Optional[int] = None, 
+                     months: int = 3, community=None) -> Dict:
         """プレビュー用に日付リストを生成"""
         try:
             # 一時的なRecurrenceRuleオブジェクトを作成（保存はしない）
@@ -300,6 +330,10 @@ class RecurrenceService:
                 week_of_month=week_of_month,
                 custom_rule=custom_rule
             )
+            
+            # weekdayは一時的に属性として追加（MONTHLY_BY_WEEKの場合のみ使用）
+            if weekday is not None:
+                rule.weekday = weekday
             
             dates = self.generate_dates(rule, base_date, base_time, months, community)
             
