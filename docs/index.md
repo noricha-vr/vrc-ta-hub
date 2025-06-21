@@ -12,6 +12,7 @@ VRC技術学術ハブの開発・運用に関するドキュメントです。
 ### 機能別ドキュメント
 - [イベント管理システム](event_management.md)
 - [イベント定期登録とGoogleカレンダー連携](event_recurrence_system.md)
+- [定期イベント管理システム](recurring_events_management.md) ⭐️ New
 - [Googleカレンダー同期システム](google_calendar_sync.md)
 - [Googleカレンダー同期問題の解決](google_calendar_sync_issue_resolved.md) ⭐️ New
 - [AI自動生成機能](ai_generation.md)
@@ -67,7 +68,10 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 docker compose exec vrc-ta-hub python scripts/sync_db_to_calendar.py
 
 # 手動カレンダー更新（要REQUEST_TOKEN）
-curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/update/
+curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/sync/
+
+# LLMイベント自動生成（要REQUEST_TOKEN）
+curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/generate/
 
 # テスト実行
 docker compose exec vrc-ta-hub python manage.py test

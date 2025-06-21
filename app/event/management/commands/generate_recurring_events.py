@@ -23,10 +23,47 @@ class Command(BaseCommand):
             action='store_true',
             help='実際には作成せず、作成予定のイベントを表示'
         )
+        parser.add_argument(
+            '--reset-future',
+            action='store_true',
+            help='未来のイベントを削除してから再生成'
+        )
 
     def handle(self, *args, **options):
         months = options['months']
         dry_run = options['dry_run']
+        reset_future = options['reset_future']
+        
+        today = timezone.now().date()
+        
+        # リセットオプションが指定された場合
+        if reset_future and not dry_run:
+            self.stdout.write('未来のイベントを削除しています...')
+            
+            # 定期ルールに紐づく未来のイベントを削除
+            deleted_count = Event.objects.filter(
+                date__gte=today,
+                recurring_master__isnull=False  # 定期イベントのインスタンス
+            ).delete()[0]
+            
+            # マスターイベント自体が未来の場合も考慮
+            deleted_master_count = Event.objects.filter(
+                date__gte=today,
+                is_recurring_master=True,
+                recurrence_rule__isnull=False
+            ).update(date=today - timedelta(days=1))  # マスターは過去日付に変更
+            
+            self.stdout.write(
+                self.style.WARNING(
+                    f'{deleted_count}件の定期イベントインスタンスを削除しました'
+                )
+            )
+            if deleted_master_count > 0:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f'{deleted_master_count}件のマスターイベントの日付を調整しました'
+                    )
+                )
         
         self.stdout.write(f'{months}ヶ月先までの定期イベントを生成します...')
         
