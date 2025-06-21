@@ -44,7 +44,8 @@ class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):
         Returns:
             CalendarEntry: 取得または作成したカレンダーエントリー
         """
-        community = Community.objects.get(pk=self.kwargs['pk'])
+        # pkなしでログインユーザーに紐付くコミュニティを取得
+        community = Community.objects.get(custom_user=self.request.user)
         calendar_entry, created = CalendarEntry.objects.get_or_create(
             community=community,
             defaults={

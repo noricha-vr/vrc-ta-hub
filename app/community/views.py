@@ -190,6 +190,10 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def test_func(self):
         community = self.get_object()
         return self.request.user == community.custom_user
+    
+    def get_object(self, queryset=None):
+        # pkなしでログインユーザーに紐付くコミュニティを取得
+        return Community.objects.get(custom_user=self.request.user)
 
     def form_valid(self, form):
         try:
