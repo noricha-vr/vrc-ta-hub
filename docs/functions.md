@@ -1,149 +1,214 @@
-# VRC-TA-Hub 主要関数一覧
-
-このドキュメントは、VRC-TA-Hubプロジェクトの主要な関数をまとめたものです。
+# VRC技術学術ハブ 関数リファレンス
 
 ## 目次
-- [イベント管理 (app/event/)](#イベント管理-appevent)
-- [コミュニティ管理 (app/community/)](#コミュニティ管理-appcommunity)
-- [API (app/api_v1/)](#api-appapi_v1)
-- [カレンダー同期](#カレンダー同期)
-- [AI自動生成](#ai自動生成)
 
-## イベント管理 (app/event/)
+### [イベント管理 (event/)](#イベント管理-event)
+- [generate_recurring_events](#generate_recurring_events)
+- [sync_calendar_events](#sync_calendar_events)
+- [generate_llm_events](#generate_llm_events)
+- [generate_blog](#generate_blog)
 
-### views.py
+### [コミュニティ管理 (community/)](#コミュニティ管理-community)
+- [CommunityUpdateView](#communityupdateview)
+- [CalendarEntryUpdateView](#calendarentryupdateview)
 
-| 関数名 | 説明 | 重要度 |
-|--------|------|--------|
-| `EventDeleteView` | イベントの削除（Googleカレンダー連携含む） | 高 |
-| `EventListView` | イベント一覧表示 | 高 |
-| `EventDetailView` | イベント詳細表示 | 高 |
-| `sync_calendar_events()` | データベースからGoogleカレンダーへの同期 | 高 |
-| `delete_outdated_events()` | 古いイベントの削除処理 | 中 |
-| `register_calendar_events()` | Googleカレンダーイベントの登録 | 高 |
-| `EventDetailCreateView` | イベント詳細の作成 | 高 |
-| `EventDetailUpdateView` | イベント詳細の更新 | 高 |
-| `GenerateBlogView` | AI記事生成ビュー | 高 |
-| `EventMyList` | ユーザーのイベント一覧 | 高 |
-| `EventDetailPastList` | 過去のイベント詳細一覧 | 中 |
-| `GoogleCalendarEventCreateView` | Googleカレンダーイベント作成 | 高 |
-| `extract_video_id()` | YouTube URLからvideo_idを抽出 | 低 |
+### [定期ルール処理 (event/recurrence_service.py)](#定期ルール処理-eventrecurrence_servicepy)
+- [RecurrenceService.generate_dates](#recurrenceservicegenerate_dates)
+- [RecurrenceRule.is_occurrence_date](#recurrenceruleis_occurrence_date)
+- [RecurrenceRule.delete_future_events](#recurrenceruledelete_future_events)
 
-### views_recurring.py
+### [Googleカレンダー同期 (event/sync_to_google.py)](#googleカレンダー同期-eventsync_to_googlepy)
+- [DatabaseToGoogleSync.sync_all_communities](#databasetogooglesyncync_all_communities)
+- [DatabaseToGoogleSync.sync_events](#databasetogooglesyncync_events)
 
-| 関数名 | 説明 | 重要度 |
-|--------|------|--------|
-| `create_recurring_event()` | 定期イベントの作成 | 高 |
-| `list_recurring_events()` | 定期イベントの一覧表示 | 中 |
+---
 
-### sync_to_google.py
+## イベント管理 (event/)
 
-| 関数名 | 説明 | 重要度 |
-|--------|------|--------|
-| `DatabaseToGoogleSync.sync_all_communities()` | すべてのコミュニティのイベントを同期 | 高 |
-| `DatabaseToGoogleSync.sync_community_events()` | 特定コミュニティのイベントを同期 | 高 |
-| `DatabaseToGoogleSync._get_google_events()` | Googleカレンダーからイベントを取得 | 中 |
-| `DatabaseToGoogleSync._create_google_event()` | Googleカレンダーにイベントを作成 | 高 |
-| `DatabaseToGoogleSync._update_google_event()` | Googleカレンダーのイベントを更新 | 高 |
-| `DatabaseToGoogleSync._generate_description()` | イベントの説明文を生成 | 低 |
-| `sync_database_to_google()` | 同期処理のエントリーポイント | 高 |
+### generate_recurring_events
+**場所**: `app/event/management/commands/generate_recurring_events.py`
 
-### libs.py
+定期ルールに基づいて未来のイベントを生成するDjangoコマンド。
 
-| 関数名 | 説明 | 重要度 |
-|--------|------|--------|
-| `generate_blog()` | AI記事生成メイン関数 | 高 |
-| `get_transcript()` | YouTube動画の文字起こし取得 | 高 |
-| `convert_markdown()` | MarkdownをHTMLに変換 | 中 |
+```python
+# 使用例
+python manage.py generate_recurring_events --months=3 --reset-future
+```
 
-### google_calendar.py
+**オプション**:
+- `--months`: 生成期間（月数）、デフォルト: 1
+- `--dry-run`: 実行せずに予定を表示
+- `--reset-future`: 未来のイベントを削除してから再生成
 
-| 関数名 | 説明 | 重要度 |
-|--------|------|--------|
-| `GoogleCalendarService.__init__()` | Googleカレンダーサービスの初期化 | 高 |
-| `GoogleCalendarService.create_event()` | カレンダーイベントの作成 | 高 |
-| `GoogleCalendarService.update_event()` | カレンダーイベントの更新 | 高 |
-| `GoogleCalendarService.delete_event()` | カレンダーイベントの削除 | 高 |
-| `GoogleCalendarService.list_events()` | カレンダーイベントの一覧取得 | 高 |
-| `GoogleCalendarService._create_weekly_rrule()` | 週次繰り返しルール作成 | 中 |
-| `GoogleCalendarService._create_monthly_by_date_rrule()` | 月次日付指定ルール作成 | 中 |
-| `GoogleCalendarService._create_monthly_by_week_rrule()` | 月次曜日指定ルール作成 | 中 |
+### sync_calendar_events
+**場所**: `app/event/views.py:285`
 
-## コミュニティ管理 (app/community/)
+データベースからGoogleカレンダーへの同期を実行。
 
-### views.py
+```python
+def sync_calendar_events(request):
+    """
+    重複防止機能付きの同期処理
+    HTTPヘッダーのRequest-Tokenで認証
+    """
+```
 
-| 関数名 | 説明 | 重要度 |
-|--------|------|--------|
-| `CommunityListView` | コミュニティ一覧表示 | 高 |
-| `CommunityDetailView` | コミュニティ詳細表示 | 高 |
-| `CommunityUpdateView` | コミュニティ情報更新 | 高 |
-| `WaitingCommunityListView` | 承認待ちコミュニティ一覧 | 中 |
-| `AcceptView` | コミュニティ承認処理 | 高 |
-| `RejectView` | コミュニティ非承認処理 | 高 |
+### generate_llm_events
+**場所**: `app/event/views_llm_generate.py:16`
 
-### libs.py
+LLMを使用したイベント自動生成エンドポイント。
 
-| 関数名 | 説明 | 重要度 |
-|--------|------|--------|
-| `get_join_type()` | 参加方法の種別を判定 | 低 |
+```python
+@require_http_methods(["GET"])
+def generate_llm_events(request):
+    """
+    generate_recurring_eventsコマンドをHTTP経由で実行
+    """
+```
 
-## API (app/api_v1/)
+### generate_blog
+**場所**: `app/event/libs.py`
 
-### views.py
+YouTubeやPDFからブログ記事を自動生成。
 
-| 関数名 | 説明 | 重要度 |
-|--------|------|--------|
-| `CommunityViewSet` | コミュニティAPI (ReadOnly) | 高 |
-| `EventViewSet` | イベントAPI (ReadOnly) | 高 |
-| `EventDetailViewSet` | イベント詳細API (ReadOnly) | 高 |
-| `EventDetailAPIViewSet` | イベント詳細CRUD API | 高 |
-| `EventDetailAPIViewSet.my_events()` | 自分のイベント詳細一覧 | 中 |
-| `RecurrenceRuleViewSet` | 定期ルールAPI | 高 |
-| `RecurrenceRuleViewSet.delete_future_events()` | 未来のイベント削除 | 高 |
+```python
+def generate_blog(event_detail: EventDetail, model: str = None) -> BlogOutput:
+    """
+    AI (Gemini) を使用してイベント詳細からブログ記事を生成
+    """
+```
 
-## カレンダー同期
+---
 
-### Management Commands
+## コミュニティ管理 (community/)
 
-| コマンド | 説明 | 重要度 |
-|----------|------|--------|
-| `generate_recurring_events` | 定期イベントのインスタンス生成 | 高 |
-| `migrate_to_recurring_events` | 既存イベントの定期イベント移行 | 高 |
-| `sync_calendar` | カレンダー同期コマンド | 高 |
+### CommunityUpdateView
+**場所**: `app/community/views.py:184`
 
-## AI自動生成
+ログインユーザーのコミュニティ情報を更新。
 
-### 主要な処理フロー
+```python
+class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    def get_object(self, queryset=None):
+        # pkなしでログインユーザーに紐付くコミュニティを取得
+        return Community.objects.get(custom_user=self.request.user)
+```
 
-1. **記事生成フロー**
-   - `GenerateBlogView.post()` → `generate_blog()` → OpenRouter API
-   - YouTube動画の文字起こし取得: `get_transcript()`
-   - PDFスライドの内容抽出: PyPDFを使用
-   - プロンプト生成とAI処理: OpenRouter/Gemini API
+### CalendarEntryUpdateView
+**場所**: `app/event_calendar/views.py:15`
 
-2. **コンテンツ変換**
-   - Markdown → HTML変換: `convert_markdown()`
-   - HTMLサニタイズ: bleachライブラリを使用
+VRCイベントカレンダーのエントリー情報を更新。
 
-## 最近の更新
+```python
+class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):
+    def get_object(self, queryset=None):
+        # pkなしでログインユーザーに紐付くコミュニティを取得
+        community = Community.objects.get(custom_user=self.request.user)
+```
 
-### Google Calendar同期の修正 (2025年1月)
-- `DatabaseToGoogleSync`クラスの実装
-- 繰り返しルールを使用しない個別イベント作成方式に変更
-- 同期処理の安定性向上
+---
 
-### 定期イベント機能の追加
-- `RecurrenceRule`モデルの追加
-- `RecurrenceService`による定期イベント生成
-- マスター/インスタンス方式による管理
+## 定期ルール処理 (event/recurrence_service.py)
 
-## 環境変数依存
+### RecurrenceService.generate_dates
+**場所**: `app/event/recurrence_service.py`
 
-| 変数名 | 使用箇所 | 重要度 |
-|--------|----------|--------|
-| `GOOGLE_CALENDAR_ID` | カレンダー同期全般 | 高 |
-| `GOOGLE_CALENDAR_CREDENTIALS` | Google認証 | 高 |
-| `OPENROUTER_API_KEY` | AI記事生成 | 高 |
-| `GEMINI_MODEL` | AI使用モデル指定 | 中 |
-| `REQUEST_TOKEN` | 同期API認証 | 高 |
+定期ルールに基づいて日付リストを生成。
+
+```python
+def generate_dates(self, rule: RecurrenceRule, base_date: date, 
+                  base_time: time, months: int, community: Community) -> List[date]:
+    """
+    頻度タイプに応じた日付生成ロジック
+    OTHERの場合はLLMを使用
+    """
+```
+
+### RecurrenceRule.is_occurrence_date
+**場所**: `app/event/models.py`
+
+指定日がルールに合致するか判定。
+
+```python
+def is_occurrence_date(self, check_date: date) -> bool:
+    """
+    定期ルールに基づいて、指定された日付が開催日かどうかを判定
+    """
+```
+
+### RecurrenceRule.delete_future_events
+**場所**: `app/event/models.py`
+
+指定日以降の未来のイベントを削除。
+
+```python
+def delete_future_events(self, delete_from_date: date = None) -> int:
+    """
+    このルールに関連する未来のイベントを削除
+    """
+```
+
+---
+
+## Googleカレンダー同期 (event/sync_to_google.py)
+
+### DatabaseToGoogleSync.sync_all_communities
+**場所**: `app/event/sync_to_google.py`
+
+全コミュニティのイベントを同期。
+
+```python
+def sync_all_communities(self, months_ahead: int = 3) -> dict:
+    """
+    承認済みコミュニティのイベントをGoogleカレンダーに同期
+    重複防止機能付き
+    """
+```
+
+### DatabaseToGoogleSync.sync_events
+**場所**: `app/event/sync_to_google.py`
+
+特定コミュニティのイベントを同期。
+
+```python
+def sync_events(self, community: Community, start_date: date, 
+                end_date: date, stats: dict) -> None:
+    """
+    コミュニティのイベントをGoogleカレンダーと同期
+    日時とコミュニティ名でインデックス化して重複を防ぐ
+    """
+```
+
+---
+
+## ユーティリティ関数
+
+### create_calendar_entry_url
+**場所**: `app/event_calendar/calendar_utils.py`
+
+VRCイベントカレンダー投稿用のURLを生成。
+
+### convert_markdown
+**場所**: `app/event/libs.py`
+
+MarkdownをHTMLに変換。
+
+### extract_video_id
+**場所**: `app/event/views.py:210`
+
+YouTube URLから動画IDを抽出。
+
+---
+
+## テスト関数
+
+### GenerateRecurringEventsCommandTest
+**場所**: `app/event/tests/test_generate_recurring_events_command.py`
+
+generate_recurring_eventsコマンドの包括的なテスト。
+
+- 基本的なイベント生成
+- ドライランオプション
+- リセット機能
+- 重複防止
+- 各種定期ルールパターン
