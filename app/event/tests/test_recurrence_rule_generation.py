@@ -10,8 +10,8 @@ from unittest.mock import patch, MagicMock
 User = get_user_model()
 
 
-class TestXRDeveloperRecurrence(TestCase):
-    """XR開発者集会の定期ルール生成テスト"""
+class TestRecurrenceRuleGeneration(TestCase):
+    """定期ルール生成の週計算テスト"""
     
     def setUp(self):
         # テストユーザーとコミュニティを作成
@@ -44,8 +44,8 @@ class TestXRDeveloperRecurrence(TestCase):
         
         self.service = RecurrenceService()
     
-    def test_generate_xr_developer_recurrence_with_llm(self):
-        """LLMを使用してXR開発者集会の定期ルールを生成"""
+    def test_generate_monthly_fourth_monday_with_llm(self):
+        """LLMを使用して毎月第4月曜の定期ルールを生成"""
         # RecurrenceRuleを作成
         rule = RecurrenceRule.objects.create(
             community=self.community,
@@ -84,8 +84,8 @@ class TestXRDeveloperRecurrence(TestCase):
             for d in dates:
                 self.assertEqual(d.weekday(), 0, f"{d} は月曜日ではありません (weekday={d.weekday()})")
     
-    def test_llm_prompt_for_xr_developer(self):
-        """XR開発者集会用のLLMプロンプトを確認"""
+    def test_llm_prompt_for_monthly_pattern(self):
+        """月次パターンのLLMプロンプトを確認"""
         rule = RecurrenceRule.objects.create(
             community=self.community,
             frequency='OTHER', 
@@ -129,8 +129,8 @@ class TestXRDeveloperRecurrence(TestCase):
         week_pattern_found = '主な開催週: 第4週' in captured_prompt or '主な開催週: 第5週' in captured_prompt
         self.assertTrue(week_pattern_found, "週のパターンが正しく検出されていません")
     
-    def test_monthly_by_week_rule_for_xr_developer(self):
-        """MONTHLY_BY_WEEK頻度での第4月曜生成テスト"""
+    def test_monthly_by_week_rule_generation(self):
+        """MONTHLY_BY_WEEK頻度での第N曜日生成テスト"""
         rule = RecurrenceRule.objects.create(
             community=self.community,
             frequency='MONTHLY_BY_WEEK',
@@ -164,8 +164,8 @@ class TestXRDeveloperRecurrence(TestCase):
             week_of_month = (d.day - 1) // 7 + 1
             self.assertIn(week_of_month, [4, 5], f"{d} is week {week_of_month}, not 4th week")
     
-    def test_recurrence_preview_api_for_xr_developer(self):
-        """RecurrencePreviewAPIでXR開発者集会のプレビューをテスト"""
+    def test_recurrence_preview_api_for_custom_rule(self):
+        """RecurrencePreviewAPIでカスタムルールのプレビューをテスト"""
         from django.urls import reverse
         from rest_framework.test import APIClient
         

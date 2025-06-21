@@ -10,8 +10,8 @@ from event.recurrence_service import RecurrenceService
 User = get_user_model()
 
 
-class TestXRDeveloperLLMReal(TestCase):
-    """XR開発者集会の実際のLLM呼び出しテスト"""
+class TestRecurrenceLLMGeneration(TestCase):
+    """実際のLLMを使用した定期ルール生成テスト"""
     
     def setUp(self):
         # テストユーザーとコミュニティを作成
@@ -44,8 +44,8 @@ class TestXRDeveloperLLMReal(TestCase):
         
         self.service = RecurrenceService()
     
-    def test_real_llm_generation_for_xr_developer(self):
-        """実際のLLMを使用してXR開発者集会の定期ルールを生成"""
+    def test_real_llm_generation_for_monthly_pattern(self):
+        """実際のLLMを使用して月次パターンの定期ルールを生成"""
         # APIキーが設定されていない場合はスキップ
         if not os.environ.get('GOOGLE_API_KEY'):
             self.skipTest("GOOGLE_API_KEY not set")
@@ -86,7 +86,7 @@ class TestXRDeveloperLLMReal(TestCase):
             # 月曜日であることを確認
             self.assertEqual(d.weekday(), 0, f"{d} は月曜日ではありません (weekday={d.weekday()})")
             
-            # 第4週であることを確認
+            # 第4週（その曜日の4回目）であることを確認
             week_of_month = self.service._get_week_of_month(d)
             self.assertEqual(week_of_month, 4, f"{d} は第{week_of_month}週ですが、第4週であるべきです")
         
@@ -95,6 +95,6 @@ class TestXRDeveloperLLMReal(TestCase):
         print(f"\n期待される日付: {expected_dates}")
         print(f"生成された日付: {dates}")
         
-        # 少なくとも1つは期待される日付に含まれていることを確認
+        # 生成された日付が期待されるパターンに一致するか確認
         matching_dates = [d for d in dates if d in expected_dates]
-        self.assertGreater(len(matching_dates), 0, "生成された日付に期待される第4月曜日が含まれていません")
+        self.assertGreater(len(matching_dates), 0, "生成された日付に期待されるパターンが含まれていません")

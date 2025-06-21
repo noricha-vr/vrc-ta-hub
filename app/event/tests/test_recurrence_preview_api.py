@@ -10,8 +10,8 @@ from event.models import Event, RecurrenceRule
 User = get_user_model()
 
 
-class TestXRDeveloperAPI(TestCase):
-    """XR開発者集会のAPI経由でのテスト"""
+class TestRecurrencePreviewAPI(TestCase):
+    """定期ルールプレビューAPIのテスト"""
     
     def setUp(self):
         # テストユーザーとコミュニティを作成
@@ -74,6 +74,7 @@ class TestXRDeveloperAPI(TestCase):
         # 各日付が月曜日であることを確認
         for date_str in dates:
             d = date.fromisoformat(date_str)
+            # このテストケースでは月曜日を期待
             self.assertEqual(d.weekday(), 0, f"{date_str} は月曜日ではありません")
     
     def test_recurrence_preview_with_monthly_by_week(self):
@@ -111,4 +112,5 @@ class TestXRDeveloperAPI(TestCase):
             '2025-02-24',  # 第4月曜
         ]
         
+        # 第4月曜日が正しく生成されることを確認
         self.assertEqual(dates, expected_dates, f"期待される日付と異なります: {dates}")
