@@ -760,6 +760,11 @@ class EventMyList(LoginRequiredMixin, ListView):
         # ページネーション用のパラメータを設定
         context['current_query_params'] = self._prepare_pagination_params()
 
+        # 未来のイベントが存在するかをチェック
+        today = timezone.now().date()
+        future_events_exist = any(event.date >= today for event in events)
+        context['has_future_events'] = future_events_exist
+
         return context
 
 

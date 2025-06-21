@@ -32,18 +32,30 @@ class IndexView(TemplateView):
         end_date = today + timezone.timedelta(days=7)
         upcoming_events = Event.objects.filter(
             date__gte=today,
-            date__lte=end_date
+            date__lte=end_date,
+            # ポスター画像があるコミュニティのイベントのみ
+            community__poster_image__isnull=False
+        ).exclude(
+            community__poster_image=''
         ).select_related('community').order_by('date', 'start_time')
 
         upcoming_event_details = EventDetail.objects.filter(
             event__date__gte=today,
-            detail_type='LT'  # LTのみ
+            detail_type='LT',  # LTのみ
+            # ポスター画像があるコミュニティのイベントのみ
+            event__community__poster_image__isnull=False
+        ).exclude(
+            event__community__poster_image=''
         ).select_related('event', 'event__community').order_by('event__date', 'start_time')
 
         # 特別企画を取得（今日からイベント終了日の24時まで表示）
         special_events = EventDetail.objects.filter(
             detail_type='SPECIAL',
-            event__date__gte=today  # 今日以降のイベント
+            event__date__gte=today,  # 今日以降のイベント
+            # ポスター画像があるコミュニティのイベントのみ
+            event__community__poster_image__isnull=False
+        ).exclude(
+            event__community__poster_image=''
         ).select_related('event', 'event__community').order_by('-event__date', '-start_time')[:10]
 
         # Google Calendar URLを生成

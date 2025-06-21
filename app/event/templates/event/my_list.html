@@ -32,6 +32,35 @@
                 </div>
             {% endif %}
         </div>
+        
+        {% comment %}ポスター未設定の警告メッセージ{% endcomment %}
+        {% if community and not community.poster_image %}
+            <div class="row">
+                <div class="col-12 col-md-10 offset-md-1 mb-3">
+                    <div class="alert alert-warning" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        <strong>ポスター画像が設定されていません。</strong>
+                        ポスター画像を設定しないと、集会一覧やトップページにイベントが表示されません。
+                        <a href="{% url 'community:update' %}" class="alert-link">こちらから設定してください。</a>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+        
+        {% comment %}未来のイベントがない場合の警告メッセージ{% endcomment %}
+        {% if not has_future_events %}
+            <div class="row">
+                <div class="col-12 col-md-10 offset-md-1 mb-3">
+                    <div class="alert alert-info" role="alert">
+                        <i class="bi bi-info-circle-fill me-2"></i>
+                        <strong>今後のイベントが登録されていません。</strong>
+                        定期的にイベントを開催している場合は、
+                        <a href="{% url 'event:calendar_create' %}" class="alert-link">イベントを登録</a>してください。
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+        
         {% for event in events %}
             <div class="row">
                 <div class="col-12 col-md-10 offset-md-1 mb-4">
