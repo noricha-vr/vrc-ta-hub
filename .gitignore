@@ -98,3 +98,6 @@ secret
 /app/test-emails
 .mcp.json
 *.log
+
+# Archive directory
+/app/scripts/archive/

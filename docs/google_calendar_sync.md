@@ -4,6 +4,8 @@
 
 VRC-TA-HubのイベントデータをGoogleカレンダーに同期するシステムについて説明します。このシステムは、データベースを信頼できる唯一の情報源（Single Source of Truth）として、Googleカレンダーへの単方向同期を実装しています。
 
+⚠️ **最新の修正**: 2025年6月に重複イベント問題が解決されました。詳細は[Googleカレンダー同期問題の解決](google_calendar_sync_issue_resolved.md)を参照してください。
+
 ## アーキテクチャ
 
 ### 同期方向
@@ -59,10 +61,15 @@ def _create_google_event(self, event: Event):
 
 ### 1. HTTPエンドポイント経由
 ```bash
-curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/sync/
+# カレンダー更新エンドポイント
+curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/update/
 ```
-- **ファイル**: `app/event/views.py`の`sync_calendar_events()`関数
+- **ファイル**: `app/event/views.py`の`update_google_calendar()`関数
 - **認証**: REQUEST_TOKENヘッダーが必要
+- **処理内容**: 
+  1. Googleカレンダーからイベントを取得
+  2. DBにイベントを保存
+  3. DBからGoogleカレンダーへの逆同期を実行
 
 ### 2. 管理コマンド
 ```bash
@@ -71,15 +78,21 @@ docker compose exec vrc-ta-hub python manage.py sync_calendar
 - **ファイル**: `app/event/management/commands/sync_calendar.py`
 
 ### 3. スクリプト
-- `app/scripts/sync_all_events.py` - 全コミュニティのイベント同期
-- `scripts/sync_to_google_calendar.py` - カスタム同期処理
+```bash
+# DBからGoogleカレンダーへの同期（推奨）
+docker compose exec vrc-ta-hub python scripts/sync_db_to_calendar.py
+
+# 全コミュニティのイベント同期
+docker compose exec vrc-ta-hub python scripts/sync_all_events.py
+```
 
 ## 定期イベント（RecurrenceRule）の扱い
 
-### 現状の制限
+### 現状の実装（2025年6月更新）
 - RecurrenceRuleは定義されているが、Googleカレンダー同期では**使用されていない**
 - すべてのイベントが個別イベントとしてGoogleカレンダーに作成される
 - `recurrence=None`により、繰り返しルールは意図的に無効化
+- **理由**: Google Calendar APIの繰り返しイベント機能による重複問題を回避するため
 
 ### 定期イベントの生成プロセス
 1. `generate_recurring_events`管理コマンドでRecurrenceRuleから個別イベントを生成
@@ -171,5 +184,23 @@ sequenceDiagram
 - `app/event/google_calendar.py` - Google Calendar APIラッパー
 - `app/event/views.py` - HTTP同期エンドポイント
 - `app/event/management/commands/sync_calendar.py` - 管理コマンド
+- `app/event/management/commands/generate_recurring_events.py` - 定期イベント生成
 - `app/event/models.py` - Event, RecurrenceRuleモデル
+- `app/scripts/sync_db_to_calendar.py` - DBからGoogleカレンダーへの同期
 - `app/scripts/sync_all_events.py` - 同期スクリプト
+
+## トラブルシューティング
+
+### 重複イベントの確認
+```bash
+# Googleカレンダー上の重複をチェック
+docker compose exec vrc-ta-hub python scripts/check_calendar_duplicates.py
+
+# 特定コミュニティのイベントを確認
+docker compose exec vrc-ta-hub python scripts/check_specific_community.py
+```
+
+### デバッグログの有効化
+```python
+# settings.pyでDEBUG=Trueを設定すると詳細ログが出力されます
+```

@@ -39,12 +39,11 @@ def sync_to_calendar():
     total_errors = 0
     
     for community in communities:
-        # 期間内のイベントを取得（マスターイベントは除外）
+        # 期間内のイベントを取得（マスターイベントも含む）
         events = Event.objects.filter(
             community=community,
             date__gte=today,
-            date__lte=end_date,
-            is_recurring_master=False
+            date__lte=end_date
         ).order_by('date', 'start_time')
         
         if events.exists():

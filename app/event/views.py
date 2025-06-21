@@ -28,7 +28,7 @@ from url_filters import get_filtered_url
 from website.settings import DEBUG, GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, REQUEST_TOKEN, \
     GEMINI_MODEL
 from .google_calendar import GoogleCalendarService
-from .sync_to_google_v2 import ImprovedDatabaseToGoogleSyncV2
+from .sync_to_google import DatabaseToGoogleSync
 
 logger = logging.getLogger(__name__)
 
@@ -300,8 +300,8 @@ def sync_calendar_events(request):
         logger.info(f'同期開始時刻: {timezone.now()}')
         logger.info('=' * 80)
         
-        # 改善された同期処理を実行（v2）- 重複防止機能付き
-        sync = ImprovedDatabaseToGoogleSyncV2()
+        # 重複防止機能付きの同期処理を実行
+        sync = DatabaseToGoogleSync()
         stats = sync.sync_all_communities(months_ahead=3)
         
         # 同期結果のサマリー

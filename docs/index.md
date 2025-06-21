@@ -13,9 +13,17 @@ VRC技術学術ハブの開発・運用に関するドキュメントです。
 - [イベント管理システム](event_management.md)
 - [イベント定期登録とGoogleカレンダー連携](event_recurrence_system.md)
 - [Googleカレンダー同期システム](google_calendar_sync.md)
+- [Googleカレンダー同期問題の解決](google_calendar_sync_issue_resolved.md) ⭐️ New
 - [AI自動生成機能](ai_generation.md)
 - [コミュニティ管理](community_management.md)
 - [API仕様](api_specification.md)
+
+### Discord Bot関連
+- [Discord Bot仕様書](discord-bot-specification.md)
+- [Discord Bot実装ガイド](discord-bot-implementation-guide.md)
+
+### 分析レポート
+- [コミュニティスケジュール分析（2025年6月）](community_schedule_analysis_2025_06.md)
 
 ### 開発ガイド
 - [開発環境セットアップ](development_setup.md)
@@ -29,7 +37,7 @@ VRC技術学術ハブの開発・運用に関するドキュメントです。
 - [トラブルシューティング](troubleshooting.md)
 
 ### 関数リファレンス
-- [関数一覧](functions.md)
+- [関数一覧](functions.md) ⭐️ Updated
 
 ## クイックスタート
 
@@ -49,11 +57,17 @@ docker compose exec vrc-ta-hub python manage.py createsuperuser
 ### 基本的な運用コマンド
 
 ```bash
-# 定期イベントの生成（3ヶ月分）
+# 定期イベントの生成（デフォルト1ヶ月分）
 docker compose exec vrc-ta-hub python manage.py generate_recurring_events
 
-# Googleカレンダーへの同期
-docker compose exec vrc-ta-hub python manage.py sync_to_google
+# カスタムルールのイベント生成
+docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
+
+# DBからGoogleカレンダーへの同期
+docker compose exec vrc-ta-hub python scripts/sync_db_to_calendar.py
+
+# 手動カレンダー更新（要REQUEST_TOKEN）
+curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/update/
 
 # テスト実行
 docker compose exec vrc-ta-hub python manage.py test

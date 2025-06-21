@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""データベースからGoogleカレンダーへの同期処理（修正版）"""
+"""データベースからGoogleカレンダーへの同期処理"""
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import logging
 
 from django.conf import settings
@@ -30,85 +30,104 @@ class DatabaseToGoogleSync:
         """すべてのコミュニティのイベントを同期"""
         communities = Community.objects.filter(status='approved')
         
-        for community in communities:
-            try:
-                self.sync_community_events(community, months_ahead)
-            except Exception as e:
-                logger.error(f"Failed to sync {community.name}: {e}")
-    
-    def sync_community_events(self, community: Community, months_ahead: int = 1):
-        """特定のコミュニティのイベントを同期"""
-        logger.info(f"Syncing events for {community.name}")
+        total_stats = {
+            'created': 0,
+            'updated': 0,
+            'deleted': 0,
+            'errors': 0,
+            'duplicate_prevented': 0
+        }
         
         # 同期期間を設定
         start_date = timezone.now().date()
         end_date = start_date + timedelta(days=months_ahead * 30)
         
-        # データベースのイベントを取得（マスターイベントも含む）
+        # 最初に全てのGoogleカレンダーイベントを取得
+        logger.info("Fetching all Google Calendar events...")
+        all_google_events = self.service.list_events(
+            time_min=datetime.combine(start_date, datetime.min.time()),
+            time_max=datetime.combine(end_date, datetime.max.time())
+        )
+        
+        # イベントを日時+サマリーでインデックス化
+        google_events_by_datetime_summary = self._index_events_by_datetime_and_summary(all_google_events)
+        google_events_by_id = {e['id']: e for e in all_google_events}
+        
+        logger.info(f"Found {len(all_google_events)} events in Google Calendar")
+        
+        # 各コミュニティのイベントを処理
+        for community in communities:
+            try:
+                stats = self._sync_community_events(
+                    community, 
+                    start_date, 
+                    end_date,
+                    google_events_by_datetime_summary,
+                    google_events_by_id
+                )
+                for key in total_stats:
+                    total_stats[key] += stats[key]
+            except Exception as e:
+                logger.error(f"Failed to sync {community.name}: {e}")
+                total_stats['errors'] += 1
+        
+        logger.info(
+            f"Total sync completed: "
+            f"created={total_stats['created']}, "
+            f"updated={total_stats['updated']}, "
+            f"deleted={total_stats['deleted']}, "
+            f"errors={total_stats['errors']}"
+        )
+        
+        return total_stats
+    
+    def _sync_community_events(
+        self, 
+        community: Community, 
+        start_date: datetime.date,
+        end_date: datetime.date,
+        google_events_by_datetime_summary: Dict[str, Dict],
+        google_events_by_id: Dict[str, Dict]
+    ):
+        """特定のコミュニティのイベントを同期"""
+        logger.info(f"Syncing events for {community.name}")
+        
+        # データベースのイベントを取得
         db_events = Event.objects.filter(
             community=community,
             date__gte=start_date,
             date__lte=end_date
         ).order_by('date', 'start_time')
         
-        # Googleカレンダーのイベントを取得
-        google_events = self._get_google_events(community, start_date, end_date)
-        google_events_dict = {e['id']: e for e in google_events}
-        
         # 処理統計
         stats = {
             'created': 0,
             'updated': 0,
             'deleted': 0,
-            'errors': 0
+            'errors': 0,
+            'duplicate_prevented': 0
         }
         
         # データベースのイベントを処理
-        processed_google_ids = set()
-        
         for event in db_events:
             try:
-                if event.google_calendar_event_id:
-                    # 既存のGoogleイベントを更新
-                    if event.google_calendar_event_id in google_events_dict:
-                        self._update_google_event(event)
-                        processed_google_ids.add(event.google_calendar_event_id)
-                        stats['updated'] += 1
-                    else:
-                        # GoogleカレンダーにないのでIDをクリアして新規作成
-                        event.google_calendar_event_id = None
-                        event.save()
-                        self._create_google_event(event)
-                        processed_google_ids.add(event.google_calendar_event_id)
-                        stats['created'] += 1
-                else:
-                    # 新規作成
-                    self._create_google_event(event)
-                    if event.google_calendar_event_id:
-                        processed_google_ids.add(event.google_calendar_event_id)
-                        stats['created'] += 1
+                result = self._process_event(
+                    event, 
+                    google_events_by_datetime_summary, 
+                    google_events_by_id
+                )
+                
+                if result['action'] == 'created':
+                    stats['created'] += 1
+                elif result['action'] == 'updated':
+                    stats['updated'] += 1
+                    # 重複防止による更新をカウント
+                    if result.get('duplicate_prevented'):
+                        stats['duplicate_prevented'] += 1
+                    
             except Exception as e:
                 logger.error(f"Error processing event {event}: {e}")
                 stats['errors'] += 1
-        
-        # Googleカレンダーの余分なイベントを削除
-        # 安全のため、削除処理をスキップするオプション
-        delete_orphaned_events = getattr(settings, 'DELETE_ORPHANED_GOOGLE_EVENTS', False)
-        
-        if delete_orphaned_events:
-            for google_id, google_event in google_events_dict.items():
-                if google_id not in processed_google_ids:
-                    try:
-                        self.service.delete_event(google_id)
-                        stats['deleted'] += 1
-                    except Exception as e:
-                        logger.error(f"Error deleting Google event {google_id}: {e}")
-                        stats['errors'] += 1
-        else:
-            # 削除せずにログのみ
-            orphaned_count = len([gid for gid in google_events_dict if gid not in processed_google_ids])
-            if orphaned_count > 0:
-                logger.info(f"Found {orphaned_count} orphaned events in Google Calendar (not deleted)")
         
         logger.info(
             f"Sync completed for {community.name}: "
@@ -118,50 +137,186 @@ class DatabaseToGoogleSync:
         
         return stats
     
-    def _get_google_events(self, community: Community, start_date: datetime.date, end_date: datetime.date) -> List[Dict]:
-        """Googleカレンダーから特定コミュニティのイベントを取得"""
-        all_events = self.service.list_events(
-            time_min=datetime.combine(start_date, datetime.min.time()),
-            time_max=datetime.combine(end_date, datetime.max.time())
-        )
+    def _process_event(
+        self, 
+        event: Event, 
+        google_events_by_datetime_summary: Dict[str, Dict],
+        google_events_by_id: Dict[str, Dict]
+    ) -> Dict:
+        """個別のイベントを処理"""
+        # 日時とコミュニティ名でキーを生成
+        dt_key = self._create_datetime_key(event.date, event.start_time)
+        combined_key = f"{dt_key}|{event.community.name}"
         
-        # コミュニティ名でフィルタリング
-        community_events = []
-        for event in all_events:
+        logger.info(f"[SYNC DEBUG] Processing event: {event}")
+        logger.info(f"[SYNC DEBUG]   Date: {event.date}, Time: {event.start_time}")
+        logger.info(f"[SYNC DEBUG]   Community: {event.community.name}")
+        logger.info(f"[SYNC DEBUG]   Combined key: {combined_key}")
+        logger.info(f"[SYNC DEBUG]   Current Google ID: {event.google_calendar_event_id}")
+        
+        # 1. まず日時+コミュニティ名でマッチング
+        if combined_key in google_events_by_datetime_summary:
+            google_event = google_events_by_datetime_summary[combined_key]
+            logger.info(f"[SYNC DEBUG]   Found matching Google event by datetime+summary: {google_event['id']}")
+            
+            # Google Calendar IDが異なる場合は更新（重複防止のキーポイント）
+            if event.google_calendar_event_id != google_event['id']:
+                logger.info(
+                    f"[SYNC DEBUG]   Updating Google Calendar ID for {event}: "
+                    f"{event.google_calendar_event_id} -> {google_event['id']}"
+                )
+                event.google_calendar_event_id = google_event['id']
+                event.save(update_fields=['google_calendar_event_id'])
+            
+            # イベント内容を更新
+            logger.info(f"[SYNC DEBUG]   Updating existing Google event")
+            self._update_google_event(event)
+            return {'action': 'updated', 'google_id': google_event['id']}
+        
+        # 2. 日時で見つからない場合、Google Calendar IDで確認
+        elif event.google_calendar_event_id and event.google_calendar_event_id in google_events_by_id:
+            logger.info(f"[SYNC DEBUG]   Found Google event by ID: {event.google_calendar_event_id}")
+            logger.info(f"[SYNC DEBUG]   Event time may have changed, updating...")
+            # IDは存在するが日時が異なる（イベントの時間が変更された可能性）
+            self._update_google_event(event)
+            return {'action': 'updated', 'google_id': event.google_calendar_event_id}
+        
+        # 3. どちらでも見つからない場合は新規作成
+        else:
+            logger.info(f"[SYNC DEBUG]   No matching Google event found")
+            logger.info(f"[SYNC DEBUG]   Keys checked in google_events_by_datetime_summary:")
+            # デバッグ用：同じ日付のキーをログ出力
+            for key in google_events_by_datetime_summary.keys():
+                if event.date.isoformat() in key:
+                    logger.info(f"[SYNC DEBUG]     - {key}")
+            
+            # 既存のGoogle Calendar IDをクリア（無効なIDの場合）
+            if event.google_calendar_event_id:
+                logger.info(f"[SYNC DEBUG]   Clearing invalid Google Calendar ID: {event.google_calendar_event_id}")
+                event.google_calendar_event_id = None
+                event.save(update_fields=['google_calendar_event_id'])
+            
+            logger.info(f"[SYNC DEBUG]   Creating new Google event")
+            result = self._create_google_event(event)
+            
+            # 重複防止が機能した場合
+            if result.get('duplicate_prevented'):
+                return {'action': 'updated', 'google_id': event.google_calendar_event_id, 'duplicate_prevented': True}
+            else:
+                return {'action': 'created', 'google_id': event.google_calendar_event_id}
+    
+    def _index_events_by_datetime_and_summary(self, events: List[Dict]) -> Dict[str, Dict]:
+        """イベントを日時+サマリーでインデックス化"""
+        indexed = {}
+        
+        logger.info(f"[INDEX DEBUG] Indexing {len(events)} Google Calendar events")
+        
+        for event in events:
+            start = event.get('start', {})
             summary = event.get('summary', '')
-            if community.name in summary:
-                community_events.append(event)
+            
+            # 日時を抽出
+            if 'dateTime' in start:
+                dt = datetime.fromisoformat(start['dateTime'].replace('Z', '+00:00'))
+                # タイムゾーンを考慮してローカル時間に変換
+                dt = dt.astimezone(timezone.get_current_timezone())
+                dt_key = self._create_datetime_key(dt.date(), dt.time())
+                # 日時+サマリーをキーとして使用
+                combined_key = f"{dt_key}|{summary}"
+                
+                # 同じキーのイベントが複数ある場合の処理
+                if combined_key in indexed:
+                    # 重複がある場合は、より新しいイベントを保持
+                    existing_event = indexed[combined_key]
+                    existing_created = existing_event.get('created', '')
+                    new_created = event.get('created', '')
+                    
+                    logger.warning(
+                        f"[INDEX DEBUG] Duplicate event found for {combined_key}: "
+                        f"existing={existing_event['id']} (created: {existing_created}), "
+                        f"new={event['id']} (created: {new_created})"
+                    )
+                    
+                    # より新しいイベントを保持（作成日時で判断）
+                    if new_created > existing_created:
+                        indexed[combined_key] = event
+                        logger.info(f"[INDEX DEBUG] Keeping newer event: {event['id']}")
+                    else:
+                        logger.info(f"[INDEX DEBUG] Keeping existing event: {existing_event['id']}")
+                else:
+                    logger.debug(f"[INDEX DEBUG] Indexed: {combined_key} -> {event['id']}")
+                    indexed[combined_key] = event
+            elif 'date' in start:
+                # 全日イベントの場合（今回は対象外だが念のため）
+                date = datetime.strptime(start['date'], '%Y-%m-%d').date()
+                dt_key = f"{date}T00:00:00"
+                combined_key = f"{dt_key}|{summary}"
+                indexed[combined_key] = event
         
-        return community_events
+        return indexed
+    
+    def _create_datetime_key(self, date: datetime.date, time: datetime.time) -> str:
+        """日時からキーを生成"""
+        return f"{date}T{time.strftime('%H:%M:%S')}"
     
     def _create_google_event(self, event: Event):
-        """Googleカレンダーにイベントを作成（繰り返しルールなし）"""
-        # イベントの開始・終了時刻を計算
-        start_datetime = datetime.combine(event.date, event.start_time)
-        end_datetime = start_datetime + timedelta(minutes=event.duration)
+        """Googleカレンダーにイベントを作成"""
+        # 重複チェック: 作成前に再度確認
+        dt_key = self._create_datetime_key(event.date, event.start_time)
+        combined_key = f"{dt_key}|{event.community.name}"
         
-        # タイムゾーンを設定
+        # 最新のGoogle Calendarイベントを取得して再確認
+        start_datetime = datetime.combine(event.date, event.start_time)
+        end_datetime = start_datetime + timedelta(hours=1)  # 1時間の範囲で検索
+        
         tz = timezone.get_current_timezone()
         start_datetime = timezone.make_aware(start_datetime, tz)
         end_datetime = timezone.make_aware(end_datetime, tz)
+        
+        # 同じ時間帯のイベントを検索
+        existing_events = self.service.list_events(
+            time_min=start_datetime - timedelta(minutes=1),
+            time_max=start_datetime + timedelta(minutes=1),
+            max_results=50
+        )
+        
+        # 同じコミュニティ名のイベントがあるか確認
+        for existing_event in existing_events:
+            if existing_event.get('summary') == event.community.name:
+                logger.warning(
+                    f"[DUPLICATE PREVENTION] Found existing event during creation: "
+                    f"{event.community.name} at {event.date} {event.start_time}"
+                )
+                # 既存のイベントIDを保存して更新処理に切り替え
+                event.google_calendar_event_id = existing_event['id']
+                event.save(update_fields=['google_calendar_event_id'])
+                self._update_google_event(event)
+                # 重複防止カウンターを返す
+                return {'duplicate_prevented': True}
         
         # 説明文を生成
         description = self._generate_description(event)
         
         try:
-            # 繰り返しルールは設定しない（個別イベントとして作成）
             result = self.service.create_event(
                 summary=event.community.name,
                 start_time=start_datetime,
-                end_time=end_datetime,
+                end_time=start_datetime + timedelta(minutes=event.duration),
                 description=description,
-                recurrence=None  # 繰り返しルールを無効化
+                recurrence=None
             )
+            
+            # Google Calendar IDを保存
             event.google_calendar_event_id = result['id']
-            event.save()
+            event.save(update_fields=['google_calendar_event_id'])
+            
+            logger.info(f"Created Google event for {event}: {result['id']}")
         except Exception as e:
             logger.error(f"Failed to create Google event for {event}: {e}")
             raise
+        
+        # 通常の作成成功
+        return {'duplicate_prevented': False}
     
     def _update_google_event(self, event: Event):
         """Googleカレンダーのイベントを更新"""
@@ -185,6 +340,7 @@ class DatabaseToGoogleSync:
                 end_time=end_datetime,
                 description=description
             )
+            logger.info(f"Updated Google event for {event}: {event.google_calendar_event_id}")
         except Exception as e:
             logger.error(f"Failed to update Google event for {event}: {e}")
             raise
@@ -207,6 +363,6 @@ class DatabaseToGoogleSync:
 
 
 def sync_database_to_google():
-    """データベースからGoogleカレンダーへの同期を実行"""
+    """同期処理を実行"""
     sync = DatabaseToGoogleSync()
-    sync.sync_all_communities()
+    return sync.sync_all_communities()

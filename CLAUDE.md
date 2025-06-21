@@ -92,3 +92,10 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 - Supervisorでプロセス管理
 - 本番環境はGoogle Cloud Build（cloudbuild.yaml）でデプロイ
 - テストは実際のAPIを使用するため環境変数の設定が必須
+
+# Google Calendar ID
+本番環境
+GOOGLE_CALENDAR_ID=fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7@group.calendar.google.com
+
+開発環境
+GOOGLE_CALENDAR_ID=d80eac7bdea1505cd9bc16153047c261be94e78607896c5ca567f8cfa78f0be1@group.calendar.google.com
