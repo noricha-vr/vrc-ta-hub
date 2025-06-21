@@ -44,7 +44,7 @@ class DatabaseToGoogleSync:
         start_date = timezone.now().date()
         end_date = start_date + timedelta(days=months_ahead * 30)
         
-        # データベースのイベントを取得（個別イベントのみ）
+        # データベースのイベントを取得（マスターイベントも含む）
         db_events = Event.objects.filter(
             community=community,
             date__gte=start_date,

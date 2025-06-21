@@ -25,6 +25,7 @@ class RecurrenceRule(models.Model):
         ('OTHER', 'その他（自由記述）'),
     ]
     
+    community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='recurrence_rules', verbose_name='集会', null=True, blank=True)
     frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, verbose_name='頻度')
     interval = models.IntegerField(default=1, verbose_name='間隔')  # 何週間/月ごとか
     week_of_month = models.IntegerField(null=True, blank=True, verbose_name='第N週')  # MONTHLY_BY_WEEKの場合
@@ -42,9 +43,10 @@ class RecurrenceRule(models.Model):
         verbose_name_plural = '定期ルール'
     
     def __str__(self):
+        community_name = self.community.name if self.community else "未設定"
         if self.frequency == 'OTHER':
-            return f"{self.custom_rule[:50]}..."
-        return dict(self.FREQUENCY_CHOICES).get(self.frequency, '')
+            return f"{community_name} - {self.custom_rule[:50]}..."
+        return f"{community_name} - {dict(self.FREQUENCY_CHOICES).get(self.frequency, '')}"
     
     def is_occurrence_date(self, check_date):
         """指定された日付がこのルールに従う開催日かどうかを判定"""

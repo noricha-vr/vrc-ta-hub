@@ -29,6 +29,7 @@ def create_recurring_event(request, community_id):
                 with transaction.atomic():
                     # RecurrenceRuleを作成
                     rule = RecurrenceRule.objects.create(
+                        community=community,
                         frequency=form.cleaned_data['frequency'],
                         interval=form.cleaned_data['interval'],
                         week_of_month=form.cleaned_data.get('week_of_month'),

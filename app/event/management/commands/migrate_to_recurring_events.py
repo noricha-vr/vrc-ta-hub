@@ -159,6 +159,7 @@ class Command(BaseCommand):
         with transaction.atomic():
             # RecurrenceRuleを作成
             rule = RecurrenceRule.objects.create(
+                community=community,
                 frequency=pattern['frequency'],
                 interval=pattern.get('interval', 1),
                 week_of_month=pattern.get('week_of_month'),

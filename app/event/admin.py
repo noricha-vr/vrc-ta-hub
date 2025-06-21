@@ -14,20 +14,11 @@ class EventDetailInline(admin.TabularInline):
 
 @admin.register(RecurrenceRule)
 class RecurrenceRuleAdmin(admin.ModelAdmin):
-    list_display = ('get_community', 'frequency', 'interval', 'week_of_month', 'end_date', 'created_at', 'get_future_events_count', 'action_links')
-    list_filter = ('frequency', 'created_at')
-    search_fields = ('custom_rule',)
-    readonly_fields = ('get_community', 'created_at', 'updated_at')
-    
-    def get_community(self, obj):
-        """関連するコミュニティを取得"""
-        # このルールに関連する最初のイベントからコミュニティを取得
-        event = Event.objects.filter(recurrence_rule=obj).first()
-        if event and event.community:
-            return event.community.name
-        return '-'
-    
-    get_community.short_description = 'コミュニティ'
+    list_display = ('community', 'frequency', 'interval', 'week_of_month', 'end_date', 'created_at', 'get_future_events_count', 'action_links')
+    list_filter = ('frequency', 'created_at', 'community')
+    search_fields = ('custom_rule', 'community__name')
+    readonly_fields = ('created_at', 'updated_at')
+    raw_id_fields = ('community',)
     
     def get_future_events_count(self, obj):
         """未来のイベント数を表示"""

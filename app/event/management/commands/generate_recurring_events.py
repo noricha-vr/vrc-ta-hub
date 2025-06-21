@@ -48,11 +48,13 @@ class Command(BaseCommand):
                 recurring_master=master
             ).order_by('-date').first()
             
-            # 基準日を決定（最後のインスタンスの次の日、またはマスターイベントの日付）
+            # 基準日を決定（最後のインスタンスの次の日、またはマスターイベントの日付の次の発生日）
             if last_instance:
                 base_date = last_instance.date + timedelta(days=1)
             else:
-                base_date = master.date
+                # マスターイベントの日付から次の発生日を計算
+                # マスターイベント自体は最初の開催日として扱うため、次の発生日から生成
+                base_date = master.date + timedelta(days=1)
             
             # 今日より前の日付なら今日に設定
             today = timezone.now().date()
