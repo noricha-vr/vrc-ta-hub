@@ -131,7 +131,7 @@
                                class="btn btn-primary">編集(管理者)</a>
                         {% endif %}
                         {% if request.user == community.custom_user %}
-                            <a href="{% url 'community:update' community.pk %}"
+                            <a href="{% url 'community:update' %}"
                                class="btn btn-primary">編集</a>
                         {% endif %}
 

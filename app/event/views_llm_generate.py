@@ -1,6 +1,6 @@
 import logging
 from django.http import HttpResponse, JsonResponse
-from django.views.decorators.http import require_http_method
+from django.views.decorators.http import require_http_methods
 from django.core.management import call_command
 from django.utils import timezone
 from django.conf import settings
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN', '')
 
 
-@require_http_method(["GET"])
+@require_http_methods(["GET"])
 def generate_llm_events(request):
     """LLMを使用したイベント自動生成エンドポイント"""
     
