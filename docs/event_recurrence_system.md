@@ -57,7 +57,24 @@ class Event(models.Model):
 
 ## 定期イベントの仕組み
 
-### 1. start_dateを使用した開催日判定
+### 1. 週の計算ロジック
+
+月次イベントで「第N曜日」を指定する場合、その曜日が月内で何回目の出現かを正確に計算します：
+
+```python
+def _get_week_of_month(self, date_obj: date) -> int:
+    """日付が月の第何週かを取得（その曜日の第何回目の出現か）"""
+    # 同じ曜日の第何回目かを計算
+    # 例: 2024-11-25（月曜日）は11月の第4月曜日
+    count = 0
+    for day in range(1, date_obj.day + 1):
+        check_date = date_obj.replace(day=day)
+        if check_date.weekday() == date_obj.weekday():
+            count += 1
+    return count
+```
+
+### 2. start_dateを使用した開催日判定
 
 隔週開催の管理では、`start_date`（起点日）からの経過週数で開催日を判定します：
 
@@ -77,7 +94,31 @@ def is_occurrence_date(self, check_date):
         return weeks_diff % self.interval == 0
 ```
 
-### 2. イベント生成フロー
+### 3. MONTHLY_BY_WEEK頻度の処理
+
+毎月第N曜日のイベントを生成する際は、明示的に曜日を指定できます：
+
+```python
+# RecurrenceRuleでの設定
+rule = RecurrenceRule(
+    frequency='MONTHLY_BY_WEEK',
+    week_of_month=4,  # 第4週
+    weekday=0,        # 月曜日（0=月曜、6=日曜）
+    start_date=date(2024, 12, 1)
+)
+
+# APIでのプレビュー
+response = client.post('/api/v1/recurrence-preview/', {
+    'frequency': 'MONTHLY_BY_WEEK',
+    'week_of_month': 4,
+    'weekday': 0,  # 月曜日を明示的に指定
+    'base_date': '2024-12-01',
+    'base_time': '22:00',
+    'months': 3
+})
+```
+
+### 4. イベント生成フロー
 
 ```python
 # RecurrenceServiceによる日付生成
@@ -99,7 +140,7 @@ for date in dates:
     )
 ```
 
-### 3. カスタムルールの処理
+### 5. カスタムルールの処理
 
 確定的なカスタムルールの例：
 - `毎月11日`: 毎月11日に開催
@@ -172,9 +213,15 @@ docker compose exec vrc-ta-hub python manage.py sync_to_google
 # 1ヶ月先までのイベントを生成
 docker compose exec vrc-ta-hub python manage.py generate_recurring_events
 
+# 未来のイベントをリセットして再生成
+docker compose exec vrc-ta-hub python manage.py generate_recurring_events --reset-future
+
 # カスタムルールのイベント生成
 docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 ```
+
+**コマンドオプション**:
+- `--reset-future`: 未来のイベントを削除してから再生成（重複防止）
 
 ### 2. 開催周期の更新
 
@@ -232,6 +279,8 @@ docker compose exec vrc-ta-hub python scripts/clean_and_resync.py
 3. **不確定な周期の扱い**: 自動生成せず、手動でイベントを登録
 4. **同期の実行**: 単一プロセスで実行し、並列実行を避ける
 5. **バックアップ**: 大きな変更前にはデータベースのバックアップを取得
+6. **週の計算**: 「第N曜日」は月内でのその曜日の出現回数として計算
+7. **MONTHLY_BY_WEEKの使用**: 曜日を明示的に指定して正確な日付生成を保証
 
 ## 参考資料
 
