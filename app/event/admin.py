@@ -172,9 +172,16 @@ class EventAdmin(admin.ModelAdmin):
 
 @admin.register(EventDetail)
 class EventDetailAdmin(admin.ModelAdmin):
-    list_display = ('created_at', 'updated_at', 'detail_type', 'theme', 'speaker')
-    list_filter = ('detail_type', 'theme', 'speaker')
+    list_display = ('get_community_name', 'created_at', 'updated_at', 'detail_type', 'theme', 'speaker')
+    list_filter = ('detail_type', 'event__community', 'speaker')
     readonly_fields = ('event',)
+    search_fields = ('theme', 'speaker', 'event__community__name')
+    
+    def get_community_name(self, obj):
+        return obj.event.community.name if obj.event else '-'
+    
+    get_community_name.short_description = '集会名'
+    get_community_name.admin_order_field = 'event__community__name'
     
     def formfield_for_dbfield(self, db_field, **kwargs):
         field = super().formfield_for_dbfield(db_field, **kwargs)
