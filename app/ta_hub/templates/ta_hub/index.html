@@ -373,12 +373,9 @@
                                             <hr class="my-3">
                                             <div class="special-content-excerpt">
                                                 <p class="text-muted mb-0">
-                                                    <i class="bi bi-file-text me-2"></i>
-                                                    {% with first_special=event_group.list|first %}
-                                                        {% if first_special.contents %}
-                                                            {{ first_special.contents|striptags|truncatechars:200 }}
-                                                        {% endif %}
-                                                    {% endwith %}
+                                                    {% if event_group.grouper.community.description %}
+                                                        {{ event_group.grouper.community.description|truncatechars:140 }}
+                                                    {% endif %}
                                                 </p>
                                             </div>
                                         </div>
@@ -471,12 +468,9 @@
                                             <hr class="my-3">
                                             <div class="special-content-excerpt">
                                                 <p class="text-muted mb-0">
-                                                    <i class="bi bi-file-text me-2"></i>
-                                                    {% with first_special=event_group.list|first %}
-                                                        {% if first_special.contents %}
-                                                            {{ first_special.contents|striptags|truncatechars:200 }}
-                                                        {% endif %}
-                                                    {% endwith %}
+                                                    {% if event_group.grouper.community.description %}
+                                                        {{ event_group.grouper.community.description|truncatechars:140 }}
+                                                    {% endif %}
                                                 </p>
                                             </div>
                                         </div>
