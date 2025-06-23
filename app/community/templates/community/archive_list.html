@@ -1,15 +1,15 @@
 {% extends 'ta_hub/base.html' %}
 {% load custom_filters %}
 {% block meta %}
-    <title>VRC 技術学術系集会一覧 - VRChat 技術・学術系イベントHub</title>
-    <meta name="twitter:title" content="VRC 技術学術系集会一覧 - VRChat 技術・学術系イベントHub">
-    <meta property="og:title" content="VRC 技術学術系集会一覧 - VRChat 技術・学術系イベントHub">
+    <title>終了した集会 - VRChat 技術・学術系イベントHub</title>
+    <meta name="twitter:title" content="終了した集会 - VRChat 技術・学術系イベントHub">
+    <meta property="og:title" content="終了した集会 - VRChat 技術・学術系イベントHub">
     <meta name="description"
-          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、Twitter、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
+          content="VRChat技術学術系の終了した集会の情報を掲載しています。過去に開催されていた集会の記録を見ることができます。">
     <meta name="twitter:description"
-          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、Twitter、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
+          content="VRChat技術学術系の終了した集会の情報を掲載しています。過去に開催されていた集会の記録を見ることができます。">
     <meta property="og:description"
-          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、Twitter、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
+          content="VRChat技術学術系の終了した集会の情報を掲載しています。過去に開催されていた集会の記録を見ることができます。">
     <meta property="og:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
     <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
 {% endblock %}
@@ -92,11 +92,16 @@
     </style>
 
     <div class="container mt-4">
-        <a href="{% url 'community:list' %}" class="text-decoration-none text-black">
+        <a href="{% url 'community:archive_list' %}" class="text-decoration-none text-black">
             <h1 class="text-center my-5 fw-bold keiko_yellow">
-                VRChat 技術・学術系集会一覧
+                <i class="bi bi-archive"></i> 終了した集会
             </h1>
         </a>
+        <div class="text-center mb-4">
+            <a href="{% url 'community:list' %}" class="btn btn-primary">
+                <i class="bi bi-arrow-left"></i> 現在の集会一覧に戻る
+            </a>
+        </div>
         {# 検索フォーム #}
         <form method="get" class="mb-4">
             <div class="row justify-content-center">
@@ -128,10 +133,7 @@
                 </div>
             </div>
             <div class="text-end">
-                <a href="{% url 'community:list' %}" class="btn btn-secondary">クリア</a>
-                <a href="{% url 'community:archive_list' %}" class="btn btn-outline-secondary ms-2">
-                    <i class="bi bi-archive"></i> アーカイブ
-                </a>
+                <a href="{% url 'community:archive_list' %}" class="btn btn-secondary">クリア</a>
             </div>
         </form>
         <div class="text-end">
@@ -145,16 +147,22 @@
             <div class="row g-4"> <!-- g-4 クラスを追加 -->
                 {% for community in communities %}
                     <div class="col-md-4 mb-4"> <!-- mb-4 クラスを追加してカード間の縦方向の間隔を確保 -->
-                        <div class="card h-100 bg-light-subtle shadow"> <!-- カードを囲む div を追加 -->
+                        <div class="card h-100 bg-light-subtle shadow position-relative"> <!-- position-relative 追加 -->
+                            <!-- 終了バッジ -->
+                            <div class="position-absolute top-0 end-0 p-2" style="z-index: 10;">
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-calendar-x"></i> {{ community.end_at|date:"Y/m/d" }}終了
+                                </span>
+                            </div>
                             <div class="card-body d-flex flex-column"> <!-- カードの内容を card-body で囲む -->
                                 <a href="{% url 'community:detail' community.id %}" class="text-decoration-none">
                                     {% if community.poster_image %}
                                         <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
-                                             class="img-fluid mb-3" style="max-width: 100%; height: auto;"
+                                             class="img-fluid mb-3" style="max-width: 100%; height: auto; opacity: 0.8;"
                                              loading="lazy">
                                     {% else %}
                                         <img src="https://vrc-ta-hub.com/poster/no-image.png" alt="{{ community.name }}"
-                                             class="img-fluid mb-3" style="max-width: 100%; height: auto;"
+                                             class="img-fluid mb-3" style="max-width: 100%; height: auto; opacity: 0.8;"
                                              loading="lazy">
                                     {% endif %}
                                     <h2 class="card-title fw-bold mt-auto">{{ community.name }}</h2>

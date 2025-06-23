@@ -28,7 +28,7 @@ class DatabaseToGoogleSync:
     
     def sync_all_communities(self, months_ahead: int = 1):
         """すべてのコミュニティのイベントを同期"""
-        communities = Community.objects.filter(status='approved')
+        communities = Community.objects.filter(status='approved', end_at__isnull=True)
         
         total_stats = {
             'created': 0,
