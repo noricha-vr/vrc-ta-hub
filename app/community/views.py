@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import DataError
-from django.db.models import Min, Q, F
+from django.db.models import Min, Q, F, Count
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.urls import reverse_lazy
@@ -53,12 +53,11 @@ class CommunityListView(ListView):
     def get_queryset(self):
         queryset = super().get_queryset()
         now = timezone.now()
-        # ポスター画像があるものだけに絞り込み
+        # 承認済みでアクティブな集会（終了日がない）
         queryset = queryset.filter(
             status='approved', 
-            end_at__isnull=True,
-            poster_image__isnull=False
-        ).exclude(poster_image='')
+            end_at__isnull=True
+        )
 
         # 最新のイベント日を取得
         queryset = queryset.annotate(
@@ -314,3 +313,140 @@ class RejectView(LoginRequiredMixin, View):
 
         messages.success(request, f'{community.name}を非承認にしました。')
         return redirect('community:waiting_list')
+
+
+class CloseCommunityView(LoginRequiredMixin, UserPassesTestMixin, View):
+    def test_func(self):
+        community = get_object_or_404(Community, pk=self.kwargs['pk'])
+        return self.request.user.is_superuser or self.request.user == community.custom_user
+
+    def post(self, request, pk):
+        community = get_object_or_404(Community, pk=pk)
+        
+        # 権限チェック
+        if not (request.user.is_superuser or request.user == community.custom_user):
+            messages.error(request, '権限がありません。')
+            return redirect('community:detail', pk=pk)
+        
+        # 閉鎖日を設定（今日の日付）
+        today = timezone.now().date()
+        community.end_at = today
+        community.save()
+        
+        # 閉鎖日以降のイベントを削除
+        deleted_count = Event.objects.filter(
+            community=community,
+            date__gt=today
+        ).delete()[0]
+        
+        # 定期ルールを削除
+        from event.models import RecurrenceRule
+        deleted_rules = RecurrenceRule.objects.filter(community=community).delete()[0]
+        
+        logger.info(f'集会「{community.name}」を閉鎖しました。削除されたイベント数: {deleted_count}、削除された定期ルール数: {deleted_rules}')
+        messages.success(request, f'{community.name}を閉鎖しました。{deleted_count}件のイベントと{deleted_rules}件の定期ルールが削除されました。')
+        
+        # バックグラウンドでGoogleカレンダーを同期
+        import threading
+        from event.sync_to_google import DatabaseToGoogleSync
+        
+        def sync_calendar_in_background():
+            try:
+                logger.info(f'集会「{community.name}」の閉鎖に伴い、Googleカレンダーの同期を開始します。')
+                sync = DatabaseToGoogleSync()
+                stats = sync.sync_all_communities(months_ahead=3)
+                logger.info(f'Googleカレンダーの同期が完了しました。削除: {stats["deleted"]}件')
+            except Exception as e:
+                logger.error(f'Googleカレンダーの同期中にエラーが発生しました: {str(e)}')
+        
+        thread = threading.Thread(target=sync_calendar_in_background)
+        thread.daemon = True
+        thread.start()
+        
+        messages.info(request, 'Googleカレンダーの同期をバックグラウンドで実行しています。')
+        
+        return redirect('community:detail', pk=pk)
+
+
+class ReopenCommunityView(LoginRequiredMixin, UserPassesTestMixin, View):
+    def test_func(self):
+        community = get_object_or_404(Community, pk=self.kwargs['pk'])
+        return self.request.user.is_superuser or self.request.user == community.custom_user
+
+    def post(self, request, pk):
+        community = get_object_or_404(Community, pk=pk)
+        
+        # 権限チェック
+        if not (request.user.is_superuser or request.user == community.custom_user):
+            messages.error(request, '権限がありません。')
+            return redirect('community:detail', pk=pk)
+        
+        # 閉鎖日をクリア
+        community.end_at = None
+        community.save()
+        
+        logger.info(f'集会「{community.name}」を再開しました。')
+        messages.success(request, f'{community.name}を再開しました。')
+        
+        return redirect('community:detail', pk=pk)
+
+
+class ArchivedCommunityListView(ListView):
+    model = Community
+    template_name = 'community/archive_list.html'
+    context_object_name = 'communities'
+    paginate_by = 18
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # 承認済みで閉鎖された集会のみ表示
+        queryset = queryset.filter(
+            status='approved',
+            end_at__isnull=False
+        ).order_by('-end_at')
+
+        form = CommunitySearchForm(self.request.GET)
+        if form.is_valid():
+            if query := form.cleaned_data['query']:
+                queryset = queryset.filter(Q(name__icontains=query) | Q(description__icontains=query))
+            if weekdays := form.cleaned_data['weekdays']:
+                weekday_filters = Q()
+                for weekday in weekdays:
+                    weekday_filters |= Q(weekdays__contains=weekday)
+                queryset = queryset.filter(weekday_filters)
+            if tags := form.cleaned_data['tags']:
+                tag_filters = Q()
+                for tag in tags:
+                    tag_filters |= Q(tags__contains=[tag])
+                queryset = queryset.filter(tag_filters)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = CommunitySearchForm(self.request.GET or None)
+        context['selected_weekdays'] = self.request.GET.getlist('weekdays')
+        context['selected_tags'] = self.request.GET.getlist('tags')
+
+        base_url = reverse('community:archive_list')
+        current_params = self.request.GET.copy()
+
+        # ページネーションリンク用に既存の 'page' パラメータを削除
+        query_params_for_pagination = current_params.copy()
+        if 'page' in query_params_for_pagination:
+            del query_params_for_pagination['page']
+        context['current_query_params'] = query_params_for_pagination.urlencode()
+
+        context['weekday_urls'] = {
+            choice[0]: get_filtered_url(base_url, current_params, 'weekdays', choice[0])
+            for choice in context['form'].fields['weekdays'].choices
+        }
+        context['tag_urls'] = {
+            choice[0]: get_filtered_url(base_url, current_params, 'tags', choice[0])
+            for choice in context['form'].fields['tags'].choices
+        }
+
+        context['weekday_choices'] = dict(WEEKDAY_CHOICES)
+        context['tag_choices'] = dict(TAGS)
+        context['search_count'] = self.get_queryset().count()
+        return context

@@ -80,6 +80,15 @@ class Command(BaseCommand):
             rule = master.recurrence_rule
             community = master.community
             
+            # 閉鎖された集会はスキップ
+            if community.end_at:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f'{community.name}: 閉鎖された集会のためスキップ'
+                    )
+                )
+                continue
+            
             # 最後に生成されたイベントの日付を取得
             last_instance = Event.objects.filter(
                 recurring_master=master
