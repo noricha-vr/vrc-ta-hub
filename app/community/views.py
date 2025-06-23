@@ -53,11 +53,12 @@ class CommunityListView(ListView):
     def get_queryset(self):
         queryset = super().get_queryset()
         now = timezone.now()
-        # 承認済みでアクティブな集会（終了日がない）
+        # 承認済みでアクティブな集会（終了日がない）、かつポスター画像がある
         queryset = queryset.filter(
             status='approved', 
-            end_at__isnull=True
-        )
+            end_at__isnull=True,
+            poster_image__isnull=False
+        ).exclude(poster_image='')
 
         # 最新のイベント日を取得
         queryset = queryset.annotate(
