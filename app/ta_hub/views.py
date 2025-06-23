@@ -24,8 +24,11 @@ class IndexView(TemplateView):
 
         # Vketコラボ告知の表示判定
         current_datetime = timezone.now()
+        vket_start_datetime = timezone.datetime(2025, 7, 12, 0, 0, tzinfo=timezone.get_current_timezone())
         vket_end_datetime = timezone.datetime(2025, 7, 28, 0, 0, tzinfo=timezone.get_current_timezone())
         context['show_vket_notice'] = current_datetime < vket_end_datetime
+        context['vket_start_date'] = vket_start_datetime.date()
+        context['vket_end_date'] = vket_end_datetime.date()
         logger.info(f"Vket notice visibility: {context['show_vket_notice']}")
         # キャッシュからデータを取得
         cached_data = cache.get(cache_key)

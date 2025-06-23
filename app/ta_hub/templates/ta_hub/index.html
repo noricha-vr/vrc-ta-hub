@@ -411,9 +411,9 @@
                             <span class="fs-1 ms-3">🎉</span>
                         </div>
                         <div class="d-flex align-items-center justify-content-center gap-3 flex-wrap">
-                        <span class="badge bg-dark fs-6 px-3 py-2">
+                        <a href="#vket-lt-section" class="badge bg-dark fs-6 px-3 py-2 text-decoration-none" style="cursor: pointer;">
                             <i class="bi bi-calendar-event me-2"></i>特別イベント開催中
-                        </span>
+                        </a>
                         </div>
                     </div>
                 </div>
@@ -434,7 +434,7 @@
                 <div class="row g-4">
                     {% regroup upcoming_event_details by event as event_list %}
                     {% for event_group in event_list %}
-                        <div class="col-12 col-md-10 offset-md-1">
+                        <div class="col-12 col-md-10 offset-md-1" {% if event_group.grouper.date >= vket_start_date and event_group.grouper.date <= vket_end_date %}data-vket-event="true"{% endif %}>
                             <div class="card shadow h-100" style="position: relative;">
                                 <a href="{% url 'community:detail' event_group.grouper.community.pk %}"
                                    class="text-decoration-none position-absolute w-100 h-100"
@@ -1015,6 +1015,32 @@
 
     <script src="{% static 'ta_hub/js/index.js' %}"></script>
     <script type="text/javascript" src="https://petipeti-object-storage.work/dist/pp-calendar.umd.js"></script>
-
+    
+    <!-- Vket告知クリック時のスクロール -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const vketBadge = document.querySelector('a[href="#vket-lt-section"]');
+            if (vketBadge) {
+                vketBadge.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    // Vket期間内の最初のLTカードを探す
+                    const vketEvent = document.querySelector('[data-vket-event="true"]');
+                    if (vketEvent) {
+                        // スムーズスクロール
+                        vketEvent.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'center' 
+                        });
+                        // 一時的にハイライト
+                        vketEvent.style.transition = 'box-shadow 0.3s ease';
+                        vketEvent.style.boxShadow = '0 0 20px rgba(255, 107, 107, 0.8)';
+                        setTimeout(() => {
+                            vketEvent.style.boxShadow = '';
+                        }, 2000);
+                    }
+                });
+            }
+        });
+    </script>
 
 {% endblock %}
