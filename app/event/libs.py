@@ -109,15 +109,31 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
         # プロンプトにJSON出力指示を追加
         prompt_text += """
 
-# 出力形式
-以下のJSON形式で出力してください。マークダウンの```json ... ```ブロックで囲んでください。他のテキストは含めないでください。
+# 重要な出力形式の指示
+必ず以下のフォーマットで出力してください。
+
+1. 最初に```jsonと書く
+2. 次の行からJSONオブジェクトを開始
+3. 3つのフィールド（title, meta_description, text）を必ず含める
+4. 最後に```で閉じる
+5. それ以外のテキストは一切含めない
+
+出力例:
 ```json
 {
- "title": "ブログ記事のタイトル。SEOを意識した40文字以内の魅力的なタイトル。",
- "meta_description": "ブログ記事のメタディスクリプション。120文字以内でコンテンツの要約を記述。",
- "text": "ブログ記事の本文。マークダウン形式で記述された1000〜1800文字の記事。"
+  "title": "40文字以内のSEOを意識した魅力的なタイトル",
+  "meta_description": "120文字以内のコンテンツ要約",
+  "text": "マークダウン形式の1000〜2300文字の本文"
 }
-```"""
+```
+
+注意事項:
+- titleは必ず40文字以内
+- meta_descriptionは必ず120文字以内
+- textは必ず1000文字以上2300文字以内
+- 各フィールドは空にしない
+- JSON内のダブルクォート文字は\"でエスケープする
+- 改行は\nで表現する"""
 
         logger.info(f'Prompt for OpenRouter:\n{prompt_text[:500]}...')  # 長すぎるので一部表示
 
@@ -148,10 +164,11 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
                 },
                 model=model,
                 messages=[
+                    {"role": "system", "content": "あなたはVRChatの技術イベントに関するブログ記事を生成する専門のライターです。必ず指定されたJSON形式で出力してください。"},
                     {"role": "user", "content": prompt_text}
                 ],
-                temperature=0.7,
-                max_tokens=2000,
+                temperature=0.3,  # 温度を下げて出力の安定性を向上
+                max_tokens=2500,
                 tools=[{"type": "function", "function": blog_output_schema}],
                 tool_choice={"type": "function", "function": {"name": "generate_blog_post"}}
             )
