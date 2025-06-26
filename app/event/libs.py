@@ -164,11 +164,12 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
                 },
                 model=model,
                 messages=[
-                    {"role": "system", "content": "あなたはVRChatの技術イベントに関するブログ記事を生成する専門のライターです。必ず指定されたJSON形式で出力してください。"},
+                    {"role": "system",
+                     "content": "あなたはVRChatの技術イベントに関するブログ記事を生成する専門のライターです。必ず指定されたJSON形式で出力してください。"},
                     {"role": "user", "content": prompt_text}
                 ],
                 temperature=0.3,  # 温度を下げて出力の安定性を向上
-                max_tokens=2500,
+                max_tokens=5000,
                 tools=[{"type": "function", "function": blog_output_schema}],
                 tool_choice={"type": "function", "function": {"name": "generate_blog_post"}}
             )
