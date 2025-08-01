@@ -102,3 +102,6 @@ secret
 # Archive directory
 /app/scripts/archive/
 app/logs/*
+
+# Serena configuration (contains sensitive project information)
+.serena/
