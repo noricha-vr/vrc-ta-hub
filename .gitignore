@@ -105,3 +105,4 @@ app/logs/*
 
 # Serena configuration (contains sensitive project information)
 .serena/
+issue.md

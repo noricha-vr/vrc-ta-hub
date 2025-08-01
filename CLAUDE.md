@@ -35,7 +35,7 @@ docker compose exec vrc-ta-hub python manage.py test event.tests.test_generate_b
 ### カレンダー同期
 ```bash
 # 手動更新（要REQUEST_TOKEN）
-curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/update/
+curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/sync/
 
 # 定期イベント生成（1ヶ月先まで）
 docker compose exec vrc-ta-hub python manage.py generate_recurring_events

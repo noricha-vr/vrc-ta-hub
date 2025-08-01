@@ -15,5 +15,5 @@ docker exec -it vrc-ta-hub bash -c "python manage.py makemigrations && python ma
 ### カレンダー更新用ページにリクエストを送る
 
 ```shell script
- curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/update/
+ curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/sync/
 ```
