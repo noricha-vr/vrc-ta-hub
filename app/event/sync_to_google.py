@@ -46,7 +46,8 @@ class DatabaseToGoogleSync:
         logger.info("Fetching all Google Calendar events...")
         all_google_events = self.service.list_events(
             time_min=datetime.combine(start_date, datetime.min.time()),
-            time_max=datetime.combine(end_date, datetime.max.time())
+            time_max=datetime.combine(end_date, datetime.max.time()),
+            max_results=2500  # 十分な数のイベントを取得
         )
         
         # イベントを日時+サマリーでインデックス化
@@ -70,6 +71,18 @@ class DatabaseToGoogleSync:
             except Exception as e:
                 logger.error(f"Failed to sync {community.name}: {e}")
                 total_stats['errors'] += 1
+        
+        # DBに存在しないGoogleカレンダーイベントを削除
+        orphaned_deleted = self.delete_orphaned_google_events(
+            all_google_events, 
+            start_date, 
+            end_date
+        )
+        
+        total_stats['deleted'] = orphaned_deleted
+        
+        if orphaned_deleted > 0:
+            logger.info(f"DBに存在しないGoogleカレンダーイベントを{orphaned_deleted}件削除しました")
         
         logger.info(
             f"Total sync completed: "
@@ -360,6 +373,59 @@ class DatabaseToGoogleSync:
             lines.append(f"\nURL: {event.community.group_url}")
         
         return "\n".join(lines)
+    
+    def delete_orphaned_google_events(self, all_google_events: List[Dict], start_date: datetime.date, end_date: datetime.date) -> int:
+        """DBに存在しないGoogleカレンダーイベントを削除
+        
+        Args:
+            all_google_events: 取得済みのGoogleカレンダーイベントリスト
+            start_date: 対象期間の開始日
+            end_date: 対象期間の終了日
+        
+        Returns:
+            削除したイベント数
+        """
+        logger.info("DBに存在しないGoogleカレンダーイベントの削除を開始")
+        
+        # 1. GoogleカレンダーのイベントIDセットを作成
+        google_event_ids = {event['id'] for event in all_google_events}
+        logger.info(f"Googleカレンダーのイベント総数: {len(google_event_ids)}")
+        
+        # 2. DBに登録されているGoogle Calendar IDのセットを取得
+        db_google_ids = set(
+            Event.objects.filter(
+                date__gte=start_date,
+                date__lte=end_date,
+                google_calendar_event_id__isnull=False
+            ).values_list('google_calendar_event_id', flat=True)
+        )
+        logger.info(f"DBに登録されているGoogle Calendar ID数: {len(db_google_ids)}")
+        
+        # 3. DBに存在しないイベントIDを特定
+        orphaned_ids = google_event_ids - db_google_ids
+        logger.info(f"削除対象のイベント数: {len(orphaned_ids)}")
+        
+        # 4. 削除処理
+        deleted_count = 0
+        for event_id in orphaned_ids:
+            try:
+                # 削除対象の詳細をログ出力
+                event = next((e for e in all_google_events if e['id'] == event_id), None)
+                if event:
+                    start_str = event['start'].get('dateTime', event['start'].get('date'))
+                    logger.warning(
+                        f"Googleカレンダーから削除: {event['summary']} "
+                        f"日時: {start_str} "
+                        f"ID: {event_id}"
+                    )
+                    self.service.delete_event(event_id)
+                    deleted_count += 1
+                    logger.info(f"削除成功: {event_id}")
+            except Exception as e:
+                logger.error(f"イベント削除エラー ID: {event_id}, エラー: {e}")
+        
+        logger.info(f"削除完了: {deleted_count}件のイベントを削除しました")
+        return deleted_count
 
 
 def sync_database_to_google():
