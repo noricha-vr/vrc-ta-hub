@@ -8,7 +8,8 @@ import traceback
 from django.conf import settings
 from django.utils import timezone
 from django.db import models
-import google.generativeai as genai
+import os
+from openai import OpenAI
 
 from event.models import Event, RecurrenceRule
 
@@ -17,9 +18,19 @@ class RecurrenceService:
     """定期イベントの日付を生成するサービス"""
     
     def __init__(self):
-        genai.configure(api_key=settings.GOOGLE_API_KEY)
-        model_name = getattr(settings, 'GEMINI_MODEL', 'gemini-2.0-flash-exp')
-        self.model = genai.GenerativeModel(model_name)
+        # OpenRouter用の設定
+        self.api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not self.api_key:
+            raise ValueError("OPENROUTER_API_KEY is required")
+        
+        # モデル名を環境変数から取得
+        self.model_name = getattr(settings, 'GEMINI_MODEL', 'google/gemini-2.0-flash-exp')
+        
+        # OpenAI SDKを使用してOpenRouterクライアントを初期化
+        self.client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=self.api_key
+        )
     
     def generate_dates(self, rule: RecurrenceRule, base_date: date, base_time: datetime.time, months: int = 1, community=None) -> List[date]:
         """定期ルールに基づいて日付リストを生成"""
@@ -87,8 +98,11 @@ class RecurrenceService:
         
         elif rule.frequency == 'MONTHLY_BY_WEEK':
             # 毎月（第N曜日）
-            # 使用する曜日を決定（weekdayが指定されていればそれを使用、なければ基準日の曜日）
-            target_weekday = rule.weekday if rule.weekday is not None else current_date.weekday()
+            # 使用する曜日を決定（start_dateがあればその曜日、なければ基準日の曜日を使用）
+            if rule.start_date:
+                target_weekday = rule.start_date.weekday()
+            else:
+                target_weekday = current_date.weekday()
             
             # 最初の日付を第N曜日に調整
             first_date = self._get_nth_weekday_of_month(
@@ -289,9 +303,23 @@ class RecurrenceService:
 """
         
         try:
-            response = self.model.generate_content(prompt)
-            # JSONを抽出
-            text = response.text
+            # OpenRouterにリクエスト
+            completion = self.client.chat.completions.create(
+                extra_headers={
+                    "HTTP-Referer": "https://vrc-ta-hub.com/",
+                    "X-Title": "VRC TA Hub"
+                },
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": "あなたは定期イベントの日付を生成する専門家です。必ず指定されたJSON形式で出力してください。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=2000
+            )
+            
+            # レスポンスからテキストを取得
+            text = completion.choices[0].message.content
             
             # JSONの開始と終了を見つける
             json_start = text.find('[')
@@ -314,6 +342,8 @@ class RecurrenceService:
                 return sorted(dates)
         except Exception as e:
             print(f"LLM date generation error: {e}")
+            print(f"Model: {self.model_name}")
+            print(f"API Key exists: {bool(self.api_key)}")
             traceback.print_exc()
         
         return []
@@ -331,9 +361,16 @@ class RecurrenceService:
                 custom_rule=custom_rule
             )
             
-            # weekdayは一時的に属性として追加（MONTHLY_BY_WEEKの場合のみ使用）
-            if weekday is not None:
-                rule.weekday = weekday
+            # MONTHLY_BY_WEEKの場合、weekdayからstart_dateを計算
+            if frequency == 'MONTHLY_BY_WEEK' and weekday is not None and week_of_month is not None:
+                # base_dateの月の第N曜日を計算してstart_dateとする
+                start_date = self._get_nth_weekday_of_month(
+                    base_date.replace(day=1),
+                    weekday,
+                    week_of_month
+                )
+                if start_date:
+                    rule.start_date = start_date
             
             dates = self.generate_dates(rule, base_date, base_time, months, community)
             
