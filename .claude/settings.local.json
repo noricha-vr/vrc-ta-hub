@@ -46,5 +46,8 @@
       "Bash(npm:*)"
     ]
   },
-  "enableAllProjectMcpServers": true
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "local-db"
+  ]
 }
