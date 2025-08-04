@@ -219,6 +219,10 @@ assert GOOGLE_API_KEY is not None, 'Please set GOOGLE_API_KEY'
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
 assert GOOGLE_CALENDAR_ID is not None, 'Please set GOOGLE_CALENDAR_ID'
 print('GOOGLE_CALENDAR_ID: ' + GOOGLE_CALENDAR_ID)
+if GOOGLE_CALENDAR_ID.startswith('d80eac'):
+    print('Debug mode: GOOGLE_CALENDAR_ID starts with d80eac')
+else:
+    print('Production mode: GOOGLE_CALENDAR_ID')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'google/gemini-2.5-flash-lite-preview-06-17')
