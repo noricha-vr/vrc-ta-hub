@@ -42,6 +42,9 @@ COPY ./app /app
 COPY uwsgi.ini /uwsgi.ini
 COPY uwsgi_params /uwsgi_params
 
+# PYTHON_PATH
+ENV PYTHON_PATH=/app
+
 # ポートの公開
 EXPOSE 8080
 

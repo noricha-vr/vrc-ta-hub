@@ -25,6 +25,7 @@ from event.libs import convert_markdown, generate_blog
 from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url, generate_google_calendar_url
 from url_filters import get_filtered_url
+from utils.vrchat_time import get_vrchat_today
 from website.settings import DEBUG, GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, REQUEST_TOKEN, \
     GEMINI_MODEL
 from .google_calendar import GoogleCalendarService
@@ -158,8 +159,9 @@ class EventListView(ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        now = timezone.now()
-        queryset = queryset.filter(date__gte=now.date()).select_related('community').prefetch_related(
+        # VRChatterの生活リズムに合わせて朝4時を日付の境界とする
+        today = get_vrchat_today()
+        queryset = queryset.filter(date__gte=today).select_related('community').prefetch_related(
             'details').order_by('date', 'start_time')
 
         form = EventSearchForm(self.request.GET)
@@ -244,7 +246,7 @@ class EventDetailView(DetailView):
         }
 
         # Twitterボタン表示用のフラグとテンプレートを追加
-        today = timezone.now().date()
+        today = get_vrchat_today()
         twitter_display_until = event_detail.event.date + timedelta(days=7)
         context['twitter_button_active'] = today <= twitter_display_until
         context['twitter_templates'] = event_detail.event.community.twitter_template.all()
@@ -502,7 +504,7 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
                 messages.warning(self.request, "記事の自動生成に失敗しました。")
 
         # トップページのキャッシュをクリア
-        today = timezone.now().date()
+        today = get_vrchat_today()
         cache_key = f'index_view_data_{today}'
         cache.delete(cache_key)
         logger.info(f"Cleared index page cache: {cache_key}")
@@ -629,7 +631,7 @@ class EventMyList(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        today = timezone.now().date()
+        today = get_vrchat_today()
         # 未来のイベントを最大2つまで取得
         future_events = Event.objects.filter(
             community__custom_user=self.request.user,
@@ -650,7 +652,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         イベントのGoogleフォームのURLを設定する
         """
         for event in queryset:
-            if timezone.now().date() > event.date:
+            if get_vrchat_today() > event.date:
                 continue
             event.calendar_url = create_calendar_entry_url(event)
         return queryset
@@ -674,7 +676,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         Returns:
             list: Twitterボタン表示フラグが設定されたイベントリスト
         """
-        today = timezone.now().date()
+        today = get_vrchat_today()
         for event in events:
             # イベント日から1週間後の日付を計算
             twitter_display_until = event.date + timedelta(days=7)
@@ -761,7 +763,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         context['current_query_params'] = self._prepare_pagination_params()
 
         # 未来のイベントが存在するかをチェック
-        today = timezone.now().date()
+        today = get_vrchat_today()
         future_events_exist = any(event.date >= today for event in events)
         context['has_future_events'] = future_events_exist
 
