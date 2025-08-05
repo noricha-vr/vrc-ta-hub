@@ -35,6 +35,7 @@ class DatabaseToGoogleSync:
             'updated': 0,
             'deleted': 0,
             'errors': 0,
+            'skipped': 0,
             'duplicate_prevented': 0
         }
         
@@ -88,6 +89,7 @@ class DatabaseToGoogleSync:
             f"Total sync completed: "
             f"created={total_stats['created']}, "
             f"updated={total_stats['updated']}, "
+            f"skipped={total_stats['skipped']}, "
             f"deleted={total_stats['deleted']}, "
             f"errors={total_stats['errors']}"
         )
@@ -118,6 +120,7 @@ class DatabaseToGoogleSync:
             'updated': 0,
             'deleted': 0,
             'errors': 0,
+            'skipped': 0,
             'duplicate_prevented': 0
         }
         
@@ -137,6 +140,8 @@ class DatabaseToGoogleSync:
                     # 重複防止による更新をカウント
                     if result.get('duplicate_prevented'):
                         stats['duplicate_prevented'] += 1
+                elif result['action'] == 'skipped':
+                    stats['skipped'] += 1
                     
             except Exception as e:
                 logger.error(f"Error processing event {event}: {e}")
@@ -145,7 +150,7 @@ class DatabaseToGoogleSync:
         logger.info(
             f"Sync completed for {community.name}: "
             f"created={stats['created']}, updated={stats['updated']}, "
-            f"deleted={stats['deleted']}, errors={stats['errors']}"
+            f"skipped={stats['skipped']}, deleted={stats['deleted']}, errors={stats['errors']}"
         )
         
         return stats
@@ -180,11 +185,15 @@ class DatabaseToGoogleSync:
                 )
                 event.google_calendar_event_id = google_event['id']
                 event.save(update_fields=['google_calendar_event_id'])
-            
-            # イベント内容を更新
-            logger.info(f"[SYNC DEBUG]   Updating existing Google event")
-            self._update_google_event(event)
-            return {'action': 'updated', 'google_id': google_event['id']}
+                
+                # IDを更新したので、イベント内容も更新
+                logger.info(f"[SYNC DEBUG]   Updating Google event after ID change")
+                self._update_google_event(event)
+                return {'action': 'updated', 'google_id': google_event['id']}
+            else:
+                # IDが一致している場合は更新不要
+                logger.info(f"[SYNC DEBUG]   Google event already in sync, skipping update")
+                return {'action': 'skipped', 'google_id': google_event['id']}
         
         # 2. 日時で見つからない場合、Google Calendar IDで確認
         elif event.google_calendar_event_id and event.google_calendar_event_id in google_events_by_id:

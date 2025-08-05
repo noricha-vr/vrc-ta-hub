@@ -326,6 +326,7 @@ def sync_calendar_events(request):
         response_message = (
             f"Calendar events synchronized successfully. "
             f"Created: {stats['created']}, Updated: {stats['updated']}, "
+            f"Skipped: {stats.get('skipped', 0)}, "
             f"Deleted: {stats['deleted']}, Errors: {stats['errors']}"
         )
         
