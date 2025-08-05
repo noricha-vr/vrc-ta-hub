@@ -8,6 +8,7 @@ from django.views.static import serve
 from event.models import Event, EventDetail
 from event.views import EventListView
 from event_calendar.calendar_utils import generate_google_calendar_url
+from utils.vrchat_time import get_vrchat_today
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,8 @@ class IndexView(TemplateView):
         context = super().get_context_data(**kwargs)
 
         # キャッシュキーの生成（日付ベース）
-        today = timezone.now().date()
+        # VRChatterの生活リズムに合わせて朝4時を日付の境界とする
+        today = get_vrchat_today()
         cache_key = f'index_view_data_{today}'
 
         # Vketコラボ告知の表示判定
