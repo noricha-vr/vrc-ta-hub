@@ -39,7 +39,11 @@
       "WebFetch(domain:github.com)",
       "mcp__supabase__list_tables",
       "mcp__supabase__apply_migration",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "mcp__serena__search_for_pattern",
+      "mcp__serena__find_file",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__find_symbol"
     ],
     "deny": [
       "Bash(pnpm:*)",
