@@ -226,6 +226,7 @@ else:
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'google/gemini-2.5-flash-lite-preview-06-17')
+print(f'GEMINI_MODEL: {GEMINI_MODEL}')
 
 # OpenAI API
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
