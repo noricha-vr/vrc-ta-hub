@@ -1,0 +1,41 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block main %}
+<div class="container py-4">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'news:list' %}">お知らせ</a></li>
+      <li class="breadcrumb-item active" aria-current="page">{{ category.name }}</li>
+    </ol>
+  </nav>
+
+  <h1 class="h3 fw-bold mb-3">{{ category.name }}</h1>
+  
+  <div class="mb-4">
+    <div class="btn-group" role="group" aria-label="カテゴリー">
+      {% for cat in categories %}
+        {% if cat == category %}
+          <span class="btn btn-primary">{{ cat.name }}</span>
+        {% else %}
+          <a href="{% url 'news:category_list' cat.slug %}" class="btn btn-outline-primary">{{ cat.name }}</a>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="list-group">
+    {% for post in object_list %}
+      <a class="list-group-item list-group-item-action" href="{% url 'news:detail' post.slug %}">
+        <div class="d-flex w-100 justify-content-between">
+          <h5 class="mb-1">{{ post.title }}</h5>
+          <small class="text-muted">{{ post.published_at|date:'Y/m/d' }}</small>
+        </div>
+      </a>
+    {% empty %}
+      <div class="text-muted">{{ category.name }}の記事はまだありません。</div>
+    {% endfor %}
+  </div>
+  
+  {% include 'ta_hub/pagination.html' %}
+</div>
+{% endblock %}

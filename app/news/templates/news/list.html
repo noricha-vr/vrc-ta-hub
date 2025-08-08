@@ -4,7 +4,7 @@
   <h1 class="h3 fw-bold mb-3">お知らせ</h1>
   <div class="list-group">
     {% for post in object_list %}
-      <a class="list-group-item list-group-item-action" href="#">
+      <a class="list-group-item list-group-item-action" href="{% url 'news:detail' post.slug %}">
         <div class="d-flex w-100 justify-content-between">
           <h5 class="mb-1">{{ post.title }}</h5>
           <small class="text-muted">{{ post.published_at|date:'Y/m/d' }}</small>

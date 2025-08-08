@@ -1,0 +1,43 @@
+{% extends 'ta_hub/base.html' %}
+{% load markdown_extras %}
+
+{% block main %}
+<div class="container py-4">
+  <article>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'news:list' %}">お知らせ</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ object.title }}</li>
+      </ol>
+    </nav>
+    
+    <header class="mb-4">
+      <h1 class="h2 fw-bold">{{ object.title }}</h1>
+      <div class="text-muted mb-3">
+        <time datetime="{{ object.published_at|date:'Y-m-d' }}" class="me-2">
+          {{ object.published_at|date:'Y年n月j日' }}
+        </time>
+        <a href="{% url 'news:category_list' object.category.slug %}" class="badge bg-outline-primary text-primary border text-decoration-none">
+          {{ object.category.name }}
+        </a>
+      </div>
+    </header>
+
+    {% if object.thumbnail %}
+    <div class="mb-4">
+      <img src="{{ object.thumbnail.url }}" alt="{{ object.title }}" class="img-fluid rounded">
+    </div>
+    {% endif %}
+
+    <div class="content">
+      {{ object.body_markdown|markdown|safe }}
+    </div>
+  </article>
+
+  <div class="mt-5 pt-4 border-top">
+    <a href="{% url 'news:list' %}" class="btn btn-outline-primary">
+      ← お知らせ一覧に戻る
+    </a>
+  </div>
+</div>
+{% endblock %}
