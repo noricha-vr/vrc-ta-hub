@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'account',
     'event_calendar',
     'twitter',
+    'news',
     'django_bootstrap5',
     'api_v1',
     'django_filters',
