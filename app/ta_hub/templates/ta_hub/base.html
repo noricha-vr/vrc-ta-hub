@@ -185,9 +185,11 @@
                         <li class="nav-item">
                             <a class="nav-link text-light" href="{% url 'event:detail_history' %}">発表履歴</a>
                         </li>
+                        {% if user.is_authenticated %}
                         <li class="nav-item">
                             <a class="nav-link text-light" href="{% url 'ta_hub:how_to' %}">使い方</a>
                         </li>
+                        {% endif %}
                         <li class="nav-item">
                             <a class="nav-link text-light" href="{% url 'ta_hub:about' %}">運営情報</a>
                         </li>
