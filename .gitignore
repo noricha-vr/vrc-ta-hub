@@ -103,6 +103,9 @@ secret
 /app/scripts/archive/
 app/logs/*
 
+# Local artifacts (generated images, scratch work)
+artifacts/
+
 # Serena configuration (contains sensitive project information)
 .serena/
 issue.md
