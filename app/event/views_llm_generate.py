@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 # 環境変数から認証トークンを取得
 REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN', '')
 
+# 環境変数からデフォルトの生成月数を取得（デフォルト: 3ヶ月）
+DEFAULT_GENERATE_MONTHS = int(os.environ.get('DEFAULT_GENERATE_MONTHS', 3))
+
 
 @require_http_methods(["GET"])
 def generate_llm_events(request):
@@ -25,11 +28,13 @@ def generate_llm_events(request):
         logger.info('=' * 80)
         logger.info('LLMイベント自動生成処理開始')
         logger.info(f'実行開始時刻: {timezone.now()}')
+        logger.info(f'環境: {"本番" if not settings.DEBUG else "開発"}')
+        logger.info(f'デフォルト生成月数: {DEFAULT_GENERATE_MONTHS}ヶ月')
         logger.info('=' * 80)
         
         # generate_recurring_eventsコマンドを実行
-        # デフォルトで1ヶ月先まで生成
-        months_ahead = int(request.GET.get('months', 1))
+        # 環境変数DEFAULT_GENERATE_MONTHSで設定可能（デフォルト: 3ヶ月）
+        months_ahead = int(request.GET.get('months', DEFAULT_GENERATE_MONTHS))
         
         # コマンドの実行
         call_command('generate_recurring_events', months=months_ahead)

@@ -139,32 +139,31 @@ class GoogleCalendarService:
             更新されたイベントの情報
         """
         try:
-            event = self.service.events().get(
-                calendarId=self.calendar_id,
-                eventId=event_id
-            ).execute()
-
-            if summary:
-                event['summary'] = summary
-            if start_time:
-                event['start'] = {
+            # 更新するフィールドのみを含むbodyを作成
+            body = {}
+            
+            if summary is not None:
+                body['summary'] = summary
+            if start_time is not None:
+                body['start'] = {
                     'dateTime': start_time.isoformat(),
                     'timeZone': 'Asia/Tokyo'
                 }
-            if end_time:
-                event['end'] = {
+            if end_time is not None:
+                body['end'] = {
                     'dateTime': end_time.isoformat(),
                     'timeZone': 'Asia/Tokyo'
                 }
-            if description:
-                event['description'] = description
-            if location:
-                event['location'] = location
+            if description is not None:
+                body['description'] = description
+            if location is not None:
+                body['location'] = location
 
-            updated_event = self.service.events().update(
+            # 直接更新を実行（get()を省略）
+            updated_event = self.service.events().patch(
                 calendarId=self.calendar_id,
                 eventId=event_id,
-                body=event
+                body=body
             ).execute()
             return updated_event
         except HttpError as error:

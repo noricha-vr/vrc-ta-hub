@@ -61,7 +61,12 @@ class TestRecurrenceRuleGeneration(TestCase):
         ["2024-12-23", "2025-01-27", "2025-02-24"]
         """
         
-        with patch.object(self.service.model, 'generate_content', return_value=mock_response):
+        # OpenRouter用のモックレスポンス
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock()]
+        mock_completion.choices[0].message.content = mock_response.text
+        
+        with patch.object(self.service.client.chat.completions, 'create', return_value=mock_completion):
             # 日付を生成
             dates = self.service.generate_dates(
                 rule=rule,
@@ -96,14 +101,20 @@ class TestRecurrenceRuleGeneration(TestCase):
         # プロンプト生成をキャプチャ
         captured_prompt = None
         
-        def capture_prompt(prompt):
+        def capture_prompt(*args, **kwargs):
             nonlocal captured_prompt
-            captured_prompt = prompt
-            mock_response = MagicMock()
-            mock_response.text = '["2024-12-23"]'
-            return mock_response
+            # メッセージからプロンプトを取得
+            messages = kwargs.get('messages', [])
+            for msg in messages:
+                if msg.get('role') == 'user':
+                    captured_prompt = msg.get('content', '')
+            # モックレスポンスを返す
+            mock_completion = MagicMock()
+            mock_completion.choices = [MagicMock()]
+            mock_completion.choices[0].message.content = '[\"2024-12-23\"]'
+            return mock_completion
         
-        with patch.object(self.service.model, 'generate_content', side_effect=capture_prompt):
+        with patch.object(self.service.client.chat.completions, 'create', side_effect=capture_prompt):
             self.service.generate_dates(
                 rule=rule,
                 base_date=date(2024, 12, 1),
@@ -135,8 +146,7 @@ class TestRecurrenceRuleGeneration(TestCase):
             community=self.community,
             frequency='MONTHLY_BY_WEEK',
             week_of_month=4,
-            weekday=0,  # 月曜日
-            start_date=date(2024, 12, 1)
+            start_date=date(2024, 12, 23)  # 第4月曜日から開始
         )
         
         # 日付を生成
@@ -174,7 +184,7 @@ class TestRecurrenceRuleGeneration(TestCase):
         
         # プレビューリクエスト
         response = client.post(
-            reverse('api:recurrence_preview'),
+            '/api/v1/recurrence-preview/',
             {
                 'frequency': 'OTHER',
                 'custom_rule': '毎月第4月曜',
@@ -190,4 +200,5 @@ class TestRecurrenceRuleGeneration(TestCase):
         # モックを設定していないため、実際のLLMレスポンスに依存
         # ここではAPIが正常に動作することを確認
         self.assertIn('dates', response.data)
-        self.assertIn('pattern_description', response.data)
+        self.assertIn('success', response.data)
+        self.assertIn('count', response.data)

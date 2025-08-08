@@ -6,18 +6,18 @@
 - **到達イメージ**: シンプルなブログページ。ヘッダーにカテゴリー絞り込みボタンを配置。「お知らせ」を開くと全記事一覧が表示され、カテゴリークリックで該当カテゴリーの一覧ページに遷移。
 
 ## 重要方針（更新）
-- **API は不要**（当面提供しない）。
-- **HTML は DB に保持しない**。記事本文は Markdown のみを保持し、レンダリング時に Markdown→HTML 変換＋サニタイズを行う。
+- API は当面提供しない（スコープ外）。
+- HTML は DB に保持しない。記事本文は Markdown のみを保持し、レンダリング時に Markdown→HTML 変換＋サニタイズを行う。
 
 ## 要件
-- **投稿機能**
-  - 管理者のみが記事を作成・編集・公開できる（Django Admin で可）
+- 投稿機能
+  - 管理者のみが記事を作成・編集・公開できる（Django Admin）
   - 記事の要素: タイトル、本文（Markdown）、サムネイル（任意）、作成日時、更新日時、公開フラグ、カテゴリ、スラッグ
-  - 表示時に Markdown → HTML 変換（`markdown`）し、`bleach` で安全なタグのみ許可してサニタイズ
+  - 表示時に Markdown → HTML 変換し、`bleach` で安全なタグのみ許可
 
-- **カテゴリ**
+- カテゴリ
   - 固定カテゴリ（初期値）: 「お知らせ」「アップデート」
-  - 将来的な拡張に備え `Category` モデルは保持
+  - 将来的な拡張に備えて `Category` モデルを保持
 
 - **フロント機能**
   - 一覧ページ: `/news/` で全記事の新しい順リスト表示
@@ -27,7 +27,6 @@
 
 - **ナビゲーション**
   - グローバルナビ: 「運営情報」を削除し「お知らせ」を追加（ログイン状況に関係なく表示）
-
 ## 画面仕様（簡易）
 - 一覧ページ（`/news/`）
   - ヘッダー: 見出し + カテゴリボタン（全件/お知らせ/アップデート）
@@ -48,6 +47,7 @@ class Category(models.Model):
 
     class Meta:
         ordering = ["order", "name"]
+
 
 class Post(models.Model):
     title = models.CharField(max_length=200)
@@ -72,7 +72,7 @@ class Post(models.Model):
 - `news:category` → `/news/category/<slug>/`
 - `news:detail` → `/news/<slug>/`
 
-- 一覧/カテゴリは同一テンプレートで、クエリセットだけ切替。
+- 一覧/カテゴリは同一レイアウトで、クエリセットのみ切替（テンプレートは分割可）。
 - 詳細で Markdown を都度 HTML 化し、`bleach` で安全化してからテンプレに渡す。
 
 ## テンプレート構成（案）
@@ -108,7 +108,7 @@ class Post(models.Model):
 
 ## 実装ステップ（概要）
 1. アプリ `news` を作成、モデル `Category`, `Post` を実装（`body_markdown` のみ）
-2. ビューで Markdown→HTML 変換＋`bleach` サニタイズを実装
+2. ビュー/テンプレートで Markdown→HTML 変換＋`bleach` サニタイズを実装
 3. URL, View（一覧/カテゴリ/詳細）とテンプレート作成
 4. 管理画面を整備しカテゴリ初期値投入
 5. グローバルナビを「お知らせ」に更新
@@ -117,3 +117,6 @@ class Post(models.Model):
 ## 備考
 - API は今回スコープ外。
 - HTML は DB に保持しない（キャッシュを用いる場合も再生成キャッシュ）。
+
+## 参考
+- 既存技術スタック: Django / Bootstrap / bleach / markdown

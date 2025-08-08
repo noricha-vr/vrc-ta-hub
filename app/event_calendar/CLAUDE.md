@@ -1,0 +1,5 @@
+# Google Calendar本番用
+GOOGLE_CALENDAR_ID=fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7@group.calendar.google.com
+
+# Google Calendar開発用
+#GOOGLE_CALENDAR_ID=d80eac7bdea1505cd9bc16153047c261be94e78607896c5ca567f8cfa78f0be1@group.calendar.google.com

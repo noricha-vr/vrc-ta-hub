@@ -326,6 +326,7 @@ def sync_calendar_events(request):
         response_message = (
             f"Calendar events synchronized successfully. "
             f"Created: {stats['created']}, Updated: {stats['updated']}, "
+            f"Skipped: {stats.get('skipped', 0)}, "
             f"Deleted: {stats['deleted']}, Errors: {stats['errors']}"
         )
         
@@ -948,64 +949,23 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 messages.error(self.request, f'同じ日時（{start_date} {start_time}）にすでにイベントが登録されています。')
                 return self.form_invalid(form)
 
-            logger.info(f'Googleカレンダーにイベントを登録します: {community.name} Calendar ID={GOOGLE_CALENDAR_ID}')
-            calendar_service = GoogleCalendarService(
-                calendar_id=GOOGLE_CALENDAR_ID,
-                credentials_path=GOOGLE_CALENDAR_CREDENTIALS if DEBUG else None
-            )
-
-            duration = form.cleaned_data['duration']
-            recurrence_type = form.cleaned_data['recurrence_type']
-
             # 開始時刻と終了時刻を設定
             start_datetime = datetime.combine(start_date, start_time)
-            end_datetime = start_datetime + timedelta(minutes=duration)
+            duration = form.cleaned_data['duration']
 
-            # 繰り返しルールの設定
-            recurrence = None
-            if recurrence_type != 'none':
-                if recurrence_type == 'weekly':
-                    recurrence = [calendar_service._create_weekly_rrule([form.cleaned_data['weekday']])]
-                elif recurrence_type == 'biweekly':
-                    recurrence = [calendar_service._create_weekly_rrule([form.cleaned_data['weekday']], interval=2)]
-                elif recurrence_type == 'monthly_by_date':
-                    recurrence = [calendar_service._create_monthly_by_date_rrule([form.cleaned_data['monthly_day']])]
-                elif recurrence_type == 'monthly_by_day':
-                    week_number = int(form.cleaned_data['week_number'])
-                    weekday = form.cleaned_data['weekday']
-                    recurrence = [calendar_service._create_monthly_by_week_rrule(week_number, weekday)]
-                logger.info(f'繰り返しルール設定: type={recurrence_type}, rule={recurrence}')
-
-            # Googleカレンダーにイベントを作成
-            event = calendar_service.create_event(
-                summary=community.name,
-                start_time=start_datetime,
-                end_time=end_datetime,
-                recurrence=recurrence
-            )
-
-            if event:
-                logger.info(f'Googleカレンダーイベント作成成功: ID={event["id"]}, コミュニティ={community.name}')
-
-                # 同期に頼らず、イベントをローカルで直接登録
-                try:
-                    # 新しいイベントをDBに保存
-                    new_event = Event.objects.create(
-                        community=community,
-                        date=start_date,
-                        start_time=start_time,
-                        duration=duration,
-                        weekday=start_datetime.strftime("%a"),
-                        google_calendar_event_id=event['id']
-                    )
-                    logger.info(f'イベントをDBに直接登録: ID={new_event.id}, 日付={start_date}, 開始時間={start_time}')
-                    messages.success(self.request, 'イベントが正常に登録されました')
-                except Exception as e:
-                    logger.error(f'イベントのDB登録でエラー: {str(e)}', exc_info=True)
-                    messages.warning(self.request,
-                                     'イベントはGoogleカレンダーに登録されましたが、DBへの保存に失敗しました')
-
-                # バックグラウンドで同期処理も実行
+            # 新しいイベントをDBに保存
+            try:
+                new_event = Event.objects.create(
+                    community=community,
+                    date=start_date,
+                    start_time=start_time,
+                    duration=duration,
+                    weekday=start_datetime.strftime("%a")
+                    # google_calendar_event_idは同期時に設定される
+                )
+                logger.info(f'イベントをDBに登録: ID={new_event.id}, 日付={start_date}, 開始時間={start_time}')
+                
+                # バックグラウンドで同期処理を実行
                 try:
                     # 内部的にGETリクエストを作成
                     from django.http import HttpRequest
@@ -1021,13 +981,16 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 except Exception as e:
                     logger.error(f'イベント同期中にエラーが発生しました: {str(e)}', exc_info=True)
 
-            # イベントの作成が成功した場合、キャッシュをクリア
-            if event:
-                event_id = event['id']
-                event = Event.objects.filter(google_calendar_event_id=event_id).first()
-                if event:
-                    cache_key = f'calendar_entry_url_{event.id}'
-                    cache.delete(cache_key)
+                # イベントの作成が成功した場合、キャッシュをクリア
+                cache_key = f'calendar_entry_url_{new_event.id}'
+                cache.delete(cache_key)
+                
+                messages.success(self.request, 'イベントが正常に登録されました')
+                
+            except Exception as e:
+                logger.error(f'イベントのDB登録でエラー: {str(e)}', exc_info=True)
+                messages.error(self.request, 'イベントの登録に失敗しました')
+                return self.form_invalid(form)
 
             return super().form_valid(form)
 

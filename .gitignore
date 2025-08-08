@@ -109,3 +109,5 @@ artifacts/
 # Serena configuration (contains sensitive project information)
 .serena/
 issue.md
+
+.claude/settings.local.json
