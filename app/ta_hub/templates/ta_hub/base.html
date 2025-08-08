@@ -158,6 +158,29 @@
             display: block;
             margin-top: 0.5rem;
         }
+
+        /* Spacing tweaks */
+        /* Make list items more spacious across the site */
+        .list-group .list-group-item {
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        /* Add vertical gaps between list-group items */
+        .list-group .list-group-item + .list-group-item {
+            margin-top: 0.5rem;
+        }
+        /* Handle lists that mistakenly use generic divs inside list-group (e.g., event details) */
+        .list-group > div {
+            margin-bottom: 0.75rem;
+        }
+        .list-group > div:last-child {
+            margin-bottom: 0;
+        }
+        /* Ensure there is enough space above and below pagination */
+        .pagination {
+            margin-top: 2rem;
+            margin-bottom: 2rem;
+        }
     </style>
 </head>
 
