@@ -1,6 +1,21 @@
 {% extends 'ta_hub/base.html' %}
 {% load markdown_extras %}
 
+{% block meta %}
+    <title>{{ object.title|escape }} - VRChat技術・学術系イベントHub</title>
+    <meta name="twitter:title" content="{{ object.title|escape }} - VRChat技術・学術系イベントHub">
+    <meta property="og:title" content="{{ object.title|escape }} - VRChat技術・学術系イベントHub">
+    
+    <meta name="description" content="{{ object.get_meta_description|escape }}">
+    <meta name="twitter:description" content="{{ object.get_meta_description|escape }}">
+    <meta property="og:description" content="{{ object.get_meta_description|escape }}">
+    
+    {% with absolute_url=object.get_absolute_thumbnail_url %}
+    <meta property="og:image" content="{{ absolute_url }}">
+    <meta name="twitter:image" content="{{ absolute_url }}">
+    {% endwith %}
+{% endblock %}
+
 {% block main %}
 <div class="container py-4">
   <article>
@@ -25,7 +40,9 @@
 
     {% if object.thumbnail %}
     <div class="mb-4">
-      <img src="{{ object.thumbnail.url }}" alt="{{ object.title }}" class="img-fluid rounded">
+      <img src="{{ object.thumbnail.url }}" 
+           alt="{{ object.title|escape }}のサムネイル画像" 
+           class="img-fluid rounded">
     </div>
     {% endif %}
 

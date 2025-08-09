@@ -25,6 +25,12 @@ class PostDetailView(DetailView):
 
     def get_queryset(self):
         return Post.objects.select_related("category").filter(is_published=True)
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # requestをモデルメソッドで使用できるように追加
+        context['request'] = self.request
+        return context
 
 
 class CategoryListView(ListView):

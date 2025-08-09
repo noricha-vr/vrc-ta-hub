@@ -2,17 +2,13 @@
 {% block main %}
 <div class="container py-4">
   <h1 class="h3 fw-bold mb-3">お知らせ</h1>
-  <div class="list-group">
+  <div class="row g-3">
     {% for post in object_list %}
-      <a class="list-group-item list-group-item-action" href="{% url 'news:detail' post.slug %}">
-        <div class="d-flex w-100 justify-content-between">
-          <h5 class="mb-1">{{ post.title }}</h5>
-          <small class="text-muted">{{ post.published_at|date:'Y/m/d' }}</small>
-        </div>
-        <small class="badge bg-outline-primary text-primary border">{{ post.category.name }}</small>
-      </a>
+      {% include 'news/_post_card.html' with post=post show_category=True %}
     {% empty %}
-      <div class="text-muted">お知らせはまだありません。</div>
+      <div class="col-12">
+        <div class="text-muted">お知らせはまだありません。</div>
+      </div>
     {% endfor %}
   </div>
   {% include 'ta_hub/pagination.html' %}
