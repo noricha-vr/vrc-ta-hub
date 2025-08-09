@@ -2,6 +2,9 @@
 {% block main %}
 <div class="container py-4">
   <h1 class="h3 fw-bold mb-3">お知らせ</h1>
+  
+  {% include 'news/_category_buttons.html' with current_category=None %}
+  
   <div class="row g-3">
     {% for post in object_list %}
       {% include 'news/_post_card.html' with post=post show_category=True %}

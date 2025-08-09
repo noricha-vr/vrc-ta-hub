@@ -11,17 +11,7 @@
 
   <h1 class="h3 fw-bold mb-3">{{ category.name }}</h1>
   
-  <div class="mb-4">
-    <div class="btn-group" role="group" aria-label="カテゴリー">
-      {% for cat in categories %}
-        {% if cat == category %}
-          <span class="btn btn-primary">{{ cat.name }}</span>
-        {% else %}
-          <a href="{% url 'news:category_list' cat.slug %}" class="btn btn-outline-primary">{{ cat.name }}</a>
-        {% endif %}
-      {% endfor %}
-    </div>
-  </div>
+  {% include 'news/_category_buttons.html' with current_category=category %}
 
   <div class="row g-3">
     {% for post in object_list %}
