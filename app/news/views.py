@@ -1,5 +1,8 @@
 from django.shortcuts import get_object_or_404
 from django.views.generic import ListView, DetailView
+from django.views.decorators.cache import cache_page
+from django.utils.decorators import method_decorator
+from django.core.cache import cache
 
 from .models import Post, Category
 
@@ -15,6 +18,16 @@ class PostListView(ListView):
             .filter(is_published=True)
             .order_by("-published_at", "-created_at")
         )
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # カテゴリー一覧を1時間キャッシュ
+        categories = cache.get('news_categories')
+        if categories is None:
+            categories = list(Category.objects.all().order_by('order'))
+            cache.set('news_categories', categories, 3600)  # 1時間キャッシュ
+        context['categories'] = categories
+        return context
 
 
 class PostDetailView(DetailView):
@@ -49,5 +62,10 @@ class CategoryListView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['category'] = self.category
-        context['categories'] = Category.objects.all()
+        # カテゴリー一覧を1時間キャッシュ（PostListViewと同じキャッシュを使用）
+        categories = cache.get('news_categories')
+        if categories is None:
+            categories = list(Category.objects.all().order_by('order'))
+            cache.set('news_categories', categories, 3600)  # 1時間キャッシュ
+        context['categories'] = categories
         return context
