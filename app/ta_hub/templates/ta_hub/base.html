@@ -188,7 +188,8 @@
 
         /* Footer styling */
         footer {
-            background: linear-gradient(135deg, #0056b3 0%, #0069d9 100%);
+            /* ヘッダーと同じ背景色 */
+            background-color: #0d6efd;
         }
 
         footer h5, footer h6 {
@@ -235,7 +236,7 @@
             footer .col-md-6 {
                 text-align: center;
             }
-            
+
             footer h5:after, footer h6:after {
                 left: 50%;
                 transform: translateX(-50%);
@@ -306,7 +307,7 @@
     {% endblock %}
 </main>
 <footer class="bg-primary text-white mt-auto">
-    <div class="container py-5">
+    <div class="container pt-5 pb-3">
         <div class="row">
             <!-- サイト情報 -->
             <div class="col-lg-4 col-md-6 mb-4 mb-lg-0">
@@ -318,9 +319,6 @@
                 <div class="d-flex gap-3">
                     <a href="https://github.com/noricha-vr/vrc-ta-hub" class="text-light" aria-label="GitHub">
                         <i class="bi bi-github fs-5"></i>
-                    </a>
-                    <a href="https://twitter.com/yonabeyona" class="text-light" aria-label="Twitter">
-                        <i class="bi bi-twitter fs-5"></i>
                     </a>
                 </div>
             </div>
@@ -339,7 +337,8 @@
                         <a href="{% url 'community:list' %}" class="text-light text-decoration-none small">集会一覧</a>
                     </li>
                     <li class="mb-2">
-                        <a href="{% url 'event:detail_history' %}" class="text-light text-decoration-none small">発表履歴</a>
+                        <a href="{% url 'event:detail_history' %}"
+                           class="text-light text-decoration-none small">発表履歴</a>
                     </li>
                     <li class="mb-2">
                         <a href="{% url 'news:list' %}" class="text-light text-decoration-none small">お知らせ</a>
@@ -352,7 +351,8 @@
                 <h6 class="text-uppercase mb-3 fw-bold">お知らせ</h6>
                 <ul class="list-unstyled mb-0">
                     <li class="mb-2">
-                        <a href="{% url 'news:category_list' 'activity' %}" class="text-light text-decoration-none small">活動履歴</a>
+                        <a href="{% url 'news:category_list' 'activity' %}"
+                           class="text-light text-decoration-none small">活動履歴</a>
                     </li>
                     <li class="mb-2">
                         <a href="{% url 'news:category_list' 'update' %}" class="text-light text-decoration-none small">アップデート</a>
@@ -365,15 +365,17 @@
                 <h6 class="text-uppercase mb-3 fw-bold">サポート</h6>
                 <ul class="list-unstyled mb-0">
                     {% if user.is_authenticated %}
-                    <li class="mb-2">
-                        <a href="{% url 'ta_hub:how_to' %}" class="text-light text-decoration-none small">使い方</a>
-                    </li>
+                        <li class="mb-2">
+                            <a href="{% url 'ta_hub:how_to' %}" class="text-light text-decoration-none small">使い方</a>
+                        </li>
                     {% endif %}
                     <li class="mb-2">
-                        <a href="{% url 'ta_hub:about' %}" class="text-light text-decoration-none small">運営について</a>
+                        <a href="{% url 'ta_hub:about' %}"
+                           class="text-light text-decoration-none small">運営について</a>
                     </li>
                     <li class="mb-2">
-                        <a href="https://github.com/noricha-vr/vrc-ta-hub/issues" class="text-light text-decoration-none small">お問い合わせ</a>
+                        <a href="https://github.com/noricha-vr/vrc-ta-hub/issues"
+                           class="text-light text-decoration-none small">お問い合わせ</a>
                     </li>
                 </ul>
             </div>
@@ -383,7 +385,8 @@
                 <h6 class="text-uppercase mb-3 fw-bold">法的情報</h6>
                 <ul class="list-unstyled mb-0">
                     <li class="mb-2">
-                        <a href="{% url 'ta_hub:privacy' %}" class="text-light text-decoration-none small">プライバシーポリシー</a>
+                        <a href="{% url 'ta_hub:privacy' %}"
+                           class="text-light text-decoration-none small">プライバシーポリシー</a>
                     </li>
                     <li class="mb-2">
                         <a href="{% url 'ta_hub:terms' %}" class="text-light text-decoration-none small">利用規約</a>
@@ -393,7 +396,7 @@
         </div>
 
         <!-- 著作権表示 -->
-        <hr class="my-4" style="background-color: rgba(255, 255, 255, 0.2);">
+        <hr class="my-3" style="background-color: rgba(255, 255, 255, 0.2);">
         <div class="text-center">
             <small>
                 © <span id="thisYear">2024</span> 技術・学術系イベントHub All Rights Reserved
