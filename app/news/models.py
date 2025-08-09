@@ -19,6 +19,7 @@ class Post(models.Model):
     title = models.CharField(max_length=200)
     slug = models.SlugField(max_length=220, unique=True)
     body_markdown = models.TextField()
+    meta_description = models.TextField(blank=True, help_text="SEO用のメタディスクリプション（空欄の場合は本文から自動生成）")
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name="posts")
     thumbnail = models.ImageField(upload_to="news/", null=True, blank=True)
     is_published = models.BooleanField(default=False)
@@ -33,3 +34,43 @@ class Post(models.Model):
 
     def __str__(self) -> str:
         return self.title
+    
+    def get_meta_description(self, max_length: int = 160) -> str:
+        """
+        メタディスクリプションを取得（キャッシュ可能）
+        
+        Args:
+            max_length: 最大文字数（デフォルト: 160）
+        
+        Returns:
+            メタディスクリプション文字列
+        """
+        import re
+        
+        if self.meta_description:
+            return self.meta_description[:max_length]
+        
+        # Markdownから改行とマークダウン記法を除去
+        clean_text = re.sub(r'[#*_`\[\]()]', '', self.body_markdown)
+        clean_text = clean_text.replace('\n', ' ').replace('\r', '')
+        # 複数スペースを単一スペースに
+        clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+        
+        return clean_text[:max_length]
+    
+    def get_absolute_thumbnail_url(self, request=None) -> str:
+        """
+        サムネイルの絶対URLを取得
+        
+        Args:
+            request: HttpRequestオブジェクト
+        
+        Returns:
+            サムネイルの絶対URL、なければデフォルト画像URL
+        """
+        if self.thumbnail:
+            if request:
+                return request.build_absolute_uri(self.thumbnail.url)
+            # requestがない場合はデフォルトのドメインを使用
+            return f"https://vrc-ta-hub.com{self.thumbnail.url}"
+        return "https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg"
