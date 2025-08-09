@@ -205,6 +205,9 @@ class EventListView(ListView):
             choice[0]: get_filtered_url(base_url, current_params, 'tags', choice[0])
             for choice in context['form'].fields['tags'].choices
         }
+        
+        # GoogleカレンダーIDを追加
+        context['google_calendar_id'] = GOOGLE_CALENDAR_ID
 
         return context
 
