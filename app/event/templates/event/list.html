@@ -28,6 +28,26 @@
 
     <div class="container mt-4">
         {% include 'ta_hub/messages.html' %}
+                    
+                    <!-- Googleカレンダー追加バナー -->
+                    <div class="row mb-3">
+                        <div class="col-lg-12">
+                            <div class="alert alert-info d-flex flex-column flex-md-row align-items-center justify-content-between">
+                                <div class="d-flex align-items-center mb-2 mb-md-0">
+                                    <i class="bi bi-calendar-plus fs-4 me-3"></i>
+                                    <span>このカレンダーをGoogleカレンダーに追加して、最新のイベント情報を自動で受け取れます</span>
+                                </div>
+                                <a href="https://calendar.google.com/calendar/u/0/r?cid={{ google_calendar_id|urlencode }}" 
+                                   class="btn btn-primary" 
+                                   target="_blank"
+                                   rel="noopener noreferrer">
+                                    <i class="bi bi-google me-1"></i>
+                                    カレンダーに追加
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="row mb-5">
                         <div class="col-lg-12 text-center">
                             <div class="d-flex justify-content-center">
