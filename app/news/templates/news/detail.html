@@ -17,44 +17,139 @@
 {% endblock %}
 
 {% block main %}
-<div class="container py-4">
-  <article>
-    <nav aria-label="breadcrumb">
-      <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{% url 'news:list' %}">お知らせ</a></li>
-        <li class="breadcrumb-item active" aria-current="page">{{ object.title }}</li>
-      </ol>
-    </nav>
-    
-    <header class="mb-4">
-      <h1 class="h2 fw-bold">{{ object.title }}</h1>
-      <div class="text-muted mb-3">
-        <time datetime="{{ object.published_at|date:'Y-m-d' }}" class="me-2">
-          {{ object.published_at|date:'Y年n月j日' }}
-        </time>
-        <a href="{% url 'news:category_list' object.category.slug %}" class="badge bg-outline-primary text-primary border text-decoration-none">
-          {{ object.category.name }}
-        </a>
-      </div>
-    </header>
+    <style>
+        .post h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #333;
+            padding: 10px;
+            border-bottom: 2px solid #3187de;
+            letter-spacing: 2px;
+        }
 
-    {% if object.thumbnail %}
-    <div class="mb-4">
-      <img src="{{ object.thumbnail.url }}" 
-           alt="{{ object.title|escape }}のサムネイル画像" 
-           class="img-fluid rounded">
+        .post h2 {
+            background-color: #cee7ff;
+            margin-top: 2rem;
+            margin-bottom: 1.5rem;
+            padding: 5px;
+            padding-left: 10px;
+            border-left: 5px solid #3187de;
+            font-family: "Noto Sans JP", sans-serif;
+            font-optical-sizing: auto;
+            font-style: normal;
+            font-weight: 500;
+            font-size: 1.6rem;
+        }
+
+        .post h3 {
+            padding: 5px;
+            margin-top: 1.5rem;
+            margin-bottom: 1.2rem;
+            padding-left: 10px;
+            border-bottom: 2px solid #3187de;
+            font-family: "Noto Sans JP", sans-serif;
+            font-optical-sizing: auto;
+            font-style: normal;
+            font-weight: 400;
+            font-size: 1.4rem;
+        }
+
+        .post h4 {
+            padding: 5px;
+            margin-top: 1.2rem;
+            margin-bottom: 1.2rem;
+            padding-left: 10px;
+            border-left: 5px solid #a2d0ff;
+            font-family: "Noto Sans JP", sans-serif;
+            font-optical-sizing: auto;
+            font-style: normal;
+            font-weight: 400;
+            font-size: 1.2rem;
+        }
+
+        .post p {
+            line-height: 2;
+        }
+
+        .post p,
+        .post ul,
+        .post ol {
+            line-height: 1.8;
+        }
+
+        .post li {
+            margin-bottom: 0.1em;
+        }
+
+        blockquote {
+            background-color: #f9f9f9;
+            border-left: 5px solid #3187de;
+            padding: 0.5em;
+            margin: 1em 0;
+            font-family: "Noto Sans JP", sans-serif;
+            font-optical-sizing: auto;
+            font-style: normal;
+            font-weight: 400;
+        }
+
+        .shadow-hover {
+            transition: box-shadow 0.3s ease-in-out;
+        }
+
+        .shadow-hover:hover {
+            border: 1px solid #3187de;
+            border-color: #3187de;
+            box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
+        }
+    </style>
+    <div class="container mt-5">
+        <div class="row post mb-5">
+            <div class="col-lg-12">
+                <nav aria-label="breadcrumb" class="mb-3">
+                    <ol class="breadcrumb">
+                        <li class="breadcrumb-item"><a href="{% url 'news:list' %}">お知らせ</a></li>
+                        <li class="breadcrumb-item">
+                            <a href="{% url 'news:category_list' object.category.slug %}">{{ object.category.name }}</a>
+                        </li>
+                        <li class="breadcrumb-item active" aria-current="page">{{ object.title|truncatechars:30 }}</li>
+                    </ol>
+                </nav>
+                
+                <h1 class="mb-3">{{ object.title }}</h1>
+                
+                <div class="text-muted mb-4">
+                    <time datetime="{{ object.published_at|date:'Y-m-d' }}" class="me-3">
+                        <i class="bi bi-calendar-event me-1"></i>
+                        {{ object.published_at|date:'Y年n月j日' }}
+                    </time>
+                    <a href="{% url 'news:category_list' object.category.slug %}" 
+                       class="badge bg-outline-primary text-primary border text-decoration-none">
+                        {{ object.category.name }}
+                    </a>
+                </div>
+
+                {% if object.thumbnail %}
+                <div class="mb-4">
+                    <img src="{{ object.thumbnail.url }}" 
+                         alt="{{ object.title|escape }}のサムネイル画像" 
+                         class="img-fluid rounded shadow-sm">
+                </div>
+                {% endif %}
+
+                <div>
+                    {{ object.body_markdown|markdown|safe }}
+                </div>
+                
+                <div class="mt-5 pt-4 border-top">
+                    <a href="{% url 'news:list' %}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left me-1"></i>
+                        お知らせ一覧に戻る
+                    </a>
+                    <a href="{% url 'news:category_list' object.category.slug %}" class="btn btn-outline-secondary ms-2">
+                        {{ object.category.name }}の記事一覧
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
-    {% endif %}
-
-    <div class="content">
-      {{ object.body_markdown|markdown|safe }}
-    </div>
-  </article>
-
-  <div class="mt-5 pt-4 border-top">
-    <a href="{% url 'news:list' %}" class="btn btn-outline-primary">
-      ← お知らせ一覧に戻る
-    </a>
-  </div>
-</div>
 {% endblock %}
