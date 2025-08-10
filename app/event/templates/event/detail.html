@@ -69,15 +69,10 @@
             font-size: 1.2rem;
         }
 
-        .post p {
-            line-height: 2;
-        }
-
         .post p,
         .post ul,
         .post ol {
-            line-height: 1.8;
-
+            line-height: 2rem;
         }
 
         .post li {
@@ -145,39 +140,39 @@
                         <a href="{% url 'community:detail' event_detail.event.community.pk %}"
                            class="btn btn-secondary me-2">{{ event_detail.event.community.name }}</a>
                     </div>
-                    
+
                     {# Twitter告知ボタン（ログインユーザーがコミュニティオーナーかつイベント日から1週間以内の場合） #}
                     {% if is_community_owner and twitter_button_active %}
-                    <div class="mt-2">
-                        {% with templates=twitter_templates %}
-                            {% if templates %}
-                                {% for template in templates %}
-                                    <a href="{% url 'twitter:tweet_event_with_template' event_detail.event.pk template.pk %}"
-                                       class="btn btn-outline-primary mb-1">
-                                        <i class="bi bi-twitter"></i> {{ template.name }}
+                        <div class="mt-2">
+                            {% with templates=twitter_templates %}
+                                {% if templates %}
+                                    {% for template in templates %}
+                                        <a href="{% url 'twitter:tweet_event_with_template' event_detail.event.pk template.pk %}"
+                                           class="btn btn-outline-primary mb-1">
+                                            <i class="bi bi-twitter"></i> {{ template.name }}
+                                        </a>
+                                    {% endfor %}
+                                {% else %}
+                                    <a href="{% url 'twitter:template_create' %}"
+                                       class="btn btn-outline-primary">
+                                        <i class="bi bi-twitter"></i> 告知テンプレートを作成
                                     </a>
-                                {% endfor %}
-                            {% else %}
-                                <a href="{% url 'twitter:template_create' %}"
-                                   class="btn btn-outline-primary">
-                                    <i class="bi bi-twitter"></i> 告知テンプレートを作成
-                                </a>
-                            {% endif %}
-                        {% endwith %}
-                    </div>
+                                {% endif %}
+                            {% endwith %}
+                        </div>
                     {% endif %}
-                    
+
                     {% if event_detail.detail_type == 'LT' %}
-                    <div class="mt-3">
-                        <ul>
-                            <li>希望の記事が作成されない場合、「記事生成」ボタンを押して再生成が可能です</li>
-                            <li>記事の生成には約10〜20秒ほどかかります</li>
-                            <li>「編集」機能を使用して、マークダウン形式で自由に編集できます</li>
-                        </ul>
-                    </div>
+                        <div class="mt-3">
+                            <ul>
+                                <li>希望の記事が作成されない場合、「記事生成」ボタンを押して再生成が可能です</li>
+                                <li>記事の生成には約10〜20秒ほどかかります</li>
+                                <li>「編集」機能を使用して、マークダウン形式で自由に編集できます</li>
+                            </ul>
+                        </div>
                     {% endif %}
                 {% endif %}
-                
+
                 {# detail_typeによって詳細情報の表示を切り替え #}
                 {% if event_detail.detail_type == 'LT' %}
                     {% include 'event/detail_info_lt.html' %}
@@ -214,34 +209,39 @@
                             <div class="row">
                                 <div class="col-md-4">
                                     {% if event_detail.event.community.poster_image %}
-                                        <img src="{{ event_detail.event.community.poster_image.url }}" 
-                                             class="img-fluid rounded" 
+                                        <img src="{{ event_detail.event.community.poster_image.url }}"
+                                             class="img-fluid rounded"
                                              alt="{{ event_detail.event.community.name }}のポスター">
                                     {% endif %}
                                 </div>
                                 <div class="col-md-8">
-                                    <h3 class="card-title" style="all: revert; font-size: 1.25rem; margin: 0 0 1rem 0;font-weight: 400;">
+                                    <h3 class="card-title"
+                                        style="all: revert; font-size: 1.25rem; margin: 0 0 1rem 0;font-weight: 400;">
                                         {{ event_detail.event.community.name }}
                                     </h3>
                                     <p class="mb-2">
                                         <i class="bi bi-calendar-event me-2"></i>
                                         開催日: {{ event_detail.event.date|date:"Y年m月d日" }}
                                     </p>
-                                  
+
                                     <p class="mb-2">
                                         <i class="bi bi-alarm me-2"></i>
-                                        開催時間: {{ community_schedule.start_time|date:"H:i" }} - {{ community_schedule.end_time|date:"H:i" }}
+                                        開催時間: {{ community_schedule.start_time|date:"H:i" }}
+                                        - {{ community_schedule.end_time|date:"H:i" }}
                                     </p>
                                     <p class="mb-2"></p>
-                                        <i class="bi bi-calendar-week me-2"></i>
-                                        開催曜日: {% for weekday in community_schedule.weekdays %}{{ weekday }}{% if not forloop.last %}・{% endif %}{% endfor %}
+                                    <i class="bi bi-calendar-week me-2"></i>
+                                    開催曜日: {% for weekday in community_schedule.weekdays %}{{ weekday }}
+                                    {% if not forloop.last %}・{% endif %}{% endfor %}
                                     </p>
                                     <p class="mb-2">
                                         <i class="bi bi-arrow-repeat me-2"></i>
                                         開催周期: {{ community_schedule.frequency }}
                                     </p>
                                     <p class="mb-3">{{ event_detail.event.community.description|truncatechars:200 }}</p>
-                                    <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#collapseExample" aria-expanded="false" aria-controls="collapseExample">
+                                    <button class="btn btn-primary" data-bs-toggle="collapse"
+                                            data-bs-target="#collapseExample" aria-expanded="false"
+                                            aria-controls="collapseExample">
                                         <i class="bi bi-person-plus-fill me-2"></i>参加方法
                                     </button>
                                     <div class="collapse" id="collapseExample">
@@ -251,7 +251,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <a href="{% url 'community:detail' event_detail.event.community.pk %}" 
+                            <a href="{% url 'community:detail' event_detail.event.community.pk %}"
                                class="stretched-link"></a>
                         </div>
                     </div>
