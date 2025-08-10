@@ -376,6 +376,12 @@ def convert_markdown(markdown_text: str) -> str:
 
     # 改行を正規化
     markdown_text = markdown_text.replace('\r\n', '\n').replace('\r', '\n')
+    
+    # 最初の行が # で始まる場合は除去（H1タグの重複を防ぐ）
+    lines = markdown_text.split('\n')
+    if lines and lines[0].strip().startswith('# '):
+        lines = lines[1:]
+        markdown_text = '\n'.join(lines).lstrip()
 
     # 各行の先頭スペースを削除（リストを除く）
     lines = markdown_text.split('\n')
