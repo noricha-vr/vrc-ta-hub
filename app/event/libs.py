@@ -369,8 +369,13 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
         return None
 
 
-def convert_markdown(markdown_text: str) -> str:
-    """MarkdownをHTMLに変換し、サニタイズする"""
+def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
+    """MarkdownをHTMLに変換し、サニタイズする
+    
+    Args:
+        markdown_text: 変換するMarkdownテキスト
+        auto_format: 自動整形を行うかどうか（デフォルト: False）
+    """
     logger.debug("Original markdown text:")
     logger.debug(markdown_text)
 
@@ -383,47 +388,53 @@ def convert_markdown(markdown_text: str) -> str:
         lines = lines[1:]
         markdown_text = '\n'.join(lines).lstrip()
 
-    # 各行の先頭スペースを削除（リストを除く）
-    lines = markdown_text.split('\n')
-    normalized_lines = []
-    in_list = False
+    # auto_formatがTrueの場合のみ、句読点での自動整形を行う
+    if auto_format:
+        # 各行の先頭スペースを削除（リストを除く）
+        lines = markdown_text.split('\n')
+        normalized_lines = []
+        in_list = False
 
-    for line in lines:
-        # リストアイテムの検出
-        if line.lstrip().startswith(('- ', '* ', '+ ', '1. ', '2. ', '3. ')):
-            in_list = True
-            normalized_lines.append(line)
-        elif line.strip() == '':
-            in_list = False
-            normalized_lines.append(line)
-        else:
-            if in_list:
+        for line in lines:
+            # リストアイテムの検出
+            if line.lstrip().startswith(('- ', '* ', '+ ', '1. ', '2. ', '3. ')):
+                in_list = True
+                normalized_lines.append(line)
+            elif line.strip() == '':
+                in_list = False
                 normalized_lines.append(line)
             else:
-                # 非リスト行の場合、文を分割して空行を追加
-                sentences = re.split(r'([。！？])', line.lstrip())
-                for i in range(0, len(sentences) - 1, 2):
-                    if sentences[i].strip():
-                        normalized_lines.append(
-                            sentences[i] + (sentences[i + 1] if i + 1 < len(sentences) else ''))
-                        normalized_lines.append('')  # 空行を追加
-                if sentences[-1].strip() and not sentences[-1][-1] in '。！？':
-                    normalized_lines.append(sentences[-1])
+                if in_list:
+                    normalized_lines.append(line)
+                else:
+                    # 非リスト行の場合、文を分割して空行を追加
+                    sentences = re.split(r'([。！？])', line.lstrip())
+                    for i in range(0, len(sentences) - 1, 2):
+                        if sentences[i].strip():
+                            normalized_lines.append(
+                                sentences[i] + (sentences[i + 1] if i + 1 < len(sentences) else ''))
+                            normalized_lines.append('')  # 空行を追加
+                    if sentences[-1].strip() and not sentences[-1][-1] in '。！？':
+                        normalized_lines.append(sentences[-1])
 
-    markdown_text = '\n'.join(normalized_lines)
+        markdown_text = '\n'.join(normalized_lines)
 
-    # 連続する空行を2行に制限
-    markdown_text = re.sub(r'\n{3,}', '\n\n', markdown_text)
+        # 連続する空行を2行に制限
+        markdown_text = re.sub(r'\n{3,}', '\n\n', markdown_text)
 
-    # 感嘆符・疑問符と閉じ括弧または絵文字の間の改行を削除
-    # Unicode絵文字のパターン
-    emoji_pattern = r'[\U0001F300-\U0001F9FF\u200d\u2600-\u26FF\u2700-\u27BF]'
-    # 改行を削除するパターン
-    markdown_text = re.sub(
-        rf'([！!？?])\n+((?:{emoji_pattern}+|[」）\)]))',
-        r'\1\2',
-        markdown_text
-    )
+        # 感嘆符・疑問符と閉じ括弧または絵文字の間の改行を削除
+        # Unicode絵文字のパターン
+        emoji_pattern = r'[\U0001F300-\U0001F9FF\u200d\u2600-\u26FF\u2700-\u27BF]'
+        # 改行を削除するパターン
+        markdown_text = re.sub(
+            rf'([！!？?])\n+((?:{emoji_pattern}+|[」）\)]))',
+            r'\1\2',
+            markdown_text
+        )
+    else:
+        # 標準的なMarkdown処理
+        # 連続する空行を2行に制限（段落区切りの正規化）
+        markdown_text = re.sub(r'\n{3,}', '\n\n', markdown_text)
 
     logger.debug("Normalized markdown text:")
     logger.debug(markdown_text)
