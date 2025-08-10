@@ -5,14 +5,14 @@
     <title>{{ object.title|escape }} - VRChat技術・学術系イベントHub</title>
     <meta name="twitter:title" content="{{ object.title|escape }} - VRChat技術・学術系イベントHub">
     <meta property="og:title" content="{{ object.title|escape }} - VRChat技術・学術系イベントHub">
-    
+
     <meta name="description" content="{{ object.get_meta_description|escape }}">
     <meta name="twitter:description" content="{{ object.get_meta_description|escape }}">
     <meta property="og:description" content="{{ object.get_meta_description|escape }}">
-    
+
     {% with absolute_url=object.get_absolute_thumbnail_url %}
-    <meta property="og:image" content="{{ absolute_url }}">
-    <meta name="twitter:image" content="{{ absolute_url }}">
+        <meta property="og:image" content="{{ absolute_url }}">
+        <meta name="twitter:image" content="{{ absolute_url }}">
     {% endwith %}
 {% endblock %}
 
@@ -74,7 +74,7 @@
         .post p,
         .post ul,
         .post ol {
-            line-height: 1.8;
+            line-height: 2rem;
         }
 
         .post li {
@@ -114,38 +114,39 @@
                         <li class="breadcrumb-item active" aria-current="page">{{ object.title|truncatechars:30 }}</li>
                     </ol>
                 </nav>
-                
+
                 <h1 class="mb-3">{{ object.title }}</h1>
-                
+
                 <div class="text-muted mb-4">
                     <time datetime="{{ object.published_at|date:'Y-m-d' }}" class="me-3">
                         <i class="bi bi-calendar-event me-1"></i>
                         {{ object.published_at|date:'Y年n月j日' }}
                     </time>
-                    <a href="{% url 'news:category_list' object.category.slug %}" 
+                    <a href="{% url 'news:category_list' object.category.slug %}"
                        class="badge bg-outline-primary text-primary border text-decoration-none">
                         {{ object.category.name }}
                     </a>
                 </div>
 
                 {% if object.thumbnail %}
-                <div class="mb-4">
-                    <img src="{{ object.thumbnail.url }}" 
-                         alt="{{ object.title|escape }}のサムネイル画像" 
-                         class="img-fluid rounded shadow-sm">
-                </div>
+                    <div class="mb-4">
+                        <img src="{{ object.thumbnail.url }}"
+                             alt="{{ object.title|escape }}のサムネイル画像"
+                             class="img-fluid rounded shadow-sm">
+                    </div>
                 {% endif %}
 
                 <div>
                     {{ object.body_markdown|markdown|safe }}
                 </div>
-                
+
                 <div class="mt-5 pt-4 border-top">
                     <a href="{% url 'news:list' %}" class="btn btn-outline-primary">
                         <i class="bi bi-arrow-left me-1"></i>
                         お知らせ一覧に戻る
                     </a>
-                    <a href="{% url 'news:category_list' object.category.slug %}" class="btn btn-outline-secondary ms-2">
+                    <a href="{% url 'news:category_list' object.category.slug %}"
+                       class="btn btn-outline-secondary ms-2">
                         {{ object.category.name }}の記事一覧
                     </a>
                 </div>
