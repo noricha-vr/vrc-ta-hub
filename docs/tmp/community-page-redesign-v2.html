@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>コミュニティ詳細ページ - リデザイン v2</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #f5f5f5;
+            color: #1a1a1a;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* ===== メインコンテンツエリア ===== */
+        .main-content {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+        
+        /* ===== 左側: ポスターエリア ===== */
+        .poster-section {
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+        }
+        
+        .poster-container {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            position: relative;
+        }
+        
+        .poster-wrapper {
+            width: 100%;
+            max-height: 600px;
+            background: #2a2a2a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* ポスター画像の自動調整 */
+        .poster-image {
+            width: 100%;
+            height: auto;
+            max-height: 600px;
+            object-fit: contain;
+            display: block;
+        }
+        
+        /* 画像なしの場合のプレースホルダー */
+        .poster-placeholder {
+            width: 100%;
+            height: 500px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .poster-placeholder-icon {
+            font-size: 72px;
+            margin-bottom: 16px;
+            opacity: 0.7;
+        }
+        
+        .poster-placeholder-text {
+            font-size: 18px;
+            opacity: 0.9;
+        }
+        
+        /* ポスター転載許可バッジ */
+        .repost-badge {
+            position: absolute;
+            bottom: 12px;
+            right: 12px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .repost-badge.allowed {
+            background: rgba(34, 197, 94, 0.9);
+        }
+        
+        /* ポスター下のアクションボタン */
+        .poster-actions {
+            padding: 16px;
+            background: white;
+            border-top: 1px solid #e5e5e5;
+        }
+        
+        .download-btn {
+            width: 100%;
+            padding: 10px;
+            background: #0E7FFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+        
+        .download-btn:hover {
+            background: #0969da;
+        }
+        
+        /* ===== 右側: 情報エリア ===== */
+        .info-section {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        
+        /* タイトルセクション */
+        .title-section {
+            background: white;
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .community-title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 12px;
+        }
+        
+        .tags {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        
+        .tag {
+            background: #0E7FFF;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.875rem;
+        }
+        
+        .tag.academic {
+            background: #22c55e;
+        }
+        
+        .organizer-info {
+            color: #666;
+            font-size: 1rem;
+            padding-top: 16px;
+            border-top: 1px solid #e5e5e5;
+        }
+        
+        /* クイック情報グリッド */
+        .quick-info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+        
+        .info-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 12px;
+        }
+        
+        .info-card-icon {
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f0f9ff;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        
+        .info-card-content h3 {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 2px;
+        }
+        
+        .info-card-content p {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+        
+        /* 参加ボタンセクション */
+        .action-section {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+        
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        
+        .action-btn {
+            padding: 14px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        
+        .action-btn.vrchat {
+            background: #0E7FFF;
+            color: white;
+        }
+        
+        .action-btn.vrchat:hover {
+            background: #0969da;
+            transform: translateY(-2px);
+        }
+        
+        .action-btn.discord {
+            background: #7289da;
+            color: white;
+        }
+        
+        .action-btn.discord:hover {
+            background: #5b6eae;
+            transform: translateY(-2px);
+        }
+        
+        .action-btn.twitter {
+            background: white;
+            color: #1DA1F2;
+            border-color: #1DA1F2;
+        }
+        
+        .action-btn.twitter:hover {
+            background: #f0f9ff;
+        }
+        
+        .action-btn.sns {
+            background: white;
+            color: #666;
+            border-color: #e5e5e5;
+        }
+        
+        .action-btn.sns:hover {
+            background: #f5f5f5;
+            border-color: #999;
+        }
+        
+        /* 説明セクション */
+        .description-section {
+            background: white;
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .description-text {
+            font-size: 1.125rem;
+            line-height: 1.8;
+            white-space: pre-wrap;
+        }
+        
+        /* ===== レスポンシブ対応 ===== */
+        
+        /* タブレット */
+        @media (max-width: 1024px) {
+            .main-content {
+                grid-template-columns: 320px 1fr;
+            }
+        }
+        
+        /* モバイル */
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .poster-section {
+                position: static;
+                margin-bottom: 24px;
+            }
+            
+            .poster-wrapper {
+                max-height: 400px;
+            }
+            
+            .quick-info-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .action-buttons {
+                grid-template-columns: 1fr;
+            }
+            
+            .community-title {
+                font-size: 1.5rem;
+            }
+        }
+        
+        /* デモ用コントロール */
+        .demo-controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+        }
+        
+        .demo-controls h4 {
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        
+        .demo-btn {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            margin-bottom: 8px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .demo-btn:hover {
+            background: #e5e5e5;
+        }
+        
+        .demo-btn.active {
+            background: #0E7FFF;
+            color: white;
+            border-color: #0E7FFF;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <!-- 左側: ポスターセクション -->
+            <div class="poster-section">
+                <div class="poster-container">
+                    <div class="poster-wrapper" id="posterWrapper">
+                        <!-- デフォルト: ポスターなし -->
+                        <div class="poster-placeholder" id="posterContent">
+                            <div class="poster-placeholder-icon">🖼️</div>
+                            <div class="poster-placeholder-text">ポスター画像なし</div>
+                        </div>
+                    </div>
+                    <div class="repost-badge allowed" id="repostBadge">
+                        ✓ ポスター転載可
+                    </div>
+                    <div class="poster-actions">
+                        <button class="download-btn">
+                            📥 ポスターをダウンロード
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右側: 情報セクション -->
+            <div class="info-section">
+                <!-- タイトルセクション -->
+                <div class="title-section">
+                    <h1 class="community-title">VR酔い訓練集会</h1>
+                    <div class="tags">
+                        <span class="tag">技術</span>
+                        <span class="tag academic">学術</span>
+                    </div>
+                    <div class="organizer-info">
+                        <strong>主催:</strong> VR酔い訓練集会運営・HOZUKI Roy
+                    </div>
+                </div>
+                
+                <!-- クイック情報 -->
+                <div class="quick-info-grid">
+                    <div class="info-card">
+                        <div class="info-card-icon">📅</div>
+                        <div class="info-card-content">
+                            <h3>開催曜日</h3>
+                            <p>毎週月曜日</p>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card">
+                        <div class="info-card-icon">⏰</div>
+                        <div class="info-card-content">
+                            <h3>開催時間</h3>
+                            <p>22:30 - 23:20</p>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card">
+                        <div class="info-card-icon">🔄</div>
+                        <div class="info-card-content">
+                            <h3>開催頻度</h3>
+                            <p>毎週</p>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card">
+                        <div class="info-card-icon">💻</div>
+                        <div class="info-card-content">
+                            <h3>プラットフォーム</h3>
+                            <p>PC・Android</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 参加方法 -->
+                <div class="action-section">
+                    <h2 class="section-title">参加方法</h2>
+                    <div class="action-buttons">
+                        <a href="#" class="action-btn vrchat">
+                            🌐 VRChatグループ
+                        </a>
+                        <a href="#" class="action-btn discord">
+                            💬 Discord
+                        </a>
+                        <a href="#" class="action-btn twitter">
+                            🐦 #VR酔い訓練集会
+                        </a>
+                        <a href="#" class="action-btn sns">
+                            👤 主催者プロフィール
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- 説明セクション -->
+                <div class="description-section">
+                    <h2 class="section-title">イベント紹介</h2>
+                    <div class="description-text">26億人のVR酔い人類を解放したい集い。
+
+VR酔いに悩む方、克服したい方、研究したい方など、VR酔いに関心のある方々が集まる場です。
+実際にVR空間で酔いやすい環境を体験しながら、徐々に慣れていくトレーニングを行います。
+
+毎週月曜日の夜、VRChat内の専用ワールドで開催しています。
+初心者の方も大歓迎！一緒にVR酔いを克服していきましょう。</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- デモ用コントロール -->
+    <div class="demo-controls">
+        <h4>🎨 ポスタータイプ切替</h4>
+        <button class="demo-btn active" onclick="changePoster('none')">ポスターなし</button>
+        <button class="demo-btn" onclick="changePoster('portrait')">縦長ポスター（3:4）</button>
+        <button class="demo-btn" onclick="changePoster('portrait-tall')">縦長ポスター（9:16）</button>
+        <button class="demo-btn" onclick="changePoster('landscape')">横長ポスター（16:9）</button>
+        <button class="demo-btn" onclick="changePoster('square')">正方形（1:1）</button>
+    </div>
+    
+    <script>
+        function changePoster(type) {
+            const posterContent = document.getElementById('posterContent');
+            const buttons = document.querySelectorAll('.demo-btn');
+            
+            // ボタンのアクティブ状態を更新
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // ポスターコンテンツを更新
+            switch(type) {
+                case 'none':
+                    posterContent.className = 'poster-placeholder';
+                    posterContent.innerHTML = `
+                        <div class="poster-placeholder-icon">🖼️</div>
+                        <div class="poster-placeholder-text">ポスター画像なし</div>
+                    `;
+                    break;
+                    
+                case 'portrait':
+                    posterContent.className = '';
+                    posterContent.innerHTML = `
+                        <div style="width: 100%; height: 500px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; text-align: center;">
+                            縦長ポスター<br>3:4<br>375 x 500px
+                        </div>
+                    `;
+                    break;
+                    
+                case 'portrait-tall':
+                    posterContent.className = '';
+                    posterContent.innerHTML = `
+                        <div style="width: 100%; height: 600px; background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; text-align: center;">
+                            縦長ポスター<br>9:16<br>337 x 600px
+                        </div>
+                    `;
+                    break;
+                    
+                case 'landscape':
+                    posterContent.className = '';
+                    posterContent.innerHTML = `
+                        <div style="width: 100%; height: 213px; background: linear-gradient(135deg, #667eea 0%, #fa709a 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+                            横長ポスター 16:9<br>380 x 213px
+                        </div>
+                    `;
+                    break;
+                    
+                case 'square':
+                    posterContent.className = '';
+                    posterContent.innerHTML = `
+                        <div style="width: 100%; height: 380px; background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+                            正方形<br>1:1<br>380 x 380px
+                        </div>
+                    `;
+                    break;
+            }
+        }
+        
+        // ページ読み込み時の初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('コミュニティページ v2 初期化完了');
+        });
+    </script>
+</body>
+</html>

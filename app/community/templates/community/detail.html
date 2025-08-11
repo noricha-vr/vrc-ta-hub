@@ -48,10 +48,17 @@
                         <h1 class="fs-2 fw-bold mb-4">{{ community.name }}</h1>
                         
                         <!-- タグ -->
-                        <div class="mb-3">
-                            <span class="badge bg-info text-white me-2">技術</span>
-                            <span class="badge bg-success text-white">学術</span>
-                        </div>
+                        {% if community.tags %}
+                            <div class="mb-3">
+                                {% for tag in community.tags %}
+                                    {% if tag == 'tech' %}
+                                        <span class="badge bg-info text-white me-2">技術</span>
+                                    {% elif tag == 'academic' %}
+                                        <span class="badge bg-success text-white me-2">学術</span>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
 
                         <!-- イベント紹介 -->
                         <section class="mb-4">
@@ -111,7 +118,17 @@
                                 <i class="bi bi-laptop me-2"></i>
                                 <span class="text-muted">対応プラットフォーム</span>
                             </div>
-                            <span class="fw-semibold">PC・Android対応</span>
+                            <span class="fw-semibold">
+                                {% if community.platform == 'PC' %}
+                                    PC対応
+                                {% elif community.platform == 'All' %}
+                                    PC・Android対応
+                                {% elif community.platform == 'Android' %}
+                                    Android対応
+                                {% else %}
+                                    {{ community.platform }}
+                                {% endif %}
+                            </span>
                         </section>
 
                         <!-- 参加方法 -->
