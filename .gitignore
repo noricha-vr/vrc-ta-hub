@@ -111,3 +111,5 @@ artifacts/
 issue.md
 
 .claude/settings.local.json
+
+docs/tmp/*
