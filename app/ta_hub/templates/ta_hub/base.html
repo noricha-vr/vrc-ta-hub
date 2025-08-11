@@ -269,11 +269,12 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
         
-        /* コミュニティ詳細ページのカードはホバー効果を無効化 */
+        /* 特定ページのカードはホバー効果を無効化 */
         .community-detail-card,
-        .community-detail-card:hover {
+        .community-detail-card:hover,
+        .shadow-hover,
+        .shadow-hover.card:hover {
             transform: none !important;
-            box-shadow: none !important;
         }
         
         .community-detail-card.shadow {
