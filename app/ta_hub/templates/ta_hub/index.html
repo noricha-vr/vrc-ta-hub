@@ -282,6 +282,20 @@
         .calendar-add-button {
             transition: transform 0.2s ease;
         }
+        /* ボタンのホバー効果 */
+        .btn-hover-press {
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+        
+        .btn-hover-press:hover {
+            transform: translateY(2px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+        }
+        
+        .btn-hover-press:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+        }
     </style>
     <link rel="stylesheet" href="https://petipeti-object-storage.work/dist/style.css">
 
@@ -295,7 +309,8 @@
                 <p class="fs-5 my-4 text-white">VRChatで開催される多彩な技術学術系集会をお届けします</br>
                     入門者から経験豊富な方まで、みんなが楽しめるイベントが満載です！</p>
                 <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                    <a href="{% url 'community:list' %}" class="btn btn-primary btn-lg px-4 fw-bold text-white">集会を探す</a>
+                    <a href="{% url 'community:list' %}"
+                       class="btn btn-primary btn-lg px-4 fw-bold text-white">技術・学術系 集会一覧</a>
                 </div>
             </div>
         </div>
@@ -321,6 +336,9 @@
                         <div class="col-12 col-md-10 offset-md-1">
                             {% with first_special=event_group.list|first %}
                                 <a href="
+
+
+
 
 
 
@@ -622,7 +640,7 @@
                 {% endfor %}
             </div>
             <div class="text-center mt-5">
-                <a href="{% url 'event:list' %}" class="btn btn-outline-primary">
+                <a href="{% url 'event:list' %}" class="btn btn-primary btn-hover-press">
                     <i class="bi bi-calendar-week me-2"></i>すべてのイベントを見る
                 </a>
             </div>
@@ -1020,7 +1038,8 @@
                     </div>
                     <div>
                         <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                            <a href="{% url 'community:list' %}" class="btn btn-primary btn-lg px-4 fw-bold">集会を探す</a>
+                            <a href="{% url 'community:list' %}"
+                               class="btn btn-primary btn-lg px-4 fw-bold">集会を探す</a>
                         </div>
                     </div>
                 </div>
