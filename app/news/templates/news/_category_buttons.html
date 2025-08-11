@@ -1,5 +1,10 @@
 <div class="mb-4">
   <div class="btn-group" role="group" aria-label="カテゴリー">
+    {% if current_category == None %}
+      <span class="btn btn-primary" aria-current="page">全て</span>
+    {% else %}
+      <a href="{% url 'news:list' %}" class="btn btn-outline-primary">全て</a>
+    {% endif %}
     {% for cat in categories %}
       {% if current_category == cat %}
         <span class="btn btn-primary" aria-current="page">{{ cat.name }}</span>

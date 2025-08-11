@@ -246,6 +246,93 @@
                 justify-content: center !important;
             }
         }
+
+        /* === グローバルホバー効果の追加 === */
+        
+        /* ナビゲーションリンクのホバー効果 */
+        .nav-link {
+            transition: opacity 0.3s ease;
+            position: relative;
+        }
+        
+        .nav-link:hover {
+            opacity: 0.8;
+        }
+        
+        /* カードの統一ホバー効果 */
+        .card {
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* 特定ページのカードはホバー効果を無効化 */
+        .community-detail-card,
+        .community-detail-card:hover,
+        .community-table-card,
+        .community-table-card:hover,
+        .shadow-hover,
+        .shadow-hover.card:hover {
+            transform: none !important;
+        }
+        
+        .community-detail-card.shadow,
+        .community-table-card.shadow {
+            box-shadow: 0 .125rem .25rem rgba(0,0,0,.075) !important;
+        }
+        
+        /* リストグループアイテムのホバー効果 */
+        .list-group-item {
+            transition: all 0.2s ease;
+        }
+        
+        .list-group-item:hover {
+            background-color: rgba(0, 0, 0, 0.03);
+            transform: translateX(4px);
+        }
+        
+        /* 通常のリンクのホバー効果（ボタン、ナビゲーション、カード、ページネーションを除外） */
+        a:not(.btn):not(.nav-link):not(.card):not(.page-link) {
+            transition: opacity 0.2s ease;
+        }
+        
+        a:not(.btn):not(.nav-link):not(.card):not(.page-link):hover {
+            opacity: 0.7;
+        }
+        
+        /* バッジのホバー効果 */
+        .badge {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .badge:hover {
+            transform: scale(1.05);
+            filter: brightness(1.1);
+        }
+        
+        /* ページネーションのホバー効果 */
+        .page-link {
+            transition: all 0.2s ease;
+        }
+        
+        .page-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* モバイルタップ時のフィードバック */
+        @media (hover: none) {
+            .btn:active, 
+            .card:active, 
+            .nav-link:active,
+            .list-group-item:active {
+                transform: scale(0.98);
+            }
+        }
     </style>
 </head>
 

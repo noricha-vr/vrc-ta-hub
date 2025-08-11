@@ -19,140 +19,217 @@
 
 {% block main %}
     <div class="container mt-4">
-
-
-        <div class="card bg-light-subtle my-5 shadow">
-
-            <div class="row no-gutters">
-
-                <div class="col-md-5 order-md-1 order-2 p-3">
-                    {% if community.poster_image %}
-                        <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
-                             class="img-fluid w-100 img-thumbnail">
-                    {% else %}
-                        <img src="https://vrc-ta-hub.com/poster/no-image.png" alt="{{ community.name }}"
-                             class="img-fluid img-thumbnail" style="max-width: 350px;">
-                    {% endif %}
-                    <div class="text-center mt-2">
-                        {% if community.allow_poster_repost %}
-                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> 集会を紹介するためのポスターの転載可</span>
-                        {% else %}
-                            <span class="badge bg-secondary"><i class="bi bi-x-circle"></i> ポスターの転載はお問い合わせください</span>
-                        {% endif %}
+        <!-- メインコンテンツカード -->
+        <div class="card my-5 shadow-sm">
+            <div class="card-body p-4">
+                <div class="row g-4">
+                    <!-- 左側：ポスター画像 -->
+                    <div class="col-lg-5">
+                        <div class="position-relative">
+                            {% if community.poster_image %}
+                                <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
+                                     class="img-fluid rounded shadow-sm w-100">
+                            {% else %}
+                                <img src="https://vrc-ta-hub.com/poster/no-image.png" alt="{{ community.name }}"
+                                     class="img-fluid rounded shadow-sm w-100">
+                            {% endif %}
+                            {% if community.allow_poster_repost %}
+                                <div class="position-absolute bottom-0 start-0 m-2">
+                                    <span class="badge bg-white text-dark border">
+                                        <i class="bi bi-check-circle text-success"></i> ポスターの転載はお問い合わせください
+                                    </span>
+                                </div>
+                            {% endif %}
+                        </div>
                     </div>
-                </div>
-                <div class="col-md-7 order-md-2 order-1 ">
-                    <div class="card-body">
-                        <h1 class="fs-2 fw-bold text-center">{{ community.name }}</h1>
-                        <h2 class="fs-4 fw-bold my-3">
-                            イベント紹介
-                        </h2>
-                        <p>{{ community.description|linebreaks }}</p>
-                        <h2 class="fs-4 fw-bold my-3">
-                            イベント開催情報
-                        </h2>
-                        <p>開催曜日:
-                            {% for weekday in community.weekdays %}
-                                {{ weekday_choices|get_item:weekday }}
-                                {% if not forloop.last %}, {% endif %}
-                            {% endfor %}
-                        </p>
-                        <p>開催時間: {{ community.start_time|date:"H:i" }}
-                            - {{ community.end_time|date:"H:i" }} <small class="text-muted">（日本時間）</small></p>
-                        <p>開催周期: {{ community.frequency }}</p>
-                        <h2 class="fs-4 fw-bold my-3">
-                            参加方法</h2>
-                        <p>
-                            主催・副主催:
-                            {% if community.organizer_url %}
-                                <a href="{{ community.organizer_url }}"
-                                   target="_blank">{{ community.organizers }}</a>
-                            {% else %}
-                                {#  プロフィールのURLが無ければアカウント名で検索 #}
-                                <a href="https://vrchat.com/home/search/{{ community.organizers }}"
-                                   target="_blank">{{ community.organizers }}</a>
-                            {% endif %}
-                        </p>
-                        <p>
-                            {% if community.group_url %}
-                                VRChatグループ:
-                                <a href="{{ community.group_url }}"
-                                   target="_blank">{{ community.group_url|slice:"18:" }}</a>
-                            {% endif %}
-                            {% if community.join_type == 'world' %}
-                                <a href="{{ community.how_to_join }}"
-                                   target="_blank">{{ community.how_to_join }}</a>
-                            {% else %}
-                                {{ community.how_to_join }}
-                            {% endif %}
-                        </p>
 
-                        <p class="d-flex gap-3">
-                            {% if community.discord %}
-                                <a href="{{ community.discord }}" target="_blank" class="text-decoration-none">
-                                    <i class="fab fa-discord fa-2x" style="color: #5865F2;"></i>
-                                </a>
-                            {% endif %}
-
-                            {% if community.sns_url %}
-                                <a href="{{ community.sns_url }}" target="_blank" class="text-decoration-none">
-                                    <i class="fab fa-twitter fa-2x" style="color: #1DA1F2;"></i>
-                                </a>
-                            {% endif %}
-                        </p>
-
-                        {% if community.twitter_hashtags %}
-                            <p>
-                                {% for hashtag in community.twitter_hashtags %}
-                                    <a href="https://twitter.com/hashtag/{{ hashtag|slice:"1:" }}?f=live"
-                                       class="badge rounded-pill text-bg-light text-decoration-none border fs-6"
-                                       target="_blank">
-                                        <i class="fas fa-hashtag"></i>
-                                        {{ hashtag|slice:"1:" }}
-                                    </a>{% if not forloop.last %} {% endif %}
+                    <!-- 右側：集会情報 -->
+                    <div class="col-lg-7">
+                        <h1 class="fs-2 fw-bold mb-4">{{ community.name }}</h1>
+                        
+                        <!-- タグ -->
+                        {% if community.tags %}
+                            <div class="mb-3">
+                                {% for tag in community.tags %}
+                                    {% if tag == 'tech' %}
+                                        <span class="badge bg-info text-white me-2">技術</span>
+                                    {% elif tag == 'academic' %}
+                                        <span class="badge bg-success text-white me-2">学術</span>
+                                    {% endif %}
                                 {% endfor %}
-                            </p>
-                        {% endif %}
-
-                        {% if show_accept_button %}
-                            <div class="d-flex gap-2">
-                                <form action="{% url 'community:accept' community.pk %}" method="post" class="d-inline">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-success">承認</button>
-                                </form>
-                                <form action="{% url 'community:reject' community.pk %}" method="post" class="d-inline">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-danger">非承認</button>
-                                </form>
                             </div>
                         {% endif %}
-                        {% if request.user.is_superuser %}
-                            <a href="/admin/community/community/{{ community.pk }}/change/"
-                               class="btn btn-primary">編集(管理者)</a>
-                        {% endif %}
-                        {% if request.user == community.custom_user %}
-                            <a href="{% url 'community:update' %}"
-                               class="btn btn-primary">編集</a>
-                        {% endif %}
-                        {% if request.user.is_superuser or request.user == community.custom_user %}
-                            {% if not community.end_at %}
-                                <button type="button" class="btn btn-danger float-end" data-bs-toggle="modal" data-bs-target="#closeCommunityModal">
-                                    閉鎖
-                                </button>
-                            {% else %}
-                                <button type="button" class="btn btn-success float-end" data-bs-toggle="modal" data-bs-target="#reopenCommunityModal">
-                                    再開
-                                </button>
-                            {% endif %}
-                        {% endif %}
 
+                        <!-- イベント紹介 -->
+                        <section class="mb-4">
+                            <h2 class="fs-5 fw-bold mb-3">
+                                <i class="bi bi-card-text me-2"></i>イベント紹介
+                            </h2>
+                            <p class="text-muted">{{ community.description|linebreaks }}</p>
+                        </section>
+
+                        <!-- イベント開催情報 -->
+                        <section class="mb-4">
+                            <h2 class="fs-5 fw-bold mb-3">
+                                <i class="bi bi-calendar3 me-2"></i>イベント開催情報
+                            </h2>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-calendar-week text-primary me-2"></i>
+                                        <div>
+                                            <small class="text-muted d-block">開催曜日</small>
+                                            <span class="fw-semibold">
+                                                {% for weekday in community.weekdays %}
+                                                    {{ weekday_choices|get_item:weekday }}
+                                                    {% if not forloop.last %}, {% endif %}
+                                                {% endfor %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-clock text-primary me-2"></i>
+                                        <div>
+                                            <small class="text-muted d-block">開催時間</small>
+                                            <span class="fw-semibold">
+                                                {{ community.start_time|date:"H:i" }} - {{ community.end_time|date:"H:i" }}
+                                                <small class="text-muted">（日本時間）</small>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-arrow-repeat text-primary me-2"></i>
+                                        <div>
+                                            <small class="text-muted d-block">開催周期</small>
+                                            <span class="fw-semibold">{{ community.frequency }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- 対応プラットフォーム -->
+                        <section class="mb-4">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="bi bi-laptop me-2"></i>
+                                <span class="text-muted">対応プラットフォーム</span>
+                            </div>
+                            <span class="fw-semibold">
+                                {% if community.platform == 'PC' %}
+                                    PC対応
+                                {% elif community.platform == 'All' %}
+                                    PC・Android対応
+                                {% elif community.platform == 'Android' %}
+                                    Android対応
+                                {% else %}
+                                    {{ community.platform }}
+                                {% endif %}
+                            </span>
+                        </section>
+
+                        <!-- 参加方法 -->
+                        <section class="mb-4">
+                            <h2 class="fs-5 fw-bold mb-3">
+                                <i class="bi bi-rocket-takeoff me-2"></i>参加方法
+                            </h2>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                {% if community.group_url %}
+                                    <a href="{{ community.group_url }}" target="_blank" 
+                                       class="btn btn-primary">
+                                        <i class="bi bi-globe me-2"></i>VRChatグループに参加
+                                    </a>
+                                {% endif %}
+                                {% if community.discord %}
+                                    <a href="{{ community.discord }}" target="_blank" 
+                                       class="btn btn-secondary">
+                                        <i class="bi bi-discord me-2"></i>Discordサーバーに参加
+                                    </a>
+                                {% endif %}
+                                {% if community.twitter_hashtags %}
+                                    <a href="https://twitter.com/hashtag/{{ community.twitter_hashtags.0|slice:"1:" }}?f=live" 
+                                       target="_blank" class="btn btn-outline-info">
+                                        <i class="bi bi-hash me-1"></i>{{ community.twitter_hashtags.0 }}
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </section>
+
+
+                        <!-- 主催者プロフィール & SNSアカウント -->
+                        <section>
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <i class="bi bi-link-45deg me-2"></i>
+                                    <span class="text-muted me-2">主催者プロフィール:</span>
+                                    {% if community.organizer_url %}
+                                        <a href="{{ community.organizer_url }}" target="_blank" class="text-decoration-none">
+                                            {{ community.organizers }}
+                                        </a>
+                                    {% else %}
+                                        <a href="https://vrchat.com/home/search/{{ community.organizers }}" target="_blank" class="text-decoration-none">
+                                            {{ community.organizers }}
+                                        </a>
+                                    {% endif %}
+                                </div>
+                                {% if community.sns_url %}
+                                    <div>
+                                        <i class="bi bi-card-text me-2"></i>
+                                        <span class="text-muted me-2">SNSアカウント:</span>
+                                        <a href="{{ community.sns_url }}" target="_blank" class="text-decoration-none">
+                                            <i class="bi bi-twitter"></i>
+                                        </a>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </section>
+
+                        <!-- 管理者ボタン -->
+                        {% if show_accept_button or request.user.is_superuser or request.user == community.custom_user %}
+                            <div class="mt-4 pt-4 border-top">
+                                {% if show_accept_button %}
+                                    <div class="d-flex gap-2">
+                                        <form action="{% url 'community:accept' community.pk %}" method="post" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-success">承認</button>
+                                        </form>
+                                        <form action="{% url 'community:reject' community.pk %}" method="post" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-danger">非承認</button>
+                                        </form>
+                                    </div>
+                                {% endif %}
+                                {% if request.user.is_superuser %}
+                                    <a href="/admin/community/community/{{ community.pk }}/change/"
+                                       class="btn btn-primary">編集(管理者)</a>
+                                {% endif %}
+                                {% if request.user == community.custom_user %}
+                                    <a href="{% url 'community:update' %}"
+                                       class="btn btn-primary">編集</a>
+                                {% endif %}
+                                {% if request.user.is_superuser or request.user == community.custom_user %}
+                                    {% if not community.end_at %}
+                                        <button type="button" class="btn btn-danger float-end" data-bs-toggle="modal" data-bs-target="#closeCommunityModal">
+                                            閉鎖
+                                        </button>
+                                    {% else %}
+                                        <button type="button" class="btn btn-success float-end" data-bs-toggle="modal" data-bs-target="#reopenCommunityModal">
+                                            再開
+                                        </button>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
 
 
-        <div class="card my-5 shadow">
+        <div class="card my-5 shadow community-table-card">
             <div class="card-body">
                 <h2 class="fs-3 fw-bold my-5 text-center">
                     {{ community.name }}の開催日程
@@ -198,7 +275,7 @@
             </div>
         </div>
 
-        <div class="card my-5 shadow">
+        <div class="card my-5 shadow community-table-card">
             <div class="card-body">
                 <h2 class="fs-3 fw-bold my-5 text-center">
                     {{ community.name }}の発表履歴
