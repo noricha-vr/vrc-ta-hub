@@ -2,14 +2,7 @@
 
 {% block main %}
 <div class="container py-4">
-  <nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-      <li class="breadcrumb-item"><a href="{% url 'news:list' %}">お知らせ</a></li>
-      <li class="breadcrumb-item active" aria-current="page">{{ category.name }}</li>
-    </ol>
-  </nav>
-
-  <h1 class="h3 fw-bold mb-3">{{ category.name }}</h1>
+  <h1 class="h3 fw-bold mb-3">お知らせ - {{ category.name }}</h1>
   
   {% include 'news/_category_buttons.html' with current_category=category %}
 
