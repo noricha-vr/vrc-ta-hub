@@ -49,7 +49,14 @@
                                 {% if field.name != 'detail_type' %}
                                     <div class="mb-3 field-wrapper" data-field="{{ field.name }}">
                                         {{ field.label_tag }}
-                                        {{ field }}
+                                        {% if field.name == 'speaker' %}
+                                            <div class="input-group">
+                                                {{ field }}
+                                                <span class="input-group-text">さん</span>
+                                            </div>
+                                        {% else %}
+                                            {{ field }}
+                                        {% endif %}
                                         {% if field.help_text %}
                                             <div class="form-text">{{ field.help_text }}</div>
                                         {% endif %}

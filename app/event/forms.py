@@ -222,7 +222,10 @@ class EventDetailForm(forms.ModelForm):
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': '.pdf'}),
-            'speaker': forms.TextInput(attrs={'class': 'form-control'}),
+            'speaker': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'VRChat表示名を入力'
+            }),
             'start_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control w-25'}),
             'duration': forms.NumberInput(attrs={'class': 'form-control w-25'}),
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
