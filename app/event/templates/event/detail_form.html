@@ -25,7 +25,7 @@
             <div class="col-md-10 mx-auto">
                 <div class="card">
                     <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0">イベント詳細の{% if form.instance.pk %}編集{% else %}作成{% endif %}</h4>
+                        <h4 class="mb-0">イベント詳細の{% if form.instance.pk %}編集{% else %}作成{% endif %}{% if event %}（{{ event.date|date:"Y年n月j日" }}）{% endif %}</h4>
                     </div>
                     <div class="card-body">
                         <form method="post" enctype="multipart/form-data">
@@ -75,8 +75,17 @@
                                 {% endif %}
                             {% endfor %}
                             
-                            <div class="text-end">
-                                <button type="submit" class="btn btn-primary">保存</button>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <!-- 詳細設定ボタン（開催前のLTタイプ用） -->
+                                <div id="detail-settings-toggle" style="display: none;">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="toggleDetailSettings()">
+                                        <i class="bi bi-gear"></i> 詳細設定を表示
+                                    </button>
+                                    <small class="text-muted ms-2">スライドやYouTube URLなど</small>
+                                </div>
+                                <div class="ms-auto">
+                                    <button type="submit" class="btn btn-primary">保存</button>
+                                </div>
                             </div>
                         </form>
                         <div class="p-2">
@@ -95,23 +104,55 @@
     </div>
 
     <script>
+        // イベント開催前かどうかのフラグ（Djangoテンプレートから渡される）
+        const isBeforeEvent = {{ is_before_event|lower }};
+        let detailSettingsExpanded = false;
+        
+        function toggleDetailSettings() {
+            detailSettingsExpanded = !detailSettingsExpanded;
+            const button = document.querySelector('#detail-settings-toggle button');
+            const optionalFields = ['slide_url', 'slide_file', 'youtube_url', 'h1', 'contents'];
+            
+            optionalFields.forEach(fieldName => {
+                const wrapper = document.querySelector(`.field-wrapper[data-field="${fieldName}"]`);
+                if (wrapper) {
+                    if (detailSettingsExpanded) {
+                        wrapper.classList.remove('field-hidden');
+                    } else {
+                        wrapper.classList.add('field-hidden');
+                    }
+                }
+            });
+            
+            // ボタンのテキストを変更
+            if (detailSettingsExpanded) {
+                button.innerHTML = '<i class="bi bi-gear-fill"></i> 詳細設定を隠す';
+            } else {
+                button.innerHTML = '<i class="bi bi-gear"></i> 詳細設定を表示';
+            }
+        }
+        
         document.addEventListener('DOMContentLoaded', function() {
             const detailTypeRadios = document.querySelectorAll('input[name="detail_type"]');
             const fieldWrappers = document.querySelectorAll('.field-wrapper');
+            const detailSettingsToggle = document.getElementById('detail-settings-toggle');
             
             // フィールドの表示設定
             const fieldVisibility = {
                 'LT': {
                     show: ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url', 'h1', 'contents'],
-                    hide: []
+                    hide: [],
+                    optional: ['slide_url', 'slide_file', 'youtube_url', 'h1', 'contents'] // 開催前は折りたたみ対象
                 },
                 'SPECIAL': {
                     show: ['h1', 'contents', 'start_time'],
-                    hide: ['theme', 'speaker', 'duration', 'slide_url', 'slide_file', 'youtube_url']
+                    hide: ['theme', 'speaker', 'duration', 'slide_url', 'slide_file', 'youtube_url'],
+                    optional: []
                 },
                 'BLOG': {
                     show: ['h1', 'contents'],
-                    hide: ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url']
+                    hide: ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url'],
+                    optional: []
                 }
             };
             
@@ -119,16 +160,30 @@
                 const config = fieldVisibility[detailType];
                 if (!config) return;
                 
+                // 詳細設定ボタンの表示/非表示
+                if (detailType === 'LT' && isBeforeEvent) {
+                    detailSettingsToggle.style.display = 'block';
+                } else {
+                    detailSettingsToggle.style.display = 'none';
+                    detailSettingsExpanded = false;
+                }
+                
                 fieldWrappers.forEach(wrapper => {
                     const fieldName = wrapper.getAttribute('data-field');
+                    
                     if (config.hide.includes(fieldName)) {
+                        // 完全に非表示にするフィールド
                         wrapper.classList.add('field-hidden');
+                    } else if (detailType === 'LT' && isBeforeEvent && config.optional.includes(fieldName)) {
+                        // LTタイプで開催前の場合、オプションフィールドは初期状態で非表示
+                        if (!detailSettingsExpanded) {
+                            wrapper.classList.add('field-hidden');
+                        }
                     } else {
+                        // 通常表示
                         wrapper.classList.remove('field-hidden');
                     }
                 });
-                
-                
             }
             
             // 初期表示の設定
@@ -141,6 +196,12 @@
             detailTypeRadios.forEach(radio => {
                 radio.addEventListener('change', function() {
                     if (this.checked) {
+                        // 詳細設定を閉じた状態にリセット
+                        detailSettingsExpanded = false;
+                        const button = document.querySelector('#detail-settings-toggle button');
+                        if (button) {
+                            button.innerHTML = '<i class="bi bi-gear"></i> 詳細設定を表示';
+                        }
                         updateFieldVisibility(this.value);
                     }
                 });
