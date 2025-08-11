@@ -52,14 +52,6 @@
                                 {% endif %}
                             </div>
                             
-                            <!-- 詳細設定ボタン（開催前のLTタイプ用） -->
-                            <div id="detail-settings-toggle" class="mb-3" style="display: none;">
-                                <button type="button" class="btn btn-outline-secondary" onclick="toggleDetailSettings()">
-                                    <i class="bi bi-gear"></i> 詳細設定を表示
-                                </button>
-                                <small class="text-muted ms-2">スライドやYouTube URLなどを設定できます</small>
-                            </div>
-                            
                             <!-- その他のフィールド -->
                             {% for field in form %}
                                 {% if field.name != 'detail_type' %}
@@ -83,8 +75,17 @@
                                 {% endif %}
                             {% endfor %}
                             
-                            <div class="text-end">
-                                <button type="submit" class="btn btn-primary">保存</button>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <!-- 詳細設定ボタン（開催前のLTタイプ用） -->
+                                <div id="detail-settings-toggle" style="display: none;">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="toggleDetailSettings()">
+                                        <i class="bi bi-gear"></i> 詳細設定を表示
+                                    </button>
+                                    <small class="text-muted ms-2">スライドやYouTube URLなど</small>
+                                </div>
+                                <div class="ms-auto">
+                                    <button type="submit" class="btn btn-primary">保存</button>
+                                </div>
                             </div>
                         </form>
                         <div class="p-2">
