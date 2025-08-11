@@ -490,6 +490,9 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['event'] = self.event
+        # イベントが開催前かどうかを判定
+        from datetime import date
+        context['is_before_event'] = self.event.date > date.today()
         return context
 
     def form_valid(self, form):
@@ -532,6 +535,9 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['event'] = self.object.event
+        # イベントが開催前かどうかを判定
+        from datetime import date
+        context['is_before_event'] = self.object.event.date > date.today()
         return context
 
     def form_valid(self, form):
