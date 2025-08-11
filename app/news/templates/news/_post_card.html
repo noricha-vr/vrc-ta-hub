@@ -1,6 +1,6 @@
 {% load markdown_extras %}
 <div class="col-12">
-  <a class="card text-decoration-none" href="{% url 'news:detail' post.slug %}">
+  <a class="card text-decoration-none shadow-sm" href="{% url 'news:detail' post.slug %}">
     <div class="card-body">
       <div class="row align-items-center">
         {% if post.thumbnail %}
