@@ -92,6 +92,8 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 - Supervisorでプロセス管理
 - 本番環境はGoogle Cloud Build（cloudbuild.yaml）でデプロイ
 - テストは実際のAPIを使用するため環境変数の設定が必須
+- **テストファイルは各Djangoアプリの`tests`ディレクトリ内に配置すること**（例: `app/event/tests/`、`app/community/tests/`）
+- プロジェクトルートや`app/`直下にテストファイルを配置しない
 
 # Google Calendar ID
 本番環境

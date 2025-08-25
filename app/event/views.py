@@ -505,21 +505,20 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
             not form.instance.meta_description):
             try:
                 blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
-                form.instance.h1 = blog_output.title
-                form.instance.contents = blog_output.text
-                form.instance.meta_description = blog_output.meta_description
-                form.instance.save()
-                messages.success(self.request, "記事を自動生成しました。")
-                logger.info(f"記事を自動生成しました: {form.instance.id}")
+                # 空でないことを確認
+                if blog_output.title:
+                    form.instance.h1 = blog_output.title
+                    form.instance.contents = blog_output.text
+                    form.instance.meta_description = blog_output.meta_description
+                    form.instance.save()
+                    messages.success(self.request, "記事を自動生成しました。")
+                    logger.info(f"記事を自動生成しました: {form.instance.id}")
+                else:
+                    logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
+                    messages.warning(self.request, "記事の自動生成に失敗しました。")
             except Exception as e:
                 logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
-                messages.warning(self.request, "記事の自動生成に失敗しました。")
-
-        # トップページのキャッシュをクリア
-        today = get_vrchat_today()
-        cache_key = f'index_view_data_{today}'
-        cache.delete(cache_key)
-        logger.info(f"Cleared index page cache: {cache_key}")
+                messages.error(self.request, f"記事の自動生成中にエラーが発生しました: {str(e)}")
 
         return response
 
@@ -549,15 +548,20 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
             not form.instance.meta_description):
             try:
                 blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
-                form.instance.h1 = blog_output.title
-                form.instance.contents = blog_output.text
-                form.instance.meta_description = blog_output.meta_description
-                form.instance.save()
-                messages.success(self.request, "記事を自動生成しました。")
-                logger.info(f"記事を自動生成しました: {form.instance.id}")
+                # 空でないことを確認
+                if blog_output.title:
+                    form.instance.h1 = blog_output.title
+                    form.instance.contents = blog_output.text
+                    form.instance.meta_description = blog_output.meta_description
+                    form.instance.save()
+                    messages.success(self.request, "記事を自動生成しました。")
+                    logger.info(f"記事を自動生成しました: {form.instance.id}")
+                else:
+                    logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
+                    messages.warning(self.request, "記事の自動生成に失敗しました。")
             except Exception as e:
                 logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
-                messages.warning(self.request, "記事の自動生成に失敗しました。")
+                messages.error(self.request, f"記事の自動生成中にエラーが発生しました: {str(e)}")
 
         return response
 
@@ -585,16 +589,22 @@ class GenerateBlogView(LoginRequiredMixin, View):
             # BlogOutputモデルを受け取る
             blog_output = generate_blog(event_detail, model=GEMINI_MODEL)
 
-            # BlogOutputの各フィールドを保存
-            event_detail.h1 = blog_output.title
-            event_detail.contents = blog_output.text
-            event_detail.meta_description = blog_output.meta_description
-            event_detail.save()
+            # 空でないことを確認
+            if blog_output.title:
+                # BlogOutputの各フィールドを保存
+                event_detail.h1 = blog_output.title
+                event_detail.contents = blog_output.text
+                event_detail.meta_description = blog_output.meta_description
+                event_detail.save()
 
-            logger.info(f"ブログ記事が生成されました。: {event_detail.id}")
-            logger.info(f"ブログ記事のメタディスクリプション: {event_detail.meta_description}")
+                logger.info(f"ブログ記事が生成されました。: {event_detail.id}")
+                logger.info(f"ブログ記事のメタディスクリプション: {event_detail.meta_description}")
 
-            messages.success(request, "ブログ記事が生成されました。")
+                messages.success(request, "ブログ記事が生成されました。")
+            else:
+                logger.warning(f"ブログ記事の生成に失敗しました（空の結果）: {event_detail.id}")
+                messages.warning(request, "ブログ記事の生成に失敗しました。")
+            
             return redirect('event:detail', pk=event_detail.id)
 
         except Exception as e:
