@@ -218,7 +218,7 @@ class EventDetailForm(forms.ModelForm):
         label='記事を自動生成する',
         required=False,
         initial=True,  # デフォルトON
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input form-check-input-lg'}),
         help_text='PDFまたはYouTube URLが設定されている場合、AIによって記事を自動生成します'
     )
 
