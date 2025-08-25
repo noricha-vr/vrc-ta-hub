@@ -3,6 +3,7 @@ import logging
 import re
 from datetime import datetime, timedelta, date
 from typing import List, Dict
+import json
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -259,6 +260,73 @@ class EventDetailView(DetailView):
             context['is_community_owner'] = True
         else:
             context['is_community_owner'] = False
+
+        # 構造化データ（BlogPosting）を生成（ブログ記事のみ）
+        try:
+            if event_detail.detail_type == 'BLOG':
+                request = self.request
+                absolute_url = request.build_absolute_uri()
+
+                images: List[str] = []
+                # コミュニティのポスター画像
+                try:
+                    poster = event_detail.event.community.poster_image
+                    if poster and getattr(poster, 'url', None):
+                        images.append(request.build_absolute_uri(poster.url))
+                except Exception:
+                    pass
+
+                # YouTubeサムネイル
+                if context.get('video_id'):
+                    images.append(f"https://img.youtube.com/vi/{context['video_id']}/hqdefault.jpg")
+
+                # 著者情報（発表者がいればPerson、いなければコミュニティ名のOrganization）
+                if event_detail.speaker:
+                    author_obj: Dict = {"@type": "Person", "name": event_detail.speaker}
+                else:
+                    author_obj = {"@type": "Organization", "name": event_detail.event.community.name}
+
+                # パブリッシャ（コミュニティ）
+                publisher_obj: Dict = {
+                    "@type": "Organization",
+                    "name": event_detail.event.community.name,
+                }
+                if images:
+                    # ロゴとして最初の画像を使用（適切なロゴがない場合のフォールバック）
+                    publisher_obj["logo"] = {"@type": "ImageObject", "url": images[0]}
+
+                # メタディスクリプションのフォールバック
+                description = (event_detail.meta_description or event_detail.theme or event_detail.title or "").strip()
+
+                structured_data: Dict = {
+                    "@context": "https://schema.org",
+                    "@type": "BlogPosting",
+                    "mainEntityOfPage": {"@type": "WebPage", "@id": absolute_url},
+                    "headline": event_detail.title or "",
+                    "url": absolute_url,
+                    "inLanguage": "ja-JP",
+                    "isAccessibleForFree": True,
+                    "datePublished": event_detail.created_at.isoformat(),
+                    "dateModified": event_detail.updated_at.isoformat(),
+                    "description": description,
+                    "publisher": publisher_obj,
+                    "author": author_obj,
+                }
+
+                if images:
+                    structured_data["image"] = images
+
+                # 可能なら本文も追加（長すぎる場合はカット）
+                if event_detail.contents:
+                    body_text = event_detail.contents
+                    if len(body_text) > 10000:
+                        body_text = body_text[:10000]
+                    structured_data["articleBody"] = body_text
+
+                context['structured_data_json'] = json.dumps(structured_data, ensure_ascii=False)
+                logger.info(f"Structured data prepared for EventDetail(BLOG): id={event_detail.id}")
+        except Exception as e:
+            logger.warning(f"Failed to prepare structured data for EventDetail id={event_detail.id}: {str(e)}")
 
         return context
 
