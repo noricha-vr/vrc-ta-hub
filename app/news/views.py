@@ -1,6 +1,7 @@
 import json
 import logging
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.views.generic import ListView, DetailView
 from django.views.decorators.cache import cache_page
 from django.utils.decorators import method_decorator
@@ -30,6 +31,55 @@ class PostListView(ListView):
             categories = list(Category.objects.all().order_by('order'))
             cache.set('news_categories', categories, 3600)  # 1時間キャッシュ
         context['categories'] = categories
+
+        # 構造化データ（BreadcrumbList + CollectionPage）
+        try:
+            request = self.request
+            home_url = request.build_absolute_uri('/')
+            list_url = request.build_absolute_uri(reverse('news:list'))
+
+            breadcrumbs = {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {"@type": "ListItem", "position": 1, "name": "ホーム", "item": home_url},
+                    {"@type": "ListItem", "position": 2, "name": "お知らせ", "item": list_url},
+                ],
+            }
+
+            items = []
+            for idx, post in enumerate(context.get('object_list', []), start=1):
+                post_url = request.build_absolute_uri(
+                    reverse('news:detail', kwargs={'slug': post.slug})
+                )
+                item = {
+                    "@type": "ListItem",
+                    "position": idx,
+                    "name": post.title,
+                    "url": post_url,
+                }
+                thumb = post.get_absolute_thumbnail_url(request)
+                if thumb:
+                    item["image"] = thumb
+                items.append(item)
+
+            collection = {
+                "@context": "https://schema.org",
+                "@type": "CollectionPage",
+                "name": "お知らせ",
+                "url": list_url,
+                "inLanguage": "ja-JP",
+                "isPartOf": home_url,
+                "mainEntity": {
+                    "@type": "ItemList",
+                    "itemListElement": items,
+                },
+            }
+
+            context['structured_data_json'] = json.dumps([breadcrumbs, collection], ensure_ascii=False)
+            logger.info("Structured data prepared for News List page")
+        except Exception as e:
+            logger.warning(f"Failed to prepare structured data for News List: {str(e)}")
         return context
 
 
@@ -114,4 +164,57 @@ class CategoryListView(ListView):
             categories = list(Category.objects.all().order_by('order'))
             cache.set('news_categories', categories, 3600)  # 1時間キャッシュ
         context['categories'] = categories
+
+        # 構造化データ（BreadcrumbList + CollectionPage）
+        try:
+            request = self.request
+            home_url = request.build_absolute_uri('/')
+            list_url = request.build_absolute_uri(reverse('news:list'))
+            category_url = request.build_absolute_uri(
+                reverse('news:category_list', kwargs={'category_slug': self.category.slug})
+            )
+
+            breadcrumbs = {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {"@type": "ListItem", "position": 1, "name": "ホーム", "item": home_url},
+                    {"@type": "ListItem", "position": 2, "name": "お知らせ", "item": list_url},
+                    {"@type": "ListItem", "position": 3, "name": self.category.name, "item": category_url},
+                ],
+            }
+
+            items = []
+            for idx, post in enumerate(context.get('object_list', []), start=1):
+                post_url = request.build_absolute_uri(
+                    reverse('news:detail', kwargs={'slug': post.slug})
+                )
+                item = {
+                    "@type": "ListItem",
+                    "position": idx,
+                    "name": post.title,
+                    "url": post_url,
+                }
+                thumb = post.get_absolute_thumbnail_url(request)
+                if thumb:
+                    item["image"] = thumb
+                items.append(item)
+
+            collection = {
+                "@context": "https://schema.org",
+                "@type": "CollectionPage",
+                "name": f"お知らせ - {self.category.name}",
+                "url": category_url,
+                "inLanguage": "ja-JP",
+                "isPartOf": list_url,
+                "mainEntity": {
+                    "@type": "ItemList",
+                    "itemListElement": items,
+                },
+            }
+
+            context['structured_data_json'] = json.dumps([breadcrumbs, collection], ensure_ascii=False)
+            logger.info(f"Structured data prepared for News Category page: {self.category.slug}")
+        except Exception as e:
+            logger.warning(f"Failed to prepare structured data for News Category: {str(e)}")
         return context

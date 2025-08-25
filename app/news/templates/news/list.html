@@ -1,4 +1,10 @@
 {% extends 'ta_hub/base.html' %}
+{% block meta %}
+    {% if structured_data_json %}
+        <script type="application/ld+json">{{ structured_data_json|safe }}</script>
+    {% endif %}
+{% endblock %}
+
 {% block main %}
 <div class="container py-4">
   <h1 class="h3 fw-bold mb-3">お知らせ</h1>
