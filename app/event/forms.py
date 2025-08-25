@@ -212,11 +212,20 @@ class EventDetailForm(forms.ModelForm):
         required=False,
         widget=forms.Textarea(attrs={'class': 'form-control', 'rows': '8'})
     )
+    
+    # 記事自動生成チェックボックス
+    generate_blog_article = forms.BooleanField(
+        label='記事を自動生成する',
+        required=False,
+        initial=True,  # デフォルトON
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        help_text='PDFまたはYouTube URLが設定されている場合、AIによって記事を自動生成します'
+    )
 
     class Meta:
         model = EventDetail
         fields = ['detail_type', 'theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url', 'h1',
-                  'contents']
+                  'contents', 'generate_blog_article']
         widgets = {
             'detail_type': forms.RadioSelect(attrs={'class': 'form-check-input'}),
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
@@ -250,6 +259,12 @@ class EventDetailForm(forms.ModelForm):
             community = Community.objects.filter(custom_user=self.request.user).first()
             self.fields['start_time'].initial = community.start_time
             self.fields['duration'].initial = 30
+        
+        # 既存の記事がある場合（更新時）は自動生成チェックボックスをOFFにする
+        if self.instance and self.instance.pk:
+            # meta_descriptionが存在する場合は記事が既に生成されていると判断
+            if self.instance.meta_description:
+                self.fields['generate_blog_article'].initial = False
 
     def clean(self):
         cleaned_data = super().clean()

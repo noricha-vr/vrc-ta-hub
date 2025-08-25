@@ -499,12 +499,14 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
         form.instance.event = self.event
         response = super().form_valid(form)
 
-        # LTタイプで、PDFまたは動画がセットされていて、タイトルが空の場合は自動生成
-        if (form.instance.detail_type == 'LT' and 
-            (form.instance.slide_file or form.instance.youtube_url) and 
-            not form.instance.meta_description):
+        # チェックボックスがONで、LTタイプで、PDFまたは動画がセットされている場合は自動生成
+        generate_blog = form.cleaned_data.get('generate_blog_article', False)
+        if (generate_blog and 
+            form.instance.detail_type == 'LT' and 
+            (form.instance.slide_file or form.instance.youtube_url)):
             try:
-                blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
+                from event.libs import generate_blog as generate_blog_func
+                blog_output = generate_blog_func(form.instance, model=GEMINI_MODEL)
                 # 空でないことを確認
                 if blog_output.title:
                     form.instance.h1 = blog_output.title
@@ -542,10 +544,11 @@ class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         response = super().form_valid(form)
 
-        # LTタイプで、PDFまたは動画がセットされていて、タイトルが空の場合は自動生成
-        if (form.instance.detail_type == 'LT' and 
-            (form.instance.slide_file or form.instance.youtube_url) and 
-            not form.instance.meta_description):
+        # チェックボックスがONで、LTタイプで、PDFまたは動画がセットされている場合は自動生成
+        generate_blog_flag = form.cleaned_data.get('generate_blog_article', False)
+        if (generate_blog_flag and 
+            form.instance.detail_type == 'LT' and 
+            (form.instance.slide_file or form.instance.youtube_url)):
             try:
                 blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
                 # 空でないことを確認
