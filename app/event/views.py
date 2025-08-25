@@ -334,7 +334,6 @@ class EventDetailView(DetailView):
         # キャッシュキーを生成
         cache_key = f'related_event_details_{event_detail.event_id}'
         related_event_details = cache.get(cache_key)
-        related_event_details = None
         if related_event_details is None:
             # キャッシュがない場合のみDBクエリを実行
             related_event_details = list(
