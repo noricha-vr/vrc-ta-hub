@@ -1,13 +1,15 @@
 import json
 import logging
+from django.contrib.auth.mixins import UserPassesTestMixin
 from django.shortcuts import get_object_or_404
-from django.urls import reverse
-from django.views.generic import ListView, DetailView
+from django.urls import reverse, reverse_lazy
+from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.views.decorators.cache import cache_page
 from django.utils.decorators import method_decorator
 from django.core.cache import cache
 
 from .models import Post, Category
+from .forms import PostForm
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +19,11 @@ class PostListView(ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        return (
-            Post.objects.select_related("category")
-            .filter(is_published=True)
-            .order_by("-published_at", "-created_at")
-        )
+        queryset = Post.objects.select_related("category")
+        # スタッフ以外は公開記事のみ表示
+        if not (self.request.user.is_authenticated and self.request.user.is_staff):
+            queryset = queryset.filter(is_published=True)
+        return queryset.order_by("-published_at", "-created_at")
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -90,7 +92,11 @@ class PostDetailView(DetailView):
     slug_url_kwarg = "slug"
 
     def get_queryset(self):
-        return Post.objects.select_related("category").filter(is_published=True)
+        queryset = Post.objects.select_related("category")
+        # スタッフ以外は公開記事のみ表示
+        if not (self.request.user.is_authenticated and self.request.user.is_staff):
+            queryset = queryset.filter(is_published=True)
+        return queryset
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -149,11 +155,11 @@ class CategoryListView(ListView):
     
     def get_queryset(self):
         self.category = get_object_or_404(Category, slug=self.kwargs['category_slug'])
-        return (
-            Post.objects.select_related("category")
-            .filter(is_published=True, category=self.category)
-            .order_by("-published_at", "-created_at")
-        )
+        queryset = Post.objects.select_related("category").filter(category=self.category)
+        # スタッフ以外は公開記事のみ表示
+        if not (self.request.user.is_authenticated and self.request.user.is_staff):
+            queryset = queryset.filter(is_published=True)
+        return queryset.order_by("-published_at", "-created_at")
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -218,3 +224,59 @@ class CategoryListView(ListView):
         except Exception as e:
             logger.warning(f"Failed to prepare structured data for News Category: {str(e)}")
         return context
+
+
+class StaffRequiredMixin(UserPassesTestMixin):
+    """スタッフ権限が必要なビューのMixin"""
+    
+    def test_func(self):
+        return self.request.user.is_authenticated and self.request.user.is_staff
+
+
+class PostCreateView(StaffRequiredMixin, CreateView):
+    """記事作成ビュー（スタッフのみ）"""
+    model = Post
+    form_class = PostForm
+    template_name = "news/post_form.html"
+    
+    def get_success_url(self):
+        return reverse('news:detail', kwargs={'slug': self.object.slug})
+    
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        # キャッシュをクリア
+        cache.delete('news_categories')
+        return response
+
+
+class PostUpdateView(StaffRequiredMixin, UpdateView):
+    """記事編集ビュー（スタッフのみ）"""
+    model = Post
+    form_class = PostForm
+    template_name = "news/post_form.html"
+    slug_field = "slug"
+    slug_url_kwarg = "slug"
+    
+    def get_success_url(self):
+        return reverse('news:detail', kwargs={'slug': self.object.slug})
+    
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        # キャッシュをクリア
+        cache.delete('news_categories')
+        return response
+
+
+class PostDeleteView(StaffRequiredMixin, DeleteView):
+    """記事削除ビュー（スタッフのみ）"""
+    model = Post
+    template_name = "news/post_confirm_delete.html"
+    slug_field = "slug"
+    slug_url_kwarg = "slug"
+    success_url = reverse_lazy('news:list')
+    
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        # キャッシュをクリア
+        cache.delete('news_categories')
+        return response

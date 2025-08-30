@@ -1,0 +1,60 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block main %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-body p-4">
+                    <h1 class="h3 fw-bold mb-4 text-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        記事の削除確認
+                    </h1>
+
+                    <div class="alert alert-warning" role="alert">
+                        <i class="bi bi-info-circle me-1"></i>
+                        この操作は取り消すことができません。本当に削除してもよろしいですか？
+                    </div>
+
+                    <div class="bg-light p-3 rounded mb-4">
+                        <h2 class="h5 mb-3">削除する記事</h2>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-3">タイトル：</dt>
+                            <dd class="col-sm-9">{{ object.title }}</dd>
+
+                            <dt class="col-sm-3">カテゴリ：</dt>
+                            <dd class="col-sm-9">{{ object.category.name }}</dd>
+
+                            <dt class="col-sm-3">公開日：</dt>
+                            <dd class="col-sm-9">
+                                {% if object.published_at %}
+                                    {{ object.published_at|date:'Y年n月j日' }}
+                                {% else %}
+                                    未公開
+                                {% endif %}
+                            </dd>
+
+                            <dt class="col-sm-3">作成日：</dt>
+                            <dd class="col-sm-9">{{ object.created_at|date:'Y年n月j日 H:i' }}</dd>
+                        </dl>
+                    </div>
+
+                    <form method="post" class="d-inline">
+                        {% csrf_token %}
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-danger">
+                                <i class="bi bi-trash me-1"></i>
+                                削除する
+                            </button>
+                            <a href="{% url 'news:detail' object.slug %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left me-1"></i>
+                                キャンセル
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
