@@ -1,18 +1,58 @@
 {% load markdown_extras %}
+<style>
+  .news-thumbnail-container {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+    overflow: hidden;
+    border-radius: 0.5rem;
+    background-color: #f8f9fa;
+  }
+  
+  .news-thumbnail-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+  }
+  
+  .card:hover .news-thumbnail-container img {
+    transform: scale(1.05);
+  }
+  
+  .news-thumbnail-placeholder {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    color: #dee2e6;
+  }
+</style>
+
 <div class="col-12">
   <a class="card text-decoration-none shadow-sm" href="{% url 'news:detail' post.slug %}">
     <div class="card-body">
       <div class="row align-items-center">
         {% if post.thumbnail %}
-          <div class="col-md-3 mb-3 mb-md-0">
-            <img src="{{ post.thumbnail.url }}" 
-                 alt="{{ post.title|escape }}のサムネイル画像" 
-                 class="img-fluid rounded"
-                 loading="lazy">
+          <div class="col-md-4 col-lg-3 mb-3 mb-md-0">
+            <div class="news-thumbnail-container">
+              <img src="{{ post.thumbnail.url }}" 
+                   alt="{{ post.title|escape }}のサムネイル画像" 
+                   loading="lazy">
+            </div>
           </div>
-          <div class="col-md-9">
+          <div class="col-md-8 col-lg-9">
         {% else %}
-          <div class="col-12">
+          <div class="col-md-4 col-lg-3 mb-3 mb-md-0">
+            <div class="news-thumbnail-container">
+              <i class="bi bi-image news-thumbnail-placeholder"></i>
+            </div>
+          </div>
+          <div class="col-md-8 col-lg-9">
         {% endif %}
           <div class="d-flex justify-content-between align-items-start mb-2">
             <h5 class="card-title mb-0">
