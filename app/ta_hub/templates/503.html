@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>メンテナンス中 | VRChat技術・学術系イベントHub</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .maintenance-container {
+            text-align: center;
+            max-width: 700px;
+            width: 90%;
+            padding: 2rem;
+        }
+        .maintenance-icon {
+            font-size: 6rem;
+            margin-bottom: 2rem;
+            animation: rotate 4s linear infinite;
+        }
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .maintenance-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .maintenance-message {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.95;
+            line-height: 1.6;
+        }
+        .maintenance-box {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            margin: 2rem 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .maintenance-details {
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+        }
+        .maintenance-details i {
+            font-size: 1.3rem;
+            margin-right: 0.5rem;
+        }
+        .progress-container {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            height: 8px;
+            overflow: hidden;
+            margin: 2rem 0;
+        }
+        .progress-bar {
+            background: white;
+            height: 100%;
+            width: 0%;
+            animation: progress 3s ease-in-out infinite;
+            border-radius: 50px;
+        }
+        @keyframes progress {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 0%; }
+        }
+        .social-links {
+            margin-top: 3rem;
+        }
+        .social-links a {
+            color: white;
+            font-size: 1.5rem;
+            margin: 0 1rem;
+            text-decoration: none;
+            opacity: 0.8;
+            transition: opacity 0.3s ease;
+        }
+        .social-links a:hover {
+            opacity: 1;
+        }
+        .btn-refresh {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            color: white;
+            padding: 0.75rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 50px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 1rem;
+        }
+        .btn-refresh:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            color: white;
+        }
+        .time-info {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-size: 0.95rem;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background: #ffd700;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            animation: blink 2s infinite;
+        }
+        @keyframes blink {
+            0%, 50%, 100% { opacity: 1; }
+            25%, 75% { opacity: 0.3; }
+        }
+    </style>
+</head>
+<body>
+    <div class="maintenance-container">
+        <div class="maintenance-icon">
+            <i class="bi bi-gear"></i>
+        </div>
+        
+        <h1 class="maintenance-title">メンテナンス中</h1>
+        
+        <div class="maintenance-box">
+            <p class="maintenance-message">
+                現在、システムメンテナンスを実施しております。<br>
+                ご不便をおかけして申し訳ございません。
+            </p>
+            
+            <div class="time-info">
+                <p class="mb-2">
+                    <span class="status-indicator"></span>
+                    <strong>メンテナンス状況：</strong>作業中
+                </p>
+                <p class="mb-0">
+                    <i class="bi bi-clock me-1"></i>
+                    完了予定時刻は追ってお知らせいたします
+                </p>
+            </div>
+            
+            <div class="progress-container">
+                <div class="progress-bar"></div>
+            </div>
+            
+            <div class="maintenance-details">
+                <p><i class="bi bi-info-circle"></i>メンテナンス内容</p>
+                <ul class="text-start" style="list-style: none; padding-left: 0;">
+                    <li><i class="bi bi-check-circle me-2"></i>システムアップデート</li>
+                    <li><i class="bi bi-check-circle me-2"></i>パフォーマンス改善</li>
+                    <li><i class="bi bi-check-circle me-2"></i>セキュリティ強化</li>
+                </ul>
+            </div>
+            
+            <a href="/" class="btn-refresh">
+                <i class="bi bi-arrow-clockwise me-2"></i>
+                ページを再読み込み
+            </a>
+        </div>
+        
+        <div class="social-links">
+            <p style="opacity: 0.8; margin-bottom: 1rem;">最新情報はこちら</p>
+            <a href="https://twitter.com/vrc_ta_hub" target="_blank" title="Twitter">
+                <i class="bi bi-twitter"></i>
+            </a>
+            <a href="https://discord.gg/YourDiscord" target="_blank" title="Discord">
+                <i class="bi bi-discord"></i>
+            </a>
+        </div>
+    </div>
+    
+    <script>
+        // 自動リロード（5分ごと）
+        setTimeout(function() {
+            location.reload();
+        }, 300000);
+    </script>
+</body>
+</html>

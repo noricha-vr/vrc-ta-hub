@@ -25,7 +25,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG') == 'True'
 
-ALLOWED_HOSTS = ['vrc-ta-hub.com', os.environ.get('HTTP_HOST')]
+ALLOWED_HOSTS = ['vrc-ta-hub.com', 'localhost', '127.0.0.1', os.environ.get('HTTP_HOST')]
 CSRF_TRUSTED_ORIGINS = ['https://vrc-ta-hub.com',
                         os.environ.get('CSRF_TRUSTED_ORIGIN')]
 print(f'CSRF_TRUSTED_ORIGINS: {CSRF_TRUSTED_ORIGINS}')
@@ -103,7 +103,7 @@ ROOT_URLCONF = 'website.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'ta_hub' / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

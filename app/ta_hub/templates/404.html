@@ -1,0 +1,180 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block meta %}
+    <title>404 - ページが見つかりません | VRChat技術・学術系イベントHub</title>
+    <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block main %}
+<style>
+    .error-container {
+        min-height: 60vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 0;
+    }
+    .error-content {
+        text-align: center;
+        max-width: 600px;
+    }
+    .error-code {
+        font-size: 8rem;
+        font-weight: 700;
+        color: #3187de;
+        line-height: 1;
+        margin-bottom: 1rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+    .error-title {
+        font-size: 2rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #333;
+    }
+    .error-message {
+        font-size: 1.1rem;
+        color: #666;
+        margin-bottom: 2rem;
+        line-height: 1.6;
+    }
+    .error-icon {
+        font-size: 6rem;
+        color: #a2d0ff;
+        margin-bottom: 1rem;
+    }
+    .quick-links {
+        margin-top: 3rem;
+        padding-top: 2rem;
+        border-top: 1px solid #e9ecef;
+    }
+    .quick-links h3 {
+        font-size: 1.3rem;
+        margin-bottom: 1rem;
+        color: #495057;
+    }
+    .link-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    .link-card {
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: #333;
+    }
+    .link-card:hover {
+        background: #e9ecef;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .link-card i {
+        font-size: 1.5rem;
+        color: #3187de;
+        margin-bottom: 0.5rem;
+    }
+    .search-box {
+        max-width: 400px;
+        margin: 2rem auto;
+    }
+    .search-box .input-group {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 50px;
+        overflow: hidden;
+    }
+    .search-box input {
+        border: none;
+        padding: 0.75rem 1.5rem;
+    }
+    .search-box button {
+        border: none;
+        background: #3187de;
+        color: white;
+        padding: 0.75rem 1.5rem;
+    }
+    .search-box button:hover {
+        background: #2B80DC;
+    }
+</style>
+
+<div class="container">
+    <div class="error-container">
+        <div class="error-content">
+            <div class="error-icon">
+                <i class="bi bi-search"></i>
+            </div>
+            <h1 class="error-code">404</h1>
+            <h2 class="error-title">ページが見つかりません</h2>
+            <p class="error-message">
+                申し訳ございません。お探しのページは移動または削除された可能性があります。<br>
+                URLをご確認いただくか、以下の検索ボックスまたはリンクからお探しください。
+            </p>
+
+            <!-- 検索ボックス -->
+            <div class="search-box">
+                <form action="/event/" method="get">
+                    <div class="input-group">
+                        <input type="text" name="q" class="form-control" 
+                               placeholder="イベントを検索..." 
+                               aria-label="検索">
+                        <button class="btn" type="submit">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- メインボタン -->
+            <div class="d-flex gap-3 justify-content-center mb-4">
+                <a href="/" class="btn btn-primary btn-lg">
+                    <i class="bi bi-house-door me-2"></i>
+                    トップページへ戻る
+                </a>
+                <button onclick="history.back()" class="btn btn-outline-secondary btn-lg">
+                    <i class="bi bi-arrow-left me-2"></i>
+                    前のページへ戻る
+                </button>
+            </div>
+
+            <!-- クイックリンク -->
+            <div class="quick-links">
+                <h3>よく使われるページ</h3>
+                <div class="link-grid">
+                    <a href="/event/" class="link-card">
+                        <div>
+                            <i class="bi bi-calendar-event d-block"></i>
+                            <strong>イベント一覧</strong>
+                            <p class="small mb-0 text-muted">開催予定のイベント</p>
+                        </div>
+                    </a>
+                    <a href="/community/" class="link-card">
+                        <div>
+                            <i class="bi bi-people d-block"></i>
+                            <strong>集会一覧</strong>
+                            <p class="small mb-0 text-muted">技術・学術系集会</p>
+                        </div>
+                    </a>
+                    <a href="/news/" class="link-card">
+                        <div>
+                            <i class="bi bi-newspaper d-block"></i>
+                            <strong>お知らせ</strong>
+                            <p class="small mb-0 text-muted">最新情報</p>
+                        </div>
+                    </a>
+                    <a href="/event/calendar/" class="link-card">
+                        <div>
+                            <i class="bi bi-calendar3 d-block"></i>
+                            <strong>カレンダー</strong>
+                            <p class="small mb-0 text-muted">月間スケジュール</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
