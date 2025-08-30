@@ -33,13 +33,17 @@
                                 <img src="https://vrc-ta-hub.com/poster/no-image.png" alt="{{ community.name }}"
                                      class="img-fluid rounded shadow-sm w-100">
                             {% endif %}
-                            {% if community.allow_poster_repost %}
-                                <div class="position-absolute bottom-0 start-0 m-2">
-                                    <span class="badge bg-white text-dark border">
-                                        <i class="bi bi-check-circle text-success"></i> ポスターの転載はお問い合わせください
+                            <div class="position-absolute bottom-0 start-0 m-2">
+                                {% if community.allow_poster_repost %}
+                                    <span class="badge bg-success text-white">
+                                        <i class="bi bi-check-circle"></i> 集会を紹介するためのポスターの転載可
                                     </span>
-                                </div>
-                            {% endif %}
+                                {% else %}
+                                    <span class="badge bg-white text-dark border">
+                                        <i class="bi bi-x-circle text-danger"></i> ポスターの転載はお問い合わせください
+                                    </span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
 
