@@ -5,7 +5,7 @@ from django.test import TestCase
 
 from event.models import Event, EventDetail
 from twitter.models import TwitterTemplate, Community
-from twitter.utils import get_tweet_template, format_event_info, generate_tweet, generate_tweet_url
+from twitter.utils import format_event_info, generate_tweet, generate_tweet_url
 
 
 class TwitterUtilsTestCase(TestCase):
@@ -23,24 +23,14 @@ class TwitterUtilsTestCase(TestCase):
             speaker="Test Speaker 1"
         )
 
-    def test_get_tweet_template(self):
-        # テンプレートが存在しない場合のテスト
-        template = get_tweet_template(self.community)
-        self.assertEqual(template, "{event_name}が{date}に開催されます！ {details}")
-
-        # テンプレートが存在する場合のテスト
-        TwitterTemplate.objects.create(
-            community=self.community,
-            template="Custom template: {event_name} on {date}"
-        )
-        template = get_tweet_template(self.community)
-        self.assertEqual(template, "Custom template: {event_name} on {date}")
+    # get_tweet_template関数は削除されたため、このテストも削除
 
     def test_format_event_info(self):
         event_info = format_event_info(self.event)
+        # 2023年5月1日は月曜日
         expected_info = {
             "event_name": "Test Community",
-            "date": "2023年05月01日",
+            "date": "2023年5月1日(月)",
             "time": "14:00",
             "details": "14:00 - Test Theme 1 (Test Speaker 1)"
         }
@@ -90,9 +80,10 @@ class TwitterUtilsTestCase(TestCase):
         )
 
         event_info = format_event_info(self.event)
+        # 2023年5月1日は月曜日
         expected_info = {
             "event_name": "Test Community",
-            "date": "2023年05月01日",
+            "date": "2023年5月1日(月)",
             "time": "14:00",
             "details": "14:00 - Test Theme 1 (Test Speaker 1)\n15:00 - Test Theme 2 (Test Speaker 2)\n16:00 - Test Theme 3 (Test Speaker 3)"
         }
@@ -112,7 +103,7 @@ class TwitterUtilsTestCase(TestCase):
         mock_response.choices[0].message = {'content': 'Generated tweet with multiple details'}
         mock_openai_create.return_value = mock_response
 
-        template = get_tweet_template(self.community)
+        template = "Test template"
         event_info = format_event_info(self.event)
         tweet = generate_tweet(template, event_info)
 

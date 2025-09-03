@@ -15,11 +15,15 @@ client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 def format_event_info(event):
     """イベント情報を整形する"""
+    # 曜日を計算
+    weekdays = ['月', '火', '水', '木', '金', '土', '日']
+    weekday = weekdays[event.date.weekday()]
+    
     details = event.details.all().order_by('start_time')
     details_text = "\n".join([f"{d.start_time.strftime('%H:%M')} - {d.theme} ({d.speaker})" for d in details])
     return {
         "event_name": event.community.name,
-        "date": event.date.strftime("%Y年%m月%d日"),
+        "date": f"{event.date.year}年{event.date.month}月{event.date.day}日({weekday})",
         "time": event.start_time.strftime("%H:%M"),
         "details": details_text
     }
