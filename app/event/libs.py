@@ -440,9 +440,11 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
     logger.debug(markdown_text)
 
     allowed_tags = ['a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em', 'code', 'pre', 'table', 'thead',
-                    'tbody', 'tr', 'th', 'td', 'hr', 'br', 'blockquote']
+                    'tbody', 'tr', 'th', 'td', 'hr', 'br', 'blockquote', 'div', 'iframe']
     allowed_attributes = {'a': ['href', 'title'],
-                          'pre': ['class'], 'table': ['class']}
+                          'pre': ['class'], 'table': ['class'],
+                          'div': ['class'],
+                          'iframe': ['src', 'frameborder', 'allowfullscreen', 'width', 'height']}
 
     # Markdownの拡張機能を追加
     extensions = [
@@ -463,6 +465,64 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
     # テーブルタグにクラスを追加
     for table in soup.find_all('table'):
         table['class'] = table.get('class', []) + ['table', 'table-responsive']
+
+    # YouTubeリンクを埋め込みプレーヤーに変換
+    # パターン1: https://www.youtube.com/watch?v=VIDEO_ID
+    # パターン2: https://youtu.be/VIDEO_ID
+    youtube_patterns = [
+        (r'https?://www\.youtube\.com/watch\?v=([a-zA-Z0-9_-]+)', r'https://www.youtube.com/embed/\1'),
+        (r'https?://youtu\.be/([a-zA-Z0-9_-]+)', r'https://www.youtube.com/embed/\1')
+    ]
+    
+    # まず、テキスト内の単純なURLを検索して<a>タグに変換
+    import copy
+    for p in soup.find_all(['p', 'li']):
+        # タグ内の全テキストを取得
+        if p.get_text():
+            # 子要素を保持しながら処理
+            new_contents = []
+            for content in p.contents:
+                if isinstance(content, str):
+                    # テキストノードの場合、YouTube URLを検索
+                    text = content
+                    modified = False
+                    for pattern, embed_url_pattern in youtube_patterns:
+                        if re.search(pattern, text):
+                            # URLを<a>タグに置換
+                            text = re.sub(pattern, r'<a href="\g<0>">\g<0></a>', text)
+                            modified = True
+                    
+                    if modified:
+                        # 新しいHTMLとして解析
+                        temp_soup = BeautifulSoup(text, 'html.parser')
+                        new_contents.extend(temp_soup.contents)
+                    else:
+                        new_contents.append(content)
+                else:
+                    # タグの場合はそのまま追加
+                    new_contents.append(copy.copy(content))
+            
+            # 元の内容を新しい内容で置き換え
+            p.clear()
+            for content in new_contents:
+                p.append(content)
+    
+    # すべてのリンクを検索して埋め込みに変換
+    for link in soup.find_all('a', href=True):
+        href = link.get('href', '')
+        for pattern, embed_url_pattern in youtube_patterns:
+            match = re.match(pattern, href)
+            if match:
+                # YouTube埋め込みコンテナを作成
+                container_div = soup.new_tag('div', **{'class': 'youtube-embed-container'})
+                iframe = soup.new_tag('iframe', 
+                                    src=re.sub(pattern, embed_url_pattern, href),
+                                    frameborder='0',
+                                    allowfullscreen=True)
+                container_div.append(iframe)
+                # リンクをコンテナに置き換え
+                link.replace_with(container_div)
+                break
 
     # パース後のHTMLを文字列に変換
     html = str(soup)
