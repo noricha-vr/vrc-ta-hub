@@ -69,8 +69,13 @@ class Post(models.Model):
             サムネイルの絶対URL、なければデフォルト画像URL
         """
         if self.thumbnail:
+            thumbnail_url = self.thumbnail.url
+            # すでに絶対URLの場合はそのまま返す
+            if thumbnail_url.startswith(('http://', 'https://')):
+                return thumbnail_url
+            # 相対URLの場合は絶対URLに変換
             if request:
-                return request.build_absolute_uri(self.thumbnail.url)
+                return request.build_absolute_uri(thumbnail_url)
             # requestがない場合はデフォルトのドメインを使用
-            return f"https://vrc-ta-hub.com{self.thumbnail.url}"
+            return f"https://vrc-ta-hub.com{thumbnail_url}"
         return "https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg"
