@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
-from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
+from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm, PasswordResetForm, SetPasswordForm
 from django.core.validators import FileExtensionValidator
 
 from community.models import Community
@@ -168,3 +168,19 @@ class CustomUserChangeForm(forms.ModelForm):
             'email': forms.TextInput(attrs={'class': 'form-control'}),
             'discord_id': forms.TextInput(attrs={'class': 'form-control'}),
         }
+
+
+class BootstrapPasswordResetForm(PasswordResetForm):
+    """パスワードリセット要求フォーム（Bootstrapスタイル適用）"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({'class': 'form-control'})
+
+
+class BootstrapSetPasswordForm(SetPasswordForm):
+    """新しいパスワード設定フォーム（Bootstrapスタイル適用）"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({'class': 'form-control'})
