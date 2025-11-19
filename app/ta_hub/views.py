@@ -26,9 +26,9 @@ class IndexView(TemplateView):
 
         # Vketコラボ告知の表示判定
         current_datetime = timezone.now()
-        vket_publish_datetime = timezone.datetime(2025, 6, 30, 12, 0, tzinfo=timezone.get_current_timezone())
-        vket_start_datetime = timezone.datetime(2025, 7, 12, 0, 0, tzinfo=timezone.get_current_timezone())
-        vket_end_datetime = timezone.datetime(2025, 7, 28, 0, 0, tzinfo=timezone.get_current_timezone())
+        vket_publish_datetime = timezone.datetime(2025, 11, 20, 12, 0, tzinfo=timezone.get_current_timezone())
+        vket_start_datetime = timezone.datetime(2025, 12, 6, 0, 0, tzinfo=timezone.get_current_timezone())
+        vket_end_datetime = timezone.datetime(2025, 12, 22, 0, 0, tzinfo=timezone.get_current_timezone())
         context['show_vket_notice'] = vket_publish_datetime <= current_datetime < vket_end_datetime
         context['vket_start_date'] = vket_start_datetime.date()
         context['vket_end_date'] = vket_end_datetime.date()
