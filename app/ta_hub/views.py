@@ -31,7 +31,7 @@ class IndexView(TemplateView):
         context['show_vket_notice'] = current_datetime < vket_end_datetime
         context['vket_start_date'] = vket_start_datetime.date()
         context['vket_end_date'] = vket_end_datetime.date()
-        logger.info(f"Vket notice visibility: {context['show_vket_notice']} (current: {current_datetime}, publish: {vket_publish_datetime})")
+        logger.info(f"Vket notice visibility: {context['show_vket_notice']} (current: {current_datetime})")
         # キャッシュからデータを取得
         cached_data = cache.get(cache_key)
         if cached_data is not None:
