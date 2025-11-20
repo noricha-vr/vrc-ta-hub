@@ -113,3 +113,4 @@ issue.md
 .claude/settings.local.json
 
 docs/tmp/*
+/r2_bkp/
