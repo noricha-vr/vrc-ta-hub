@@ -8,9 +8,10 @@ services:
     volumes:
       - ./app:/app
     env_file:
+      # - .env
       - .env.local
     environment:
-      - DEBUG=False
+      - DEBUG=True
     ports:
       - '8015:8080'
     networks:

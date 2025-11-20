@@ -33,6 +33,7 @@ VRC技術学術ハブの開発・運用に関するドキュメントです。
 
 ### 運用ガイド
 - [デプロイ手順](deployment.md)
+- [静的ファイルのCloudflare R2同期手順](static_files_sync.md) ⭐️ New
 - [環境変数設定](environment_variables.md)
 - [メンテナンス作業](maintenance.md)
 - [トラブルシューティング](troubleshooting.md)
