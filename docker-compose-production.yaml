@@ -8,9 +8,10 @@ services:
     volumes:
       - ./app:/app
     env_file:
-      - .env.local
+      - .env
     environment:
       - DEBUG=False
+      - HTTP_HOST=0.0.0.0
     ports:
       - '8015:8080'
     networks:
