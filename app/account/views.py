@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
-from django.contrib.auth.views import PasswordChangeView
+from django.contrib.auth.views import PasswordChangeView, PasswordResetView, PasswordResetConfirmView
 from django.core.mail import send_mail
 from django.http import JsonResponse
 from django.shortcuts import redirect
@@ -18,6 +18,7 @@ from django.utils import timezone
 from community.models import Community
 from .forms import CustomUserChangeForm
 from .forms import CustomUserCreationForm, BootstrapAuthenticationForm, BootstrapPasswordChangeForm
+from .forms import BootstrapPasswordResetForm, BootstrapSetPasswordForm
 from .models import APIKey
 
 
@@ -171,6 +172,30 @@ class APIKeyDeleteView(LoginRequiredMixin, View):
         except APIKey.DoesNotExist:
             messages.error(request, 'APIキーが見つかりません。')
         return redirect('account:api_key_list')
+
+
+class CustomPasswordResetView(PasswordResetView):
+    """パスワードリセット要求ビュー"""
+    template_name = 'account/password_reset_form.html'
+    form_class = BootstrapPasswordResetForm
+    success_url = reverse_lazy('account:password_reset_done')
+    email_template_name = 'account/email/password_reset_email.html'
+    subject_template_name = 'account/email/password_reset_subject.txt'
+
+    def form_valid(self, form):
+        messages.info(self.request, 'パスワードリセット用のメールを送信しました。メールをご確認ください。')
+        return super().form_valid(form)
+
+
+class CustomPasswordResetConfirmView(PasswordResetConfirmView):
+    """新しいパスワード設定ビュー"""
+    template_name = 'account/password_reset_confirm.html'
+    form_class = BootstrapSetPasswordForm
+    success_url = reverse_lazy('account:password_reset_complete')
+
+    def form_valid(self, form):
+        messages.success(self.request, 'パスワードが正常に変更されました。')
+        return super().form_valid(form)
 
 # for user in CustomUser.objects.all():
 #     password = secrets.token_hex(12)  # ランダムな16文字のパスワードを生成

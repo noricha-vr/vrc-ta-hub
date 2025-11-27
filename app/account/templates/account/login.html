@@ -28,6 +28,9 @@
                             {{ form.as_p }}
                             <button type="submit" class="btn btn-primary">ログイン</button>
                         </form>
+                        <div class="mt-3">
+                            <a href="{% url 'account:password_reset' %}">パスワードを忘れた場合</a>
+                        </div>
                     </div>
                 </div>
             </div>
