@@ -369,6 +369,76 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
         return None
 
 
+def _escape_unknown_html_tags(text: str) -> str:
+    """Markdown変換前に、許可されていないHTMLタグ形式の文字列をエスケープする
+
+    P-AMI<Q>のような技術用語内の<>がHTMLタグとして解釈されるのを防ぐ。
+    コードブロックやインラインコード内のタグは保護される。
+
+    Args:
+        text: 入力テキスト（Markdown形式）
+
+    Returns:
+        エスケープ処理されたテキスト
+    """
+    # 許可されたHTMLタグのリスト（convert_markdownのallowed_tagsと同期）
+    allowed_tags = {
+        'a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em',
+        'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr',
+        'br', 'blockquote', 'div', 'iframe', 'span', 'img'
+    }
+
+    # コードブロックを一時的に保護（```...```）
+    code_blocks = []
+
+    def protect_code_block(match):
+        code_blocks.append(match.group(0))
+        return f'\x00CODE_BLOCK_{len(code_blocks) - 1}\x00'
+
+    text = re.sub(r'```[\s\S]*?```', protect_code_block, text)
+
+    # インラインコードを一時的に保護（`...`）
+    inline_codes = []
+
+    def protect_inline_code(match):
+        inline_codes.append(match.group(0))
+        return f'\x00INLINE_CODE_{len(inline_codes) - 1}\x00'
+
+    text = re.sub(r'`[^`]+`', protect_inline_code, text)
+
+    # HTMLタグパターンをエスケープ（許可タグ以外）
+    def escape_tag(match):
+        full_match = match.group(0)
+        tag_name = match.group(1).lower()
+
+        if tag_name in allowed_tags:
+            return full_match
+        return full_match.replace('<', '&lt;').replace('>', '&gt;')
+
+    # 開始タグ・自己閉じタグ: <tagname...>
+    text = re.sub(r'<([a-zA-Z][a-zA-Z0-9]*)[^>]*/?>', escape_tag, text)
+
+    # 閉じタグ: </tagname>
+    def escape_closing_tag(match):
+        full_match = match.group(0)
+        tag_name = match.group(1).lower()
+
+        if tag_name in allowed_tags:
+            return full_match
+        return full_match.replace('<', '&lt;').replace('>', '&gt;')
+
+    text = re.sub(r'</([a-zA-Z][a-zA-Z0-9]*)>', escape_closing_tag, text)
+
+    # 保護したコードを復元
+    for i, block in enumerate(code_blocks):
+        text = text.replace(f'\x00CODE_BLOCK_{i}\x00', block)
+
+    for i, code in enumerate(inline_codes):
+        text = text.replace(f'\x00INLINE_CODE_{i}\x00', code)
+
+    return text
+
+
 def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
     """MarkdownをHTMLに変換し、サニタイズする
     
@@ -378,6 +448,9 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
     """
     logger.debug("Original markdown text:")
     logger.debug(markdown_text)
+
+    # 未知のHTMLタグをエスケープ（P-AMI<Q>等の対策）
+    markdown_text = _escape_unknown_html_tags(markdown_text)
 
     # 改行を正規化
     markdown_text = markdown_text.replace('\r\n', '\n').replace('\r', '\n')
