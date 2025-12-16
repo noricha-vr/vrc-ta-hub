@@ -16,6 +16,8 @@ services:
       - '8015:8080'
     networks:
       - my_network
+    # 開発環境: コード変更時に自動リロード
+    command: python manage.py runserver 0.0.0.0:8080
 
 networks:
   my_network:

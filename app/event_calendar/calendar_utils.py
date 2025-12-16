@@ -28,8 +28,8 @@ EVENT_GENRE_MAP = {
 
 PLATFORM_MAP = {
     'PC': 'PC',
-    'All': 'PC/android',
-    'Android': 'android only',
+    'All': 'PC/モバイル',
+    'Android': 'モバイル',
 }
 
 

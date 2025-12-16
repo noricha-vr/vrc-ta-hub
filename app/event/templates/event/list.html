@@ -117,7 +117,7 @@
                                     </div>
                                 </td>
                                 <td>{{ event.start_time }}</td>
-                                <td>{{ event.community.get_platform_display }}</td>
+                                <td style="font-size: 0.85rem; white-space: nowrap;">{% if event.community.platform == 'All' %}PC / モバイル{% elif event.community.platform == 'Android' %}モバイル{% else %}{{ event.community.get_platform_display }}{% endif %}</td>
 
                                 <!-- パターン3: リスト風デザイン -->
                                 <td>

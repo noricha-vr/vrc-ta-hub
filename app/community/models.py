@@ -19,8 +19,8 @@ WEEKDAY_CHOICES = (
 
 PLATFORM_CHOICES = (
     ('PC', 'PC'),
-    ('All', 'Android・PC'),
-    ('Android', 'Android'),
+    ('All', 'PC / モバイル (Meta Quest 単体)'),
+    ('Android', 'モバイル (Meta Quest 単体)'),
 )
 TAGS = (
     ('tech', '技術'),
