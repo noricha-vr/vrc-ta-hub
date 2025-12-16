@@ -517,7 +517,8 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
     allowed_attributes = {'a': ['href', 'title'],
                           'pre': ['class'], 'table': ['class'],
                           'div': ['class'],
-                          'iframe': ['src', 'frameborder', 'allowfullscreen', 'width', 'height']}
+                          'iframe': ['src', 'frameborder', 'allowfullscreen', 'width', 'height',
+                                     'referrerpolicy', 'allow']}
 
     # Markdownの拡張機能を追加
     extensions = [
@@ -586,12 +587,14 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
         for pattern, embed_url_pattern in youtube_patterns:
             match = re.match(pattern, href)
             if match:
-                # YouTube埋め込みコンテナを作成
+                # YouTube埋め込みコンテナを作成（2025年仕様対応）
                 container_div = soup.new_tag('div', **{'class': 'youtube-embed-container'})
-                iframe = soup.new_tag('iframe', 
+                iframe = soup.new_tag('iframe',
                                     src=re.sub(pattern, embed_url_pattern, href),
                                     frameborder='0',
-                                    allowfullscreen=True)
+                                    allowfullscreen=True,
+                                    referrerpolicy='strict-origin-when-cross-origin',
+                                    allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share')
                 container_div.append(iframe)
                 # リンクをコンテナに置き換え
                 link.replace_with(container_div)

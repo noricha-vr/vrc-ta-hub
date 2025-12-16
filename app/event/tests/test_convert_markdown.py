@@ -98,3 +98,40 @@ class TestConvertMarkdown(TestCase):
         self.assertIn("<code>", html)
         # コード内のタグはMarkdownライブラリによってエスケープされる
         self.assertIn("P-AMI", html)
+
+
+class TestYouTubeEmbed(TestCase):
+    """YouTube埋め込み機能のテスト（2025年仕様対応）"""
+
+    def test_youtube_url_converted_to_iframe(self):
+        """YouTube URLがiframeに変換される"""
+        html = convert_markdown("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        self.assertIn("<iframe", html)
+        self.assertIn("youtube.com/embed/dQw4w9WgXcQ", html)
+
+    def test_youtube_short_url_converted_to_iframe(self):
+        """YouTube短縮URLがiframeに変換される"""
+        html = convert_markdown("https://youtu.be/dQw4w9WgXcQ")
+        self.assertIn("<iframe", html)
+        self.assertIn("youtube.com/embed/dQw4w9WgXcQ", html)
+
+    def test_youtube_iframe_has_referrerpolicy(self):
+        """YouTube iframeにreferrerpolicy属性が含まれる（2025年仕様）"""
+        html = convert_markdown("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        self.assertIn('referrerpolicy="strict-origin-when-cross-origin"', html)
+
+    def test_youtube_iframe_has_allow_attribute(self):
+        """YouTube iframeにallow属性が含まれる（2025年仕様）"""
+        html = convert_markdown("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        self.assertIn('allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"', html)
+
+    def test_youtube_embed_container_class(self):
+        """YouTube埋め込みがyoutube-embed-containerクラスでラップされる"""
+        html = convert_markdown("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        self.assertIn('class="youtube-embed-container"', html)
+
+    def test_youtube_url_with_parameters(self):
+        """パラメータ付きYouTube URLが正しく処理される"""
+        html = convert_markdown("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=60")
+        self.assertIn("<iframe", html)
+        self.assertIn("youtube.com/embed/dQw4w9WgXcQ", html)
