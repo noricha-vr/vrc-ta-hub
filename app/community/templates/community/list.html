@@ -114,7 +114,10 @@
                     {% for tag, url in tag_urls.items %}
                         <a href="{{ url }}"
                            class="btn btn-outline-secondary {% if tag in selected_tags %}active{% endif %} me-2 mb-2">
-                            {{ tag_choices|get_item:tag }}
+                            {% if tag == 'tech' %}<i class="fa-solid fa-code me-1"></i>
+                            {% elif tag == 'academic' %}<i class="fa-solid fa-graduation-cap me-1"></i>
+                            {% elif tag == 'partner' %}<i class="fa-solid fa-handshake me-1"></i>
+                            {% endif %}{{ tag_choices|get_item:tag }}
                         </a>
                     {% endfor %}
                 </div>

@@ -80,7 +80,10 @@
                     {% for choice in form.tags.field.choices %}
                         <a href="{{ tag_urls|get_item:choice.0 }}"
                            class="btn {% if choice.0 in selected_tags %}btn-secondary{% else %}btn-outline-secondary{% endif %} me-2 mb-2">
-                            {{ choice.1 }}
+                            {% if choice.0 == 'tech' %}<i class="fa-solid fa-code me-1"></i>
+                            {% elif choice.0 == 'academic' %}<i class="fa-solid fa-graduation-cap me-1"></i>
+                            {% elif choice.0 == 'partner' %}<i class="fa-solid fa-handshake me-1"></i>
+                            {% endif %}{{ choice.1 }}
                         </a>
                     {% endfor %}
                 </div>
