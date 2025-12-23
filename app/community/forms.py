@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import WEEKDAY_CHOICES, TAGS
+from .models import WEEKDAY_CHOICES, TAGS, FORM_TAGS
 
 
 class CommunitySearchForm(forms.Form):
@@ -28,7 +28,7 @@ class CommunitySearchForm(forms.Form):
 
 from django import forms
 from django.forms.widgets import CheckboxSelectMultiple
-from .models import Community, WEEKDAY_CHOICES, TAGS
+from .models import Community, WEEKDAY_CHOICES, TAGS, FORM_TAGS
 
 
 class CommunityForm(forms.ModelForm):
@@ -37,7 +37,7 @@ class CommunityForm(forms.ModelForm):
         widget=CheckboxSelectMultiple(),
         required=False,
     )
-    tags = forms.MultipleChoiceField(  # tags フィールドを追加
+    tags = forms.MultipleChoiceField(  # tags フィールドを追加（admin用なので全タグ）
         choices=TAGS,
         widget=CheckboxSelectMultiple(),
         required=False,
@@ -84,7 +84,7 @@ class CommunityUpdateForm(forms.ModelForm):
 
     tags = forms.MultipleChoiceField(
         label='タグ',
-        choices=TAGS,
+        choices=FORM_TAGS,
         widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-inline'}),
         required=False
     )

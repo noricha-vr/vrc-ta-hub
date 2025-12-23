@@ -22,9 +22,14 @@ PLATFORM_CHOICES = (
     ('All', 'PC / モバイル (Meta Quest 単体)'),
     ('Android', 'モバイル (Meta Quest 単体)'),
 )
+FORM_TAGS = (
+    ('tech', '技術系集会'),
+    ('academic', '学術系集会'),
+)
 TAGS = (
-    ('tech', '技術'),
-    ('academic', '学術'),
+    ('tech', '技術系集会'),
+    ('academic', '学術系集会'),
+    ('partner', '協力団体'),
 )
 
 STATUS_CHOICES = (

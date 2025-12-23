@@ -56,9 +56,11 @@
                             <div class="mb-3">
                                 {% for tag in community.tags %}
                                     {% if tag == 'tech' %}
-                                        <span class="badge bg-info text-white me-2">技術</span>
+                                        <span class="badge bg-info text-white me-2">技術系集会</span>
                                     {% elif tag == 'academic' %}
-                                        <span class="badge bg-success text-white me-2">学術</span>
+                                        <span class="badge bg-success text-white me-2">学術系集会</span>
+                                    {% elif tag == 'partner' %}
+                                        <span class="badge bg-warning text-dark me-2">協力団体</span>
                                     {% endif %}
                                 {% endfor %}
                             </div>
