@@ -43,7 +43,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
     """
     # 環境変数からモデル名を取得（指定がない場合のデフォルト値）
     if model is None:
-        model = os.environ.get('GEMINI_MODEL', 'google/gemini-2.0-flash-001')
+        model = os.environ.get('GEMINI_MODEL', 'google/gemini-3-flash-preview')
         # `:free`のような接尾辞が付いている場合は削除（OpenRouterでは不要）
         if ':' in model:
             model = model.split(':')[0]
