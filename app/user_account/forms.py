@@ -3,6 +3,8 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.core.validators import FileExtensionValidator
 
+from allauth.socialaccount.forms import SignupForm as SocialSignupForm
+
 from community.models import Community
 from community.models import TAGS, PLATFORM_CHOICES, WEEKDAY_CHOICES
 from .models import CustomUser
@@ -197,3 +199,15 @@ class CustomUserChangeForm(forms.ModelForm):
             'email': forms.TextInput(attrs={'class': 'form-control'}),
             'discord_id': forms.TextInput(attrs={'class': 'form-control'}),
         }
+
+
+class CustomSocialSignupForm(SocialSignupForm):
+    """Discord OAuth認証後のサインアップフォームにBootstrapのスタイルを適用."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({'class': 'form-control'})
+        # メールアドレスを必須に設定
+        if 'email' in self.fields:
+            self.fields['email'].required = True

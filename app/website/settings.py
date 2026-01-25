@@ -395,3 +395,7 @@ SOCIALACCOUNT_PROVIDERS = {
         'SCOPE': ['identify', 'email'],
     }
 }
+
+SOCIALACCOUNT_FORMS = {
+    'signup': 'user_account.forms.CustomSocialSignupForm',
+}

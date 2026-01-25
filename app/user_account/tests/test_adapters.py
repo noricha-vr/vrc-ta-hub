@@ -34,8 +34,8 @@ class CustomSocialAccountAdapterTests(TestCase):
 
         self.assertTrue(result)
 
-    def test_is_auto_signup_allowed_returns_true_when_email_missing(self):
-        """メールアドレスがない場合でも、自動サインアップを許可すること（プレースホルダー使用）."""
+    def test_is_auto_signup_allowed_returns_false_when_email_missing(self):
+        """メールアドレスがない場合、自動サインアップを許可しないこと（フォーム表示）."""
         request = self.factory.get('/accounts/discord/login/callback/')
 
         sociallogin = MagicMock()
@@ -43,10 +43,10 @@ class CustomSocialAccountAdapterTests(TestCase):
 
         result = self.adapter.is_auto_signup_allowed(request, sociallogin)
 
-        self.assertTrue(result)
+        self.assertFalse(result)
 
-    def test_is_auto_signup_allowed_returns_true_when_email_key_missing(self):
-        """extra_dataにemailキーがない場合でも、自動サインアップを許可すること（プレースホルダー使用）."""
+    def test_is_auto_signup_allowed_returns_false_when_email_key_missing(self):
+        """extra_dataにemailキーがない場合、自動サインアップを許可しないこと（フォーム表示）."""
         request = self.factory.get('/accounts/discord/login/callback/')
 
         sociallogin = MagicMock()
@@ -54,7 +54,7 @@ class CustomSocialAccountAdapterTests(TestCase):
 
         result = self.adapter.is_auto_signup_allowed(request, sociallogin)
 
-        self.assertTrue(result)
+        self.assertFalse(result)
 
     def test_pre_social_login_connects_existing_user(self):
         """既存ユーザーのdiscord_idと一致する場合、自動的に紐付けること."""
@@ -129,11 +129,11 @@ class CustomSocialAccountAdapterTests(TestCase):
             result = self.adapter.populate_user(request, sociallogin, data)
 
             self.assertEqual(result.user_name, 'discord_987654321')
-            # メールが空の場合はプレースホルダーメールを使用
-            self.assertEqual(result.email, 'discord_987654321@placeholder.vrc-ta-hub.com')
+            # メールが空の場合は空文字のまま（フォームで入力を要求）
+            self.assertEqual(result.email, '')
 
-    def test_populate_user_uses_placeholder_email_when_not_provided(self):
-        """メールが取得できない場合、プレースホルダーメールを使用すること."""
+    def test_populate_user_keeps_empty_email_when_not_provided(self):
+        """メールが取得できない場合、メールは空のままであること（フォームで入力を要求）."""
         request = self.factory.get('/accounts/discord/login/callback/')
 
         sociallogin = MagicMock()
@@ -148,7 +148,7 @@ class CustomSocialAccountAdapterTests(TestCase):
         with patch('user_account.adapters.DefaultSocialAccountAdapter.populate_user', return_value=mock_user):
             result = self.adapter.populate_user(request, sociallogin, data)
 
-            self.assertEqual(result.email, 'discord_555666777@placeholder.vrc-ta-hub.com')
+            self.assertEqual(result.email, '')
 
     def test_populate_user_uses_real_email_when_provided(self):
         """メールが提供された場合、プレースホルダーではなく実際のメールを使用すること."""
