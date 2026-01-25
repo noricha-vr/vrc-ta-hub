@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from datetime import date, time
 
-from account.models import CustomUser, APIKey
+from user_account.models import CustomUser, APIKey
 from community.models import Community
 from event.models import Event, EventDetail
 

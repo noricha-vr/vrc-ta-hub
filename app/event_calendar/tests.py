@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
-from account.models import CustomUser
+from user_account.models import CustomUser
 from community.models import Community
 from event.models import Event
 from event_calendar.calendar_utils import create_calendar_entry_url, PLATFORM_MAP

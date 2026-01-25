@@ -8,7 +8,7 @@ from datetime import datetime
 from django.core.files import File
 from django.test import TestCase
 
-from account.models import CustomUser
+from user_account.models import CustomUser
 from community.models import Community
 from event.libs import generate_blog, get_transcript, BlogOutput
 from event.models import Event, EventDetail
