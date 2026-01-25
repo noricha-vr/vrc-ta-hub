@@ -31,6 +31,30 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     既存ユーザーとDiscordアカウントの自動紐付けを行う。
     """
 
+    def is_auto_signup_allowed(self, request, sociallogin):
+        """自動サインアップを許可するかどうかを判定.
+
+        Discordの場合はメールがなくてもプレースホルダーメールを使用するため、
+        常に自動サインアップを許可する。
+
+        Args:
+            request: HTTPリクエスト
+            sociallogin: ソーシャルログイン情報
+
+        Returns:
+            bool: 自動サインアップを許可するかどうか
+        """
+        # Discordから取得したデータを確認
+        email = sociallogin.account.extra_data.get('email', '')
+
+        if email:
+            logger.info(f"Email found, allowing auto signup: {email}")
+        else:
+            logger.info("No email found, using placeholder email for auto signup")
+
+        # Discordの場合はメールがなくてもプレースホルダーを使うので常に許可
+        return True
+
     def pre_social_login(self, request, sociallogin):
         """ソーシャルログイン前の処理.
 
@@ -90,9 +114,12 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
         user.discord_id = discord_id
         user.user_name = user_name
+
+        # メールが取得できない場合はプレースホルダーメールを使用
         email = data.get('email', '')
         if not email:
             email = f"discord_{discord_id}@placeholder.vrc-ta-hub.com"
+            logger.info(f"Email not provided, using placeholder: {email}")
         user.email = email
 
         logger.info(f"Populating new user: user_name={user.user_name}, discord_id={discord_id}")

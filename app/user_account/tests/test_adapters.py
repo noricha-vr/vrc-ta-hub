@@ -23,6 +23,39 @@ class CustomSocialAccountAdapterTests(TestCase):
             discord_id='123456789'
         )
 
+    def test_is_auto_signup_allowed_returns_true_when_email_exists(self):
+        """メールアドレスがある場合、自動サインアップを許可すること."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.account.extra_data = {'email': 'test@example.com'}
+
+        result = self.adapter.is_auto_signup_allowed(request, sociallogin)
+
+        self.assertTrue(result)
+
+    def test_is_auto_signup_allowed_returns_true_when_email_missing(self):
+        """メールアドレスがない場合でも、自動サインアップを許可すること（プレースホルダー使用）."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.account.extra_data = {'email': ''}
+
+        result = self.adapter.is_auto_signup_allowed(request, sociallogin)
+
+        self.assertTrue(result)
+
+    def test_is_auto_signup_allowed_returns_true_when_email_key_missing(self):
+        """extra_dataにemailキーがない場合でも、自動サインアップを許可すること（プレースホルダー使用）."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.account.extra_data = {}
+
+        result = self.adapter.is_auto_signup_allowed(request, sociallogin)
+
+        self.assertTrue(result)
+
     def test_pre_social_login_connects_existing_user(self):
         """既存ユーザーのdiscord_idと一致する場合、自動的に紐付けること."""
         request = self.factory.get('/accounts/discord/login/callback/')
@@ -96,11 +129,11 @@ class CustomSocialAccountAdapterTests(TestCase):
             result = self.adapter.populate_user(request, sociallogin, data)
 
             self.assertEqual(result.user_name, 'discord_987654321')
-            # メールが空の場合はプレースホルダーが設定される
+            # メールが空の場合はプレースホルダーメールを使用
             self.assertEqual(result.email, 'discord_987654321@placeholder.vrc-ta-hub.com')
 
-    def test_populate_user_generates_placeholder_email_when_not_provided(self):
-        """メールが取得できない場合、プレースホルダーメールを生成すること."""
+    def test_populate_user_uses_placeholder_email_when_not_provided(self):
+        """メールが取得できない場合、プレースホルダーメールを使用すること."""
         request = self.factory.get('/accounts/discord/login/callback/')
 
         sociallogin = MagicMock()
