@@ -1,8 +1,10 @@
 """認証フォームのテスト."""
+from unittest.mock import MagicMock
+
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
 
-from user_account.forms import BootstrapAuthenticationForm
+from user_account.forms import BootstrapAuthenticationForm, CustomSocialSignupForm
 
 User = get_user_model()
 
@@ -83,3 +85,38 @@ class BootstrapAuthenticationFormTests(TestCase):
             }
         )
         self.assertFalse(form.is_valid())
+
+
+class CustomSocialSignupFormTests(TestCase):
+    """CustomSocialSignupFormのテストクラス."""
+
+    def setUp(self):
+        """テスト用のモックオブジェクトを準備."""
+        # SocialLoginのモック
+        self.mock_sociallogin = MagicMock()
+        self.mock_sociallogin.user = MagicMock()
+        self.mock_sociallogin.user.email = 'test@example.com'
+
+    def test_form_has_bootstrap_class(self):
+        """フォームフィールドにBootstrapのform-controlクラスが適用されていること."""
+        form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
+        for field_name, field in form.fields.items():
+            self.assertIn(
+                'form-control',
+                field.widget.attrs.get('class', ''),
+                f'{field_name}フィールドにform-controlクラスがありません'
+            )
+
+    def test_email_field_exists(self):
+        """emailフィールドが存在すること."""
+        form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
+        self.assertIn('email', form.fields)
+
+    def test_email_is_required(self):
+        """メールアドレスが必須であること."""
+        form = CustomSocialSignupForm(
+            sociallogin=self.mock_sociallogin,
+            data={'email': ''}
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn('email', form.errors)
