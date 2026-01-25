@@ -215,6 +215,7 @@ class CustomSocialSignupForm(SocialSignupForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.update({'class': 'form-control'})
-        # メールアドレスを必須に設定
+        # メールアドレスの設定
         if 'email' in self.fields:
             self.fields['email'].required = True
+            self.fields['email'].label = 'メールアドレス'
