@@ -133,3 +133,8 @@ class CustomSocialSignupFormTests(TestCase):
         )
         self.assertFalse(form.is_valid())
         self.assertIn('email', form.errors)
+
+    def test_email_label_is_correct(self):
+        """emailフィールドのラベルが「メールアドレス」であること."""
+        form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
+        self.assertEqual(form.fields['email'].label, 'メールアドレス')
