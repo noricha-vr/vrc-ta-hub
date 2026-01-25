@@ -382,13 +382,14 @@ ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATION_METHOD = 'username'
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_USER_MODEL_USERNAME_FIELD = 'user_name'
+ACCOUNT_SESSION_REMEMBER = None  # ユーザーに選択させる
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_ADAPTER = 'user_account.adapters.CustomSocialAccountAdapter'
 
 # Discord OAuth設定
-DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID')
-DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET')
+DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
+DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', '')
 
 SOCIALACCOUNT_PROVIDERS = {
     'discord': {
@@ -396,6 +397,18 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
+# 環境変数が設定されている場合のみAPPS設定を追加
+if DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET:
+    SOCIALACCOUNT_PROVIDERS['discord']['APPS'] = [
+        {
+            'client_id': DISCORD_CLIENT_ID,
+            'secret': DISCORD_CLIENT_SECRET,
+        }
+    ]
+
 SOCIALACCOUNT_FORMS = {
     'signup': 'user_account.forms.CustomSocialSignupForm',
 }
+
+# Discord Webhook（管理者通知用）
+DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')

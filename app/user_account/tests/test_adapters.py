@@ -246,6 +246,14 @@ class CustomSocialAccountAdapterTests(TestCase):
 class DiscordLoginIntegrationTests(TestCase):
     """Discord OAuth統合テスト."""
 
+    @classmethod
+    def setUpTestData(cls):
+        """テスト用のSocialAppを設定."""
+        # テスト環境では環境変数ベースの設定（APPS）が有効な場合があるため、
+        # データベースのSocialAppは作成しない。
+        # 代わりにテスト設定でAPPSを使用する。
+        pass
+
     def test_login_page_shows_discord_button(self):
         """ログインページにDiscordログインボタンが表示されること."""
         response = self.client.get('/account/login/')
