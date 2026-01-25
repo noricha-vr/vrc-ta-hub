@@ -26,6 +26,8 @@ steps:
       - 'managed'
       - '--revision-suffix'
       - '$SHORT_SHA'
+      - '--set-secrets'
+      - 'DISCORD_WEBHOOK_URL=DISCORD_WEBHOOK_URL:latest'
       - '${_SERVICE_NAME}'
 
 substitutions:
