@@ -416,5 +416,9 @@ SOCIALACCOUNT_FORMS = {
     'signup': 'user_account.forms.CustomSocialSignupForm',
 }
 
+# ソーシャルアカウントの接続解除（disconnect）を試みた場合のリダイレクト先
+# 削除ボタンはテンプレートで非表示にするが、直接アクセスされた場合の保険
+SOCIALACCOUNT_DISCONNECT_REDIRECT_URL = '/account/settings/'
+
 # Discord Webhook（管理者通知用）
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')

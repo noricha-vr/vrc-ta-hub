@@ -242,6 +242,17 @@ class CustomSocialAccountAdapterTests(TestCase):
             self.assertEqual(result.discord_id, '111222333')
             result.save.assert_called_once()
 
+    def test_get_connect_redirect_url_returns_settings_page(self):
+        """連携後のリダイレクト先が設定ページであること."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+        request.user = self.existing_user
+
+        socialaccount = MagicMock()
+
+        result = self.adapter.get_connect_redirect_url(request, socialaccount)
+
+        self.assertEqual(result, '/account/settings/')
+
 
 class DiscordLoginIntegrationTests(TestCase):
     """Discord OAuth統合テスト."""
@@ -275,3 +286,22 @@ class DiscordLoginIntegrationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Discord連携')
+
+    def test_connections_page_does_not_show_delete_button(self):
+        """連携管理ページに削除ボタンが表示されないこと."""
+        user = User.objects.create_user(
+            user_name='test_user_conn',
+            email='test_conn@example.com',
+            password='testpass123'
+        )
+        self.client.login(username='test_user_conn', password='testpass123')
+
+        response = self.client.get('/accounts/3rdparty/')
+
+        self.assertEqual(response.status_code, 200)
+        # 削除ボタン/フォームが表示されないこと
+        self.assertNotContains(response, 'type="submit"')
+        self.assertNotContains(response, 'disconnect')
+        # 設定ページへのリンクがあること
+        self.assertContains(response, '設定ページに戻る')
+        self.assertContains(response, '/account/settings/')
