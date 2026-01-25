@@ -96,6 +96,44 @@ class CustomSocialAccountAdapterTests(TestCase):
             result = self.adapter.populate_user(request, sociallogin, data)
 
             self.assertEqual(result.user_name, 'discord_987654321')
+            # メールが空の場合はプレースホルダーが設定される
+            self.assertEqual(result.email, 'discord_987654321@placeholder.vrc-ta-hub.com')
+
+    def test_populate_user_generates_placeholder_email_when_not_provided(self):
+        """メールが取得できない場合、プレースホルダーメールを生成すること."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.account.uid = '555666777'
+
+        data = {
+            'username': 'discord_user_no_email',
+            'email': '',  # メールなし
+        }
+
+        mock_user = MagicMock()
+        with patch('user_account.adapters.DefaultSocialAccountAdapter.populate_user', return_value=mock_user):
+            result = self.adapter.populate_user(request, sociallogin, data)
+
+            self.assertEqual(result.email, 'discord_555666777@placeholder.vrc-ta-hub.com')
+
+    def test_populate_user_uses_real_email_when_provided(self):
+        """メールが提供された場合、プレースホルダーではなく実際のメールを使用すること."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.account.uid = '888999000'
+
+        data = {
+            'username': 'discord_user_with_email',
+            'email': 'real@example.com',
+        }
+
+        mock_user = MagicMock()
+        with patch('user_account.adapters.DefaultSocialAccountAdapter.populate_user', return_value=mock_user):
+            result = self.adapter.populate_user(request, sociallogin, data)
+
+            self.assertEqual(result.email, 'real@example.com')
 
     def test_populate_user_handles_username_collision(self):
         """ユーザー名が既存ユーザーと衝突する場合、ユニーク化すること."""

@@ -6,6 +6,22 @@ from django.contrib.auth import get_user_model
 
 logger = logging.getLogger(__name__)
 
+
+def on_authentication_error(sender, request, provider_id, error, exception, extra_context, **kwargs):
+    """認証エラー時のログ出力."""
+    logger.error(f"OAuth authentication error: provider={provider_id}, error={error}, exception={exception}")
+    if extra_context:
+        logger.error(f"Extra context: {extra_context}")
+
+
+# シグナルを接続
+try:
+    from allauth.socialaccount.signals import authentication_error
+    authentication_error.connect(on_authentication_error)
+    logger.info("Connected authentication_error signal handler")
+except ImportError:
+    logger.warning("Could not import authentication_error signal")
+
 User = get_user_model()
 
 
@@ -74,7 +90,10 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
         user.discord_id = discord_id
         user.user_name = user_name
-        user.email = data.get('email', '')
+        email = data.get('email', '')
+        if not email:
+            email = f"discord_{discord_id}@placeholder.vrc-ta-hub.com"
+        user.email = email
 
         logger.info(f"Populating new user: user_name={user.user_name}, discord_id={discord_id}")
 
