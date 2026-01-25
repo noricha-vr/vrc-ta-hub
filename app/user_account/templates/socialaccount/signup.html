@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load i18n %}
+{% load i18n account_tags %}
 
 {% block meta %}
     <title>アカウント登録 - VRChat 技術・学術系イベントHub</title>
@@ -45,7 +45,7 @@
                                             <span class="text-danger">*</span>
                                         {% endif %}
                                     </label>
-                                    {{ field }}
+                                    {{ field|add_class:"form-control" }}
                                     {% if field.help_text %}
                                         <small class="form-text text-muted">{{ field.help_text }}</small>
                                     {% endif %}
