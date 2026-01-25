@@ -1,4 +1,5 @@
 {% extends 'ta_hub/base.html' %}
+{% load socialaccount %}
 {% block meta %}
     <title>ログイン - VRChat 技術・学術系イベントHub</title>
     <meta name="twitter:title" content="ログイン - VRChat 技術・学術系イベントHub">
@@ -28,6 +29,13 @@
                             {{ form.as_p }}
                             <button type="submit" class="btn btn-primary">ログイン</button>
                         </form>
+                        <hr class="my-4">
+                        <div class="text-center">
+                            <p class="text-muted mb-3">または</p>
+                            <a href="{% provider_login_url 'discord' %}" class="btn btn-lg" style="background-color: #5865F2; color: white;">
+                                <i class="fab fa-discord me-2"></i>Discordでログイン
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>

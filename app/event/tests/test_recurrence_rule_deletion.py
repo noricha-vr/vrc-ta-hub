@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 
 from community.models import Community
 from event.models import Event, RecurrenceRule
-from account.models import APIKey
+from user_account.models import APIKey
 
 User = get_user_model()
 

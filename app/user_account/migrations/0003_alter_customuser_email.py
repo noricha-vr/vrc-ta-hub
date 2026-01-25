@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('account', '0002_customuser_discord_id'),
+        ('user_account', '0002_customuser_discord_id'),
     ]
 
     operations = [

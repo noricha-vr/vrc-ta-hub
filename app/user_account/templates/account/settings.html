@@ -1,4 +1,5 @@
 {% extends 'ta_hub/base.html' %}
+{% load socialaccount %}
 
 {% block main %}
     <div class="container my-4">
@@ -154,6 +155,21 @@
                                                    class="text-decoration-none">
                                                     <i class="bi bi-key-fill me-2"></i>パスワードを変更
                                                 </a>
+                                            </li>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                <span>
+                                                    <i class="fab fa-discord me-2" style="color: #5865F2;"></i>Discord連携
+                                                </span>
+                                                {% get_social_accounts user as social_accounts %}
+                                                {% if social_accounts.discord %}
+                                                    <span class="badge bg-success">
+                                                        <i class="bi bi-check-circle me-1"></i>連携済み
+                                                    </span>
+                                                {% else %}
+                                                    <a href="{% provider_login_url 'discord' process='connect' %}" class="btn btn-sm" style="background-color: #5865F2; color: white;">
+                                                        <i class="fab fa-discord me-1"></i>連携する
+                                                    </a>
+                                                {% endif %}
                                             </li>
                                             <li class="list-group-item">
                                                 <a href="{% url 'account:logout' %}" class="text-decoration-none">

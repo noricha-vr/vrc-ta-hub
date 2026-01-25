@@ -146,10 +146,39 @@ class CustomUserCreationForm(UserCreationForm):
 
 
 class BootstrapAuthenticationForm(AuthenticationForm):
+    """カスタムユーザーモデルのuser_nameフィールドに対応した認証フォーム."""
+
+    username = forms.CharField(
+        label='集会名',
+        widget=forms.TextInput(attrs={'class': 'form-control', 'autofocus': True}),
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.update({'class': 'form-control'})
+
+    def clean(self):
+        username = self.cleaned_data.get('username')
+        password = self.cleaned_data.get('password')
+
+        if username is not None and password:
+            # user_nameフィールドでユーザーを検索して認証
+            self.user_cache = self.authenticate_user(username, password)
+            if self.user_cache is None:
+                raise self.get_invalid_login_error()
+            else:
+                self.confirm_login_allowed(self.user_cache)
+
+        return self.cleaned_data
+
+    def authenticate_user(self, username, password):
+        """user_nameフィールドを使用してユーザーを認証."""
+        from django.contrib.auth import authenticate
+
+        # Djangoの認証バックエンドはUSERNAME_FIELDを使用するため、
+        # usernameパラメータとして渡す（内部でuser_nameとして処理される）
+        return authenticate(self.request, username=username, password=password)
 
 
 class BootstrapPasswordChangeForm(PasswordChangeForm):

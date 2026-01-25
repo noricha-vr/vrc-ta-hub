@@ -86,6 +86,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     class Meta:
         verbose_name = 'ユーザー'
         verbose_name_plural = 'ユーザー'
+        db_table = 'account_customuser'
 
     def __str__(self):
         return self.user_name
@@ -106,7 +107,8 @@ class APIKey(models.Model):
     class Meta:
         verbose_name = 'APIキー'
         verbose_name_plural = 'APIキー'
-        
+        db_table = 'account_apikey'
+
     def __str__(self):
         return f"{self.user.user_name} - {self.name or 'API Key'}"
     

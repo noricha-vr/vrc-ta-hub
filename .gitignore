@@ -112,5 +112,16 @@ issue.md
 
 .claude/settings.local.json
 
+# IDE
+.idea/
+.vscode/
+app/.vscode/
+
+# Static files (collectstatic output)
+app/static/
+
+# Temporary files
+cookies.txt
+
 docs/tmp/*
 /r2_bkp/

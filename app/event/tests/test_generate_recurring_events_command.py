@@ -6,7 +6,7 @@ from django.utils import timezone
 from io import StringIO
 
 from community.models import Community
-from account.models import CustomUser
+from user_account.models import CustomUser
 from event.models import Event, RecurrenceRule
 
 

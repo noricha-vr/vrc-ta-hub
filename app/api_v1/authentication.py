@@ -2,7 +2,7 @@ from django.utils import timezone
 from rest_framework import authentication
 from rest_framework import exceptions
 
-from account.models import APIKey
+from user_account.models import APIKey
 
 
 class APIKeyAuthentication(authentication.BaseAuthentication):
