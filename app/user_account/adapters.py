@@ -3,6 +3,7 @@ import logging
 
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.contrib.auth import get_user_model
+from django.urls import reverse
 
 logger = logging.getLogger(__name__)
 
@@ -142,3 +143,19 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
             logger.info(f"Saved discord_id={discord_id} for user: {user.user_name}")
 
         return user
+
+    def get_connect_redirect_url(self, request, socialaccount):
+        """ソーシャルアカウント連携後のリダイレクト先を設定.
+
+        デフォルトの/accounts/3rdparty/ではなく、
+        設定ページにリダイレクトする。
+
+        Args:
+            request: HTTPリクエスト
+            socialaccount: 連携されたソーシャルアカウント
+
+        Returns:
+            str: リダイレクト先URL
+        """
+        logger.info(f"Discord account connected for user: {request.user}")
+        return reverse('account:settings')
