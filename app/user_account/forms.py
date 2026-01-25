@@ -154,11 +154,18 @@ class BootstrapAuthenticationForm(AuthenticationForm):
         label='集会名',
         widget=forms.TextInput(attrs={'class': 'form-control', 'autofocus': True}),
     )
+    remember = forms.BooleanField(
+        label='ログインしたままにする',
+        required=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in self.fields.values():
-            field.widget.attrs.update({'class': 'form-control'})
+        # チェックボックス以外のフィールドにform-controlを適用
+        for name, field in self.fields.items():
+            if name != 'remember':
+                field.widget.attrs.update({'class': 'form-control'})
 
     def clean(self):
         username = self.cleaned_data.get('username')

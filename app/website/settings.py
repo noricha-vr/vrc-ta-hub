@@ -298,6 +298,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': True,
         },
+        'allauth': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
         'event_detail': {
             'handlers': ['console'],
             'level': 'INFO',
@@ -403,6 +408,7 @@ if DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET:
         {
             'client_id': DISCORD_CLIENT_ID,
             'secret': DISCORD_CLIENT_SECRET,
+            'key': '',
         }
     ]
 
