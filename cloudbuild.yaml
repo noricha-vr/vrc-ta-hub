@@ -27,7 +27,7 @@ steps:
       - '--revision-suffix'
       - '$SHORT_SHA'
       - '--set-secrets'
-      - 'DISCORD_WEBHOOK_URL=DISCORD_WEBHOOK_URL:latest'
+      - 'DISCORD_WEBHOOK_URL=DISCORD_WEBHOOK_URL:latest,DISCORD_CLIENT_ID=DISCORD_CLIENT_ID:latest,DISCORD_CLIENT_SECRET=DISCORD_CLIENT_SECRET:latest'
       - '${_SERVICE_NAME}'
 
 substitutions:
