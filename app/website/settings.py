@@ -348,6 +348,16 @@ LOGGING = {
             'level': 'INFO',
             'propagate': True,
         },
+        'allauth': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'user_account': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
     },
 }
 
@@ -382,10 +392,6 @@ DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET')
 
 SOCIALACCOUNT_PROVIDERS = {
     'discord': {
-        'APP': {
-            'client_id': DISCORD_CLIENT_ID,
-            'secret': DISCORD_CLIENT_SECRET,
-        },
         'SCOPE': ['identify', 'email'],
     }
 }
