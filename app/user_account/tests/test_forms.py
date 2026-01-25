@@ -62,8 +62,13 @@ class BootstrapAuthenticationFormTests(TestCase):
         """フォームフィールドにBootstrapクラスが適用されていること."""
         request = self.factory.post('/account/login/')
         form = BootstrapAuthenticationForm(request=request)
-        for field in form.fields.values():
-            self.assertIn('form-control', field.widget.attrs.get('class', ''))
+        for name, field in form.fields.items():
+            css_class = field.widget.attrs.get('class', '')
+            if name == 'remember':
+                # チェックボックスはform-check-inputを使用
+                self.assertIn('form-check-input', css_class)
+            else:
+                self.assertIn('form-control', css_class)
 
     def test_username_field_has_correct_label(self):
         """usernameフィールドのラベルが「集会名」であること."""
@@ -85,6 +90,14 @@ class BootstrapAuthenticationFormTests(TestCase):
             }
         )
         self.assertFalse(form.is_valid())
+
+    def test_remember_field_exists(self):
+        """rememberフィールドが存在すること."""
+        request = self.factory.post('/account/login/')
+        form = BootstrapAuthenticationForm(request=request)
+        self.assertIn('remember', form.fields)
+        self.assertEqual(form.fields['remember'].label, 'ログインしたままにする')
+        self.assertFalse(form.fields['remember'].required)
 
 
 class CustomSocialSignupFormTests(TestCase):

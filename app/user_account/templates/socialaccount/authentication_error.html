@@ -1,0 +1,33 @@
+{% extends "ta_hub/base.html" %}
+{% load i18n %}
+
+{% block title %}外部アカウントによるログインに失敗しました{% endblock %}
+
+{% block main %}
+<div class="container mt-5">
+    <h1>外部アカウントによるログインに失敗しました</h1>
+    <p>外部アカウントでのログイン時にエラーが発生しました。</p>
+
+    {% if auth_error %}
+    <div class="alert alert-danger">
+        <strong>エラー:</strong> {{ auth_error }}
+    </div>
+    {% endif %}
+
+    {% if exception %}
+    <div class="alert alert-warning">
+        <strong>例外:</strong> {{ exception }}
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-info">
+        <strong>エラーコード:</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    <p>
+        <a href="{% url 'account:login' %}">ログインページに戻る</a>
+    </p>
+</div>
+{% endblock %}

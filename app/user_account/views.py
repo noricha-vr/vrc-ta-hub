@@ -1,3 +1,6 @@
+import logging
+import requests
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
@@ -15,6 +18,8 @@ from django.views.generic import UpdateView
 from django.conf import settings
 from django.utils import timezone
 
+logger = logging.getLogger(__name__)
+
 from community.models import Community
 from .forms import CustomUserChangeForm
 from .forms import CustomUserCreationForm, BootstrapAuthenticationForm, BootstrapPasswordChangeForm
@@ -25,6 +30,16 @@ class CustomLoginView(LoginView):
     template_name = 'account/login.html'
     # success_url = reverse_lazy('account:settings')  # ログイン成功後のリダイレクト先
     form_class = BootstrapAuthenticationForm
+
+    def form_valid(self, form):
+        """ログイン成功時の処理。rememberフィールドでセッション有効期限を設定。"""
+        remember = form.cleaned_data.get('remember')
+        response = super().form_valid(form)
+        # super().form_valid()の後にセッション設定（login()でセッションが再生成されるため）
+        if not remember:
+            # チェックが入っていない場合、ブラウザを閉じるとセッションが切れる
+            self.request.session.set_expiry(0)
+        return response
 
     def get_success_url(self):
         messages.info(self.request, 'ログインしました。')
@@ -68,22 +83,19 @@ class CustomUserCreateView(CreateView):
             html_message=html_message,
         )
 
-        # 管理者への通知メール
-        admin_context = {
-            'user': user,
-            'admin_url': self.request.build_absolute_uri(reverse('community:waiting_list')),
-        }
-        admin_html_message = render_to_string('account/email/admin_notification.html', admin_context)
-        admin_plain_message = strip_tags(admin_html_message)
-
-        # 管理者へメール送信
-        send_mail(
-            subject=f'【VRC技術学術系Hub】集会の仮登録申請: {user.user_name}',
-            message=admin_plain_message,
-            from_email=None,
-            recipient_list=[settings.ADMIN_EMAIL],
-            html_message=admin_html_message,
-        )
+        # 管理者へのDiscord通知
+        if settings.DISCORD_WEBHOOK_URL:
+            waiting_list_url = self.request.build_absolute_uri(reverse('community:waiting_list'))
+            discord_message = {
+                "content": f"**【新規集会登録】** {user.user_name}\n"
+                           f"承認ページ: {waiting_list_url}"
+            }
+            discord_timeout_seconds = 10
+            try:
+                requests.post(settings.DISCORD_WEBHOOK_URL, json=discord_message, timeout=discord_timeout_seconds)
+            except Exception as e:
+                # ログに記録するだけでエラーは握りつぶす（ユーザー登録自体は成功させる）
+                logger.warning(f'Discord通知送信失敗: {e}')
 
         messages.success(self.request, 'ユーザー登録が完了しました。集会は承認後に公開されます。')
         message = 'Discordサーバー「<a href="https://discord.gg/6jCkUUb9VN">技術・学術系イベントHub</a>」にご参加ください。'
