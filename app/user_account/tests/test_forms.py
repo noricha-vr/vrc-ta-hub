@@ -138,3 +138,107 @@ class CustomSocialSignupFormTests(TestCase):
         """emailフィールドのラベルが「メールアドレス」であること."""
         form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
         self.assertEqual(form.fields['email'].label, 'メールアドレス')
+
+    def test_user_name_field_exists(self):
+        """user_nameフィールドが存在すること."""
+        form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
+        self.assertIn('user_name', form.fields)
+
+    def test_user_name_is_required(self):
+        """ユーザー名が必須であること."""
+        form = CustomSocialSignupForm(
+            sociallogin=self.mock_sociallogin,
+            data={'email': 'test@example.com', 'user_name': ''}
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn('user_name', form.errors)
+
+    def test_user_name_label_is_correct(self):
+        """user_nameフィールドのラベルが「ユーザー名」であること."""
+        form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
+        self.assertEqual(form.fields['user_name'].label, 'ユーザー名')
+
+    def test_user_name_max_length(self):
+        """user_nameフィールドの最大文字数が150であること."""
+        form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
+        self.assertEqual(form.fields['user_name'].max_length, 150)
+
+    def test_field_order_is_user_name_then_email(self):
+        """フィールド順序がuser_name、emailの順であること."""
+        form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
+        field_names = list(form.fields.keys())
+        user_name_index = field_names.index('user_name')
+        email_index = field_names.index('email')
+        self.assertLess(user_name_index, email_index)
+
+    def test_discord_username_placeholder(self):
+        """Discordユーザー名がプレースホルダーに設定されること."""
+        self.mock_sociallogin.account = MagicMock()
+        self.mock_sociallogin.account.extra_data = {'username': 'discord_user'}
+        form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
+        self.assertEqual(
+            form.fields['user_name'].widget.attrs.get('placeholder'),
+            'discord_user'
+        )
+
+    def test_email_duplicate_validation(self):
+        """既存メールアドレスでエラーが発生すること."""
+        User.objects.create_user(
+            user_name='existing_user',
+            email='existing@example.com',
+            password='testpass123',
+        )
+        form = CustomSocialSignupForm(
+            sociallogin=self.mock_sociallogin,
+            data={'email': 'existing@example.com', 'user_name': 'new_user'}
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn('email', form.errors)
+        self.assertIn('このメールアドレスは既に登録されています', form.errors['email'][0])
+
+    def test_email_duplicate_validation_case_insensitive(self):
+        """大文字小文字を区別せずに既存メールアドレスをチェックすること."""
+        User.objects.create_user(
+            user_name='case_test_user',
+            email='Test@Example.com',
+            password='testpass123',
+        )
+        # 大文字小文字が異なる同じメールアドレス
+        form = CustomSocialSignupForm(
+            sociallogin=self.mock_sociallogin,
+            data={'email': 'test@example.com', 'user_name': 'new_user'}
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn('email', form.errors)
+        self.assertIn('このメールアドレスは既に登録されています', form.errors['email'][0])
+
+    def test_email_duplicate_validation_case_insensitive_uppercase(self):
+        """大文字で登録されたメールに対して小文字でもエラーが発生すること."""
+        User.objects.create_user(
+            user_name='uppercase_user',
+            email='user@example.com',
+            password='testpass123',
+        )
+        # 全て大文字で試行
+        form = CustomSocialSignupForm(
+            sociallogin=self.mock_sociallogin,
+            data={'email': 'USER@EXAMPLE.COM', 'user_name': 'new_user'}
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn('email', form.errors)
+        self.assertIn('このメールアドレスは既に登録されています', form.errors['email'][0])
+
+    def test_user_name_duplicate_validation(self):
+        """既存ユーザー名でエラーが発生すること."""
+        User.objects.create_user(
+            user_name='existing_user',
+            email='existing@example.com',
+            password='testpass123',
+        )
+        form = CustomSocialSignupForm(
+            sociallogin=self.mock_sociallogin,
+            data={'email': 'new@example.com', 'user_name': 'existing_user'}
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn('user_name', form.errors)
+        self.assertIn('このユーザー名は既に使用されています', form.errors['user_name'][0])
