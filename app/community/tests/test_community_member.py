@@ -1,0 +1,283 @@
+from django.test import TestCase
+from django.contrib.auth import get_user_model
+from django.db import IntegrityError
+
+from community.models import Community, CommunityMember
+
+CustomUser = get_user_model()
+
+
+class CommunityMemberModelTest(TestCase):
+    """CommunityMemberモデルのテスト"""
+
+    def setUp(self):
+        # テスト用ユーザーを作成
+        self.owner_user = CustomUser.objects.create_user(
+            email='owner@example.com',
+            password='testpass123',
+            user_name='オーナーユーザー'
+        )
+        self.staff_user = CustomUser.objects.create_user(
+            email='staff@example.com',
+            password='testpass123',
+            user_name='スタッフユーザー'
+        )
+        self.other_user = CustomUser.objects.create_user(
+            email='other@example.com',
+            password='testpass123',
+            user_name='その他ユーザー'
+        )
+
+        # テスト用集会を作成
+        self.community = Community.objects.create(
+            name='テスト集会',
+            status='approved',
+            frequency='毎週'
+        )
+
+        # CommunityMemberを作成
+        self.owner_member = CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner_user,
+            role=CommunityMember.Role.OWNER
+        )
+        self.staff_member = CommunityMember.objects.create(
+            community=self.community,
+            user=self.staff_user,
+            role=CommunityMember.Role.STAFF
+        )
+
+    def test_community_member_str(self):
+        """CommunityMemberの__str__メソッドをテスト"""
+        expected = f'{self.owner_user.user_name} - {self.community.name} (主催者)'
+        self.assertEqual(str(self.owner_member), expected)
+
+        expected_staff = f'{self.staff_user.user_name} - {self.community.name} (スタッフ)'
+        self.assertEqual(str(self.staff_member), expected_staff)
+
+    def test_is_owner_property(self):
+        """is_ownerプロパティをテスト"""
+        self.assertTrue(self.owner_member.is_owner)
+        self.assertFalse(self.staff_member.is_owner)
+
+    def test_can_delete_property(self):
+        """can_deleteプロパティをテスト"""
+        self.assertTrue(self.owner_member.can_delete)
+        self.assertFalse(self.staff_member.can_delete)
+
+    def test_can_edit_property(self):
+        """can_editプロパティをテスト"""
+        self.assertTrue(self.owner_member.can_edit)
+        self.assertTrue(self.staff_member.can_edit)
+
+    def test_unique_together_constraint(self):
+        """同じcommunityとuserの組み合わせは作成できないことをテスト"""
+        with self.assertRaises(IntegrityError):
+            CommunityMember.objects.create(
+                community=self.community,
+                user=self.owner_user,
+                role=CommunityMember.Role.STAFF
+            )
+
+
+class CommunityHelperMethodsTest(TestCase):
+    """Communityのヘルパーメソッドのテスト"""
+
+    def setUp(self):
+        # テスト用ユーザーを作成
+        self.owner1 = CustomUser.objects.create_user(
+            email='owner1@example.com',
+            password='testpass123',
+            user_name='オーナー1'
+        )
+        self.owner2 = CustomUser.objects.create_user(
+            email='owner2@example.com',
+            password='testpass123',
+            user_name='オーナー2'
+        )
+        self.staff1 = CustomUser.objects.create_user(
+            email='staff1@example.com',
+            password='testpass123',
+            user_name='スタッフ1'
+        )
+        self.non_member = CustomUser.objects.create_user(
+            email='nonmember@example.com',
+            password='testpass123',
+            user_name='非メンバー'
+        )
+
+        # テスト用集会を作成
+        self.community = Community.objects.create(
+            name='テスト集会',
+            status='approved',
+            frequency='毎週'
+        )
+
+        # CommunityMemberを作成
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner1,
+            role=CommunityMember.Role.OWNER
+        )
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner2,
+            role=CommunityMember.Role.OWNER
+        )
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.staff1,
+            role=CommunityMember.Role.STAFF
+        )
+
+    def test_get_owners(self):
+        """get_ownersメソッドをテスト"""
+        owners = self.community.get_owners()
+        self.assertEqual(len(owners), 2)
+        self.assertIn(self.owner1, owners)
+        self.assertIn(self.owner2, owners)
+        self.assertNotIn(self.staff1, owners)
+
+    def test_get_staff(self):
+        """get_staffメソッドをテスト"""
+        staff = self.community.get_staff()
+        self.assertEqual(len(staff), 1)
+        self.assertIn(self.staff1, staff)
+        self.assertNotIn(self.owner1, staff)
+
+    def test_get_all_managers(self):
+        """get_all_managersメソッドをテスト"""
+        managers = self.community.get_all_managers()
+        self.assertEqual(len(managers), 3)
+        self.assertIn(self.owner1, managers)
+        self.assertIn(self.owner2, managers)
+        self.assertIn(self.staff1, managers)
+        self.assertNotIn(self.non_member, managers)
+
+    def test_is_manager(self):
+        """is_managerメソッドをテスト"""
+        self.assertTrue(self.community.is_manager(self.owner1))
+        self.assertTrue(self.community.is_manager(self.staff1))
+        self.assertFalse(self.community.is_manager(self.non_member))
+
+    def test_is_owner(self):
+        """is_ownerメソッドをテスト"""
+        self.assertTrue(self.community.is_owner(self.owner1))
+        self.assertTrue(self.community.is_owner(self.owner2))
+        self.assertFalse(self.community.is_owner(self.staff1))
+        self.assertFalse(self.community.is_owner(self.non_member))
+
+    def test_can_edit(self):
+        """can_editメソッドをテスト"""
+        self.assertTrue(self.community.can_edit(self.owner1))
+        self.assertTrue(self.community.can_edit(self.staff1))
+        self.assertFalse(self.community.can_edit(self.non_member))
+
+    def test_can_delete(self):
+        """can_deleteメソッドをテスト"""
+        self.assertTrue(self.community.can_delete(self.owner1))
+        self.assertTrue(self.community.can_delete(self.owner2))
+        self.assertFalse(self.community.can_delete(self.staff1))
+        self.assertFalse(self.community.can_delete(self.non_member))
+
+
+class DataMigrationTest(TestCase):
+    """データ移行のテスト（custom_user → CommunityMember）"""
+
+    def test_custom_user_migrated_to_member(self):
+        """custom_userが設定されている集会は、そのユーザーがownerとしてメンバーに追加されることをテスト"""
+        # 既存のcustom_userを持つ集会を作成
+        user = CustomUser.objects.create_user(
+            email='existing@example.com',
+            password='testpass123',
+            user_name='既存ユーザー'
+        )
+        community = Community.objects.create(
+            name='既存集会',
+            custom_user=user,
+            status='approved',
+            frequency='毎週'
+        )
+
+        # CommunityMemberを手動で作成（マイグレーションと同じロジック）
+        CommunityMember.objects.get_or_create(
+            community=community,
+            user=user,
+            defaults={'role': 'owner'}
+        )
+
+        # 検証
+        self.assertTrue(community.is_manager(user))
+        self.assertTrue(community.is_owner(user))
+        self.assertTrue(community.can_edit(user))
+        self.assertTrue(community.can_delete(user))
+
+
+class BackwardCompatibilityTest(TestCase):
+    """CommunityMember未作成の集会に対する後方互換性テスト"""
+
+    def setUp(self):
+        # テスト用ユーザーを作成
+        self.legacy_owner = CustomUser.objects.create_user(
+            email='legacy@example.com',
+            password='testpass123',
+            user_name='レガシーオーナー'
+        )
+        self.other_user = CustomUser.objects.create_user(
+            email='other@example.com',
+            password='testpass123',
+            user_name='その他ユーザー'
+        )
+
+        # CommunityMemberなしで集会を作成（旧形式）
+        self.legacy_community = Community.objects.create(
+            name='レガシー集会',
+            custom_user=self.legacy_owner,
+            status='approved',
+            frequency='毎週'
+        )
+        # 意図的にCommunityMemberを作成しない
+
+    def test_is_manager_with_custom_user_only(self):
+        """CommunityMember未作成でもcustom_userは管理者として認識されることをテスト"""
+        # CommunityMemberが存在しないことを確認
+        self.assertFalse(
+            CommunityMember.objects.filter(community=self.legacy_community).exists()
+        )
+        # custom_userは管理者として認識される
+        self.assertTrue(self.legacy_community.is_manager(self.legacy_owner))
+        # その他のユーザーは管理者として認識されない
+        self.assertFalse(self.legacy_community.is_manager(self.other_user))
+
+    def test_is_owner_with_custom_user_only(self):
+        """CommunityMember未作成でもcustom_userは主催者として認識されることをテスト"""
+        # CommunityMemberが存在しないことを確認
+        self.assertFalse(
+            CommunityMember.objects.filter(community=self.legacy_community).exists()
+        )
+        # custom_userは主催者として認識される
+        self.assertTrue(self.legacy_community.is_owner(self.legacy_owner))
+        # その他のユーザーは主催者として認識されない
+        self.assertFalse(self.legacy_community.is_owner(self.other_user))
+
+    def test_can_edit_with_custom_user_only(self):
+        """CommunityMember未作成でもcustom_userは編集可能と認識されることをテスト"""
+        # CommunityMemberが存在しないことを確認
+        self.assertFalse(
+            CommunityMember.objects.filter(community=self.legacy_community).exists()
+        )
+        # custom_userは編集可能
+        self.assertTrue(self.legacy_community.can_edit(self.legacy_owner))
+        # その他のユーザーは編集不可
+        self.assertFalse(self.legacy_community.can_edit(self.other_user))
+
+    def test_can_delete_with_custom_user_only(self):
+        """CommunityMember未作成でもcustom_userは削除可能と認識されることをテスト"""
+        # CommunityMemberが存在しないことを確認
+        self.assertFalse(
+            CommunityMember.objects.filter(community=self.legacy_community).exists()
+        )
+        # custom_userは削除可能
+        self.assertTrue(self.legacy_community.can_delete(self.legacy_owner))
+        # その他のユーザーは削除不可
+        self.assertFalse(self.legacy_community.can_delete(self.other_user))

@@ -1,7 +1,22 @@
 from django.urls import path
 
 from event_calendar.views import CalendarEntryUpdateView
-from .views import CommunityListView, CommunityDetailView, CommunityUpdateView, CommunityCreateView, WaitingCommunityListView, AcceptView, RejectView, CloseCommunityView, ReopenCommunityView, ArchivedCommunityListView
+from .views import (
+    CommunityListView,
+    CommunityDetailView,
+    CommunityUpdateView,
+    CommunityCreateView,
+    WaitingCommunityListView,
+    AcceptView,
+    RejectView,
+    CloseCommunityView,
+    ReopenCommunityView,
+    ArchivedCommunityListView,
+    SwitchCommunityView,
+    CommunityMemberManageView,
+    AddStaffView,
+    RemoveStaffView,
+)
 
 app_name = 'community'
 urlpatterns = [
@@ -9,6 +24,7 @@ urlpatterns = [
     path('archive/', ArchivedCommunityListView.as_view(), name='archive_list'),
     path('calendar_update/', CalendarEntryUpdateView.as_view(), name='calendar_update'),
     path('waiting_list/', WaitingCommunityListView.as_view(), name='waiting_list'),
+    path('switch/', SwitchCommunityView.as_view(), name='switch'),
     path('<int:pk>/', CommunityDetailView.as_view(), name='detail'),
     path('update/', CommunityUpdateView.as_view(), name='update'),
     path('create/', CommunityCreateView.as_view(), name='create'),
@@ -16,4 +32,7 @@ urlpatterns = [
     path('reject/<int:pk>/', RejectView.as_view(), name='reject'),
     path('close/<int:pk>/', CloseCommunityView.as_view(), name='close'),
     path('reopen/<int:pk>/', ReopenCommunityView.as_view(), name='reopen'),
+    path('<int:pk>/members/', CommunityMemberManageView.as_view(), name='member_manage'),
+    path('<int:pk>/members/add/', AddStaffView.as_view(), name='add_staff'),
+    path('<int:pk>/members/<int:member_id>/remove/', RemoveStaffView.as_view(), name='remove_staff'),
 ]

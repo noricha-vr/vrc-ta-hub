@@ -7,7 +7,7 @@
             <div class="col-md-8 offset-md-2">
                 <div class="card">
                     <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0">設定{% if community %}: {{ community.name }}{% endif %}</h4>
+                        <h4 class="mb-0">設定{% if active_community %}: {{ active_community.name }}{% endif %}</h4>
                     </div>
                     <div class="card-body">
                         {% include 'ta_hub/messages.html' %}
@@ -18,6 +18,28 @@
                                 <strong>メールアドレスが未設定です。</strong>
                                 集会の承認通知などを受け取るために、<a href="{% url 'account:user_update' %}" class="alert-link">ユーザー情報を更新</a>してメールアドレスを設定してください。
                             </div>
+                        {% endif %}
+
+                        {% if user_communities|length > 1 %}
+                        <div class="mb-4">
+                            <label class="form-label fw-bold"><i class="bi bi-arrow-left-right me-2"></i>管理中の集会を切り替え</label>
+                            <form method="post" action="{% url 'community:switch' %}" class="d-flex gap-2">
+                                {% csrf_token %}
+                                <select name="community_id" class="form-select" onchange="this.form.submit()">
+                                    {% for membership in user_communities %}
+                                    <option value="{{ membership.community.id }}"
+                                            {% if membership.community == active_community %}selected{% endif %}>
+                                        {{ membership.community.name }} ({{ membership.get_role_display }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </div>
+                        {% elif user_communities|length == 1 %}
+                        <div class="mb-4">
+                            <label class="form-label fw-bold"><i class="bi bi-people-fill me-2"></i>管理中の集会</label>
+                            <p class="form-control-plaintext">{{ active_community.name }}</p>
+                        </div>
                         {% endif %}
 
                         <div class="accordion" id="settingsAccordion">
@@ -57,9 +79,9 @@
                                      aria-labelledby="headingCommunity" data-bs-parent="#settingsAccordion">
                                     <div class="accordion-body">
                                         <ul class="list-group list-group-flush">
-                                            {% if community %}
+                                            {% if active_community %}
                                                 <li class="list-group-item">
-                                                    <a href="{% url 'community:detail' community.pk %}"
+                                                    <a href="{% url 'community:detail' active_community.pk %}"
                                                        class="text-decoration-none">
                                                         <i class="bi bi-info-circle me-2"></i>集会情報を確認
                                                     </a>
@@ -82,6 +104,14 @@
                                                         <i class="bi bi-twitter me-2"></i>Twitterテンプレート一覧
                                                     </a>
                                                 </li>
+                                                {% if active_membership.is_owner %}
+                                                <li class="list-group-item">
+                                                    <a href="{% url 'community:member_manage' active_community.pk %}"
+                                                       class="text-decoration-none">
+                                                        <i class="bi bi-person-gear me-2"></i>メンバー管理
+                                                    </a>
+                                                </li>
+                                                {% endif %}
                                             {% else %}
                                                 <li class="list-group-item">
                                                     <a href="{% url 'community:create' %}" class="btn btn-primary">

@@ -7,7 +7,7 @@ from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 
 from community.forms import CommunityCreateForm
-from community.models import Community
+from community.models import Community, CommunityMember
 from user_account.models import CustomUser
 
 
@@ -161,6 +161,69 @@ class CommunityCreateViewTest(TestCase):
         created_community = Community.objects.get(custom_user=self.user)
         self.assertEqual(created_community.name, 'テスト集会名')
 
+    @patch('community.views.requests.post')
+    def test_community_create_creates_owner_membership(self, mock_discord_post):
+        """集会作成時にオーナーとしてCommunityMemberが作成されることをテスト."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        # Discord通知のモック
+        mock_discord_post.return_value = MagicMock(status_code=200)
+
+        self.client.login(username='テストユーザー', password='testpass123')
+
+        # テスト用の画像ファイルを作成
+        test_image = SimpleUploadedFile(
+            name='test_poster.jpg',
+            content=b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x00\x00\x00\x21\xf9\x04\x01\x0a\x00\x01\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x4c\x01\x00\x3b',
+            content_type='image/gif'
+        )
+
+        # POSTデータ
+        post_data = {
+            'name': 'オーナーテスト集会',
+            'start_time': '20:00',
+            'duration': 60,
+            'weekdays': ['Sat'],
+            'frequency': '毎週',
+            'organizers': 'テスト主催者',
+            'group_url': '',
+            'organizer_url': '',
+            'sns_url': '',
+            'discord': '',
+            'twitter_hashtag': '',
+            'poster_image': test_image,
+            'allow_poster_repost': True,
+            'description': 'テスト説明',
+            'platform': 'All',
+            'tags': ['tech'],
+        }
+
+        response = self.client.post(self.create_url, post_data)
+
+        # 成功時はsettingsページにリダイレクト
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('account:settings'))
+
+        # 集会が作成されていることを確認
+        community = Community.objects.get(name='オーナーテスト集会')
+        self.assertEqual(community.custom_user, self.user)
+
+        # CommunityMemberが作成されていることを確認
+        self.assertTrue(CommunityMember.objects.filter(
+            community=community,
+            user=self.user
+        ).exists())
+
+        # オーナー権限で作成されていることを確認
+        membership = CommunityMember.objects.get(community=community, user=self.user)
+        self.assertEqual(membership.role, CommunityMember.Role.OWNER)
+
+        # is_ownerメソッドがTrueを返すことを確認
+        self.assertTrue(community.is_owner(self.user))
+
+        # can_editメソッドがTrueを返すことを確認
+        self.assertTrue(community.can_edit(self.user))
+
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 class RegisterRedirectViewTest(TestCase):
@@ -216,13 +279,19 @@ class SettingsViewCommunityButtonTest(TestCase):
             password='testpass123'
         )
         # 集会持ちユーザーに集会を作成
-        Community.objects.create(
+        community = Community.objects.create(
             custom_user=self.user_with_community,
             name='テスト集会',
             frequency='毎週',
             organizers='テスト主催者',
             description='テスト説明',
             status='approved'
+        )
+        # CommunityMemberも作成（コンテキストプロセッサで必要）
+        CommunityMember.objects.create(
+            community=community,
+            user=self.user_with_community,
+            role=CommunityMember.Role.OWNER
         )
         self.settings_url = reverse('account:settings')
 

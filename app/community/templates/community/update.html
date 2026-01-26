@@ -33,8 +33,13 @@
                         </div>
                     </div>
 
-                    <div class="mt-4">
+                    <div class="mt-4 d-flex gap-2">
                         <button type="submit" class="btn btn-primary">更新</button>
+                        {% if active_membership.is_owner %}
+                        <a href="{% url 'community:member_manage' active_community.pk %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-person-gear me-1"></i>メンバー管理
+                        </a>
+                        {% endif %}
                     </div>
                 </form>
             </div>
