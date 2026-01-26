@@ -71,13 +71,13 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
     def post(self, request, *args, **kwargs):
         event = self.get_object()
 
-        # ユーザーが所有するコミュニティを取得
-        user_community = Community.objects.filter(custom_user=request.user).first()
-
-        # イベントが自分のコミュニティのものでない場合は削除を許可しない
-        if not user_community or event.community != user_community:
+        # イベントが属する集会に対する削除権限をチェック（主催者のみ）
+        if not event.community.can_delete(request.user):
             messages.error(request, "このイベントを削除する権限がありません。")
             return redirect('event:my_list')
+
+        # 削除対象のコミュニティを取得
+        user_community = event.community
 
         logger.info(
             f"イベント削除開始: ID={event.id}, コミュニティ={event.community.name}, 日付={event.date}, 開始時間={event.start_time}")
@@ -271,8 +271,8 @@ class EventDetailView(DetailView):
         context['twitter_button_active'] = today <= twitter_display_until
         context['twitter_templates'] = event_detail.event.community.twitter_template.all()
 
-        # ユーザーがログインしていて、このイベントのコミュニティオーナーであるか確認
-        if self.request.user.is_authenticated and self.request.user == event_detail.event.community.custom_user:
+        # ユーザーがログインしていて、このイベントの集会管理者であるか確認
+        if self.request.user.is_authenticated and event_detail.event.community.can_edit(self.request.user):
             context['is_community_owner'] = True
         else:
             context['is_community_owner'] = False
@@ -663,7 +663,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
         try:
             event_detail = EventDetail.objects.get(id=pk)
 
-            if event_detail.event.community.custom_user != request.user:
+            if not event_detail.event.community.can_edit(request.user):
                 messages.error(request, "Invalid request. You don't have permission to perform this action.")
                 return redirect('event:detail', pk=event_detail.id)
 
@@ -749,15 +749,36 @@ class EventMyList(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         today = get_vrchat_today()
+
+        # ユーザーが管理者である集会のIDを取得
+        user_community_ids = list(
+            self.request.user.community_memberships.values_list('community_id', flat=True)
+        )
+
+        # 後方互換: custom_userベースの集会も追加（CommunityMember未作成の集会用）
+        from community.models import Community
+        legacy_community_ids = list(
+            Community.objects.filter(custom_user=self.request.user).values_list('id', flat=True)
+        )
+        user_community_ids = list(set(user_community_ids + legacy_community_ids))
+
+        # アクティブな集会が設定されている場合はその集会のみを対象に
+        active_community_id = self.request.session.get('active_community_id')
+        if active_community_id and active_community_id in user_community_ids:
+            community_ids = [active_community_id]
+        else:
+            # フォールバック: 全ての管理集会
+            community_ids = user_community_ids
+
         # 未来のイベントを最大2つまで取得
         future_events = Event.objects.filter(
-            community__custom_user=self.request.user,
+            community_id__in=community_ids,
             date__gte=today
         ).select_related('community').order_by('date', 'start_time')[:2]
 
         # 過去のイベントを取得
         past_events = Event.objects.filter(
-            community__custom_user=self.request.user,
+            community_id__in=community_ids,
             date__lt=today
         ).select_related('community').order_by('-date', '-start_time')
 
@@ -776,11 +797,26 @@ class EventMyList(LoginRequiredMixin, ListView):
 
     def _get_community_info(self):
         """
-        ログインユーザーのコミュニティ情報を取得する
-        
+        ログインユーザーのアクティブなコミュニティ情報を取得する
+
         Returns:
             Community: ユーザーのコミュニティ情報
         """
+        # セッションからactive_community_idを取得
+        active_community_id = self.request.session.get('active_community_id')
+        if active_community_id:
+            membership = self.request.user.community_memberships.filter(
+                community_id=active_community_id
+            ).select_related('community').first()
+            if membership:
+                return membership.community
+
+        # フォールバック: 最初の管理集会
+        membership = self.request.user.community_memberships.select_related('community').first()
+        if membership:
+            return membership.community
+
+        # 後方互換: custom_userを使用
         return Community.objects.filter(custom_user=self.request.user).first()
 
     def _set_twitter_button_flags(self, events):
@@ -1019,9 +1055,27 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
     form_class = GoogleCalendarEventForm
     success_url = reverse_lazy('event:my_list')
 
+    def _get_active_community(self):
+        """アクティブな集会を取得する"""
+        active_community_id = self.request.session.get('active_community_id')
+        if active_community_id:
+            membership = self.request.user.community_memberships.filter(
+                community_id=active_community_id
+            ).select_related('community').first()
+            if membership:
+                return membership.community
+
+        # フォールバック: 最初の管理集会
+        membership = self.request.user.community_memberships.select_related('community').first()
+        if membership:
+            return membership.community
+
+        # 後方互換: custom_userを使用
+        return Community.objects.filter(custom_user=self.request.user).first()
+
     def dispatch(self, request, *args, **kwargs):
         # コミュニティの承認状態をチェック
-        community = Community.objects.filter(custom_user=request.user).first()
+        community = self._get_active_community()
         if not community or community.status != 'approved':
             messages.error(request, '集会が承認されていないため、カレンダーにイベントを登録できません。')
             return redirect('event:my_list')
@@ -1031,7 +1085,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
         kwargs = super().get_form_kwargs()
         # ログインユーザーのコミュニティを初期値として設定
         if self.request.user.is_authenticated:
-            community = Community.objects.filter(custom_user=self.request.user).first()
+            community = self._get_active_community()
             if community:
                 kwargs['initial'] = {
                     'start_time': community.start_time,
@@ -1042,7 +1096,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
     def form_valid(self, form):
         try:
             # フォームのバリデーション後にコミュニティを取得
-            community = Community.objects.filter(custom_user=self.request.user).first()
+            community = self._get_active_community()
             if not community:
                 messages.error(self.request, 'コミュニティが見つかりません')
                 return self.form_invalid(form)
@@ -1116,5 +1170,5 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['community'] = Community.objects.filter(custom_user=self.request.user).first()
+        context['community'] = self._get_active_community()
         return context

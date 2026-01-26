@@ -94,3 +94,90 @@ class Community(models.Model):
         # poster_image をリサイズしてJPEGに変換
         resize_and_convert_image(self.poster_image, max_size=1000, output_format='JPEG')
         super().save(*args, **kwargs)
+
+    def get_owners(self):
+        """主催者ユーザーのリストを返す"""
+        return [m.user for m in self.members.filter(role=CommunityMember.Role.OWNER)]
+
+    def get_staff(self):
+        """スタッフユーザーのリストを返す"""
+        return [m.user for m in self.members.filter(role=CommunityMember.Role.STAFF)]
+
+    def get_all_managers(self):
+        """全管理者ユーザーのリストを返す"""
+        return [m.user for m in self.members.all()]
+
+    def is_manager(self, user):
+        """指定ユーザーが管理者かどうかを判定する"""
+        # メンバーシップチェック
+        if self.members.filter(user=user).exists():
+            return True
+        # 後方互換: custom_userチェック（CommunityMember未作成の集会用）
+        return self.custom_user == user
+
+    def is_owner(self, user):
+        """指定ユーザーが主催者かどうかを判定する"""
+        # メンバーシップチェック
+        if self.members.filter(user=user, role=CommunityMember.Role.OWNER).exists():
+            return True
+        # 後方互換: custom_userチェック（CommunityMember未作成の集会用）
+        return self.custom_user == user
+
+    def can_edit(self, user):
+        """指定ユーザーが編集可能かどうかを判定する"""
+        return self.is_manager(user)
+
+    def can_delete(self, user):
+        """指定ユーザーが削除可能かどうかを判定する"""
+        return self.is_owner(user)
+
+
+class CommunityMember(models.Model):
+    """集会メンバー（管理者）モデル"""
+
+    class Role(models.TextChoices):
+        OWNER = 'owner', '主催者'
+        STAFF = 'staff', 'スタッフ'
+
+    community = models.ForeignKey(
+        'Community',
+        on_delete=models.CASCADE,
+        related_name='members',
+        verbose_name='集会'
+    )
+    user = models.ForeignKey(
+        'user_account.CustomUser',
+        on_delete=models.CASCADE,
+        related_name='community_memberships',
+        verbose_name='ユーザー'
+    )
+    role = models.CharField(
+        max_length=10,
+        choices=Role.choices,
+        default=Role.STAFF,
+        verbose_name='役割'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='追加日時')
+
+    class Meta:
+        unique_together = ('community', 'user')
+        verbose_name = '集会メンバー'
+        verbose_name_plural = '集会メンバー'
+
+    def __str__(self):
+        return f'{self.user.user_name} - {self.community.name} ({self.get_role_display()})'
+
+    @property
+    def is_owner(self):
+        """このメンバーが主催者かどうか"""
+        return self.role == self.Role.OWNER
+
+    @property
+    def can_delete(self):
+        """このメンバーが集会を削除できるかどうか"""
+        return self.role == self.Role.OWNER
+
+    @property
+    def can_edit(self):
+        """このメンバーが集会を編集できるかどうか"""
+        return self.role in [self.Role.OWNER, self.Role.STAFF]

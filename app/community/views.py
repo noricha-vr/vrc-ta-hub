@@ -21,11 +21,14 @@ import requests
 
 from event.models import Event
 from url_filters import get_filtered_url
+from django.views.generic import TemplateView
+from user_account.models import CustomUser
+
 from .forms import CommunitySearchForm
 from .forms import CommunityUpdateForm
 from .forms import CommunityCreateForm
 from .libs import get_join_type
-from .models import Community
+from .models import Community, CommunityMember
 
 logger = logging.getLogger(__name__)
 
@@ -196,11 +199,25 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
 
     def test_func(self):
         community = self.get_object()
-        return self.request.user == community.custom_user
-    
+        if community is None:
+            return False
+        return community.can_edit(self.request.user)
+
     def get_object(self, queryset=None):
-        # pkなしでログインユーザーに紐付くコミュニティを取得
-        return Community.objects.get(custom_user=self.request.user)
+        # セッションからactive_community_idを取得
+        community_id = self.request.session.get('active_community_id')
+        if community_id:
+            community = Community.objects.filter(pk=community_id).first()
+            if community and community.can_edit(self.request.user):
+                return community
+
+        # フォールバック: ユーザーが管理者である最初の集会を取得
+        membership = self.request.user.community_memberships.select_related('community').first()
+        if membership:
+            return membership.community
+
+        # 後方互換: custom_userを使用
+        return Community.objects.filter(custom_user=self.request.user).first()
 
     def form_valid(self, form):
         try:
@@ -237,6 +254,13 @@ class CommunityCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.custom_user = self.request.user
         response = super().form_valid(form)
+
+        # オーナーとしてCommunityMemberを作成
+        CommunityMember.objects.create(
+            community=self.object,
+            user=self.request.user,
+            role=CommunityMember.Role.OWNER
+        )
 
         # Discord通知を送信
         if settings.DISCORD_WEBHOOK_URL:
@@ -357,13 +381,13 @@ class RejectView(LoginRequiredMixin, View):
 class CloseCommunityView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         community = get_object_or_404(Community, pk=self.kwargs['pk'])
-        return self.request.user.is_superuser or self.request.user == community.custom_user
+        return self.request.user.is_superuser or community.is_owner(self.request.user)
 
     def post(self, request, pk):
         community = get_object_or_404(Community, pk=pk)
-        
-        # 権限チェック
-        if not (request.user.is_superuser or request.user == community.custom_user):
+
+        # 権限チェック（主催者のみ閉鎖可能）
+        if not (request.user.is_superuser or community.can_delete(request.user)):
             messages.error(request, '権限がありません。')
             return redirect('community:detail', pk=pk)
         
@@ -410,13 +434,13 @@ class CloseCommunityView(LoginRequiredMixin, UserPassesTestMixin, View):
 class ReopenCommunityView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
         community = get_object_or_404(Community, pk=self.kwargs['pk'])
-        return self.request.user.is_superuser or self.request.user == community.custom_user
+        return self.request.user.is_superuser or community.is_owner(self.request.user)
 
     def post(self, request, pk):
         community = get_object_or_404(Community, pk=pk)
-        
-        # 権限チェック
-        if not (request.user.is_superuser or request.user == community.custom_user):
+
+        # 権限チェック（主催者のみ再開可能）
+        if not (request.user.is_superuser or community.can_delete(request.user)):
             messages.error(request, '権限がありません。')
             return redirect('community:detail', pk=pk)
         
@@ -489,3 +513,103 @@ class ArchivedCommunityListView(ListView):
         context['tag_choices'] = dict(TAGS)
         context['search_count'] = self.get_queryset().count()
         return context
+
+
+class SwitchCommunityView(LoginRequiredMixin, View):
+    """アクティブな集会を切り替えるビュー"""
+
+    def post(self, request):
+        community_id = request.POST.get('community_id')
+        if community_id:
+            # community_idが整数に変換可能かを先にチェック
+            try:
+                community_id_int = int(community_id)
+            except (ValueError, TypeError):
+                messages.error(request, '無効な集会IDです。')
+                return redirect(request.META.get('HTTP_REFERER', 'account:settings'))
+
+            # ユーザーがその集会のメンバーであることを確認
+            if request.user.community_memberships.filter(community_id=community_id_int).exists():
+                request.session['active_community_id'] = community_id_int
+                messages.success(request, '集会を切り替えました。')
+            else:
+                messages.error(request, 'この集会へのアクセス権限がありません。')
+        else:
+            messages.error(request, '集会が指定されていません。')
+
+        return redirect(request.META.get('HTTP_REFERER', 'account:settings'))
+
+
+class CommunityMemberManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    """集会メンバー管理ビュー（主催者のみ）"""
+    template_name = 'community/member_manage.html'
+
+    def test_func(self):
+        community = get_object_or_404(Community, pk=self.kwargs['pk'])
+        return community.is_owner(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['community'] = get_object_or_404(Community, pk=self.kwargs['pk'])
+        context['members'] = context['community'].members.select_related('user').order_by('role', 'created_at')
+        return context
+
+
+class AddStaffView(LoginRequiredMixin, View):
+    """スタッフ追加ビュー"""
+
+    def post(self, request, pk):
+        community = get_object_or_404(Community, pk=pk)
+        if not community.is_owner(request.user):
+            messages.error(request, '権限がありません')
+            return redirect('community:member_manage', pk=pk)
+
+        user_name = request.POST.get('user_name', '').strip()
+        if not user_name:
+            messages.error(request, 'ユーザー名を入力してください')
+            return redirect('community:member_manage', pk=pk)
+
+        user = CustomUser.objects.filter(user_name=user_name).first()
+        if not user:
+            messages.error(request, f'ユーザー「{user_name}」が見つかりません')
+            return redirect('community:member_manage', pk=pk)
+
+        membership, created = CommunityMember.objects.get_or_create(
+            community=community,
+            user=user,
+            defaults={'role': CommunityMember.Role.STAFF}
+        )
+        if created:
+            messages.success(request, f'{user_name} をスタッフに追加しました')
+        else:
+            messages.info(request, f'{user_name} は既にメンバーです')
+
+        return redirect('community:member_manage', pk=pk)
+
+
+class RemoveStaffView(LoginRequiredMixin, View):
+    """スタッフ削除ビュー"""
+
+    def post(self, request, pk, member_id):
+        community = get_object_or_404(Community, pk=pk)
+        if not community.is_owner(request.user):
+            messages.error(request, '権限がありません')
+            return redirect('community:member_manage', pk=pk)
+
+        member = get_object_or_404(CommunityMember, pk=member_id, community=community)
+
+        # 主催者自身は削除不可
+        if member.is_owner and member.user == request.user:
+            messages.error(request, '自分自身を削除することはできません')
+            return redirect('community:member_manage', pk=pk)
+
+        # 最後の主催者は削除不可
+        if member.is_owner and community.members.filter(role=CommunityMember.Role.OWNER).count() <= 1:
+            messages.error(request, '最後の主催者は削除できません')
+            return redirect('community:member_manage', pk=pk)
+
+        user_name = member.user.user_name
+        member.delete()
+        messages.success(request, f'{user_name} をメンバーから削除しました')
+
+        return redirect('community:member_manage', pk=pk)

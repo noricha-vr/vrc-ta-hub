@@ -1,0 +1,81 @@
+{% extends 'ta_hub/base.html' %}
+{% load static %}
+
+{% block title %}メンバー管理 - {{ community.name }}{% endblock %}
+
+{% block main %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'account:settings' %}">マイページ</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'community:update' %}">{{ community.name }}</a></li>
+            <li class="breadcrumb-item active">メンバー管理</li>
+        </ol>
+    </nav>
+
+    <h1 class="h3 mb-4">メンバー管理</h1>
+
+    {% include 'ta_hub/messages.html' %}
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="bi bi-person-plus me-2"></i>スタッフを追加
+        </div>
+        <div class="card-body">
+            <form method="post" action="{% url 'community:add_staff' community.pk %}" class="row g-3">
+                {% csrf_token %}
+                <div class="col-auto flex-grow-1">
+                    <input type="text" name="user_name" class="form-control"
+                           placeholder="ユーザー名を入力" required>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus me-1"></i>追加
+                    </button>
+                </div>
+            </form>
+            <small class="text-muted mt-2 d-block">
+                追加したいユーザーの「ユーザー名」を入力してください。ユーザー名は設定画面で確認できます。
+            </small>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <i class="bi bi-people me-2"></i>メンバー一覧
+        </div>
+        <ul class="list-group list-group-flush">
+            {% for member in members %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>{{ member.user.user_name }}</strong>
+                    <span class="badge {% if member.is_owner %}bg-primary{% else %}bg-secondary{% endif %} ms-2">
+                        {{ member.get_role_display }}
+                    </span>
+                    <small class="text-muted ms-2">{{ member.created_at|date:"Y/m/d" }} 追加</small>
+                </div>
+                {% if not member.is_owner or members|length > 1 %}
+                {% if member.user != request.user or not member.is_owner %}
+                <form method="post" action="{% url 'community:remove_staff' community.pk member.pk %}"
+                      onsubmit="return confirm('{{ member.user.user_name }} を削除しますか？');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger btn-sm">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+                {% endif %}
+                {% endif %}
+            </li>
+            {% empty %}
+            <li class="list-group-item text-muted">メンバーがいません</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="mt-4">
+        <a href="{% url 'account:settings' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-1"></i>マイページに戻る
+        </a>
+    </div>
+</div>
+{% endblock %}
