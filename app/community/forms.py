@@ -135,11 +135,12 @@ class CommunityCreateForm(forms.ModelForm):
     class Meta:
         model = Community
         fields = [
-            'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
+            'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
             'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags'
         ]
         widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
             'start_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'duration': forms.NumberInput(attrs={'class': 'form-control'}),
             'frequency': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '隔週'}),

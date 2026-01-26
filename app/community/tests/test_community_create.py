@@ -26,19 +26,13 @@ class CommunityCreateFormTest(TestCase):
     def test_form_has_required_fields(self):
         """フォームに必須フィールドが含まれていることをテスト."""
         form = CommunityCreateForm()
-        # nameはユーザー名から自動設定されるためフォームに含まれない
         required_fields = [
-            'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
+            'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
             'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags'
         ]
         for field in required_fields:
             self.assertIn(field, form.fields)
-
-    def test_name_field_not_in_form(self):
-        """nameフィールドがフォームに含まれないことをテスト（ユーザー名から自動設定）."""
-        form = CommunityCreateForm()
-        self.assertNotIn('name', form.fields)
 
     def test_poster_image_is_required(self):
         """poster_imageが必須であることをテスト."""
@@ -113,8 +107,7 @@ class CommunityCreateViewTest(TestCase):
     def test_community_creation_via_post(self, mock_discord_post):
         """POSTリクエストで集会が作成されることをテスト.
 
-        nameフィールドを送信しなくても、ユーザー名から自動設定されて
-        集会が正常に作成されることを確認する。
+        nameフィールドを含めて送信し、集会が正常に作成されることを確認する。
         """
         from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -130,8 +123,9 @@ class CommunityCreateViewTest(TestCase):
             content_type='image/gif'
         )
 
-        # POSTデータ（nameは送信しない）
+        # POSTデータ（nameを含む）
         post_data = {
+            'name': 'テスト集会名',
             'start_time': '20:00',
             'duration': 60,
             'weekdays': ['Sat'],
@@ -158,71 +152,9 @@ class CommunityCreateViewTest(TestCase):
         # 集会が作成されていることを確認
         self.assertTrue(Community.objects.filter(custom_user=self.user).exists())
 
-        # 集会のnameがユーザー名になっていることを確認
+        # 集会のnameが送信した値になっていることを確認
         created_community = Community.objects.get(custom_user=self.user)
-        self.assertEqual(created_community.name, 'テストユーザー')
-
-    @patch('community.views.requests.post')
-    def test_long_username_is_truncated_to_100_chars(self, mock_discord_post):
-        """101文字以上のユーザー名が100文字に切り詰められることをテスト.
-
-        CustomUser.user_nameは最大150文字だが、Community.nameは最大100文字のため、
-        ユーザー名が100文字を超える場合は切り詰める必要がある。
-        """
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        from community.views import COMMUNITY_NAME_MAX_LENGTH
-
-        # 長いユーザー名のユーザーを作成（120文字）
-        long_username = 'あ' * 120
-        long_name_user = CustomUser.objects.create_user(
-            user_name=long_username,
-            email='longname@example.com',
-            password='testpass123'
-        )
-
-        # Discord通知のモック
-        mock_discord_post.return_value = MagicMock(status_code=200)
-
-        self.client.login(username=long_username, password='testpass123')
-
-        # テスト用の画像ファイルを作成
-        test_image = SimpleUploadedFile(
-            name='test_poster.jpg',
-            content=b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x00\x00\x00\x21\xf9\x04\x01\x0a\x00\x01\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x4c\x01\x00\x3b',
-            content_type='image/gif'
-        )
-
-        # POSTデータ
-        post_data = {
-            'start_time': '20:00',
-            'duration': 60,
-            'weekdays': ['Sat'],
-            'frequency': '毎週',
-            'organizers': 'テスト主催者',
-            'group_url': '',
-            'organizer_url': '',
-            'sns_url': '',
-            'discord': '',
-            'twitter_hashtag': '',
-            'poster_image': test_image,
-            'allow_poster_repost': True,
-            'description': 'テスト説明',
-            'platform': 'All',
-            'tags': ['tech'],
-        }
-
-        response = self.client.post(self.create_url, post_data)
-
-        # 成功時はsettingsページにリダイレクト
-        self.assertEqual(response.status_code, 302)
-
-        # 集会が作成されていることを確認
-        self.assertTrue(Community.objects.filter(custom_user=long_name_user).exists())
-
-        # 集会のnameが100文字に切り詰められていることを確認
-        created_community = Community.objects.get(custom_user=long_name_user)
-        self.assertEqual(len(created_community.name), COMMUNITY_NAME_MAX_LENGTH)
-        self.assertEqual(created_community.name, 'あ' * COMMUNITY_NAME_MAX_LENGTH)
+        self.assertEqual(created_community.name, 'テスト集会名')
 
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
