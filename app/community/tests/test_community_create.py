@@ -213,10 +213,22 @@ class CommunityCreateViewTest(TestCase):
         self.assertEqual(created_community.name, 'あ' * COMMUNITY_NAME_MAX_LENGTH)
 
 
+@override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 class RegisterRedirectViewTest(TestCase):
     """通常登録ページのリダイレクトテスト."""
 
     def setUp(self):
+        # Discord SocialAppを作成（テンプレートのprovider_login_urlタグに必要）
+        # override_settingsでAPPS設定を無効化しているため、DBのSocialAppが使用される
+        site = Site.objects.get_current()
+        social_app = SocialApp.objects.create(
+            provider='discord',
+            name='Discord',
+            client_id='test-client-id',
+            secret='test-secret'
+        )
+        social_app.sites.add(site)
+
         self.client = Client()
         self.register_url = reverse('account:register')
 
