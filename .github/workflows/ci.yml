@@ -14,6 +14,7 @@ jobs:
       SECRET_KEY: "test-secret-key-for-ci"
       DEBUG: "True"
       ALLOWED_HOSTS: "localhost,127.0.0.1"
+      CSRF_TRUSTED_ORIGIN: "https://localhost"
       # Required environment variables (dummy values for CI)
       GOOGLE_API_KEY: "dummy-google-api-key"
       GOOGLE_CALENDAR_ID: "dummy-calendar-id@group.calendar.google.com"
