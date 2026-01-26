@@ -14,11 +14,11 @@ def active_community(request):
             - active_membership: 現在アクティブなCommunityMemberオブジェクト
     """
     if not request.user.is_authenticated:
-        return {}
+        return {'active_membership': None}
 
     memberships = request.user.community_memberships.select_related('community')
     if not memberships.exists():
-        return {'user_communities': [], 'active_community': None}
+        return {'user_communities': [], 'active_community': None, 'active_membership': None}
 
     # セッションからactive_community_idを取得
     community_id = request.session.get('active_community_id')
@@ -41,4 +41,4 @@ def active_community(request):
             'active_membership': first
         }
 
-    return {'user_communities': [], 'active_community': None}
+    return {'user_communities': [], 'active_community': None, 'active_membership': None}

@@ -104,7 +104,7 @@
                                                         <i class="bi bi-twitter me-2"></i>Twitterテンプレート一覧
                                                     </a>
                                                 </li>
-                                                {% if active_membership.is_owner %}
+                                                {% if active_membership and active_membership.is_owner %}
                                                 <li class="list-group-item">
                                                     <a href="{% url 'community:member_manage' active_community.pk %}"
                                                        class="text-decoration-none">

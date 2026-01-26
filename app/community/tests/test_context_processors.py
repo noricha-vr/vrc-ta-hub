@@ -65,7 +65,7 @@ class ActiveCommunityContextProcessorTest(TestCase):
 
         result = active_community(request)
 
-        self.assertEqual(result, {})
+        self.assertEqual(result, {'active_membership': None})
 
     def test_user_without_memberships_returns_empty(self):
         """集会メンバーシップがないユーザーは空を返す"""
