@@ -86,6 +86,12 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 - `DEBUG`: デバッグモード設定
 - `SECRET_KEY`: Djangoシークレットキー
 - `REQUEST_TOKEN`: カレンダー更新用トークン
+- `DISCORD_CLIENT_ID`: Discord OAuth用クライアントID
+- `DISCORD_CLIENT_SECRET`: Discord OAuth用シークレット
+
+### Discord OAuth設定
+- 環境変数で設定するため、DBのSocialAppは使用しない
+- settings.pyで`SOCIALACCOUNT_PROVIDERS`に環境変数から読み込み
 
 ## 開発時の注意点
 - 外部ネットワーク `my_network` を使用
