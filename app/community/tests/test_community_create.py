@@ -1,12 +1,23 @@
 """集会登録機能のテスト."""
 from unittest.mock import patch, MagicMock
 
-from django.test import TestCase, Client
+from allauth.socialaccount.models import SocialApp
+from django.contrib.sites.models import Site
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 
 from community.forms import CommunityCreateForm
 from community.models import Community
 from user_account.models import CustomUser
+
+
+# テスト用のSOCIALACCOUNT_PROVIDERS設定（APPSなし）
+# これにより、データベースのSocialAppのみが使用される
+TEST_SOCIALACCOUNT_PROVIDERS = {
+    'discord': {
+        'SCOPE': ['identify', 'email'],
+    }
+}
 
 
 class CommunityCreateFormTest(TestCase):
@@ -216,10 +227,22 @@ class RegisterRedirectViewTest(TestCase):
         self.assertRedirects(response, reverse('account:login'))
 
 
+@override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 class SettingsViewCommunityButtonTest(TestCase):
     """設定画面の集会登録ボタン表示テスト."""
 
     def setUp(self):
+        # Discord SocialAppを作成（テンプレートのprovider_login_urlタグに必要）
+        # override_settingsでAPPS設定を無効化しているため、DBのSocialAppが使用される
+        site = Site.objects.get_current()
+        social_app = SocialApp.objects.create(
+            provider='discord',
+            name='Discord',
+            client_id='test-client-id',
+            secret='test-secret'
+        )
+        social_app.sites.add(site)
+
         self.client = Client()
         self.user_with_community = CustomUser.objects.create_user(
             user_name='集会持ちユーザー',
@@ -261,10 +284,22 @@ class SettingsViewCommunityButtonTest(TestCase):
         self.assertContains(response, '集会情報を編集')
 
 
+@override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 class SettingsViewEmailAlertTest(TestCase):
     """設定画面のメールアドレス未設定アラート表示テスト."""
 
     def setUp(self):
+        # Discord SocialAppを作成（テンプレートのprovider_login_urlタグに必要）
+        # override_settingsでAPPS設定を無効化しているため、DBのSocialAppが使用される
+        site = Site.objects.get_current()
+        social_app = SocialApp.objects.create(
+            provider='discord',
+            name='Discord',
+            client_id='test-client-id',
+            secret='test-secret'
+        )
+        social_app.sites.add(site)
+
         self.client = Client()
         self.user_with_email = CustomUser.objects.create_user(
             user_name='メール有りユーザー',
