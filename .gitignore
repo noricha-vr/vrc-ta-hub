@@ -120,6 +120,9 @@ app/.vscode/
 # Static files (collectstatic output)
 app/static/
 
+# Media files (uploaded content)
+app/media/
+
 # Temporary files
 cookies.txt
 
