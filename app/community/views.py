@@ -29,9 +29,6 @@ from .models import Community
 
 logger = logging.getLogger(__name__)
 
-# Community.name フィールドの最大長
-COMMUNITY_NAME_MAX_LENGTH = 100
-
 
 # app/community/views.py
 
@@ -239,8 +236,6 @@ class CommunityCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         form.instance.custom_user = self.request.user
-        # ユーザー名が長すぎる場合は切り詰める（CustomUser.user_nameは最大150文字、Community.nameは最大100文字）
-        form.instance.name = self.request.user.user_name[:COMMUNITY_NAME_MAX_LENGTH]
         response = super().form_valid(form)
 
         # Discord通知を送信

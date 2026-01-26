@@ -14,9 +14,7 @@
                             <h4 class="mb-0">集会を登録</h4>
                         </div>
                         <div class="card-body">
-                            <p class="text-muted mb-4">
-                                集会名はユーザー名「{{ user.user_name }}」が使用されます。変更する場合は<a href="{% url 'account:user_update' %}">ユーザー情報を更新</a>してください。
-                            </p>
+                            {% bootstrap_field form.name %}
                             {% bootstrap_field form.start_time %}
                             {% bootstrap_field form.duration %}
                             {% bootstrap_field form.weekdays %}
