@@ -12,20 +12,25 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView, DetailView
-from django.views.generic import UpdateView
+from django.views.generic import UpdateView, CreateView
 from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.core.cache import cache
+import requests
 
 from event.models import Event
 from url_filters import get_filtered_url
 from .forms import CommunitySearchForm
 from .forms import CommunityUpdateForm
+from .forms import CommunityCreateForm
 from .libs import get_join_type
 from .models import Community
 
 logger = logging.getLogger(__name__)
+
+# Community.name フィールドの最大長
+COMMUNITY_NAME_MAX_LENGTH = 100
 
 
 # app/community/views.py
@@ -215,6 +220,44 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         except DataError as e:
             messages.error(self.request, f'データの保存中にエラーが発生しました: {str(e)}')
             return self.form_invalid(form)
+
+
+class CommunityCreateView(LoginRequiredMixin, CreateView):
+    """集会新規登録ビュー."""
+
+    model = Community
+    form_class = CommunityCreateForm
+    template_name = 'community/create.html'
+    success_url = reverse_lazy('account:settings')
+
+    def dispatch(self, request, *args, **kwargs):
+        # 既に集会を持っている場合はリダイレクト
+        if request.user.is_authenticated and Community.objects.filter(custom_user=request.user).exists():
+            messages.info(request, '既に集会が登録されています。')
+            return redirect('account:settings')
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.custom_user = self.request.user
+        # ユーザー名が長すぎる場合は切り詰める（CustomUser.user_nameは最大150文字、Community.nameは最大100文字）
+        form.instance.name = self.request.user.user_name[:COMMUNITY_NAME_MAX_LENGTH]
+        response = super().form_valid(form)
+
+        # Discord通知を送信
+        if settings.DISCORD_WEBHOOK_URL:
+            waiting_list_url = self.request.build_absolute_uri(reverse('community:waiting_list'))
+            discord_message = {
+                "content": f"**【新規集会登録】** {self.object.name}\n"
+                           f"承認ページ: {waiting_list_url}"
+            }
+            discord_timeout_seconds = 10
+            try:
+                requests.post(settings.DISCORD_WEBHOOK_URL, json=discord_message, timeout=discord_timeout_seconds)
+            except Exception as e:
+                logger.warning(f'Discord通知送信失敗: {e}')
+
+        messages.success(self.request, '集会が登録されました。承認後に公開されます。')
+        return response
 
 
 class WaitingCommunityListView(LoginRequiredMixin, ListView):

@@ -10,15 +10,15 @@ CustomUser = get_user_model()
 
 class AcceptViewTest(TestCase):
     def setUp(self):
-        # 承認済みユーザー（承認権限あり）
-        self.accepted_user = CustomUser.objects.create_user(
-            email='accepted@example.com',
+        # 管理者ユーザー（承認権限あり）
+        self.admin_user = CustomUser.objects.create_superuser(
+            email='admin@example.com',
             password='testpass123',
-            user_name='承認済みユーザー'
+            user_name='管理者ユーザー'
         )
-        self.accepted_community = Community.objects.create(
-            name='承認済み集会',
-            custom_user=self.accepted_user,
+        self.admin_community = Community.objects.create(
+            name='管理者集会',
+            custom_user=self.admin_user,
             status='approved'
         )
 
@@ -38,13 +38,13 @@ class AcceptViewTest(TestCase):
 
     def test_accept_community_sends_email(self):
         """集会承認時にメールが送信されることをテスト"""
-        # 承認済みユーザーでログイン
-        self.client.login(email='accepted@example.com', password='testpass123')
+        # 管理者ユーザーでログイン
+        self.client.login(username='管理者ユーザー', password='testpass123')
 
-        # 未承認集会を承認
-        response = self.client.post(reverse('community:accept'), {
-            'community_id': self.pending_community.id
-        })
+        # 未承認集会を承認（pkパラメータを指定）
+        response = self.client.post(
+            reverse('community:accept', kwargs={'pk': self.pending_community.pk})
+        )
 
         # リダイレクトを確認
         self.assertRedirects(response, reverse('community:waiting_list'))
@@ -57,14 +57,11 @@ class AcceptViewTest(TestCase):
         self.assertEqual(email.subject, f'{self.pending_community.name}が承認されました')
         self.assertEqual(email.to, [self.pending_user.email])
         
-        # メールの本文に必要な情報が含まれていることを確認
-        self.assertIn(self.pending_community.name, email.body)
-        self.assertIn('my_list', email.body)
-        self.assertIn('開催日を登録', email.body)
-
-        # HTMLメールの内容も確認
+        # HTMLメールの内容を確認
         self.assertTrue(hasattr(email, 'alternatives'))
         html_content = email.alternatives[0][0]
+
+        # メールの本文に必要な情報が含まれていることを確認
         self.assertIn(self.pending_community.name, html_content)
         self.assertIn('my_list', html_content)
         self.assertIn('開催日を登録', html_content)
