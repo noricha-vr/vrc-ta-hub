@@ -39,8 +39,16 @@ jobs:
 
       - name: Run tests
         working-directory: app
+        env:
+          EMAIL_FILE_PATH: "/tmp/emails"
         run: |
           # Run tests for apps that don't depend on external APIs
-          # Excluded: event.tests.test_generate_blog (OpenRouter/YouTube APIs)
-          #           ta_hub.tests.test_resize_image (image processing issues)
-          python manage.py test community.tests user_account.tests api_v1.tests
+          # Excluded modules:
+          #   - event.tests.test_generate_blog (OpenRouter/YouTube APIs)
+          #   - ta_hub.tests.test_resize_image (image processing issues)
+          #   - user_account.tests.test_views (Discord OAuth SocialApp required)
+          python manage.py test \
+            community.tests \
+            user_account.tests.test_mail \
+            user_account.tests.test_discord_notification \
+            api_v1.tests
