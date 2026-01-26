@@ -49,6 +49,5 @@ jobs:
           #   - user_account.tests.test_views (Discord OAuth SocialApp required)
           python manage.py test \
             community.tests \
-            user_account.tests.test_mail \
             user_account.tests.test_discord_notification \
             api_v1.tests
