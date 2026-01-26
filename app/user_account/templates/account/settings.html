@@ -7,10 +7,18 @@
             <div class="col-md-8 offset-md-2">
                 <div class="card">
                     <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0">設定: {{ community.name }}</h4>
+                        <h4 class="mb-0">設定{% if community %}: {{ community.name }}{% endif %}</h4>
                     </div>
                     <div class="card-body">
                         {% include 'ta_hub/messages.html' %}
+
+                        {% if not user.email %}
+                            <div class="alert alert-warning" role="alert">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                <strong>メールアドレスが未設定です。</strong>
+                                集会の承認通知などを受け取るために、<a href="{% url 'account:user_update' %}" class="alert-link">ユーザー情報を更新</a>してメールアドレスを設定してください。
+                            </div>
+                        {% endif %}
 
                         <div class="accordion" id="settingsAccordion">
                             <!-- イベント管理（デフォルトで開く） -->
@@ -68,12 +76,20 @@
                                                         <i class="bi bi-calendar-check me-2"></i>VRCイベントカレンダー情報を編集
                                                     </a>
                                                 </li>
-                                                <!-- 新しく追加されたTwitterテンプレートリストへのリンク -->
                                                 <li class="list-group-item">
                                                     <a href="{% url 'twitter:template_list' %}"
                                                        class="text-decoration-none">
                                                         <i class="bi bi-twitter me-2"></i>Twitterテンプレート一覧
                                                     </a>
+                                                </li>
+                                            {% else %}
+                                                <li class="list-group-item">
+                                                    <a href="{% url 'community:create' %}" class="btn btn-primary">
+                                                        <i class="bi bi-plus-circle me-2"></i>集会を登録
+                                                    </a>
+                                                    <p class="text-muted mt-2 mb-0">
+                                                        技術系・学術系の集会を運営している方は、こちらから集会を登録できます。
+                                                    </p>
                                                 </li>
                                             {% endif %}
                                         </ul>

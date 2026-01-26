@@ -4,7 +4,7 @@ from django.test import TestCase, RequestFactory, override_settings
 from django.urls import reverse
 
 from user_account.models import CustomUser
-from user_account.views import CustomUserCreateView
+from community.views import CommunityCreateView
 
 
 class DiscordNotificationTest(TestCase):
@@ -14,31 +14,28 @@ class DiscordNotificationTest(TestCase):
         self.factory = RequestFactory()
 
     @override_settings(DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/test/test')
-    @patch('user_account.views.requests.post')
-    @patch('user_account.views.send_mail')
-    def test_discord_notification_sent_on_user_registration(self, mock_send_mail, mock_requests_post):
-        """ユーザー登録時にDiscord通知が送信されることをテスト"""
+    @patch('community.views.requests.post')
+    def test_discord_notification_sent_on_community_registration(self, mock_requests_post):
+        """集会登録時にDiscord通知が送信されることをテスト"""
         mock_requests_post.return_value = MagicMock(status_code=204)
 
-        # テスト用のユーザーを直接作成してテスト
-        from user_account.views import CustomUserCreateView
         from django.conf import settings
 
         # ViewのDiscord通知ロジックを直接テスト
-        view = CustomUserCreateView()
+        view = CommunityCreateView()
         request = self.factory.get('/')
         request.build_absolute_uri = lambda path: f'http://testserver{path}'
         view.request = request
 
-        # モックユーザー作成
-        mock_user = MagicMock()
-        mock_user.user_name = 'テスト集会'
+        # モック集会作成
+        mock_community = MagicMock()
+        mock_community.name = 'テスト集会'
 
         # settings.DISCORD_WEBHOOK_URLが設定されている場合の通知ロジックをテスト
         import requests as real_requests
         waiting_list_url = request.build_absolute_uri(reverse('community:waiting_list'))
         discord_message = {
-            "content": f"**【新規集会登録】** {mock_user.user_name}\n"
+            "content": f"**【新規集会登録】** {mock_community.name}\n"
                        f"承認ページ: {waiting_list_url}"
         }
         discord_timeout_seconds = 10
@@ -71,10 +68,10 @@ class DiscordNotificationTest(TestCase):
         self.assertFalse(bool(settings.DISCORD_WEBHOOK_URL))
 
     @override_settings(DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/test/test')
-    @patch('user_account.views.requests.post')
+    @patch('community.views.requests.post')
     def test_discord_notification_error_handling(self, mock_requests_post):
         """Discord通知が失敗した場合のエラーハンドリングをテスト"""
-        from user_account.views import logger
+        from community.views import logger
         import requests
 
         # Discord通知をエラーにする
@@ -100,8 +97,8 @@ class DiscordNotificationTest(TestCase):
         self.assertTrue(True)
 
     @override_settings(DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/test/test')
-    @patch('user_account.views.requests.post')
-    @patch('user_account.views.logger')
+    @patch('community.views.requests.post')
+    @patch('community.views.logger')
     def test_discord_notification_failure_logs_warning(self, mock_logger, mock_requests_post):
         """Discord通知が失敗した場合にwarningログが記録されることをテスト"""
         import requests as real_requests
@@ -134,28 +131,28 @@ class DiscordWebhookMessageFormatTest(TestCase):
 
     def test_message_format_contains_required_fields(self):
         """通知メッセージに必要なフィールドが含まれていることをテスト"""
-        user_name = 'テスト集会'
+        community_name = 'テスト集会'
         waiting_list_url = 'http://testserver/community/waiting/'
 
         discord_message = {
-            "content": f"**【新規集会登録】** {user_name}\n"
+            "content": f"**【新規集会登録】** {community_name}\n"
                        f"承認ページ: {waiting_list_url}"
         }
 
         # 必須フィールドの確認
         self.assertIn('content', discord_message)
         self.assertIn('新規集会登録', discord_message['content'])
-        self.assertIn(user_name, discord_message['content'])
+        self.assertIn(community_name, discord_message['content'])
         self.assertIn('承認ページ', discord_message['content'])
         self.assertIn(waiting_list_url, discord_message['content'])
 
     def test_message_format_uses_bold_formatting(self):
         """通知メッセージがDiscordの太字フォーマットを使用していることをテスト"""
-        user_name = 'テスト集会'
+        community_name = 'テスト集会'
         waiting_list_url = 'http://testserver/community/waiting/'
 
         discord_message = {
-            "content": f"**【新規集会登録】** {user_name}\n"
+            "content": f"**【新規集会登録】** {community_name}\n"
                        f"承認ページ: {waiting_list_url}"
         }
 

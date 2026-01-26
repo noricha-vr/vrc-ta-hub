@@ -1,6 +1,7 @@
 from django import forms
+from django.forms.widgets import CheckboxSelectMultiple
 
-from .models import WEEKDAY_CHOICES, TAGS, FORM_TAGS
+from .models import Community, WEEKDAY_CHOICES, TAGS, FORM_TAGS
 
 
 class CommunitySearchForm(forms.Form):
@@ -24,11 +25,6 @@ class CommunitySearchForm(forms.Form):
         required=False,
         widget=forms.CheckboxSelectMultiple
     )
-
-
-from django import forms
-from django.forms.widgets import CheckboxSelectMultiple
-from .models import Community, WEEKDAY_CHOICES, TAGS, FORM_TAGS
 
 
 class CommunityForm(forms.ModelForm):
@@ -68,10 +64,6 @@ class CommunityForm(forms.ModelForm):
         if commit:
             instance.save()
         return instance
-
-
-from django import forms
-from .models import Community
 
 
 class CommunityUpdateForm(forms.ModelForm):
@@ -118,3 +110,59 @@ class CommunityUpdateForm(forms.ModelForm):
         if self.instance and self.instance.pk:
             self.fields['weekdays'].initial = self.instance.weekdays
             self.fields['tags'].initial = self.instance.tags
+
+
+class CommunityCreateForm(forms.ModelForm):
+    """集会新規登録用フォーム."""
+
+    weekdays = forms.MultipleChoiceField(
+        label='曜日',
+        choices=WEEKDAY_CHOICES,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-inline'}),
+        required=False
+    )
+
+    tags = forms.MultipleChoiceField(
+        label='タグ',
+        choices=FORM_TAGS,
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'form-check-inline'}),
+        required=True,
+        error_messages={
+            'required': '少なくとも1つのタグを選択してください。',
+        }
+    )
+
+    class Meta:
+        model = Community
+        fields = [
+            'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
+            'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
+            'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags'
+        ]
+        widgets = {
+            'start_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'duration': forms.NumberInput(attrs={'class': 'form-control'}),
+            'frequency': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '隔週'}),
+            'organizers': forms.TextInput(attrs={'class': 'form-control'}),
+            'group_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://vrc.group/XXXXX'}),
+            'organizer_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://vrchat.com/home/user/XXXXX'}),
+            'sns_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://twitter.com/XXXXX'}),
+            'discord': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://discord.gg/XXXXXXXXX'}),
+            'twitter_hashtag': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '#VRChat'}),
+            'poster_image': forms.FileInput(attrs={'class': 'form-control-file'}),
+            'allow_poster_repost': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'description': forms.Textarea(attrs={'class': 'form-control'}),
+            'platform': forms.Select(attrs={'class': 'form-control'}),
+        }
+        error_messages = {
+            'poster_image': {
+                'required': 'ポスター画像は必須項目です。',
+            },
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['poster_image'].required = True
+        self.fields['poster_image'].help_text = """最大サイズ: 30MB
+対応フォーマット: jpg, jpeg, png
+このサイトやイベント紹介、ワールドに設置されているアセット、APIなどで利用されます"""

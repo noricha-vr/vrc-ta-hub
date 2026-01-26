@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 from community.models import Community
 from .forms import CustomUserChangeForm
-from .forms import CustomUserCreationForm, BootstrapAuthenticationForm, BootstrapPasswordChangeForm
+from .forms import BootstrapAuthenticationForm, BootstrapPasswordChangeForm
 from .models import APIKey
 
 
@@ -56,51 +56,12 @@ class CustomLogoutView(LogoutView):
         return super().dispatch(request, *args, **kwargs)
 
 
-class CustomUserCreateView(CreateView):
-    form_class = CustomUserCreationForm
-    template_name = 'account/register.html'
-    success_url = reverse_lazy('account:login')
+class RegisterRedirectView(View):
+    """通常登録ページへのアクセスをDiscord OAuthログインページにリダイレクト."""
 
-    def form_valid(self, form):
-        response = super().form_valid(form)
-        user = form.instance
-
-        # メーザーへのウェルカムメール
-        context = {
-            'user': user,
-            'login_url': self.request.build_absolute_uri(reverse_lazy('account:login')),
-            'discord_url': 'https://discord.gg/6jCkUUb9VN'
-        }
-        html_message = render_to_string('account/email/welcome.html', context)
-        plain_message = strip_tags(html_message)
-
-        # ユーザーへメール送信
-        send_mail(
-            subject='VRC技術学術系Hub 集会仮登録完了のお知らせ',
-            message=plain_message,
-            from_email=None,  # settings.pyのDEFAULT_FROM_EMAILが使用されます
-            recipient_list=[user.email],
-            html_message=html_message,
-        )
-
-        # 管理者へのDiscord通知
-        if settings.DISCORD_WEBHOOK_URL:
-            waiting_list_url = self.request.build_absolute_uri(reverse('community:waiting_list'))
-            discord_message = {
-                "content": f"**【新規集会登録】** {user.user_name}\n"
-                           f"承認ページ: {waiting_list_url}"
-            }
-            discord_timeout_seconds = 10
-            try:
-                requests.post(settings.DISCORD_WEBHOOK_URL, json=discord_message, timeout=discord_timeout_seconds)
-            except Exception as e:
-                # ログに記録するだけでエラーは握りつぶす（ユーザー登録自体は成功させる）
-                logger.warning(f'Discord通知送信失敗: {e}')
-
-        messages.success(self.request, 'ユーザー登録が完了しました。集会は承認後に公開されます。')
-        message = 'Discordサーバー「<a href="https://discord.gg/6jCkUUb9VN">技術・学術系イベントHub</a>」にご参加ください。'
-        messages.warning(self.request, mark_safe(message))
-        return response
+    def get(self, request):
+        messages.info(request, '新規登録はDiscordアカウントで行ってください。')
+        return redirect('account:login')
 
 
 class UserNameChangeView(LoginRequiredMixin, UpdateView):
