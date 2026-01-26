@@ -2,8 +2,11 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core import mail
+from django.utils import timezone
+from datetime import date, timedelta, time
 
 from community.models import Community, CommunityMember
+from event.models import Event, EventDetail
 
 CustomUser = get_user_model()
 
@@ -131,3 +134,140 @@ class CommunityUpdateViewBackwardCompatibilityTest(TestCase):
         # can_editが正しく動作していることを直接テスト
         self.assertTrue(self.legacy_community.can_edit(self.legacy_owner))
         self.assertFalse(self.legacy_community.can_edit(self.other_user))
+
+
+class CommunityDetailViewEventThemeDisplayTest(TestCase):
+    """CommunityDetailViewのテーマ表示テスト
+
+    EventDetailのtitleプロパティを使用して表示。
+    h1があればh1を表示し、なければthemeを表示する。
+    """
+
+    DURATION_MINUTES = 120  # イベント時間（分）
+
+    def setUp(self):
+        self.client = Client()
+
+        # テスト用ユーザー
+        self.user = CustomUser.objects.create_user(
+            email='test@example.com',
+            password='testpass123',
+            user_name='テストユーザー'
+        )
+
+        # テスト用集会
+        self.community = Community.objects.create(
+            name='テスト集会',
+            custom_user=self.user,
+            status='approved',
+            frequency='毎週',
+            organizers='テスト主催者'
+        )
+
+        # 将来のイベント（開催日程セクションに表示される）
+        future_date = date.today() + timedelta(days=7)
+        self.future_event = Event.objects.create(
+            community=self.community,
+            date=future_date,
+            start_time=time(21, 0),
+            duration=self.DURATION_MINUTES
+        )
+
+        # 過去のイベント（発表履歴セクションに表示される）
+        past_date = date.today() - timedelta(days=7)
+        self.past_event = Event.objects.create(
+            community=self.community,
+            date=past_date,
+            start_time=time(21, 0),
+            duration=self.DURATION_MINUTES
+        )
+
+    def test_theme_blog_shows_h1_in_scheduled_events(self):
+        """開催日程: themeが「Blog」の場合はh1が表示される"""
+        # themeが「Blog」、h1が実際のタイトル
+        EventDetail.objects.create(
+            event=self.future_event,
+            speaker='発表者A',
+            theme='Blog',
+            h1='実際のブログタイトル'
+        )
+
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # 「Blog」ではなく「実際のブログタイトル」が表示される
+        self.assertContains(response, '実際のブログタイトル')
+        # themeの「Blog」という文字は表示されない（開催日程のテーマカラムで）
+        # ただしセクション名などに含まれる可能性があるため、詳細なチェックは避ける
+
+    def test_normal_theme_shows_theme_in_scheduled_events(self):
+        """開催日程: 通常のthemeはそのまま表示される"""
+        # themeが通常の値
+        EventDetail.objects.create(
+            event=self.future_event,
+            speaker='発表者B',
+            theme='ゆれをながめる',
+            h1=''
+        )
+
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'ゆれをながめる')
+
+    def test_theme_blog_shows_h1_in_past_events(self):
+        """発表履歴: themeが「Blog」の場合はh1が表示される"""
+        # themeが「Blog」、h1が実際のタイトル
+        EventDetail.objects.create(
+            event=self.past_event,
+            speaker='発表者C',
+            theme='Blog',
+            h1='過去のブログタイトル'
+        )
+
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # 「Blog」ではなく「過去のブログタイトル」が表示される
+        self.assertContains(response, '過去のブログタイトル')
+
+    def test_normal_theme_shows_theme_in_past_events(self):
+        """発表履歴: 通常のthemeはそのまま表示される"""
+        # themeが通常の値
+        EventDetail.objects.create(
+            event=self.past_event,
+            speaker='発表者D',
+            theme='VRの未来を語る',
+            h1=''
+        )
+
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'VRの未来を語る')
+
+    def test_theme_blog_without_h1_shows_blog(self):
+        """themeが「Blog」でh1が空の場合はBlogが表示される"""
+        # themeが「Blog」、h1が空（フォールバック）
+        EventDetail.objects.create(
+            event=self.future_event,
+            speaker='発表者E',
+            theme='Blog',
+            h1=''
+        )
+
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # h1が空の場合はフォールバックとしてBlogが表示される
+        self.assertContains(response, 'Blog')
