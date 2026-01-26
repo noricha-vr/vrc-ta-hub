@@ -34,18 +34,34 @@ from .sync_to_google import DatabaseToGoogleSync
 
 logger = logging.getLogger(__name__)
 
-# Google認証とBigQueryをモック化
-import os
+# BigQueryクライアントの遅延初期化
+# CI環境でモジュールインポート時にGCP認証エラーが発生するのを防ぐ
+_bigquery_client = None
+_bigquery_project = None
 
-if os.environ.get('TESTING'):
-    from unittest.mock import MagicMock
 
-    credentials = MagicMock()
-    project = 'test-project'
-    client = MagicMock()
-else:
-    credentials, project = default()
-    client = bigquery.Client(credentials=credentials, project=project, location="asia-northeast1")
+def _get_bigquery_client():
+    """BigQueryクライアントを遅延初期化して返す。
+
+    GCP認証情報が必要になるまで初期化を遅延させることで、
+    CI環境などGCP認証情報がない環境でもモジュールをインポートできる。
+    """
+    global _bigquery_client, _bigquery_project
+    if _bigquery_client is None:
+        import os
+        if os.environ.get('TESTING'):
+            from unittest.mock import MagicMock
+            _bigquery_project = 'test-project'
+            _bigquery_client = MagicMock()
+        else:
+            credentials, project = default()
+            _bigquery_project = project
+            _bigquery_client = bigquery.Client(
+                credentials=credentials,
+                project=project,
+                location="asia-northeast1"
+            )
+    return _bigquery_client, _bigquery_project
 
 
 class EventDeleteView(LoginRequiredMixin, DeleteView):
@@ -683,6 +699,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
             return redirect('event:detail', pk=pk)
 
     def save_to_bigquery(self, pk, video_id, user_id, transcript, prompt, response):
+        client, project = _get_bigquery_client()
         dataset_id = "web"
         table_name = "event_blog_generation"
         table_id = f"{project}.{dataset_id}.{table_name}"
