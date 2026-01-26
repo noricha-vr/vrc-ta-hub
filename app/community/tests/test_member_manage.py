@@ -1,10 +1,21 @@
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from django.contrib.sites.models import Site
+
+from allauth.socialaccount.models import SocialApp
 
 from community.models import Community, CommunityMember
 
 CustomUser = get_user_model()
+
+# テスト用のSOCIALACCOUNT_PROVIDERS設定（APPSなし）
+# これにより、データベースのSocialAppのみが使用される
+TEST_SOCIALACCOUNT_PROVIDERS = {
+    'discord': {
+        'SCOPE': ['identify', 'email'],
+    }
+}
 
 
 class CommunityMemberManageViewTest(TestCase):
@@ -385,10 +396,22 @@ class RemoveStaffViewTest(TestCase):
         )
 
 
+@override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 class SettingsPageCommunityDropdownTest(TestCase):
     """設定ページの集会ドロップダウンテスト"""
 
     def setUp(self):
+        # Discord SocialAppを作成（settings.htmlで{% provider_login_url 'discord' %}が使われているため）
+        # override_settingsでAPPS設定を無効化しているため、DBのSocialAppが使用される
+        site = Site.objects.get_current()
+        social_app = SocialApp.objects.create(
+            provider='discord',
+            name='Discord Test',
+            client_id='test-client-id',
+            secret='test-secret'
+        )
+        social_app.sites.add(site)
+
         self.client = Client()
 
         # テスト用ユーザーを作成
@@ -454,10 +477,22 @@ class SettingsPageCommunityDropdownTest(TestCase):
         self.assertContains(response, '集会2')
 
 
+@override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 class MemberManageLinkTest(TestCase):
     """メンバー管理リンクのテスト"""
 
     def setUp(self):
+        # Discord SocialAppを作成（settings.htmlで{% provider_login_url 'discord' %}が使われているため）
+        # override_settingsでAPPS設定を無効化しているため、DBのSocialAppが使用される
+        site = Site.objects.get_current()
+        social_app = SocialApp.objects.create(
+            provider='discord',
+            name='Discord Test',
+            client_id='test-client-id',
+            secret='test-secret'
+        )
+        social_app.sites.add(site)
+
         self.client = Client()
 
         # テスト用ユーザーを作成
