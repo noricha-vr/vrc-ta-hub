@@ -125,6 +125,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         """ユーザー保存後の処理.
 
         discord_idが確実に設定されていることを確認する。
+        フォームからuser_nameを取得して設定する。
 
         Args:
             request: HTTPリクエスト
@@ -136,11 +137,27 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         """
         user = super().save_user(request, sociallogin, form)
 
+        # 更新が必要なフィールドを追跡
+        update_fields = []
+
+        # discord_idが未設定の場合は設定
         discord_id = sociallogin.account.uid
         if not user.discord_id:
             user.discord_id = discord_id
-            user.save()
-            logger.info(f"Saved discord_id={discord_id} for user: {user.user_name}")
+            update_fields.append('discord_id')
+            logger.info(f"Setting discord_id={discord_id} for user: {user.user_name}")
+
+        # フォームからuser_nameを取得して設定
+        # allauthのDefaultAccountAdapter.save_userは'username'を見るが、
+        # フォームのフィールド名は'user_name'なので明示的に処理する
+        if form and 'user_name' in form.cleaned_data:
+            user.user_name = form.cleaned_data['user_name']
+            update_fields.append('user_name')
+            logger.info(f"Setting user_name from form: {user.user_name}")
+
+        # 更新が必要なフィールドがあれば保存
+        if update_fields:
+            user.save(update_fields=update_fields)
 
         return user
 

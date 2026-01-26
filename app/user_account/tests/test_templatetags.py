@@ -2,7 +2,13 @@
 from django import forms
 from django.test import TestCase
 
-from user_account.templatetags.account_tags import add_class, get_field_label
+from user_account.templatetags.account_tags import (
+    add_class,
+    get_field_label,
+    has_email_duplicate_error,
+    get_other_errors,
+    EMAIL_DUPLICATE_ERROR_KEYWORD,
+)
 
 
 class DummyForm(forms.Form):
@@ -62,3 +68,93 @@ class GetFieldLabelFilterTests(TestCase):
         result = get_field_label(form, 'nonexistent')
 
         self.assertEqual(result, 'nonexistent')
+
+
+class HasEmailDuplicateErrorFilterTests(TestCase):
+    """has_email_duplicate_errorフィルターのテスト。"""
+
+    def test_returns_true_when_email_duplicate_error_exists(self):
+        """メールアドレス重複エラーがある場合、Trueを返すこと。"""
+        form = DummyForm(data={'email': '', 'username': ''})
+        form.is_valid()
+        form._errors['email'] = [EMAIL_DUPLICATE_ERROR_KEYWORD + '。']
+
+        result = has_email_duplicate_error(form)
+
+        self.assertTrue(result)
+
+    def test_returns_false_when_no_email_duplicate_error(self):
+        """メールアドレス重複エラーがない場合、Falseを返すこと。"""
+        form = DummyForm(data={'email': '', 'username': ''})
+        form.is_valid()
+
+        result = has_email_duplicate_error(form)
+
+        self.assertFalse(result)
+
+    def test_returns_false_when_no_errors(self):
+        """エラーがない場合、Falseを返すこと。"""
+        form = DummyForm(data={'email': 'test@example.com', 'username': 'testuser'})
+        form.is_valid()
+
+        result = has_email_duplicate_error(form)
+
+        self.assertFalse(result)
+
+    def test_returns_false_for_non_form_object(self):
+        """フォーム以外のオブジェクトが渡された場合、Falseを返すこと。"""
+        result = has_email_duplicate_error("not a form")
+
+        self.assertFalse(result)
+
+
+class GetOtherErrorsFilterTests(TestCase):
+    """get_other_errorsフィルターのテスト。"""
+
+    def test_returns_non_email_duplicate_errors(self):
+        """メールアドレス重複エラー以外のエラーを返すこと。"""
+        form = DummyForm(data={'email': '', 'username': ''})
+        form.is_valid()
+
+        result = get_other_errors(form)
+
+        self.assertGreater(len(result), 0)
+        for error in result:
+            self.assertNotIn(EMAIL_DUPLICATE_ERROR_KEYWORD, error)
+
+    def test_excludes_email_duplicate_error(self):
+        """メールアドレス重複エラーを除外すること。"""
+        form = DummyForm(data={'email': 'invalid', 'username': ''})
+        form.is_valid()
+        form._errors['email'] = [EMAIL_DUPLICATE_ERROR_KEYWORD + '。', '無効なメールアドレスです。']
+
+        result = get_other_errors(form)
+
+        self.assertIn('無効なメールアドレスです。', result)
+        for error in result:
+            self.assertNotIn(EMAIL_DUPLICATE_ERROR_KEYWORD, error)
+
+    def test_returns_empty_list_when_only_email_duplicate_error(self):
+        """メールアドレス重複エラーのみの場合、空リストを返すこと。"""
+        form = DummyForm(data={'email': 'test@example.com', 'username': 'testuser'})
+        form.is_valid()
+        form._errors = {'email': [EMAIL_DUPLICATE_ERROR_KEYWORD + '。']}
+
+        result = get_other_errors(form)
+
+        self.assertEqual(result, [])
+
+    def test_returns_empty_list_when_no_errors(self):
+        """エラーがない場合、空リストを返すこと。"""
+        form = DummyForm(data={'email': 'test@example.com', 'username': 'testuser'})
+        form.is_valid()
+
+        result = get_other_errors(form)
+
+        self.assertEqual(result, [])
+
+    def test_returns_empty_list_for_non_form_object(self):
+        """フォーム以外のオブジェクトが渡された場合、空リストを返すこと。"""
+        result = get_other_errors("not a form")
+
+        self.assertEqual(result, [])

@@ -200,16 +200,26 @@ class BootstrapPasswordChangeForm(PasswordChangeForm):
 class CustomUserChangeForm(forms.ModelForm):
     class Meta:
         model = CustomUser
-        fields = ('user_name', 'email', 'discord_id')
+        fields = ('user_name', 'email')
         widgets = {
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.TextInput(attrs={'class': 'form-control'}),
-            'discord_id': forms.TextInput(attrs={'class': 'form-control'}),
         }
 
 
 class CustomSocialSignupForm(SocialSignupForm):
     """Discord OAuth認証後のサインアップフォームにBootstrapのスタイルを適用."""
+
+    # ユーザー名フィールドの最大文字数
+    USER_NAME_MAX_LENGTH = 150
+
+    user_name = forms.CharField(
+        label='ユーザー名',
+        max_length=USER_NAME_MAX_LENGTH,
+        required=True,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        help_text='このサイトでの表示名です。後から変更できます。',
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -219,3 +229,34 @@ class CustomSocialSignupForm(SocialSignupForm):
         if 'email' in self.fields:
             self.fields['email'].required = True
             self.fields['email'].label = 'メールアドレス'
+
+        # Discordユーザー名をプレースホルダーに設定
+        if hasattr(self, 'sociallogin') and self.sociallogin:
+            discord_username = self.sociallogin.account.extra_data.get('username', '')
+            if discord_username:
+                self.fields['user_name'].widget.attrs['placeholder'] = discord_username
+
+        # フィールド順序を設定
+        self.order_fields(['user_name', 'email'])
+
+    def clean_email(self):
+        """メールアドレスの重複チェック.
+
+        大文字小文字を区別せずに重複をチェックする。
+        """
+        email = self.cleaned_data.get('email')
+        if email and CustomUser.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError(
+                'このメールアドレスは既に登録されています。'
+                '既存のアカウントにログインしてから、Discord連携を行ってください。'
+            )
+        return email
+
+    def clean_user_name(self):
+        """ユーザー名の重複チェック."""
+        user_name = self.cleaned_data.get('user_name')
+        if user_name and CustomUser.objects.filter(user_name=user_name).exists():
+            raise forms.ValidationError(
+                'このユーザー名は既に使用されています。別のユーザー名を入力してください。'
+            )
+        return user_name

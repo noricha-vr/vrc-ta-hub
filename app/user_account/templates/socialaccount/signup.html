@@ -23,16 +23,30 @@
                         </div>
 
                         {% if form.errors %}
-                            <div class="alert alert-danger">
-                                <strong>以下の項目を確認してください:</strong>
-                                <ul class="mb-0">
-                                    {% for field, errors in form.errors.items %}
-                                        {% for error in errors %}
-                                            <li>{{ error }}</li>
-                                        {% endfor %}
-                                    {% endfor %}
-                                </ul>
-                            </div>
+                            {% if form|has_email_duplicate_error %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>このメールアドレスは既に登録されています</strong>
+                                    <p class="mb-2 mt-2">
+                                        既存のアカウントにログインしてから、Discord連携を行ってください。
+                                    </p>
+                                    <a href="{% url 'account_login' %}" class="btn btn-outline-primary">
+                                        <i class="fas fa-sign-in-alt me-2"></i>ログインページへ
+                                    </a>
+                                </div>
+                            {% endif %}
+                            {% with other_errors=form|get_other_errors %}
+                                {% if other_errors %}
+                                    <div class="alert alert-danger">
+                                        <strong>以下の項目を確認してください:</strong>
+                                        <ul class="mb-0">
+                                            {% for error in other_errors %}
+                                                <li>{{ error }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                {% endif %}
+                            {% endwith %}
                         {% endif %}
 
                         <form method="post" action="{% url 'socialaccount_signup' %}">

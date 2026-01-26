@@ -242,6 +242,69 @@ class CustomSocialAccountAdapterTests(TestCase):
             self.assertEqual(result.discord_id, '111222333')
             result.save.assert_called_once()
 
+    def test_save_user_sets_user_name_from_form(self):
+        """フォームからuser_nameを取得して保存すること."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.account.uid = '444555666'
+
+        # フォームのモック
+        mock_form = MagicMock()
+        mock_form.cleaned_data = {'user_name': 'form_username', 'email': 'test@example.com'}
+
+        mock_user = MagicMock()
+        mock_user.discord_id = '444555666'  # 既に設定済み
+        with patch('user_account.adapters.DefaultSocialAccountAdapter.save_user', return_value=mock_user):
+            result = self.adapter.save_user(request, sociallogin, form=mock_form)
+
+            # user_nameがフォームの値に設定されていること
+            self.assertEqual(result.user_name, 'form_username')
+            # saveが呼ばれていること
+            result.save.assert_called_once()
+
+    def test_save_user_sets_both_discord_id_and_user_name_from_form(self):
+        """discord_idとuser_name両方を設定すること."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.account.uid = '777888999'
+
+        # フォームのモック
+        mock_form = MagicMock()
+        mock_form.cleaned_data = {'user_name': 'new_user_name', 'email': 'new@example.com'}
+
+        mock_user = MagicMock()
+        mock_user.discord_id = None  # 未設定
+        with patch('user_account.adapters.DefaultSocialAccountAdapter.save_user', return_value=mock_user):
+            result = self.adapter.save_user(request, sociallogin, form=mock_form)
+
+            # discord_idが設定されていること
+            self.assertEqual(result.discord_id, '777888999')
+            # user_nameがフォームの値に設定されていること
+            self.assertEqual(result.user_name, 'new_user_name')
+            # saveが一度だけ呼ばれていること（update_fieldsで両方更新）
+            result.save.assert_called_once()
+
+    def test_save_user_without_form_only_sets_discord_id(self):
+        """フォームがない場合、discord_idのみ設定すること."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.account.uid = '000111222'
+
+        mock_user = MagicMock()
+        mock_user.discord_id = None
+        mock_user.user_name = 'original_name'
+        with patch('user_account.adapters.DefaultSocialAccountAdapter.save_user', return_value=mock_user):
+            result = self.adapter.save_user(request, sociallogin, form=None)
+
+            # discord_idが設定されていること
+            self.assertEqual(result.discord_id, '000111222')
+            # user_nameは変更されないこと
+            self.assertEqual(result.user_name, 'original_name')
+            result.save.assert_called_once()
+
     def test_get_connect_redirect_url_returns_settings_page(self):
         """連携後のリダイレクト先が設定ページであること."""
         request = self.factory.get('/accounts/discord/login/callback/')
