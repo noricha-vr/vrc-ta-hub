@@ -27,18 +27,17 @@
 
                     <td>
                         {% if detail.youtube_url %}
-                            <i class="bi bi-play-btn" title="動画"></i>
+                            <a href="{% url 'event:detail' detail.pk %}"><i class="bi bi-play-btn" title="動画"></i></a>
                         {% endif %}
                         {% if detail.slide_url %}
-                            <i class="bi bi-link-45deg" title="リンク"></i>
+                            <a href="{% url 'event:detail' detail.pk %}"><i class="bi bi-link-45deg" title="リンク"></i></a>
                         {% endif %}
                         {% if detail.slide_file %}
-                            <i class="bi bi-file-text" title="スライド"></i>
+                            <a href="{% url 'event:detail' detail.pk %}"><i class="bi bi-file-text" title="スライド"></i></a>
                         {% endif %}
                         {% if detail.contents %}
-                            <i class="bi bi-pencil-square" title="コンテンツあり"></i>
+                            <a href="{% url 'event:detail' detail.pk %}"><i class="bi bi-pencil-square" title="コンテンツあり"></i></a>
                         {% endif %}
-
                     </td>
                 {% endif %}
                 <td>
