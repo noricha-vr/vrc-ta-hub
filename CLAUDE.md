@@ -92,8 +92,6 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 ### Discord OAuth設定
 - 環境変数で設定するため、DBのSocialAppは使用しない
 - settings.pyで`SOCIALACCOUNT_PROVIDERS`に環境変数から読み込み
-- `ACCOUNT_DEFAULT_HTTP_PROTOCOL`: コールバックURLのプロトコル（デフォルト: `https`）
-  - 開発環境では `.env.local` に `ACCOUNT_DEFAULT_HTTP_PROTOCOL=http` を設定
 
 ## 開発時の注意点
 - 外部ネットワーク `my_network` を使用
