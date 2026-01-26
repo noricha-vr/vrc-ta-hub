@@ -1,7 +1,10 @@
 """認証ビューのテスト."""
 from django.contrib.auth import get_user_model
+from django.contrib.messages import get_messages
 from django.test import Client, TestCase
 from django.urls import reverse
+
+from community.models import Community
 
 User = get_user_model()
 
@@ -74,3 +77,100 @@ class CustomLoginViewTests(TestCase):
             'password': 'testpass123',
         }, follow=True)
         self.assertContains(response, 'ログインしました')
+
+
+class SettingsViewTests(TestCase):
+    """SettingsViewのテストクラス."""
+
+    def setUp(self):
+        """テスト用のデータを準備."""
+        self.client = Client()
+        self.settings_url = reverse('account:settings')
+        self.test_user = User.objects.create_user(
+            user_name='test_settings_user',
+            email='test_settings@example.com',
+            password='testpass123',
+        )
+
+    def test_settings_view_requires_login(self):
+        """設定ページはログインが必要であること."""
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('login', response.url)
+
+    def test_settings_view_renders_correctly(self):
+        """ログイン状態で設定ページが正しくレンダリングされること."""
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'account/settings.html')
+
+    def test_settings_view_without_community(self):
+        """集会を持たないユーザーの設定ページが正しく表示されること."""
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+        # 集会登録リンクが表示されていること
+        self.assertContains(response, '集会を登録')
+
+    def test_settings_view_with_pending_community_shows_warning_with_discord_link(self):
+        """承認待ち集会を持つユーザーに警告メッセージとDiscordリンクが表示されること."""
+        # 承認待ち集会を作成
+        Community.objects.create(
+            custom_user=self.test_user,
+            name='テスト集会',
+            frequency='毎週',
+            status='pending',
+        )
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # メッセージを取得
+        messages_list = list(get_messages(response.wsgi_request))
+        self.assertEqual(len(messages_list), 1)
+        message_text = str(messages_list[0])
+
+        # 承認待ちメッセージが含まれていること
+        self.assertIn('承認待ち', message_text)
+        # Discordリンクが含まれていること
+        self.assertIn('https://discord.gg/6jCkUUb9VN', message_text)
+        self.assertIn('技術・学術系Hub', message_text)
+        # リンクが適切な属性を持っていること
+        self.assertIn('target="_blank"', message_text)
+        self.assertIn('rel="noopener noreferrer"', message_text)
+
+    def test_settings_view_with_approved_community_no_warning(self):
+        """承認済み集会を持つユーザーには警告メッセージが表示されないこと."""
+        # 承認済み集会を作成
+        Community.objects.create(
+            custom_user=self.test_user,
+            name='テスト承認済み集会',
+            frequency='毎週',
+            status='approved',
+        )
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # 警告メッセージがないこと
+        messages_list = list(get_messages(response.wsgi_request))
+        self.assertEqual(len(messages_list), 0)
+
+    def test_settings_view_does_not_contain_other_section(self):
+        """設定ページに「その他」セクションが表示されないこと."""
+        # 承認待ち集会を作成（以前は「その他」セクションが表示される条件だった）
+        Community.objects.create(
+            custom_user=self.test_user,
+            name='テスト集会',
+            frequency='毎週',
+            status='pending',
+        )
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # 「その他」セクションが含まれていないこと
+        self.assertNotContains(response, 'bi-three-dots')
+        self.assertNotContains(response, 'headingOther')
+        self.assertNotContains(response, 'collapseOther')
