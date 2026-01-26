@@ -50,6 +50,11 @@ class CommunityCreateFormTest(TestCase):
         form = CommunityCreateForm()
         self.assertEqual(list(form.fields['tags'].choices), list(FORM_TAGS))
 
+    def test_allow_poster_repost_default_is_true(self):
+        """allow_poster_repostのデフォルト値がTrueであることをテスト."""
+        form = CommunityCreateForm()
+        self.assertTrue(form.fields['allow_poster_repost'].initial)
+
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 class CommunityCreateViewTest(TestCase):

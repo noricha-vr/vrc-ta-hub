@@ -167,3 +167,4 @@ class CommunityCreateForm(forms.ModelForm):
         self.fields['poster_image'].help_text = """最大サイズ: 30MB
 対応フォーマット: jpg, jpeg, png
 このサイトやイベント紹介、ワールドに設置されているアセット、APIなどで利用されます"""
+        self.fields['allow_poster_repost'].initial = True
