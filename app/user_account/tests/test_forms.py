@@ -4,7 +4,11 @@ from unittest.mock import MagicMock
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
 
-from user_account.forms import BootstrapAuthenticationForm, CustomSocialSignupForm
+from user_account.forms import (
+    BootstrapAuthenticationForm,
+    CustomSocialSignupForm,
+    CustomUserChangeForm,
+)
 
 User = get_user_model()
 
@@ -242,3 +246,36 @@ class CustomSocialSignupFormTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn('user_name', form.errors)
         self.assertIn('このユーザー名は既に使用されています', form.errors['user_name'][0])
+
+
+class CustomUserChangeFormTests(TestCase):
+    """CustomUserChangeFormのテストクラス."""
+
+    def setUp(self):
+        """テスト用のユーザーを準備."""
+        self.test_user = User.objects.create_user(
+            user_name='test_user',
+            email='test@example.com',
+            password='testpass123',
+        )
+
+    def test_user_name_label_is_correct(self):
+        """user_nameフィールドのラベルが「ユーザー名」であること."""
+        form = CustomUserChangeForm(instance=self.test_user)
+        self.assertEqual(form.fields['user_name'].label, 'ユーザー名')
+
+    def test_form_has_bootstrap_class(self):
+        """フォームフィールドにBootstrapのform-controlクラスが適用されていること."""
+        form = CustomUserChangeForm(instance=self.test_user)
+        for field_name, field in form.fields.items():
+            self.assertIn(
+                'form-control',
+                field.widget.attrs.get('class', ''),
+                f'{field_name}フィールドにform-controlクラスがありません'
+            )
+
+    def test_form_fields(self):
+        """フォームにuser_nameとemailフィールドが存在すること."""
+        form = CustomUserChangeForm(instance=self.test_user)
+        self.assertIn('user_name', form.fields)
+        self.assertIn('email', form.fields)
