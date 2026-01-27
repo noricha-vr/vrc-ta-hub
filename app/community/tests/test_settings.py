@@ -1,17 +1,38 @@
 """CommunitySettingsViewのテスト"""
-from django.test import TestCase, Client
+from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+
+from allauth.socialaccount.models import SocialApp
+from django.contrib.sites.models import Site
 
 from community.models import Community, CommunityMember
 
 CustomUser = get_user_model()
 
+# テスト用のSOCIALACCOUNT_PROVIDERS設定（APPSなし）
+TEST_SOCIALACCOUNT_PROVIDERS = {
+    'discord': {
+        'SCOPE': ['identify', 'email'],
+    }
+}
 
+
+@override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 class CommunitySettingsViewTest(TestCase):
     """集会設定ページのテスト"""
 
     def setUp(self):
+        # Discord SocialAppを作成（テンプレートのprovider_login_urlタグに必要）
+        site = Site.objects.get_current()
+        social_app = SocialApp.objects.create(
+            provider='discord',
+            name='Discord',
+            client_id='test-client-id',
+            secret='test-secret'
+        )
+        social_app.sites.add(site)
+
         self.client = Client()
 
         # 主催者ユーザー
