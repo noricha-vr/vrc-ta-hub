@@ -47,17 +47,11 @@
             <a href="{% url 'event:calendar_create' %}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> イベント登録
             </a>
-            <a href="{% url 'community:update' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-edit"></i> 集会情報編集
-            </a>
             <a href="{% url 'event:detail_history' %}?community_name={{ community.name }}" class="btn btn-outline-secondary">
                 <i class="fas fa-history"></i> LT履歴
             </a>
             <a href="{% url 'community:settings' %}" class="btn btn-outline-secondary">
                 <i class="fas fa-cog"></i> 集会設定
-            </a>
-            <a href="{% url 'account:api_key_list' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-code"></i> API管理
             </a>
             <a href="{% url 'community:detail' community.pk %}" class="btn btn-outline-primary">
                 <i class="fas fa-eye"></i> 公開ページ
