@@ -258,3 +258,122 @@ class TwitterTemplateListViewBackwardCompatibilityTest(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Legacy Template")
+
+
+class TweetEventWithTemplateViewTest(TestCase):
+    """TweetEventWithTemplateViewのテスト"""
+
+    def setUp(self):
+        from unittest.mock import patch
+        self.client = Client()
+
+        # ユーザーを作成
+        self.owner = CustomUser.objects.create_user(
+            user_name="tweet_owner",
+            email="tweet_owner@example.com",
+            password="testpassword"
+        )
+
+        # 集会を作成
+        self.community = Community.objects.create(
+            custom_user=self.owner,
+            name="Tweet Test Community",
+            start_time=datetime.time(21, 0),
+            duration=60,
+            weekdays=["Mon"],
+            frequency="Weekly",
+            organizers="Test Organizer",
+            description="Test Description",
+            platform="All",
+            status="approved"
+        )
+
+        # メンバーシップを作成
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner,
+            role=CommunityMember.Role.OWNER
+        )
+
+        # イベントを作成
+        from event.models import Event
+        self.event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 2, 1),
+            start_time=datetime.time(21, 0),
+            duration=60
+        )
+
+        # テンプレートを作成
+        self.template = TwitterTemplate.objects.create(
+            community=self.community,
+            name="Tweet Preview Template",
+            template="Test tweet template"
+        )
+
+    def test_tweet_preview_view_returns_intent_url(self):
+        """intent URLがコンテキストに含まれることを確認"""
+        from unittest.mock import patch
+
+        with patch('twitter.views.generate_tweet') as mock_generate_tweet:
+            mock_generate_tweet.return_value = "Test tweet text\nwith newline"
+
+            url = reverse('twitter:tweet_event_with_template', kwargs={
+                'event_pk': self.event.pk,
+                'template_pk': self.template.pk
+            })
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('intent_url', response.context)
+            self.assertIn('raw_tweet_text', response.context)
+            self.assertIn('tweet_text', response.context)
+
+            # intent URLが正しい形式であることを確認
+            intent_url = response.context['intent_url']
+            self.assertTrue(intent_url.startswith('https://twitter.com/intent/tweet?text='))
+
+            # raw_tweet_textが改行を保持していることを確認
+            raw_tweet_text = response.context['raw_tweet_text']
+            self.assertIn('\n', raw_tweet_text)
+
+            # tweet_textがHTMLの改行に変換されていることを確認
+            tweet_text = response.context['tweet_text']
+            self.assertIn('<br>', tweet_text)
+
+    def test_tweet_preview_view_template_content(self):
+        """テンプレートに適切なコンテンツが含まれることを確認"""
+        from unittest.mock import patch
+
+        with patch('twitter.views.generate_tweet') as mock_generate_tweet:
+            mock_generate_tweet.return_value = "Test tweet"
+
+            url = reverse('twitter:tweet_event_with_template', kwargs={
+                'event_pk': self.event.pk,
+                'template_pk': self.template.pk
+            })
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, 200)
+            # 新しいUI要素が含まれることを確認
+            self.assertContains(response, 'ポストプレビュー')
+            self.assertContains(response, 'X (旧Twitter)')
+            self.assertContains(response, '予約投稿')
+            self.assertContains(response, 'fa-x-twitter')
+
+    def test_tweet_preview_view_empty_tweet_text(self):
+        """ツイートテキストが空の場合の処理を確認"""
+        from unittest.mock import patch
+
+        with patch('twitter.views.generate_tweet') as mock_generate_tweet:
+            mock_generate_tweet.return_value = None
+
+            url = reverse('twitter:tweet_event_with_template', kwargs={
+                'event_pk': self.event.pk,
+                'template_pk': self.template.pk
+            })
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.context['intent_url'], '')
+            self.assertEqual(response.context['tweet_text'], '')

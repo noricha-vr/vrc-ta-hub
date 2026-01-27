@@ -1,5 +1,6 @@
 # twitter/views.py
 import logging
+import urllib.parse
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
@@ -111,11 +112,11 @@ class TwitterTemplateDeleteView(LoginRequiredMixin, DeleteView):
             return self.form_invalid(form)
 
 
-# twitter/views.py
-
-
 class TweetEventWithTemplateView(TemplateView):
+    """ツイートプレビュー画面を表示するビュー"""
     template_name = 'twitter/tweet_preview.html'
+
+    TWITTER_INTENT_BASE_URL = "https://twitter.com/intent/tweet?text="
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -124,17 +125,24 @@ class TweetEventWithTemplateView(TemplateView):
 
         # Format event info before generating tweet
         event_info = format_event_info(event)
-        tweet_text = generate_tweet(template.template, event_info)
-        
+        raw_tweet_text = generate_tweet(template.template, event_info)
+
         # Add debug logging
-        logger.debug(f"Generated tweet_text: {tweet_text}")
-        
-        # Replace newlines with HTML line breaks
-        if tweet_text:
-            tweet_text = tweet_text.replace('\n', '<br>')
-        
+        logger.debug(f"Generated tweet_text: {raw_tweet_text}")
+
+        # intent URL用にURLエンコード
+        intent_url = ""
+        if raw_tweet_text:
+            encoded_text = urllib.parse.quote(raw_tweet_text)
+            intent_url = f"{self.TWITTER_INTENT_BASE_URL}{encoded_text}"
+
+        # Replace newlines with HTML line breaks for display
+        tweet_text = raw_tweet_text.replace('\n', '<br>') if raw_tweet_text else ""
+
         context.update({
             'tweet_text': tweet_text,
+            'raw_tweet_text': raw_tweet_text,
+            'intent_url': intent_url,
             'event': event,
             'template': template,
         })

@@ -5,24 +5,66 @@
     <div class="container mt-4">
         <div class="card">
             <div class="card-header">
-                <h5 class="card-title mb-0">ツイートプレビュー</h5>
+                <h5 class="card-title mb-0">ポストプレビュー</h5>
             </div>
             <div class="card-body">
-                <div class="tweet-content p-3 bg-light rounded mb-3">
-                    <p id="tweet-text">{{ tweet_text|safe }}</p>
+                <div class="tweet-content p-3 bg-light rounded mb-4">
+                    <p id="tweet-text" class="mb-0">{{ tweet_text|safe }}</p>
                 </div>
-                <button id="copy-button" class="btn btn-primary" onclick="copyTweet()">
-                    <i id="copy-icon" class="fas fa-copy me-2"></i><span id="copy-text">ツイートをコピー</span>
-                </button>
-                <a href="https://twitter.com" target="_blank" class="btn btn-success ms-2">
-                    <i class="fab fa-twitter me-2"></i>Twitterを開く
-                </a>
-                <a href="{% url 'event:my_list' %}" class="btn btn-secondary ms-2">
-                    戻る
+
+                <hr class="my-4">
+                <h6 class="text-muted mb-3">投稿方法を選択</h6>
+
+                {# 方法1: 予約投稿する場合（推奨） #}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">方法1: 予約投稿する場合（推奨）</h6>
+                        <hr class="my-2">
+                        <div class="d-flex flex-wrap gap-2 mb-2">
+                            <button id="copy-button" class="btn btn-secondary" onclick="copyTweet()">
+                                <i id="copy-icon" class="fas fa-copy me-2"></i><span id="copy-text">コピー</span>
+                            </button>
+                            <a href="https://twitter.com" target="_blank" class="btn x-button">
+                                <i class="fa-brands fa-x-twitter me-2"></i>X (旧Twitter) を開く
+                            </a>
+                        </div>
+                        <small class="text-muted">コピーしてから投稿画面に貼り付け。予約投稿が可能。</small>
+                    </div>
+                </div>
+
+                {# 方法2: 今すぐ投稿する場合 #}
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h6 class="card-subtitle mb-2 text-muted">方法2: 今すぐ投稿する場合</h6>
+                        <hr class="my-2">
+                        <div class="mb-2">
+                            <a href="{{ intent_url }}" target="_blank" class="btn x-button">
+                                <i class="fa-brands fa-x-twitter me-2"></i>X (旧Twitter) で投稿する
+                            </a>
+                        </div>
+                        <small class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>予約投稿はできません</small>
+                    </div>
+                </div>
+
+                <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>戻る
                 </a>
             </div>
         </div>
     </div>
+
+    <style>
+        .x-button {
+            background-color: #1DA1F2;
+            border-color: #1DA1F2;
+            color: white;
+        }
+        .x-button:hover {
+            background-color: #1a91da;
+            border-color: #1a91da;
+            color: white;
+        }
+    </style>
 {% endblock %}
 
 {% block extra_js %}
@@ -35,38 +77,38 @@
 
             navigator.clipboard.writeText(tweetText).then(() => {
                 // コピー成功時の表示変更
-                copyIcon.className = 'fas fa-check me-2'; // アイコンをチェックマークに変更
-                copyText.textContent = 'コピーしました！'; // テキストを変更
-                copyButton.classList.remove('btn-primary');
-                copyButton.classList.add('btn-success'); // ボタンの色を緑に変更
-                copyButton.disabled = true; // ボタンを一時的に無効化
+                copyIcon.className = 'fas fa-check me-2';
+                copyText.textContent = 'コピーしました!';
+                copyButton.classList.remove('btn-secondary');
+                copyButton.classList.add('btn-success');
+                copyButton.disabled = true;
 
                 // 2秒後に元の表示に戻す
                 setTimeout(() => {
-                    copyIcon.className = 'fas fa-copy me-2'; // アイコンをコピーアイコンに戻す
-                    copyText.textContent = 'ツイートをコピー'; // テキストを元に戻す
+                    copyIcon.className = 'fas fa-copy me-2';
+                    copyText.textContent = 'コピー';
                     copyButton.classList.remove('btn-success');
-                    copyButton.classList.add('btn-primary'); // ボタンの色を元に戻す
-                    copyButton.disabled = false; // ボタンを再度有効化
+                    copyButton.classList.add('btn-secondary');
+                    copyButton.disabled = false;
                 }, 2000);
             }).catch(err => {
                 console.error('コピーに失敗しました:', err);
-                // コピー失敗時の表示変更 (任意)
-                copyIcon.className = 'fas fa-times me-2'; // アイコンをバツ印に変更
+                // コピー失敗時の表示変更
+                copyIcon.className = 'fas fa-times me-2';
                 copyText.textContent = 'コピー失敗';
-                copyButton.classList.remove('btn-primary');
-                copyButton.classList.add('btn-danger'); // ボタンの色を赤に変更
+                copyButton.classList.remove('btn-secondary');
+                copyButton.classList.add('btn-danger');
                 copyButton.disabled = true;
 
                 // 3秒後に元の表示に戻す
                 setTimeout(() => {
                     copyIcon.className = 'fas fa-copy me-2';
-                    copyText.textContent = 'ツイートをコピー';
+                    copyText.textContent = 'コピー';
                     copyButton.classList.remove('btn-danger');
-                    copyButton.classList.add('btn-primary');
+                    copyButton.classList.add('btn-secondary');
                     copyButton.disabled = false;
                 }, 3000);
             });
         }
     </script>
-{% endblock %} 
+{% endblock %}
