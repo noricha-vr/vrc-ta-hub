@@ -748,4 +748,166 @@ class CommunitySettingsView(LoginRequiredMixin, TemplateView):
         else:
             context['is_owner'] = False
 
+        # 有効な引き継ぎリンクを取得
+        if context['is_owner'] and community:
+            context['ownership_transfer_invitation'] = CommunityInvitation.objects.filter(
+                community=community,
+                invitation_type=CommunityInvitation.InvitationType.OWNERSHIP_TRANSFER,
+                expires_at__gt=timezone.now()
+            ).first()
+
         return context
+
+
+class CreateOwnershipTransferView(LoginRequiredMixin, View):
+    """主催者引き継ぎリンク生成ビュー（主催者のみ）"""
+
+    def post(self, request, pk):
+        community = get_object_or_404(Community, pk=pk)
+
+        # 権限チェック（主催者のみ）
+        if not community.is_owner(request.user):
+            messages.error(request, '権限がありません')
+            return redirect('community:settings')
+
+        # 既存の有効な引き継ぎリンクがあるか確認
+        existing = CommunityInvitation.objects.filter(
+            community=community,
+            invitation_type=CommunityInvitation.InvitationType.OWNERSHIP_TRANSFER,
+            expires_at__gt=timezone.now()
+        ).first()
+
+        if existing:
+            messages.warning(request, '有効な引き継ぎリンクが既に存在します')
+            return redirect('community:settings')
+
+        # 引き継ぎリンクを作成
+        from datetime import timedelta
+        from .models import INVITATION_EXPIRATION_DAYS
+        CommunityInvitation.objects.create(
+            community=community,
+            created_by=request.user,
+            invitation_type=CommunityInvitation.InvitationType.OWNERSHIP_TRANSFER,
+            expires_at=timezone.now() + timedelta(days=INVITATION_EXPIRATION_DAYS)
+        )
+
+        messages.success(request, '引き継ぎリンクを生成しました')
+        logger.info(f'主催者引き継ぎリンク生成: 集会「{community.name}」、作成者: {request.user.user_name}')
+
+        return redirect('community:settings')
+
+
+class AcceptOwnershipTransferView(View):
+    """主催者引き継ぎ受け入れビュー"""
+
+    def get(self, request, token):
+        """引き継ぎ確認画面を表示"""
+        invitation = get_object_or_404(
+            CommunityInvitation,
+            token=token,
+            invitation_type=CommunityInvitation.InvitationType.OWNERSHIP_TRANSFER
+        )
+
+        # 有効期限チェック
+        if not invitation.is_valid:
+            messages.error(request, 'この引き継ぎリンクは有効期限が切れています')
+            return redirect('ta_hub:index')
+
+        context = {
+            'invitation': invitation,
+            'community': invitation.community,
+        }
+
+        # 自分自身への引き継ぎチェック（ログイン済みの場合）
+        if request.user.is_authenticated:
+            if invitation.community.is_owner(request.user):
+                context['is_current_owner'] = True
+
+        return render(request, 'community/accept_ownership_transfer.html', context)
+
+    def post(self, request, token):
+        """引き継ぎを実行"""
+        # ログインが必要
+        if not request.user.is_authenticated:
+            messages.error(request, '引き継ぎを受けるにはログインが必要です')
+            return redirect(f'/accounts/login/?next={request.path}')
+
+        invitation = get_object_or_404(
+            CommunityInvitation,
+            token=token,
+            invitation_type=CommunityInvitation.InvitationType.OWNERSHIP_TRANSFER
+        )
+
+        # 有効期限チェック
+        if not invitation.is_valid:
+            messages.error(request, 'この引き継ぎリンクは有効期限が切れています')
+            return redirect('ta_hub:index')
+
+        community = invitation.community
+
+        # 自分自身への引き継ぎチェック
+        if community.is_owner(request.user):
+            messages.error(request, 'あなたは既にこの集会の主催者です')
+            return redirect('community:detail', pk=community.pk)
+
+        # トランザクション内で引き継ぎを実行
+        from django.db import transaction
+        with transaction.atomic():
+            # 現在の主催者をスタッフに降格
+            current_owners = CommunityMember.objects.filter(
+                community=community,
+                role=CommunityMember.Role.OWNER
+            )
+            for owner_member in current_owners:
+                owner_member.role = CommunityMember.Role.STAFF
+                owner_member.save()
+                logger.info(f'主催者降格: {owner_member.user.user_name} → スタッフ（集会: {community.name}）')
+
+            # 新しい主催者を設定
+            new_owner_member, created = CommunityMember.objects.get_or_create(
+                community=community,
+                user=request.user,
+                defaults={'role': CommunityMember.Role.OWNER}
+            )
+            if not created:
+                # 既存スタッフの場合は昇格
+                new_owner_member.role = CommunityMember.Role.OWNER
+                new_owner_member.save()
+                logger.info(f'スタッフ昇格: {request.user.user_name} → 主催者（集会: {community.name}）')
+            else:
+                logger.info(f'新規主催者追加: {request.user.user_name}（集会: {community.name}）')
+
+            # 後方互換性: custom_user フィールドも更新
+            community.custom_user = request.user
+            community.save()
+
+            # 使用済みリンクを削除
+            invitation.delete()
+
+        messages.success(request, f'{community.name} の主催者を引き継ぎました')
+        return redirect('community:detail', pk=community.pk)
+
+
+class RevokeOwnershipTransferView(LoginRequiredMixin, View):
+    """引き継ぎリンク削除ビュー（主催者のみ）"""
+
+    def post(self, request, pk, invitation_id):
+        community = get_object_or_404(Community, pk=pk)
+
+        # 権限チェック（主催者のみ）
+        if not community.is_owner(request.user):
+            messages.error(request, '権限がありません')
+            return redirect('community:settings')
+
+        invitation = get_object_or_404(
+            CommunityInvitation,
+            pk=invitation_id,
+            community=community,
+            invitation_type=CommunityInvitation.InvitationType.OWNERSHIP_TRANSFER
+        )
+        invitation.delete()
+
+        messages.success(request, '引き継ぎリンクを削除しました')
+        logger.info(f'主催者引き継ぎリンク削除: 集会「{community.name}」、削除者: {request.user.user_name}')
+
+        return redirect('community:settings')

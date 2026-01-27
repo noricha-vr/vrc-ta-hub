@@ -19,6 +19,9 @@ from .views import (
     RevokeInvitationView,
     AcceptInvitationView,
     CommunitySettingsView,
+    CreateOwnershipTransferView,
+    AcceptOwnershipTransferView,
+    RevokeOwnershipTransferView,
 )
 
 app_name = 'community'
@@ -41,4 +44,8 @@ urlpatterns = [
     path('<int:pk>/invite/create/', CreateInvitationView.as_view(), name='create_invitation'),
     path('<int:pk>/invite/<int:invitation_id>/revoke/', RevokeInvitationView.as_view(), name='revoke_invitation'),
     path('invite/<str:token>/', AcceptInvitationView.as_view(), name='accept_invitation'),
+    # 主催者引き継ぎ
+    path('<int:pk>/transfer/create/', CreateOwnershipTransferView.as_view(), name='create_ownership_transfer'),
+    path('transfer/<str:token>/', AcceptOwnershipTransferView.as_view(), name='accept_ownership_transfer'),
+    path('<int:pk>/transfer/<int:invitation_id>/revoke/', RevokeOwnershipTransferView.as_view(), name='revoke_ownership_transfer'),
 ]

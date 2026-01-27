@@ -1,0 +1,73 @@
+{% extends 'ta_hub/base.html' %}
+{% load static %}
+
+{% block title %}主催者引き継ぎ - {{ community.name }}{% endblock %}
+
+{% block main %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header text-center bg-warning bg-opacity-10">
+                    <i class="fa-solid fa-right-left me-2"></i>主催者の引き継ぎ
+                </div>
+                <div class="card-body text-center">
+                    {% if community.poster_image %}
+                    <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
+                         class="img-fluid rounded mb-3" style="max-height: 200px;">
+                    {% endif %}
+
+                    <h4 class="card-title mb-3">{{ community.name }}</h4>
+
+                    {% if is_current_owner %}
+                    <div class="alert alert-info">
+                        <i class="fa-solid fa-info-circle me-2"></i>
+                        あなたは既にこの集会の主催者です。
+                    </div>
+                    <a href="{% url 'community:settings' %}" class="btn btn-primary">
+                        <i class="fa-solid fa-cog me-1"></i>集会設定へ
+                    </a>
+                    {% else %}
+                    <div class="alert alert-warning text-start mb-4">
+                        <strong><i class="fa-solid fa-exclamation-triangle me-2"></i>注意事項</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>主催者を引き継ぐと、現在の主催者はスタッフに降格されます</li>
+                            <li>主催者は集会の編集、メンバー管理、閉鎖などの全権限を持ちます</li>
+                            <li>この操作は元の主催者の同意のもと行われています</li>
+                        </ul>
+                    </div>
+
+                    {% if user.is_authenticated %}
+                    <form method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-warning btn-lg">
+                            <i class="fa-solid fa-check-circle me-2"></i>主催者を引き継ぐ
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="alert alert-secondary mb-3">
+                        <i class="fa-solid fa-sign-in-alt me-2"></i>
+                        引き継ぎを受けるにはログインが必要です。
+                    </div>
+                    <a href="{% url 'account:login' %}?next={{ request.path }}" class="btn btn-primary btn-lg">
+                        <i class="fa-solid fa-sign-in-alt me-1"></i>ログインして引き継ぐ
+                    </a>
+                    {% endif %}
+                    {% endif %}
+                </div>
+                <div class="card-footer text-muted text-center">
+                    <small>
+                        有効期限: {{ invitation.expires_at|date:"Y/m/d H:i" }}
+                    </small>
+                </div>
+            </div>
+
+            <div class="text-center mt-3">
+                <a href="{% url 'community:detail' community.pk %}" class="text-muted">
+                    <i class="fa-solid fa-arrow-left me-1"></i>集会ページを見る
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
