@@ -174,3 +174,61 @@ class SettingsViewTests(TestCase):
         self.assertNotContains(response, 'bi-three-dots')
         self.assertNotContains(response, 'headingOther')
         self.assertNotContains(response, 'collapseOther')
+
+
+class RegisterViewTests(TestCase):
+    """RegisterViewのテストクラス."""
+
+    def setUp(self):
+        """テスト用のデータを準備."""
+        self.client = Client()
+        self.register_url = reverse('account:register')
+
+    def test_register_page_renders_correctly(self):
+        """新規登録ページが正しくレンダリングされること."""
+        response = self.client.get(self.register_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'account/register.html')
+
+    def test_register_page_contains_discord_button(self):
+        """新規登録ページにDiscordログインボタンが含まれていること."""
+        response = self.client.get(self.register_url)
+        self.assertContains(response, 'Discordで登録')
+        self.assertContains(response, 'fab fa-discord')
+
+    def test_register_page_does_not_contain_password_form(self):
+        """新規登録ページにユーザー名/パスワードフォームが含まれていないこと."""
+        response = self.client.get(self.register_url)
+        self.assertNotContains(response, '<form method="post">')
+
+    def test_register_page_contains_login_link(self):
+        """新規登録ページにログインページへのリンクが含まれていること."""
+        response = self.client.get(self.register_url)
+        self.assertContains(response, '既にアカウントをお持ちの方は')
+        self.assertContains(response, reverse('account:login'))
+
+    def test_register_page_does_not_show_redirect_message(self):
+        """新規登録ページにリダイレクトメッセージが表示されないこと."""
+        response = self.client.get(self.register_url)
+        # 以前の実装で表示されていたメッセージが含まれていないこと
+        self.assertNotContains(response, '新規登録はDiscordアカウントで行ってください')
+
+    def test_register_page_has_correct_header(self):
+        """新規登録ページのヘッダーが「新規登録」であること."""
+        response = self.client.get(self.register_url)
+        self.assertContains(response, '<h4 class="mb-0">新規登録</h4>')
+
+
+class LoginPageRegisterLinkTests(TestCase):
+    """ログインページの登録リンクテストクラス."""
+
+    def setUp(self):
+        """テスト用のデータを準備."""
+        self.client = Client()
+        self.login_url = reverse('account:login')
+
+    def test_login_page_contains_register_link(self):
+        """ログインページに新規登録ページへのリンクが含まれていること."""
+        response = self.client.get(self.login_url)
+        self.assertContains(response, 'アカウントをお持ちでない方は')
+        self.assertContains(response, reverse('account:register'))
