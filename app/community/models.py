@@ -1,3 +1,4 @@
+import secrets
 from datetime import timedelta
 
 from django.db import models
@@ -181,3 +182,65 @@ class CommunityMember(models.Model):
     def can_edit(self):
         """このメンバーが集会を編集できるかどうか"""
         return self.role in [self.Role.OWNER, self.Role.STAFF]
+
+
+# 招待リンクの有効期限（日数）
+INVITATION_EXPIRATION_DAYS = 7
+
+
+class CommunityInvitation(models.Model):
+    """集会招待リンクモデル"""
+
+    community = models.ForeignKey(
+        'Community',
+        on_delete=models.CASCADE,
+        related_name='invitations',
+        verbose_name='集会'
+    )
+    created_by = models.ForeignKey(
+        'user_account.CustomUser',
+        on_delete=models.CASCADE,
+        related_name='created_invitations',
+        verbose_name='作成者'
+    )
+    token = models.CharField(
+        max_length=64,
+        unique=True,
+        verbose_name='トークン'
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='作成日時'
+    )
+    expires_at = models.DateTimeField(
+        verbose_name='有効期限'
+    )
+
+    class Meta:
+        verbose_name = '集会招待リンク'
+        verbose_name_plural = '集会招待リンク'
+
+    def __str__(self):
+        return f'{self.community.name} - {self.token[:8]}...'
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = secrets.token_urlsafe(48)
+        if not self.expires_at:
+            self.expires_at = timezone.now() + timedelta(days=INVITATION_EXPIRATION_DAYS)
+        super().save(*args, **kwargs)
+
+    @property
+    def is_valid(self):
+        """招待が有効かどうか"""
+        return timezone.now() < self.expires_at
+
+    @classmethod
+    def create_invitation(cls, community, user):
+        """新しい招待リンクを作成する"""
+        return cls.objects.create(
+            community=community,
+            created_by=user,
+            token=secrets.token_urlsafe(48),
+            expires_at=timezone.now() + timedelta(days=INVITATION_EXPIRATION_DAYS)
+        )

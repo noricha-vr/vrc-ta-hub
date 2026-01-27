@@ -79,6 +79,10 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 - 制御文字の除去
 - 段階的なクリーニング処理
 
+## テストユーザー（開発用）
+
+ログインが必要な動作確認時は `.env.local` の `TEST_USER_NAME` と `TEST_USER_PASSWORD` を参照。
+
 ## 環境変数（.env.local）
 - `OPENROUTER_API_KEY`: OpenRouter APIキー
 - `GOOGLE_API_KEY`: Google APIキー
