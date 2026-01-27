@@ -205,6 +205,9 @@ class CustomUserChangeForm(forms.ModelForm):
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.TextInput(attrs={'class': 'form-control'}),
         }
+        labels = {
+            'user_name': 'ユーザー名',
+        }
 
 
 class CustomSocialSignupForm(SocialSignupForm):
