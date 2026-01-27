@@ -3,7 +3,7 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views import View
@@ -23,15 +23,28 @@ class TwitterTemplateBaseView(LoginRequiredMixin, UserPassesTestMixin):
     form_class = TwitterTemplateForm
     template_name = 'twitter/twitter_template_form.html'
 
+    def get_active_community(self):
+        """セッションからアクティブな集会を取得"""
+        community_id = self.request.session.get('active_community_id')
+        if not community_id:
+            return None
+        community = Community.objects.filter(id=community_id).first()
+        if community and community.is_manager(self.request.user):
+            return community
+        return None
+
     def test_func(self):
-        community = get_object_or_404(Community, custom_user=self.request.user)
+        community = self.get_active_community()
         return community is not None
 
     def get_success_url(self):
         return reverse_lazy('twitter:template_list')
 
     def form_valid(self, form):
-        form.instance.community = get_object_or_404(Community, custom_user=self.request.user)
+        community = self.get_active_community()
+        if not community:
+            raise Http404("集会が選択されていないか、権限がありません")
+        form.instance.community = community
         return super().form_valid(form)
 
 
@@ -53,7 +66,17 @@ class TwitterTemplateListView(LoginRequiredMixin, ListView):
     context_object_name = 'templates'
 
     def get_queryset(self):
-        community = get_object_or_404(Community, custom_user=self.request.user)
+        """セッションからactive_community_idを取得してテンプレートを絞り込む"""
+        community_id = self.request.session.get('active_community_id')
+        if not community_id:
+            return TwitterTemplate.objects.none()
+
+        community = get_object_or_404(Community, id=community_id)
+
+        # メンバーシップ権限チェック
+        if not community.is_manager(self.request.user):
+            return TwitterTemplate.objects.none()
+
         return TwitterTemplate.objects.filter(community=community)
 
 

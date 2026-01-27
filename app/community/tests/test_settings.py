@@ -109,6 +109,9 @@ class CommunitySettingsViewTest(TestCase):
         # Twitterテンプレートリンク
         self.assertContains(response, 'テンプレート管理')
         self.assertContains(response, reverse('twitter:template_list'))
+        # API管理リンク
+        self.assertContains(response, 'API管理')
+        self.assertContains(response, reverse('account:api_key_list'))
 
     def test_settings_page_shows_weekdays(self):
         """設定ページに開催曜日が表示される"""

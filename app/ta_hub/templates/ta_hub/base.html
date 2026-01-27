@@ -374,7 +374,7 @@
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 {% if user_communities %}
-                                    <li class="dropdown-header small text-muted">マイ集会</li>
+                                    <li class="dropdown-header small text-muted"><a href="{% url 'event:my_list' %}" class="text-muted text-decoration-none">マイ集会</a></li>
                                     {% for membership in user_communities %}
                                         {% if active_community and membership.community.id == active_community.id %}
                                             <li><a class="dropdown-item" href="{% url 'event:my_list' %}">
