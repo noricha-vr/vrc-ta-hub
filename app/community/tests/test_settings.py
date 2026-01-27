@@ -207,3 +207,121 @@ class CommunitySettingsViewBackwardCompatibilityTest(TestCase):
         # 主催者としてメンバー管理セクションが表示される
         self.assertContains(response, 'メンバー管理')
         self.assertContains(response, 'メンバーを管理')
+
+
+class CommunitySettingsCloseReopenTest(TestCase):
+    """集会閉鎖/再開機能のテスト"""
+
+    def setUp(self):
+        self.client = Client()
+
+        # 主催者ユーザー
+        self.owner_user = CustomUser.objects.create_user(
+            email='owner@example.com',
+            password='testpass123',
+            user_name='主催者ユーザー'
+        )
+
+        # スタッフユーザー
+        self.staff_user = CustomUser.objects.create_user(
+            email='staff@example.com',
+            password='testpass123',
+            user_name='スタッフユーザー'
+        )
+
+        # テスト用集会（活動中）
+        self.community = Community.objects.create(
+            name='テスト集会',
+            custom_user=self.owner_user,
+            status='approved',
+            frequency='毎週',
+            organizers='テスト主催者',
+            weekdays=['Mon'],
+        )
+
+        # 主催者のメンバーシップ
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner_user,
+            role=CommunityMember.Role.OWNER
+        )
+
+        # スタッフのメンバーシップ
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.staff_user,
+            role=CommunityMember.Role.STAFF
+        )
+
+    def test_owner_sees_close_button_for_active_community(self):
+        """主催者は活動中の集会に対して閉鎖ボタンを見ることができる"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        # 危険な操作セクションが表示される
+        self.assertContains(response, '危険な操作')
+        # 閉鎖ボタンが表示される
+        self.assertContains(response, '集会を閉鎖する')
+        self.assertContains(response, 'closeCommunityModal')
+        # 再開ボタンは表示されない
+        self.assertNotContains(response, '集会を再開する')
+
+    def test_owner_sees_reopen_button_for_closed_community(self):
+        """主催者は閉鎖された集会に対して再開ボタンを見ることができる"""
+        from django.utils import timezone
+        # 集会を閉鎖状態にする
+        self.community.end_at = timezone.now().date()
+        self.community.save()
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        # 危険な操作セクションが表示される
+        self.assertContains(response, '危険な操作')
+        # 閉鎖済みアラートが表示される
+        self.assertContains(response, 'に閉鎖されています')
+        # 再開ボタンが表示される
+        self.assertContains(response, '集会を再開する')
+        self.assertContains(response, 'reopenCommunityModal')
+        # 閉鎖ボタンは表示されない
+        self.assertNotContains(response, '集会を閉鎖する')
+
+    def test_staff_cannot_see_dangerous_operations(self):
+        """スタッフは危険な操作セクションを見ることができない"""
+        self.client.login(username='スタッフユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        # 危険な操作セクションは表示されない
+        self.assertNotContains(response, '危険な操作')
+        self.assertNotContains(response, '集会を閉鎖する')
+
+    def test_close_modal_exists(self):
+        """閉鎖確認モーダルが存在する"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        # モーダルの内容が含まれている
+        self.assertContains(response, 'id="closeCommunityModal"')
+        self.assertContains(response, '集会の閉鎖確認')
+        self.assertContains(response, '閉鎖日以降のイベントは削除されます')
+        self.assertContains(response, '閉鎖する')
+
+    def test_reopen_modal_exists(self):
+        """再開確認モーダルが存在する"""
+        from django.utils import timezone
+        self.community.end_at = timezone.now().date()
+        self.community.save()
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        # モーダルの内容が含まれている
+        self.assertContains(response, 'id="reopenCommunityModal"')
+        self.assertContains(response, '集会の再開確認')
+        self.assertContains(response, '定期イベントを再開するには')
+        self.assertContains(response, '再開する')
