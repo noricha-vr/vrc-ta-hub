@@ -37,10 +37,15 @@
                                             <ul class="list-group list-group-flush mb-3">
                                                 {% for membership in user_communities %}
                                                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                                                        <span>
-                                                            <i class="bi bi-house-door me-2"></i>{{ membership.community.name }}
-                                                            <span class="badge bg-secondary ms-1">{{ membership.get_role_display }}</span>
-                                                        </span>
+                                                        <form method="post" action="{% url 'community:switch' %}" class="d-inline">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="community_id" value="{{ membership.community.id }}">
+                                                            <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
+                                                            <button type="submit" class="btn btn-link text-decoration-none p-0 text-start">
+                                                                <i class="bi bi-house-door me-2"></i>{{ membership.community.name }}
+                                                                <span class="badge bg-secondary ms-1">{{ membership.get_role_display }}</span>
+                                                            </button>
+                                                        </form>
                                                         <form method="post" action="{% url 'community:switch' %}" class="d-inline">
                                                             {% csrf_token %}
                                                             <input type="hidden" name="community_id" value="{{ membership.community.id }}">
