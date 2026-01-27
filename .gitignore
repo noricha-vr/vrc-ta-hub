@@ -87,6 +87,7 @@ local_settings.py
 
 .env
 .env.local
+.env.production.local
 db.sqlite3
 /.local.env
 /app/ta_hub/static/ta_hub/js/*.js
