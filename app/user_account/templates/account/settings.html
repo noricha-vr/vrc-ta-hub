@@ -21,15 +21,15 @@
                         {% endif %}
 
                         <!-- マイ集会セクション -->
-                        <div class="p-3 pb-0">
-                            <h6 class="text-muted mb-2">
+                        <div class="p-3 pb-1">
+                            <h6 class="text-muted mb-0">
                                 <i class="fa-solid fa-users me-2"></i>マイ集会
                             </h6>
                         </div>
                         <div class="list-group list-group-flush">
                             {% if user_communities %}
                                 {% for membership in user_communities %}
-                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div class="list-group-item d-flex justify-content-between align-items-center mb-0">
                                         <form method="post" action="{% url 'community:switch' %}" class="d-inline flex-grow-1">
                                             {% csrf_token %}
                                             <input type="hidden" name="community_id" value="{{ membership.community.id }}">
@@ -50,17 +50,23 @@
                                         </form>
                                     </div>
                                 {% endfor %}
+                                <a href="{% url 'community:create' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center border-top-0 mt-0">
+                                    <span>
+                                        <i class="fa-solid fa-plus me-2 text-primary"></i>新しい技術・学術系集会を始める
+                                    </span>
+                                    <i class="fa-solid fa-chevron-right text-muted"></i>
+                                </a>
                             {% else %}
-                                <div class="list-group-item text-muted">
+                                <div class="list-group-item text-muted mb-0">
                                     所属している集会はありません。
                                 </div>
+                                <a href="{% url 'community:create' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center border-top-0 mt-0">
+                                    <span>
+                                        <i class="fa-solid fa-plus me-2 text-primary"></i>新しい技術・学術系集会を始める
+                                    </span>
+                                    <i class="fa-solid fa-chevron-right text-muted"></i>
+                                </a>
                             {% endif %}
-                            <a href="{% url 'community:create' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                <span>
-                                    <i class="fa-solid fa-plus me-2 text-primary"></i>新しい技術・学術系集会を始める
-                                </span>
-                                <i class="fa-solid fa-chevron-right text-muted"></i>
-                            </a>
                         </div>
 
                         <hr class="my-0">

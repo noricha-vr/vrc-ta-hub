@@ -244,13 +244,6 @@ class CommunityCreateView(LoginRequiredMixin, CreateView):
     template_name = 'community/create.html'
     success_url = reverse_lazy('account:settings')
 
-    def dispatch(self, request, *args, **kwargs):
-        # 既に集会を持っている場合はリダイレクト
-        if request.user.is_authenticated and Community.objects.filter(custom_user=request.user).exists():
-            messages.info(request, '既に集会が登録されています。')
-            return redirect('account:settings')
-        return super().dispatch(request, *args, **kwargs)
-
     def form_valid(self, form):
         form.instance.custom_user = self.request.user
         response = super().form_valid(form)
