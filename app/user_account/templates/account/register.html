@@ -27,6 +27,9 @@
                             <a href="{% provider_login_url 'discord' %}" class="btn btn-lg" style="background-color: #5865F2; color: white;">
                                 <i class="fab fa-discord me-2"></i>Discordで登録
                             </a>
+                            <p class="text-muted small mt-3">
+                                登録することで、<a href="{% url 'ta_hub:terms' %}" target="_blank" rel="noopener noreferrer" class="text-decoration-underline">利用規約</a>および<a href="{% url 'ta_hub:privacy' %}" target="_blank" rel="noopener noreferrer" class="text-decoration-underline">プライバシーポリシー</a>に同意したものとみなされます。
+                            </p>
                         </div>
                         <div class="text-center mt-4">
                             <p class="text-muted">既にアカウントをお持ちの方は<a href="{% url 'account:login' %}">こちら</a></p>
