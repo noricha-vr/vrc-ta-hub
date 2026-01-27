@@ -47,8 +47,9 @@ def resize_and_convert_image(image_field, max_size=720, output_format='JPEG'):
         img.save(buffer, format=output_format, optimize=True, quality=85)
         buffer.seek(0)
 
-        # ファイル名の拡張子を変更
-        file_name, _ = os.path.splitext(image_field.name)
+        # ファイル名の拡張子を変更（ディレクトリ部分を除く）
+        base_name = os.path.basename(image_field.name)
+        file_name, _ = os.path.splitext(base_name)
         file_name = f"{file_name}-{max_size}.{output_format.lower()}"
 
         image_field.save(file_name, ContentFile(buffer.read()), save=False)

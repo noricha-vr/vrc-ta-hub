@@ -93,8 +93,10 @@ class Community(models.Model):
         return self.status == 'approved'
 
     def save(self, *args, **kwargs):
-        # poster_image をリサイズしてJPEGに変換
-        resize_and_convert_image(self.poster_image, max_size=1000, output_format='JPEG')
+        update_fields = kwargs.get('update_fields')
+        # update_fieldsが指定されていない、またはposter_imageが含まれている場合のみリサイズ
+        if update_fields is None or 'poster_image' in update_fields:
+            resize_and_convert_image(self.poster_image, max_size=1000, output_format='JPEG')
         super().save(*args, **kwargs)
 
     def get_owners(self):

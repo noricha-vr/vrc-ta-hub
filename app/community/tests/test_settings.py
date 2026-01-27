@@ -1,4 +1,6 @@
 """CommunitySettingsViewのテスト"""
+from unittest.mock import patch, MagicMock
+
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -346,3 +348,223 @@ class CommunitySettingsCloseReopenTest(TestCase):
         self.assertContains(response, '集会の再開確認')
         self.assertContains(response, '定期イベントを再開するには')
         self.assertContains(response, '再開する')
+
+
+class WebhookSettingsTest(TestCase):
+    """Webhook設定のテスト"""
+
+    def setUp(self):
+        self.client = Client()
+
+        # 主催者ユーザー
+        self.owner_user = CustomUser.objects.create_user(
+            email='owner@example.com',
+            password='testpass123',
+            user_name='主催者ユーザー'
+        )
+
+        # スタッフユーザー
+        self.staff_user = CustomUser.objects.create_user(
+            email='staff@example.com',
+            password='testpass123',
+            user_name='スタッフユーザー'
+        )
+
+        # 権限のないユーザー
+        self.other_user = CustomUser.objects.create_user(
+            email='other@example.com',
+            password='testpass123',
+            user_name='その他ユーザー'
+        )
+
+        # テスト用集会
+        self.community = Community.objects.create(
+            name='テスト集会',
+            custom_user=self.owner_user,
+            status='approved',
+            frequency='毎週',
+            organizers='テスト主催者',
+            weekdays=['Mon'],
+        )
+
+        # 主催者のメンバーシップ
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner_user,
+            role=CommunityMember.Role.OWNER
+        )
+
+        # スタッフのメンバーシップ
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.staff_user,
+            role=CommunityMember.Role.STAFF
+        )
+
+    def test_settings_page_shows_webhook_section(self):
+        """設定ページにWebhookセクションが表示される"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Discord通知')
+        self.assertContains(response, 'LT申請があった時にDiscordに通知を送信します')
+        self.assertContains(response, 'notification_webhook_url')
+
+    def test_update_webhook_url_success(self):
+        """Webhook URLを正常に更新できる"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        webhook_url = 'https://discord.com/api/webhooks/123456789/abcdef'
+
+        response = self.client.post(
+            reverse('community:update_webhook', kwargs={'pk': self.community.pk}),
+            {'notification_webhook_url': webhook_url}
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.notification_webhook_url, webhook_url)
+
+    def test_update_webhook_url_invalid_format(self):
+        """無効なWebhook URLの形式はエラーになる"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        invalid_url = 'https://example.com/not-a-discord-webhook'
+
+        response = self.client.post(
+            reverse('community:update_webhook', kwargs={'pk': self.community.pk}),
+            {'notification_webhook_url': invalid_url}
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        # URLは更新されていない
+        self.assertEqual(self.community.notification_webhook_url, '')
+
+    def test_update_webhook_url_clear(self):
+        """Webhook URLをクリアできる"""
+        # 既にWebhook URLが設定されている状態
+        self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
+        self.community.save()
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.post(
+            reverse('community:update_webhook', kwargs={'pk': self.community.pk}),
+            {'notification_webhook_url': ''}
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.notification_webhook_url, '')
+
+    def test_staff_can_update_webhook(self):
+        """スタッフもWebhookを更新できる"""
+        self.client.login(username='スタッフユーザー', password='testpass123')
+        webhook_url = 'https://discord.com/api/webhooks/123456789/abcdef'
+
+        response = self.client.post(
+            reverse('community:update_webhook', kwargs={'pk': self.community.pk}),
+            {'notification_webhook_url': webhook_url}
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.notification_webhook_url, webhook_url)
+
+    def test_unauthorized_user_cannot_update_webhook(self):
+        """権限のないユーザーはWebhookを更新できない"""
+        self.client.login(username='その他ユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:update_webhook', kwargs={'pk': self.community.pk}),
+            {'notification_webhook_url': 'https://discord.com/api/webhooks/123/abc'}
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_anonymous_user_cannot_update_webhook(self):
+        """未ログインユーザーはWebhookを更新できない"""
+        response = self.client.post(
+            reverse('community:update_webhook', kwargs={'pk': self.community.pk}),
+            {'notification_webhook_url': 'https://discord.com/api/webhooks/123/abc'}
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/account/login/', response.url)
+
+    def test_test_button_shown_when_webhook_set(self):
+        """Webhook URLが設定されている場合、テストボタンが表示される"""
+        self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
+        self.community.save()
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'テスト送信')
+
+    def test_test_button_not_shown_when_webhook_not_set(self):
+        """Webhook URLが設定されていない場合、テストボタンは表示されない"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'テスト送信')
+
+    @patch('community.views.requests.post')
+    def test_test_webhook_success(self, mock_post):
+        """Webhookテスト送信が成功する"""
+        self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
+        self.community.save()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 204
+        mock_post.return_value = mock_response
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.post(
+            reverse('community:test_webhook', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        mock_post.assert_called_once()
+        # 送信されたJSONにテスト通知のメッセージが含まれていることを確認
+        call_kwargs = mock_post.call_args[1]
+        self.assertIn('テスト通知', call_kwargs['json']['content'])
+
+    @patch('community.views.requests.post')
+    def test_test_webhook_failure(self, mock_post):
+        """Webhookテスト送信が失敗した場合のエラーハンドリング"""
+        self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
+        self.community.save()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 400
+        mock_post.return_value = mock_response
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.post(
+            reverse('community:test_webhook', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+
+    def test_test_webhook_without_url(self):
+        """Webhook URLが設定されていない場合はエラー"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.post(
+            reverse('community:test_webhook', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+
+    def test_unauthorized_user_cannot_test_webhook(self):
+        """権限のないユーザーはテスト送信できない"""
+        self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
+        self.community.save()
+
+        self.client.login(username='その他ユーザー', password='testpass123')
+        response = self.client.post(
+            reverse('community:test_webhook', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 403)
