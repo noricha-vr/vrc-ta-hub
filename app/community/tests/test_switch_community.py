@@ -162,6 +162,42 @@ class SwitchCommunityViewTest(TestCase):
         session = self.client.session
         self.assertIsNone(session.get('active_community_id'))
 
+    def test_switch_with_redirect_to_on_success(self):
+        """成功時にredirect_toパラメータで指定したURLにリダイレクトする"""
+        self.client.login(username='テストユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:switch'),
+            {
+                'community_id': self.community1.id,
+                'redirect_to': '/community/settings/'
+            },
+            HTTP_REFERER='/account/settings/'
+        )
+
+        # redirect_toに指定したURLにリダイレクトされる
+        self.assertRedirects(response, '/community/settings/', fetch_redirect_response=False)
+
+        # セッションにactive_community_idが設定されていることを確認
+        session = self.client.session
+        self.assertEqual(session['active_community_id'], self.community1.id)
+
+    def test_switch_failure_redirects_to_referer_not_redirect_to(self):
+        """失敗時はredirect_toではなくrefererにリダイレクトする"""
+        self.client.login(username='テストユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:switch'),
+            {
+                'community_id': self.other_community.id,  # 他ユーザーの集会
+                'redirect_to': '/community/settings/'
+            },
+            HTTP_REFERER='/account/settings/'
+        )
+
+        # refererにリダイレクトされる
+        self.assertRedirects(response, '/account/settings/', fetch_redirect_response=False)
+
 
 class CommunityUpdateViewPermissionTest(TestCase):
     """CommunityUpdateViewの権限テスト"""

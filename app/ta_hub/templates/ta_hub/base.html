@@ -373,15 +373,34 @@
                                 <i class="bi bi-person-circle"></i>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                {% get_user_community_name as community_name %}
-                                {% if community_name %}
-                                    <li><a class="dropdown-item" href="{% url 'event:my_list' %}">
-                                        <i class="bi bi-calendar-event me-2"></i>{{ community_name }}
+                                {% if user_communities %}
+                                    <li class="dropdown-header small text-muted">マイ集会</li>
+                                    {% for membership in user_communities %}
+                                        {% if active_community and membership.community.id == active_community.id %}
+                                            <li><a class="dropdown-item" href="{% url 'event:my_list' %}">
+                                                <i class="bi bi-check-lg me-2 text-primary"></i>{{ membership.community.name|truncatechars:12 }}
+                                            </a></li>
+                                        {% else %}
+                                            <li>
+                                                <form action="{% url 'community:switch' %}" method="post" class="d-inline w-100">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="community_id" value="{{ membership.community.id }}">
+                                                    <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
+                                                    <button type="submit" class="dropdown-item">
+                                                        <i class="bi bi-circle me-2 text-muted"></i>{{ membership.community.name|truncatechars:12 }}
+                                                    </button>
+                                                </form>
+                                            </li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="{% url 'community:create' %}">
+                                        <i class="bi bi-plus-circle me-2"></i>集会を追加
                                     </a></li>
                                     <li><hr class="dropdown-divider"></li>
                                 {% endif %}
                                 <li><a class="dropdown-item" href="{% url 'account:settings' %}">
-                                    <i class="bi bi-gear me-2"></i>設定
+                                    <i class="bi bi-gear me-2"></i>アカウント設定
                                 </a></li>
                                 <li><a class="dropdown-item" href="{% url 'account:logout' %}">
                                     <i class="bi bi-box-arrow-right me-2"></i>ログアウト
