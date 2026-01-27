@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.http import Http404
+from django.shortcuts import get_object_or_404
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import UpdateView
@@ -40,12 +42,26 @@ class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):
     def get_object(self, queryset=None):
         """
         更新対象のカレンダーエントリーを取得。存在しない場合は新規作成
-        
+
+        セッションからactive_community_idを取得し、メンバーシップ権限をチェック。
+
         Returns:
             CalendarEntry: 取得または作成したカレンダーエントリー
+
+        Raises:
+            Http404: 集会が選択されていない、または権限がない場合
         """
-        # pkなしでログインユーザーに紐付くコミュニティを取得
-        community = Community.objects.get(custom_user=self.request.user)
+        # セッションからactive_community_idを取得
+        community_id = self.request.session.get('active_community_id')
+        if not community_id:
+            raise Http404("集会が選択されていません")
+
+        community = get_object_or_404(Community, id=community_id)
+
+        # メンバーシップ権限チェック
+        if not community.is_manager(self.request.user):
+            raise Http404("この集会へのアクセス権限がありません")
+
         calendar_entry, created = CalendarEntry.objects.get_or_create(
             community=community,
             defaults={

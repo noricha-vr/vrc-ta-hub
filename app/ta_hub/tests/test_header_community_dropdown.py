@@ -77,6 +77,18 @@ class HeaderCommunityDropdownTest(TestCase):
         self.assertContains(response, '個人開発集会')
         self.assertContains(response, '技術共有会')
 
+    def test_my_communities_header_is_link_to_my_list(self):
+        """「マイ集会」ヘッダーはマイページへのリンクになっている"""
+        self.client.login(username='テストユーザー', password='testpass123')
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        # 「マイ集会」がmy_listへのリンクになっていることを確認
+        my_list_url = reverse('event:my_list')
+        self.assertContains(response, f'href="{my_list_url}"')
+        # マイ集会テキストがリンク内に含まれていることを確認
+        self.assertContains(response, f'<a href="{my_list_url}" class="text-muted text-decoration-none">マイ集会</a>')
+
     def test_active_community_has_checkmark(self):
         """アクティブな集会にはチェックマークが表示される"""
         self.client.login(username='テストユーザー', password='testpass123')
