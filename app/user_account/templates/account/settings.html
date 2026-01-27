@@ -43,6 +43,7 @@
                         {% endif %}
 
                         <div class="accordion" id="settingsAccordion">
+                            {% if active_community %}
                             <!-- イベント管理（デフォルトで開く） -->
                             <div class="accordion-item">
                                 <h2 class="accordion-header" id="headingEvents">
@@ -79,53 +80,69 @@
                                      aria-labelledby="headingCommunity" data-bs-parent="#settingsAccordion">
                                     <div class="accordion-body">
                                         <ul class="list-group list-group-flush">
-                                            {% if active_community %}
-                                                <li class="list-group-item">
-                                                    <a href="{% url 'community:detail' active_community.pk %}"
-                                                       class="text-decoration-none">
-                                                        <i class="bi bi-info-circle me-2"></i>集会情報を確認
-                                                    </a>
-                                                </li>
-                                                <li class="list-group-item">
-                                                    <a href="{% url 'community:update' %}"
-                                                       class="text-decoration-none">
-                                                        <i class="bi bi-pencil-square me-2"></i>集会情報を編集
-                                                    </a>
-                                                </li>
-                                                <li class="list-group-item">
-                                                    <a href="{% url 'community:calendar_update' %}"
-                                                       class="text-decoration-none">
-                                                        <i class="bi bi-calendar-check me-2"></i>VRCイベントカレンダー情報を編集
-                                                    </a>
-                                                </li>
-                                                <li class="list-group-item">
-                                                    <a href="{% url 'twitter:template_list' %}"
-                                                       class="text-decoration-none">
-                                                        <i class="bi bi-twitter me-2"></i>Twitterテンプレート一覧
-                                                    </a>
-                                                </li>
-                                                {% if active_membership and active_membership.is_owner %}
-                                                <li class="list-group-item">
-                                                    <a href="{% url 'community:member_manage' active_community.pk %}"
-                                                       class="text-decoration-none">
-                                                        <i class="bi bi-person-gear me-2"></i>メンバー管理
-                                                    </a>
-                                                </li>
-                                                {% endif %}
-                                            {% else %}
-                                                <li class="list-group-item">
-                                                    <a href="{% url 'community:create' %}" class="btn btn-primary">
-                                                        <i class="bi bi-plus-circle me-2"></i>集会を登録
-                                                    </a>
-                                                    <p class="text-muted mt-2 mb-0">
-                                                        技術系・学術系の集会を運営している方は、こちらから集会を登録できます。
-                                                    </p>
-                                                </li>
+                                            <li class="list-group-item">
+                                                <a href="{% url 'community:detail' active_community.pk %}"
+                                                   class="text-decoration-none">
+                                                    <i class="bi bi-info-circle me-2"></i>集会情報を確認
+                                                </a>
+                                            </li>
+                                            <li class="list-group-item">
+                                                <a href="{% url 'community:update' %}"
+                                                   class="text-decoration-none">
+                                                    <i class="bi bi-pencil-square me-2"></i>集会情報を編集
+                                                </a>
+                                            </li>
+                                            <li class="list-group-item">
+                                                <a href="{% url 'community:calendar_update' %}"
+                                                   class="text-decoration-none">
+                                                    <i class="bi bi-calendar-check me-2"></i>VRCイベントカレンダー情報を編集
+                                                </a>
+                                            </li>
+                                            <li class="list-group-item">
+                                                <a href="{% url 'twitter:template_list' %}"
+                                                   class="text-decoration-none">
+                                                    <i class="bi bi-twitter me-2"></i>Twitterテンプレート一覧
+                                                </a>
+                                            </li>
+                                            {% if active_membership and active_membership.is_owner %}
+                                            <li class="list-group-item">
+                                                <a href="{% url 'community:member_manage' active_community.pk %}"
+                                                   class="text-decoration-none">
+                                                    <i class="bi bi-person-gear me-2"></i>メンバー管理
+                                                </a>
+                                            </li>
                                             {% endif %}
                                         </ul>
                                     </div>
                                 </div>
                             </div>
+                            {% else %}
+                            <!-- 集会登録案内 -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingCommunity">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#collapseCommunity" aria-expanded="true"
+                                            aria-controls="collapseCommunity">
+                                        <i class="bi bi-people-fill me-2"></i>集会管理
+                                    </button>
+                                </h2>
+                                <div id="collapseCommunity" class="accordion-collapse collapse show"
+                                     aria-labelledby="headingCommunity" data-bs-parent="#settingsAccordion">
+                                    <div class="accordion-body">
+                                        <ul class="list-group list-group-flush">
+                                            <li class="list-group-item">
+                                                <a href="{% url 'community:create' %}" class="btn btn-primary">
+                                                    <i class="bi bi-plus-circle me-2"></i>集会を登録
+                                                </a>
+                                                <p class="text-muted mt-2 mb-0">
+                                                    技術系・学術系の集会を運営している方は、こちらから集会を登録できます。
+                                                </p>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
 
 
                             <!-- コミュニティ管理 -->

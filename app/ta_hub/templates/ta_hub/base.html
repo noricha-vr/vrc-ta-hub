@@ -367,10 +367,26 @@
                     </li>
 
                     {% if user.is_authenticated %}
-                        <li class="nav-item">
-                            <a class="nav-link text-light" href="{% url 'event:my_list' %}">
-                                {% get_user_community_name %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-light" href="#" role="button"
+                               data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-person-circle"></i>
                             </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                {% get_user_community_name as community_name %}
+                                {% if community_name %}
+                                    <li><a class="dropdown-item" href="{% url 'event:my_list' %}">
+                                        <i class="bi bi-calendar-event me-2"></i>{{ community_name }}
+                                    </a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                {% endif %}
+                                <li><a class="dropdown-item" href="{% url 'account:settings' %}">
+                                    <i class="bi bi-gear me-2"></i>設定
+                                </a></li>
+                                <li><a class="dropdown-item" href="{% url 'account:logout' %}">
+                                    <i class="bi bi-box-arrow-right me-2"></i>ログアウト
+                                </a></li>
+                            </ul>
                         </li>
                     {% else %}
                         <li class="nav-item">
