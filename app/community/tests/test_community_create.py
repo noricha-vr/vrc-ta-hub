@@ -93,8 +93,8 @@ class CommunityCreateViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'community/create.html')
 
-    def test_user_with_existing_community_redirected_to_settings(self):
-        """既に集会を持っているユーザーが設定ページにリダイレクトされることをテスト."""
+    def test_user_with_existing_community_can_access_create_page(self):
+        """既に集会を持っているユーザーも集会登録ページにアクセスできることをテスト（複数集会対応）."""
         # ユーザーに集会を作成
         Community.objects.create(
             custom_user=self.user,
@@ -105,8 +105,9 @@ class CommunityCreateViewTest(TestCase):
         )
         self.client.login(username='テストユーザー', password='testpass123')
         response = self.client.get(self.create_url)
-        self.assertEqual(response.status_code, 302)
-        self.assertRedirects(response, reverse('account:settings'))
+        # リダイレクトされずにページにアクセスできる
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'community/create.html')
 
     @patch('community.views.requests.post')
     def test_community_creation_via_post(self, mock_discord_post):
@@ -224,6 +225,78 @@ class CommunityCreateViewTest(TestCase):
         # can_editメソッドがTrueを返すことを確認
         self.assertTrue(community.can_edit(self.user))
 
+    @patch('community.views.requests.post')
+    def test_user_with_existing_community_can_create_new_community(self, mock_discord_post):
+        """既に集会を持っているユーザーが新しい集会を作成できることをテスト（複数集会対応）."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        # Discord通知のモック
+        mock_discord_post.return_value = MagicMock(status_code=200)
+
+        # 既存の集会を作成
+        existing_community = Community.objects.create(
+            custom_user=self.user,
+            name='既存集会',
+            frequency='毎週',
+            organizers='テスト主催者',
+            description='テスト説明'
+        )
+        CommunityMember.objects.create(
+            community=existing_community,
+            user=self.user,
+            role=CommunityMember.Role.OWNER
+        )
+
+        self.client.login(username='テストユーザー', password='testpass123')
+
+        # テスト用の画像ファイルを作成
+        test_image = SimpleUploadedFile(
+            name='test_poster.jpg',
+            content=b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x00\x00\x00\x21\xf9\x04\x01\x0a\x00\x01\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x4c\x01\x00\x3b',
+            content_type='image/gif'
+        )
+
+        # POSTデータ
+        post_data = {
+            'name': '新規集会',
+            'start_time': '20:00',
+            'duration': 60,
+            'weekdays': ['Sat'],
+            'frequency': '毎週',
+            'organizers': 'テスト主催者',
+            'group_url': '',
+            'organizer_url': '',
+            'sns_url': '',
+            'discord': '',
+            'twitter_hashtag': '',
+            'poster_image': test_image,
+            'allow_poster_repost': True,
+            'description': 'テスト説明',
+            'platform': 'All',
+            'tags': ['tech'],
+        }
+
+        response = self.client.post(self.create_url, post_data)
+
+        # 成功時はsettingsページにリダイレクト
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('account:settings'))
+
+        # ユーザーが2つの集会を持っていることを確認
+        user_communities = Community.objects.filter(custom_user=self.user)
+        self.assertEqual(user_communities.count(), 2)
+
+        # 新規集会が作成されていることを確認
+        new_community = Community.objects.get(name='新規集会')
+        self.assertEqual(new_community.custom_user, self.user)
+
+        # 新規集会のCommunityMemberが作成されていることを確認
+        self.assertTrue(CommunityMember.objects.filter(
+            community=new_community,
+            user=self.user,
+            role=CommunityMember.Role.OWNER
+        ).exists())
+
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 class SettingsViewCommunityButtonTest(TestCase):
@@ -270,20 +343,20 @@ class SettingsViewCommunityButtonTest(TestCase):
         self.settings_url = reverse('account:settings')
 
     def test_user_without_community_sees_add_button(self):
-        """集会がないユーザーに「集会を追加」ボタンが表示されることをテスト."""
+        """集会がないユーザーに集会作成リンクが表示されることをテスト."""
         self.client.login(username='集会なしユーザー', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '集会を追加')
+        self.assertContains(response, '新しい技術・学術系集会を始める')
         self.assertContains(response, reverse('community:create'))
 
     def test_user_with_community_also_sees_add_button(self):
-        """集会があるユーザーにも「集会を追加」ボタンが表示されることをテスト（複数集会対応）."""
+        """集会があるユーザーにも集会作成リンクが表示されることをテスト（複数集会対応）."""
         self.client.login(username='集会持ちユーザー', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
-        # 新しいレイアウトでは集会を追加ボタンは常に表示される
-        self.assertContains(response, '集会を追加')
+        # 新しいレイアウトでは集会作成リンクは常に表示される
+        self.assertContains(response, '新しい技術・学術系集会を始める')
         self.assertContains(response, reverse('community:create'))
 
 

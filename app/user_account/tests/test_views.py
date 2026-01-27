@@ -195,19 +195,19 @@ class SettingsViewTests(TestCase):
         # 集会追加ボタンが表示されていること
         self.assertContains(response, '集会を追加')
 
-    def test_settings_view_participant_shows_profile_and_security(self):
-        """参加者にプロフィールとセキュリティセクションが表示されること."""
+    def test_settings_view_participant_shows_account_items(self):
+        """参加者にアカウント関連の項目が表示されること."""
         self.client.login(username='test_settings_user', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
-        # プロフィールセクションが表示されていること
-        self.assertContains(response, 'プロフィール')
-        self.assertContains(response, 'ユーザー情報を更新')
-        # セキュリティセクションが表示されていること
-        self.assertContains(response, 'セキュリティ')
+        # ユーザー情報編集が表示されていること
+        self.assertContains(response, 'ユーザー情報を編集')
+        # パスワード変更が表示されていること
         self.assertContains(response, 'パスワードを変更')
-        # ログアウトセクションが表示されていること
+        # Discord連携が表示されていること
+        self.assertContains(response, 'Discord連携')
+        # ログアウトが表示されていること
         self.assertContains(response, 'ログアウト')
 
     def test_settings_view_owner_shows_my_communities_with_settings_link(self):
@@ -276,6 +276,42 @@ class SettingsViewTests(TestCase):
 
         # 集会追加ボタンが表示されていること（複数集会の追加が可能）
         self.assertContains(response, '集会を追加')
+
+    def test_settings_view_uses_list_layout(self):
+        """設定ページがリスト型レイアウトを使用していること."""
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # list-groupクラスが使用されていること
+        self.assertContains(response, 'list-group')
+        self.assertContains(response, 'list-group-item')
+        # アコーディオンが使用されていないこと
+        self.assertNotContains(response, 'accordion')
+        self.assertNotContains(response, 'accordion-item')
+
+    def test_settings_view_staff_sees_admin_section(self):
+        """スタッフユーザーには管理セクションが表示されること."""
+        # スタッフユーザーに変更
+        self.test_user.is_staff = True
+        self.test_user.save()
+
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # 承認待集会一覧リンクが表示されていること
+        self.assertContains(response, '承認待集会一覧')
+        self.assertContains(response, reverse('community:waiting_list'))
+
+    def test_settings_view_non_staff_does_not_see_admin_section(self):
+        """非スタッフユーザーには管理セクションが表示されないこと."""
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # 承認待集会一覧リンクが表示されていないこと
+        self.assertNotContains(response, '承認待集会一覧')
 
 
 class RegisterViewTests(TestCase):
