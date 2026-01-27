@@ -14,8 +14,10 @@ from .views import (
     ArchivedCommunityListView,
     SwitchCommunityView,
     CommunityMemberManageView,
-    AddStaffView,
     RemoveStaffView,
+    CreateInvitationView,
+    RevokeInvitationView,
+    AcceptInvitationView,
 )
 
 app_name = 'community'
@@ -33,6 +35,8 @@ urlpatterns = [
     path('close/<int:pk>/', CloseCommunityView.as_view(), name='close'),
     path('reopen/<int:pk>/', ReopenCommunityView.as_view(), name='reopen'),
     path('<int:pk>/members/', CommunityMemberManageView.as_view(), name='member_manage'),
-    path('<int:pk>/members/add/', AddStaffView.as_view(), name='add_staff'),
     path('<int:pk>/members/<int:member_id>/remove/', RemoveStaffView.as_view(), name='remove_staff'),
+    path('<int:pk>/invite/create/', CreateInvitationView.as_view(), name='create_invitation'),
+    path('<int:pk>/invite/<int:invitation_id>/revoke/', RevokeInvitationView.as_view(), name='revoke_invitation'),
+    path('invite/<str:token>/', AcceptInvitationView.as_view(), name='accept_invitation'),
 ]

@@ -6,7 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import DataError
 from django.db.models import Min, Q, F, Count
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -28,7 +28,7 @@ from .forms import CommunitySearchForm
 from .forms import CommunityUpdateForm
 from .forms import CommunityCreateForm
 from .libs import get_join_type
-from .models import Community, CommunityMember
+from .models import Community, CommunityMember, CommunityInvitation
 
 logger = logging.getLogger(__name__)
 
@@ -550,41 +550,14 @@ class CommunityMemberManageView(LoginRequiredMixin, UserPassesTestMixin, Templat
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['community'] = get_object_or_404(Community, pk=self.kwargs['pk'])
-        context['members'] = context['community'].members.select_related('user').order_by('role', 'created_at')
+        community = get_object_or_404(Community, pk=self.kwargs['pk'])
+        context['community'] = community
+        context['members'] = community.members.select_related('user').order_by('role', 'created_at')
+        # 有効な招待リンク一覧を取得
+        context['invitations'] = community.invitations.filter(
+            expires_at__gt=timezone.now()
+        ).select_related('created_by').order_by('-created_at')
         return context
-
-
-class AddStaffView(LoginRequiredMixin, View):
-    """スタッフ追加ビュー"""
-
-    def post(self, request, pk):
-        community = get_object_or_404(Community, pk=pk)
-        if not community.is_owner(request.user):
-            messages.error(request, '権限がありません')
-            return redirect('community:member_manage', pk=pk)
-
-        user_name = request.POST.get('user_name', '').strip()
-        if not user_name:
-            messages.error(request, 'ユーザー名を入力してください')
-            return redirect('community:member_manage', pk=pk)
-
-        user = CustomUser.objects.filter(user_name=user_name).first()
-        if not user:
-            messages.error(request, f'ユーザー「{user_name}」が見つかりません')
-            return redirect('community:member_manage', pk=pk)
-
-        membership, created = CommunityMember.objects.get_or_create(
-            community=community,
-            user=user,
-            defaults={'role': CommunityMember.Role.STAFF}
-        )
-        if created:
-            messages.success(request, f'{user_name} をスタッフに追加しました')
-        else:
-            messages.info(request, f'{user_name} は既にメンバーです')
-
-        return redirect('community:member_manage', pk=pk)
 
 
 class RemoveStaffView(LoginRequiredMixin, View):
@@ -613,3 +586,89 @@ class RemoveStaffView(LoginRequiredMixin, View):
         messages.success(request, f'{user_name} をメンバーから削除しました')
 
         return redirect('community:member_manage', pk=pk)
+
+
+class CreateInvitationView(LoginRequiredMixin, View):
+    """招待リンク生成ビュー（主催者のみ）"""
+
+    def post(self, request, pk):
+        community = get_object_or_404(Community, pk=pk)
+        if not community.is_owner(request.user):
+            messages.error(request, '権限がありません')
+            return redirect('community:member_manage', pk=pk)
+
+        invitation = CommunityInvitation.create_invitation(community, request.user)
+        messages.success(request, '招待リンクを生成しました')
+
+        return redirect('community:member_manage', pk=pk)
+
+
+class RevokeInvitationView(LoginRequiredMixin, View):
+    """招待リンク削除ビュー（主催者のみ）"""
+
+    def post(self, request, pk, invitation_id):
+        community = get_object_or_404(Community, pk=pk)
+        if not community.is_owner(request.user):
+            messages.error(request, '権限がありません')
+            return redirect('community:member_manage', pk=pk)
+
+        invitation = get_object_or_404(CommunityInvitation, pk=invitation_id, community=community)
+        invitation.delete()
+        messages.success(request, '招待リンクを削除しました')
+
+        return redirect('community:member_manage', pk=pk)
+
+
+class AcceptInvitationView(View):
+    """招待リンク受け入れビュー"""
+
+    def get(self, request, token):
+        """招待確認画面を表示"""
+        invitation = get_object_or_404(CommunityInvitation, token=token)
+
+        # 有効期限チェック
+        if not invitation.is_valid:
+            messages.error(request, 'この招待リンクは有効期限が切れています')
+            return redirect('ta_hub:index')
+
+        context = {
+            'invitation': invitation,
+            'community': invitation.community,
+        }
+
+        # 既存メンバーチェック（ログイン済みの場合）
+        if request.user.is_authenticated:
+            if invitation.community.is_manager(request.user):
+                context['is_already_member'] = True
+
+        return render(request, 'community/accept_invitation.html', context)
+
+    def post(self, request, token):
+        """招待を受け入れてメンバーになる"""
+        # ログインが必要
+        if not request.user.is_authenticated:
+            messages.error(request, '招待を受けるにはログインが必要です')
+            # ログイン後にこのページに戻ってくるようにnextパラメータを設定
+            return redirect(f'/accounts/login/?next={request.path}')
+
+        invitation = get_object_or_404(CommunityInvitation, token=token)
+
+        # 有効期限チェック
+        if not invitation.is_valid:
+            messages.error(request, 'この招待リンクは有効期限が切れています')
+            return redirect('ta_hub:index')
+
+        # 既存メンバーチェック
+        if invitation.community.is_manager(request.user):
+            messages.info(request, 'あなたは既にこの集会のメンバーです')
+            return redirect('community:detail', pk=invitation.community.pk)
+
+        # メンバーとして追加
+        CommunityMember.objects.create(
+            community=invitation.community,
+            user=request.user,
+            role=CommunityMember.Role.STAFF
+        )
+
+        messages.success(request, f'{invitation.community.name} のスタッフになりました')
+        return redirect('community:detail', pk=invitation.community.pk)

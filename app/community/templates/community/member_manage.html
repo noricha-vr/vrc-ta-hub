@@ -19,24 +19,57 @@
 
     <div class="card mb-4">
         <div class="card-header">
-            <i class="bi bi-person-plus me-2"></i>スタッフを追加
+            <i class="bi bi-link-45deg me-2"></i>招待リンク
         </div>
         <div class="card-body">
-            <form method="post" action="{% url 'community:add_staff' community.pk %}" class="row g-3">
+            <p class="text-muted mb-3">
+                招待リンクを共有すると、リンクにアクセスした人がスタッフとして参加できます。リンクは1週間有効です。
+            </p>
+            <form method="post" action="{% url 'community:create_invitation' community.pk %}">
                 {% csrf_token %}
-                <div class="col-auto flex-grow-1">
-                    <input type="text" name="user_name" class="form-control"
-                           placeholder="ユーザー名を入力" required>
-                </div>
-                <div class="col-auto">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-plus me-1"></i>追加
-                    </button>
-                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-1"></i>招待リンクを生成
+                </button>
             </form>
-            <small class="text-muted mt-2 d-block">
-                追加したいユーザーの「ユーザー名」を入力してください。ユーザー名は設定画面で確認できます。
-            </small>
+
+            {% if invitations %}
+            <hr>
+            <h6 class="mb-3">有効な招待リンク</h6>
+            <ul class="list-group">
+                {% for invitation in invitations %}
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="input-group mb-2">
+                                <input type="text" class="form-control form-control-sm"
+                                       id="invitation-{{ invitation.pk }}"
+                                       value="{{ request.scheme }}://{{ request.get_host }}{% url 'community:accept_invitation' invitation.token %}"
+                                       readonly>
+                                <button class="btn btn-outline-secondary btn-sm" type="button"
+                                        onclick="copyInvitationLink('invitation-{{ invitation.pk }}', this)">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                            <small class="text-muted">
+                                作成: {{ invitation.created_by.user_name }}
+                                ({{ invitation.created_at|date:"Y/m/d H:i" }}) |
+                                有効期限: {{ invitation.expires_at|date:"Y/m/d H:i" }}
+                            </small>
+                        </div>
+                        <form method="post"
+                              action="{% url 'community:revoke_invitation' community.pk invitation.pk %}"
+                              class="ms-2"
+                              onsubmit="return confirm('この招待リンクを削除しますか？');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
         </div>
     </div>
 
@@ -78,4 +111,23 @@
         </a>
     </div>
 </div>
+
+<script>
+function copyInvitationLink(inputId, button) {
+    const input = document.getElementById(inputId);
+    input.select();
+    input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value).then(function() {
+        const originalHtml = button.innerHTML;
+        button.innerHTML = '<i class="bi bi-check"></i>';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-success');
+        setTimeout(function() {
+            button.innerHTML = originalHtml;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 2000);
+    });
+}
+</script>
 {% endblock %}
