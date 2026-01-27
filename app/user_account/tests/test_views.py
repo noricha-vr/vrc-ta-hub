@@ -218,6 +218,27 @@ class RegisterViewTests(TestCase):
         response = self.client.get(self.register_url)
         self.assertContains(response, '<h4 class="mb-0">新規登録</h4>')
 
+    def test_register_page_contains_terms_agreement(self):
+        """新規登録ページに利用規約への同意文言が含まれていること."""
+        response = self.client.get(self.register_url)
+        self.assertContains(response, '登録することで')
+        self.assertContains(response, '利用規約')
+        self.assertContains(response, 'プライバシーポリシー')
+        self.assertContains(response, '同意したものとみなされます')
+
+    def test_register_page_terms_links_open_in_new_tab(self):
+        """利用規約とプライバシーポリシーのリンクが新しいタブで開くこと."""
+        response = self.client.get(self.register_url)
+        content = response.content.decode('utf-8')
+        # 利用規約リンクがtarget="_blank"を持つこと
+        self.assertIn('href="/terms/"', content)
+        self.assertIn('href="/privacy/"', content)
+        # target="_blank"とrel="noopener noreferrer"が設定されていること
+        self.assertIn('target="_blank"', content)
+        self.assertIn('rel="noopener noreferrer"', content)
+        self.assertIn('>利用規約</a>', content)
+        self.assertIn('>プライバシーポリシー</a>', content)
+
 
 class LoginPageRegisterLinkTests(TestCase):
     """ログインページの登録リンクテストクラス."""
