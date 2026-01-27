@@ -300,16 +300,16 @@ class SettingsPageCommunityDropdownTest(TestCase):
             frequency='隔週'
         )
 
-    def test_no_dropdown_when_no_communities(self):
-        """集会がない場合はドロップダウンが表示されない"""
+    def test_no_communities_shows_message(self):
+        """集会がない場合は「所属している集会はありません」が表示される"""
         self.client.login(username='テストユーザー', password='testpass123')
 
         response = self.client.get(reverse('account:settings'))
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, '管理中の集会を切り替え')
+        self.assertContains(response, '所属している集会はありません')
 
-    def test_no_dropdown_when_one_community(self):
-        """集会が1つの場合はドロップダウンが表示されない"""
+    def test_one_community_shows_in_list(self):
+        """集会が1つの場合はマイ集会リストに表示される"""
         CommunityMember.objects.create(
             community=self.community1,
             user=self.user,
@@ -319,12 +319,11 @@ class SettingsPageCommunityDropdownTest(TestCase):
 
         response = self.client.get(reverse('account:settings'))
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, '管理中の集会を切り替え')
-        self.assertContains(response, '管理中の集会')
+        self.assertContains(response, 'マイ集会')
         self.assertContains(response, '集会1')
 
-    def test_dropdown_when_multiple_communities(self):
-        """集会が複数の場合はドロップダウンが表示される"""
+    def test_multiple_communities_shown_in_list(self):
+        """集会が複数の場合は全てマイ集会リストに表示される"""
         CommunityMember.objects.create(
             community=self.community1,
             user=self.user,
@@ -339,7 +338,7 @@ class SettingsPageCommunityDropdownTest(TestCase):
 
         response = self.client.get(reverse('account:settings'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '管理中の集会を切り替え')
+        self.assertContains(response, 'マイ集会')
         self.assertContains(response, '集会1')
         self.assertContains(response, '集会2')
 
@@ -393,21 +392,33 @@ class MemberManageLinkTest(TestCase):
             role=CommunityMember.Role.STAFF
         )
 
-    def test_owner_sees_member_manage_link_on_settings(self):
-        """主催者は設定ページでメンバー管理リンクを見ることができる"""
+    def test_owner_sees_member_manage_link_on_community_settings(self):
+        """主催者は集会設定ページでメンバー管理リンクを見ることができる"""
         self.client.login(username='オーナー', password='testpass123')
+        # セッションにactive_community_idを設定
+        session = self.client.session
+        session['active_community_id'] = self.community.id
+        session.save()
 
-        response = self.client.get(reverse('account:settings'))
+        response = self.client.get(reverse('community:settings'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'メンバー管理')
 
-    def test_staff_does_not_see_member_manage_link_on_settings(self):
-        """スタッフは設定ページでメンバー管理リンクを見ることができない"""
+    def test_staff_does_not_see_member_manage_link_on_community_settings(self):
+        """スタッフは集会設定ページでメンバー管理リンクを見ることができない"""
         self.client.login(username='スタッフ', password='testpass123')
+        # セッションにactive_community_idを設定
+        session = self.client.session
+        session['active_community_id'] = self.community.id
+        session.save()
 
-        response = self.client.get(reverse('account:settings'))
+        response = self.client.get(reverse('community:settings'))
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'メンバー管理')
+        # is_owner はスタッフには False であるべき
+        self.assertFalse(response.context.get('is_owner', True))
+        # メンバー管理セクションのヘッダーが表示されていないこと
+        # 「メンバーを管理」ボタンが表示されていないことを確認
+        self.assertNotContains(response, 'メンバーを管理')
 
     def test_owner_sees_member_manage_link_on_update(self):
         """主催者は集会編集ページでメンバー管理リンクを見ることができる"""

@@ -269,23 +269,22 @@ class SettingsViewCommunityButtonTest(TestCase):
         )
         self.settings_url = reverse('account:settings')
 
-    def test_user_without_community_sees_create_button(self):
-        """集会がないユーザーに「集会を登録」ボタンが表示されることをテスト."""
+    def test_user_without_community_sees_add_button(self):
+        """集会がないユーザーに「集会を追加」ボタンが表示されることをテスト."""
         self.client.login(username='集会なしユーザー', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '集会を登録')
+        self.assertContains(response, '集会を追加')
         self.assertContains(response, reverse('community:create'))
 
-    def test_user_with_community_does_not_see_create_button(self):
-        """集会があるユーザーには「集会を登録」ボタンが表示されないことをテスト."""
+    def test_user_with_community_also_sees_add_button(self):
+        """集会があるユーザーにも「集会を追加」ボタンが表示されることをテスト（複数集会対応）."""
         self.client.login(username='集会持ちユーザー', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
-        # 集会登録ボタンが表示されない
-        self.assertNotContains(response, reverse('community:create'))
-        # 集会編集リンクが表示される
-        self.assertContains(response, '集会情報を編集')
+        # 新しいレイアウトでは集会を追加ボタンは常に表示される
+        self.assertContains(response, '集会を追加')
+        self.assertContains(response, reverse('community:create'))
 
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)

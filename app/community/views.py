@@ -518,26 +518,48 @@ class ArchivedCommunityListView(ListView):
 class SwitchCommunityView(LoginRequiredMixin, View):
     """アクティブな集会を切り替えるビュー"""
 
+    def _get_redirect_url(self, request, success=False):
+        """リダイレクト先URLを取得する。
+
+        POSTパラメータのredirect_toを優先し、なければHTTP_REFERERを使用。
+        両方ない場合はevent:my_listにリダイレクト。
+
+        Args:
+            request: HTTPリクエスト
+            success: 切り替え成功時かどうか（True: redirect_to優先、False: referer優先）
+        """
+        redirect_to = request.POST.get('redirect_to')
+        referer = request.META.get('HTTP_REFERER', '')
+
+        if success and redirect_to:
+            return redirect_to
+        if referer:
+            return referer
+        return 'event:my_list'
+
     def post(self, request):
         community_id = request.POST.get('community_id')
+
         if community_id:
             # community_idが整数に変換可能かを先にチェック
             try:
                 community_id_int = int(community_id)
             except (ValueError, TypeError):
                 messages.error(request, '無効な集会IDです。')
-                return redirect(request.META.get('HTTP_REFERER', 'account:settings'))
+                return redirect(self._get_redirect_url(request, success=False))
 
             # ユーザーがその集会のメンバーであることを確認
             if request.user.community_memberships.filter(community_id=community_id_int).exists():
                 request.session['active_community_id'] = community_id_int
                 messages.success(request, '集会を切り替えました。')
+                # 切り替え成功時はredirect_toまたはevent:my_listに遷移
+                return redirect(self._get_redirect_url(request, success=True))
             else:
                 messages.error(request, 'この集会へのアクセス権限がありません。')
         else:
             messages.error(request, '集会が指定されていません。')
 
-        return redirect(request.META.get('HTTP_REFERER', 'account:settings'))
+        return redirect(self._get_redirect_url(request, success=False))
 
 
 class CommunityMemberManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):

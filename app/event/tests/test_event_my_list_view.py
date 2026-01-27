@@ -356,3 +356,4 @@ class EventMyListDashboardTest(TestCase):
         self.assertContains(response, '集会情報編集')
         self.assertContains(response, 'LT履歴')
         self.assertContains(response, '集会設定')
+        self.assertContains(response, 'API管理')
