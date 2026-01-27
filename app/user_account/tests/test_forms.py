@@ -75,10 +75,10 @@ class BootstrapAuthenticationFormTests(TestCase):
                 self.assertIn('form-control', css_class)
 
     def test_username_field_has_correct_label(self):
-        """usernameフィールドのラベルが「集会名」であること."""
+        """usernameフィールドのラベルが「ユーザー名」であること."""
         request = self.factory.post('/account/login/')
         form = BootstrapAuthenticationForm(request=request)
-        self.assertEqual(form.fields['username'].label, '集会名')
+        self.assertEqual(form.fields['username'].label, 'ユーザー名')
 
     def test_inactive_user_cannot_login(self):
         """非アクティブユーザーがログインできないこと."""

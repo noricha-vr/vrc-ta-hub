@@ -1,0 +1,104 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block title %}集会設定 - {{ community.name }}{% endblock %}
+
+{% block main %}
+<div class="container py-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">マイページ</a></li>
+            <li class="breadcrumb-item active">集会設定</li>
+        </ol>
+    </nav>
+
+    <h1 class="h3 mb-4">集会設定: {{ community.name }}</h1>
+
+    {% include 'ta_hub/messages.html' %}
+
+    <!-- 基本情報セクション -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fa-solid fa-info-circle me-2"></i>基本情報
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <label class="text-muted">集会名</label>
+                    <p class="mb-0">{{ community.name }}</p>
+                </div>
+                <div class="col-md-4">
+                    <label class="text-muted">開催曜日</label>
+                    <p class="mb-0">
+                        {% for weekday in community.weekdays %}
+                            {% if weekday == 'Sun' %}日曜日{% endif %}
+                            {% if weekday == 'Mon' %}月曜日{% endif %}
+                            {% if weekday == 'Tue' %}火曜日{% endif %}
+                            {% if weekday == 'Wed' %}水曜日{% endif %}
+                            {% if weekday == 'Thu' %}木曜日{% endif %}
+                            {% if weekday == 'Fri' %}金曜日{% endif %}
+                            {% if weekday == 'Sat' %}土曜日{% endif %}
+                            {% if weekday == 'Other' %}その他{% endif %}
+                            {% if not forloop.last %}、{% endif %}
+                        {% empty %}
+                            -
+                        {% endfor %}
+                    </p>
+                </div>
+                <div class="col-md-4">
+                    <label class="text-muted">開始時刻</label>
+                    <p class="mb-0">{{ community.start_time|time:"H:i" }}</p>
+                </div>
+            </div>
+            <a href="{% url 'community:update' %}" class="btn btn-primary">
+                <i class="fa-solid fa-edit me-1"></i>集会情報を編集
+            </a>
+        </div>
+    </div>
+
+    <!-- 外部連携セクション -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fa-solid fa-link me-2"></i>外部連携
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3 mb-md-0">
+                    <h6 class="mb-2">VRCイベントカレンダー連携</h6>
+                    <p class="text-muted small mb-2">VRCイベントカレンダー用の情報を設定します。</p>
+                    <a href="{% url 'community:calendar_update' %}" class="btn btn-outline-primary">
+                        <i class="fa-solid fa-calendar me-1"></i>カレンダー設定
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="mb-2">Twitter投稿テンプレート</h6>
+                    <p class="text-muted small mb-2">イベント告知用のテンプレートを管理します。</p>
+                    <a href="{% url 'twitter:template_list' %}" class="btn btn-outline-primary">
+                        <i class="fa-brands fa-twitter me-1"></i>テンプレート管理
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- メンバー管理セクション（主催者のみ） -->
+    {% if is_owner %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fa-solid fa-users me-2"></i>メンバー管理
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-2">スタッフの追加・削除や招待リンクの管理を行います。</p>
+            <a href="{% url 'community:member_manage' community.pk %}" class="btn btn-outline-primary">
+                <i class="fa-solid fa-user-cog me-1"></i>メンバーを管理
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="mt-4">
+        <a href="{% url 'event:my_list' %}" class="btn btn-secondary">
+            <i class="fa-solid fa-arrow-left me-1"></i>マイページに戻る
+        </a>
+    </div>
+</div>
+{% endblock %}

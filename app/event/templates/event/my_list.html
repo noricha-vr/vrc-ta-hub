@@ -3,63 +3,89 @@
 
 {% block main %}
     <div class="container my-4">
-        <a href="{% url 'community:list' %}" class="text-decoration-none text-black">
-            <h1 class="text-center my-5 fw-bold keiko_yellow">
-                {{ request.user }} イベント一覧
+        {# ヘッダー部分 - 集会切り替えドロップダウン #}
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="fw-bold keiko_yellow">
+                マイページ:
+                {% if communities|length > 1 %}
+                <div class="dropdown d-inline-block">
+                    <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        {% if active_community %}{{ active_community.name }}{% else %}集会を選択{% endif %}
+                    </button>
+                    <ul class="dropdown-menu">
+                        {% for community in communities %}
+                        <li>
+                            <form method="post" action="{% url 'community:switch' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="community_id" value="{{ community.id }}">
+                                <button type="submit" class="dropdown-item {% if active_community and community.id == active_community.id %}active{% endif %}">
+                                    {{ community.name }}
+                                </button>
+                            </form>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% elif active_community %}
+                {{ active_community.name }}
+                {% else %}
+                集会未登録
+                {% endif %}
             </h1>
-        </a>
+        </div>
+
+        {# システムメッセージ #}
         <div class="row">
             <div class="col-12 col-md-10 offset-md-1">
                 {% include 'ta_hub/messages.html' %}
             </div>
         </div>
-        <div class="d-flex justify-content-center mb-3">
-            {% if community %}
-                <div>
-                    <a href="{% url 'community:detail' community.pk %}"
-                       class="btn btn-outline-primary me-2">{{ community.name }}</a>
-                </div>
-                <div><a href="{% url 'event:detail_history' %}?community_name={{ community.name }}"
-                        class="btn btn-outline-primary me-2">LT履歴</a>
-                </div>
-                <div><a href="{% url 'event:calendar_create' %}" class="btn btn-primary me-2">
-                    <i class="fas fa-plus"></i> イベント登録
-                </a>
-                </div>
-                <div><a href="{% url 'account:settings' %}" class="btn btn-secondary me-2">
-                    <i class="fas fa-cog"></i> 設定
-                </a>
-                </div>
-            {% endif %}
+
+        {# クイックアクション #}
+        {% if community %}
+        <div class="d-flex flex-wrap gap-2 justify-content-center mb-4">
+            <a href="{% url 'event:calendar_create' %}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> イベント登録
+            </a>
+            <a href="{% url 'community:update' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-edit"></i> 集会情報編集
+            </a>
+            <a href="{% url 'event:detail_history' %}?community_name={{ community.name }}" class="btn btn-outline-secondary">
+                <i class="fas fa-history"></i> LT履歴
+            </a>
+            <a href="{% url 'community:settings' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-cog"></i> 集会設定
+            </a>
+            <a href="{% url 'community:detail' community.pk %}" class="btn btn-outline-primary">
+                <i class="fas fa-eye"></i> 公開ページ
+            </a>
         </div>
-        
-        {% comment %}ポスター未設定の警告メッセージ{% endcomment %}
-        {% if community and not community.poster_image %}
+        {% endif %}
+
+        {# 警告エリア #}
+        {% if warnings %}
             <div class="row">
                 <div class="col-12 col-md-10 offset-md-1 mb-3">
-                    <div class="alert alert-warning" role="alert">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                        <strong>ポスター画像が設定されていません。</strong>
-                        ポスター画像を設定しないと、集会一覧やトップページにイベントが表示されません。
-                        <a href="{% url 'community:update' %}" class="alert-link">こちらから設定してください。</a>
+                    {% for warning in warnings %}
+                    <div class="alert alert-{{ warning.type }} d-flex justify-content-between align-items-center" role="alert">
+                        <span>
+                            {% if warning.type == 'warning' %}
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            {% elif warning.type == 'info' %}
+                            <i class="bi bi-info-circle-fill me-2"></i>
+                            {% endif %}
+                            {{ warning.message }}
+                        </span>
+                        {% if warning.link %}
+                        <a href="{{ warning.link }}" class="btn btn-sm btn-outline-{{ warning.type }}">{{ warning.link_text }}</a>
+                        {% endif %}
                     </div>
+                    {% endfor %}
                 </div>
             </div>
         {% endif %}
-        
-        {% comment %}未来のイベントがない場合の警告メッセージ{% endcomment %}
-        {% if not has_future_events %}
-            <div class="row">
-                <div class="col-12 col-md-10 offset-md-1 mb-3">
-                    <div class="alert alert-info" role="alert">
-                        <i class="bi bi-info-circle-fill me-2"></i>
-                        <strong>今後のイベントが登録されていません。</strong>
-                        <a href="{% url 'event:calendar_create' %}" class="alert-link">イベントを登録</a>してください。
-                    </div>
-                </div>
-            </div>
-        {% endif %}
-        
+
+        {# イベント一覧 #}
         {% for event in events %}
             <div class="row">
                 <div class="col-12 col-md-10 offset-md-1 mb-4">
@@ -95,7 +121,7 @@
                                                     {% endif %}
                                                 {% endwith %}
                                             {% endif %}
-                                            
+
                                             <form method="post" class="mt-2" action="{% url 'event:delete' event.pk %}">
                                                 {% csrf_token %}
                                                 {% if event.date|date:"Y-m-d" >= current_date %}
@@ -148,7 +174,7 @@
                                             {% if detail.contents == '' %}
                                                 <form method="post" action="{% url 'event:generate_blog' detail.pk %}" class="d-inline">
                                                     {% csrf_token %}
-                                                    <button type="submit" class="btn btn-primary" id="generate-button">
+                                                    <button type="submit" class="btn btn-primary generate-button">
                                                         記事生成
                                                     </button>
                                                 </form>
@@ -168,8 +194,11 @@
             </div>
         {% empty %}
             <div class="row">
-                <p>イベントがありません。「イベント登録」を行ってください。
-                </p>
+                <div class="col-12 col-md-10 offset-md-1">
+                    <div class="alert alert-secondary" role="alert">
+                        <p class="mb-0">イベントがありません。「イベント登録」を行ってください。</p>
+                    </div>
+                </div>
             </div>
         {% endfor %}
 
@@ -179,10 +208,12 @@
 
 
     <script>
-        document.getElementById('generate-button').addEventListener('click', function (event) {
-            event.target.disabled = true;
-            event.target.textContent = '生成中...';
-            event.target.form.submit();
+        document.querySelectorAll('.generate-button').forEach(function(button) {
+            button.addEventListener('click', function (event) {
+                event.target.disabled = true;
+                event.target.textContent = '生成中...';
+                event.target.form.submit();
+            });
         });
     </script>
 {% endblock %}

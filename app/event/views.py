@@ -747,20 +747,88 @@ class EventMyList(LoginRequiredMixin, ListView):
     context_object_name = 'events'
     paginate_by = 20
 
-    def get_queryset(self):
-        today = get_vrchat_today()
-
-        # ユーザーが管理者である集会のIDを取得
+    def _get_user_communities(self):
+        """ユーザーが管理者である集会のID一覧を取得する"""
         user_community_ids = list(
             self.request.user.community_memberships.values_list('community_id', flat=True)
         )
 
         # 後方互換: custom_userベースの集会も追加（CommunityMember未作成の集会用）
-        from community.models import Community
         legacy_community_ids = list(
             Community.objects.filter(custom_user=self.request.user).values_list('id', flat=True)
         )
-        user_community_ids = list(set(user_community_ids + legacy_community_ids))
+        return list(set(user_community_ids + legacy_community_ids))
+
+    def _get_active_community(self):
+        """アクティブな集会を取得する"""
+        active_community_id = self.request.session.get('active_community_id')
+        if active_community_id:
+            membership = self.request.user.community_memberships.filter(
+                community_id=active_community_id
+            ).select_related('community').first()
+            if membership:
+                return membership.community
+
+        # フォールバック: 最初の管理集会
+        membership = self.request.user.community_memberships.select_related('community').first()
+        if membership:
+            return membership.community
+
+        # 後方互換: custom_userを使用
+        return Community.objects.filter(custom_user=self.request.user).first()
+
+    def _get_user_communities_list(self):
+        """ユーザーが管理者である集会のオブジェクト一覧を取得する"""
+        communities = []
+
+        # メンバーシップベースの集会
+        for membership in self.request.user.community_memberships.select_related('community'):
+            communities.append(membership.community)
+
+        # 後方互換: custom_userベースの集会（メンバーシップに含まれていないもの）
+        legacy_communities = Community.objects.filter(
+            custom_user=self.request.user
+        ).exclude(
+            id__in=[c.id for c in communities]
+        )
+        communities.extend(legacy_communities)
+
+        return communities
+
+    def _get_warnings(self, community):
+        """アクティブな集会に対する警告リストを取得する"""
+        warnings = []
+        if not community:
+            return warnings
+
+        # ポスター未設定警告
+        if not community.poster_image:
+            warnings.append({
+                'type': 'warning',
+                'message': 'ポスター画像が設定されていません。ポスター画像を設定しないと、集会一覧やトップページにイベントが表示されません。',
+                'link': reverse('community:update'),
+                'link_text': '設定する'
+            })
+
+        # 今後のイベントなし警告
+        future_events = Event.objects.filter(
+            community=community,
+            date__gte=timezone.now().date()
+        ).exists()
+        if not future_events:
+            warnings.append({
+                'type': 'info',
+                'message': '今後のイベントが登録されていません。',
+                'link': reverse('event:calendar_create'),
+                'link_text': 'イベントを登録'
+            })
+
+        return warnings
+
+    def get_queryset(self):
+        today = get_vrchat_today()
+
+        user_community_ids = self._get_user_communities()
 
         # アクティブな集会が設定されている場合はその集会のみを対象に
         active_community_id = self.request.session.get('active_community_id')
@@ -794,30 +862,6 @@ class EventMyList(LoginRequiredMixin, ListView):
                 continue
             event.calendar_url = create_calendar_entry_url(event)
         return queryset
-
-    def _get_community_info(self):
-        """
-        ログインユーザーのアクティブなコミュニティ情報を取得する
-
-        Returns:
-            Community: ユーザーのコミュニティ情報
-        """
-        # セッションからactive_community_idを取得
-        active_community_id = self.request.session.get('active_community_id')
-        if active_community_id:
-            membership = self.request.user.community_memberships.filter(
-                community_id=active_community_id
-            ).select_related('community').first()
-            if membership:
-                return membership.community
-
-        # フォールバック: 最初の管理集会
-        membership = self.request.user.community_memberships.select_related('community').first()
-        if membership:
-            return membership.community
-
-        # 後方互換: custom_userを使用
-        return Community.objects.filter(custom_user=self.request.user).first()
 
     def _set_twitter_button_flags(self, events):
         """
@@ -888,14 +932,22 @@ class EventMyList(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         """
         テンプレートに渡すコンテキストデータを準備する
-        
+
         各機能は専用のプライベートメソッドに分割され、
         このメソッドではそれらを順番に呼び出して結果を組み合わせる
         """
         context = super().get_context_data(**kwargs)
 
-        # コミュニティ情報を取得
-        context['community'] = self._get_community_info()
+        # コミュニティ情報を取得（アクティブな集会）
+        active_community = self._get_active_community()
+        context['community'] = active_community
+        context['active_community'] = active_community
+
+        # 所属集会一覧を取得
+        context['communities'] = self._get_user_communities_list()
+
+        # 警告リストを取得
+        context['warnings'] = self._get_warnings(active_community)
 
         # イベントリストを取得
         events = context['events']

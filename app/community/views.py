@@ -672,3 +672,58 @@ class AcceptInvitationView(View):
 
         messages.success(request, f'{invitation.community.name} のスタッフになりました')
         return redirect('community:detail', pk=invitation.community.pk)
+
+
+class CommunitySettingsView(LoginRequiredMixin, TemplateView):
+    """集会設定ページビュー"""
+    template_name = "community/settings.html"
+
+    def get_active_community(self):
+        """セッションからアクティブな集会を取得"""
+        community_id = self.request.session.get('active_community_id')
+        if community_id:
+            try:
+                membership = self.request.user.community_memberships.select_related(
+                    'community'
+                ).get(community_id=community_id)
+                return membership.community, membership
+            except CommunityMember.DoesNotExist:
+                pass
+
+        # フォールバック: 最初のメンバーシップを取得
+        membership = self.request.user.community_memberships.select_related(
+            'community'
+        ).first()
+        if membership:
+            return membership.community, membership
+
+        # 後方互換: custom_userとして関連付けられた集会
+        community = Community.objects.filter(custom_user=self.request.user).first()
+        if community:
+            return community, None
+
+        return None, None
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            community, _ = self.get_active_community()
+            if not community:
+                messages.warning(request, '管理している集会がありません。')
+                return redirect('account:settings')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        community, membership = self.get_active_community()
+        context['community'] = community
+
+        # is_owner の判定
+        if membership:
+            context['is_owner'] = membership.role == CommunityMember.Role.OWNER
+        elif community and community.custom_user == self.request.user:
+            # 後方互換: custom_userは主催者とみなす
+            context['is_owner'] = True
+        else:
+            context['is_owner'] = False
+
+        return context
