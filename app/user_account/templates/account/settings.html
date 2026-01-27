@@ -9,178 +9,119 @@
                     <div class="card-header bg-primary text-white">
                         <h4 class="mb-0">アカウント設定</h4>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body p-0">
                         {% include 'ta_hub/messages.html' %}
 
                         {% if not user.email %}
-                            <div class="alert alert-warning" role="alert">
+                            <div class="alert alert-warning m-3 mb-0" role="alert">
                                 <i class="bi bi-exclamation-triangle-fill me-2"></i>
                                 <strong>メールアドレスが未設定です。</strong>
                                 集会の承認通知などを受け取るために、<a href="{% url 'account:user_update' %}" class="alert-link">ユーザー情報を更新</a>してメールアドレスを設定してください。
                             </div>
                         {% endif %}
 
-                        <div class="accordion" id="settingsAccordion">
-                            <!-- マイ集会（デフォルトで開く） -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="headingMyCommunities">
-                                    <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                                            data-bs-target="#collapseMyCommunities" aria-expanded="true"
-                                            aria-controls="collapseMyCommunities">
-                                        <i class="bi bi-people-fill me-2"></i>マイ集会
-                                    </button>
-                                </h2>
-                                <div id="collapseMyCommunities" class="accordion-collapse collapse show"
-                                     aria-labelledby="headingMyCommunities" data-bs-parent="#settingsAccordion">
-                                    <div class="accordion-body">
-                                        {% if user_communities %}
-                                            <ul class="list-group list-group-flush mb-3">
-                                                {% for membership in user_communities %}
-                                                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                                                        <form method="post" action="{% url 'community:switch' %}" class="d-inline">
-                                                            {% csrf_token %}
-                                                            <input type="hidden" name="community_id" value="{{ membership.community.id }}">
-                                                            <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
-                                                            <button type="submit" class="btn btn-link text-decoration-none p-0 text-start">
-                                                                <i class="bi bi-house-door me-2"></i>{{ membership.community.name }}
-                                                                <span class="badge bg-secondary ms-1">{{ membership.get_role_display }}</span>
-                                                            </button>
-                                                        </form>
-                                                        <form method="post" action="{% url 'community:switch' %}" class="d-inline">
-                                                            {% csrf_token %}
-                                                            <input type="hidden" name="community_id" value="{{ membership.community.id }}">
-                                                            <input type="hidden" name="redirect_to" value="{% url 'community:settings' %}">
-                                                            <button type="submit" class="btn btn-outline-primary btn-sm">
-                                                                <i class="bi bi-gear me-1"></i>設定
-                                                            </button>
-                                                        </form>
-                                                    </li>
-                                                {% endfor %}
-                                            </ul>
-                                        {% else %}
-                                            <p class="text-muted mb-3">
-                                                所属している集会はありません。
-                                            </p>
-                                        {% endif %}
-                                        <a href="{% url 'community:create' %}" class="btn btn-primary">
-                                            <i class="bi bi-plus-circle me-2"></i>集会を追加
-                                        </a>
+                        <!-- マイ集会セクション -->
+                        <div class="p-3 pb-0">
+                            <h6 class="text-muted mb-2">
+                                <i class="fa-solid fa-users me-2"></i>マイ集会
+                            </h6>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            {% if user_communities %}
+                                {% for membership in user_communities %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <form method="post" action="{% url 'community:switch' %}" class="d-inline flex-grow-1">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="community_id" value="{{ membership.community.id }}">
+                                            <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
+                                            <button type="submit" class="btn btn-link text-decoration-none p-0 text-start">
+                                                <i class="fa-solid fa-house me-2"></i>{{ membership.community.name }}
+                                                <span class="badge bg-secondary ms-1">{{ membership.get_role_display }}</span>
+                                            </button>
+                                        </form>
+                                        <form method="post" action="{% url 'community:switch' %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="community_id" value="{{ membership.community.id }}">
+                                            <input type="hidden" name="redirect_to" value="{% url 'community:settings' %}">
+                                            <button type="submit" class="btn btn-link text-decoration-none p-0">
+                                                <span class="text-muted">設定</span>
+                                                <i class="fa-solid fa-chevron-right ms-2 text-muted"></i>
+                                            </button>
+                                        </form>
                                     </div>
-                                </div>
-                            </div>
-
-                            <!-- プロフィール設定 -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="headingProfile">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                                            data-bs-target="#collapseProfile" aria-expanded="false"
-                                            aria-controls="collapseProfile">
-                                        <i class="bi bi-person-fill me-2"></i>プロフィール
-                                    </button>
-                                </h2>
-                                <div id="collapseProfile" class="accordion-collapse collapse"
-                                     aria-labelledby="headingProfile" data-bs-parent="#settingsAccordion">
-                                    <div class="accordion-body">
-                                        <ul class="list-group list-group-flush">
-                                            <li class="list-group-item">
-                                                <a href="{% url 'account:user_update' %}" class="text-decoration-none">
-                                                    <i class="bi bi-person-lines-fill me-2"></i>ユーザー情報を更新
-                                                </a>
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- セキュリティ -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="headingSecurity">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                                            data-bs-target="#collapseSecurity" aria-expanded="false"
-                                            aria-controls="collapseSecurity">
-                                        <i class="bi bi-shield-lock-fill me-2"></i>セキュリティ
-                                    </button>
-                                </h2>
-                                <div id="collapseSecurity" class="accordion-collapse collapse"
-                                     aria-labelledby="headingSecurity" data-bs-parent="#settingsAccordion">
-                                    <div class="accordion-body">
-                                        <ul class="list-group list-group-flush">
-                                            <li class="list-group-item">
-                                                <a href="{% url 'account:password_change' %}"
-                                                   class="text-decoration-none">
-                                                    <i class="bi bi-key-fill me-2"></i>パスワードを変更
-                                                </a>
-                                            </li>
-                                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                                <span>
-                                                    <i class="fab fa-discord me-2" style="color: #5865F2;"></i>Discord連携
-                                                </span>
-                                                {% get_social_accounts user as social_accounts %}
-                                                {% if social_accounts.discord %}
-                                                    <span class="badge bg-success">
-                                                        <i class="bi bi-check-circle me-1"></i>連携済み
-                                                    </span>
-                                                {% else %}
-                                                    <a href="{% provider_login_url 'discord' process='connect' %}" class="btn btn-sm" style="background-color: #5865F2; color: white;">
-                                                        <i class="fab fa-discord me-1"></i>連携する
-                                                    </a>
-                                                {% endif %}
-                                            </li>
-                                        </ul>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- サイト管理（管理者のみ） -->
-                            {% if user.is_staff %}
-                                <div class="accordion-item">
-                                    <h2 class="accordion-header" id="headingSiteManagement">
-                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                                                data-bs-target="#collapseSiteManagement" aria-expanded="false"
-                                                aria-controls="collapseSiteManagement">
-                                            <i class="bi bi-gear-fill me-2"></i>サイト管理
-                                        </button>
-                                    </h2>
-                                    <div id="collapseSiteManagement" class="accordion-collapse collapse"
-                                         aria-labelledby="headingSiteManagement"
-                                         data-bs-parent="#settingsAccordion">
-                                        <div class="accordion-body">
-                                            <ul class="list-group list-group-flush">
-                                                <li class="list-group-item">
-                                                    <a href="{% url 'community:waiting_list' %}"
-                                                       class="text-decoration-none">
-                                                        <i class="bi bi-hourglass-split me-2"></i>承認待集会一覧
-                                                    </a>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="list-group-item text-muted">
+                                    所属している集会はありません。
                                 </div>
                             {% endif %}
+                            <a href="{% url 'community:create' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                <span>
+                                    <i class="fa-solid fa-plus me-2 text-primary"></i>新しい技術・学術系集会を始める
+                                </span>
+                                <i class="fa-solid fa-chevron-right text-muted"></i>
+                            </a>
+                        </div>
 
-                            <!-- ログアウト -->
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="headingLogout">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                                            data-bs-target="#collapseLogout" aria-expanded="false"
-                                            aria-controls="collapseLogout">
-                                        <i class="bi bi-box-arrow-right me-2"></i>ログアウト
-                                    </button>
-                                </h2>
-                                <div id="collapseLogout" class="accordion-collapse collapse"
-                                     aria-labelledby="headingLogout" data-bs-parent="#settingsAccordion">
-                                    <div class="accordion-body">
-                                        <ul class="list-group list-group-flush">
-                                            <li class="list-group-item">
-                                                <a href="{% url 'account:logout' %}" class="text-decoration-none text-danger">
-                                                    <i class="bi bi-box-arrow-right me-2"></i>ログアウトする
-                                                </a>
-                                            </li>
-                                        </ul>
-                                    </div>
+                        <hr class="my-0">
+
+                        <!-- アカウントセクション -->
+                        <div class="list-group list-group-flush">
+                            <a href="{% url 'account:user_update' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                <span>
+                                    <i class="fa-solid fa-user me-2"></i>ユーザー情報を編集
+                                </span>
+                                <i class="fa-solid fa-chevron-right text-muted"></i>
+                            </a>
+                            <a href="{% url 'account:password_change' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                <span>
+                                    <i class="fa-solid fa-lock me-2"></i>パスワードを変更
+                                </span>
+                                <i class="fa-solid fa-chevron-right text-muted"></i>
+                            </a>
+                            {% get_social_accounts user as social_accounts %}
+                            {% if social_accounts.discord %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="fa-brands fa-discord me-2" style="color: #5865F2;"></i>Discord連携
+                                    </span>
+                                    <span class="badge bg-success">
+                                        <i class="fa-solid fa-check me-1"></i>連携済み
+                                    </span>
                                 </div>
-                            </div>
+                            {% else %}
+                                <a href="{% provider_login_url 'discord' process='connect' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="fa-brands fa-discord me-2" style="color: #5865F2;"></i>Discord連携
+                                    </span>
+                                    <span>
+                                        <span class="text-muted me-2">未連携</span>
+                                        <i class="fa-solid fa-chevron-right text-muted"></i>
+                                    </span>
+                                </a>
+                            {% endif %}
+                        </div>
 
+                        <!-- 管理セクション（スタッフのみ） -->
+                        {% if user.is_staff %}
+                            <hr class="my-0">
+                            <div class="list-group list-group-flush">
+                                <a href="{% url 'community:waiting_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="fa-solid fa-gear me-2"></i>承認待集会一覧
+                                    </span>
+                                    <i class="fa-solid fa-chevron-right text-muted"></i>
+                                </a>
+                            </div>
+                        {% endif %}
+
+                        <hr class="my-0">
+
+                        <!-- ログアウトセクション -->
+                        <div class="list-group list-group-flush">
+                            <a href="{% url 'account:logout' %}" class="list-group-item list-group-item-action text-danger">
+                                <i class="fa-solid fa-right-from-bracket me-2"></i>ログアウト
+                            </a>
                         </div>
                     </div>
                 </div>
