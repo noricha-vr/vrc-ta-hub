@@ -9,7 +9,7 @@ import string
 class CustomUserManager(BaseUserManager):
     def create_user(self, user_name, email=None, password=None, **extra_fields):
         if not user_name:
-            raise ValueError('集会名は必須項目です。')
+            raise ValueError('ユーザー名は必須項目です。')
         email = self.normalize_email(email)
         user = self.model(user_name=user_name, email=email, **extra_fields)
         user.set_password(password)
@@ -30,12 +30,12 @@ class CustomUserManager(BaseUserManager):
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     user_name = models.CharField(
-        '集会名',
+        'ユーザー名',
         max_length=150,
         unique=True,
         help_text='必須。150文字以下。文字、数字、@/./+/-/_のみ使用可能です。',
         error_messages={
-            'unique': "その集会名はすでに使用されています。",
+            'unique': "そのユーザー名はすでに使用されています。",
         },
     )
     email = models.EmailField(

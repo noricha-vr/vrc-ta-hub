@@ -18,6 +18,7 @@ from .views import (
     CreateInvitationView,
     RevokeInvitationView,
     AcceptInvitationView,
+    CommunitySettingsView,
 )
 
 app_name = 'community'
@@ -27,6 +28,7 @@ urlpatterns = [
     path('calendar_update/', CalendarEntryUpdateView.as_view(), name='calendar_update'),
     path('waiting_list/', WaitingCommunityListView.as_view(), name='waiting_list'),
     path('switch/', SwitchCommunityView.as_view(), name='switch'),
+    path('settings/', CommunitySettingsView.as_view(), name='settings'),
     path('<int:pk>/', CommunityDetailView.as_view(), name='detail'),
     path('update/', CommunityUpdateView.as_view(), name='update'),
     path('create/', CommunityCreateView.as_view(), name='create'),

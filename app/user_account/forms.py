@@ -107,8 +107,8 @@ class CustomUserCreationForm(UserCreationForm):
         }
         error_messages = {
             'user_name': {
-                'required': '集会名は必須項目です。',
-                'unique': 'この集会名は既に使用されています。',
+                'required': 'ユーザー名は必須項目です。',
+                'unique': 'このユーザー名は既に使用されています。',
             },
             'email': {
                 'required': 'メールアドレスは必須項目です。',
@@ -151,7 +151,7 @@ class BootstrapAuthenticationForm(AuthenticationForm):
     """カスタムユーザーモデルのuser_nameフィールドに対応した認証フォーム."""
 
     username = forms.CharField(
-        label='集会名',
+        label='ユーザー名',
         widget=forms.TextInput(attrs={'class': 'form-control', 'autofocus': True}),
     )
     remember = forms.BooleanField(
