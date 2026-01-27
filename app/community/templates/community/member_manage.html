@@ -7,7 +7,7 @@
 <div class="container py-4">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'account:settings' %}">マイページ</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
             <li class="breadcrumb-item"><a href="{% url 'community:update' %}">{{ community.name }}</a></li>
             <li class="breadcrumb-item active">メンバー管理</li>
         </ol>
@@ -106,8 +106,8 @@
     </div>
 
     <div class="mt-4">
-        <a href="{% url 'account:settings' %}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left me-1"></i>マイページに戻る
+        <a href="{% url 'event:my_list' %}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-1"></i>イベント管理に戻る
         </a>
     </div>
 </div>

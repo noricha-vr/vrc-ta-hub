@@ -6,7 +6,7 @@
 <div class="container py-4">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">マイページ</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
             <li class="breadcrumb-item active">集会設定</li>
         </ol>
     </nav>
@@ -102,10 +102,87 @@
     </div>
     {% endif %}
 
+    {% if is_owner %}
+    {# 危険な操作セクション（主催者のみ） #}
+    <div class="card mb-4 border-danger">
+        <div class="card-header bg-danger bg-opacity-10 text-danger">
+            <i class="fa-solid fa-exclamation-triangle me-2"></i>危険な操作
+        </div>
+        <div class="card-body">
+            {% if community.end_at %}
+            <div class="alert alert-warning mb-3">
+                <i class="fa-solid fa-info-circle me-2"></i>
+                この集会は {{ community.end_at|date:"Y年n月j日" }} に閉鎖されています。
+            </div>
+            <h6 class="mb-2">集会の再開</h6>
+            <p class="text-muted small mb-2">閉鎖した集会を再開します。定期イベントは別途設定し直す必要があります。</p>
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#reopenCommunityModal">
+                <i class="fa-solid fa-play me-1"></i>集会を再開する
+            </button>
+            {% else %}
+            <h6 class="mb-2">集会の閉鎖</h6>
+            <p class="text-muted small mb-2">集会を閉鎖すると、閉鎖日以降のイベントは削除されます。</p>
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#closeCommunityModal">
+                <i class="fa-solid fa-stop me-1"></i>集会を閉鎖する
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     <div class="mt-4">
         <a href="{% url 'event:my_list' %}" class="btn btn-secondary">
-            <i class="fa-solid fa-arrow-left me-1"></i>マイページに戻る
+            <i class="fa-solid fa-arrow-left me-1"></i>イベント管理に戻る
         </a>
     </div>
 </div>
+
+{% if is_owner %}
+<!-- 閉鎖確認モーダル -->
+<div class="modal fade" id="closeCommunityModal" tabindex="-1" aria-labelledby="closeCommunityModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="closeCommunityModalLabel">集会の閉鎖確認</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>この集会を閉鎖しますか？</p>
+                <p class="text-danger">閉鎖日以降のイベントは削除されます。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <form action="{% url 'community:close' community.pk %}" method="post" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">閉鎖する</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 再開確認モーダル -->
+<div class="modal fade" id="reopenCommunityModal" tabindex="-1" aria-labelledby="reopenCommunityModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reopenCommunityModalLabel">集会の再開確認</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>この集会を再開しますか？</p>
+                <p class="text-info">定期イベントを再開するには、設定から改めてイベントを登録し直してください。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <form action="{% url 'community:reopen' community.pk %}" method="post" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success">再開する</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}
