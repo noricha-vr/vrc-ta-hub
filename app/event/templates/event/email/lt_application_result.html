@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #ffffff;
+        }
+        .header {
+            margin-bottom: 30px;
+            border-bottom: 2px solid {% if is_approved %}#28a745{% else %}#dc3545{% endif %};
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            color: {% if is_approved %}#28a745{% else %}#dc3545{% endif %};
+        }
+        .content {
+            margin-bottom: 30px;
+            background-color: #ffffff;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #0066cc;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .button:hover {
+            background-color: #0052a3;
+        }
+        .application-details {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #e1e4e8;
+        }
+        .application-details h3 {
+            color: #0066cc;
+            margin-top: 0;
+            font-size: 1.2em;
+        }
+        .application-details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .application-details td {
+            padding: 8px 0;
+            border-bottom: 1px solid #e1e4e8;
+        }
+        .application-details td:first-child {
+            font-weight: bold;
+            width: 120px;
+            color: #666;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #fff;
+        }
+        .status-approved {
+            background-color: #28a745;
+        }
+        .status-rejected {
+            background-color: #dc3545;
+        }
+        .rejection-reason {
+            background-color: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #ffc107;
+        }
+        .rejection-reason h3 {
+            color: #856404;
+            margin-top: 0;
+            font-size: 1.1em;
+        }
+        .next-steps {
+            background-color: #d4edda;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #c3e6cb;
+        }
+        .next-steps h3 {
+            color: #155724;
+            margin-top: 0;
+            font-size: 1.1em;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e4e8;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        {% if is_approved %}
+            <h1>LT発表の申請が承認されました</h1>
+        {% else %}
+            <h1>LT発表の申請が却下されました</h1>
+        {% endif %}
+    </div>
+
+    <div class="content">
+        <p>{{ applicant.user_name }} 様</p>
+
+        {% if is_approved %}
+            <p>{{ community.name }}へのLT発表の申請が<span class="status-badge status-approved">承認</span>されました。</p>
+        {% else %}
+            <p>{{ community.name }}へのLT発表の申請が<span class="status-badge status-rejected">却下</span>されました。</p>
+        {% endif %}
+
+        <div class="application-details">
+            <h3>申請内容</h3>
+            <table>
+                <tr>
+                    <td>集会</td>
+                    <td>{{ community.name }}</td>
+                </tr>
+                <tr>
+                    <td>開催日</td>
+                    <td>{{ event.date }}</td>
+                </tr>
+                <tr>
+                    <td>テーマ</td>
+                    <td>{{ event_detail.theme }}</td>
+                </tr>
+                <tr>
+                    <td>発表者</td>
+                    <td>{{ event_detail.speaker }}</td>
+                </tr>
+                <tr>
+                    <td>発表時間</td>
+                    <td>{{ event_detail.duration }}分</td>
+                </tr>
+            </table>
+        </div>
+
+        {% if is_approved %}
+            <div class="next-steps">
+                <h3>次のステップ</h3>
+                <p>発表の詳細ページから、以下の情報を追加できます。</p>
+                <ul>
+                    <li>スライドのURL または PDFファイル</li>
+                    <li>YouTube動画のURL</li>
+                    <li>発表内容の詳細</li>
+                </ul>
+                <p><a href="{{ detail_url }}" class="button">発表詳細を編集する</a></p>
+            </div>
+        {% else %}
+            {% if event_detail.rejection_reason %}
+                <div class="rejection-reason">
+                    <h3>却下理由</h3>
+                    <p>{{ event_detail.rejection_reason }}</p>
+                </div>
+            {% endif %}
+            <p>ご不明な点がございましたら、集会の主催者にお問い合わせください。</p>
+        {% endif %}
+    </div>
+
+    <div class="footer">
+        <p>このメールは {{ community.name }} から自動送信されています。</p>
+        <p>VRC技術学術系Hub</p>
+    </div>
+</body>
+</html>

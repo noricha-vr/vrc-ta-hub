@@ -1,0 +1,140 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block meta %}
+    <title>LT発表を申請 - {{ community.name }} - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'community:list' %}">集会一覧</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'community:detail' community.pk %}">{{ community.name }}</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">LT発表を申請</li>
+                </ol>
+            </nav>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h1 class="h4 mb-0">
+                        <i class="bi bi-mic me-2"></i>LT発表を申請
+                    </h1>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-4">
+                        <h5 class="alert-heading"><i class="bi bi-info-circle me-2"></i>申請について</h5>
+                        <p class="mb-2">LT発表の申請は、主催者の承認後に正式に登録されます。</p>
+                        <ul class="mb-0">
+                            <li>申請後、主催者にメールで通知されます</li>
+                            <li>承認または却下の結果はメールでお知らせします</li>
+                            <li>発表内容の詳細（スライドや動画）は承認後に編集できます</li>
+                        </ul>
+                    </div>
+
+                    {% if not form.fields.event.queryset.exists %}
+                        <div class="alert alert-warning">
+                            <h5 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i>申請可能な日程がありません</h5>
+                            <p class="mb-0">現在、LT発表を申請できる今後の開催日がありません。</p>
+                        </div>
+                        <div class="text-center mt-4">
+                            <a href="{% url 'community:detail' community.pk %}" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>集会ページに戻る
+                            </a>
+                        </div>
+                    {% else %}
+                        <form method="post">
+                            {% csrf_token %}
+
+                            <div class="mb-4">
+                                <label for="id_event" class="form-label fw-bold">
+                                    <i class="bi bi-calendar-event me-1"></i>{{ form.event.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.event }}
+                                {% if form.event.help_text %}
+                                    <small class="form-text text-muted">{{ form.event.help_text }}</small>
+                                {% endif %}
+                                {% if form.event.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.event.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="id_theme" class="form-label fw-bold">
+                                    <i class="bi bi-chat-left-text me-1"></i>{{ form.theme.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.theme }}
+                                {% if form.theme.help_text %}
+                                    <small class="form-text text-muted">{{ form.theme.help_text }}</small>
+                                {% endif %}
+                                {% if form.theme.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.theme.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="id_speaker" class="form-label fw-bold">
+                                    <i class="bi bi-person me-1"></i>{{ form.speaker.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                {{ form.speaker }}
+                                {% if form.speaker.help_text %}
+                                    <small class="form-text text-muted">{{ form.speaker.help_text }}</small>
+                                {% endif %}
+                                {% if form.speaker.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.speaker.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="id_duration" class="form-label fw-bold">
+                                    <i class="bi bi-clock me-1"></i>{{ form.duration.label }}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group" style="max-width: 200px;">
+                                    {{ form.duration }}
+                                    <span class="input-group-text">分</span>
+                                </div>
+                                {% if form.duration.help_text %}
+                                    <small class="form-text text-muted">{{ form.duration.help_text }}</small>
+                                {% endif %}
+                                {% if form.duration.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.duration.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            {% if form.non_field_errors %}
+                                <div class="alert alert-danger">
+                                    {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+
+                            <hr class="my-4">
+
+                            <div class="d-flex justify-content-between">
+                                <a href="{% url 'community:detail' community.pk %}" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left me-2"></i>キャンセル
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-send me-2"></i>申請する
+                                </button>
+                            </div>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

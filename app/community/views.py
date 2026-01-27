@@ -19,7 +19,7 @@ from django.template.loader import render_to_string
 from django.core.cache import cache
 import requests
 
-from event.models import Event
+from event.models import Event, EventDetail
 from url_filters import get_filtered_url
 from django.views.generic import TemplateView
 from user_account.models import CustomUser
@@ -180,7 +180,8 @@ class CommunityDetailView(DetailView):
         event_details_list = []
         last_event = None
         for event in events:
-            details = event.details.all()
+            # 承認済みのEventDetailのみ表示
+            details = event.details.filter(status='approved')
             if event == last_event:
                 continue
             event_details_list.append({
@@ -904,3 +905,52 @@ class RevokeOwnershipTransferView(LoginRequiredMixin, View):
         logger.info(f'主催者引き継ぎリンク削除: 集会「{community.name}」、削除者: {request.user.user_name}')
 
         return redirect('community:settings')
+
+
+class LTApplicationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    """LT申請一覧ビュー（管理者用）"""
+    template_name = 'community/lt_application_list.html'
+    context_object_name = 'applications'
+    paginate_by = 20
+
+    def test_func(self):
+        community = get_object_or_404(Community, pk=self.kwargs['pk'])
+        return community.can_edit(self.request.user)
+
+    def get_queryset(self):
+        self.community = get_object_or_404(Community, pk=self.kwargs['pk'])
+        queryset = EventDetail.objects.filter(
+            event__community=self.community,
+            applicant__isnull=False  # 申請者がいるもののみ
+        ).select_related('event', 'applicant').order_by('-created_at')
+
+        # ステータスフィルター
+        status = self.request.GET.get('status', '')
+        if status in ['pending', 'approved', 'rejected']:
+            queryset = queryset.filter(status=status)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['community'] = self.community
+        context['selected_status'] = self.request.GET.get('status', '')
+
+        # 各ステータスの件数
+        context['pending_count'] = EventDetail.objects.filter(
+            event__community=self.community,
+            applicant__isnull=False,
+            status='pending'
+        ).count()
+        context['approved_count'] = EventDetail.objects.filter(
+            event__community=self.community,
+            applicant__isnull=False,
+            status='approved'
+        ).count()
+        context['rejected_count'] = EventDetail.objects.filter(
+            event__community=self.community,
+            applicant__isnull=False,
+            status='rejected'
+        ).count()
+
+        return context

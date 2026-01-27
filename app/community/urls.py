@@ -22,6 +22,7 @@ from .views import (
     CreateOwnershipTransferView,
     AcceptOwnershipTransferView,
     RevokeOwnershipTransferView,
+    LTApplicationListView,
 )
 
 app_name = 'community'
@@ -48,4 +49,6 @@ urlpatterns = [
     path('<int:pk>/transfer/create/', CreateOwnershipTransferView.as_view(), name='create_ownership_transfer'),
     path('transfer/<str:token>/', AcceptOwnershipTransferView.as_view(), name='accept_ownership_transfer'),
     path('<int:pk>/transfer/<int:invitation_id>/revoke/', RevokeOwnershipTransferView.as_view(), name='revoke_ownership_transfer'),
+    # LT申請一覧
+    path('<int:pk>/applications/', LTApplicationListView.as_view(), name='lt_application_list'),
 ]

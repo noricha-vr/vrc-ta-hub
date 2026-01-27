@@ -66,6 +66,7 @@ class Community(models.Model):
         '集会を紹介するためのポスター転載を許可する',
         default=False,
     )
+    notification_webhook_url = models.URLField('Discord Webhook URL', blank=True, default='')
 
     class Meta:
         verbose_name = '集会'

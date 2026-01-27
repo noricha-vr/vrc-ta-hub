@@ -151,11 +151,14 @@ class Event(models.Model):
     duration = models.IntegerField('開催時間（分）', default=60)
     weekday = models.CharField('曜日', max_length=5, choices=WEEKDAY_CHOICES, blank=True)
     google_calendar_event_id = models.CharField('GoogleカレンダーイベントID', max_length=255, blank=True, null=True)
-    
+
     # 定期イベント関連フィールド
     recurrence_rule = models.ForeignKey(RecurrenceRule, null=True, blank=True, on_delete=models.SET_NULL, verbose_name='定期ルール')
     is_recurring_master = models.BooleanField(default=False, verbose_name='定期イベントの親')
     recurring_master = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='recurring_instances', verbose_name='親イベント')
+
+    # LT申請機能
+    accepts_lt_application = models.BooleanField('LT申し込み受付', default=True)
 
     class Meta:
         verbose_name = 'イベント'
@@ -192,6 +195,12 @@ class EventDetail(models.Model):
         ('BLOG', 'ブログ'),
     ]
 
+    STATUS_CHOICES = [
+        ('pending', '承認待ち'),
+        ('approved', '承認済み'),
+        ('rejected', '却下'),
+    ]
+
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='details', verbose_name='イベント')
@@ -209,6 +218,16 @@ class EventDetail(models.Model):
     contents = models.TextField('内容', blank=True, default='')
     meta_description = models.CharField(
         'メタディスクリプション', max_length=255, blank=True, default='')
+
+    # LT申請関連フィールド
+    status = models.CharField(
+        '申請状態', max_length=10, choices=STATUS_CHOICES, default='approved', db_index=True
+    )
+    applicant = models.ForeignKey(
+        'user_account.CustomUser', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='lt_applications', verbose_name='申請者'
+    )
+    rejection_reason = models.TextField('却下理由', blank=True, default='')
 
     class Meta:
         verbose_name = 'イベント詳細'

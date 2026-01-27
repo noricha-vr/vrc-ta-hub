@@ -3,7 +3,7 @@ from django.views.generic import TemplateView
 
 from .views import EventListView, EventDetailView, sync_calendar_events, EventDetailUpdateView, EventDetailCreateView, \
     EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailPastList, \
-    EventDeleteView, GoogleCalendarEventCreateView, EventLogListView
+    EventDeleteView, GoogleCalendarEventCreateView, EventLogListView, LTApplicationCreateView, LTApplicationReviewView
 from .views_llm_generate import generate_llm_events
 
 app_name = 'event'
@@ -23,4 +23,7 @@ urlpatterns = [
     path('generate_blog/<int:pk>/', GenerateBlogView.as_view(), name='generate_blog'),
     path('markdown/', TemplateView.as_view(template_name='event/markdown.html'), name='markdown'),
     path('generate/', generate_llm_events, name='generate_llm_events'),
+    # LT申請
+    path('apply/<int:community_pk>/', LTApplicationCreateView.as_view(), name='lt_application_create'),
+    path('application/<int:pk>/review/', LTApplicationReviewView.as_view(), name='lt_application_review'),
 ]
