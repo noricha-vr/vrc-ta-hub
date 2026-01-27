@@ -49,7 +49,24 @@
 
                     <!-- 右側：集会情報 -->
                     <div class="col-lg-7">
-                        <h1 class="fs-2 fw-bold mb-4">{{ community.name }}</h1>
+                        <div class="d-flex align-items-center justify-content-between mb-4">
+                            <h1 class="fs-2 fw-bold mb-0">{{ community.name }}</h1>
+                            {% if request.user.is_superuser or request.user == community.custom_user %}
+                                <div class="d-flex gap-2">
+                                    <a href="{% url 'community:update' %}" class="btn btn-outline-secondary btn-sm" title="集会情報を編集">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <a href="{% url 'event:my_list' %}" class="btn btn-outline-primary btn-sm" title="イベント管理">
+                                        <i class="bi bi-calendar-event"></i>
+                                    </a>
+                                    {% if request.user.is_superuser %}
+                                        <a href="/admin/community/community/{{ community.pk }}/change/" class="btn btn-outline-danger btn-sm" title="管理者編集">
+                                            <i class="bi bi-shield-lock"></i>
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
                         
                         <!-- タグ -->
                         {% if community.tags %}
@@ -193,40 +210,19 @@
                             </div>
                         </section>
 
-                        <!-- 管理者ボタン -->
-                        {% if show_accept_button or request.user.is_superuser or request.user == community.custom_user %}
+                        <!-- 承認ボタン（superuserのみ、pending状態のみ表示） -->
+                        {% if show_accept_button %}
                             <div class="mt-4 pt-4 border-top">
-                                {% if show_accept_button %}
-                                    <div class="d-flex gap-2">
-                                        <form action="{% url 'community:accept' community.pk %}" method="post" class="d-inline">
-                                            {% csrf_token %}
-                                            <button type="submit" class="btn btn-success">承認</button>
-                                        </form>
-                                        <form action="{% url 'community:reject' community.pk %}" method="post" class="d-inline">
-                                            {% csrf_token %}
-                                            <button type="submit" class="btn btn-danger">非承認</button>
-                                        </form>
-                                    </div>
-                                {% endif %}
-                                {% if request.user.is_superuser %}
-                                    <a href="/admin/community/community/{{ community.pk }}/change/"
-                                       class="btn btn-primary">編集(管理者)</a>
-                                {% endif %}
-                                {% if request.user == community.custom_user %}
-                                    <a href="{% url 'community:update' %}"
-                                       class="btn btn-primary">編集</a>
-                                {% endif %}
-                                {% if request.user.is_superuser or request.user == community.custom_user %}
-                                    {% if not community.end_at %}
-                                        <button type="button" class="btn btn-danger float-end" data-bs-toggle="modal" data-bs-target="#closeCommunityModal">
-                                            閉鎖
-                                        </button>
-                                    {% else %}
-                                        <button type="button" class="btn btn-success float-end" data-bs-toggle="modal" data-bs-target="#reopenCommunityModal">
-                                            再開
-                                        </button>
-                                    {% endif %}
-                                {% endif %}
+                                <div class="d-flex gap-2">
+                                    <form action="{% url 'community:accept' community.pk %}" method="post" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-success">承認</button>
+                                    </form>
+                                    <form action="{% url 'community:reject' community.pk %}" method="post" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-danger">非承認</button>
+                                    </form>
+                                </div>
                             </div>
                         {% endif %}
                     </div>
@@ -348,51 +344,5 @@
             </div>
         </div>
     {% endif %}
-
-    <!-- 閉鎖確認モーダル -->
-    <div class="modal fade" id="closeCommunityModal" tabindex="-1" aria-labelledby="closeCommunityModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="closeCommunityModalLabel">集会の閉鎖確認</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>この集会を閉鎖しますか？</p>
-                    <p class="text-danger">閉鎖日以降のイベントは削除されます。</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <form action="{% url 'community:close' community.pk %}" method="post" class="d-inline">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-danger">閉鎖する</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- 再開確認モーダル -->
-    <div class="modal fade" id="reopenCommunityModal" tabindex="-1" aria-labelledby="reopenCommunityModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="reopenCommunityModalLabel">集会の再開確認</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p>この集会を再開しますか？</p>
-                    <p class="text-info">定期イベントを再開するには、設定から改めてイベントを登録し直してください。</p>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <form action="{% url 'community:reopen' community.pk %}" method="post" class="d-inline">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-success">再開する</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
 
 {% endblock %}
