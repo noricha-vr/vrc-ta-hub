@@ -56,12 +56,9 @@ class CustomLogoutView(LogoutView):
         return super().dispatch(request, *args, **kwargs)
 
 
-class RegisterRedirectView(View):
-    """通常登録ページへのアクセスをDiscord OAuthログインページにリダイレクト."""
-
-    def get(self, request):
-        messages.info(request, '新規登録はDiscordアカウントで行ってください。')
-        return redirect('account:login')
+class RegisterView(TemplateView):
+    """新規登録ページ（Discordログインのみ）"""
+    template_name = 'account/register.html'
 
 
 class UserNameChangeView(LoginRequiredMixin, UpdateView):

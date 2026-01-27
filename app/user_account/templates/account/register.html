@@ -1,0 +1,39 @@
+{% extends 'ta_hub/base.html' %}
+{% load socialaccount %}
+{% block meta %}
+    <title>新規登録 - VRChat 技術・学術系イベントHub</title>
+    <meta name="twitter:title" content="新規登録 - VRChat 技術・学術系イベントHub">
+    <meta property="og:title" content="新規登録 - VRChat 技術・学術系イベントHub">
+    <meta name="description"
+          content="技術・学術系イベントHubの新規登録ページです。Discordアカウントで簡単に登録できます。">
+    <meta name="twitter:description"
+          content="技術・学術系イベントHubの新規登録ページです。Discordアカウントで簡単に登録できます。">
+    <meta property="og:description"
+          content="技術・学術系イベントHubの新規登録ページです。Discordアカウントで簡単に登録できます。">
+    <meta property="og:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
+    <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
+{% endblock %}
+
+{% block main %}
+    <div class="container my-4">
+        <div class="row">
+            <div class="col-md-6 offset-md-3">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">新規登録</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center my-5">
+                            <a href="{% provider_login_url 'discord' %}" class="btn btn-lg" style="background-color: #5865F2; color: white;">
+                                <i class="fab fa-discord me-2"></i>Discordで登録
+                            </a>
+                        </div>
+                        <div class="text-center mt-4">
+                            <p class="text-muted">既にアカウントをお持ちの方は<a href="{% url 'account:login' %}">こちら</a></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
