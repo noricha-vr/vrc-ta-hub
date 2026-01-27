@@ -353,7 +353,6 @@ class EventMyListDashboardTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # クイックアクションボタンのテキストが含まれる
         self.assertContains(response, 'イベント登録')
-        self.assertContains(response, '集会情報編集')
         self.assertContains(response, 'LT履歴')
         self.assertContains(response, '集会設定')
-        self.assertContains(response, 'API管理')
+        self.assertContains(response, '公開ページ')
