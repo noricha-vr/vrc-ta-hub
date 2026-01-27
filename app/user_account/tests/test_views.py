@@ -4,7 +4,7 @@ from django.contrib.messages import get_messages
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from community.models import Community
+from community.models import Community, CommunityMember
 
 User = get_user_model()
 
@@ -175,6 +175,104 @@ class SettingsViewTests(TestCase):
         self.assertNotContains(response, 'headingOther')
         self.assertNotContains(response, 'collapseOther')
 
+    def test_settings_view_participant_hides_event_management(self):
+        """参加者（集会を持たないユーザー）にはイベント管理が非表示であること."""
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # イベント管理セクションが表示されていないこと
+        self.assertNotContains(response, 'イベント一覧 (LT登録・編集・削除・告知)')
+        self.assertNotContains(response, 'headingEvents')
+
+    def test_settings_view_participant_shows_community_register_button(self):
+        """参加者には集会登録ボタンが表示されること."""
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # 集会登録ボタンが表示されていること
+        self.assertContains(response, '集会を登録')
+        self.assertContains(response, '技術系・学術系の集会を運営している方')
+
+    def test_settings_view_participant_shows_account_settings(self):
+        """参加者にアカウント設定が表示されること."""
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # アカウント設定が表示されていること
+        self.assertContains(response, 'アカウント設定')
+        self.assertContains(response, 'ユーザー情報を更新')
+        self.assertContains(response, 'パスワードを変更')
+        self.assertContains(response, 'ログアウト')
+
+    def test_settings_view_owner_shows_event_management(self):
+        """主催者にはイベント管理が表示されること."""
+        # 集会を作成し、メンバーシップも作成
+        community = Community.objects.create(
+            custom_user=self.test_user,
+            name='テスト集会',
+            frequency='毎週',
+            status='approved',
+        )
+        CommunityMember.objects.create(
+            community=community,
+            user=self.test_user,
+            role=CommunityMember.Role.OWNER,
+        )
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # イベント管理セクションが表示されていること
+        self.assertContains(response, 'イベント一覧 (LT登録・編集・削除・告知)')
+        self.assertContains(response, 'headingEvents')
+
+    def test_settings_view_owner_shows_community_management(self):
+        """主催者には集会管理が表示されること."""
+        # 集会を作成し、メンバーシップも作成
+        community = Community.objects.create(
+            custom_user=self.test_user,
+            name='テスト集会',
+            frequency='毎週',
+            status='approved',
+        )
+        CommunityMember.objects.create(
+            community=community,
+            user=self.test_user,
+            role=CommunityMember.Role.OWNER,
+        )
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # 集会管理セクションが表示されていること
+        self.assertContains(response, '集会情報を確認')
+        self.assertContains(response, '集会情報を編集')
+        self.assertContains(response, 'メンバー管理')
+
+    def test_settings_view_owner_hides_community_register_button(self):
+        """主催者には集会登録ボタンが非表示であること."""
+        # 集会を作成し、メンバーシップも作成
+        community = Community.objects.create(
+            custom_user=self.test_user,
+            name='テスト集会',
+            frequency='毎週',
+            status='approved',
+        )
+        CommunityMember.objects.create(
+            community=community,
+            user=self.test_user,
+            role=CommunityMember.Role.OWNER,
+        )
+        self.client.login(username='test_settings_user', password='testpass123')
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+
+        # 集会登録ボタンが表示されていないこと
+        self.assertNotContains(response, '技術系・学術系の集会を運営している方')
+
 
 class RegisterViewTests(TestCase):
     """RegisterViewのテストクラス."""
@@ -253,3 +351,88 @@ class LoginPageRegisterLinkTests(TestCase):
         response = self.client.get(self.login_url)
         self.assertContains(response, 'アカウントをお持ちでない方は')
         self.assertContains(response, reverse('account:register'))
+
+
+class HeaderDropdownMenuTests(TestCase):
+    """ヘッダーのドロップダウンメニューテストクラス."""
+
+    def setUp(self):
+        """テスト用のデータを準備."""
+        self.client = Client()
+        self.index_url = reverse('ta_hub:index')
+        self.test_user = User.objects.create_user(
+            user_name='test_header_user',
+            email='test_header@example.com',
+            password='testpass123',
+        )
+
+    def test_unauthenticated_user_sees_login_register_links(self):
+        """未ログインユーザーにはログイン・登録リンクが表示されること."""
+        response = self.client.get(self.index_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'ログイン')
+        self.assertContains(response, '登録')
+        # ドロップダウンは表示されない
+        self.assertNotContains(response, 'bi-person-circle')
+
+    def test_authenticated_user_sees_dropdown_icon(self):
+        """ログインユーザーにはユーザーアイコンが表示されること."""
+        self.client.login(username='test_header_user', password='testpass123')
+        response = self.client.get(self.index_url)
+        self.assertEqual(response.status_code, 200)
+        # ユーザーアイコンが表示される
+        self.assertContains(response, 'bi-person-circle')
+        # ログイン・登録リンクは非表示
+        self.assertNotContains(response, '>ログイン</a>')
+        self.assertNotContains(response, '>登録</a>')
+
+    def test_authenticated_user_dropdown_contains_settings(self):
+        """ログインユーザーのドロップダウンに設定リンクが含まれること."""
+        self.client.login(username='test_header_user', password='testpass123')
+        response = self.client.get(self.index_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('account:settings'))
+        self.assertContains(response, 'bi-gear')
+        self.assertContains(response, '>設定')
+
+    def test_authenticated_user_dropdown_contains_logout(self):
+        """ログインユーザーのドロップダウンにログアウトリンクが含まれること."""
+        self.client.login(username='test_header_user', password='testpass123')
+        response = self.client.get(self.index_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('account:logout'))
+        self.assertContains(response, 'bi-box-arrow-right')
+        self.assertContains(response, '>ログアウト')
+
+    def test_participant_dropdown_does_not_contain_community_link(self):
+        """参加者のドロップダウンには集会名リンクが含まれないこと."""
+        self.client.login(username='test_header_user', password='testpass123')
+        response = self.client.get(self.index_url)
+        self.assertEqual(response.status_code, 200)
+        # 集会名リンクがないことを確認（dropdown-itemのイベント一覧リンク）
+        self.assertNotContains(response, 'bi-calendar-event me-2')
+        # 区切り線がないことを確認
+        self.assertNotContains(response, 'dropdown-divider')
+
+    def test_owner_dropdown_contains_community_link(self):
+        """主催者のドロップダウンに集会名リンクが含まれること."""
+        # 集会を作成し、メンバーシップも作成
+        community = Community.objects.create(
+            custom_user=self.test_user,
+            name='テスト集会',
+            frequency='毎週',
+            status='approved',
+        )
+        CommunityMember.objects.create(
+            community=community,
+            user=self.test_user,
+            role=CommunityMember.Role.OWNER,
+        )
+        self.client.login(username='test_header_user', password='testpass123')
+        response = self.client.get(self.index_url)
+        self.assertEqual(response.status_code, 200)
+        # 集会名リンクがあることを確認
+        self.assertContains(response, 'bi-calendar-event me-2')
+        self.assertContains(response, 'テスト集会'[:8])  # 8文字で切り捨て
+        # 区切り線があることを確認
+        self.assertContains(response, 'dropdown-divider')
