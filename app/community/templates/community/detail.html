@@ -161,25 +161,39 @@
                             </h2>
                             <div class="d-flex flex-wrap gap-2 mb-3">
                                 {% if community.group_url %}
-                                    <a href="{{ community.group_url }}" target="_blank" 
+                                    <a href="{{ community.group_url }}" target="_blank"
                                        class="btn btn-primary">
                                         <i class="bi bi-globe me-2"></i>VRChatグループに参加
                                     </a>
                                 {% endif %}
                                 {% if community.discord %}
-                                    <a href="{{ community.discord }}" target="_blank" 
+                                    <a href="{{ community.discord }}" target="_blank"
                                        class="btn btn-secondary">
                                         <i class="bi bi-discord me-2"></i>Discordサーバーに参加
                                     </a>
                                 {% endif %}
                                 {% if community.twitter_hashtag %}
-                                    <a href="https://twitter.com/hashtag/{{ community.twitter_hashtag|slice:"1:" }}?f=live" 
+                                    <a href="https://twitter.com/hashtag/{{ community.twitter_hashtag|slice:"1:" }}?f=live"
                                        target="_blank" class="btn btn-outline-info">
                                         <i class="bi bi-hash me-1"></i>{{ community.twitter_hashtag|slice:"1:" }}
                                     </a>
                                 {% endif %}
                             </div>
                         </section>
+
+                        <!-- LT発表申請 -->
+                        {% if request.user.is_authenticated and community.status == 'approved' %}
+                        <section class="mb-4">
+                            <h2 class="fs-5 fw-bold mb-3">
+                                <i class="bi bi-mic me-2"></i>LT発表を申し込む
+                            </h2>
+                            <p class="text-muted mb-3">この集会でLT発表をしてみませんか？テーマを登録して申請できます。</p>
+                            <a href="{% url 'event:lt_application_create' community.pk %}"
+                               class="btn btn-success">
+                                <i class="bi bi-plus-circle me-2"></i>LTを申し込む
+                            </a>
+                        </section>
+                        {% endif %}
 
 
                         <!-- 主催者プロフィール & SNSアカウント -->

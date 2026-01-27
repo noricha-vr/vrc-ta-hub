@@ -1,0 +1,161 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block meta %}
+    <title>LT申請の確認 - {{ community.name }} - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">マイページ</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'community:lt_application_list' community.pk %}">LT申請一覧</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">申請の確認</li>
+                </ol>
+            </nav>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-warning">
+                    <h1 class="h4 mb-0">
+                        <i class="bi bi-clipboard-check me-2"></i>LT申請の確認
+                    </h1>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title mb-4">申請内容</h5>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <tbody>
+                                <tr>
+                                    <th scope="row" class="bg-light" style="width: 30%;">集会</th>
+                                    <td>{{ community.name }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" class="bg-light">開催日</th>
+                                    <td>{{ event_detail.event.date|date:"Y年m月d日" }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" class="bg-light">テーマ</th>
+                                    <td>{{ event_detail.theme }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" class="bg-light">発表者</th>
+                                    <td>{{ event_detail.speaker }}</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" class="bg-light">発表時間</th>
+                                    <td>{{ event_detail.duration }}分</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" class="bg-light">申請者</th>
+                                    <td>
+                                        {{ event_detail.applicant.user_name }}
+                                        {% if event_detail.applicant.email %}
+                                            <small class="text-muted">({{ event_detail.applicant.email }})</small>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row" class="bg-light">申請日時</th>
+                                    <td>{{ event_detail.created_at|date:"Y年m月d日 H:i" }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-check2-square me-2"></i>アクション</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">{{ form.action.label }}</label>
+                            <div class="d-flex gap-4">
+                                {% for radio in form.action %}
+                                    <div class="form-check">
+                                        {{ radio.tag }}
+                                        <label class="form-check-label {% if radio.choice_value == 'approve' %}text-success{% else %}text-danger{% endif %}" for="{{ radio.id_for_label }}">
+                                            {% if radio.choice_value == 'approve' %}
+                                                <i class="bi bi-check-circle me-1"></i>
+                                            {% else %}
+                                                <i class="bi bi-x-circle me-1"></i>
+                                            {% endif %}
+                                            {{ radio.choice_label }}
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% if form.action.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.action.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-4" id="rejection-reason-field">
+                            <label for="id_rejection_reason" class="form-label fw-bold">
+                                {{ form.rejection_reason.label }}
+                            </label>
+                            {{ form.rejection_reason }}
+                            {% if form.rejection_reason.help_text %}
+                                <small class="form-text text-muted">{{ form.rejection_reason.help_text }}</small>
+                            {% endif %}
+                            {% if form.rejection_reason.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {% for error in form.rejection_reason.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        {% if form.non_field_errors %}
+                            <div class="alert alert-danger">
+                                {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <hr class="my-4">
+
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'community:lt_application_list' community.pk %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>一覧に戻る
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-lg me-2"></i>決定
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const actionRadios = document.querySelectorAll('input[name="action"]');
+    const rejectionField = document.getElementById('rejection-reason-field');
+
+    function toggleRejectionField() {
+        const selectedAction = document.querySelector('input[name="action"]:checked');
+        if (selectedAction && selectedAction.value === 'reject') {
+            rejectionField.style.display = 'block';
+        } else {
+            rejectionField.style.display = 'none';
+        }
+    }
+
+    actionRadios.forEach(function(radio) {
+        radio.addEventListener('change', toggleRejectionField);
+    });
+
+    toggleRejectionField();
+});
+</script>
+{% endblock %}
