@@ -126,6 +126,38 @@
                 <i class="fa-solid fa-stop me-1"></i>集会を閉鎖する
             </button>
             {% endif %}
+
+            <hr class="my-4">
+
+            {# 主催者引き継ぎセクション #}
+            <h6 class="mb-2">主催者の引き継ぎ</h6>
+            <p class="text-muted small mb-2">主催者権限を他のユーザーに引き継ぎます。</p>
+
+            {% if ownership_transfer_invitation %}
+            <div class="alert alert-warning mb-3">
+                <i class="fa-solid fa-link me-2"></i>
+                <strong>有効な引き継ぎリンクがあります</strong><br>
+                <small class="text-muted">有効期限: {{ ownership_transfer_invitation.expires_at|date:"Y/m/d H:i" }}</small>
+            </div>
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" id="transferLinkInput"
+                       value="{{ request.scheme }}://{{ request.get_host }}{% url 'community:accept_ownership_transfer' ownership_transfer_invitation.token %}"
+                       readonly>
+                <button class="btn btn-outline-secondary" type="button" onclick="copyTransferLink()">
+                    <i class="fa-solid fa-copy me-1"></i>コピー
+                </button>
+            </div>
+            <form action="{% url 'community:revoke_ownership_transfer' community.pk ownership_transfer_invitation.pk %}" method="post" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                    <i class="fa-solid fa-trash me-1"></i>リンクを削除
+                </button>
+            </form>
+            {% else %}
+            <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#createTransferModal">
+                <i class="fa-solid fa-right-left me-1"></i>引き継ぎリンクを作成
+            </button>
+            {% endif %}
         </div>
     </div>
     {% endif %}
@@ -183,6 +215,52 @@
         </div>
     </div>
 </div>
+
+<!-- 引き継ぎリンク作成モーダル -->
+<div class="modal fade" id="createTransferModal" tabindex="-1" aria-labelledby="createTransferModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning bg-opacity-10">
+                <h5 class="modal-title" id="createTransferModalLabel">
+                    <i class="fa-solid fa-exclamation-triangle text-warning me-2"></i>主催者引き継ぎの確認
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <strong>注意: この操作は取り消せません</strong>
+                </div>
+                <p>引き継ぎリンクを作成すると、リンクを受け取った人が主催者になります。</p>
+                <ul class="text-muted">
+                    <li>あなたはスタッフに降格されます</li>
+                    <li>主催者権限（メンバー管理、集会閉鎖など）を失います</li>
+                    <li>リンクは7日間有効です</li>
+                </ul>
+                <p class="mb-0"><strong>本当に引き継ぎリンクを作成しますか？</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <form action="{% url 'community:create_ownership_transfer' community.pk %}" method="post" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-warning">引き継ぎリンクを作成</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyTransferLink() {
+    const input = document.getElementById('transferLinkInput');
+    input.select();
+    input.setSelectionRange(0, 99999);
+    navigator.clipboard.writeText(input.value).then(function() {
+        alert('リンクをコピーしました');
+    }).catch(function() {
+        alert('コピーに失敗しました。手動でコピーしてください。');
+    });
+}
+</script>
 {% endif %}
 
 {% endblock %}

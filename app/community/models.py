@@ -191,6 +191,10 @@ INVITATION_EXPIRATION_DAYS = 7
 class CommunityInvitation(models.Model):
     """集会招待リンクモデル"""
 
+    class InvitationType(models.TextChoices):
+        STAFF = 'staff', 'スタッフ招待'
+        OWNERSHIP_TRANSFER = 'ownership_transfer', '主催者引き継ぎ'
+
     community = models.ForeignKey(
         'Community',
         on_delete=models.CASCADE,
@@ -214,6 +218,12 @@ class CommunityInvitation(models.Model):
     )
     expires_at = models.DateTimeField(
         verbose_name='有効期限'
+    )
+    invitation_type = models.CharField(
+        max_length=20,
+        choices=InvitationType.choices,
+        default=InvitationType.STAFF,
+        verbose_name='招待タイプ'
     )
 
     class Meta:
