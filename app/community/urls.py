@@ -23,6 +23,8 @@ from .views import (
     AcceptOwnershipTransferView,
     RevokeOwnershipTransferView,
     LTApplicationListView,
+    UpdateWebhookView,
+    TestWebhookView,
 )
 
 app_name = 'community'
@@ -51,4 +53,7 @@ urlpatterns = [
     path('<int:pk>/transfer/<int:invitation_id>/revoke/', RevokeOwnershipTransferView.as_view(), name='revoke_ownership_transfer'),
     # LT申請一覧
     path('<int:pk>/applications/', LTApplicationListView.as_view(), name='lt_application_list'),
+    # Webhook設定
+    path('<int:pk>/webhook/update/', UpdateWebhookView.as_view(), name='update_webhook'),
+    path('<int:pk>/webhook/test/', TestWebhookView.as_view(), name='test_webhook'),
 ]
