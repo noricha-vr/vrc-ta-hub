@@ -60,6 +60,38 @@ class CommunityUpdateFormTest(TestCase):
             'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
             'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags',
+            'accepts_lt_application',
         ]
         for field in expected_fields:
             self.assertIn(field, form.fields, f'{field} should be in form fields')
+
+    def test_accepts_lt_application_in_form(self):
+        """accepts_lt_applicationフィールドがフォームに含まれている"""
+        form = CommunityUpdateForm(instance=self.community)
+        self.assertIn('accepts_lt_application', form.fields)
+
+    def test_accepts_lt_application_widget_is_checkbox(self):
+        """accepts_lt_applicationのwidgetがCheckboxInputである"""
+        from django import forms as django_forms
+        form = CommunityUpdateForm(instance=self.community)
+        widget = form.fields['accepts_lt_application'].widget
+        self.assertIsInstance(widget, django_forms.CheckboxInput)
+
+    def test_form_saves_accepts_lt_application(self):
+        """accepts_lt_applicationが正常に保存できる"""
+        form_data = {
+            'name': 'テスト集会',
+            'start_time': '22:00',
+            'duration': 60,
+            'frequency': '毎週',
+            'organizers': 'テスト主催者',
+            'weekdays': ['Mon'],
+            'tags': ['tech'],
+            'platform': 'All',
+            'accepts_lt_application': False,
+        }
+        form = CommunityUpdateForm(data=form_data, instance=self.community)
+        self.assertTrue(form.is_valid(), form.errors)
+
+        saved_community = form.save()
+        self.assertFalse(saved_community.accepts_lt_application)
