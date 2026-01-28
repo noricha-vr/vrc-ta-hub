@@ -12,10 +12,10 @@
                 </div>
             </div>
         {% endif %}
-        <h1 class="text-center mb-5 fw-bold">Twitter告知テンプレート</h1>
+        <h1 class="text-center mb-5 fw-bold">X (旧Twitter) 告知テンプレート</h1>
         <div class="d-flex justify-content-end mb-4">
             <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary me-2">
-                <i class="bi bi-calendar-event me-2"></i>イベント一覧
+                <i class="bi bi-calendar-event me-2"></i>イベント管理
             </a>
             <a href="{% url 'twitter:template_create' %}" class="btn btn-primary">
                 <i class="bi bi-plus-circle me-2"></i>新規作成
@@ -48,7 +48,7 @@
             {% endfor %}
         </div>
         <div class="mt-3">
-            ※ 投稿のタイミングを調整したい場合はTwitterの予約投稿機能をご利用ください
+            ※ 投稿のタイミングを調整したい場合はX (旧Twitter) の予約投稿機能をご利用ください
         </div>
     </div>
 
