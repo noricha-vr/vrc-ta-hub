@@ -182,7 +182,7 @@
                         </section>
 
                         <!-- LT発表申請 -->
-                        {% if request.user.is_authenticated and community.status == 'approved' %}
+                        {% if request.user.is_authenticated and community.status == 'approved' and community.accepts_lt_application %}
                         <section class="mb-4">
                             <h2 class="fs-5 fw-bold mb-3">
                                 <i class="bi bi-mic me-2"></i>LT発表を申し込む

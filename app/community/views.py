@@ -976,6 +976,23 @@ class TestWebhookView(LoginRequiredMixin, UserPassesTestMixin, View):
         return redirect('community:settings')
 
 
+class UpdateLtApplicationView(LoginRequiredMixin, View):
+    """LT申請受付設定更新ビュー"""
+
+    def post(self, request, pk):
+        from django.core.exceptions import PermissionDenied
+        community = get_object_or_404(Community, pk=pk)
+        if not community.is_manager(request.user):
+            raise PermissionDenied
+
+        accepts_lt = request.POST.get('accepts_lt_application') == 'on'
+        community.accepts_lt_application = accepts_lt
+        community.save(update_fields=['accepts_lt_application'])
+
+        messages.success(request, 'LT申請受付設定を更新しました。')
+        return redirect('community:settings')
+
+
 class LTApplicationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     """LT申請一覧ビュー（管理者用）"""
     template_name = 'community/lt_application_list.html'

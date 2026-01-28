@@ -271,3 +271,73 @@ class CommunityDetailViewEventThemeDisplayTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # h1が空の場合はフォールバックとしてBlogが表示される
         self.assertContains(response, 'Blog')
+
+
+class CommunityDetailViewLtApplicationSectionTest(TestCase):
+    """CommunityDetailViewのLT申請セクション表示テスト"""
+
+    def setUp(self):
+        self.client = Client()
+
+        # テスト用ユーザー
+        self.user = CustomUser.objects.create_user(
+            email='test@example.com',
+            password='testpass123',
+            user_name='テストユーザー'
+        )
+
+        # テスト用集会（承認済み、LT申請受付ON）
+        self.community = Community.objects.create(
+            name='テスト集会',
+            custom_user=self.user,
+            status='approved',
+            frequency='毎週',
+            organizers='テスト主催者',
+            accepts_lt_application=True
+        )
+
+    def test_lt_section_shown_when_authenticated_and_approved_and_accepts_lt(self):
+        """ログイン済み・承認済み・LT受付ONの場合、LT申請セクションが表示される"""
+        self.client.login(username='テストユーザー', password='testpass123')
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'LT発表を申し込む')
+        self.assertContains(response, 'LTを申し込む')
+
+    def test_lt_section_not_shown_when_not_authenticated(self):
+        """未ログインの場合、LT申請セクションは表示されない"""
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'LT発表を申し込む')
+
+    def test_lt_section_not_shown_when_not_approved(self):
+        """未承認集会の場合、LT申請セクションは表示されない"""
+        self.community.status = 'pending'
+        self.community.save()
+
+        self.client.login(username='テストユーザー', password='testpass123')
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'LT発表を申し込む')
+
+    def test_lt_section_not_shown_when_accepts_lt_is_false(self):
+        """LT受付OFFの場合、LT申請セクションは表示されない"""
+        self.community.accepts_lt_application = False
+        self.community.save()
+
+        self.client.login(username='テストユーザー', password='testpass123')
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'LT発表を申し込む')
