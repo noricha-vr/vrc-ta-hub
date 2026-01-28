@@ -38,6 +38,11 @@ VRC技術学術ハブの開発・運用に関するドキュメントです。
 - [メンテナンス作業](maintenance.md)
 - [トラブルシューティング](troubleshooting.md)
 
+### プロジェクト管理
+- [ノート](notes/index.md) ⭐️ Updated
+  - [ステータス](notes/status.md) - 現在の作業状態
+  - [TODO](notes/todo.md) - バックログ・優先度付きタスク
+
 ### 関数リファレンス
 - [関数一覧](functions.md) ⭐️ Updated
 
