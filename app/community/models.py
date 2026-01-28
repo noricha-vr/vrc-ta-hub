@@ -68,9 +68,9 @@ class Community(models.Model):
     )
     notification_webhook_url = models.URLField('Discord Webhook URL', blank=True, default='')
     accepts_lt_application = models.BooleanField(
-        'LT申し込み受付',
+        '発表（LT）申し込み受付',
         default=True,
-        help_text='ONにすると、この集会でLT申請を受け付けます'
+        help_text='ONにすると、この集会で発表（LT）申請を受け付けます'
     )
 
     class Meta:
