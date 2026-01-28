@@ -87,31 +87,10 @@
 
             <div class="border-top pt-4 mt-4">
                 <h6 class="fw-medium mb-2">
-                    <i class="fa-solid fa-microphone me-2"></i>LT申請受付
-                </h6>
-                <p class="text-muted small mb-3">
-                    この集会でLT発表の申請を受け付けるかどうかを設定します。
-                </p>
-                <form method="post" action="{% url 'community:update_lt_application' community.pk %}">
-                    {% csrf_token %}
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox"
-                               name="accepts_lt_application" id="acceptsLtApplication"
-                               {% if community.accepts_lt_application %}checked{% endif %}>
-                        <label class="form-check-label" for="acceptsLtApplication">
-                            LT申請を受け付ける
-                        </label>
-                    </div>
-                    <button type="submit" class="btn btn-primary mt-2">保存</button>
-                </form>
-            </div>
-
-            <div class="border-top pt-4 mt-4">
-                <h6 class="fw-medium mb-2">
                     <i class="fa-brands fa-discord me-2"></i>Discord通知
                 </h6>
                 <p class="text-muted small mb-3">
-                    LT申請があった時にDiscordに通知を送信します。
+                    発表（LT）申請があった時にDiscordに通知を送信します。
                 </p>
                 <form method="post" action="{% url 'community:update_webhook' community.pk %}">
                     {% csrf_token %}
@@ -120,7 +99,7 @@
                                value="{{ community.notification_webhook_url }}"
                                class="form-control flex-grow-1"
                                placeholder="https://discord.com/api/webhooks/...">
-                        <button type="submit" class="btn btn-primary">保存</button>
+                        <button type="submit" class="btn btn-primary flex-shrink-0">保存</button>
                     </div>
                 </form>
                 {% if community.notification_webhook_url %}
