@@ -28,8 +28,8 @@ class ImageFileTestCase(TestCase):
             self.assertLessEqual(width, 720)
             self.assertLessEqual(height, 720)
 
-        # ファイル名の拡張子が.pngに変更されていることを確認
-        self.assertTrue(image_file.image.name.endswith('.png'))
+        # ファイル名の拡張子が.jpegに変更されていることを確認（モデルはJPEGフォーマットで保存）
+        self.assertTrue(image_file.image.name.endswith('.jpeg'))
 
     def test_resize_png(self):
         # PNG画像をアップロードしてリサイズされることを確認
@@ -44,8 +44,8 @@ class ImageFileTestCase(TestCase):
             self.assertLessEqual(width, 720)
             self.assertLessEqual(height, 720)
 
-        # ファイル名の拡張子が.pngに変更されていることを確認
-        self.assertTrue(image_file.image.name.endswith('.png'))
+        # ファイル名の拡張子が.jpegに変更されていることを確認（モデルはJPEGフォーマットで保存）
+        self.assertTrue(image_file.image.name.endswith('.jpeg'))
 
 
 class ResizeAndConvertImageTestCase(TestCase):
@@ -59,11 +59,45 @@ class ResizeAndConvertImageTestCase(TestCase):
         buffer.seek(0)
         return buffer
 
+    def _create_mock_storage(self, saved_paths):
+        """テスト用のモックストレージを作成"""
+        mock_storage = MagicMock()
+        mock_storage.exists.return_value = True
+
+        def capture_save(path, content):
+            saved_paths.append(path)
+            return path  # 保存されたパスをそのまま返す
+
+        mock_storage.save = capture_save
+        return mock_storage
+
     def test_filename_does_not_nest_directory(self):
         """ファイル名にディレクトリパスが含まれている場合、多重ネストしないことを確認"""
         # モック画像フィールドを作成
         mock_image_field = MagicMock()
         mock_image_field.name = 'poster/image.jpg'
+        mock_image_field.file = self._create_test_image()
+        mock_image_field.__bool__ = lambda self: True
+
+        # ストレージに保存されるパスを記録
+        saved_paths = []
+        mock_image_field.storage = self._create_mock_storage(saved_paths)
+
+        # 関数を実行
+        resize_and_convert_image(mock_image_field, max_size=100, output_format='JPEG')
+
+        # 保存されたパスを確認
+        self.assertEqual(len(saved_paths), 1)
+        saved_path = saved_paths[0]
+        # poster/poster/image-100.jpeg のような多重ネストが発生していないことを確認
+        self.assertEqual(saved_path, 'poster/image-100.jpeg')
+        # image_field.name が更新されていることを確認
+        self.assertEqual(mock_image_field.name, 'poster/image-100.jpeg')
+
+    def test_filename_with_simple_name(self):
+        """シンプルなファイル名の場合（新規作成時）、image_field.save()が呼ばれることを確認"""
+        mock_image_field = MagicMock()
+        mock_image_field.name = 'simple.png'  # ディレクトリパスなし = 新規作成
         mock_image_field.file = self._create_test_image()
         mock_image_field.__bool__ = lambda self: True
 
@@ -75,32 +109,9 @@ class ResizeAndConvertImageTestCase(TestCase):
 
         mock_image_field.save = capture_save
 
-        # 関数を実行
-        resize_and_convert_image(mock_image_field, max_size=100, output_format='JPEG')
-
-        # ファイル名にディレクトリパスが含まれていないことを確認
-        self.assertEqual(len(saved_filenames), 1)
-        saved_filename = saved_filenames[0]
-        # poster/poster/image-100.jpeg のような多重ネストが発生していないことを確認
-        self.assertFalse(saved_filename.startswith('poster/'))
-        self.assertEqual(saved_filename, 'image-100.jpeg')
-
-    def test_filename_with_simple_name(self):
-        """シンプルなファイル名の場合も正しく処理されることを確認"""
-        mock_image_field = MagicMock()
-        mock_image_field.name = 'simple.png'
-        mock_image_field.file = self._create_test_image()
-        mock_image_field.__bool__ = lambda self: True
-
-        saved_filenames = []
-
-        def capture_save(filename, *args, **kwargs):
-            saved_filenames.append(filename)
-
-        mock_image_field.save = capture_save
-
         resize_and_convert_image(mock_image_field, max_size=200, output_format='PNG')
 
+        # 新規作成時は image_field.save() が呼ばれる
         self.assertEqual(len(saved_filenames), 1)
         self.assertEqual(saved_filenames[0], 'simple-200.png')
 
@@ -111,15 +122,40 @@ class ResizeAndConvertImageTestCase(TestCase):
         mock_image_field.file = self._create_test_image()
         mock_image_field.__bool__ = lambda self: True
 
-        saved_filenames = []
-
-        def capture_save(filename, *args, **kwargs):
-            saved_filenames.append(filename)
-
-        mock_image_field.save = capture_save
+        saved_paths = []
+        mock_image_field.storage = self._create_mock_storage(saved_paths)
 
         resize_and_convert_image(mock_image_field, max_size=500, output_format='JPEG')
 
-        self.assertEqual(len(saved_filenames), 1)
-        # ディレクトリ部分が除去され、ファイル名のみになることを確認
-        self.assertEqual(saved_filenames[0], 'image-500.jpeg')
+        self.assertEqual(len(saved_paths), 1)
+        # ディレクトリ構造が維持されていることを確認
+        self.assertEqual(saved_paths[0], 'uploads/2024/01/poster/image-500.jpeg')
+        self.assertEqual(mock_image_field.name, 'uploads/2024/01/poster/image-500.jpeg')
+
+    def test_multiple_updates_do_not_nest_path(self):
+        """複数回更新してもパスが多重ネストしないことを確認"""
+        mock_image_field = MagicMock()
+        mock_image_field.name = 'poster/image.jpg'
+        mock_image_field.file = self._create_test_image()
+        mock_image_field.__bool__ = lambda self: True
+
+        saved_paths = []
+        mock_storage = self._create_mock_storage(saved_paths)
+        mock_image_field.storage = mock_storage
+
+        # 1回目の更新
+        resize_and_convert_image(mock_image_field, max_size=100, output_format='JPEG')
+        self.assertEqual(mock_image_field.name, 'poster/image-100.jpeg')
+
+        # 2回目の更新をシミュレート（新しいファイルがアップロードされた想定）
+        mock_image_field.file = self._create_test_image()
+        # nameは変わらない想定（同じパスに再保存）
+        resize_and_convert_image(mock_image_field, max_size=100, output_format='JPEG')
+
+        # 2回とも同じディレクトリ構造であることを確認
+        self.assertEqual(len(saved_paths), 2)
+        self.assertEqual(saved_paths[0], 'poster/image-100.jpeg')
+        self.assertEqual(saved_paths[1], 'poster/image-100-100.jpeg')
+        # poster/poster/... のような多重ネストは発生しない
+        for path in saved_paths:
+            self.assertNotIn('poster/poster/', path)
