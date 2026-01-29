@@ -11,7 +11,7 @@
             <nav aria-label="breadcrumb" class="mb-4">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">マイページ</a></li>
-                    <li class="breadcrumb-item"><a href="{% url 'community:lt_application_list' community.pk %}">LT申請一覧</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">マイリスト</a></li>
                     <li class="breadcrumb-item active" aria-current="page">申請の確認</li>
                 </ol>
             </nav>
@@ -123,8 +123,8 @@
                         <hr class="my-4">
 
                         <div class="d-flex justify-content-between">
-                            <a href="{% url 'community:lt_application_list' community.pk %}" class="btn btn-outline-secondary">
-                                <i class="bi bi-arrow-left me-2"></i>一覧に戻る
+                            <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>マイリストに戻る
                             </a>
                             <button type="submit" class="btn btn-primary">
                                 <i class="bi bi-check-lg me-2"></i>決定

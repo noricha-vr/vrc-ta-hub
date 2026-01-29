@@ -976,50 +976,13 @@ class TestWebhookView(LoginRequiredMixin, UserPassesTestMixin, View):
         return redirect('community:settings')
 
 
-class LTApplicationListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
-    """LT申請一覧ビュー（管理者用）"""
-    template_name = 'community/lt_application_list.html'
-    context_object_name = 'applications'
-    paginate_by = 20
+class LTApplicationListView(LoginRequiredMixin, View):
+    """LT申請一覧ビュー（マイリストへリダイレクト）
 
-    def test_func(self):
-        community = get_object_or_404(Community, pk=self.kwargs['pk'])
-        return community.can_edit(self.request.user)
+    旧URLへのアクセスをevent:my_listへリダイレクトする。
+    """
 
-    def get_queryset(self):
-        self.community = get_object_or_404(Community, pk=self.kwargs['pk'])
-        queryset = EventDetail.objects.filter(
-            event__community=self.community,
-            applicant__isnull=False  # 申請者がいるもののみ
-        ).select_related('event', 'applicant').order_by('-created_at')
-
-        # ステータスフィルター
-        status = self.request.GET.get('status', '')
-        if status in ['pending', 'approved', 'rejected']:
-            queryset = queryset.filter(status=status)
-
-        return queryset
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['community'] = self.community
-        context['selected_status'] = self.request.GET.get('status', '')
-
-        # 各ステータスの件数
-        context['pending_count'] = EventDetail.objects.filter(
-            event__community=self.community,
-            applicant__isnull=False,
-            status='pending'
-        ).count()
-        context['approved_count'] = EventDetail.objects.filter(
-            event__community=self.community,
-            applicant__isnull=False,
-            status='approved'
-        ).count()
-        context['rejected_count'] = EventDetail.objects.filter(
-            event__community=self.community,
-            applicant__isnull=False,
-            status='rejected'
-        ).count()
-
-        return context
+    def get(self, request, pk):
+        """旧URLへのアクセスをマイリストへリダイレクト"""
+        messages.info(request, 'LT申請一覧はマイリストに統合されました。')
+        return redirect('event:my_list')

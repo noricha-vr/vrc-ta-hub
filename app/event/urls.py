@@ -3,7 +3,8 @@ from django.views.generic import TemplateView
 
 from .views import EventListView, EventDetailView, sync_calendar_events, EventDetailUpdateView, EventDetailCreateView, \
     EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailPastList, \
-    EventDeleteView, GoogleCalendarEventCreateView, EventLogListView, LTApplicationCreateView, LTApplicationReviewView
+    EventDeleteView, GoogleCalendarEventCreateView, EventLogListView, LTApplicationCreateView, LTApplicationReviewView, \
+    LTApplicationApproveView, LTApplicationRejectView
 from .views_llm_generate import generate_llm_events
 
 app_name = 'event'
@@ -26,4 +27,6 @@ urlpatterns = [
     # LT申請
     path('apply/<int:community_pk>/', LTApplicationCreateView.as_view(), name='lt_application_create'),
     path('application/<int:pk>/review/', LTApplicationReviewView.as_view(), name='lt_application_review'),
+    path('application/<int:pk>/approve/', LTApplicationApproveView.as_view(), name='lt_application_approve'),
+    path('application/<int:pk>/reject/', LTApplicationRejectView.as_view(), name='lt_application_reject'),
 ]

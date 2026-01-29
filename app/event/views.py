@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.db.models import QuerySet
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.urls import reverse_lazy, reverse
@@ -1293,7 +1293,7 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
         # 既に処理済みの場合
         if self.event_detail.status != 'pending':
             messages.info(request, 'この申請は既に処理されています。')
-            return redirect('community:lt_application_list', pk=self.community.pk)
+            return redirect('event:my_list')
 
         return super().dispatch(request, *args, **kwargs)
 
@@ -1326,4 +1326,96 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
             f'Community={self.community.name}, Reviewer={self.request.user.user_name}'
         )
 
-        return redirect('community:lt_application_list', pk=self.community.pk)
+        return redirect('event:my_list')
+
+
+class LTApplicationApproveView(LoginRequiredMixin, View):
+    """LT申請の承認ビュー（AJAX対応）"""
+
+    def post(self, request, pk):
+        event_detail = get_object_or_404(EventDetail, pk=pk)
+        community = event_detail.event.community
+
+        # 権限チェック
+        if not community.can_edit(request.user):
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': '権限がありません。'}, status=403)
+            messages.error(request, 'この申請を承認する権限がありません。')
+            return redirect('event:my_list')
+
+        # 既に処理済みの場合
+        if event_detail.status != 'pending':
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': 'この申請は既に処理されています。'}, status=400)
+            messages.info(request, 'この申請は既に処理されています。')
+            return redirect('event:my_list')
+
+        # 承認処理
+        event_detail.status = 'approved'
+        event_detail.save()
+
+        # 申請者に通知
+        from event.notifications import notify_applicant_of_result
+        notify_applicant_of_result(event_detail, request=request)
+
+        logger.info(
+            f'LT申請承認: EventDetail ID={event_detail.pk}, '
+            f'Community={community.name}, Reviewer={request.user.user_name}'
+        )
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'status': 'approved'})
+
+        messages.success(request, '申請を承認しました。')
+        return redirect('event:my_list')
+
+
+class LTApplicationRejectView(LoginRequiredMixin, View):
+    """LT申請の却下ビュー（AJAX対応）"""
+
+    def post(self, request, pk):
+        event_detail = get_object_or_404(EventDetail, pk=pk)
+        community = event_detail.event.community
+
+        # 権限チェック
+        if not community.can_edit(request.user):
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': '権限がありません。'}, status=403)
+            messages.error(request, 'この申請を却下する権限がありません。')
+            return redirect('event:my_list')
+
+        # 既に処理済みの場合
+        if event_detail.status != 'pending':
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': 'この申請は既に処理されています。'}, status=400)
+            messages.info(request, 'この申請は既に処理されています。')
+            return redirect('event:my_list')
+
+        # 却下理由を取得
+        rejection_reason = request.POST.get('rejection_reason', '').strip()
+        if not rejection_reason:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': '却下理由を入力してください。'}, status=400)
+            messages.error(request, '却下理由を入力してください。')
+            return redirect('event:my_list')
+
+        # 却下処理
+        event_detail.status = 'rejected'
+        event_detail.rejection_reason = rejection_reason
+        event_detail.save()
+
+        # 申請者に通知
+        from event.notifications import notify_applicant_of_result
+        notify_applicant_of_result(event_detail, request=request)
+
+        logger.info(
+            f'LT申請却下: EventDetail ID={event_detail.pk}, '
+            f'Community={community.name}, Reviewer={request.user.user_name}, '
+            f'Reason={rejection_reason}'
+        )
+
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': True, 'status': 'rejected'})
+
+        messages.success(request, '申請を却下しました。')
+        return redirect('event:my_list')

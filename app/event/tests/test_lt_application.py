@@ -352,47 +352,264 @@ class LTApplicationListTest(TestCase):
             start_time=time(22, 30),
         )
 
-    def test_list_requires_permission(self):
-        """申請一覧は管理者権限が必要"""
-        self.client.login(username='Applicant', password='applicantpass123')
+    def test_list_redirects_to_my_list(self):
+        """申請一覧URLはマイリストにリダイレクトされる"""
+        self.client.login(username='Owner', password='ownerpass123')
         url = reverse('community:lt_application_list', kwargs={'pk': self.community.pk})
         response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('my_list', response.url)
+
+
+class LTApplicationApproveRejectViewTest(TestCase):
+    """LT申請の承認/却下ビュー（新API）のテスト"""
+
+    def setUp(self):
+        """テスト用データの準備"""
+        self.client = Client()
+
+        # 主催者
+        self.owner = User.objects.create_user(
+            user_name='Owner',
+            email='owner@example.com',
+            password='ownerpass123'
+        )
+
+        # 申請者
+        self.applicant = User.objects.create_user(
+            user_name='Applicant',
+            email='applicant@example.com',
+            password='applicantpass123'
+        )
+
+        # 集会作成
+        self.community = Community.objects.create(
+            name='Test Community',
+            custom_user=self.owner,
+            start_time=time(22, 0),
+            duration=60,
+            weekdays=['Mon'],
+            frequency='Every week',
+            organizers='Test Organizer',
+            status='approved'
+        )
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner,
+            role=CommunityMember.Role.OWNER
+        )
+
+        # イベント作成
+        self.event = Event.objects.create(
+            community=self.community,
+            date=date.today() + timedelta(days=7),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Mon',
+            accepts_lt_application=True
+        )
+
+        # 申請（pending状態のEventDetail）
+        self.pending_application = EventDetail.objects.create(
+            event=self.event,
+            detail_type='LT',
+            theme='Test Theme',
+            speaker='Test Speaker',
+            duration=15,
+            start_time=time(22, 0),
+            status='pending',
+            applicant=self.applicant
+        )
+
+    @patch('event.notifications.send_mail')
+    def test_approve_via_new_endpoint(self, mock_send_mail):
+        """新しいエンドポイントで申請を承認できる"""
+        mock_send_mail.return_value = 1
+        self.client.login(username='Owner', password='ownerpass123')
+
+        url = reverse('event:lt_application_approve', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url)
+
+        # リダイレクト確認
+        self.assertEqual(response.status_code, 302)
+
+        # ステータス更新確認
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'approved')
+
+    @patch('event.notifications.send_mail')
+    def test_reject_via_new_endpoint(self, mock_send_mail):
+        """新しいエンドポイントで申請を却下できる"""
+        mock_send_mail.return_value = 1
+        self.client.login(username='Owner', password='ownerpass123')
+
+        url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url, {
+            'rejection_reason': 'Test rejection reason',
+        })
+
+        # リダイレクト確認
+        self.assertEqual(response.status_code, 302)
+
+        # ステータス更新確認
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'rejected')
+        self.assertEqual(self.pending_application.rejection_reason, 'Test rejection reason')
+
+    def test_reject_requires_reason(self):
+        """却下時は理由が必要"""
+        self.client.login(username='Owner', password='ownerpass123')
+
+        url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url, {
+            'rejection_reason': '',  # 空
+        })
+
+        # リダイレクト（エラーメッセージ付き）
+        self.assertEqual(response.status_code, 302)
+
+        # ステータスは変更されていない
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'pending')
+
+    def test_approve_requires_permission(self):
+        """承認には管理者権限が必要"""
+        self.client.login(username='Applicant', password='applicantpass123')
+
+        url = reverse('event:lt_application_approve', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url)
+
+        # リダイレクト（権限エラー）
+        self.assertEqual(response.status_code, 302)
+
+        # ステータスは変更されていない
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'pending')
+
+    def test_reject_requires_permission(self):
+        """却下には管理者権限が必要"""
+        self.client.login(username='Applicant', password='applicantpass123')
+
+        url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url, {
+            'rejection_reason': 'Test reason',
+        })
+
+        # リダイレクト（権限エラー）
+        self.assertEqual(response.status_code, 302)
+
+        # ステータスは変更されていない
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'pending')
+
+    def test_approve_already_processed(self):
+        """既に処理済みの申請は承認できない"""
+        self.pending_application.status = 'approved'
+        self.pending_application.save()
+
+        self.client.login(username='Owner', password='ownerpass123')
+
+        url = reverse('event:lt_application_approve', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url)
+
+        # リダイレクト
+        self.assertEqual(response.status_code, 302)
+
+    def test_reject_already_processed(self):
+        """既に処理済みの申請は却下できない"""
+        self.pending_application.status = 'approved'
+        self.pending_application.save()
+
+        self.client.login(username='Owner', password='ownerpass123')
+
+        url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url, {
+            'rejection_reason': 'Test reason',
+        })
+
+        # リダイレクト
+        self.assertEqual(response.status_code, 302)
+
+        # ステータスは変更されていない（approvedのまま）
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'approved')
+
+    @patch('event.notifications.send_mail')
+    def test_approve_ajax_response(self, mock_send_mail):
+        """AJAX経由での承認時にJSONレスポンスが返る"""
+        mock_send_mail.return_value = 1
+        self.client.login(username='Owner', password='ownerpass123')
+
+        url = reverse('event:lt_application_approve', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'success': True, 'status': 'approved'})
+
+        # ステータス更新も確認
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'approved')
+
+    @patch('event.notifications.send_mail')
+    def test_reject_ajax_response(self, mock_send_mail):
+        """AJAX経由での却下時にJSONレスポンスが返る"""
+        mock_send_mail.return_value = 1
+        self.client.login(username='Owner', password='ownerpass123')
+
+        url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(
+            url,
+            {'rejection_reason': 'Test rejection reason'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'success': True, 'status': 'rejected'})
+
+        # ステータス更新も確認
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'rejected')
+        self.assertEqual(self.pending_application.rejection_reason, 'Test rejection reason')
+
+    def test_approve_ajax_permission_error(self):
+        """AJAX経由で権限エラー時にステータス403とJSONが返る"""
+        self.client.login(username='Applicant', password='applicantpass123')
+
+        url = reverse('event:lt_application_approve', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
 
         self.assertEqual(response.status_code, 403)
+        response_data = response.json()
+        self.assertEqual(response_data['success'], False)
+        self.assertIn('error', response_data)
 
-    def test_owner_can_see_list(self):
-        """主催者は申請一覧を確認できる"""
+        # ステータスは変更されていない
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'pending')
+
+    def test_reject_ajax_already_processed(self):
+        """AJAX経由で既処理申請時にステータス400とJSONが返る"""
+        self.pending_application.status = 'approved'
+        self.pending_application.save()
+
         self.client.login(username='Owner', password='ownerpass123')
-        url = reverse('community:lt_application_list', kwargs={'pk': self.community.pk})
-        response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Pending Theme')
-        self.assertContains(response, 'Approved Theme')
-        self.assertContains(response, 'Rejected Theme')
+        url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(
+            url,
+            {'rejection_reason': 'Test reason'},
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest'
+        )
 
-    def test_filter_by_status(self):
-        """ステータスでフィルタリングできる"""
-        self.client.login(username='Owner', password='ownerpass123')
+        self.assertEqual(response.status_code, 400)
+        response_data = response.json()
+        self.assertEqual(response_data['success'], False)
+        self.assertIn('error', response_data)
 
-        # 承認待ちのみ
-        url = reverse('community:lt_application_list', kwargs={'pk': self.community.pk})
-        response = self.client.get(url, {'status': 'pending'})
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Pending Theme')
-        self.assertNotContains(response, 'Approved Theme')
-        self.assertNotContains(response, 'Rejected Theme')
-
-    def test_status_counts_in_context(self):
-        """コンテキストに各ステータスの件数が含まれる"""
-        self.client.login(username='Owner', password='ownerpass123')
-        url = reverse('community:lt_application_list', kwargs={'pk': self.community.pk})
-        response = self.client.get(url)
-
-        self.assertEqual(response.context['pending_count'], 1)
-        self.assertEqual(response.context['approved_count'], 1)
-        self.assertEqual(response.context['rejected_count'], 1)
+        # ステータスは変更されていない（approvedのまま）
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'approved')
 
 
 class CommunityDetailFilterTest(TestCase):

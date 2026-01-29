@@ -156,26 +156,110 @@
                                                 <i class="bi bi-pencil-square" title="コンテンツ"></i>
                                             {% endif %}
                                         </div>
-                                        <a href="{% url 'event:detail' detail.pk %}" class="btn btn-primary">確認</a>
-                                        <a href="{% url 'event:detail_update' detail.pk %}"
-                                           class="btn btn-success">編集</a>
-                                        <form method="post" action="{% url 'event:detail_delete' detail.pk %}"
-                                              class="d-inline">
-                                            {% csrf_token %}
-                                            <button type="submit" class="btn btn-danger"
-                                                    onclick="return confirm('本当に削除しますか？');">削除
-                                            </button>
-                                        </form>
-
-                                        {% if detail.slide_file or detail.youtube_url %}
-                                            {% if detail.contents == '' %}
-                                                <form method="post" action="{% url 'event:generate_blog' detail.pk %}" class="d-inline">
-                                                    {% csrf_token %}
-                                                    <button type="submit" class="btn btn-primary generate-button">
-                                                        記事生成
-                                                    </button>
-                                                </form>
+                                        {% if detail.applicant %}
+                                        <div class="card-text mb-2">
+                                            申請者: {{ detail.applicant.user_name }}
+                                            {% if detail.status == 'pending' %}
+                                                <span class="badge bg-warning text-dark ms-2"><i class="fas fa-clock"></i> 承認待ち</span>
+                                            {% elif detail.status == 'approved' %}
+                                                <span class="badge bg-success ms-2"><i class="fas fa-check"></i> 承認済み</span>
+                                            {% elif detail.status == 'rejected' %}
+                                                <span class="badge bg-danger ms-2"><i class="fas fa-times"></i> 却下</span>
                                             {% endif %}
+                                        </div>
+                                        {% endif %}
+                                        <div class="mb-2">
+                                            <a href="{% url 'event:detail' detail.pk %}" class="btn btn-primary btn-sm">確認</a>
+                                            <a href="{% url 'event:detail_update' detail.pk %}"
+                                               class="btn btn-success btn-sm">編集</a>
+                                            <form method="post" action="{% url 'event:detail_delete' detail.pk %}"
+                                                  class="d-inline">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-danger btn-sm"
+                                                        onclick="return confirm('本当に削除しますか？');">削除
+                                                </button>
+                                            </form>
+
+                                            {% if detail.slide_file or detail.youtube_url %}
+                                                {% if detail.contents == '' %}
+                                                    <form method="post" action="{% url 'event:generate_blog' detail.pk %}" class="d-inline">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-primary btn-sm generate-button">
+                                                            記事生成
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                            {% endif %}
+
+                                            {% if detail.applicant and detail.status == 'pending' %}
+                                            <button type="button" class="btn btn-outline-success btn-sm"
+                                                    data-bs-toggle="modal" data-bs-target="#approveModal{{ detail.pk }}">
+                                                <i class="fas fa-check"></i> 承認
+                                            </button>
+                                            <button type="button" class="btn btn-outline-danger btn-sm"
+                                                    data-bs-toggle="modal" data-bs-target="#rejectModal{{ detail.pk }}">
+                                                <i class="fas fa-times"></i> 却下
+                                            </button>
+                                            {% endif %}
+                                        </div>
+
+                                        {% if detail.applicant and detail.status == 'pending' %}
+                                        <div class="modal fade" id="approveModal{{ detail.pk }}" tabindex="-1" aria-labelledby="approveModalLabel{{ detail.pk }}" aria-hidden="true">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title" id="approveModalLabel{{ detail.pk }}">LT申請を承認</h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <p>以下のLT申請を承認しますか？</p>
+                                                        <ul class="list-unstyled">
+                                                            <li><strong>テーマ:</strong> {{ detail.theme }}</li>
+                                                            <li><strong>発表者:</strong> {{ detail.speaker }}</li>
+                                                            <li><strong>申請者:</strong> {{ detail.applicant.user_name }}</li>
+                                                            <li><strong>イベント日:</strong> {{ event.date }}</li>
+                                                        </ul>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                                                        <form method="post" action="{% url 'event:lt_application_approve' detail.pk %}" class="d-inline">
+                                                            {% csrf_token %}
+                                                            <button type="submit" class="btn btn-success">承認する</button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="modal fade" id="rejectModal{{ detail.pk }}" tabindex="-1" aria-labelledby="rejectModalLabel{{ detail.pk }}" aria-hidden="true">
+                                            <div class="modal-dialog">
+                                                <div class="modal-content">
+                                                    <form method="post" action="{% url 'event:lt_application_reject' detail.pk %}">
+                                                        {% csrf_token %}
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title" id="rejectModalLabel{{ detail.pk }}">LT申請を却下</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <p>以下のLT申請を却下しますか？</p>
+                                                            <ul class="list-unstyled mb-3">
+                                                                <li><strong>テーマ:</strong> {{ detail.theme }}</li>
+                                                                <li><strong>発表者:</strong> {{ detail.speaker }}</li>
+                                                                <li><strong>申請者:</strong> {{ detail.applicant.user_name }}</li>
+                                                            </ul>
+                                                            <div class="mb-3">
+                                                                <label for="rejection_reason_{{ detail.pk }}" class="form-label">却下理由 <span class="text-danger">*</span></label>
+                                                                <textarea class="form-control" id="rejection_reason_{{ detail.pk }}" name="rejection_reason" rows="3" required placeholder="却下理由を入力してください"></textarea>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                                                            <button type="submit" class="btn btn-danger">却下する</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
                                         {% endif %}
                                         <hr>
                                     {% endfor %}
