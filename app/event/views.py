@@ -1282,6 +1282,11 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
     form_class = LTApplicationReviewForm
 
     def dispatch(self, request, *args, **kwargs):
+        # LoginRequiredMixinのチェックを先に実行
+        # 未ログインの場合はログインページにリダイレクト
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+
         self.event_detail = get_object_or_404(EventDetail, pk=kwargs['pk'])
         self.community = self.event_detail.event.community
 

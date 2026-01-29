@@ -202,6 +202,15 @@ class LTApplicationReviewTest(TestCase):
             applicant=self.applicant
         )
 
+    def test_review_page_requires_login(self):
+        """レビューページは未ログインユーザーにはアクセスできない"""
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        response = self.client.get(url)
+
+        # ログインページにリダイレクトされる
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue('login' in response.url.lower())
+
     def test_review_page_requires_permission(self):
         """レビューページは管理者権限が必要"""
         # 申請者（非管理者）でログイン
