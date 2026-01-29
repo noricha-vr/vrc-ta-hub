@@ -279,7 +279,7 @@
                                 <td>
                                     {% for detail in event_dict.details %}
                                         <div class="mb-1">
-                                            <a href="{% url 'event:detail' detail.pk %}">{{ detail.title }}</a>
+                                            <a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a>
                                         </div>
                                     {% endfor %}
                                 </td>
@@ -325,7 +325,7 @@
                                 <td>
                                     {% for detail in event_dict.details %}
                                         <div class="mb-1">
-                                            <a href="{% url 'event:detail' detail.pk %}">{{ detail.title }}</a>
+                                            <a href="{% url 'event:detail' detail.pk %}">{{ detail.theme }}</a>
                                         </div>
                                     {% endfor %}
                                 </td>
