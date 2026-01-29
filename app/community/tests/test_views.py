@@ -183,12 +183,13 @@ class CommunityDetailViewEventThemeDisplayTest(TestCase):
         )
 
     def test_theme_blog_shows_h1_in_scheduled_events(self):
-        """開催日程: themeが「Blog」の場合はh1が表示される"""
-        # themeが「Blog」、h1が実際のタイトル
+        """開催日程: BLOGタイプではthemeにh1がコピーされて表示される"""
+        # フォーム保存時にh1がthemeにコピーされる仕様のため、
+        # テストデータも同様にthemeにh1の値をセット
         EventDetail.objects.create(
             event=self.future_event,
             speaker='発表者A',
-            theme='Blog',
+            theme='実際のブログタイトル',  # フォームでh1からコピーされた値
             h1='実際のブログタイトル'
         )
 
@@ -197,10 +198,8 @@ class CommunityDetailViewEventThemeDisplayTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        # 「Blog」ではなく「実際のブログタイトル」が表示される
+        # themeにコピーされたh1の値が表示される
         self.assertContains(response, '実際のブログタイトル')
-        # themeの「Blog」という文字は表示されない（開催日程のテーマカラムで）
-        # ただしセクション名などに含まれる可能性があるため、詳細なチェックは避ける
 
     def test_normal_theme_shows_theme_in_scheduled_events(self):
         """開催日程: 通常のthemeはそのまま表示される"""
@@ -220,12 +219,13 @@ class CommunityDetailViewEventThemeDisplayTest(TestCase):
         self.assertContains(response, 'ゆれをながめる')
 
     def test_theme_blog_shows_h1_in_past_events(self):
-        """発表履歴: themeが「Blog」の場合はh1が表示される"""
-        # themeが「Blog」、h1が実際のタイトル
+        """発表履歴: BLOGタイプではthemeにh1がコピーされて表示される"""
+        # フォーム保存時にh1がthemeにコピーされる仕様のため、
+        # テストデータも同様にthemeにh1の値をセット
         EventDetail.objects.create(
             event=self.past_event,
             speaker='発表者C',
-            theme='Blog',
+            theme='過去のブログタイトル',  # フォームでh1からコピーされた値
             h1='過去のブログタイトル'
         )
 
@@ -234,7 +234,7 @@ class CommunityDetailViewEventThemeDisplayTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        # 「Blog」ではなく「過去のブログタイトル」が表示される
+        # themeにコピーされたh1の値が表示される
         self.assertContains(response, '過去のブログタイトル')
 
     def test_normal_theme_shows_theme_in_past_events(self):
