@@ -81,8 +81,8 @@
                                 {% for radio in form.action %}
                                     <div class="form-check">
                                         {{ radio.tag }}
-                                        <label class="form-check-label {% if radio.choice_value == 'approve' %}text-success{% else %}text-danger{% endif %}" for="{{ radio.id_for_label }}">
-                                            {% if radio.choice_value == 'approve' %}
+                                        <label class="form-check-label {% if radio.data.value == 'approve' %}text-success{% else %}text-danger{% endif %}" for="{{ radio.id_for_label }}">
+                                            {% if radio.data.value == 'approve' %}
                                                 <i class="bi bi-check-circle me-1"></i>
                                             {% else %}
                                                 <i class="bi bi-x-circle me-1"></i>

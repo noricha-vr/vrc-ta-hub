@@ -163,24 +163,31 @@ def _send_discord_notification_for_new_application(
     if not webhook_url:
         return
 
+    # 申請者名を取得
+    applicant_name = (
+        event_detail.applicant.user_name
+        if event_detail.applicant
+        else "不明"
+    )
+
+    # 認知科学に基づくレイアウト:
+    # 1. Call to Action を最初に（content）
+    # 2. テーマを description で目立たせる
+    # 3. 関連情報をグループ化（fields）
+    # 4. コンテキスト情報を footer に
     message = {
+        "content": f"⬇️ **承認/却下をお願いします**\n{review_url}",
         "embeds": [{
-            "title": "新しいLT申請",
-            "color": 3447003,  # 青色
+            "title": "📢 新しいLT申請",
+            "description": f"**{event_detail.theme}**",
+            "color": 16750848,  # オレンジ色（注目を引く）
             "fields": [
-                {"name": "集会", "value": community.name, "inline": True},
-                {"name": "開催日", "value": str(event_detail.event.date), "inline": True},
-                {"name": "テーマ", "value": event_detail.theme, "inline": False},
-                {"name": "発表者", "value": event_detail.speaker, "inline": True},
-                {
-                    "name": "発表時間",
-                    "value": f"{event_detail.duration}分",
-                    "inline": True
-                },
+                {"name": "👤 発表者", "value": event_detail.speaker, "inline": True},
+                {"name": "📅 開催日", "value": str(event_detail.event.date), "inline": True},
+                {"name": "⏱️ 時間", "value": f"{event_detail.duration}分", "inline": True},
             ],
-            "footer": {"text": "VRC技術学術系Hub"},
+            "footer": {"text": f"{community.name} | 申請者: {applicant_name}"},
         }],
-        "content": f"[申請を確認する]({review_url})",
     }
 
     try:
@@ -208,30 +215,35 @@ def _send_discord_notification_for_result(event_detail: EventDetail) -> None:
         return
 
     is_approved = event_detail.status == 'approved'
-    status_text = "承認されました" if is_approved else "却下されました"
-    color = 5763719 if is_approved else 15548997  # 緑 or 赤
+
+    # 認知科学に基づくレイアウト:
+    # 結果を一目で分かるように、絵文字と色で視覚的に区別
+    if is_approved:
+        title = "✅ LT申請が承認されました"
+        color = 5763719  # 緑
+    else:
+        title = "❌ LT申請が却下されました"
+        color = 15548997  # 赤
 
     fields = [
-        {"name": "集会", "value": community.name, "inline": True},
-        {"name": "開催日", "value": str(event_detail.event.date), "inline": True},
-        {"name": "テーマ", "value": event_detail.theme, "inline": False},
-        {"name": "発表者", "value": event_detail.speaker, "inline": True},
-        {"name": "ステータス", "value": status_text, "inline": True},
+        {"name": "👤 発表者", "value": event_detail.speaker, "inline": True},
+        {"name": "📅 開催日", "value": str(event_detail.event.date), "inline": True},
     ]
 
     if not is_approved and event_detail.rejection_reason:
         fields.append({
-            "name": "却下理由",
+            "name": "📝 却下理由",
             "value": event_detail.rejection_reason,
             "inline": False
         })
 
     message = {
         "embeds": [{
-            "title": f"LT申請が{status_text}",
+            "title": title,
+            "description": f"**{event_detail.theme}**",
             "color": color,
             "fields": fields,
-            "footer": {"text": "VRC技術学術系Hub"},
+            "footer": {"text": community.name},
         }],
     }
 
