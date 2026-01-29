@@ -408,7 +408,7 @@ class WebhookSettingsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Discord通知')
-        self.assertContains(response, 'LT申請があった時にDiscordに通知を送信します')
+        self.assertContains(response, '発表（LT）申請があった時にDiscordに通知を送信します')
         self.assertContains(response, 'notification_webhook_url')
 
     def test_update_webhook_url_success(self):
