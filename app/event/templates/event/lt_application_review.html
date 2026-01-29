@@ -50,12 +50,7 @@
                                 </tr>
                                 <tr>
                                     <th scope="row" class="bg-light">申請者</th>
-                                    <td>
-                                        {{ event_detail.applicant.user_name }}
-                                        {% if event_detail.applicant.email %}
-                                            <small class="text-muted">({{ event_detail.applicant.email }})</small>
-                                        {% endif %}
-                                    </td>
+                                    <td>{{ event_detail.applicant.user_name }}</td>
                                 </tr>
                                 <tr>
                                     <th scope="row" class="bg-light">申請日時</th>
