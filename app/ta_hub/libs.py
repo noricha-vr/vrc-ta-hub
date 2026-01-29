@@ -9,6 +9,14 @@ def resize_and_convert_image(image_field, max_size=720, output_format='JPEG'):
     """
     画像をリサイズして指定のフォーマットに変換する関数
 
+    新規作成時と更新時で保存方法を分けることで、upload_to によるパスの
+    二重追加を防ぐ。
+
+    - 新規作成時: image_field.name にディレクトリがない
+      → image_field.save() を使用（upload_to が正しく適用される）
+    - 更新時: image_field.name に既にディレクトリパスがある
+      → 直接ストレージに保存（upload_to の二重適用を防ぐ）
+
     Args:
         image_field (ImageFieldFile): 画像フィールド
         max_size (int): 最大サイズ (デフォルトは720px)
@@ -47,9 +55,35 @@ def resize_and_convert_image(image_field, max_size=720, output_format='JPEG'):
         img.save(buffer, format=output_format, optimize=True, quality=85)
         buffer.seek(0)
 
-        # ファイル名の拡張子を変更（ディレクトリ部分を除く）
-        base_name = os.path.basename(image_field.name)
+        # 現在のパスからディレクトリとファイル名を分離
+        current_path = image_field.name
+        dir_name = os.path.dirname(current_path)
+        base_name = os.path.basename(current_path)
         file_name, _ = os.path.splitext(base_name)
-        file_name = f"{file_name}-{max_size}.{output_format.lower()}"
+        new_file_name = f"{file_name}-{max_size}.{output_format.lower()}"
 
-        image_field.save(file_name, ContentFile(buffer.read()), save=False)
+        content = ContentFile(buffer.read())
+
+        # ディレクトリパスがある = 既に保存済み（更新時）
+        # → 直接ストレージに保存してupload_toの二重適用を防ぐ
+        if dir_name:
+            new_path = f"{dir_name}/{new_file_name}"
+
+            storage = image_field.storage
+
+            # 既存ファイルを削除
+            if current_path and storage.exists(current_path):
+                try:
+                    storage.delete(current_path)
+                except Exception:
+                    pass  # 削除に失敗しても続行
+
+            # 新しいファイルを保存
+            saved_name = storage.save(new_path, content)
+
+            # ImageFieldのnameを直接更新
+            image_field.name = saved_name
+        else:
+            # ディレクトリパスがない = 新規作成時
+            # → image_field.save() を使用してupload_toを適用
+            image_field.save(new_file_name, content, save=False)
