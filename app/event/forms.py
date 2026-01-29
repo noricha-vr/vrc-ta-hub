@@ -279,8 +279,9 @@ class EventDetailForm(forms.ModelForm):
             # start_timeは入力されたものを使用
             cleaned_data['duration'] = 60
         elif detail_type == 'BLOG':
-            # ブログのデフォルト値
-            cleaned_data['theme'] = 'Blog'
+            # ブログのデフォルト値（h1があればthemeにコピー）
+            h1 = cleaned_data.get('h1', '')
+            cleaned_data['theme'] = h1 if h1 else 'Blog'
             cleaned_data['speaker'] = ''
             cleaned_data['start_time'] = self.instance.event.start_time if self.instance.pk else self.fields['start_time'].initial
             cleaned_data['duration'] = 30
