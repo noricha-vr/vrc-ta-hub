@@ -4,7 +4,9 @@ from unittest.mock import MagicMock, patch
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
 
+from allauth.socialaccount.models import SocialAccount
 from user_account.adapters import CustomSocialAccountAdapter
+from user_account.tests.utils import create_discord_linked_user
 
 User = get_user_model()
 
@@ -338,10 +340,11 @@ class DiscordLoginIntegrationTests(TestCase):
 
     def test_settings_page_shows_discord_connection_status(self):
         """設定ページにDiscord連携状態が表示されること."""
-        user = User.objects.create_user(
+        # Discord連携済みユーザーを作成（ミドルウェアでリダイレクトされないため）
+        create_discord_linked_user(
             user_name='test_user',
             email='test@example.com',
-            password='testpass123'
+            password='testpass123',
         )
         self.client.login(username='test_user', password='testpass123')
 
@@ -352,10 +355,11 @@ class DiscordLoginIntegrationTests(TestCase):
 
     def test_connections_page_does_not_show_delete_button(self):
         """連携管理ページに削除ボタンが表示されないこと."""
-        user = User.objects.create_user(
+        # Discord連携済みユーザーを作成（ミドルウェアでリダイレクトされないため）
+        create_discord_linked_user(
             user_name='test_user_conn',
             email='test_conn@example.com',
-            password='testpass123'
+            password='testpass123',
         )
         self.client.login(username='test_user_conn', password='testpass123')
 
