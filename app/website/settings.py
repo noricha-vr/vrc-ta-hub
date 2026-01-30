@@ -104,6 +104,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
+    'user_account.middleware.DiscordAuthRequiredMiddleware',
 ]
 
 AUTHENTICATION_BACKENDS = [
@@ -154,6 +155,9 @@ if 'test' in sys.argv:
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': 'test_db.sqlite3',
     }
+    # テスト環境ではDiscord認証強制ミドルウェアを無効化
+    # 個別のテストで検証する場合は override_settings で有効化
+    DISCORD_AUTH_REQUIRED = False
 
 print('DB_NAME ' + DATABASES['default']['NAME'])
 

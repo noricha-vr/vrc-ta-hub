@@ -12,6 +12,7 @@ from django.core import mail
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from user_account.tests.utils import create_discord_linked_user
 
 User = get_user_model()
 
@@ -36,8 +37,8 @@ class LTApplicationFormTest(TestCase):
         """テスト用データの準備"""
         self.client = Client()
 
-        # ユーザー作成
-        self.user = User.objects.create_user(
+        # Discord連携済みユーザー作成（ミドルウェアでリダイレクトされないため）
+        self.user = create_discord_linked_user(
             user_name='TestUser',
             email='test@example.com',
             password='testpass123'
@@ -149,15 +150,15 @@ class LTApplicationReviewTest(TestCase):
         """テスト用データの準備"""
         self.client = Client()
 
-        # 主催者
-        self.owner = User.objects.create_user(
+        # Discord連携済みの主催者
+        self.owner = create_discord_linked_user(
             user_name='Owner',
             email='owner@example.com',
             password='ownerpass123'
         )
 
-        # 申請者
-        self.applicant = User.objects.create_user(
+        # Discord連携済みの申請者
+        self.applicant = create_discord_linked_user(
             user_name='Applicant',
             email='applicant@example.com',
             password='applicantpass123'
@@ -291,15 +292,15 @@ class LTApplicationListTest(TestCase):
         """テスト用データの準備"""
         self.client = Client()
 
-        # 主催者
-        self.owner = User.objects.create_user(
+        # Discord連携済みの主催者
+        self.owner = create_discord_linked_user(
             user_name='Owner',
             email='owner@example.com',
             password='ownerpass123'
         )
 
-        # 申請者
-        self.applicant = User.objects.create_user(
+        # Discord連携済みの申請者
+        self.applicant = create_discord_linked_user(
             user_name='Applicant',
             email='applicant@example.com',
             password='applicantpass123'
@@ -378,15 +379,15 @@ class LTApplicationApproveRejectViewTest(TestCase):
         """テスト用データの準備"""
         self.client = Client()
 
-        # 主催者
-        self.owner = User.objects.create_user(
+        # Discord連携済みの主催者
+        self.owner = create_discord_linked_user(
             user_name='Owner',
             email='owner@example.com',
             password='ownerpass123'
         )
 
-        # 申請者
-        self.applicant = User.objects.create_user(
+        # Discord連携済みの申請者
+        self.applicant = create_discord_linked_user(
             user_name='Applicant',
             email='applicant@example.com',
             password='applicantpass123'

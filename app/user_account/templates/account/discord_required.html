@@ -1,0 +1,37 @@
+{% extends 'ta_hub/base.html' %}
+{% load socialaccount %}
+{% block meta %}
+    <title>Discord連携が必要です - VRChat 技術・学術系イベントHub</title>
+    <meta name="description" content="このサービスを利用するにはDiscordアカウントとの連携が必要です。">
+{% endblock %}
+
+{% block main %}
+    <div class="container my-4">
+        <div class="row">
+            <div class="col-md-6 offset-md-3">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h4 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Discord連携が必要です</h4>
+                    </div>
+                    <div class="card-body">
+                        {% include 'ta_hub/messages.html' %}
+                        <p class="text-center my-4">
+                            このサービスを利用するにはDiscordアカウントとの連携が必要です。
+                        </p>
+                        <div class="text-center my-4">
+                            <a href="{% provider_login_url 'discord' %}" class="btn btn-lg" style="background-color: #5865F2; color: white;">
+                                <i class="fab fa-discord me-2"></i>Discordで連携する
+                            </a>
+                        </div>
+                        <hr>
+                        <div class="text-center mt-4">
+                            <a href="{% url 'account:logout' %}" class="text-muted">
+                                <i class="fas fa-sign-out-alt me-1"></i>ログアウト
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

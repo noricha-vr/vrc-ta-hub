@@ -145,6 +145,12 @@ class APIKeyDeleteView(LoginRequiredMixin, View):
             messages.error(request, 'APIキーが見つかりません。')
         return redirect('account:api_key_list')
 
+
+class DiscordRequiredView(LoginRequiredMixin, TemplateView):
+    """Discord連携必須ページ."""
+
+    template_name = 'account/discord_required.html'
+
 # for user in CustomUser.objects.all():
 #     password = secrets.token_hex(12)  # ランダムな16文字のパスワードを生成
 #     user.set_password(password)

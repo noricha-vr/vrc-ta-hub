@@ -4,7 +4,9 @@ from django.contrib.messages import get_messages
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from allauth.socialaccount.models import SocialAccount
 from community.models import Community, CommunityMember
+from user_account.tests.utils import create_discord_linked_user
 
 User = get_user_model()
 
@@ -86,7 +88,8 @@ class SettingsViewTests(TestCase):
         """テスト用のデータを準備."""
         self.client = Client()
         self.settings_url = reverse('account:settings')
-        self.test_user = User.objects.create_user(
+        # Discord連携済みユーザーを作成（ミドルウェアでリダイレクトされないため）
+        self.test_user = create_discord_linked_user(
             user_name='test_settings_user',
             email='test_settings@example.com',
             password='testpass123',
@@ -111,7 +114,7 @@ class SettingsViewTests(TestCase):
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
         # 集会追加ボタンが表示されていること（新しいレイアウト）
-        self.assertContains(response, '集会を追加')
+        self.assertContains(response, '新しい技術・学術系集会を始める')
 
     def test_settings_view_with_pending_community_shows_warning_with_discord_link(self):
         """承認待ち集会を持つユーザーに警告メッセージとDiscordリンクが表示されること."""
@@ -184,7 +187,7 @@ class SettingsViewTests(TestCase):
         # マイ集会セクションが表示されていること
         self.assertContains(response, 'マイ集会')
         self.assertContains(response, '所属している集会はありません')
-        self.assertContains(response, '集会を追加')
+        self.assertContains(response, '新しい技術・学術系集会を始める')
 
     def test_settings_view_participant_shows_add_community_button(self):
         """参加者には集会追加ボタンが表示されること."""
@@ -193,7 +196,7 @@ class SettingsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
         # 集会追加ボタンが表示されていること
-        self.assertContains(response, '集会を追加')
+        self.assertContains(response, '新しい技術・学術系集会を始める')
 
     def test_settings_view_participant_shows_account_items(self):
         """参加者にアカウント関連の項目が表示されること."""
@@ -275,7 +278,7 @@ class SettingsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
         # 集会追加ボタンが表示されていること（複数集会の追加が可能）
-        self.assertContains(response, '集会を追加')
+        self.assertContains(response, '新しい技術・学術系集会を始める')
 
     def test_settings_view_uses_list_layout(self):
         """設定ページがリスト型レイアウトを使用していること."""
@@ -400,7 +403,8 @@ class HeaderDropdownMenuTests(TestCase):
         """テスト用のデータを準備."""
         self.client = Client()
         self.index_url = reverse('ta_hub:index')
-        self.test_user = User.objects.create_user(
+        # Discord連携済みユーザーを作成（ミドルウェアでリダイレクトされないため）
+        self.test_user = create_discord_linked_user(
             user_name='test_header_user',
             email='test_header@example.com',
             password='testpass123',

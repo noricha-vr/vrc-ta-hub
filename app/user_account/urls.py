@@ -3,7 +3,8 @@ from django.urls import path
 from django.views.generic import TemplateView
 
 from .views import CustomLoginView, CustomLogoutView, RegisterView, CustomPasswordChangeView, \
-    UserNameChangeView, UserUpdateView, SettingsView, APIKeyListView, APIKeyCreateView, APIKeyDeleteView
+    UserNameChangeView, UserUpdateView, SettingsView, APIKeyListView, APIKeyCreateView, APIKeyDeleteView, \
+    DiscordRequiredView
 
 app_name = 'account'
 urlpatterns = [
@@ -17,5 +18,6 @@ urlpatterns = [
     path('api-keys/', APIKeyListView.as_view(), name='api_key_list'),
     path('api-key/create/', APIKeyCreateView.as_view(), name='api_key_create'),
     path('api-key/<int:pk>/delete/', APIKeyDeleteView.as_view(), name='api_key_delete'),
+    path('discord-required/', DiscordRequiredView.as_view(), name='discord_required'),
 
 ]
