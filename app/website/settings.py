@@ -150,6 +150,11 @@ DATABASES = {
     },
 }
 
+# Discord認証強制ミドルウェアの設定
+# DEBUG=True（開発環境）では無効化（ブラウザ操作MCPでのテストのため）
+# 本番環境（DEBUG=False）では有効化
+DISCORD_AUTH_REQUIRED = not DEBUG
+
 if 'test' in sys.argv:
     DATABASES['default'] = {
         'ENGINE': 'django.db.backends.sqlite3',
