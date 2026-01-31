@@ -7,22 +7,6 @@ from django.urls import reverse
 
 logger = logging.getLogger(__name__)
 
-
-def on_authentication_error(sender, request, provider_id, error, exception, extra_context, **kwargs):
-    """認証エラー時のログ出力."""
-    logger.error(f"OAuth authentication error: provider={provider_id}, error={error}, exception={exception}")
-    if extra_context:
-        logger.error(f"Extra context: {extra_context}")
-
-
-# シグナルを接続
-try:
-    from allauth.socialaccount.signals import authentication_error
-    authentication_error.connect(on_authentication_error)
-    logger.info("Connected authentication_error signal handler")
-except ImportError:
-    logger.warning("Could not import authentication_error signal")
-
 User = get_user_model()
 
 
@@ -59,7 +43,8 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     def pre_social_login(self, request, sociallogin):
         """ソーシャルログイン前の処理.
 
-        discord_idで既存ユーザーを検索し、見つかった場合は自動的に紐付ける。
+        process='connect' の場合はログイン中のユーザーへの紐付け処理なので、
+        allauthのデフォルト動作に任せる。
 
         Args:
             request: HTTPリクエスト
@@ -68,15 +53,14 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         if sociallogin.is_existing:
             return
 
+        # process='connect' の場合はログイン中のユーザーへの紐付け処理
+        # allauthのデフォルト動作に任せる
+        if sociallogin.state.get('process') == 'connect':
+            logger.info("process='connect': delegating to allauth default behavior")
+            return
+
         discord_id = sociallogin.account.uid
         logger.info(f"Discord login attempt: discord_id={discord_id}")
-
-        try:
-            existing_user = User.objects.get(discord_id=discord_id)
-            sociallogin.connect(request, existing_user)
-            logger.info(f"Connected Discord account to existing user: {existing_user.user_name}")
-        except User.DoesNotExist:
-            logger.info(f"No existing user found with discord_id={discord_id}")
 
     def populate_user(self, request, sociallogin, data):
         """新規ユーザー作成時のフィールド設定.
@@ -113,7 +97,6 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
                 user_name = f"{base_name}_{counter}"
             counter += 1
 
-        user.discord_id = discord_id
         user.user_name = user_name
         user.email = data.get('email', '')
 
@@ -124,7 +107,6 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     def save_user(self, request, sociallogin, form=None):
         """ユーザー保存後の処理.
 
-        discord_idが確実に設定されていることを確認する。
         フォームからuser_nameを取得して設定する。
 
         Args:
@@ -137,27 +119,13 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         """
         user = super().save_user(request, sociallogin, form)
 
-        # 更新が必要なフィールドを追跡
-        update_fields = []
-
-        # discord_idが未設定の場合は設定
-        discord_id = sociallogin.account.uid
-        if not user.discord_id:
-            user.discord_id = discord_id
-            update_fields.append('discord_id')
-            logger.info(f"Setting discord_id={discord_id} for user: {user.user_name}")
-
         # フォームからuser_nameを取得して設定
         # allauthのDefaultAccountAdapter.save_userは'username'を見るが、
         # フォームのフィールド名は'user_name'なので明示的に処理する
         if form and 'user_name' in form.cleaned_data:
             user.user_name = form.cleaned_data['user_name']
-            update_fields.append('user_name')
+            user.save(update_fields=['user_name'])
             logger.info(f"Setting user_name from form: {user.user_name}")
-
-        # 更新が必要なフィールドがあれば保存
-        if update_fields:
-            user.save(update_fields=update_fields)
 
         return user
 

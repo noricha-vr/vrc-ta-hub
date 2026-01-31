@@ -40,6 +40,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     )
     email = models.EmailField(
         'メールアドレス',
+        unique=True,
         blank=False,
         null=False,
         help_text='必須。有効なメールアドレスを入力してください。',
@@ -81,7 +82,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     EMAIL_FIELD = 'email'
     USERNAME_FIELD = 'user_name'
     REQUIRED_FIELDS = ['email']
-    discord_id = models.CharField('Discord ID', max_length=50, blank=True, null=True)
 
     class Meta:
         verbose_name = 'ユーザー'

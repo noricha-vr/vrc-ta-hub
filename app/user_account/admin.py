@@ -29,7 +29,6 @@ class CustomUserAdmin(UserAdmin):
     
     fieldsets = (
         (None, {'fields': ('user_name', 'email', 'password')}),
-        ('個人情報', {'fields': ('discord_id',)}),
         ('権限', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('重要な日付', {'fields': ('last_login', 'date_joined')}),
     )

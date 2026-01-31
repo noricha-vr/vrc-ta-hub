@@ -174,6 +174,15 @@ class CommunityDetailView(DetailView):
             context['show_accept_button'] = True
             context['show_reject_button'] = True
 
+        # superuserの場合、集会オーナーのDiscord IDをSocialAccountから取得
+        if self.request.user.is_superuser:
+            from allauth.socialaccount.models import SocialAccount
+            discord_account = SocialAccount.objects.filter(
+                user=community.custom_user,
+                provider='discord'
+            ).first()
+            context['owner_discord_id'] = discord_account.uid if discord_account else None
+
         return context
 
     def get_event_details(self, events):
@@ -986,3 +995,34 @@ class LTApplicationListView(LoginRequiredMixin, View):
         """旧URLへのアクセスをマイリストへリダイレクト"""
         messages.info(request, 'LT申請一覧はマイリストに統合されました。')
         return redirect('event:my_list')
+
+
+class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """LT申請設定更新ビュー"""
+
+    def test_func(self):
+        community = get_object_or_404(Community, pk=self.kwargs['pk'])
+        return community.can_edit(self.request.user)
+
+    def post(self, request, pk):
+        community = get_object_or_404(Community, pk=pk)
+        lt_template = request.POST.get('lt_application_template', '').strip()
+        min_length_str = request.POST.get('lt_application_min_length', '0').strip()
+
+        # 最低文字数のバリデーション
+        try:
+            min_length = max(0, int(min_length_str))
+        except ValueError:
+            min_length = 0
+
+        community.lt_application_template = lt_template
+        community.lt_application_min_length = min_length
+        community.save(update_fields=['lt_application_template', 'lt_application_min_length'])
+
+        messages.success(request, 'LT申請設定を保存しました。')
+        logger.info(
+            f'LT申請設定更新: 集会「{community.name}」、'
+            f'テンプレート文字数={len(lt_template)}、最低文字数={min_length}'
+        )
+
+        return redirect('community:settings')

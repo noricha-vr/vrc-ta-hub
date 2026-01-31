@@ -353,7 +353,7 @@
                     <span class="fw-bold">メールアドレス:</span> {{ community.custom_user.email }}
                 </p>
                 <p>
-                    <span class="fw-bold">Discord ID:</span> {{ community.custom_user.discord_id }}
+                    <span class="fw-bold">Discord ID:</span> {{ owner_discord_id|default:"未連携" }}
                 </p>
             </div>
         </div>
