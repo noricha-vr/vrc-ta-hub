@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 from django.views.generic import TemplateView
@@ -11,6 +12,28 @@ from event_calendar.calendar_utils import generate_google_calendar_url
 from utils.vrchat_time import get_vrchat_today
 
 logger = logging.getLogger(__name__)
+
+# VKETコラボ実績データ
+VKET_ACHIEVEMENTS = [
+    {
+        'id': 'winter-2025',
+        'title': 'Vket 2025 Winter 技術学術WEEK',
+        'period': '2025年12月6日〜12月21日',
+        'stats': {'days': 16, 'communities': 20},
+        'image': 'ta_hub/images/giga-week2025-winter.avif',
+        'hashtags': ['#Vketステージ', '#Vket技術学術WEEK'],
+        'news_slug': 'vket-2025-winter',
+    },
+    {
+        'id': 'summer-2025',
+        'title': 'Vket 2025 Summer 技術学術WEEK',
+        'period': '2025年7月12日〜7月27日',
+        'stats': {'days': 16, 'communities': 20},
+        'image': None,
+        'hashtags': ['#Vketステージ', '#Vket技術学術WEEK'],
+        'news_slug': 'vket-2025-summer',
+    },
+]
 
 
 class IndexView(TemplateView):
@@ -32,6 +55,13 @@ class IndexView(TemplateView):
         context['vket_start_date'] = vket_start_datetime.date()
         context['vket_end_date'] = vket_end_datetime.date()
         logger.info(f"Vket notice visibility: {context['show_vket_notice']} (current: {current_datetime})")
+
+        # VKETコラボ実績をコンテキストに追加（キャッシュ対象外）
+        context['vket_achievements'] = VKET_ACHIEVEMENTS
+
+        # Googleカレンダー連携用のカレンダーIDを追加
+        context['google_calendar_id'] = settings.GOOGLE_CALENDAR_ID
+
         # キャッシュからデータを取得
         cached_data = cache.get(cache_key)
         if cached_data is not None:
