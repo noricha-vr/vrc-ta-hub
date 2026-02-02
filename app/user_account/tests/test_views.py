@@ -326,6 +326,43 @@ class SettingsViewTests(TestCase):
         self.assertNotContains(response, '承認待集会一覧')
 
 
+class UserUpdateViewTests(TestCase):
+    """UserUpdateViewのテストクラス."""
+
+    def setUp(self):
+        """テスト用のデータを準備."""
+        self.client = Client()
+        self.update_url = reverse('account:user_update')
+        # Discord連携済みユーザーを作成（ミドルウェアでリダイレクトされないため）
+        self.test_user = create_discord_linked_user(
+            user_name='test_update_user',
+            email='test_update@example.com',
+            password='testpass123',
+        )
+
+    def test_user_update_view_requires_login(self):
+        """ユーザー情報更新ページはログインが必要であること."""
+        response = self.client.get(self.update_url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('login', response.url)
+
+    def test_user_update_view_renders_correctly(self):
+        """ログイン状態でユーザー情報更新ページが正しくレンダリングされること."""
+        self.client.login(username='test_update_user', password='testpass123')
+        response = self.client.get(self.update_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'account/user_update.html')
+
+    def test_user_update_view_contains_email_privacy_notice(self):
+        """ユーザー情報更新ページにメールアドレス非公開の説明が含まれていること."""
+        self.client.login(username='test_update_user', password='testpass123')
+        response = self.client.get(self.update_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'メールアドレスは公開されません')
+        self.assertContains(response, 'fa-lock')
+        self.assertContains(response, 'form-text')
+
+
 class RegisterViewTests(TestCase):
     """RegisterViewのテストクラス."""
 

@@ -11,7 +11,26 @@
                     <div class="card-body">
                         <form method="post" enctype="multipart/form-data">
                             {% csrf_token %}
-                            {{ form.as_p }}
+                            <div class="mb-3">
+                                <label for="{{ form.user_name.id_for_label }}" class="form-label">{{ form.user_name.label }}:</label>
+                                {{ form.user_name }}
+                                {% if form.user_name.help_text %}
+                                    <div class="form-text">{{ form.user_name.help_text }}</div>
+                                {% endif %}
+                                {% if form.user_name.errors %}
+                                    <div class="text-danger small">{{ form.user_name.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <label for="{{ form.email.id_for_label }}" class="form-label">{{ form.email.label }}:</label>
+                                {{ form.email }}
+                                <div class="form-text">
+                                    <i class="fas fa-lock me-1"></i>メールアドレスは公開されません
+                                </div>
+                                {% if form.email.errors %}
+                                    <div class="text-danger small">{{ form.email.errors }}</div>
+                                {% endif %}
+                            </div>
                             <button type="submit" class="btn btn-primary">更新</button>
                         </form>
                     </div>
