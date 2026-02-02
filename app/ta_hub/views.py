@@ -9,18 +9,18 @@ from django.views.static import serve
 from event.models import Event, EventDetail
 from event.views import EventListView
 from event_calendar.calendar_utils import generate_google_calendar_url
+from news.models import Post
 from utils.vrchat_time import get_vrchat_today
 
 logger = logging.getLogger(__name__)
 
-# VKETコラボ実績データ
+# VKETコラボ実績データ（画像はニュース記事のサムネイルから取得）
 VKET_ACHIEVEMENTS = [
     {
         'id': 'winter-2025',
         'title': 'Vket 2025 Winter 技術学術WEEK',
         'period': '2025年12月6日〜12月21日',
         'stats': {'days': 16, 'communities': 20},
-        'image': 'ta_hub/images/giga-week2025-winter.avif',
         'hashtags': ['#Vketステージ', '#Vket技術学術WEEK'],
         'news_slug': 'vket-2025-winter',
     },
@@ -29,7 +29,6 @@ VKET_ACHIEVEMENTS = [
         'title': 'Vket 2025 Summer 技術学術WEEK',
         'period': '2025年7月12日〜7月27日',
         'stats': {'days': 16, 'communities': 20},
-        'image': 'https://data.vrc-ta-hub.com/news/vket-2025-summer.webp',
         'hashtags': ['#Vketステージ', '#Vket技術学術WEEK'],
         'news_slug': 'vket-2025-summer',
     },
@@ -56,8 +55,18 @@ class IndexView(TemplateView):
         context['vket_end_date'] = vket_end_datetime.date()
         logger.info(f"Vket notice visibility: {context['show_vket_notice']} (current: {current_datetime})")
 
-        # VKETコラボ実績をコンテキストに追加（キャッシュ対象外）
-        context['vket_achievements'] = VKET_ACHIEVEMENTS
+        # VKETコラボ実績をコンテキストに追加（ニュース記事のサムネイルを取得）
+        news_slugs = [a['news_slug'] for a in VKET_ACHIEVEMENTS]
+        news_posts = Post.objects.filter(slug__in=news_slugs).only('slug', 'thumbnail')
+        thumbnail_map = {post.slug: post.get_absolute_thumbnail_url(self.request) for post in news_posts}
+
+        vket_achievements_with_images = []
+        for achievement in VKET_ACHIEVEMENTS:
+            achievement_copy = achievement.copy()
+            achievement_copy['image'] = thumbnail_map.get(achievement['news_slug'])
+            vket_achievements_with_images.append(achievement_copy)
+
+        context['vket_achievements'] = vket_achievements_with_images
 
         # Googleカレンダー連携用のカレンダーIDを追加
         context['google_calendar_id'] = settings.GOOGLE_CALENDAR_ID

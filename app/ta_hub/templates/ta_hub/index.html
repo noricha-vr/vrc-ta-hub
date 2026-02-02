@@ -608,17 +608,10 @@
                                 <div class="card shadow h-100 vket-achievement-card">
                                     {% if achievement.image %}
                                         <div class="card-img-top-container">
-                                            {% if 'https://' in achievement.image or 'http://' in achievement.image %}
-                                                <img src="{{ achievement.image }}"
-                                                     class="card-img-top"
-                                                     alt="{{ achievement.title }}"
-                                                     style="height: 200px; object-fit: cover;">
-                                            {% else %}
-                                                <img src="{% static achievement.image %}"
-                                                     class="card-img-top"
-                                                     alt="{{ achievement.title }}"
-                                                     style="height: 200px; object-fit: cover;">
-                                            {% endif %}
+                                            <img src="{{ achievement.image }}"
+                                                 class="card-img-top"
+                                                 alt="{{ achievement.title }}"
+                                                 style="height: 200px; object-fit: cover;">
                                         </div>
                                     {% endif %}
                                     <div class="card-body">

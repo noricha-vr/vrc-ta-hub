@@ -15,7 +15,8 @@ class VketAchievementsConstantTest(TestCase):
 
     def test_vket_achievements_has_required_fields(self):
         """各実績に必須フィールドがあること"""
-        required_fields = ['id', 'title', 'period', 'stats', 'image', 'hashtags', 'news_slug']
+        # imageはニュース記事のサムネイルから動的に取得するため、定数には含まれない
+        required_fields = ['id', 'title', 'period', 'stats', 'hashtags', 'news_slug']
 
         for achievement in VKET_ACHIEVEMENTS:
             for field in required_fields:
@@ -40,7 +41,13 @@ class VketAchievementsSectionTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('vket_achievements', response.context)
-        self.assertEqual(response.context['vket_achievements'], VKET_ACHIEVEMENTS)
+        # imageはニュース記事のサムネイルから動的に取得されるため、フィールドの存在を確認
+        context_achievements = response.context['vket_achievements']
+        self.assertEqual(len(context_achievements), len(VKET_ACHIEVEMENTS))
+        for i, achievement in enumerate(context_achievements):
+            self.assertEqual(achievement['id'], VKET_ACHIEVEMENTS[i]['id'])
+            self.assertEqual(achievement['title'], VKET_ACHIEVEMENTS[i]['title'])
+            self.assertIn('image', achievement)  # imageフィールドが動的に追加されていること
 
     def test_vket_achievements_section_displayed(self):
         """VKETコラボ実績セクションが表示されること"""
