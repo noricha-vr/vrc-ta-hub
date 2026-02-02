@@ -50,11 +50,11 @@ class VketAchievementsSectionTest(TestCase):
             self.assertIn('image', achievement)  # imageフィールドが動的に追加されていること
 
     def test_vket_achievements_section_displayed(self):
-        """VKETコラボ実績セクションが表示されること"""
+        """VKETコラボセクションが表示されること"""
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'VKETコラボ実績')
+        self.assertContains(response, 'VKETコラボ')
         self.assertContains(response, 'bi-trophy-fill')
 
     def test_vket_achievement_titles_displayed(self):

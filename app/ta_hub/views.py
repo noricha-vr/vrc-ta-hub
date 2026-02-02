@@ -14,11 +14,11 @@ from utils.vrchat_time import get_vrchat_today
 
 logger = logging.getLogger(__name__)
 
-# VKETコラボ実績データ（画像はニュース記事のサムネイルから取得）
+# VKETコラボデータ（画像はニュース記事のサムネイルから取得）
 VKET_ACHIEVEMENTS = [
     {
         'id': 'winter-2025',
-        'title': 'Vket 2025 Winter 技術学術WEEK',
+        'title': '❄️ Vket 2025 Winter 技術学術WEEK',
         'period': '2025年12月6日〜12月21日',
         'stats': {'days': 16, 'communities': 20},
         'hashtags': ['#Vketステージ', '#Vket技術学術WEEK'],
@@ -26,7 +26,7 @@ VKET_ACHIEVEMENTS = [
     },
     {
         'id': 'summer-2025',
-        'title': 'Vket 2025 Summer 技術学術WEEK',
+        'title': '🌻 Vket 2025 Summer 技術学術WEEK',
         'period': '2025年7月12日〜7月27日',
         'stats': {'days': 16, 'communities': 20},
         'hashtags': ['#Vketステージ', '#Vket技術学術WEEK'],
