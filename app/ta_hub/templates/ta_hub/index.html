@@ -296,6 +296,34 @@
             transform: translateY(3px);
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
         }
+
+        /* VKETコラボ実績カードのスタイル */
+        .vket-achievement-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: none;
+            overflow: hidden;
+        }
+
+        .vket-achievement-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        .vket-achievement-card .card-body {
+            padding: 1.5rem;
+        }
+
+        .vket-achievement-card .card-img-top-container {
+            overflow: hidden;
+        }
+
+        .vket-achievement-card .card-img-top {
+            transition: transform 0.3s ease;
+        }
+
+        .vket-achievement-card:hover .card-img-top {
+            transform: scale(1.05);
+        }
     </style>
     <link rel="stylesheet" href="https://petipeti-object-storage.work/dist/style.css">
 
@@ -560,6 +588,70 @@
         </section>
     {% endif %}
 
+    <!-- VKET achievements section -->
+    {% if vket_achievements %}
+        <section class="py-5 bg-light">
+            <div class="container">
+                <div class="row featurette text-center text-primary mb-4">
+                    <h2 class="featurette-heading fw-normal lh-1 fw-bold">
+                        <i class="bi bi-trophy-fill me-2"></i>VKETコラボ実績
+                    </h2>
+                </div>
+                <p class="text-center text-muted mb-5">
+                    <i class="bi bi-stars me-2"></i>
+                    バーチャルマーケットとの大規模コラボレーション
+                </p>
+                <div class="row g-4 justify-content-center">
+                    {% for achievement in vket_achievements %}
+                        <div class="col-12 col-md-6">
+                            <a href="{% url 'news:detail' achievement.news_slug %}" class="text-decoration-none d-block h-100">
+                                <div class="card shadow h-100 vket-achievement-card">
+                                    {% if achievement.image %}
+                                        <div class="card-img-top-container">
+                                            <img src="{% static achievement.image %}"
+                                                 class="card-img-top"
+                                                 alt="{{ achievement.title }}"
+                                                 style="height: 200px; object-fit: cover;">
+                                        </div>
+                                    {% endif %}
+                                    <div class="card-body">
+                                        <h3 class="card-title h5 text-primary fw-bold mb-3">{{ achievement.title }}</h3>
+                                        <div class="mb-3">
+                                            <p class="mb-2 text-muted">
+                                                <i class="bi bi-calendar3 me-2"></i>{{ achievement.period }}
+                                            </p>
+                                            <div class="d-flex gap-3 text-muted">
+                                                <span>
+                                                    <i class="bi bi-calendar-week me-1"></i>{{ achievement.stats.days }}日間
+                                                </span>
+                                                <span>
+                                                    <i class="bi bi-people me-1"></i>{{ achievement.stats.communities }}団体参加
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            {% for hashtag in achievement.hashtags %}
+                                                <span class="badge" style="background-color: #1DA1F2; font-size: 0.85rem;">
+                                                    {{ hashtag }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="text-center mt-4">
+                    <a href="{% url 'news:category_list' 'activity' %}" class="btn btn-outline-primary btn-hover-press">
+                        <i class="bi bi-journal-text me-2"></i>活動履歴をもっと見る
+                    </a>
+                </div>
+            </div>
+        </section>
+    {% endif %}
+    <!-- VKET achievements section end -->
+
     <!-- upcoming events section -->
     <section class="py-5">
         <div class="container">
@@ -571,10 +663,76 @@
                     </h2>
                 </a>
             </div>
-            <p class="text-center text-muted mb-5">
+            <p class="text-center text-muted mb-4">
                 <i class="bi bi-search me-2"></i>
                 注目の技術学術イベントをチェック！お見逃しなく！
             </p>
+
+            <!-- Googleカレンダー連携UI（折りたたみ式） -->
+            <div class="row justify-content-center mb-5">
+                <div class="col-12 col-lg-10">
+                    <div class="card border-info">
+                        <div class="card-header bg-info bg-opacity-10 border-0 py-3">
+                            <a class="d-flex align-items-center justify-content-between text-decoration-none"
+                               data-bs-toggle="collapse"
+                               href="#calendarSyncDetails"
+                               role="button"
+                               aria-expanded="false"
+                               aria-controls="calendarSyncDetails">
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-calendar-plus fs-5 text-info me-3"></i>
+                                    <span class="fw-semibold text-dark">Googleカレンダーと連携して予定を管理</span>
+                                </div>
+                                <span class="calendar-toggle-icon text-info">
+                                    <span class="toggle-open">詳しく <i class="bi bi-chevron-down"></i></span>
+                                    <span class="toggle-close d-none">閉じる <i class="bi bi-chevron-up"></i></span>
+                                </span>
+                            </a>
+                        </div>
+                        <div class="collapse" id="calendarSyncDetails">
+                            <div class="card-body pt-0">
+                                <div class="row g-4 py-3">
+                                    <!-- 全イベント同期オプション -->
+                                    <div class="col-12 col-md-6">
+                                        <div class="d-flex align-items-start">
+                                            <div class="flex-shrink-0">
+                                                <i class="bi bi-arrow-repeat fs-3 text-primary"></i>
+                                            </div>
+                                            <div class="flex-grow-1 ms-3">
+                                                <h5 class="mb-2 fw-bold">全イベントを同期</h5>
+                                                <p class="text-muted mb-3">
+                                                    一度追加すれば、新しいイベントも自動で反映されます
+                                                </p>
+                                                <a href="https://calendar.google.com/calendar/u/0/r?cid={{ google_calendar_id|urlencode }}"
+                                                   class="btn btn-primary"
+                                                   target="_blank"
+                                                   rel="noopener noreferrer">
+                                                    <i class="bi bi-google me-2"></i>Googleカレンダーに追加
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- 個別追加オプション -->
+                                    <div class="col-12 col-md-6">
+                                        <div class="d-flex align-items-start">
+                                            <div class="flex-shrink-0">
+                                                <i class="bi bi-star fs-3 text-warning"></i>
+                                            </div>
+                                            <div class="flex-grow-1 ms-3">
+                                                <h5 class="mb-2 fw-bold">気になるイベントだけ追加</h5>
+                                                <p class="text-muted mb-0">
+                                                    各イベントカードの右上にある <i class="bi bi-plus-circle-fill text-primary"></i> をクリックすると、個別にカレンダーへ追加できます
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="row row-cols-1 row-cols-md-2 g-4">
                 {% for event in upcoming_events %}
                     <div class="col">
@@ -659,7 +817,7 @@
                 {% endfor %}
             </div>
             <div class="text-center mt-5">
-                <a href="{% url 'event:list' %}" class="btn btn-primary btn-hover-press">
+                <a href="{% url 'event:list' %}" class="btn btn-primary btn-lg btn-hover-press">
                     <i class="bi bi-calendar-week me-2"></i>すべてのイベントを見る
                 </a>
             </div>
@@ -1092,6 +1250,26 @@
                         }, 2000);
                     }
                 });
+            }
+
+            // Googleカレンダー連携UIの折りたたみ状態に応じてトグルテキストを切り替え
+            const calendarCollapse = document.getElementById('calendarSyncDetails');
+            if (calendarCollapse) {
+                const toggleIcon = calendarCollapse.closest('.card').querySelector('.calendar-toggle-icon');
+                if (toggleIcon) {
+                    const toggleOpen = toggleIcon.querySelector('.toggle-open');
+                    const toggleClose = toggleIcon.querySelector('.toggle-close');
+
+                    calendarCollapse.addEventListener('show.bs.collapse', function () {
+                        toggleOpen.classList.add('d-none');
+                        toggleClose.classList.remove('d-none');
+                    });
+
+                    calendarCollapse.addEventListener('hide.bs.collapse', function () {
+                        toggleOpen.classList.remove('d-none');
+                        toggleClose.classList.add('d-none');
+                    });
+                }
             }
         });
     </script>
