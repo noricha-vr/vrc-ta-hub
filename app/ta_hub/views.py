@@ -29,7 +29,7 @@ VKET_ACHIEVEMENTS = [
         'title': 'Vket 2025 Summer 技術学術WEEK',
         'period': '2025年7月12日〜7月27日',
         'stats': {'days': 16, 'communities': 20},
-        'image': None,
+        'image': 'https://data.vrc-ta-hub.com/news/vket-2025-summer.webp',
         'hashtags': ['#Vketステージ', '#Vket技術学術WEEK'],
         'news_slug': 'vket-2025-summer',
     },
