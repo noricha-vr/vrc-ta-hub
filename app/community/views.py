@@ -205,7 +205,7 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Community
     form_class = CommunityUpdateForm
     template_name = 'community/update.html'
-    success_url = reverse_lazy('account:settings')
+    success_url = reverse_lazy('community:settings')
 
     def test_func(self):
         community = self.get_object()

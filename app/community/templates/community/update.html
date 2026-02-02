@@ -5,6 +5,7 @@
     <div class="container my-5">
         <div class="row">
             <div class="col-md-10 offset-md-1">
+                {% include 'ta_hub/messages.html' %}
                 <form method="post" enctype="multipart/form-data">
                     {% csrf_token %}
 
@@ -23,8 +24,8 @@
                             {% bootstrap_field form.group_url %}
                             {% bootstrap_field form.organizer_url %}
                             {% bootstrap_field form.sns_url %}
-                            {% bootstrap_field form.discord %}
                             {% bootstrap_field form.twitter_hashtag %}
+                            {% bootstrap_field form.discord %}
                             {% bootstrap_field form.poster_image %}
                             {% bootstrap_field form.allow_poster_repost %}
                             {% bootstrap_field form.accepts_lt_application %}

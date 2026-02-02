@@ -54,9 +54,9 @@ class Community(models.Model):
     organizers = models.CharField('主催・副主催', max_length=200)
     group_url = models.URLField('VRChatグループURL', blank=True)
     organizer_url = models.URLField('主催プロフィールURL', blank=True)
-    sns_url = models.URLField('SNS', blank=True)
-    discord = models.URLField('Discord', blank=True)
-    twitter_hashtag = models.CharField('Twitterハッシュタグ', max_length=100, blank=True)
+    sns_url = models.URLField('X（旧Twitter）', blank=True)
+    discord = models.URLField('Discordサーバー', blank=True)
+    twitter_hashtag = models.CharField('Xハッシュタグ', max_length=100, blank=True)
     poster_image = models.ImageField('ポスター', upload_to='poster/', blank=True)
     description = models.TextField('集会紹介', default='', blank=True)
     platform = models.CharField('対応プラットフォーム', max_length=10, choices=PLATFORM_CHOICES, default='All')
@@ -71,6 +71,17 @@ class Community(models.Model):
         '発表（LT）申し込み受付',
         default=True,
         help_text='ONにすると、この集会で発表（LT）申請を受け付けます'
+    )
+    lt_application_template = models.TextField(
+        'LT申請テンプレート',
+        blank=True,
+        default='',
+        help_text='LT申請時に登壇者に入力してもらいたい項目のテンプレート。空の場合は追加情報欄を表示しません。'
+    )
+    lt_application_min_length = models.PositiveIntegerField(
+        '追加情報の最低文字数',
+        default=0,
+        help_text='0の場合は文字数チェックを行いません'
     )
 
     class Meta:
