@@ -58,7 +58,7 @@ class TwitterTemplateUpdateView(TwitterTemplateBaseView, UpdateView):
         if not super().test_func():
             return False
         twitter_template = self.get_object()
-        return twitter_template.community.custom_user == self.request.user
+        return twitter_template.community.is_manager(self.request.user)
 
 
 class TwitterTemplateListView(LoginRequiredMixin, ListView):

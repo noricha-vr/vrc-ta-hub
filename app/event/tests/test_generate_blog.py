@@ -24,8 +24,7 @@ class TestGenerateBlog(TestCase):
             email="sample@example.com"
         )
         cls.community = Community.objects.create(
-            name="個人開発集会",
-            custom_user=cls.user
+            name="個人開発集会"
         )
         cls.event = Event.objects.create(
             date="2024-05-24",

@@ -114,7 +114,7 @@
     </div>
 
     <div class="content">
-        <p>{{ community.custom_user.user_name }} 様</p>
+        <p>{{ owner_name|default:"未設定" }} 様</p>
 
         <p>{{ community.name }}が承認されました。<br>
         これにより、イベントの公開が可能になりました。</p>

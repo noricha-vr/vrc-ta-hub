@@ -36,7 +36,7 @@
     </div>
 
     <div class="content">
-        <p>{{ community.custom_user.user_name }} 様</p>
+        <p>{{ owner_name|default:"未設定" }} 様</p>
 
         <p>申し訳ありませんが、{{ community.name }}は非承認となりました。<br>
         以下の点を確認の上、再度申請をお願いいたします：</p>

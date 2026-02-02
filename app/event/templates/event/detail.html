@@ -112,7 +112,7 @@
                 {% if video_id %}
                     <div class="mb-3">
                         <div class="ratio ratio-16x9">
-                            <iframe src="https://www.youtube.com/embed/{{ video_id }}"
+                            <iframe src="https://www.youtube.com/embed/{{ video_id }}{% if start_time %}?start={{ start_time }}{% endif %}"
                                     title="{{ event_detail.theme }} - {{ event_detail.speaker }}"
                                     allowfullscreen
                                     referrerpolicy="strict-origin-when-cross-origin"
@@ -121,7 +121,7 @@
                     </div>
                 {% endif %}
 
-                {% if request.user == event_detail.event.community.custom_user %}
+                {% if is_community_owner %}
                     <div class="d-flex">
                         <a href="{% url 'event:my_list' %}"
                            class="btn btn-primary me-2">イベント一覧</a>

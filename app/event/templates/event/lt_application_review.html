@@ -56,6 +56,12 @@
                                     <th scope="row" class="bg-light">申請日時</th>
                                     <td>{{ event_detail.created_at|date:"Y年m月d日 H:i" }}</td>
                                 </tr>
+                                {% if event_detail.additional_info %}
+                                <tr>
+                                    <th scope="row" class="bg-light">追加情報</th>
+                                    <td><pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ event_detail.additional_info }}</pre></td>
+                                </tr>
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>

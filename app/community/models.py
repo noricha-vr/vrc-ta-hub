@@ -41,8 +41,6 @@ STATUS_CHOICES = (
 
 
 class Community(models.Model):
-    custom_user = models.ForeignKey('user_account.CustomUser', on_delete=models.CASCADE, verbose_name='ユーザー',
-                                    default=None, blank=True, null=True)
     name = models.CharField('集会名', max_length=100, db_index=True)
     created_at = models.DateField('開始日', default=timezone.now, blank=True, null=True, db_index=True)
     updated_at = models.DateField('更新日', auto_now=True, db_index=True)
@@ -82,6 +80,11 @@ class Community(models.Model):
         '追加情報の最低文字数',
         default=0,
         help_text='0の場合は文字数チェックを行いません'
+    )
+    default_lt_duration = models.PositiveIntegerField(
+        'デフォルトの発表時間',
+        default=30,
+        help_text='LT申請フォームに表示されるデフォルトの発表時間（分）'
     )
 
     class Meta:
@@ -129,19 +132,21 @@ class Community(models.Model):
 
     def is_manager(self, user):
         """指定ユーザーが管理者かどうかを判定する"""
-        # メンバーシップチェック
-        if self.members.filter(user=user).exists():
-            return True
-        # 後方互換: custom_userチェック（CommunityMember未作成の集会用）
-        return self.custom_user == user
+        return self.members.filter(user=user).exists()
 
     def is_owner(self, user):
         """指定ユーザーが主催者かどうかを判定する"""
-        # メンバーシップチェック
-        if self.members.filter(user=user, role=CommunityMember.Role.OWNER).exists():
-            return True
-        # 後方互換: custom_userチェック（CommunityMember未作成の集会用）
-        return self.custom_user == user
+        return self.members.filter(user=user, role=CommunityMember.Role.OWNER).exists()
+
+    def get_owner(self):
+        """オーナーユーザーを取得（最初の1人）"""
+        owner_member = self.members.filter(role=CommunityMember.Role.OWNER).first()
+        return owner_member.user if owner_member else None
+
+    def get_owner_email(self):
+        """オーナーのメールアドレスを取得"""
+        owner = self.get_owner()
+        return owner.email if owner else None
 
     def can_edit(self, user):
         """指定ユーザーが編集可能かどうかを判定する"""

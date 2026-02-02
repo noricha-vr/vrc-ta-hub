@@ -228,6 +228,12 @@ class EventDetail(models.Model):
         related_name='lt_applications', verbose_name='申請者'
     )
     rejection_reason = models.TextField('却下理由', blank=True, default='')
+    additional_info = models.TextField(
+        '追加情報',
+        blank=True,
+        default='',
+        help_text='登壇者が入力した追加情報'
+    )
 
     class Meta:
         verbose_name = 'イベント詳細'

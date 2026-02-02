@@ -22,7 +22,6 @@ class GenerateRecurringEventsCommandTest(TestCase):
         
         self.community = Community.objects.create(
             name='テストコミュニティ',
-            custom_user=self.user,
             description='テスト用コミュニティ',
             weekdays=['Mon'],
             start_time=time(21, 0),

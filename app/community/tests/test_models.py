@@ -35,7 +35,6 @@ class CommunitySaveMethodTestCase(TestCase):
         # 集会を作成
         community = Community.objects.create(
             name='テスト集会',
-            custom_user=self.user,
             frequency='毎週',
             organizers='テスト主催者'
         )
@@ -54,7 +53,6 @@ class CommunitySaveMethodTestCase(TestCase):
         # 集会を作成
         community = Community.objects.create(
             name='テスト集会',
-            custom_user=self.user,
             frequency='毎週',
             organizers='テスト主催者'
         )
@@ -72,7 +70,6 @@ class CommunitySaveMethodTestCase(TestCase):
         # 集会を作成
         community = Community.objects.create(
             name='テスト集会',
-            custom_user=self.user,
             frequency='毎週',
             organizers='テスト主催者'
         )
@@ -91,7 +88,6 @@ class CommunitySaveMethodTestCase(TestCase):
         # 集会を作成
         community = Community.objects.create(
             name='テスト集会',
-            custom_user=self.user,
             frequency='毎週',
             organizers='テスト主催者'
         )
@@ -109,7 +105,6 @@ class CommunitySaveMethodTestCase(TestCase):
         # 集会を作成
         community = Community.objects.create(
             name='テスト集会',
-            custom_user=self.user,
             frequency='毎週',
             organizers='テスト主催者'
         )
@@ -128,7 +123,6 @@ class CommunitySaveMethodTestCase(TestCase):
         # 集会を作成
         community = Community.objects.create(
             name='テスト集会',
-            custom_user=self.user,
             frequency='毎週',
             organizers='テスト主催者'
         )

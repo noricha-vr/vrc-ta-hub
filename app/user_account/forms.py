@@ -115,10 +115,11 @@ class CustomUserCreationForm(UserCreationForm):
         }
 
     def save(self, commit=True):
+        from community.models import CommunityMember
+
         user = super().save(commit=False)
         user.user_name = self.cleaned_data['user_name']
         community = Community(
-            custom_user=user,
             name=self.cleaned_data['user_name'],
             start_time=self.cleaned_data['start_time'],
             duration=self.cleaned_data['duration'],
@@ -139,6 +140,12 @@ class CustomUserCreationForm(UserCreationForm):
         if commit:
             user.save()
             community.save()
+            # オーナーとしてCommunityMemberを作成
+            CommunityMember.objects.create(
+                community=community,
+                user=user,
+                role=CommunityMember.Role.OWNER
+            )
         return user
 
 

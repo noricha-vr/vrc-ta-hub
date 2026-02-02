@@ -114,6 +114,52 @@
         </div>
     </div>
 
+    <!-- LT申請設定セクション -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="fa-solid fa-microphone me-2"></i>LT申請設定
+        </div>
+        <div class="card-body">
+            <form method="post" action="{% url 'community:update_lt_settings' community.pk %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="lt_application_template" class="form-label fw-medium">追加情報テンプレート</label>
+                    <textarea name="lt_application_template" id="lt_application_template"
+                              class="form-control" rows="6"
+                              placeholder="【発表概要】&#10;&#10;【対象者】&#10;&#10;【必要な前提知識】&#10;&#10;【動画撮影】OK / NG / 公開OK">{{ community.lt_application_template }}</textarea>
+                    <small class="form-text text-muted">
+                        空の場合、申請フォームに追加情報欄は表示されません。
+                    </small>
+                </div>
+                <div class="mb-3">
+                    <label for="lt_application_min_length" class="form-label fw-medium">最低文字数</label>
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="number" name="lt_application_min_length" id="lt_application_min_length"
+                               class="form-control" style="width: 100px;" min="0"
+                               value="{{ community.lt_application_min_length }}">
+                        <span>文字</span>
+                    </div>
+                    <small class="form-text text-muted">
+                        0の場合、文字数チェックは行いません。
+                    </small>
+                </div>
+                <div class="mb-3">
+                    <label for="default_lt_duration" class="form-label fw-medium">デフォルトの発表時間</label>
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="number" name="default_lt_duration" id="default_lt_duration"
+                               class="form-control" style="width: 100px;" min="1"
+                               value="{{ community.default_lt_duration|default:30 }}">
+                        <span>分</span>
+                    </div>
+                    <small class="form-text text-muted">
+                        LT申請フォームに表示されるデフォルトの発表時間
+                    </small>
+                </div>
+                <button type="submit" class="btn btn-primary">保存</button>
+            </form>
+        </div>
+    </div>
+
     <!-- メンバー管理セクション（主催者のみ） -->
     {% if is_owner %}
     <div class="card mb-4">

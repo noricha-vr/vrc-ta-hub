@@ -119,11 +119,15 @@ class SettingsViewTests(TestCase):
     def test_settings_view_with_pending_community_shows_warning_with_discord_link(self):
         """承認待ち集会を持つユーザーに警告メッセージとDiscordリンクが表示されること."""
         # 承認待ち集会を作成
-        Community.objects.create(
-            custom_user=self.test_user,
+        community = Community.objects.create(
             name='テスト集会',
             frequency='毎週',
             status='pending',
+        )
+        CommunityMember.objects.create(
+            community=community,
+            user=self.test_user,
+            role=CommunityMember.Role.OWNER,
         )
         self.client.login(username='test_settings_user', password='testpass123')
         response = self.client.get(self.settings_url)
@@ -146,11 +150,15 @@ class SettingsViewTests(TestCase):
     def test_settings_view_with_approved_community_no_warning(self):
         """承認済み集会を持つユーザーには警告メッセージが表示されないこと."""
         # 承認済み集会を作成
-        Community.objects.create(
-            custom_user=self.test_user,
+        community = Community.objects.create(
             name='テスト承認済み集会',
             frequency='毎週',
             status='approved',
+        )
+        CommunityMember.objects.create(
+            community=community,
+            user=self.test_user,
+            role=CommunityMember.Role.OWNER,
         )
         self.client.login(username='test_settings_user', password='testpass123')
         response = self.client.get(self.settings_url)
@@ -163,11 +171,15 @@ class SettingsViewTests(TestCase):
     def test_settings_view_does_not_contain_other_section(self):
         """設定ページに「その他」セクションが表示されないこと."""
         # 承認待ち集会を作成（以前は「その他」セクションが表示される条件だった）
-        Community.objects.create(
-            custom_user=self.test_user,
+        community = Community.objects.create(
             name='テスト集会',
             frequency='毎週',
             status='pending',
+        )
+        CommunityMember.objects.create(
+            community=community,
+            user=self.test_user,
+            role=CommunityMember.Role.OWNER,
         )
         self.client.login(username='test_settings_user', password='testpass123')
         response = self.client.get(self.settings_url)
@@ -217,7 +229,6 @@ class SettingsViewTests(TestCase):
         """主催者にはマイ集会セクションに集会と設定リンクが表示されること."""
         # 集会を作成し、メンバーシップも作成
         community = Community.objects.create(
-            custom_user=self.test_user,
             name='テスト集会',
             frequency='毎週',
             status='approved',
@@ -242,7 +253,6 @@ class SettingsViewTests(TestCase):
         """主催者にはロールバッジが表示されること."""
         # 集会を作成し、メンバーシップも作成
         community = Community.objects.create(
-            custom_user=self.test_user,
             name='テスト集会',
             frequency='毎週',
             status='approved',
@@ -263,7 +273,6 @@ class SettingsViewTests(TestCase):
         """主催者でも集会追加ボタンが表示されること."""
         # 集会を作成し、メンバーシップも作成
         community = Community.objects.create(
-            custom_user=self.test_user,
             name='テスト集会',
             frequency='毎週',
             status='approved',
@@ -462,7 +471,6 @@ class HeaderDropdownMenuTests(TestCase):
         """主催者のドロップダウンにマイ集会リストが含まれること."""
         # 集会を作成し、メンバーシップも作成
         community = Community.objects.create(
-            custom_user=self.test_user,
             name='テスト集会',
             frequency='毎週',
             status='approved',

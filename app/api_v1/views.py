@@ -214,33 +214,34 @@ class EventDetailAPIViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        
+
         # Superuserは全て表示
         if user.is_superuser:
             return EventDetail.objects.all().select_related('event', 'event__community')
-        
+
         # 一般ユーザーは自分のコミュニティのみ
+        user_community_ids = user.community_memberships.values_list('community_id', flat=True)
         return EventDetail.objects.filter(
-            event__community__custom_user=user
+            event__community_id__in=user_community_ids
         ).select_related('event', 'event__community')
-    
+
     def perform_create(self, serializer):
         serializer.save()
-        
+
     def perform_update(self, serializer):
         serializer.save()
-        
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        
+
         # 権限チェック
         if not request.user.is_superuser:
-            if instance.event.community.custom_user != request.user:
+            if not instance.event.community.is_manager(request.user):
                 return Response(
                     {"エラー": "このイベント詳細を削除する権限がありません。"},
                     status=status.HTTP_403_FORBIDDEN
                 )
-        
+
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
     

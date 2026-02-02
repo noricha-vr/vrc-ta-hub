@@ -96,12 +96,16 @@ class CommunityCreateViewTest(TestCase):
     def test_user_with_existing_community_can_access_create_page(self):
         """既に集会を持っているユーザーも集会登録ページにアクセスできることをテスト（複数集会対応）."""
         # ユーザーに集会を作成
-        Community.objects.create(
-            custom_user=self.user,
+        existing_community = Community.objects.create(
             name='既存集会',
             frequency='毎週',
             organizers='テスト主催者',
             description='テスト説明'
+        )
+        CommunityMember.objects.create(
+            community=existing_community,
+            user=self.user,
+            role=CommunityMember.Role.OWNER
         )
         self.client.login(username='テストユーザー', password='testpass123')
         response = self.client.get(self.create_url)
@@ -156,11 +160,18 @@ class CommunityCreateViewTest(TestCase):
         self.assertRedirects(response, reverse('account:settings'))
 
         # 集会が作成されていることを確認
-        self.assertTrue(Community.objects.filter(custom_user=self.user).exists())
+        self.assertTrue(Community.objects.filter(name='テスト集会名').exists())
 
         # 集会のnameが送信した値になっていることを確認
-        created_community = Community.objects.get(custom_user=self.user)
+        created_community = Community.objects.get(name='テスト集会名')
         self.assertEqual(created_community.name, 'テスト集会名')
+
+        # CommunityMemberが作成されていることを確認
+        self.assertTrue(CommunityMember.objects.filter(
+            community=created_community,
+            user=self.user,
+            role=CommunityMember.Role.OWNER
+        ).exists())
 
     @patch('community.views.requests.post')
     def test_community_create_creates_owner_membership(self, mock_discord_post):
@@ -207,7 +218,6 @@ class CommunityCreateViewTest(TestCase):
 
         # 集会が作成されていることを確認
         community = Community.objects.get(name='オーナーテスト集会')
-        self.assertEqual(community.custom_user, self.user)
 
         # CommunityMemberが作成されていることを確認
         self.assertTrue(CommunityMember.objects.filter(
@@ -235,7 +245,6 @@ class CommunityCreateViewTest(TestCase):
 
         # 既存の集会を作成
         existing_community = Community.objects.create(
-            custom_user=self.user,
             name='既存集会',
             frequency='毎週',
             organizers='テスト主催者',
@@ -282,13 +291,15 @@ class CommunityCreateViewTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse('account:settings'))
 
-        # ユーザーが2つの集会を持っていることを確認
-        user_communities = Community.objects.filter(custom_user=self.user)
-        self.assertEqual(user_communities.count(), 2)
+        # ユーザーが2つの集会のオーナーであることを確認
+        user_memberships = CommunityMember.objects.filter(
+            user=self.user,
+            role=CommunityMember.Role.OWNER
+        )
+        self.assertEqual(user_memberships.count(), 2)
 
         # 新規集会が作成されていることを確認
         new_community = Community.objects.get(name='新規集会')
-        self.assertEqual(new_community.custom_user, self.user)
 
         # 新規集会のCommunityMemberが作成されていることを確認
         self.assertTrue(CommunityMember.objects.filter(
@@ -327,14 +338,13 @@ class SettingsViewCommunityButtonTest(TestCase):
         )
         # 集会持ちユーザーに集会を作成
         community = Community.objects.create(
-            custom_user=self.user_with_community,
             name='テスト集会',
             frequency='毎週',
             organizers='テスト主催者',
             description='テスト説明',
             status='approved'
         )
-        # CommunityMemberも作成（コンテキストプロセッサで必要）
+        # CommunityMemberを作成
         CommunityMember.objects.create(
             community=community,
             user=self.user_with_community,

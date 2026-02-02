@@ -41,8 +41,9 @@ class EventDetailAPITest(TestCase):
         )
         
         # コミュニティ作成
+        from community.models import CommunityMember
+
         self.community1 = Community.objects.create(
-            custom_user=self.user1,
             name='Test Community 1',
             start_time=time(20, 0),
             duration=120,
@@ -51,8 +52,13 @@ class EventDetailAPITest(TestCase):
             organizers='Test Organizer 1',
             status='approved'
         )
+        CommunityMember.objects.create(
+            community=self.community1,
+            user=self.user1,
+            role=CommunityMember.Role.OWNER
+        )
+
         self.community2 = Community.objects.create(
-            custom_user=self.user2,
             name='Test Community 2',
             start_time=time(21, 0),
             duration=90,
@@ -60,6 +66,11 @@ class EventDetailAPITest(TestCase):
             frequency='weekly',
             organizers='Test Organizer 2',
             status='approved'
+        )
+        CommunityMember.objects.create(
+            community=self.community2,
+            user=self.user2,
+            role=CommunityMember.Role.OWNER
         )
         
         # イベント作成
@@ -278,3 +289,71 @@ class EventDetailAPITest(TestCase):
             self.assertEqual(len(response.data['results']), 1)
         else:
             self.assertEqual(len(response.data), 1)
+
+    def test_additional_info_in_response(self):
+        """additional_infoフィールドがレスポンスに含まれるテスト"""
+        # additional_infoを設定
+        self.event_detail1.additional_info = 'Test additional information'
+        self.event_detail1.save()
+
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # レスポンスデータを取得
+        if 'results' in response.data:
+            data = response.data['results'][0]
+        else:
+            data = response.data[0]
+
+        # additional_infoが含まれていることを確認
+        self.assertIn('additional_info', data)
+        self.assertEqual(data['additional_info'], 'Test additional information')
+
+    def test_create_event_detail_with_additional_info(self):
+        """additional_infoを含むイベント詳細作成のテスト"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+
+        data = {
+            'event': self.event1.id,
+            'detail_type': 'LT',
+            'start_time': '20:45:00',
+            'duration': 15,
+            'speaker': 'Additional Info Speaker',
+            'theme': 'Additional Info Theme',
+            'additional_info': 'This is my additional information for the LT'
+        }
+
+        response = self.client.post(self.url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # 作成されたイベント詳細を確認
+        created_detail = EventDetail.objects.get(speaker='Additional Info Speaker')
+        self.assertEqual(
+            created_detail.additional_info,
+            'This is my additional information for the LT'
+        )
+
+    def test_update_event_detail_with_additional_info(self):
+        """additional_infoを含むイベント詳細更新のテスト"""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+
+        url = reverse('event-detail-api-detail', kwargs={'pk': self.event_detail1.id})
+        data = {
+            'event': self.event1.id,
+            'detail_type': 'LT',
+            'start_time': '20:00:00',
+            'duration': 30,
+            'speaker': 'Speaker 1',
+            'theme': 'Test Theme 1',
+            'additional_info': 'Updated additional information'
+        }
+
+        response = self.client.put(url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.event_detail1.refresh_from_db()
+        self.assertEqual(
+            self.event_detail1.additional_info,
+            'Updated additional information'
+        )

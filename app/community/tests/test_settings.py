@@ -61,7 +61,6 @@ class CommunitySettingsViewTest(TestCase):
         # テスト用集会
         self.community = Community.objects.create(
             name='テスト集会',
-            custom_user=self.owner_user,
             status='approved',
             frequency='毎週',
             organizers='テスト主催者',
@@ -159,7 +158,6 @@ class CommunitySettingsViewTest(TestCase):
         # 2つ目の集会を作成（ユニークな名前）
         second_community = Community.objects.create(
             name='セカンドコミュニティ',
-            custom_user=self.owner_user,
             status='approved',
             frequency='隔週',
             organizers='テスト主催者',
@@ -186,50 +184,6 @@ class CommunitySettingsViewTest(TestCase):
         self.assertNotContains(response, '集会設定: テスト集会')
 
 
-class CommunitySettingsViewBackwardCompatibilityTest(TestCase):
-    """CommunitySettingsViewの後方互換性テスト"""
-
-    def setUp(self):
-        self.client = Client()
-
-        # レガシーオーナー（CommunityMemberなしで集会を持つ）
-        self.legacy_owner = CustomUser.objects.create_user(
-            email='legacy@example.com',
-            password='testpass123',
-            user_name='レガシーオーナー'
-        )
-
-        # レガシー集会（CommunityMemberなし）
-        self.legacy_community = Community.objects.create(
-            name='レガシー集会',
-            custom_user=self.legacy_owner,
-            status='approved',
-            frequency='毎週',
-            organizers='レガシー主催者',
-        )
-        # 意図的にCommunityMemberを作成しない
-
-    def test_legacy_owner_can_access_settings(self):
-        """CommunityMember未作成でもcustom_userは設定ページにアクセスできる"""
-        self.assertFalse(
-            CommunityMember.objects.filter(community=self.legacy_community).exists()
-        )
-
-        self.client.login(username='レガシーオーナー', password='testpass123')
-        response = self.client.get(reverse('community:settings'))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'レガシー集会')
-
-    def test_legacy_owner_is_treated_as_owner(self):
-        """custom_userは主催者として扱われ、メンバー管理セクションが見える"""
-        self.client.login(username='レガシーオーナー', password='testpass123')
-        response = self.client.get(reverse('community:settings'))
-
-        self.assertEqual(response.status_code, 200)
-        # 主催者としてメンバー管理セクションが表示される
-        self.assertContains(response, 'メンバー管理')
-        self.assertContains(response, 'メンバーを管理')
 
 
 class CommunitySettingsCloseReopenTest(TestCase):
@@ -255,7 +209,6 @@ class CommunitySettingsCloseReopenTest(TestCase):
         # テスト用集会（活動中）
         self.community = Community.objects.create(
             name='テスト集会',
-            custom_user=self.owner_user,
             status='approved',
             frequency='毎週',
             organizers='テスト主催者',
@@ -380,8 +333,7 @@ class WebhookSettingsTest(TestCase):
         # テスト用集会
         self.community = Community.objects.create(
             name='テスト集会',
-            custom_user=self.owner_user,
-            status='approved',
+                        status='approved',
             frequency='毎週',
             organizers='テスト主催者',
             weekdays=['Mon'],
@@ -568,3 +520,180 @@ class WebhookSettingsTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+
+class LTSettingsTest(TestCase):
+    """LT申請設定のテスト"""
+
+    def setUp(self):
+        self.client = Client()
+
+        # 主催者ユーザー
+        self.owner_user = CustomUser.objects.create_user(
+            email='owner@example.com',
+            password='testpass123',
+            user_name='主催者ユーザー'
+        )
+
+        # スタッフユーザー
+        self.staff_user = CustomUser.objects.create_user(
+            email='staff@example.com',
+            password='testpass123',
+            user_name='スタッフユーザー'
+        )
+
+        # 権限のないユーザー
+        self.other_user = CustomUser.objects.create_user(
+            email='other@example.com',
+            password='testpass123',
+            user_name='その他ユーザー'
+        )
+
+        # テスト用集会
+        self.community = Community.objects.create(
+            name='テスト集会',
+                        status='approved',
+            frequency='毎週',
+            organizers='テスト主催者',
+            weekdays=['Mon'],
+        )
+
+        # 主催者のメンバーシップ
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner_user,
+            role=CommunityMember.Role.OWNER
+        )
+
+        # スタッフのメンバーシップ
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.staff_user,
+            role=CommunityMember.Role.STAFF
+        )
+
+    def test_settings_page_shows_lt_settings_section(self):
+        """設定ページにLT申請設定セクションが表示される"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'LT申請設定')
+        self.assertContains(response, '追加情報テンプレート')
+        self.assertContains(response, '最低文字数')
+
+    def test_update_lt_settings_success(self):
+        """LT申請設定を正常に更新できる"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        template = '【発表概要】\n\n【対象者】'
+        min_length = 50
+
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'lt_application_template': template,
+                'lt_application_min_length': min_length,
+            }
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.lt_application_template, template)
+        self.assertEqual(self.community.lt_application_min_length, min_length)
+
+    def test_update_lt_settings_clear_template(self):
+        """テンプレートをクリアできる"""
+        # 既にテンプレートが設定されている状態
+        self.community.lt_application_template = '【発表概要】'
+        self.community.lt_application_min_length = 30
+        self.community.save()
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'lt_application_template': '',
+                'lt_application_min_length': 0,
+            }
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.lt_application_template, '')
+        self.assertEqual(self.community.lt_application_min_length, 0)
+
+    def test_staff_can_update_lt_settings(self):
+        """スタッフもLT申請設定を更新できる"""
+        self.client.login(username='スタッフユーザー', password='testpass123')
+        template = '【テスト】'
+
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'lt_application_template': template,
+                'lt_application_min_length': 10,
+            }
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.lt_application_template, template)
+
+    def test_unauthorized_user_cannot_update_lt_settings(self):
+        """権限のないユーザーはLT申請設定を更新できない"""
+        self.client.login(username='その他ユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'lt_application_template': '【テスト】',
+                'lt_application_min_length': 10,
+            }
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_anonymous_user_cannot_update_lt_settings(self):
+        """未ログインユーザーはLT申請設定を更新できない"""
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'lt_application_template': '【テスト】',
+                'lt_application_min_length': 10,
+            }
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/account/login/', response.url)
+
+    def test_invalid_min_length_defaults_to_zero(self):
+        """無効な最低文字数は0にデフォルトされる"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'lt_application_template': '【テスト】',
+                'lt_application_min_length': 'invalid',  # 無効な値
+            }
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.lt_application_min_length, 0)
+
+    def test_negative_min_length_defaults_to_zero(self):
+        """負の最低文字数は0にデフォルトされる"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'lt_application_template': '【テスト】',
+                'lt_application_min_length': -10,  # 負の値
+            }
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.lt_application_min_length, 0)
