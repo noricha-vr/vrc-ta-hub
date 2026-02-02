@@ -47,7 +47,6 @@ class LTApplicationFormTest(TestCase):
         # 集会作成
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.user,
             start_time=time(22, 0),
             duration=60,
             weekdays=['Mon'],
@@ -167,7 +166,6 @@ class LTApplicationReviewTest(TestCase):
         # 集会作成
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.owner,
             start_time=time(22, 0),
             duration=60,
             weekdays=['Mon'],
@@ -309,7 +307,6 @@ class LTApplicationListTest(TestCase):
         # 集会作成
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.owner,
             start_time=time(22, 0),
             duration=60,
             weekdays=['Mon'],
@@ -396,7 +393,6 @@ class LTApplicationApproveRejectViewTest(TestCase):
         # 集会作成
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.owner,
             start_time=time(22, 0),
             duration=60,
             weekdays=['Mon'],
@@ -639,7 +635,6 @@ class CommunityDetailFilterTest(TestCase):
         # 集会作成
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.user,
             start_time=time(22, 0),
             duration=60,
             weekdays=['Mon'],
@@ -701,7 +696,6 @@ class EventModelTest(TestCase):
 
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.user,
             start_time=time(22, 0),
             duration=60,
             weekdays=['Mon'],
@@ -736,7 +730,6 @@ class EventDetailModelTest(TestCase):
 
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.user,
             start_time=time(22, 0),
             duration=60,
             weekdays=['Mon'],
@@ -776,3 +769,294 @@ class EventDetailModelTest(TestCase):
         )
 
         self.assertIsNone(detail.applicant)
+
+    def test_additional_info_default_empty(self):
+        """additional_infoのデフォルト値は空文字"""
+        detail = EventDetail.objects.create(
+            event=self.event,
+            theme='Test Theme',
+            speaker='Test Speaker',
+            duration=15,
+            start_time=time(22, 0),
+        )
+
+        self.assertEqual(detail.additional_info, '')
+
+
+class LTApplicationAdditionalInfoTest(TestCase):
+    """LT申請の追加情報フィールドのテスト"""
+
+    def setUp(self):
+        """テスト用データの準備"""
+        self.client = Client()
+
+        # Discord連携済みユーザー作成
+        self.user = create_discord_linked_user(
+            user_name='TestUser',
+            email='test@example.com',
+            password='testpass123'
+        )
+
+        # テンプレート付き集会作成
+        self.community_with_template = Community.objects.create(
+            name='Community With Template',
+            start_time=time(22, 0),
+            duration=60,
+            weekdays=['Mon'],
+            frequency='Every week',
+            organizers='Test Organizer',
+            status='approved',
+            lt_application_template='【発表概要】\n\n【対象者】\n',
+            lt_application_min_length=20,
+        )
+        CommunityMember.objects.create(
+            community=self.community_with_template,
+            user=self.user,
+            role=CommunityMember.Role.OWNER
+        )
+
+        # テンプレートなし集会作成
+        self.community_without_template = Community.objects.create(
+            name='Community Without Template',
+            start_time=time(22, 0),
+            duration=60,
+            weekdays=['Tue'],
+            frequency='Every week',
+            organizers='Test Organizer',
+            status='approved',
+            lt_application_template='',
+            lt_application_min_length=0,
+        )
+        CommunityMember.objects.create(
+            community=self.community_without_template,
+            user=self.user,
+            role=CommunityMember.Role.OWNER
+        )
+
+        # 未来のイベント作成
+        self.event_with_template = Event.objects.create(
+            community=self.community_with_template,
+            date=date.today() + timedelta(days=7),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Mon',
+            accepts_lt_application=True
+        )
+
+        self.event_without_template = Event.objects.create(
+            community=self.community_without_template,
+            date=date.today() + timedelta(days=8),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Tue',
+            accepts_lt_application=True
+        )
+
+    def test_additional_info_field_shown_with_template(self):
+        """テンプレートがある集会では追加情報フィールドが表示される"""
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_with_template.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '追加情報')
+        self.assertContains(response, '【発表概要】')
+
+    def test_additional_info_field_hidden_without_template(self):
+        """テンプレートがない集会では追加情報フィールドが表示されない"""
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_without_template.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        # additional_info フィールドが含まれていないことを確認
+        form = response.context['form']
+        self.assertNotIn('additional_info', form.fields)
+
+    @patch('event.notifications.send_mail')
+    def test_submit_with_template_same_as_template_fails(self, mock_send_mail):
+        """テンプレートと同一内容で送信するとエラーになる"""
+        mock_send_mail.return_value = 1
+        self.client.login(username='TestUser', password='testpass123')
+
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_with_template.pk})
+        response = self.client.post(url, {
+            'event': self.event_with_template.pk,
+            'theme': 'Test Theme',
+            'speaker': 'Test Speaker',
+            'duration': 15,
+            'additional_info': '【発表概要】\n\n【対象者】\n',  # テンプレートと同一
+        })
+
+        # フォームエラーで再表示
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'テンプレートの各項目を入力してください')
+
+    @patch('event.notifications.send_mail')
+    def test_submit_with_insufficient_length_fails(self, mock_send_mail):
+        """最低文字数未満で送信するとエラーになる"""
+        mock_send_mail.return_value = 1
+        self.client.login(username='TestUser', password='testpass123')
+
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_with_template.pk})
+        response = self.client.post(url, {
+            'event': self.event_with_template.pk,
+            'theme': 'Test Theme',
+            'speaker': 'Test Speaker',
+            'duration': 15,
+            'additional_info': 'Short text',  # 20文字未満
+        })
+
+        # フォームエラーで再表示
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '最低20文字以上入力してください')
+
+    @patch('event.notifications.send_mail')
+    def test_submit_with_valid_additional_info_succeeds(self, mock_send_mail):
+        """有効な追加情報で送信が成功する"""
+        mock_send_mail.return_value = 1
+        self.client.login(username='TestUser', password='testpass123')
+
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_with_template.pk})
+        response = self.client.post(url, {
+            'event': self.event_with_template.pk,
+            'theme': 'Test Theme',
+            'speaker': 'Test Speaker',
+            'duration': 15,
+            'additional_info': '【発表概要】VRChatの技術について発表します。【対象者】初心者向け。',
+        })
+
+        # リダイレクト確認
+        self.assertEqual(response.status_code, 302)
+
+        # EventDetailが作成されたか確認
+        event_detail = EventDetail.objects.filter(
+            event=self.event_with_template,
+            theme='Test Theme'
+        ).first()
+
+        self.assertIsNotNone(event_detail)
+        self.assertIn('VRChatの技術', event_detail.additional_info)
+
+    @patch('event.notifications.send_mail')
+    def test_submit_without_template_no_additional_info(self, mock_send_mail):
+        """テンプレートなし集会では追加情報なしで送信できる"""
+        mock_send_mail.return_value = 1
+        self.client.login(username='TestUser', password='testpass123')
+
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_without_template.pk})
+        response = self.client.post(url, {
+            'event': self.event_without_template.pk,
+            'theme': 'Test Theme',
+            'speaker': 'Test Speaker',
+            'duration': 15,
+            # additional_info フィールドなし
+        })
+
+        # リダイレクト確認
+        self.assertEqual(response.status_code, 302)
+
+        # EventDetailが作成されたか確認
+        event_detail = EventDetail.objects.filter(
+            event=self.event_without_template,
+            theme='Test Theme'
+        ).first()
+
+        self.assertIsNotNone(event_detail)
+        self.assertEqual(event_detail.additional_info, '')
+
+
+class LTApplicationReviewAdditionalInfoTest(TestCase):
+    """LT申請レビュー画面での追加情報表示テスト"""
+
+    def setUp(self):
+        """テスト用データの準備"""
+        self.client = Client()
+
+        # Discord連携済みの主催者
+        self.owner = create_discord_linked_user(
+            user_name='Owner',
+            email='owner@example.com',
+            password='ownerpass123'
+        )
+
+        # Discord連携済みの申請者
+        self.applicant = create_discord_linked_user(
+            user_name='Applicant',
+            email='applicant@example.com',
+            password='applicantpass123'
+        )
+
+        # 集会作成
+        self.community = Community.objects.create(
+            name='Test Community',
+            start_time=time(22, 0),
+            duration=60,
+            weekdays=['Mon'],
+            frequency='Every week',
+            organizers='Test Organizer',
+            status='approved',
+            lt_application_template='【発表概要】\n',
+        )
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner,
+            role=CommunityMember.Role.OWNER
+        )
+
+        # イベント作成
+        self.event = Event.objects.create(
+            community=self.community,
+            date=date.today() + timedelta(days=7),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Mon',
+            accepts_lt_application=True
+        )
+
+        # 追加情報付き申請
+        self.application_with_info = EventDetail.objects.create(
+            event=self.event,
+            detail_type='LT',
+            theme='Test Theme',
+            speaker='Test Speaker',
+            duration=15,
+            start_time=time(22, 0),
+            status='pending',
+            applicant=self.applicant,
+            additional_info='【発表概要】VRChatの技術について発表します。'
+        )
+
+        # 追加情報なし申請
+        self.application_without_info = EventDetail.objects.create(
+            event=self.event,
+            detail_type='LT',
+            theme='Test Theme 2',
+            speaker='Test Speaker 2',
+            duration=15,
+            start_time=time(22, 15),
+            status='pending',
+            applicant=self.applicant,
+            additional_info=''
+        )
+
+    def test_review_page_shows_additional_info(self):
+        """レビューページで追加情報が表示される"""
+        self.client.login(username='Owner', password='ownerpass123')
+        url = reverse('event:lt_application_review', kwargs={'pk': self.application_with_info.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '追加情報')
+        self.assertContains(response, 'VRChatの技術について発表します')
+
+    def test_review_page_hides_additional_info_when_empty(self):
+        """追加情報が空の場合はセクションが表示されない"""
+        self.client.login(username='Owner', password='ownerpass123')
+        url = reverse('event:lt_application_review', kwargs={'pk': self.application_without_info.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        # 「追加情報」というラベルが表示されないことを確認
+        # ただし、テーブルヘッダーとして「追加情報」がないことを確認
+        self.assertNotContains(response, 'VRChatの技術について')

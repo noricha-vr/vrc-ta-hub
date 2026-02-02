@@ -174,14 +174,22 @@ class CommunityDetailView(DetailView):
             context['show_accept_button'] = True
             context['show_reject_button'] = True
 
-        # superuserの場合、集会オーナーのDiscord IDをSocialAccountから取得
+        # ユーザーが主催者かどうかを判定
+        if self.request.user.is_authenticated:
+            context['is_owner'] = community.is_owner(self.request.user)
+        else:
+            context['is_owner'] = False
+
+        # superuserの場合、集会オーナーのDiscord IDとメールアドレスをSocialAccountから取得
         if self.request.user.is_superuser:
             from allauth.socialaccount.models import SocialAccount
+            owner = community.get_owner()
             discord_account = SocialAccount.objects.filter(
-                user=community.custom_user,
+                user=owner,
                 provider='discord'
-            ).first()
+            ).first() if owner else None
             context['owner_discord_id'] = discord_account.uid if discord_account else None
+            context['owner_email'] = community.get_owner_email()
 
         return context
 
@@ -226,8 +234,7 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         if membership:
             return membership.community
 
-        # 後方互換: custom_userを使用
-        return Community.objects.filter(custom_user=self.request.user).first()
+        return None
 
     def form_valid(self, form):
         try:
@@ -239,7 +246,7 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             for event in self.object.events.all():
                 cache_key = f'calendar_entry_url_{event.id}'
                 cache.delete(cache_key)
-            messages.success(self.request, '集会情報とVRCイベントカレンダー用情報が更新されました。')
+            messages.success(self.request, '集会情報を更新しました。')
             return response
         except DataError as e:
             messages.error(self.request, f'データの保存中にエラーが発生しました: {str(e)}')
@@ -255,7 +262,6 @@ class CommunityCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy('account:settings')
 
     def form_valid(self, form):
-        form.instance.custom_user = self.request.user
         response = super().form_valid(form)
 
         # オーナーとしてCommunityMemberを作成
@@ -325,22 +331,27 @@ class AcceptView(LoginRequiredMixin, View):
         context = {
             'community': community,
             'my_list_url': my_list_url,
+            'owner_name': community.get_owner().user_name if community.get_owner() else None,
         }
 
         # HTMLメールを生成
         html_message = render_to_string('community/email/accept.html', context)
 
-        sent = send_mail(
-            subject=subject,
-            message='',  # プレーンテキストは空文字列を設定
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[community.custom_user.email],
-            html_message=html_message,
-        )
-        if sent:
-            logger.info(f'承認メール送信成功: {community.name} to {community.custom_user.email}')
+        owner_email = community.get_owner_email()
+        if owner_email:
+            sent = send_mail(
+                subject=subject,
+                message='',  # プレーンテキストは空文字列を設定
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[owner_email],
+                html_message=html_message,
+            )
+            if sent:
+                logger.info(f'承認メール送信成功: {community.name} to {owner_email}')
+            else:
+                logger.warning(f'承認メール送信失敗: {community.name} to {owner_email}')
         else:
-            logger.warning(f'承認メール送信失敗: {community.name} to {community.custom_user.email}')
+            logger.warning(f'承認メール送信スキップ: {community.name} - オーナーのメールアドレスが見つかりません')
 
         messages.success(request, f'{community.name}を承認しました。')
         return redirect('community:waiting_list')
@@ -360,22 +371,27 @@ class RejectView(LoginRequiredMixin, View):
         subject = f'{community.name}が非承認になりました'
         context = {
             'community': community,
+            'owner_name': community.get_owner().user_name if community.get_owner() else None,
         }
 
         # HTMLメールを生成
         html_message = render_to_string('community/email/reject.html', context)
 
-        sent = send_mail(
-            subject=subject,
-            message='',  # プレーンテキストは空文字列を設定
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[community.custom_user.email],
-            html_message=html_message,
-        )
-        if sent:
-            logger.info(f'非承認メール送信成功: {community.name} to {community.custom_user.email}')
+        owner_email = community.get_owner_email()
+        if owner_email:
+            sent = send_mail(
+                subject=subject,
+                message='',  # プレーンテキストは空文字列を設定
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[owner_email],
+                html_message=html_message,
+            )
+            if sent:
+                logger.info(f'非承認メール送信成功: {community.name} to {owner_email}')
+            else:
+                logger.warning(f'非承認メール送信失敗: {community.name} to {owner_email}')
         else:
-            logger.warning(f'非承認メール送信失敗: {community.name} to {community.custom_user.email}')
+            logger.warning(f'非承認メール送信スキップ: {community.name} - オーナーのメールアドレスが見つかりません')
 
         messages.success(request, f'{community.name}を非承認にしました。')
         return redirect('community:waiting_list')
@@ -722,11 +738,6 @@ class CommunitySettingsView(LoginRequiredMixin, TemplateView):
         if membership:
             return membership.community, membership
 
-        # 後方互換: custom_userとして関連付けられた集会
-        community = Community.objects.filter(custom_user=self.request.user).first()
-        if community:
-            return community, None
-
         return None, None
 
     def dispatch(self, request, *args, **kwargs):
@@ -745,9 +756,6 @@ class CommunitySettingsView(LoginRequiredMixin, TemplateView):
         # is_owner の判定
         if membership:
             context['is_owner'] = membership.role == CommunityMember.Role.OWNER
-        elif community and community.custom_user == self.request.user:
-            # 後方互換: custom_userは主催者とみなす
-            context['is_owner'] = True
         else:
             context['is_owner'] = False
 
@@ -880,10 +888,6 @@ class AcceptOwnershipTransferView(View):
             else:
                 logger.info(f'新規主催者追加: {request.user.user_name}（集会: {community.name}）')
 
-            # 後方互換性: custom_user フィールドも更新
-            community.custom_user = request.user
-            community.save()
-
             # 使用済みリンクを削除
             invitation.delete()
 
@@ -1008,6 +1012,7 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
         community = get_object_or_404(Community, pk=pk)
         lt_template = request.POST.get('lt_application_template', '').strip()
         min_length_str = request.POST.get('lt_application_min_length', '0').strip()
+        duration_str = request.POST.get('default_lt_duration', '30').strip()
 
         # 最低文字数のバリデーション
         try:
@@ -1015,14 +1020,21 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
         except ValueError:
             min_length = 0
 
+        # デフォルト発表時間のバリデーション
+        try:
+            duration = max(1, int(duration_str))
+        except ValueError:
+            duration = 30
+
         community.lt_application_template = lt_template
         community.lt_application_min_length = min_length
-        community.save(update_fields=['lt_application_template', 'lt_application_min_length'])
+        community.default_lt_duration = duration
+        community.save(update_fields=['lt_application_template', 'lt_application_min_length', 'default_lt_duration'])
 
         messages.success(request, 'LT申請設定を保存しました。')
         logger.info(
             f'LT申請設定更新: 集会「{community.name}」、'
-            f'テンプレート文字数={len(lt_template)}、最低文字数={min_length}'
+            f'テンプレート文字数={len(lt_template)}、最低文字数={min_length}、デフォルト発表時間={duration}分'
         )
 
         return redirect('community:settings')

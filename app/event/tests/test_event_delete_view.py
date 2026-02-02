@@ -38,7 +38,6 @@ class EventDeleteViewPermissionTest(TestCase):
         # コミュニティ作成
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.owner_user,
             start_time=time(22, 0),
             duration=60,
             weekdays=['Mon'],
@@ -142,7 +141,6 @@ class EventDeleteViewMultipleOwnersTest(TestCase):
         # コミュニティ作成
         self.community = Community.objects.create(
             name='Multi Owner Community',
-            custom_user=self.owner1,
             start_time=time(22, 0),
             duration=60,
             weekdays=['Mon'],

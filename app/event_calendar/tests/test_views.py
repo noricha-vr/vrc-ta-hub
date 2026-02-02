@@ -34,7 +34,6 @@ class CalendarEntryUpdateViewTest(TestCase):
 
         # 集会を作成
         self.community = Community.objects.create(
-            custom_user=self.owner,
             name="Test Community",
             start_time=datetime.time(21, 0),
             duration=60,
@@ -131,41 +130,3 @@ class CalendarEntryUpdateViewTest(TestCase):
         self.assertEqual(CalendarEntry.objects.filter(community=self.community).count(), 1)
 
 
-class CalendarEntryUpdateViewBackwardCompatibilityTest(TestCase):
-    """CalendarEntryUpdateViewの後方互換性テスト"""
-
-    def setUp(self):
-        self.client = Client()
-        # CommunityMember未作成の旧データを模倣
-        self.owner = CustomUser.objects.create_user(
-            user_name="legacy_owner",
-            email="legacy@example.com",
-            password="testpassword"
-        )
-        self.community = Community.objects.create(
-            custom_user=self.owner,
-            name="Legacy Community",
-            start_time=datetime.time(21, 0),
-            duration=60,
-            weekdays=["Mon"],
-            frequency="Weekly",
-            organizers="Test Organizer",
-            description="Test Description",
-            platform="All",
-            status="approved"
-        )
-        # 注意: CommunityMemberは作成しない
-
-    def test_legacy_owner_can_access_via_is_manager_fallback(self):
-        """
-        CommunityMember未作成でも、custom_userはis_manager()のフォールバックで
-        アクセス可能（後方互換性を確認）
-        """
-        self.client.login(username='legacy_owner', password='testpassword')
-        session = self.client.session
-        session['active_community_id'] = self.community.id
-        session.save()
-
-        url = reverse('community:calendar_update')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)

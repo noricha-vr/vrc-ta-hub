@@ -22,7 +22,6 @@ class CommunityUpdateFormTest(TestCase):
         # テスト用集会
         self.community = Community.objects.create(
             name='テスト集会',
-            custom_user=self.user,
             status='approved',
             frequency='毎週',
             organizers='テスト主催者',

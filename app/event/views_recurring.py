@@ -16,9 +16,9 @@ from .recurrence_service import RecurrenceService
 def create_recurring_event(request, community_id):
     """定期イベントの作成"""
     community = get_object_or_404(Community, id=community_id)
-    
+
     # 権限チェック
-    if request.user != community.custom_user:
+    if not community.is_owner(request.user):
         messages.error(request, 'このコミュニティのイベントを作成する権限がありません。')
         return redirect('community:detail', community_id=community.id)
     
@@ -71,7 +71,8 @@ def create_recurring_event(request, community_id):
 def list_recurring_events(request):
     """定期イベントの一覧表示"""
     # ユーザーが管理するコミュニティの定期イベント（マスター）を取得
-    communities = Community.objects.filter(custom_user=request.user)
+    user_community_ids = request.user.community_memberships.values_list('community_id', flat=True)
+    communities = Community.objects.filter(id__in=user_community_ids)
     recurring_masters = []
     
     for community in communities:

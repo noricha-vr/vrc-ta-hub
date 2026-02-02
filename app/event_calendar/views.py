@@ -32,12 +32,12 @@ class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):
     def test_func(self):
         """
         ユーザーがカレンダーエントリーを更新する権限があるか確認
-        
+
         Returns:
-            bool: カレンダーエントリーのコミュニティのユーザーと一致する場合True
+            bool: カレンダーエントリーのコミュニティの管理者である場合True
         """
         calendar_entry = self.get_object()
-        return self.request.user == calendar_entry.community.custom_user
+        return calendar_entry.community.is_manager(self.request.user)
 
     def get_object(self, queryset=None):
         """

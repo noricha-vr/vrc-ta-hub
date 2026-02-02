@@ -151,8 +151,7 @@ class AcceptOwnershipTransferViewTest(TestCase):
         self.community = Community.objects.create(
             name='テスト集会',
             status='approved',
-            frequency='毎週',
-            custom_user=self.owner
+            frequency='毎週'
         )
 
         CommunityMember.objects.create(
@@ -221,9 +220,9 @@ class AcceptOwnershipTransferViewTest(TestCase):
         )
         self.assertEqual(old_owner_member.role, CommunityMember.Role.STAFF)
 
-        # custom_userも更新されている
+        # 新ユーザーがオーナーになっていることを確認
         self.community.refresh_from_db()
-        self.assertEqual(self.community.custom_user, self.new_user)
+        self.assertTrue(self.community.is_owner(self.new_user))
 
         # 招待リンクが削除されている
         self.assertFalse(

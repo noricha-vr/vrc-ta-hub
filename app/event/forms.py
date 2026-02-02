@@ -49,9 +49,11 @@ class EventCreateForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)  # requestオブジェクトを受け取る
         super().__init__(*args, **kwargs)
         if self.request and self.request.user.is_authenticated:
-            community = Community.objects.filter(custom_user=self.request.user).first()
-            self.fields['start_time'].initial = community.start_time  # Communityから初期値を設定
-            self.fields['duration'].initial = community.duration  # Communityから初期値を設定
+            membership = self.request.user.community_memberships.select_related('community').first()
+            if membership:
+                community = membership.community
+                self.fields['start_time'].initial = community.start_time  # Communityから初期値を設定
+                self.fields['duration'].initial = community.duration  # Communityから初期値を設定
 
     def clean(self):
         cleaned_data = super().clean()
@@ -257,8 +259,9 @@ class EventDetailForm(forms.ModelForm):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         if self.request and self.request.user.is_authenticated:
-            community = Community.objects.filter(custom_user=self.request.user).first()
-            self.fields['start_time'].initial = community.start_time
+            membership = self.request.user.community_memberships.select_related('community').first()
+            if membership:
+                self.fields['start_time'].initial = membership.community.start_time
             self.fields['duration'].initial = 30
         
         # 既存の記事がある場合（更新時）は自動生成チェックボックスをOFFにする
@@ -486,12 +489,25 @@ class LTApplicationForm(forms.Form):
         help_text='希望する発表時間を分単位で入力してください（5〜60分）'
     )
 
+    additional_info = forms.CharField(
+        label='追加情報',
+        required=False,
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 6,
+        }),
+        help_text='主催者が設定したテンプレートに沿って入力してください'
+    )
+
     def __init__(self, *args, **kwargs):
         self.community = kwargs.pop('community', None)
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
 
         if self.community:
+            # コミュニティのデフォルトLT発表時間を設定
+            self.fields['duration'].initial = self.community.default_lt_duration
+
             # accepts_lt_application=True かつ未来のイベントのみ
             today = timezone.now().date()
             self.fields['event'].queryset = Event.objects.filter(
@@ -500,8 +516,37 @@ class LTApplicationForm(forms.Form):
                 date__gte=today
             ).order_by('date', 'start_time')
 
+            # テンプレートが設定されている場合はプレースホルダーに設定
+            if self.community.lt_application_template:
+                self.fields['additional_info'].widget.attrs['placeholder'] = (
+                    self.community.lt_application_template
+                )
+            else:
+                # テンプレートが空の場合はフィールドを非表示（フィールドを削除）
+                del self.fields['additional_info']
+
         if self.user and self.user.is_authenticated:
             self.fields['speaker'].initial = self.user.user_name
+
+    def clean_additional_info(self):
+        """追加情報のバリデーション"""
+        additional_info = self.cleaned_data.get('additional_info', '')
+
+        if not self.community or not self.community.lt_application_template:
+            return additional_info
+
+        template = self.community.lt_application_template
+
+        # テンプレートと同一内容のチェック
+        if additional_info.strip() == template.strip():
+            raise ValidationError('テンプレートの各項目を入力してください')
+
+        # 最低文字数チェック
+        min_length = self.community.lt_application_min_length
+        if min_length > 0 and len(additional_info) < min_length:
+            raise ValidationError(f'最低{min_length}文字以上入力してください')
+
+        return additional_info
 
 
 class LTApplicationReviewForm(forms.Form):

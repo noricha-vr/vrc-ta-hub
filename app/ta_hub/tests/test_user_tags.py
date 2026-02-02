@@ -34,13 +34,6 @@ class GetUserCommunityNameTagTest(TestCase):
             user_name='集会なしユーザー'
         )
 
-        # 後方互換テスト用ユーザー（custom_userで関連付け）
-        self.legacy_user = CustomUser.objects.create_user(
-            email='legacy@example.com',
-            password='testpass123',
-            user_name='レガシーユーザー'
-        )
-
         # CommunityMember経由の集会を作成
         self.community = Community.objects.create(
             name='テスト技術集会ABC',
@@ -60,14 +53,6 @@ class GetUserCommunityNameTagTest(TestCase):
             community=self.community,
             user=self.staff_user,
             role=CommunityMember.Role.STAFF
-        )
-
-        # 後方互換用の集会（custom_userで関連付け）
-        self.legacy_community = Community.objects.create(
-            name='レガシー集会123',
-            frequency='月1回',
-            organizers='レガシー主催者',
-            custom_user=self.legacy_user
         )
 
     def _render_template(self, user):
@@ -97,35 +82,11 @@ class GetUserCommunityNameTagTest(TestCase):
         result = self._render_template(self.no_community_user)
         self.assertEqual(result, '')
 
-    def test_legacy_user_sees_community_name(self):
-        """後方互換（custom_user関連付け）ユーザーも集会名が表示される"""
-        result = self._render_template(self.legacy_user)
-        # 8文字で切り捨てなので「レガシー集会12」（元: レガシー集会123）
-        self.assertEqual(result, 'レガシー集会12')
-
     def test_anonymous_user_sees_empty(self):
         """未ログインユーザーには空文字が返される"""
         from django.contrib.auth.models import AnonymousUser
         result = self._render_template(AnonymousUser())
         self.assertEqual(result, '')
-
-    def test_community_member_takes_priority_over_legacy(self):
-        """CommunityMemberがcustom_userより優先される"""
-        # legacy_userをCommunityMemberとして別の集会に追加
-        priority_community = Community.objects.create(
-            name='優先集会テスト',
-            frequency='毎週',
-            organizers='優先主催者'
-        )
-        CommunityMember.objects.create(
-            community=priority_community,
-            user=self.legacy_user,
-            role=CommunityMember.Role.STAFF
-        )
-
-        result = self._render_template(self.legacy_user)
-        # CommunityMember経由の「優先集会テスト」が表示される
-        self.assertEqual(result, '優先集会テスト')
 
     def test_community_name_truncated_to_8_chars(self):
         """集会名は8文字で切り捨てられる"""

@@ -51,7 +51,7 @@
                     <div class="col-lg-7">
                         <div class="d-flex align-items-center justify-content-between mb-4">
                             <h1 class="fs-2 fw-bold mb-0">{{ community.name }}</h1>
-                            {% if request.user.is_superuser or request.user == community.custom_user %}
+                            {% if request.user.is_superuser or is_owner %}
                                 <div class="d-flex gap-2">
                                     <a href="{% url 'community:update' %}" class="btn btn-outline-secondary btn-sm" title="集会情報を編集">
                                         <i class="bi bi-pencil"></i>
@@ -350,7 +350,7 @@
                     集会主催者の連絡先
                 </h2>
                 <p>
-                    <span class="fw-bold">メールアドレス:</span> {{ community.custom_user.email }}
+                    <span class="fw-bold">メールアドレス:</span> {{ owner_email|default:"未設定" }}
                 </p>
                 <p>
                     <span class="fw-bold">Discord ID:</span> {{ owner_discord_id|default:"未連携" }}

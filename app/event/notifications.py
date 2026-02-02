@@ -175,17 +175,32 @@ def _send_discord_notification_for_new_application(
     # 2. テーマを description で目立たせる
     # 3. 関連情報をグループ化（fields）
     # 4. コンテキスト情報を footer に
+    fields = [
+        {"name": "👤 発表者", "value": event_detail.speaker, "inline": True},
+        {"name": "📅 開催日", "value": str(event_detail.event.date), "inline": True},
+        {"name": "⏱️ 時間", "value": f"{event_detail.duration}分", "inline": True},
+    ]
+
+    # 追加情報があれば追加（Discord制限対応: 1024文字まで）
+    if event_detail.additional_info:
+        # Discordのフィールド値の制限は1024文字
+        max_additional_info_length = 1000
+        additional_info_value = event_detail.additional_info[:max_additional_info_length]
+        if len(event_detail.additional_info) > max_additional_info_length:
+            additional_info_value += "..."
+        fields.append({
+            "name": "📝 追加情報",
+            "value": additional_info_value,
+            "inline": False
+        })
+
     message = {
         "content": f"⬇️ **承認/却下をお願いします**\n{review_url}",
         "embeds": [{
             "title": "📢 新しいLT申請",
             "description": f"**{event_detail.theme}**",
             "color": 16750848,  # オレンジ色（注目を引く）
-            "fields": [
-                {"name": "👤 発表者", "value": event_detail.speaker, "inline": True},
-                {"name": "📅 開催日", "value": str(event_detail.event.date), "inline": True},
-                {"name": "⏱️ 時間", "value": f"{event_detail.duration}分", "inline": True},
-            ],
+            "fields": fields,
             "footer": {"text": f"{community.name} | 申請者: {applicant_name}"},
         }],
     }

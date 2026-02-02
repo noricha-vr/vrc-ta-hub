@@ -21,7 +21,6 @@ class CreateCalendarTest(TestCase):
             password="testpassword"
         )
         self.community = Community.objects.create(
-            custom_user=self.user,
             name="Test Community",
             start_time=datetime.time(21, 0),
             duration=60,

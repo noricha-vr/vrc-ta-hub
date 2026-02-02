@@ -102,7 +102,12 @@ class SettingsView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['community'] = Community.objects.filter(custom_user=self.request.user).first()
+        # オーナーとして所属する集会を取得
+        from community.models import CommunityMember
+        membership = self.request.user.community_memberships.filter(
+            role=CommunityMember.Role.OWNER
+        ).select_related('community').first()
+        context['community'] = membership.community if membership else None
         # 承認されていない場合はメッセージを追加
         if context['community'] and not context['community'].is_accepted:
             message = mark_safe(

@@ -28,7 +28,6 @@ class EventDetailFormCleanTest(TestCase):
         # 集会作成
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.user,
             start_time=time(22, 0),
             duration=60,
             weekdays=['Mon'],

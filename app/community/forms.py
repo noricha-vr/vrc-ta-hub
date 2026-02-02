@@ -87,7 +87,6 @@ class CommunityUpdateForm(forms.ModelForm):
             'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
             'poster_image', 'allow_poster_repost', 'accepts_lt_application',
-            'lt_application_template', 'lt_application_min_length',
             'description', 'platform', 'tags',
         ]
         widgets = {
@@ -106,12 +105,6 @@ class CommunityUpdateForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'class': 'form-control'}),
             'platform': forms.Select(attrs={'class': 'form-control'}),
             'accepts_lt_application': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-            'lt_application_template': forms.Textarea(attrs={
-                'class': 'form-control',
-                'rows': 6,
-                'placeholder': '【発表概要】\n\n【対象者】\n\n【必要な前提知識】\n\n【動画撮影】OK / NG / 公開OK',
-            }),
-            'lt_application_min_length': forms.NumberInput(attrs={'class': 'form-control', 'style': 'width: 100px;'}),
         }
 
     def __init__(self, *args, **kwargs):

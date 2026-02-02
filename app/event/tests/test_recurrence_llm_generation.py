@@ -22,7 +22,6 @@ class TestRecurrenceLLMGeneration(TestCase):
         )
         
         self.community = Community.objects.create(
-            custom_user=self.user,
             name='XR開発者集会',
             start_time=time(22, 0),
             duration=60,

@@ -38,20 +38,20 @@ class EventDetailSerializer(serializers.ModelSerializer):
         model = EventDetail
         fields = [
             'id', 'event', 'start_time', 'duration', 'youtube_url', 'slide_url',
-            'speaker', 'theme'
+            'speaker', 'theme', 'additional_info'
         ]
 
 
 class EventDetailWriteSerializer(serializers.ModelSerializer):
     """EventDetail作成・更新用シリアライザー"""
     generate_from_pdf = serializers.BooleanField(write_only=True, required=False, default=False)
-    
+
     class Meta:
         model = EventDetail
         fields = [
-            'id', 'event', 'detail_type', 'start_time', 'duration', 'youtube_url', 
-            'slide_url', 'slide_file', 'speaker', 'theme', 'h1', 'contents', 
-            'meta_description', 'generate_from_pdf'
+            'id', 'event', 'detail_type', 'start_time', 'duration', 'youtube_url',
+            'slide_url', 'slide_file', 'speaker', 'theme', 'h1', 'contents',
+            'meta_description', 'additional_info', 'generate_from_pdf'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
         
@@ -63,7 +63,7 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
             if request.user.is_superuser:
                 return value
             # 一般ユーザーは自分のコミュニティのイベントのみ
-            if value.community.custom_user != request.user:
+            if not value.community.is_manager(request.user):
                 raise serializers.ValidationError("このイベントへの権限がありません。")
         return value
     

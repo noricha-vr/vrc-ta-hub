@@ -32,7 +32,6 @@ class RecurrenceRuleDeletionTest(TestCase):
         # コミュニティ作成
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.user,
             start_time=time(22, 0),
             duration=60,
             weekdays='MON',
@@ -135,8 +134,7 @@ class RecurrenceRuleAdminTest(TestCase):
         # コミュニティとルールの作成
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.superuser,
-            start_time=time(22, 0),
+                        start_time=time(22, 0),
             duration=60,
             weekdays='MON',
             frequency='毎週',
@@ -211,8 +209,7 @@ class RecurrenceRuleAPITest(TestCase):
         # コミュニティとルールの作成
         self.community = Community.objects.create(
             name='Test Community',
-            custom_user=self.superuser,
-            start_time=time(22, 0),
+                        start_time=time(22, 0),
             duration=60,
             weekdays='MON',
             frequency='毎週',

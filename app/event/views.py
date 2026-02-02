@@ -232,6 +232,9 @@ class EventListView(ListView):
 def extract_video_id(youtube_url):
     """
     YouTube URLからvideo_idを抽出する関数。
+
+    Note:
+        タイムスタンプも取得したい場合は extract_video_info() を使用してください。
     """
     if not youtube_url:
         return None
@@ -242,6 +245,80 @@ def extract_video_id(youtube_url):
     return None
 
 
+def extract_video_info(youtube_url):
+    """
+    YouTube URLからvideo_idとタイムスタンプ（秒）を抽出する関数。
+
+    Args:
+        youtube_url: YouTube URL（例: https://www.youtube.com/watch?v=xxx?t=123）
+
+    Returns:
+        tuple: (video_id, start_time)
+            - video_id: YouTube動画のID（11文字）またはNone
+            - start_time: 開始秒数（整数）またはNone
+
+    Examples:
+        - ?t=123 → 123秒
+        - &t=123 → 123秒
+        - ?t=1m30s → 90秒
+        - タイムスタンプなし → None
+    """
+    if not youtube_url:
+        return None, None
+
+    # video_idを抽出
+    video_id = extract_video_id(youtube_url)
+
+    # タイムスタンプを抽出（?t= または &t= パターン）
+    start_time = None
+    # パターン: 純粋な数字、または分秒形式（1m30s, 2m, 90s など）
+    time_pattern = r'[?&]t=(\d+(?:m(?:\d+s)?|s)?)'
+    time_match = re.search(time_pattern, youtube_url)
+
+    if time_match:
+        time_str = time_match.group(1)
+        start_time = _parse_youtube_time(time_str)
+
+    return video_id, start_time
+
+
+def _parse_youtube_time(time_str):
+    """
+    YouTubeのタイムスタンプ形式を秒に変換する。
+
+    Args:
+        time_str: タイムスタンプ文字列（例: "123", "1m30s", "90s"）
+
+    Returns:
+        int: 秒数
+
+    Examples:
+        - "123" → 123
+        - "1m30s" → 90
+        - "90s" → 90
+        - "2m" → 120
+    """
+    # 純粋な数値の場合
+    if time_str.isdigit():
+        return int(time_str)
+
+    # 分秒形式（例: 1m30s, 2m, 90s）
+    total_seconds = 0
+
+    # 分を抽出
+    minutes_match = re.search(r'(\d+)m', time_str)
+    if minutes_match:
+        minutes_to_seconds = 60
+        total_seconds += int(minutes_match.group(1)) * minutes_to_seconds
+
+    # 秒を抽出
+    seconds_match = re.search(r'(\d+)s', time_str)
+    if seconds_match:
+        total_seconds += int(seconds_match.group(1))
+
+    return total_seconds if total_seconds > 0 else None
+
+
 class EventDetailView(DetailView):
     model = EventDetail
     template_name = 'event/detail.html'
@@ -250,7 +327,9 @@ class EventDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         event_detail = self.get_object()
-        context['video_id'] = extract_video_id(event_detail.youtube_url)
+        video_id, start_time = extract_video_info(event_detail.youtube_url)
+        context['video_id'] = video_id
+        context['start_time'] = start_time
         context['is_discord'] = event_detail.youtube_url.startswith(
             'https://discord.com/') if event_detail.youtube_url else False
         context['html_content'] = convert_markdown(event_detail.contents)
@@ -749,15 +828,9 @@ class EventMyList(LoginRequiredMixin, ListView):
 
     def _get_user_communities(self):
         """ユーザーが管理者である集会のID一覧を取得する"""
-        user_community_ids = list(
+        return list(
             self.request.user.community_memberships.values_list('community_id', flat=True)
         )
-
-        # 後方互換: custom_userベースの集会も追加（CommunityMember未作成の集会用）
-        legacy_community_ids = list(
-            Community.objects.filter(custom_user=self.request.user).values_list('id', flat=True)
-        )
-        return list(set(user_community_ids + legacy_community_ids))
 
     def _get_active_community(self):
         """アクティブな集会を取得する"""
@@ -774,8 +847,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         if membership:
             return membership.community
 
-        # 後方互換: custom_userを使用
-        return Community.objects.filter(custom_user=self.request.user).first()
+        return None
 
     def _get_user_communities_list(self):
         """ユーザーが管理者である集会のオブジェクト一覧を取得する"""
@@ -784,14 +856,6 @@ class EventMyList(LoginRequiredMixin, ListView):
         # メンバーシップベースの集会
         for membership in self.request.user.community_memberships.select_related('community'):
             communities.append(membership.community)
-
-        # 後方互換: custom_userベースの集会（メンバーシップに含まれていないもの）
-        legacy_communities = Community.objects.filter(
-            custom_user=self.request.user
-        ).exclude(
-            id__in=[c.id for c in communities]
-        )
-        communities.extend(legacy_communities)
 
         return communities
 
@@ -1122,8 +1186,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
         if membership:
             return membership.community
 
-        # 後方互換: custom_userを使用
-        return Community.objects.filter(custom_user=self.request.user).first()
+        return None
 
     def dispatch(self, request, *args, **kwargs):
         # コミュニティの承認状態をチェック
@@ -1258,6 +1321,7 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
             start_time=event.start_time,
             status='pending',
             applicant=self.request.user,
+            additional_info=form.cleaned_data.get('additional_info', ''),
         )
 
         # 主催者に通知
