@@ -427,6 +427,41 @@ class RegisterViewTests(TestCase):
         self.assertIn('>プライバシーポリシー</a>', content)
 
 
+class AllauthSignupRedirectTests(TestCase):
+    """allauthのsignupページからカスタムregisterページへのリダイレクトテスト."""
+
+    def setUp(self):
+        """テスト用のデータを準備."""
+        self.client = Client()
+        self.allauth_signup_url = '/accounts/signup/'
+        self.custom_register_url = '/account/register/'
+
+    def test_accounts_signup_redirects_to_account_register(self):
+        """/accounts/signup/ が /account/register/ にリダイレクトされること."""
+        response = self.client.get(self.allauth_signup_url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, self.custom_register_url)
+
+    def test_accounts_signup_redirect_is_temporary(self):
+        """リダイレクトが一時的（302）であること."""
+        response = self.client.get(self.allauth_signup_url)
+        # 302 = 一時的リダイレクト、301 = 永続的リダイレクト
+        self.assertNotEqual(response.status_code, 301)
+        self.assertEqual(response.status_code, 302)
+
+    def test_accounts_signup_redirect_follow_leads_to_register_page(self):
+        """リダイレクトを追跡すると登録ページが表示されること."""
+        response = self.client.get(self.allauth_signup_url, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'account/register.html')
+
+    def test_accounts_signup_preserves_query_string(self):
+        """リダイレクト時にクエリパラメータが保持されること."""
+        response = self.client.get('/accounts/signup/?next=/foo/')
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('next=/foo/', response.url)
+
+
 class LoginPageRegisterLinkTests(TestCase):
     """ログインページの登録リンクテストクラス."""
 
