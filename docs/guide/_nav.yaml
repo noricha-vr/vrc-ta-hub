@@ -1,0 +1,50 @@
+- title: はじめに
+  path: index
+
+- title: 集会を管理する
+  children:
+    - title: 集会を登録する
+      path: community/create
+    - title: 集会情報を編集する
+      path: community/edit
+    - title: 集会設定
+      path: community/settings
+    - title: 集会を閉鎖・再開する
+      path: community/close
+      owner_only: true
+
+- title: イベントを管理する
+  children:
+    - title: イベントを登録する
+      path: event/create
+    - title: イベントを削除する
+      path: event/delete
+
+- title: LT・発表情報を管理する
+  children:
+    - title: LT情報を登録する
+      path: lt/create
+    - title: ブログ記事を自動生成する
+      path: lt/auto-generate
+    - title: LT申請を承認・却下する
+      path: lt/approve
+
+- title: メンバーを管理する
+  owner_only: true
+  children:
+    - title: スタッフを招待する
+      path: member/invite
+    - title: スタッフを削除する
+      path: member/remove
+    - title: 主催者を引き継ぐ
+      path: member/transfer
+
+- title: 外部連携を設定する
+  children:
+    - title: Discord Webhookを設定する
+      path: settings/discord
+    - title: LT申請受付を設定する
+      path: settings/lt-application
+
+- title: よくある質問
+  path: faq

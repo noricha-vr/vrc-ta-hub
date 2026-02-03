@@ -1,0 +1,314 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block meta %}
+    <title>{% block page_title %}使い方ガイド{% endblock %} - VRChat 技術・学術系イベントHub</title>
+    <meta name="twitter:title" content="{% block twitter_title %}使い方ガイド{% endblock %} - VRChat 技術・学術系イベントHub">
+    <meta property="og:title" content="{% block og_title %}使い方ガイド{% endblock %} - VRChat 技術・学術系イベントHub">
+    <meta name="description" content="{% block meta_description %}VRChat技術・学術系イベントHubの主催者・スタッフ向けマニュアルです。集会やイベントの登録・管理方法を説明します。{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}VRChat技術・学術系イベントHubの主催者・スタッフ向けマニュアルです。集会やイベントの登録・管理方法を説明します。{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}VRChat技術・学術系イベントHubの主催者・スタッフ向けマニュアルです。集会やイベントの登録・管理方法を説明します。{% endblock %}">
+    <meta property="og:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
+    <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
+{% endblock %}
+
+{% block main %}
+<style>
+    /* サイドバーのスタイル */
+    .guide-sidebar {
+        position: sticky;
+        top: 20px;
+        max-height: calc(100vh - 100px);
+        overflow-y: auto;
+    }
+
+    .guide-nav-item {
+        padding: 0.5rem 1rem;
+        color: #333;
+        text-decoration: none;
+        display: block;
+        border-left: 3px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .guide-nav-item:hover {
+        background-color: #f8f9fa;
+        border-left-color: var(--custom-primary);
+        color: var(--custom-primary);
+    }
+
+    .guide-nav-item.active {
+        background-color: #e7f1ff;
+        border-left-color: var(--custom-primary);
+        color: var(--custom-primary);
+        font-weight: 500;
+    }
+
+    .guide-nav-section {
+        font-weight: 600;
+        color: #666;
+        padding: 0.75rem 1rem 0.5rem;
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+        border-left: 3px solid transparent;
+    }
+
+    .guide-nav-child {
+        padding-left: 2rem;
+        font-size: 0.9rem;
+    }
+
+    /* 主催者のみバッジ */
+    .badge-owner-only {
+        font-size: 0.65rem;
+        padding: 0.2em 0.5em;
+        vertical-align: middle;
+    }
+
+    /* コンテンツエリア */
+    .guide-content {
+        padding: 2rem 0;
+    }
+
+    .guide-content h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .guide-content h2 {
+        font-size: 1.4rem;
+        font-weight: 600;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .guide-content h3 {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .guide-content p {
+        line-height: 1.8;
+        margin-bottom: 1rem;
+    }
+
+    .guide-content ol,
+    .guide-content ul {
+        margin-bottom: 1rem;
+        padding-left: 1.5rem;
+    }
+
+    .guide-content li {
+        margin-bottom: 0.5rem;
+        line-height: 1.7;
+    }
+
+    .guide-content code {
+        background-color: #f4f4f5;
+        padding: 0.2em 0.4em;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
+
+    .guide-content pre {
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        padding: 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+    }
+
+    .guide-content pre code {
+        background-color: transparent;
+        padding: 0;
+    }
+
+    /* 前後ナビゲーション */
+    .guide-page-nav {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 3rem;
+        padding-top: 2rem;
+        border-top: 1px solid #e9ecef;
+    }
+
+    .guide-page-nav a {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        text-decoration: none;
+        color: #333;
+        transition: all 0.2s ease;
+        max-width: 45%;
+    }
+
+    .guide-page-nav a:hover {
+        background-color: #f8f9fa;
+        border-color: var(--custom-primary);
+        color: var(--custom-primary);
+    }
+
+    .guide-page-nav .prev-link {
+        flex-direction: row;
+    }
+
+    .guide-page-nav .next-link {
+        flex-direction: row-reverse;
+        margin-left: auto;
+    }
+
+    .guide-page-nav .nav-direction {
+        font-size: 0.75rem;
+        color: #666;
+        display: block;
+    }
+
+    .guide-page-nav .nav-title {
+        font-weight: 500;
+    }
+
+    /* パンくずリスト */
+    .guide-breadcrumb {
+        background: transparent;
+        padding: 0;
+        margin-bottom: 1.5rem;
+    }
+
+    .guide-breadcrumb .breadcrumb-item a {
+        color: var(--custom-primary);
+        text-decoration: none;
+    }
+
+    .guide-breadcrumb .breadcrumb-item a:hover {
+        text-decoration: underline;
+    }
+
+    /* モバイル対応 */
+    @media (max-width: 991.98px) {
+        .guide-sidebar {
+            position: relative;
+            top: 0;
+            max-height: none;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 1rem;
+        }
+
+        .guide-sidebar-toggle {
+            display: block;
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .guide-sidebar-nav {
+            display: none;
+        }
+
+        .guide-sidebar-nav.show {
+            display: block;
+            margin-top: 1rem;
+        }
+    }
+
+    @media (min-width: 992px) {
+        .guide-sidebar-toggle {
+            display: none;
+        }
+
+        .guide-sidebar-nav {
+            display: block !important;
+        }
+    }
+
+    /* カードホバー無効化 */
+    .guide-sidebar .card,
+    .guide-sidebar .card:hover {
+        transform: none !important;
+        box-shadow: none !important;
+    }
+</style>
+
+<div class="container py-4">
+    {# パンくずリスト #}
+    {% if breadcrumbs %}
+    <nav aria-label="breadcrumb" class="guide-breadcrumb">
+        <ol class="breadcrumb mb-0">
+            {% for crumb in breadcrumbs %}
+                {% if crumb.url %}
+                    <li class="breadcrumb-item"><a href="{{ crumb.url }}">{{ crumb.title }}</a></li>
+                {% else %}
+                    <li class="breadcrumb-item active" aria-current="page">{{ crumb.title }}</li>
+                {% endif %}
+            {% endfor %}
+        </ol>
+    </nav>
+    {% endif %}
+
+    <div class="row">
+        {# サイドバー #}
+        <div class="col-lg-3">
+            <div class="guide-sidebar">
+                <button class="guide-sidebar-toggle" type="button" onclick="toggleSidebar()">
+                    <i class="bi bi-list me-2"></i>メニュー
+                </button>
+                <nav class="guide-sidebar-nav" id="guideSidebarNav">
+                    {% for item in nav_items %}
+                        {% if item.has_children %}
+                            <div class="guide-nav-section">
+                                {{ item.title }}
+                                {% if item.owner_only %}
+                                    <span class="badge bg-warning text-dark badge-owner-only">主催者のみ</span>
+                                {% endif %}
+                            </div>
+                            {% for child in item.children %}
+                                <a href="{{ child.url }}"
+                                   class="guide-nav-item guide-nav-child{% if current_path == child.path %} active{% endif %}">
+                                    {{ child.title }}
+                                    {% if child.owner_only %}
+                                        <span class="badge bg-warning text-dark badge-owner-only">主催者のみ</span>
+                                    {% endif %}
+                                </a>
+                            {% endfor %}
+                        {% else %}
+                            <a href="{{ item.url }}"
+                               class="guide-nav-item{% if current_path == item.path %} active{% endif %}">
+                                {{ item.title }}
+                                {% if item.owner_only %}
+                                    <span class="badge bg-warning text-dark badge-owner-only">主催者のみ</span>
+                                {% endif %}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                </nav>
+            </div>
+        </div>
+
+        {# メインコンテンツ #}
+        <div class="col-lg-9">
+            <div class="guide-content">
+                {% block guide_content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleSidebar() {
+        const nav = document.getElementById('guideSidebarNav');
+        nav.classList.toggle('show');
+    }
+</script>
+{% endblock %}

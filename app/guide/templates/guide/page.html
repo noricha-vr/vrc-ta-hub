@@ -1,0 +1,42 @@
+{% extends 'guide/base.html' %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block twitter_title %}{{ page_title }}{% endblock %}
+{% block og_title %}{{ page_title }}{% endblock %}
+
+{% if page_description %}
+    {% block meta_description %}{{ page_description }}{% endblock %}
+    {% block twitter_description %}{{ page_description }}{% endblock %}
+    {% block og_description %}{{ page_description }}{% endblock %}
+{% endif %}
+
+{% block guide_content %}
+<article>
+    {{ content|safe }}
+</article>
+
+{# 前後のページナビゲーション #}
+{% if prev_page or next_page %}
+<nav class="guide-page-nav" aria-label="ページナビゲーション">
+    {% if prev_page %}
+        <a href="{{ prev_page.url }}" class="prev-link">
+            <i class="bi bi-chevron-left me-2"></i>
+            <div>
+                <span class="nav-direction">前へ</span>
+                <span class="nav-title">{{ prev_page.title }}</span>
+            </div>
+        </a>
+    {% endif %}
+
+    {% if next_page %}
+        <a href="{{ next_page.url }}" class="next-link">
+            <div>
+                <span class="nav-direction">次へ</span>
+                <span class="nav-title">{{ next_page.title }}</span>
+            </div>
+            <i class="bi bi-chevron-right ms-2"></i>
+        </a>
+    {% endif %}
+</nav>
+{% endif %}
+{% endblock %}
