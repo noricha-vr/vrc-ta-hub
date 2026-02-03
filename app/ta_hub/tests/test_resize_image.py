@@ -159,3 +159,44 @@ class ResizeAndConvertImageTestCase(TestCase):
         # poster/poster/... のような多重ネストは発生しない
         for path in saved_paths:
             self.assertNotIn('poster/poster/', path)
+
+    def test_file_not_found_error_is_caught(self):
+        """ストレージ上にファイルが存在しない場合、FileNotFoundErrorをキャッチしてスキップすることを確認"""
+        mock_image_field = MagicMock()
+        mock_image_field.name = 'poster/missing.jpg'
+        # ファイルを開くとFileNotFoundErrorが発生
+        mock_image_field.file = MagicMock()
+        mock_image_field.__bool__ = lambda self: True
+
+        # Image.openでFileNotFoundErrorを発生させるようにモック
+        with patch('ta_hub.libs.Image.open', side_effect=FileNotFoundError('File not found')):
+            # エラーが発生せずに正常終了することを確認
+            result = resize_and_convert_image(mock_image_field, max_size=100, output_format='JPEG')
+            self.assertIsNone(result)
+
+    def test_other_exception_is_caught(self):
+        """その他の例外（壊れたファイル等）もキャッチしてスキップすることを確認"""
+        mock_image_field = MagicMock()
+        mock_image_field.name = 'poster/corrupted.jpg'
+        mock_image_field.file = MagicMock()
+        mock_image_field.__bool__ = lambda self: True
+
+        # Image.openで例外を発生させる
+        with patch('ta_hub.libs.Image.open', side_effect=Exception('Corrupted file')):
+            # エラーが発生せずに正常終了することを確認
+            result = resize_and_convert_image(mock_image_field, max_size=100, output_format='JPEG')
+            self.assertIsNone(result)
+
+    def test_none_image_field_returns_early(self):
+        """image_fieldがNoneの場合、早期リターンすることを確認"""
+        # エラーが発生せずに正常終了することを確認
+        result = resize_and_convert_image(None, max_size=100, output_format='JPEG')
+        self.assertIsNone(result)
+
+    def test_falsy_image_field_returns_early(self):
+        """image_fieldがFalsyな場合、早期リターンすることを確認"""
+        mock_image_field = MagicMock()
+        mock_image_field.__bool__ = lambda self: False
+
+        result = resize_and_convert_image(mock_image_field, max_size=100, output_format='JPEG')
+        self.assertIsNone(result)

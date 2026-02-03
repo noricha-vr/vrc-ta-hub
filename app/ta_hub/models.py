@@ -13,5 +13,8 @@ class ImageFile(models.Model):
         verbose_name_plural = '画像ファイル'
 
     def save(self, *args, **kwargs):
-        resize_and_convert_image(self.image, self.max_size, 'JPEG')
+        # 新しいファイルがアップロードされた場合のみリサイズ
+        # _committed が False = 新しいファイルがまだストレージに保存されていない
+        if self.image and not getattr(self.image, '_committed', True):
+            resize_and_convert_image(self.image, self.max_size, 'JPEG')
         super().save(*args, **kwargs)
