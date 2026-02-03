@@ -115,7 +115,10 @@ class Community(models.Model):
         update_fields = kwargs.get('update_fields')
         # update_fieldsが指定されていない、またはposter_imageが含まれている場合のみリサイズ
         if update_fields is None or 'poster_image' in update_fields:
-            resize_and_convert_image(self.poster_image, max_size=1000, output_format='JPEG')
+            # 新しいファイルがアップロードされた場合のみリサイズ
+            # _committed が False = 新しいファイルがまだストレージに保存されていない
+            if self.poster_image and not getattr(self.poster_image, '_committed', True):
+                resize_and_convert_image(self.poster_image, max_size=1000, output_format='JPEG')
         super().save(*args, **kwargs)
 
     def get_owners(self):
