@@ -771,7 +771,7 @@ class CommunitySettingsView(LoginRequiredMixin, TemplateView):
         if community:
             context['lt_application_template_display'] = (
                 community.lt_application_template or
-                "【発表概要】\n\n【スライド公開】OK / NG\n【動画撮影】OK / NG"
+                "【発表概要】\n\n【スライド公開】OK / NG\n\n【動画撮影】YouTube公開 / Discord限定 / OK / NG"
             )
 
         return context
