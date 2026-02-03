@@ -43,9 +43,12 @@ class CustomLoginView(LoginView):
 
     def get_success_url(self):
         messages.info(self.request, 'ログインしました。')
-        # settings.LOGIN_REDIRECT_URL を使うように変更
-        redirect_to = settings.LOGIN_REDIRECT_URL
-        return redirect_to
+        # 親クラスのget_redirect_url()はnextパラメータの安全性を検証する
+        # （外部URLへのリダイレクトを防止）
+        redirect_url = self.get_redirect_url()
+        if redirect_url:
+            return redirect_url
+        return settings.LOGIN_REDIRECT_URL
 
 
 class CustomLogoutView(LogoutView):

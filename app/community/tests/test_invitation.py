@@ -216,7 +216,8 @@ class AcceptInvitationViewTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.community.name)
-        self.assertContains(response, 'ログインして参加')
+        # 未ログイン時はログインボタンが表示される
+        self.assertContains(response, '>ログイン</a>')
 
     def test_logged_in_user_can_view_invitation_page(self):
         """ログイン済みユーザーは招待ページを閲覧できる"""

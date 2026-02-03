@@ -180,7 +180,8 @@ class AcceptOwnershipTransferViewTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.community.name)
-        self.assertContains(response, 'ログインして引き継ぐ')
+        # 未ログイン時はログインボタンが表示される
+        self.assertContains(response, '>ログイン</a>')
 
     def test_logged_in_user_can_view_transfer_page(self):
         """ログイン済みユーザーは引き継ぎページを閲覧できる"""

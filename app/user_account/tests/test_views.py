@@ -80,6 +80,50 @@ class CustomLoginViewTests(TestCase):
         }, follow=True)
         self.assertContains(response, 'ログインしました')
 
+    def test_login_redirects_to_next_url_when_provided(self):
+        """nextパラメータがある場合、そのURLにリダイレクトされること."""
+        next_url = '/community/settings/'
+        response = self.client.post(f'{self.login_url}?next={next_url}', {
+            'username': 'test_community',
+            'password': 'testpass123',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, next_url)
+
+    def test_login_redirects_to_default_url_without_next(self):
+        """nextパラメータがない場合、デフォルトのURLにリダイレクトされること."""
+        from django.conf import settings
+        response = self.client.post(self.login_url, {
+            'username': 'test_community',
+            'password': 'testpass123',
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, settings.LOGIN_REDIRECT_URL)
+
+    def test_login_does_not_redirect_to_external_url(self):
+        """外部URLへのリダイレクトを防止する（オープンリダイレクト対策）."""
+        from django.conf import settings
+        external_url = 'https://evil.example.com'
+        response = self.client.post(f'{self.login_url}?next={external_url}', {
+            'username': 'test_community',
+            'password': 'testpass123',
+        })
+        # 外部URLにはリダイレクトされず、デフォルトURLにリダイレクトされる
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, settings.LOGIN_REDIRECT_URL)
+
+    def test_login_does_not_redirect_to_protocol_relative_url(self):
+        """プロトコル相対URLへのリダイレクトを防止する（オープンリダイレクト対策）."""
+        from django.conf import settings
+        protocol_relative_url = '//evil.example.com/path'
+        response = self.client.post(f'{self.login_url}?next={protocol_relative_url}', {
+            'username': 'test_community',
+            'password': 'testpass123',
+        })
+        # プロトコル相対URLにはリダイレクトされず、デフォルトURLにリダイレクトされる
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, settings.LOGIN_REDIRECT_URL)
+
 
 class SettingsViewTests(TestCase):
     """SettingsViewのテストクラス."""
