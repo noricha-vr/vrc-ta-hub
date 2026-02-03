@@ -86,7 +86,7 @@ class CommunityUpdateForm(forms.ModelForm):
         fields = [
             'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
-            'poster_image', 'allow_poster_repost', 'accepts_lt_application',
+            'poster_image', 'allow_poster_repost',
             'description', 'platform', 'tags',
         ]
         widgets = {
@@ -104,7 +104,6 @@ class CommunityUpdateForm(forms.ModelForm):
             'allow_poster_repost': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'description': forms.Textarea(attrs={'class': 'form-control'}),
             'platform': forms.Select(attrs={'class': 'form-control'}),
-            'accepts_lt_application': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
     def __init__(self, *args, **kwargs):

@@ -767,6 +767,13 @@ class CommunitySettingsView(LoginRequiredMixin, TemplateView):
                 expires_at__gt=timezone.now()
             ).first()
 
+        # LT申請テンプレートのデフォルト値を設定
+        if community:
+            context['lt_application_template_display'] = (
+                community.lt_application_template or
+                "【発表概要】\n\n【スライド公開】OK / NG\n【動画撮影】OK / NG"
+            )
+
         return context
 
 
@@ -1010,6 +1017,7 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
 
     def post(self, request, pk):
         community = get_object_or_404(Community, pk=pk)
+        accepts_lt = request.POST.get('accepts_lt_application') == 'on'
         lt_template = request.POST.get('lt_application_template', '').strip()
         min_length_str = request.POST.get('lt_application_min_length', '0').strip()
         duration_str = request.POST.get('default_lt_duration', '30').strip()
@@ -1026,10 +1034,11 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
         except ValueError:
             duration = 30
 
+        community.accepts_lt_application = accepts_lt
         community.lt_application_template = lt_template
         community.lt_application_min_length = min_length
         community.default_lt_duration = duration
-        community.save(update_fields=['lt_application_template', 'lt_application_min_length', 'default_lt_duration'])
+        community.save(update_fields=['accepts_lt_application', 'lt_application_template', 'lt_application_min_length', 'default_lt_duration'])
 
         messages.success(request, 'LT申請設定を保存しました。')
         logger.info(

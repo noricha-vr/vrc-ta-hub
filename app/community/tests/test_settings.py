@@ -697,3 +697,150 @@ class LTSettingsTest(TestCase):
         self.assertRedirects(response, reverse('community:settings'))
         self.community.refresh_from_db()
         self.assertEqual(self.community.lt_application_min_length, 0)
+
+    def test_accepts_lt_application_toggle_on(self):
+        """LT申請受付トグルをONにできる"""
+        # 初期状態はOFF
+        self.community.accepts_lt_application = False
+        self.community.save()
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'accepts_lt_application': 'on',
+                'lt_application_template': '【テスト】',
+                'lt_application_min_length': 10,
+                'default_lt_duration': 30,
+            }
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertTrue(self.community.accepts_lt_application)
+
+    def test_accepts_lt_application_toggle_off(self):
+        """LT申請受付トグルをOFFにできる"""
+        # 初期状態はON
+        self.community.accepts_lt_application = True
+        self.community.save()
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+
+        # accepts_lt_applicationを送信しない（チェックボックスがOFFの場合）
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'lt_application_template': '【テスト】',
+                'lt_application_min_length': 10,
+                'default_lt_duration': 30,
+            }
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertFalse(self.community.accepts_lt_application)
+
+    def test_settings_page_shows_lt_toggle(self):
+        """設定ページにLT申請受付トグルが表示される"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'LT申請を受け付ける')
+        self.assertContains(response, 'id="accepts_lt_application"')
+
+    def test_lt_detail_hidden_when_toggle_off(self):
+        """トグルOFF時は詳細設定が非表示になる"""
+        self.community.accepts_lt_application = False
+        self.community.save()
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        # 詳細設定のdivが非表示（display: none）になっている
+        self.assertContains(response, 'id="lt-settings-detail" style="display: none;"')
+
+    def test_lt_detail_visible_when_toggle_on(self):
+        """トグルON時は詳細設定が表示される"""
+        self.community.accepts_lt_application = True
+        self.community.save()
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        # 詳細設定のdivが非表示になっていない（display: none がない）
+        self.assertContains(response, 'id="lt-settings-detail" style=""')
+
+    def test_toggle_state_persists_after_page_reload(self):
+        """トグル状態がページリロード後も維持される"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+
+        # トグルをONにして保存
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'accepts_lt_application': 'on',
+                'lt_application_template': '【テスト】',
+                'lt_application_min_length': 10,
+                'default_lt_duration': 30,
+            }
+        )
+        self.assertRedirects(response, reverse('community:settings'))
+
+        # ページをリロード
+        response = self.client.get(reverse('community:settings'))
+        self.assertEqual(response.status_code, 200)
+        # チェックボックスがチェック状態であることを確認
+        self.assertContains(response, 'id="accepts_lt_application"')
+        self.assertContains(response, 'checked')
+
+
+class LTSettingsUpdateFormTest(TestCase):
+    """集会更新フォームからLT受付設定が削除されたことのテスト"""
+
+    def setUp(self):
+        self.client = Client()
+
+        # 主催者ユーザー
+        self.owner_user = CustomUser.objects.create_user(
+            email='owner@example.com',
+            password='testpass123',
+            user_name='主催者ユーザー'
+        )
+
+        # テスト用集会
+        self.community = Community.objects.create(
+            name='テスト集会',
+            status='approved',
+            frequency='毎週',
+            organizers='テスト主催者',
+            weekdays=['Mon'],
+        )
+
+        # 主催者のメンバーシップ
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner_user,
+            role=CommunityMember.Role.OWNER
+        )
+
+    def test_update_page_does_not_have_accepts_lt_application(self):
+        """集会更新ページにaccepts_lt_applicationフィールドがない"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+
+        # セッションにアクティブな集会を設定
+        session = self.client.session
+        session['active_community_id'] = self.community.pk
+        session.save()
+
+        response = self.client.get(reverse('community:update'))
+
+        self.assertEqual(response.status_code, 200)
+        # accepts_lt_applicationのラベルがページに含まれていないことを確認
+        self.assertNotContains(response, 'LT申請を受け付ける')
+        # フォームフィールドがないことを確認
+        self.assertNotContains(response, 'id="id_accepts_lt_application"')
