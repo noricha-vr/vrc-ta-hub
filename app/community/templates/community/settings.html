@@ -123,42 +123,69 @@
             <form method="post" action="{% url 'community:update_lt_settings' community.pk %}">
                 {% csrf_token %}
                 <div class="mb-3">
-                    <label for="lt_application_template" class="form-label fw-medium">追加情報テンプレート</label>
-                    <textarea name="lt_application_template" id="lt_application_template"
-                              class="form-control" rows="6"
-                              placeholder="【発表概要】&#10;&#10;【対象者】&#10;&#10;【必要な前提知識】&#10;&#10;【動画撮影】OK / NG / 公開OK">{{ community.lt_application_template }}</textarea>
-                    <small class="form-text text-muted">
-                        空の場合、申請フォームに追加情報欄は表示されません。
-                    </small>
-                </div>
-                <div class="mb-3">
-                    <label for="lt_application_min_length" class="form-label fw-medium">最低文字数</label>
-                    <div class="d-flex align-items-center gap-2">
-                        <input type="number" name="lt_application_min_length" id="lt_application_min_length"
-                               class="form-control" style="width: 100px;" min="0"
-                               value="{{ community.lt_application_min_length }}">
-                        <span>文字</span>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="accepts_lt_application" name="accepts_lt_application"
+                               {% if community.accepts_lt_application %}checked{% endif %}
+                               onchange="toggleLTSettings()">
+                        <label class="form-check-label fw-medium" for="accepts_lt_application">
+                            LT申請を受け付ける
+                        </label>
                     </div>
                     <small class="form-text text-muted">
-                        0の場合、文字数チェックは行いません。
+                        ONにすると、イベントページにLT申請ボタンが表示されます。
                     </small>
                 </div>
-                <div class="mb-3">
-                    <label for="default_lt_duration" class="form-label fw-medium">デフォルトの発表時間</label>
-                    <div class="d-flex align-items-center gap-2">
-                        <input type="number" name="default_lt_duration" id="default_lt_duration"
-                               class="form-control" style="width: 100px;" min="1"
-                               value="{{ community.default_lt_duration|default:30 }}">
-                        <span>分</span>
+                <div id="lt-settings-detail" style="{% if not community.accepts_lt_application %}display: none;{% endif %}">
+                    <hr class="my-3">
+                    <div class="mb-3">
+                        <label for="lt_application_template" class="form-label fw-medium">追加情報テンプレート</label>
+                        <textarea name="lt_application_template" id="lt_application_template"
+                                  class="form-control" rows="7">{{ lt_application_template_display }}</textarea>
+                        <small class="form-text text-muted">
+                            空の場合、申請フォームに追加情報欄は表示されません。
+                        </small>
                     </div>
-                    <small class="form-text text-muted">
-                        LT申請フォームに表示されるデフォルトの発表時間
-                    </small>
+                    <div class="mb-3">
+                        <label for="lt_application_min_length" class="form-label fw-medium">最低文字数</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="number" name="lt_application_min_length" id="lt_application_min_length"
+                                   class="form-control" style="width: 100px;" min="0"
+                                   value="{{ community.lt_application_min_length }}">
+                            <span>文字</span>
+                        </div>
+                        <small class="form-text text-muted">
+                            0の場合、文字数チェックは行いません。
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="default_lt_duration" class="form-label fw-medium">デフォルトの発表時間</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="number" name="default_lt_duration" id="default_lt_duration"
+                                   class="form-control" style="width: 100px;" min="1"
+                                   value="{{ community.default_lt_duration|default:30 }}">
+                            <span>分</span>
+                        </div>
+                        <small class="form-text text-muted">
+                            LT申請フォームに表示されるデフォルトの発表時間
+                        </small>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary">保存</button>
             </form>
         </div>
     </div>
+
+    <script>
+    function toggleLTSettings() {
+        var checkbox = document.getElementById('accepts_lt_application');
+        var detailSection = document.getElementById('lt-settings-detail');
+        if (checkbox.checked) {
+            detailSection.style.display = 'block';
+        } else {
+            detailSection.style.display = 'none';
+        }
+    }
+    </script>
 
     <!-- メンバー管理セクション（主催者のみ） -->
     {% if is_owner %}
