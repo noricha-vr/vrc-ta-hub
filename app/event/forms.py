@@ -541,11 +541,6 @@ class LTApplicationForm(forms.Form):
         if additional_info.strip() == template.strip():
             raise ValidationError('テンプレートの各項目を入力してください')
 
-        # 最低文字数チェック
-        min_length = self.community.lt_application_min_length
-        if min_length > 0 and len(additional_info) < min_length:
-            raise ValidationError(f'最低{min_length}文字以上入力してください')
-
         return additional_info
 
 

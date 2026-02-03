@@ -580,32 +580,27 @@ class LTSettingsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'LT申請設定')
         self.assertContains(response, '追加情報テンプレート')
-        self.assertContains(response, '最低文字数')
 
     def test_update_lt_settings_success(self):
         """LT申請設定を正常に更新できる"""
         self.client.login(username='主催者ユーザー', password='testpass123')
         template = '【発表概要】\n\n【対象者】'
-        min_length = 50
 
         response = self.client.post(
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
             {
                 'lt_application_template': template,
-                'lt_application_min_length': min_length,
             }
         )
 
         self.assertRedirects(response, reverse('community:settings'))
         self.community.refresh_from_db()
         self.assertEqual(self.community.lt_application_template, template)
-        self.assertEqual(self.community.lt_application_min_length, min_length)
 
     def test_update_lt_settings_clear_template(self):
         """テンプレートをクリアできる"""
         # 既にテンプレートが設定されている状態
         self.community.lt_application_template = '【発表概要】'
-        self.community.lt_application_min_length = 30
         self.community.save()
 
         self.client.login(username='主催者ユーザー', password='testpass123')
@@ -613,14 +608,12 @@ class LTSettingsTest(TestCase):
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
             {
                 'lt_application_template': '',
-                'lt_application_min_length': 0,
             }
         )
 
         self.assertRedirects(response, reverse('community:settings'))
         self.community.refresh_from_db()
         self.assertEqual(self.community.lt_application_template, '')
-        self.assertEqual(self.community.lt_application_min_length, 0)
 
     def test_staff_can_update_lt_settings(self):
         """スタッフもLT申請設定を更新できる"""
@@ -631,7 +624,6 @@ class LTSettingsTest(TestCase):
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
             {
                 'lt_application_template': template,
-                'lt_application_min_length': 10,
             }
         )
 
@@ -647,7 +639,6 @@ class LTSettingsTest(TestCase):
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
             {
                 'lt_application_template': '【テスト】',
-                'lt_application_min_length': 10,
             }
         )
 
@@ -659,44 +650,11 @@ class LTSettingsTest(TestCase):
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
             {
                 'lt_application_template': '【テスト】',
-                'lt_application_min_length': 10,
             }
         )
 
         self.assertEqual(response.status_code, 302)
         self.assertIn('/account/login/', response.url)
-
-    def test_invalid_min_length_defaults_to_zero(self):
-        """無効な最低文字数は0にデフォルトされる"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
-
-        response = self.client.post(
-            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
-            {
-                'lt_application_template': '【テスト】',
-                'lt_application_min_length': 'invalid',  # 無効な値
-            }
-        )
-
-        self.assertRedirects(response, reverse('community:settings'))
-        self.community.refresh_from_db()
-        self.assertEqual(self.community.lt_application_min_length, 0)
-
-    def test_negative_min_length_defaults_to_zero(self):
-        """負の最低文字数は0にデフォルトされる"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
-
-        response = self.client.post(
-            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
-            {
-                'lt_application_template': '【テスト】',
-                'lt_application_min_length': -10,  # 負の値
-            }
-        )
-
-        self.assertRedirects(response, reverse('community:settings'))
-        self.community.refresh_from_db()
-        self.assertEqual(self.community.lt_application_min_length, 0)
 
     def test_accepts_lt_application_toggle_on(self):
         """LT申請受付トグルをONにできる"""
@@ -711,7 +669,6 @@ class LTSettingsTest(TestCase):
             {
                 'accepts_lt_application': 'on',
                 'lt_application_template': '【テスト】',
-                'lt_application_min_length': 10,
                 'default_lt_duration': 30,
             }
         )
@@ -733,7 +690,6 @@ class LTSettingsTest(TestCase):
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
             {
                 'lt_application_template': '【テスト】',
-                'lt_application_min_length': 10,
                 'default_lt_duration': 30,
             }
         )
@@ -785,7 +741,6 @@ class LTSettingsTest(TestCase):
             {
                 'accepts_lt_application': 'on',
                 'lt_application_template': '【テスト】',
-                'lt_application_min_length': 10,
                 'default_lt_duration': 30,
             }
         )
