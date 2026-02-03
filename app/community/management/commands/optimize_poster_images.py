@@ -156,6 +156,12 @@ class Command(BaseCommand):
             except Exception as e:
                 error_count += 1
                 self.stdout.write(self.style.ERROR(f'[{i}/{total_communities}] {community.name}: エラー - {e}'))
+            finally:
+                # ファイルハンドルを確実に閉じる（リソースリーク防止）
+                try:
+                    poster.file.close()
+                except Exception:
+                    pass  # 既に閉じている場合は無視
 
         # サマリー
         self.stdout.write('\n' + '=' * 50)
