@@ -807,7 +807,6 @@ class LTApplicationAdditionalInfoTest(TestCase):
             organizers='Test Organizer',
             status='approved',
             lt_application_template='【発表概要】\n\n【対象者】\n',
-            lt_application_min_length=20,
         )
         CommunityMember.objects.create(
             community=self.community_with_template,
@@ -825,7 +824,6 @@ class LTApplicationAdditionalInfoTest(TestCase):
             organizers='Test Organizer',
             status='approved',
             lt_application_template='',
-            lt_application_min_length=0,
         )
         CommunityMember.objects.create(
             community=self.community_without_template,
@@ -891,25 +889,6 @@ class LTApplicationAdditionalInfoTest(TestCase):
         # フォームエラーで再表示
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'テンプレートの各項目を入力してください')
-
-    @patch('event.notifications.send_mail')
-    def test_submit_with_insufficient_length_fails(self, mock_send_mail):
-        """最低文字数未満で送信するとエラーになる"""
-        mock_send_mail.return_value = 1
-        self.client.login(username='TestUser', password='testpass123')
-
-        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_with_template.pk})
-        response = self.client.post(url, {
-            'event': self.event_with_template.pk,
-            'theme': 'Test Theme',
-            'speaker': 'Test Speaker',
-            'duration': 15,
-            'additional_info': 'Short text',  # 20文字未満
-        })
-
-        # フォームエラーで再表示
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '最低20文字以上入力してください')
 
     @patch('event.notifications.send_mail')
     def test_submit_with_valid_additional_info_succeeds(self, mock_send_mail):

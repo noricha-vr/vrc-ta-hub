@@ -1019,14 +1019,7 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
         community = get_object_or_404(Community, pk=pk)
         accepts_lt = request.POST.get('accepts_lt_application') == 'on'
         lt_template = request.POST.get('lt_application_template', '').strip()
-        min_length_str = request.POST.get('lt_application_min_length', '0').strip()
         duration_str = request.POST.get('default_lt_duration', '30').strip()
-
-        # 最低文字数のバリデーション
-        try:
-            min_length = max(0, int(min_length_str))
-        except ValueError:
-            min_length = 0
 
         # デフォルト発表時間のバリデーション
         try:
@@ -1036,14 +1029,13 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
 
         community.accepts_lt_application = accepts_lt
         community.lt_application_template = lt_template
-        community.lt_application_min_length = min_length
         community.default_lt_duration = duration
-        community.save(update_fields=['accepts_lt_application', 'lt_application_template', 'lt_application_min_length', 'default_lt_duration'])
+        community.save(update_fields=['accepts_lt_application', 'lt_application_template', 'default_lt_duration'])
 
         messages.success(request, 'LT申請設定を保存しました。')
         logger.info(
             f'LT申請設定更新: 集会「{community.name}」、'
-            f'テンプレート文字数={len(lt_template)}、最低文字数={min_length}、デフォルト発表時間={duration}分'
+            f'テンプレート文字数={len(lt_template)}、デフォルト発表時間={duration}分'
         )
 
         return redirect('community:settings')

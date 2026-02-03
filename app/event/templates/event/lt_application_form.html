@@ -118,18 +118,10 @@
                             <div class="mb-4">
                                 <label for="id_additional_info" class="form-label fw-bold">
                                     <i class="bi bi-card-text me-1"></i>{{ form.additional_info.label }}
-                                    {% if community.lt_application_min_length > 0 %}
-                                        <span class="text-danger">*</span>
-                                    {% endif %}
                                 </label>
                                 {{ form.additional_info }}
                                 {% if form.additional_info.help_text %}
                                     <small class="form-text text-muted">{{ form.additional_info.help_text }}</small>
-                                {% endif %}
-                                {% if community.lt_application_min_length > 0 %}
-                                    <small class="form-text text-muted">
-                                        最低{{ community.lt_application_min_length }}文字以上入力してください
-                                    </small>
                                 {% endif %}
                                 {% if form.additional_info.errors %}
                                     <div class="invalid-feedback d-block">

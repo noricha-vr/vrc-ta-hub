@@ -76,11 +76,6 @@ class Community(models.Model):
         default='',
         help_text='LT申請時に登壇者に入力してもらいたい項目のテンプレート。空の場合は追加情報欄を表示しません。'
     )
-    lt_application_min_length = models.PositiveIntegerField(
-        '追加情報の最低文字数',
-        default=0,
-        help_text='0の場合は文字数チェックを行いません'
-    )
     default_lt_duration = models.PositiveIntegerField(
         'デフォルトの発表時間',
         default=30,
