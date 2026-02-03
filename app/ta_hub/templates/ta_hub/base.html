@@ -359,7 +359,7 @@
                     </li>
                     {% if user.is_authenticated %}
                         <li class="nav-item">
-                            <a class="nav-link text-light" href="{% url 'ta_hub:how_to' %}">使い方</a>
+                            <a class="nav-link text-light" href="{% url 'guide:index' %}">使い方</a>
                         </li>
                     {% endif %}
                     <li class="nav-item">
@@ -485,7 +485,7 @@
                 <ul class="list-unstyled mb-0">
                     {% if user.is_authenticated %}
                         <li class="mb-2">
-                            <a href="{% url 'ta_hub:how_to' %}" class="text-light text-decoration-none small">使い方</a>
+                            <a href="{% url 'guide:index' %}" class="text-light text-decoration-none small">使い方</a>
                         </li>
                     {% endif %}
                     <li class="mb-2">

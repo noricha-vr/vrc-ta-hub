@@ -37,4 +37,5 @@ urlpatterns = [
     path('', include('ta_hub.urls')),
     path('', include('sitemap.urls')),
     path('news/', include('news.urls')),
+    path('guide/', include('guide.urls')),
 ]

@@ -1,0 +1,66 @@
+{% extends 'guide/base.html' %}
+
+{% block page_title %}使い方ガイド{% endblock %}
+{% block twitter_title %}使い方ガイド{% endblock %}
+{% block og_title %}使い方ガイド{% endblock %}
+
+{% block guide_content %}
+<h1>使い方ガイド</h1>
+
+<p class="lead">
+    VRChat技術・学術系イベントHubの主催者・スタッフ向けマニュアルです。<br>
+    集会やイベントの登録・管理方法を説明します。
+</p>
+
+<div class="row mt-4">
+    {% for item in nav_items %}
+        {% if item.has_children %}
+            <div class="col-md-6 mb-4">
+                <div class="card h-100 shadow-hover">
+                    <div class="card-body">
+                        <h2 class="h5 card-title fw-bold">
+                            {{ item.title }}
+                            {% if item.owner_only %}
+                                <span class="badge bg-warning text-dark badge-owner-only">主催者のみ</span>
+                            {% endif %}
+                        </h2>
+                        <ul class="list-unstyled mb-0">
+                            {% for child in item.children %}
+                                <li class="mb-2">
+                                    <a href="{{ child.url }}" class="text-decoration-none">
+                                        <i class="bi bi-chevron-right me-1 text-muted"></i>{{ child.title }}
+                                        {% if child.owner_only %}
+                                            <span class="badge bg-warning text-dark badge-owner-only">主催者のみ</span>
+                                        {% endif %}
+                                    </a>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="col-md-6 mb-4">
+                <div class="card h-100 shadow-hover">
+                    <div class="card-body">
+                        <h2 class="h5 card-title fw-bold">
+                            <a href="{{ item.url }}" class="text-decoration-none text-dark">
+                                {{ item.title }}
+                                {% if item.owner_only %}
+                                    <span class="badge bg-warning text-dark badge-owner-only">主催者のみ</span>
+                                {% endif %}
+                            </a>
+                        </h2>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                ガイドコンテンツを準備中です。しばらくお待ちください。
+            </div>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}
