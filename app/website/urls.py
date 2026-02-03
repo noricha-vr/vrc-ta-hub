@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
 urlpatterns = [
@@ -23,6 +24,8 @@ urlpatterns = [
     path('community/', include('community.urls')),
     path('event/', include('event.urls')),
     path('account/', include('user_account.urls')),
+    # Redirect allauth default signup to custom register page (Discord OAuth required)
+    path('accounts/signup/', RedirectView.as_view(url='/account/register/', permanent=False, query_string=True)),
     path('accounts/', include('allauth.urls')),
     path('twitter/', include('twitter.urls')),
     path('api/v1/', include('api_v1.urls')),
