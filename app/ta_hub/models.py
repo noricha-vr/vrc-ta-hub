@@ -16,5 +16,5 @@ class ImageFile(models.Model):
         # 新しいファイルがアップロードされた場合のみリサイズ
         # _committed が False = 新しいファイルがまだストレージに保存されていない
         if self.image and not getattr(self.image, '_committed', True):
-            resize_and_convert_image(self.image, self.max_size, 'JPEG')
+            resize_and_convert_image(self.image, max_size=self.max_size)
         super().save(*args, **kwargs)

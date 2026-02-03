@@ -118,7 +118,7 @@ class Community(models.Model):
             # 新しいファイルがアップロードされた場合のみリサイズ
             # _committed が False = 新しいファイルがまだストレージに保存されていない
             if self.poster_image and not getattr(self.poster_image, '_committed', True):
-                resize_and_convert_image(self.poster_image, max_size=1000, output_format='JPEG')
+                resize_and_convert_image(self.poster_image, max_size=1000)
         super().save(*args, **kwargs)
 
     def get_owners(self):
