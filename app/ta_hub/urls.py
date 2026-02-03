@@ -9,7 +9,6 @@ app_name = 'ta_hub'
 urlpatterns = [
     path('', IndexView.as_view(), name='index'),
                 path('about/', TemplateView.as_view(template_name='ta_hub/about.html'), name='about'),
-                path('how_to/', TemplateView.as_view(template_name='ta_hub/how_to.html'), name='how_to'),
                 path('privacy/', TemplateView.as_view(template_name='ta_hub/privacy.html'), name='privacy'),
                 path('terms/', TemplateView.as_view(template_name='ta_hub/terms.html'), name='terms'),
                 path('manifest.json', serve,

@@ -22,10 +22,6 @@
         <priority>0.1</priority>
     </url>
     <url>
-        <loc>{{ base_url }}how_to/</loc>
-        <priority>0.1</priority>
-    </url>
-    <url>
         <loc>{{ base_url }}event/detail/list/</loc>
         <priority>0.1</priority>
     </url>
