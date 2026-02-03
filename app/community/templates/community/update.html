@@ -42,6 +42,22 @@
                             {% bootstrap_field form.twitter_hashtag %}
                             {% bootstrap_field form.discord %}
                             {% bootstrap_field form.poster_image %}
+                            <div class="mb-3">
+                                <label class="form-label">現在のポスター</label>
+                                <div>
+                                    {% if community.poster_image %}
+                                        <img src="{{ community.poster_image.url }}"
+                                             alt="{{ community.name }}"
+                                             class="img-fluid rounded border"
+                                             style="max-width: 320px;">
+                                    {% else %}
+                                        <img src="https://vrc-ta-hub.com/poster/no-image.png"
+                                             alt="{{ community.name }}"
+                                             class="img-fluid rounded border"
+                                             style="max-width: 320px;">
+                                    {% endif %}
+                                </div>
+                            </div>
                             {% bootstrap_field form.allow_poster_repost %}
                             {% bootstrap_field form.description %}
                             {% bootstrap_field form.platform %}
