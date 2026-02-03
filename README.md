@@ -1,10 +1,34 @@
 # VRC 技術学術ハブ（VRChat Technology and Academic Hub）
 
+[![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/noricha-vr/vrc-ta-hub)
+
 このプロジェクトはVRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくためのWeb制作プロジェクトです。
 
 ![VRChat技術学術ハブ Webサイト](app/ta_hub/static/ta_hub/image/screenshot.png)
 
 https://vrc-ta-hub.com
+
+## ドキュメント
+
+このプロジェクトのドキュメントは **DeepWiki** で閲覧できます。
+
+**[DeepWiki - VRC技術学術ハブ](https://deepwiki.com/noricha-vr/vrc-ta-hub)**
+
+### DeepWikiとは
+
+DeepWikiは、GitHubリポジトリのコードを自動解析し、AIが生成した対話可能なドキュメントを提供するサービスです。コードの構造やアーキテクチャを視覚的に理解でき、チャットで質問することもできます。
+
+### アクセス方法
+
+1. 上記の「DeepWiki」バッジ（青いボタン）をクリック
+2. または直接リンク: https://deepwiki.com/noricha-vr/vrc-ta-hub
+
+### DeepWikiでできること
+
+- **アーキテクチャ図の閲覧**: システム構成やデータフローを視覚的に確認
+- **コード解説の閲覧**: 各モジュールの役割と実装の詳細を確認
+- **AIチャットで質問**: 「このプロジェクトの認証はどう実装されている？」などの質問が可能
+- **コード検索**: 特定の機能やクラスの実装箇所を素早く発見
 
 ## 概要
 
