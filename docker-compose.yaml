@@ -13,6 +13,7 @@ services:
       - .env.local
     environment:
       - DEBUG=True
+      - PYTHONPATH=/app
     ports:
       - '8015:8080'
     networks:
