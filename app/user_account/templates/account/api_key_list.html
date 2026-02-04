@@ -13,6 +13,16 @@
                     </div>
                     <div class="card-body">
                         {% include 'ta_hub/messages.html' %}
+
+                        {% if new_api_key %}
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>重要：</strong>{{ new_api_key_name|default:"APIキー" }}はこの画面で一度だけ表示されます。必ず安全な場所に保管してください。
+                                <div class="mt-2">
+                                    <code style="word-break: break-all;">{{ new_api_key }}</code>
+                                </div>
+                            </div>
+                        {% endif %}
                         
                         <!-- API使用方法 -->
                         <div class="accordion mb-4" id="apiDocAccordion">
@@ -80,7 +90,7 @@ curl -H "X-API-Key: YOUR_API_KEY" https://vrc-ta-hub.com/api/v1/event-details/</
                                     <thead>
                                         <tr>
                                             <th>名前</th>
-                                            <th>キー（一部）</th>
+                                            <th>キーID（ハッシュ）</th>
                                             <th>作成日時</th>
                                             <th>最終使用</th>
                                             <th>操作</th>

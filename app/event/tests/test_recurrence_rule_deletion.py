@@ -201,7 +201,7 @@ class RecurrenceRuleAPITest(TestCase):
         )
         
         # APIキー作成
-        self.api_key = APIKey.objects.create(
+        self.api_key, self.raw_api_key = APIKey.create_with_raw_key(
             user=self.superuser,
             name='Test API Key'
         )
@@ -236,7 +236,7 @@ class RecurrenceRuleAPITest(TestCase):
         """API: RecurrenceRule一覧取得のテスト"""
         response = self.client.get(
             '/api/v1/recurrence-rules/',
-            HTTP_AUTHORIZATION=f'Bearer {self.api_key.key}'
+            HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key}'
         )
         
         self.assertEqual(response.status_code, 200)
@@ -253,7 +253,7 @@ class RecurrenceRuleAPITest(TestCase):
                 'delete_rule': True
             },
             content_type='application/json',
-            HTTP_AUTHORIZATION=f'Bearer {self.api_key.key}'
+            HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key}'
         )
         
         self.assertEqual(response.status_code, 200)
@@ -270,7 +270,7 @@ class RecurrenceRuleAPITest(TestCase):
         url = f'/api/v1/recurrence-rules/{self.rule.id}/'
         response = self.client.delete(
             url,
-            HTTP_AUTHORIZATION=f'Bearer {self.api_key.key}'
+            HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key}'
         )
         
         self.assertEqual(response.status_code, 200)
@@ -289,7 +289,7 @@ class RecurrenceRuleAPITest(TestCase):
             email='normal@example.com',
             password='normalpass123'
         )
-        normal_api_key = APIKey.objects.create(
+        normal_api_key, normal_raw_api_key = APIKey.create_with_raw_key(
             user=normal_user,
             name='Normal User API Key'
         )
@@ -297,7 +297,7 @@ class RecurrenceRuleAPITest(TestCase):
         # アクセステスト
         response = self.client.get(
             '/api/v1/recurrence-rules/',
-            HTTP_AUTHORIZATION=f'Bearer {normal_api_key.key}'
+            HTTP_AUTHORIZATION=f'Bearer {normal_raw_api_key}'
         )
         
         self.assertEqual(response.status_code, 200)

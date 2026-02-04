@@ -15,15 +15,15 @@ logger = logging.getLogger(__name__)
 
 SELF_DOMAIN_SUFFIX = "vrc-ta-hub.com"
 
-SCRIPT_TAG_RE = re.compile(r"<script\\b[^>]*>.*?</script\\s*>", flags=re.IGNORECASE | re.DOTALL)
-SCRIPT_SELF_CLOSING_RE = re.compile(r"<script\\b[^>]*/\\s*>", flags=re.IGNORECASE | re.DOTALL)
+SCRIPT_TAG_RE = re.compile(r"<script\b[^>]*>.*?</script\s*>", flags=re.IGNORECASE | re.DOTALL)
+SCRIPT_SELF_CLOSING_RE = re.compile(r"<script\b[^>]*/\s*>", flags=re.IGNORECASE | re.DOTALL)
 
 # <iframe ...>...</iframe> と <iframe .../> の両方に対応
-IFRAME_BLOCK_RE = re.compile(r"<iframe\\b[^>]*>.*?</iframe\\s*>", flags=re.IGNORECASE | re.DOTALL)
-IFRAME_SELF_CLOSING_RE = re.compile(r"<iframe\\b[^>]*/\\s*>", flags=re.IGNORECASE | re.DOTALL)
-IFRAME_SRC_RE = re.compile(r"\\bsrc\\s*=\\s*([\"'])(.*?)\\1", flags=re.IGNORECASE | re.DOTALL)
+IFRAME_BLOCK_RE = re.compile(r"<iframe\b[^>]*>.*?</iframe\s*>", flags=re.IGNORECASE | re.DOTALL)
+IFRAME_SELF_CLOSING_RE = re.compile(r"<iframe\b[^>]*/\s*>", flags=re.IGNORECASE | re.DOTALL)
+IFRAME_SRC_RE = re.compile(r"\bsrc\s*=\s*([\"'])(.*?)\1", flags=re.IGNORECASE | re.DOTALL)
 
-FENCED_CODE_BLOCK_RE = re.compile(r"```[\\s\\S]*?```")
+FENCED_CODE_BLOCK_RE = re.compile(r"```[\s\S]*?```")
 INLINE_CODE_RE = re.compile(r"`[^`]+`")
 
 
@@ -42,11 +42,11 @@ def _protect_code(text: str) -> tuple[str, list[str], list[str]]:
 
     def protect_code_block(match: re.Match[str]) -> str:
         code_blocks.append(match.group(0))
-        return f"\\x00CODE_BLOCK_{len(code_blocks) - 1}\\x00"
+        return f"\x00CODE_BLOCK_{len(code_blocks) - 1}\x00"
 
     def protect_inline_code(match: re.Match[str]) -> str:
         inline_codes.append(match.group(0))
-        return f"\\x00INLINE_CODE_{len(inline_codes) - 1}\\x00"
+        return f"\x00INLINE_CODE_{len(inline_codes) - 1}\x00"
 
     text = FENCED_CODE_BLOCK_RE.sub(protect_code_block, text)
     text = INLINE_CODE_RE.sub(protect_inline_code, text)
@@ -55,9 +55,9 @@ def _protect_code(text: str) -> tuple[str, list[str], list[str]]:
 
 def _restore_code(text: str, code_blocks: list[str], inline_codes: list[str]) -> str:
     for i, block in enumerate(code_blocks):
-        text = text.replace(f"\\x00CODE_BLOCK_{i}\\x00", block)
+        text = text.replace(f"\x00CODE_BLOCK_{i}\x00", block)
     for i, code in enumerate(inline_codes):
-        text = text.replace(f"\\x00INLINE_CODE_{i}\\x00", code)
+        text = text.replace(f"\x00INLINE_CODE_{i}\x00", code)
     return text
 
 
@@ -271,4 +271,3 @@ class Command(BaseCommand):
             f"Summary: contents_changed={contents_changed_count}, slide_detached={slide_detached_count}, "
             f"slide_deleted={slide_deleted_count}"
         )
-

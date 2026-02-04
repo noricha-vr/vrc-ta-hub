@@ -10,15 +10,17 @@ class APIKeyAuthentication(authentication.BaseAuthentication):
     
     def authenticate(self, request):
         # ヘッダーからAPIキーを取得
-        api_key = self.get_api_key(request)
+        raw_api_key = self.get_api_key(request)
         
-        if not api_key:
+        if not raw_api_key:
             return None
+
+        api_key_hash = APIKey.hash_raw_key(raw_api_key)
             
         try:
             # APIキーを検証
             key_obj = APIKey.objects.select_related('user').get(
-                key=api_key,
+                key=api_key_hash,
                 is_active=True
             )
             

@@ -268,7 +268,7 @@ class CommunityDetailViewLtApplicationSectionTest(TestCase):
         self.assertNotContains(response, 'LT発表を申し込む')
 
     def test_lt_section_not_shown_when_not_approved(self):
-        """未承認集会の場合、LT申請セクションは表示されない"""
+        """未承認集会の場合、詳細ページ自体が閲覧できない（superuserのみ閲覧可）"""
         self.community.status = 'pending'
         self.community.save()
 
@@ -277,8 +277,8 @@ class CommunityDetailViewLtApplicationSectionTest(TestCase):
             reverse('community:detail', kwargs={'pk': self.community.pk})
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'LT発表を申し込む')
+        self.assertEqual(response.status_code, 404)
+        self.assertNotContains(response, 'LT発表を申し込む', status_code=404)
 
     def test_lt_section_not_shown_when_accepts_lt_is_false(self):
         """LT受付OFFの場合、LT申請セクションは表示されない"""

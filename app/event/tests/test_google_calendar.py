@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+import os
+import unittest
 from unittest import TestCase
 
 import pytz
@@ -8,6 +10,15 @@ from event.google_calendar import GoogleCalendarService
 from website.settings import GOOGLE_CALENDAR_ID, GOOGLE_CALENDAR_CREDENTIALS
 
 
+RUN_EXTERNAL_API_TESTS = os.environ.get("RUN_EXTERNAL_API_TESTS") == "1"
+CREDENTIALS_PATH = str(GOOGLE_CALENDAR_CREDENTIALS or "")
+HAS_CREDENTIALS_FILE = bool(CREDENTIALS_PATH) and os.path.exists(CREDENTIALS_PATH)
+
+
+@unittest.skipUnless(
+    RUN_EXTERNAL_API_TESTS and HAS_CREDENTIALS_FILE,
+    "外部APIテストのため RUN_EXTERNAL_API_TESTS=1 と GOOGLE_CALENDAR_CREDENTIALS ファイルが必要です",
+)
 class TestGoogleCalendarService(TestCase):
     def setUp(self):
         """テストの前準備"""

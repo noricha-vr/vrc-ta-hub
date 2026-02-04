@@ -129,16 +129,25 @@ class APIKeyListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         return self.request.user.api_keys.filter(is_active=True).order_by('-created_at')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # 生成直後のAPIキー（平文）はセッションから1回だけ取り出して表示する
+        context['new_api_key'] = self.request.session.pop('new_api_key', None)
+        context['new_api_key_name'] = self.request.session.pop('new_api_key_name', None)
+        return context
+
 
 class APIKeyCreateView(LoginRequiredMixin, View):
     def post(self, request):
         name = request.POST.get('name', '')
-        api_key = APIKey.objects.create(
+        api_key, raw_key = APIKey.create_with_raw_key(
             user=request.user,
-            name=name
+            name=name,
         )
-        messages.success(request, f'APIキー「{api_key.name or "APIキー"}」を作成しました。キーは一度しか表示されませんので必ず保管してください。')
-        messages.warning(request, f'APIキー: {api_key.key}')
+        # messages/cookieに平文キーを載せない（セッションに一時保存→表示後に破棄）
+        request.session['new_api_key'] = raw_key
+        request.session['new_api_key_name'] = api_key.name or "APIキー"
+        messages.success(request, f'APIキー「{api_key.name or "APIキー"}」を作成しました。キーは一度だけ表示されます。必ず安全な場所に保管してください。')
         return redirect('account:api_key_list')
 
 

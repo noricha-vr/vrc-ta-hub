@@ -31,11 +31,11 @@ class EventDetailAPITest(TestCase):
         )
         
         # APIキー作成
-        self.api_key1 = APIKey.objects.create(
+        self.api_key1, self.raw_api_key1 = APIKey.create_with_raw_key(
             user=self.user1,
             name='Test API Key 1'
         )
-        self.api_key2 = APIKey.objects.create(
+        self.api_key2, self.raw_api_key2 = APIKey.create_with_raw_key(
             user=self.user2,
             name='Test API Key 2'
         )
@@ -111,12 +111,12 @@ class EventDetailAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
         # 有効なAPIキー
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
         # APIキーヘッダー
-        self.client.credentials(HTTP_X_API_KEY=self.api_key1.key)
+        self.client.credentials(HTTP_X_API_KEY=self.raw_api_key1)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
@@ -128,7 +128,7 @@ class EventDetailAPITest(TestCase):
     def test_list_event_details(self):
         """イベント詳細一覧取得のテスト"""
         # ユーザー1は自分のイベント詳細のみ取得
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # ページネーションがある場合とない場合の両方に対応
@@ -150,7 +150,7 @@ class EventDetailAPITest(TestCase):
     
     def test_create_event_detail(self):
         """イベント詳細作成のテスト"""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
         
         data = {
             'event': self.event1.id,
@@ -175,7 +175,7 @@ class EventDetailAPITest(TestCase):
     
     def test_update_event_detail(self):
         """イベント詳細更新のテスト"""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
         
         url = reverse('event-detail-api-detail', kwargs={'pk': self.event_detail1.id})
         data = {
@@ -198,7 +198,7 @@ class EventDetailAPITest(TestCase):
     
     def test_delete_event_detail(self):
         """イベント詳細削除のテスト"""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
         
         url = reverse('event-detail-api-detail', kwargs={'pk': self.event_detail1.id})
         response = self.client.delete(url)
@@ -208,7 +208,7 @@ class EventDetailAPITest(TestCase):
     def test_permission_check(self):
         """権限チェックのテスト"""
         # ユーザー2が別ユーザーのイベント詳細を操作しようとする
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key2.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key2}')
         
         # 読み取り（自分のもののみ表示）
         response = self.client.get(self.url)
@@ -229,7 +229,7 @@ class EventDetailAPITest(TestCase):
     
     def test_my_events_endpoint(self):
         """自分のイベント一覧エンドポイントのテスト"""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
         
         url = reverse('event-detail-api-my-events')
         response = self.client.get(url)
@@ -245,7 +245,7 @@ class EventDetailAPITest(TestCase):
         """APIキー最終使用時刻更新のテスト"""
         initial_last_used = self.api_key1.last_used
         
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
         self.client.get(self.url)
         
         self.api_key1.refresh_from_db()
@@ -258,13 +258,13 @@ class EventDetailAPITest(TestCase):
         self.api_key1.is_active = False
         self.api_key1.save()
         
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
     
     def test_pdf_generation_flag(self):
         """PDF自動生成フラグのテスト"""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
         
         data = {
             'event': self.event1.id,
@@ -296,7 +296,7 @@ class EventDetailAPITest(TestCase):
         self.event_detail1.additional_info = 'Test additional information'
         self.event_detail1.save()
 
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -312,7 +312,7 @@ class EventDetailAPITest(TestCase):
 
     def test_create_event_detail_with_additional_info(self):
         """additional_infoを含むイベント詳細作成のテスト"""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
 
         data = {
             'event': self.event1.id,
@@ -336,7 +336,7 @@ class EventDetailAPITest(TestCase):
 
     def test_update_event_detail_with_additional_info(self):
         """additional_infoを含むイベント詳細更新のテスト"""
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.api_key1.key}')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
 
         url = reverse('event-detail-api-detail', kwargs={'pk': self.event_detail1.id})
         data = {

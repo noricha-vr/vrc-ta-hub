@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+import hashlib
 import secrets
 import string
 
@@ -98,6 +99,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
 class APIKey(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='api_keys')
+    # NOTE: このフィールドには平文キーではなく、平文キーのSHA-256ハッシュ（hex）を保存する
     key = models.CharField('APIキー', max_length=64, unique=True)
     name = models.CharField('キー名', max_length=100, blank=True)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
@@ -114,11 +116,33 @@ class APIKey(models.Model):
     
     @classmethod
     def generate_key(cls):
-        """ランダムなAPIキーを生成"""
+        """ランダムなAPIキー（平文）を生成"""
         alphabet = string.ascii_letters + string.digits
         return ''.join(secrets.choice(alphabet) for _ in range(64))
+
+    @staticmethod
+    def hash_raw_key(raw_key: str) -> str:
+        """平文APIキーをSHA-256でハッシュ化して返す（hex, 64文字）。"""
+        return hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
+
+    @classmethod
+    def create_with_raw_key(cls, *, user: CustomUser, name: str = "") -> tuple["APIKey", str]:
+        """平文キーを生成し、ハッシュのみを保存して作成する。
+
+        Returns:
+            (api_key, raw_key): raw_key は作成直後にのみ利用し、永続化しないこと。
+        """
+        raw_key = cls.generate_key()
+        api_key = cls.objects.create(
+            user=user,
+            name=name,
+            key=cls.hash_raw_key(raw_key),
+        )
+        return api_key, raw_key
     
     def save(self, *args, **kwargs):
         if not self.key:
-            self.key = self.generate_key()
+            # 管理画面などでkey未指定のまま作成された場合は、復元不可能な形で保存される。
+            raw_key = self.generate_key()
+            self.key = self.hash_raw_key(raw_key)
         super().save(*args, **kwargs)
