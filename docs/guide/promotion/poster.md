@@ -9,35 +9,23 @@ Hubをより多くの方に知っていただくため、ワールドへのポ�
 
 ## ポスター画像
 
-お好みのデザインをお使いください。
+お好みのデザインをお使いください。画像をクリックすると拡大表示されます。
 
 <div style="display: flex; gap: 16px;">
   <div style="flex: 1; text-align: center;">
     <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg" target="_blank" rel="noopener">
-      <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg" alt="ポスター1" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
+      <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg" alt="ポスター1" style="width: 100%; object-fit: contain; display: block;">
     </a>
-    <div style="display: flex; gap: 4px; justify-content: center;">
-      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg" download class="btn btn-sm btn-primary"><i class="fas fa-download"></i> DL</a>
-      <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
-    </div>
   </div>
   <div style="flex: 1; text-align: center;">
     <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg" target="_blank" rel="noopener">
-      <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg" alt="ポスター2" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
+      <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg" alt="ポスター2" style="width: 100%; object-fit: contain; display: block;">
     </a>
-    <div style="display: flex; gap: 4px; justify-content: center;">
-      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg" download class="btn btn-sm btn-primary"><i class="fas fa-download"></i> DL</a>
-      <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
-    </div>
   </div>
   <div style="flex: 1; text-align: center;">
     <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg" target="_blank" rel="noopener">
-      <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg" alt="ポスター3" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
+      <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg" alt="ポスター3" style="width: 100%; object-fit: contain; display: block;">
     </a>
-    <div style="display: flex; gap: 4px; justify-content: center;">
-      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg" download class="btn btn-sm btn-primary"><i class="fas fa-download"></i> DL</a>
-      <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
-    </div>
   </div>
 </div>
 
@@ -53,7 +41,7 @@ Hubをより多くの方に知っていただくため、ワールドへのポ�
 
 ### 方法2: テクスチャとしてインポート
 
-1. DLボタンで画像を保存
+1. 画像をクリックして拡大表示し、右クリックで保存
 2. Unityプロジェクトにインポート
 3. マテリアルに適用
 
