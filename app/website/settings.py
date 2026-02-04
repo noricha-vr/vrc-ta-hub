@@ -230,12 +230,18 @@ AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
 AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL')
 AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN')
 
-# ファイルストレージ（メディア）は常にR2を使用
-# 理由: ローカルでは /media/ パスの配信設定がなく画像が表示されないため
-MEDIA_URL = f'{AWS_S3_ENDPOINT_URL}/{AWS_STORAGE_BUCKET_NAME}/'
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-AWS_S3_FILE_OVERWRITE = False
-AWS_QUERYSTRING_AUTH = False  # 認証付きのURLを生成しない
+# ファイルストレージ（メディア）
+if AWS_STORAGE_BUCKET_NAME:
+    # R2を使用（本番・開発環境）
+    MEDIA_URL = f'{AWS_S3_ENDPOINT_URL}/{AWS_STORAGE_BUCKET_NAME}/'
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_QUERYSTRING_AUTH = False  # 認証付きのURLを生成しない
+else:
+    # ローカルファイルストレージを使用（テスト環境）
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
+    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
 
 if DEBUG:
     # 静的ファイルはローカル配信（開発時の利便性）

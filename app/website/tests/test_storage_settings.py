@@ -4,10 +4,17 @@ DEBUG環境でも本番環境でもメディアファイルはR2を使用し、
 静的ファイルのみDEBUGで分岐することを確認する。
 """
 
+import os
+import unittest
+
 from django.test import TestCase, override_settings
 from django.conf import settings
 
 
+@unittest.skipUnless(
+    os.environ.get('AWS_STORAGE_BUCKET_NAME'),
+    'R2 not configured'
+)
 class StorageSettingsTest(TestCase):
     """ストレージ設定のテスト"""
 
