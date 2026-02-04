@@ -158,6 +158,13 @@ class TestAllowedTagsAndAttributes(TestCase):
         self.assertIn("<a", html)
         self.assertNotIn('href="javascript:alert(1)"', html)
 
+    def test_iframe_to_self_domain_removed(self):
+        """自ドメイン配下のiframeは除去される（アップロード偽装等の踏み台対策）"""
+        html = convert_markdown(
+            '<iframe src="https://data.vrc-ta-hub.com/slide/xssexploit.pdf" width="500" height="500"></iframe>'
+        )
+        self.assertNotIn("<iframe", html)
+
 
 class TestYouTubeEmbed(TestCase):
     """YouTube埋め込み機能のテスト（2025年仕様対応）"""
@@ -194,3 +201,88 @@ class TestYouTubeEmbed(TestCase):
         html = convert_markdown("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=60")
         self.assertIn("<iframe", html)
         self.assertIn("youtube.com/embed/dQw4w9WgXcQ", html)
+
+
+class TestIframeSrcRestriction(TestCase):
+    """iframeのsrc属性制限テスト（XSS対策）"""
+
+    def test_youtube_iframe_allowed(self):
+        """YouTubeのiframeは許可される"""
+        html = convert_markdown('<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"></iframe>')
+        self.assertIn('src="https://www.youtube.com/embed/dQw4w9WgXcQ"', html)
+
+    def test_youtube_nocookie_iframe_allowed(self):
+        """YouTube nocookieのiframeは許可される"""
+        html = convert_markdown('<iframe src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"></iframe>')
+        self.assertIn('src="https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ"', html)
+
+    def test_vimeo_iframe_allowed(self):
+        """Vimeoのiframeは許可される"""
+        html = convert_markdown('<iframe src="https://player.vimeo.com/video/123456"></iframe>')
+        self.assertIn('src="https://player.vimeo.com/video/123456"', html)
+
+    def test_google_slides_iframe_allowed(self):
+        """Google スライドのiframeは許可される"""
+        html = convert_markdown('<iframe src="https://docs.google.com/presentation/d/xxx/embed"></iframe>')
+        self.assertIn('src="https://docs.google.com/presentation/d/xxx/embed"', html)
+
+    def test_slideshare_iframe_allowed(self):
+        """SlideShareのiframeは許可される"""
+        html = convert_markdown('<iframe src="https://www.slideshare.net/slideshow/embed_code/xxx"></iframe>')
+        self.assertIn('src="https://www.slideshare.net/slideshow/embed_code/xxx"', html)
+
+    def test_speakerdeck_iframe_allowed(self):
+        """Speaker Deckのiframeは許可される"""
+        html = convert_markdown('<iframe src="https://speakerdeck.com/player/xxx"></iframe>')
+        self.assertIn('src="https://speakerdeck.com/player/xxx"', html)
+
+    def test_arbitrary_domain_iframe_blocked(self):
+        """任意ドメインのiframeはsrcが除去される"""
+        html = convert_markdown('<iframe src="https://evil.com/malicious.html"></iframe>')
+        self.assertNotIn('evil.com', html)
+        self.assertNotIn('malicious.html', html)
+
+    def test_data_uri_iframe_blocked(self):
+        """data: URIのiframeは除去される"""
+        html = convert_markdown('<iframe src="data:text/html,<script>alert(1)</script>"></iframe>')
+        self.assertNotIn('data:', html)
+        self.assertNotIn('alert', html)
+
+    def test_javascript_uri_iframe_blocked(self):
+        """javascript: URIのiframeは除去される"""
+        html = convert_markdown('<iframe src="javascript:alert(1)"></iframe>')
+        self.assertNotIn('javascript:', html)
+        self.assertNotIn('alert', html)
+
+    def test_iframe_without_src_removed(self):
+        """src属性のないiframeタグは削除される（攻撃ベクタになりうるため）"""
+        html = convert_markdown('<iframe width="100" height="100"></iframe>')
+        self.assertNotIn('<iframe', html)
+
+    def test_iframe_other_attributes_preserved(self):
+        """許可されたドメインのiframeで他の属性も保持される"""
+        html = convert_markdown('<iframe src="https://www.youtube.com/embed/xxx" frameborder="0" allowfullscreen width="560" height="315"></iframe>')
+        self.assertIn('frameborder="0"', html)
+        self.assertIn('allowfullscreen', html)
+        self.assertIn('width="560"', html)
+        self.assertIn('height="315"', html)
+
+    def test_http_youtube_iframe_allowed(self):
+        """httpスキームのYouTubeも許可される"""
+        html = convert_markdown('<iframe src="http://www.youtube.com/embed/xxx"></iframe>')
+        self.assertIn('src="http://www.youtube.com/embed/xxx"', html)
+
+    def test_relative_url_iframe_blocked(self):
+        """相対URLのiframeは除去される（スキームなし）"""
+        html = convert_markdown('<iframe src="//evil.com/page"></iframe>')
+        self.assertNotIn('evil.com', html)
+
+    def test_self_domain_iframe_blocked(self):
+        """自ドメイン（vrc-ta-hub.com）へのiframeは除去される"""
+        html = convert_markdown('<iframe src="https://vrc-ta-hub.com/malicious"></iframe>')
+        self.assertNotIn('vrc-ta-hub.com', html)
+
+    def test_subdomain_iframe_blocked(self):
+        """サブドメイン（*.vrc-ta-hub.com）へのiframeも除去される"""
+        html = convert_markdown('<iframe src="https://data.vrc-ta-hub.com/upload.pdf"></iframe>')
+        self.assertNotIn('vrc-ta-hub.com', html)

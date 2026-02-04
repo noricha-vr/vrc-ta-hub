@@ -5,6 +5,7 @@ import re
 import tempfile
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 import bleach
 from bleach.css_sanitizer import CSSSanitizer
@@ -21,6 +22,55 @@ from event.prompts import BLOG_GENERATION_TEMPLATE
 from website.settings import GOOGLE_API_KEY
 
 logger = logging.getLogger(__name__)
+
+# iframeのsrc属性で許可するドメインのホワイトリスト
+ALLOWED_IFRAME_DOMAINS = frozenset([
+    # 動画
+    'www.youtube.com',
+    'www.youtube-nocookie.com',
+    'player.vimeo.com',
+    # スライド共有
+    'docs.google.com',
+    'www.slideshare.net',
+    'speakerdeck.com',
+    'www.canva.com',
+    'prezi.com',
+    'pitch.com',
+    'www.figma.com',
+    'onedrive.live.com',
+    'view.officeapps.live.com',
+])
+
+
+def _filter_iframe_attributes(tag: str, name: str, value: str) -> bool:
+    """iframeの属性をフィルタリングする
+
+    src属性は信頼できるドメインのみ許可し、
+    それ以外の属性は許可リストで判定する。
+
+    Args:
+        tag: タグ名（常に'iframe'）
+        name: 属性名
+        value: 属性値
+
+    Returns:
+        属性を許可する場合はTrue、除去する場合はFalse
+    """
+    if name == 'src':
+        try:
+            parsed = urlparse(value)
+            # スキームがhttpまたはhttpsのみ許可（data:, javascript:等は除外）
+            if parsed.scheme not in ('http', 'https'):
+                return False
+            # 自ドメイン配下（サブドメイン含む）はiframeでの埋め込みを禁止（アップロード偽装等の踏み台になり得る）
+            if parsed.netloc.endswith('vrc-ta-hub.com'):
+                return False
+            return parsed.netloc in ALLOWED_IFRAME_DOMAINS
+        except Exception:
+            return False
+    # src以外の属性は許可リストで判定
+    return name in ('frameborder', 'allowfullscreen', 'width', 'height',
+                    'referrerpolicy', 'allow')
 
 
 class BlogOutput(BaseModel):
@@ -521,8 +571,7 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
                           'button': ['style', 'class'],
                           'img': ['src', 'alt', 'style', 'class'],
                           'i': ['class'], 'span': ['class', 'style'],
-                          'iframe': ['src', 'frameborder', 'allowfullscreen', 'width', 'height',
-                                     'referrerpolicy', 'allow']}
+                          'iframe': _filter_iframe_attributes}
 
     # Markdownの拡張機能を追加
     extensions = [
@@ -603,6 +652,34 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
                 # リンクをコンテナに置き換え
                 link.replace_with(container_div)
                 break
+
+    # 追加の防御: bleachの属性フィルタだけだと空iframeが残るため、
+    # ここで明示的に「許可しないiframe」をDOMから削除する。
+    for iframe in soup.find_all('iframe'):
+        src = iframe.get('src', '')
+        if not src:
+            iframe.decompose()
+            continue
+
+        try:
+            parsed = urlparse(src)
+        except Exception:
+            iframe.decompose()
+            continue
+
+        if parsed.scheme not in ('http', 'https'):
+            iframe.decompose()
+            continue
+
+        # 自ドメイン配下（サブドメイン含む）は埋め込み禁止
+        if parsed.netloc.endswith('vrc-ta-hub.com'):
+            iframe.decompose()
+            continue
+
+        # 許可リストにないドメインは埋め込み禁止
+        if parsed.netloc not in ALLOWED_IFRAME_DOMAINS:
+            iframe.decompose()
+            continue
 
     # パース後のHTMLを文字列に変換
     html = str(soup)

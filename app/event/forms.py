@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from community.models import WEEKDAY_CHOICES, TAGS, Community
-from .models import EventDetail, RecurrenceRule, Event
+from .models import EventDetail, RecurrenceRule, Event, validate_pdf_file
 
 
 class EventSearchForm(forms.Form):
@@ -301,6 +301,15 @@ class EventDetailForm(forms.ModelForm):
             # ファイルサイズチェック
             if slide_file.size > 30 * 1024 * 1024:  # 30MB
                 raise ValidationError('ファイルサイズが30MBを超えています。')
+
+            # 実体がPDFかを検証（拡張子偽装対策）
+            validate_pdf_file(slide_file)
+
+            # R2/S3のContent-Typeが攻撃者指定（text/html等）にならないよう強制
+            try:
+                slide_file.content_type = 'application/pdf'
+            except Exception:
+                pass
         return slide_file
 
 
