@@ -292,3 +292,71 @@ class CommunityDetailViewLtApplicationSectionTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'LT発表を申し込む')
+
+
+class CommunityUpdateViewPromotionBannerTest(TestCase):
+    """CommunityUpdateViewのプロモーションバナー表示テスト"""
+
+    def setUp(self):
+        self.client = Client()
+
+        # テスト用ユーザー
+        self.user = CustomUser.objects.create_user(
+            email='test@example.com',
+            password='testpass123',
+            user_name='テストユーザー'
+        )
+
+        # テスト用集会（承認済み）
+        self.community = Community.objects.create(
+            name='テスト集会',
+            status='approved',
+            frequency='毎週',
+            organizers='テスト主催者'
+        )
+        # オーナーとしてCommunityMemberを作成
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.user,
+            role=CommunityMember.Role.OWNER
+        )
+
+    def test_promotion_banner_displayed_on_update_page(self):
+        """集会編集ページにプロモーションバナーが表示されること"""
+        self.client.login(username='テストユーザー', password='testpass123')
+
+        # アクティブ集会を設定するためセッションを設定
+        session = self.client.session
+        session['active_community_id'] = self.community.pk
+        session.save()
+
+        response = self.client.get(
+            reverse('community:update')
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # バナーのタイトル
+        self.assertContains(response, 'Hubを広めるご協力のお願い')
+        # バナーの説明文
+        self.assertContains(response, 'ワールドへのポスター掲示やDiscordでの紹介')
+        # バナーのリンク
+        self.assertContains(response, '/guide/promotion/poster/')
+        # 「今後表示しない」ボタン
+        self.assertContains(response, '今後表示しない')
+
+    def test_promotion_banner_has_dismiss_functionality(self):
+        """プロモーションバナーに非表示機能のJavaScriptが含まれること"""
+        self.client.login(username='テストユーザー', password='testpass123')
+
+        session = self.client.session
+        session['active_community_id'] = self.community.pk
+        session.save()
+
+        response = self.client.get(
+            reverse('community:update')
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # JavaScriptのlocalStorage処理が含まれていることを確認
+        self.assertContains(response, 'localStorage.setItem')
+        self.assertContains(response, 'hidePromotionBanner')

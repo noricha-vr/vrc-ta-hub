@@ -1,0 +1,30 @@
+{% if show_promotion_banner %}
+<div class="alert alert-info alert-dismissible fade show mb-4" role="alert" id="promotionBanner">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-megaphone-fill me-3 fs-4"></i>
+        <div class="flex-grow-1">
+            <strong>Hubを広めるご協力のお願い</strong>
+            <p class="mb-0 small">ワールドへのポスター掲示やDiscordでの紹介にご協力いただけませんか？</p>
+        </div>
+        <div class="ms-auto d-flex gap-2 flex-shrink-0">
+            <a href="/guide/promotion/poster/" class="btn btn-primary btn-sm">詳しく見る</a>
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="dismissPromotionBanner()">
+                今後表示しない
+            </button>
+        </div>
+    </div>
+</div>
+<script>
+function dismissPromotionBanner() {
+    localStorage.setItem('hidePromotionBanner', 'true');
+    document.getElementById('promotionBanner').remove();
+}
+// ページ読み込み時にlocalStorageをチェック
+document.addEventListener('DOMContentLoaded', function() {
+    if (localStorage.getItem('hidePromotionBanner') === 'true') {
+        var banner = document.getElementById('promotionBanner');
+        if (banner) banner.remove();
+    }
+});
+</script>
+{% endif %}
