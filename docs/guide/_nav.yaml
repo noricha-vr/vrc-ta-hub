@@ -1,6 +1,11 @@
 - title: はじめに
   path: index
 
+- title: Hubを広める
+  children:
+    - title: ポスターを掲示する
+      path: promotion/poster
+
 - title: 集会を管理する
   children:
     - title: 集会を登録する
@@ -48,8 +53,3 @@
 
 - title: よくある質問
   path: faq
-
-- title: Hubを広める
-  children:
-    - title: ポスターを掲示する
-      path: promotion/poster
