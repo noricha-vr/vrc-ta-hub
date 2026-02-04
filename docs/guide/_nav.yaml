@@ -48,3 +48,8 @@
 
 - title: よくある質問
   path: faq
+
+- title: Hubを広める
+  children:
+    - title: ポスターを掲示する
+      path: promotion/poster

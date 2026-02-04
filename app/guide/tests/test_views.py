@@ -285,3 +285,15 @@ class GuideViewsTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 404)
+
+    def test_guide_promotion_poster_page(self):
+        """promotion/posterページが表示されること"""
+        response = self.client.get(
+            reverse("guide:page", kwargs={"path": "promotion/poster"})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        # タイトル（フロントマターのtitle）
+        self.assertContains(response, "ポスターを掲示する")
+        # 本文の内容
+        self.assertContains(response, "ワールドへのポスター掲示")
