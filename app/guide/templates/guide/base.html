@@ -129,6 +129,18 @@
         padding: 0;
     }
 
+    .guide-content blockquote {
+        background-color: #f8f9fa;
+        border-left: 4px solid var(--custom-primary);
+        padding: 1rem 1.5rem;
+        margin: 1rem 0;
+        border-radius: 0 6px 6px 0;
+    }
+
+    .guide-content blockquote p {
+        margin-bottom: 0;
+    }
+
     /* 前後ナビゲーション */
     .guide-page-nav {
         display: flex;
@@ -310,5 +322,64 @@
         const nav = document.getElementById('guideSidebarNav');
         nav.classList.toggle('show');
     }
+
+    function copyTextToClipboard(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        }
+
+        return new Promise((resolve, reject) => {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.top = '-1000px';
+            textarea.style.left = '-1000px';
+            document.body.appendChild(textarea);
+            textarea.select();
+
+            try {
+                const succeeded = document.execCommand('copy');
+                document.body.removeChild(textarea);
+                if (succeeded) {
+                    resolve();
+                } else {
+                    reject(new Error('copy failed'));
+                }
+            } catch (error) {
+                document.body.removeChild(textarea);
+                reject(error);
+            }
+        });
+    }
+
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('.copy-url-button');
+        if (!button) {
+            return;
+        }
+
+        const row = button.closest('.poster-url-row');
+        const urlElement = row ? row.querySelector('.poster-url') : null;
+        const url = urlElement ? urlElement.textContent.trim() : '';
+        if (!url) {
+            return;
+        }
+
+        const originalText = button.textContent;
+        copyTextToClipboard(url)
+            .then(() => {
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 1500);
+            })
+            .catch(() => {
+                button.textContent = 'Failed';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 1500);
+            });
+    });
 </script>
 {% endblock %}
