@@ -386,7 +386,7 @@ def _escape_unknown_html_tags(text: str) -> str:
     allowed_tags = {
         'a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em',
         'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr',
-        'br', 'blockquote', 'div', 'iframe', 'span', 'img', 'button'
+        'br', 'blockquote', 'div', 'iframe', 'span', 'img', 'button', 'i'
     }
 
     # コードブロックを一時的に保護（```...```）
@@ -514,12 +514,13 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
     logger.debug(markdown_text)
 
     allowed_tags = ['a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em', 'code', 'pre', 'table', 'thead',
-                    'tbody', 'tr', 'th', 'td', 'hr', 'br', 'blockquote', 'div', 'iframe', 'button', 'img']
-    allowed_attributes = {'a': ['href', 'title', 'download'],
+                    'tbody', 'tr', 'th', 'td', 'hr', 'br', 'blockquote', 'div', 'iframe', 'button', 'img', 'i', 'span']
+    allowed_attributes = {'a': ['href', 'title', 'download', 'class'],
                           'pre': ['class'], 'table': ['class'],
                           'div': ['class', 'style'],
-                          'button': ['onclick', 'style', 'class'],
+                          'button': ['style', 'class'],
                           'img': ['src', 'alt', 'style', 'class'],
+                          'i': ['class'], 'span': ['class', 'style'],
                           'iframe': ['src', 'frameborder', 'allowfullscreen', 'width', 'height',
                                      'referrerpolicy', 'allow']}
 
