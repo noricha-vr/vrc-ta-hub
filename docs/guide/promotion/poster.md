@@ -13,30 +13,30 @@ Hubをより多くの方に知っていただくため、ワールドへのポ�
 
 <div style="display: flex; gap: 16px;">
   <div style="flex: 1; text-align: center;">
-    <a href="https://github.com/user-attachments/assets/92f23895-6862-40cf-a63e-fe67ac729b1b" target="_blank" rel="noopener">
-      <img src="https://github.com/user-attachments/assets/92f23895-6862-40cf-a63e-fe67ac729b1b" alt="ポスター1" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
+    <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg" target="_blank" rel="noopener">
+      <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg" alt="ポスター1" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
     </a>
     <div style="display: flex; gap: 4px; justify-content: center;">
-      <a href="https://github.com/user-attachments/assets/92f23895-6862-40cf-a63e-fe67ac729b1b" download class="btn btn-sm btn-primary">DL</a>
-      <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://github.com/user-attachments/assets/92f23895-6862-40cf-a63e-fe67ac729b1b'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
+      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg" download class="btn btn-sm btn-primary">DL</a>
+      <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
     </div>
   </div>
   <div style="flex: 1; text-align: center;">
-    <a href="https://github.com/user-attachments/assets/e1715b9c-0ff2-45dd-b08b-d2c89957c17c" target="_blank" rel="noopener">
-      <img src="https://github.com/user-attachments/assets/e1715b9c-0ff2-45dd-b08b-d2c89957c17c" alt="ポスター2" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
+    <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg" target="_blank" rel="noopener">
+      <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg" alt="ポスター2" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
     </a>
     <div style="display: flex; gap: 4px; justify-content: center;">
-      <a href="https://github.com/user-attachments/assets/e1715b9c-0ff2-45dd-b08b-d2c89957c17c" download class="btn btn-sm btn-primary">DL</a>
-      <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://github.com/user-attachments/assets/e1715b9c-0ff2-45dd-b08b-d2c89957c17c'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
+      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg" download class="btn btn-sm btn-primary">DL</a>
+      <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
     </div>
   </div>
   <div style="flex: 1; text-align: center;">
-    <a href="https://github.com/user-attachments/assets/b0d86f5e-ce32-40b1-9a3d-1048ad246089" target="_blank" rel="noopener">
-      <img src="https://github.com/user-attachments/assets/b0d86f5e-ce32-40b1-9a3d-1048ad246089" alt="ポスター3" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
+    <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg" target="_blank" rel="noopener">
+      <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg" alt="ポスター3" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
     </a>
     <div style="display: flex; gap: 4px; justify-content: center;">
-      <a href="https://github.com/user-attachments/assets/b0d86f5e-ce32-40b1-9a3d-1048ad246089" download class="btn btn-sm btn-primary">DL</a>
-      <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://github.com/user-attachments/assets/b0d86f5e-ce32-40b1-9a3d-1048ad246089'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
+      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg" download class="btn btn-sm btn-primary">DL</a>
+      <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
     </div>
   </div>
 </div>
@@ -47,9 +47,9 @@ Hubをより多くの方に知っていただくため、ワールドへのポ�
 
 ワールドのImage Loaderに以下のURLを設定してください:
 
-- `https://github.com/user-attachments/assets/92f23895-6862-40cf-a63e-fe67ac729b1b`
-- `https://github.com/user-attachments/assets/e1715b9c-0ff2-45dd-b08b-d2c89957c17c`
-- `https://github.com/user-attachments/assets/b0d86f5e-ce32-40b1-9a3d-1048ad246089`
+- `https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg`
+- `https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg`
+- `https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg`
 
 ### 方法2: テクスチャとしてインポート
 
