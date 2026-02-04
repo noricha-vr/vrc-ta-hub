@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 import bleach
+from bleach.css_sanitizer import CSSSanitizer
 import markdown
 from bs4 import BeautifulSoup
 from googleapiclient.discovery import build
@@ -385,7 +386,7 @@ def _escape_unknown_html_tags(text: str) -> str:
     allowed_tags = {
         'a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em',
         'code', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr',
-        'br', 'blockquote', 'div', 'iframe', 'span', 'img'
+        'br', 'blockquote', 'div', 'iframe', 'span', 'img', 'button'
     }
 
     # コードブロックを一時的に保護（```...```）
@@ -513,10 +514,12 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
     logger.debug(markdown_text)
 
     allowed_tags = ['a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em', 'code', 'pre', 'table', 'thead',
-                    'tbody', 'tr', 'th', 'td', 'hr', 'br', 'blockquote', 'div', 'iframe']
-    allowed_attributes = {'a': ['href', 'title'],
+                    'tbody', 'tr', 'th', 'td', 'hr', 'br', 'blockquote', 'div', 'iframe', 'button', 'img']
+    allowed_attributes = {'a': ['href', 'title', 'download'],
                           'pre': ['class'], 'table': ['class'],
-                          'div': ['class'],
+                          'div': ['class', 'style'],
+                          'button': ['onclick', 'style', 'class'],
+                          'img': ['src', 'alt', 'style', 'class'],
                           'iframe': ['src', 'frameborder', 'allowfullscreen', 'width', 'height',
                                      'referrerpolicy', 'allow']}
 
@@ -606,9 +609,19 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
     logger.debug("Generated HTML before sanitization:")
     logger.debug(html)
 
+    # CSSプロパティの許可リスト（style属性の内容をサニタイズ）
+    css_sanitizer = CSSSanitizer(allowed_css_properties=[
+        'display', 'flex', 'flex-wrap', 'gap', 'text-align', 'height', 'width',
+        'object-fit', 'margin', 'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
+        'padding', 'padding-top', 'padding-bottom', 'padding-left', 'padding-right',
+        'justify-content', 'align-items', 'max-width', 'max-height',
+        'background', 'background-color', 'color', 'font-size', 'font-weight',
+        'border', 'border-radius'
+    ])
+
     # HTMLをサニタイズして返す
     sanitized_html = bleach.clean(
-        html, tags=allowed_tags, attributes=allowed_attributes)
+        html, tags=allowed_tags, attributes=allowed_attributes, css_sanitizer=css_sanitizer)
 
     logger.debug("Final sanitized HTML:")
     logger.debug(sanitized_html)

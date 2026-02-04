@@ -100,6 +100,59 @@ class TestConvertMarkdown(TestCase):
         self.assertIn("P-AMI", html)
 
 
+class TestAllowedTagsAndAttributes(TestCase):
+    """許可タグと属性のテスト"""
+
+    def test_img_tag_preserved(self):
+        """imgタグがサニタイズされずに保持される"""
+        html = convert_markdown('<img src="/static/poster.png" alt="ポスター">')
+        self.assertIn("<img", html)
+        self.assertIn('src="/static/poster.png"', html)
+        self.assertIn('alt="ポスター"', html)
+
+    def test_img_tag_with_style_preserved(self):
+        """imgタグのstyle属性が保持される"""
+        html = convert_markdown('<img src="/test.png" style="max-width: 100%;">')
+        self.assertIn('style="max-width: 100%;"', html)
+
+    def test_button_tag_preserved(self):
+        """buttonタグがサニタイズされずに保持される"""
+        html = convert_markdown('<button onclick="alert()">Click</button>')
+        self.assertIn("<button", html)
+        self.assertIn("</button>", html)
+        self.assertIn('onclick="alert()"', html)
+
+    def test_button_tag_with_style_preserved(self):
+        """buttonタグのstyle属性が保持される"""
+        html = convert_markdown('<button style="background: blue;" onclick="test()">Test</button>')
+        self.assertIn('style="background: blue;"', html)
+        self.assertIn('onclick="test()"', html)
+
+    def test_a_tag_download_attribute_preserved(self):
+        """aタグのdownload属性が保持される"""
+        html = convert_markdown('<a href="/file.png" download="poster.png">Download</a>')
+        self.assertIn('download="poster.png"', html)
+
+    def test_div_tag_style_preserved(self):
+        """divタグのstyle属性が保持される"""
+        html = convert_markdown('<div style="display: flex;">Content</div>')
+        self.assertIn('style="display: flex;"', html)
+
+    def test_combined_poster_html(self):
+        """ポスター表示用のHTML（img, button, styleの組み合わせ）が保持される"""
+        markdown = '''
+<div style="text-align: center;">
+    <img src="/static/poster.png" alt="ポスター" style="max-width: 100%;">
+    <button onclick="downloadImage()" style="margin-top: 10px;">ダウンロード</button>
+</div>
+'''
+        html = convert_markdown(markdown)
+        self.assertIn("<img", html)
+        self.assertIn("<button", html)
+        self.assertIn('onclick="downloadImage()"', html)
+        self.assertIn('style="text-align: center;"', html)
+
+
 class TestYouTubeEmbed(TestCase):
     """YouTube埋め込み機能のテスト（2025年仕様対応）"""
 
