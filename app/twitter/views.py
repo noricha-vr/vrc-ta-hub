@@ -89,9 +89,13 @@ class TweetEventView(View):
         return redirect(tweet_url)
 
 
-class TwitterTemplateDeleteView(LoginRequiredMixin, DeleteView):
+class TwitterTemplateDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = TwitterTemplate
     success_url = reverse_lazy('twitter:template_list')
+
+    def test_func(self):
+        template = self.get_object()
+        return self.request.user.is_superuser or template.community.is_manager(self.request.user)
 
     def form_valid(self, form):
         success_url = self.get_success_url()

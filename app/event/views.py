@@ -7,6 +7,7 @@ import json
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.cache import cache
 from django.db.models import QuerySet
 from django.http import HttpResponse, JsonResponse
@@ -637,7 +638,7 @@ def register_calendar_events(calendar_events: List[Dict]) -> None:
             logger.info(f"Event created: {event_str}")
 
 
-class EventDetailCreateView(LoginRequiredMixin, CreateView):
+class EventDetailCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
     model = EventDetail
     form_class = EventDetailForm
     template_name = 'event/detail_form.html'
@@ -645,6 +646,10 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
     def dispatch(self, request, *args, **kwargs):
         self.event = get_object_or_404(Event, pk=kwargs['event_pk'])
         return super().dispatch(request, *args, **kwargs)
+
+    def test_func(self):
+        # イベント詳細は、所属コミュニティの管理者（owner/staff）またはsuperuserのみ作成可
+        return self.request.user.is_superuser or self.event.community.can_edit(self.request.user)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
@@ -692,10 +697,15 @@ class EventDetailCreateView(LoginRequiredMixin, CreateView):
         return reverse_lazy('event:detail', kwargs={'pk': self.object.pk})
 
 
-class EventDetailUpdateView(LoginRequiredMixin, UpdateView):
+class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = EventDetail
     form_class = EventDetailForm
     template_name = 'event/detail_form.html'
+
+    def test_func(self):
+        event_detail = self.get_object()
+        # イベント詳細は、所属コミュニティの管理者（owner/staff）またはsuperuserのみ更新可
+        return self.request.user.is_superuser or event_detail.event.community.can_edit(self.request.user)
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -814,9 +824,14 @@ class GenerateBlogView(LoginRequiredMixin, View):
             logger.error(f"Encountered errors while inserting rows: {errors}")
 
 
-class EventDetailDeleteView(LoginRequiredMixin, DeleteView):
+class EventDetailDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
     model = EventDetail
     template_name = 'event/detail_confirm_delete.html'
+
+    def test_func(self):
+        event_detail = self.get_object()
+        # イベント詳細は、所属コミュニティの管理者（owner/staff）またはsuperuserのみ削除可
+        return self.request.user.is_superuser or event_detail.event.community.can_edit(self.request.user)
 
     def get_success_url(self):
         return reverse_lazy('event:my_list')

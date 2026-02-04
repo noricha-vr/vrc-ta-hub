@@ -17,6 +17,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.core.cache import cache
+from django.utils.http import url_has_allowed_host_and_scheme
 import requests
 
 from event.models import Event, EventDetail
@@ -139,6 +140,13 @@ class CommunityDetailView(DetailView):
     model = Community
     template_name = 'community/detail.html'
     context_object_name = 'community'
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # 承認済み以外はsuperuserのみ閲覧可
+        if self.request.user.is_superuser:
+            return queryset
+        return queryset.filter(status='approved')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -288,10 +296,13 @@ class CommunityCreateView(LoginRequiredMixin, CreateView):
         return response
 
 
-class WaitingCommunityListView(LoginRequiredMixin, ListView):
+class WaitingCommunityListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Community
     template_name = 'community/waiting_list.html'
     context_object_name = 'communities'
+
+    def test_func(self):
+        return self.request.user.is_superuser
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -537,6 +548,15 @@ class ArchivedCommunityListView(ListView):
 class SwitchCommunityView(LoginRequiredMixin, View):
     """アクティブな集会を切り替えるビュー"""
 
+    def _is_safe_redirect_url(self, request, url: str) -> bool:
+        if not url:
+            return False
+        return url_has_allowed_host_and_scheme(
+            url=url,
+            allowed_hosts={request.get_host()},
+            require_https=False,
+        )
+
     def _get_redirect_url(self, request, success=False):
         """リダイレクト先URLを取得する。
 
@@ -550,9 +570,9 @@ class SwitchCommunityView(LoginRequiredMixin, View):
         redirect_to = request.POST.get('redirect_to')
         referer = request.META.get('HTTP_REFERER', '')
 
-        if success and redirect_to:
+        if success and redirect_to and self._is_safe_redirect_url(request, redirect_to):
             return redirect_to
-        if referer:
+        if referer and self._is_safe_redirect_url(request, referer):
             return referer
         return 'event:my_list'
 

@@ -182,6 +182,35 @@ class SwitchCommunityViewTest(TestCase):
         session = self.client.session
         self.assertEqual(session['active_community_id'], self.community1.id)
 
+    def test_switch_blocks_external_redirect_to(self):
+        """redirect_toに外部URLが指定された場合はリダイレクトしない（オープンリダイレクト対策）"""
+        self.client.login(username='テストユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:switch'),
+            {
+                'community_id': self.community1.id,
+                'redirect_to': 'https://evil.example.com/phish'
+            },
+            HTTP_REFERER='/account/settings/'
+        )
+
+        # redirect_toは無視され、refererにリダイレクトされる
+        self.assertRedirects(response, '/account/settings/', fetch_redirect_response=False)
+
+    def test_switch_blocks_external_referer(self):
+        """refererに外部URLが指定された場合はフォールバックする（オープンリダイレクト対策）"""
+        self.client.login(username='テストユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:switch'),
+            {'community_id': self.community1.id},
+            HTTP_REFERER='https://evil.example.com/phish'
+        )
+
+        # 外部refererは無視され、デフォルトにリダイレクトされる
+        self.assertRedirects(response, reverse('event:my_list'), fetch_redirect_response=False)
+
     def test_switch_failure_redirects_to_referer_not_redirect_to(self):
         """失敗時はredirect_toではなくrefererにリダイレクトする"""
         self.client.login(username='テストユーザー', password='testpass123')

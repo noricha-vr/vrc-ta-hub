@@ -34,12 +34,12 @@
             <th scope="row">発表資料</th>
             <td>
                 {% if event_detail.slide_url %}
-                <a href="{{ event_detail.slide_url }}" target="_blank" class="me-2">
+                <a href="{{ event_detail.slide_url }}" target="_blank" rel="noopener noreferrer" class="me-2">
                     <i class="bi bi-link me-1"></i>リンク
                 </a>
                 {% endif %}
                 {% if event_detail.slide_file %}
-                <a href="{{ event_detail.slide_file.url }}" target="_blank">
+                <a href="{{ event_detail.slide_file.url }}" target="_blank" rel="noopener noreferrer">
                     <i class="bi bi-file-earmark-text-fill me-1"></i>ファイル
                 </a>
                 {% endif %}
@@ -50,7 +50,7 @@
         <tr>
             <th scope="row">動画</th>
             <td>
-                <a href="{{ event_detail.youtube_url }}" target="_blank">
+                <a href="{{ event_detail.youtube_url }}" target="_blank" rel="noopener noreferrer">
                     <i class="fab fa-discord me-1"></i>Discordで見る
                 </a>
             </td>

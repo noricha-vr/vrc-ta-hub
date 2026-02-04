@@ -128,5 +128,6 @@ app/media/
 cookies.txt
 
 docs/tmp/*
+docs/security_todo.md
 /r2_bkp/
 backup/
