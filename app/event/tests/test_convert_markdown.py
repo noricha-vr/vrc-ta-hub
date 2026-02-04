@@ -115,18 +115,18 @@ class TestAllowedTagsAndAttributes(TestCase):
         html = convert_markdown('<img src="/test.png" style="max-width: 100%;">')
         self.assertIn('style="max-width: 100%;"', html)
 
-    def test_button_tag_preserved(self):
-        """buttonタグがサニタイズされずに保持される"""
+    def test_button_tag_preserved_without_onclick(self):
+        """buttonタグは保持されるが、onclick属性は除去される"""
         html = convert_markdown('<button onclick="alert()">Click</button>')
         self.assertIn("<button", html)
         self.assertIn("</button>", html)
-        self.assertIn('onclick="alert()"', html)
+        self.assertNotIn('onclick="alert()"', html)
 
-    def test_button_tag_with_style_preserved(self):
-        """buttonタグのstyle属性が保持される"""
+    def test_button_tag_with_style_preserved_without_onclick(self):
+        """buttonタグのstyle属性は保持され、onclick属性は除去される"""
         html = convert_markdown('<button style="background: blue;" onclick="test()">Test</button>')
         self.assertIn('style="background: blue;"', html)
-        self.assertIn('onclick="test()"', html)
+        self.assertNotIn('onclick="test()"', html)
 
     def test_a_tag_download_attribute_preserved(self):
         """aタグのdownload属性が保持される"""
@@ -149,8 +149,14 @@ class TestAllowedTagsAndAttributes(TestCase):
         html = convert_markdown(markdown)
         self.assertIn("<img", html)
         self.assertIn("<button", html)
-        self.assertIn('onclick="downloadImage()"', html)
         self.assertIn('style="text-align: center;"', html)
+        self.assertNotIn('onclick="downloadImage()"', html)
+
+    def test_a_tag_with_javascript_href_removed(self):
+        """aタグのjavascript:リンクはhrefから除去される"""
+        html = convert_markdown('<a href="javascript:alert(1)">X</a>')
+        self.assertIn("<a", html)
+        self.assertNotIn('href="javascript:alert(1)"', html)
 
 
 class TestYouTubeEmbed(TestCase):

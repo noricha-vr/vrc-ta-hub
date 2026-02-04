@@ -418,7 +418,9 @@ class EventDetailView(DetailView):
                         body_text = body_text[:10000]
                     structured_data["articleBody"] = body_text
 
-                context['structured_data_json'] = json.dumps(structured_data, ensure_ascii=False)
+                structured_data_json = json.dumps(structured_data, ensure_ascii=False)
+                structured_data_json = structured_data_json.replace("</", "<\\/")
+                context['structured_data_json'] = structured_data_json
                 logger.info(f"Structured data prepared for EventDetail(BLOG): id={event_detail.id}")
         except Exception as e:
             logger.warning(f"Failed to prepare structured data for EventDetail id={event_detail.id}: {str(e)}")

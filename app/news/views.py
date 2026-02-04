@@ -78,7 +78,9 @@ class PostListView(ListView):
                 },
             }
 
-            context['structured_data_json'] = json.dumps([breadcrumbs, collection], ensure_ascii=False)
+            structured_data_json = json.dumps([breadcrumbs, collection], ensure_ascii=False)
+            structured_data_json = structured_data_json.replace("</", "<\\/")
+            context['structured_data_json'] = structured_data_json
             logger.info("Structured data prepared for News List page")
         except Exception as e:
             logger.warning(f"Failed to prepare structured data for News List: {str(e)}")
@@ -140,7 +142,9 @@ class PostDetailView(DetailView):
             if image_url:
                 structured_data["image"] = [image_url]
 
-            context['structured_data_json'] = json.dumps(structured_data, ensure_ascii=False)
+            structured_data_json = json.dumps(structured_data, ensure_ascii=False)
+            structured_data_json = structured_data_json.replace("</", "<\\/")
+            context['structured_data_json'] = structured_data_json
             logger.info(f"Structured data prepared for News Post: slug={post.slug}")
         except Exception as e:
             logger.warning(f"Failed to prepare structured data for News Post: {str(e)}")
@@ -219,7 +223,9 @@ class CategoryListView(ListView):
                 },
             }
 
-            context['structured_data_json'] = json.dumps([breadcrumbs, collection], ensure_ascii=False)
+            structured_data_json = json.dumps([breadcrumbs, collection], ensure_ascii=False)
+            structured_data_json = structured_data_json.replace("</", "<\\/")
+            context['structured_data_json'] = structured_data_json
             logger.info(f"Structured data prepared for News Category page: {self.category.slug}")
         except Exception as e:
             logger.warning(f"Failed to prepare structured data for News Category: {str(e)}")
