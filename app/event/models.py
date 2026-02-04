@@ -2,6 +2,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Optional
 
+import filetype
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -10,10 +11,37 @@ from community.models import Community, WEEKDAY_CHOICES
 
 
 def validate_pdf_file(value):
-    """PDFファイルのバリデーション"""
+    """PDFファイルのバリデーション（拡張子 + マジックバイト検証）
+
+    Args:
+        value: アップロードされたファイルオブジェクト
+
+    Raises:
+        ValidationError: PDFファイルでない場合
+    """
     if value:
+        # 拡張子チェック
         if not value.name.lower().endswith('.pdf'):
             raise ValidationError('PDFファイルのみアップロード可能です。')
+
+        # 拡張子偽装（.pdf だが実体はHTML/JSなど）を防ぐため、PDFのマジックナンバーを確認
+        try:
+            header = value.read(5)
+            value.seek(0)
+        except Exception:
+            raise ValidationError('PDFファイルのみアップロード可能です。')
+
+        if header != b'%PDF-':
+            raise ValidationError('PDFファイルのみアップロード可能です。')
+
+        # マジックバイト検証
+        # filetypeライブラリが必要とする最小バイト数を読み取り
+        header = value.read(262)
+        value.seek(0)  # ファイルポインタをリセット
+
+        kind = filetype.guess(header)
+        if kind is None or kind.mime != 'application/pdf':
+            raise ValidationError('有効なPDFファイルではありません。ファイルの内容を確認してください。')
 
 
 class RecurrenceRule(models.Model):
