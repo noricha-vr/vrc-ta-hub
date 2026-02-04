@@ -17,7 +17,7 @@ Hubをより多くの方に知っていただくため、ワールドへのポ�
       <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg" alt="ポスター1" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
     </a>
     <div style="display: flex; gap: 4px; justify-content: center;">
-      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg" download class="btn btn-sm btn-primary">DL</a>
+      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg" download class="btn btn-sm btn-primary"><i class="fas fa-download"></i> DL</a>
       <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-1.jpg'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
     </div>
   </div>
@@ -26,7 +26,7 @@ Hubをより多くの方に知っていただくため、ワールドへのポ�
       <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg" alt="ポスター2" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
     </a>
     <div style="display: flex; gap: 4px; justify-content: center;">
-      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg" download class="btn btn-sm btn-primary">DL</a>
+      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg" download class="btn btn-sm btn-primary"><i class="fas fa-download"></i> DL</a>
       <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-2.jpg'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
     </div>
   </div>
@@ -35,7 +35,7 @@ Hubをより多くの方に知っていただくため、ワールドへのポ�
       <img src="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg" alt="ポスター3" style="width: 100%; object-fit: contain; display: block; margin-bottom: 8px;">
     </a>
     <div style="display: flex; gap: 4px; justify-content: center;">
-      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg" download class="btn btn-sm btn-primary">DL</a>
+      <a href="https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg" download class="btn btn-sm btn-primary"><i class="fas fa-download"></i> DL</a>
       <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('https://raw.githubusercontent.com/noricha-vr/vrc-ta-hub/main/app/guide/static/guide/images/posters/vrc-ta-hub-poster-3.jpg'); this.textContent='Copied!'; setTimeout(() => this.textContent='URL', 1500);">URL</button>
     </div>
   </div>
