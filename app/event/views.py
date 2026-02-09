@@ -10,7 +10,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.cache import cache
 from django.db.models import Prefetch, QuerySet
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.urls import reverse_lazy, reverse
@@ -327,14 +327,25 @@ class EventDetailView(DetailView):
     context_object_name = 'event_detail'
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        if self.request.user.is_authenticated and self.request.user.is_superuser:
-            return queryset
-        return queryset.filter(status='approved')
+        return super().get_queryset().select_related('event__community')
+
+    def get_object(self, queryset=None):
+        obj = super().get_object(queryset)
+        if obj.status == 'approved':
+            return obj
+        user = self.request.user
+        if user.is_authenticated:
+            if user.is_superuser:
+                return obj
+            if obj.event.community.can_edit(user):
+                return obj
+            if obj.applicant and obj.applicant == user:
+                return obj
+        raise Http404
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        event_detail = self.get_object()
+        event_detail = self.object
         video_id, start_time = extract_video_info(event_detail.youtube_url)
         context['video_id'] = video_id
         context['start_time'] = start_time

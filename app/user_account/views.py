@@ -189,7 +189,7 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
         return EventDetail.objects.filter(
             applicant=self.request.user,
             detail_type='LT',
-        ).select_related('event', 'event__community')
+        ).exclude(status='rejected').select_related('event', 'event__community')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
