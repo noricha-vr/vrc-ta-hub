@@ -173,34 +173,54 @@ class GenerateRecurringEventsCommandTest(TestCase):
         
     def test_biweekly_rule(self):
         """隔週ルールのテスト"""
-        # 隔週ルールを作成
+        # 隔週用の独自Communityを作成（start_time/durationをマスターと変える）
+        biweekly_community = Community.objects.create(
+            name='隔週テストコミュニティ',
+            description='隔週テスト用',
+            weekdays=['Mon'],
+            start_time=time(20, 0),
+            duration=45,
+            status='approved'
+        )
+
+        today = timezone.now().date()
+        # 今日の曜日と同じ曜日の14日前をstart_dateに設定
+        start_date = today - timedelta(days=14)
+
         biweekly_rule = RecurrenceRule.objects.create(
-            community=self.community,
+            community=biweekly_community,
             frequency='WEEKLY',
             interval=2,
-            start_date=timezone.now().date() - timedelta(days=14)
+            start_date=start_date
         )
-        
-        # 隔週のマスターイベントを作成
+
+        # マスターイベント（start_time/durationはCommunityと異なる値）
         biweekly_master = Event.objects.create(
-            community=self.community,
-            date=timezone.now().date() - timedelta(days=14),
+            community=biweekly_community,
+            date=start_date,
             start_time=time(22, 0),
             duration=90,
-            weekday='FRI',
+            weekday=start_date.strftime('%a').upper()[:3],
             is_recurring_master=True,
             recurrence_rule=biweekly_rule
         )
-        
+
         out = StringIO()
         call_command('generate_recurring_events', '--months=2', stdout=out)
-        
+
         # 生成されたイベントを確認
         generated_events = Event.objects.filter(
             recurring_master=biweekly_master,
-            date__gte=timezone.now().date()
+            date__gte=today
         ).order_by('date')
-        
+
+        self.assertGreater(generated_events.count(), 0, "隔週イベントが生成されていない")
+
+        # Communityのstart_time/durationが使われることを確認
+        for event in generated_events:
+            self.assertEqual(event.start_time, time(20, 0))
+            self.assertEqual(event.duration, 45)
+
         # 隔週であることを確認
         if generated_events.count() >= 2:
             first_event = generated_events[0]
@@ -210,36 +230,98 @@ class GenerateRecurringEventsCommandTest(TestCase):
             
     def test_monthly_by_week_rule(self):
         """月次（第N曜日）ルールのテスト"""
+        # 月次用の独自Communityを作成（start_time/durationをマスターと変える）
+        monthly_community = Community.objects.create(
+            name='月次テストコミュニティ',
+            description='月次テスト用',
+            weekdays=['Tue'],
+            start_time=time(19, 0),
+            duration=30,
+            status='approved'
+        )
+
         # 毎月第2火曜日のルール
         monthly_rule = RecurrenceRule.objects.create(
-            community=self.community,
+            community=monthly_community,
             frequency='MONTHLY_BY_WEEK',
             interval=1,
             week_of_month=2  # 第2週
         )
-        
-        # マスターイベントを作成
+
+        # マスターイベント（start_time/durationはCommunityと異なる値）
         monthly_master = Event.objects.create(
-            community=self.community,
-            date=timezone.now().date() - timedelta(days=30),
+            community=monthly_community,
+            date=timezone.now().date() - timedelta(days=60),
             start_time=time(20, 0),
             duration=120,
             weekday='TUE',
             is_recurring_master=True,
             recurrence_rule=monthly_rule
         )
-        
+
         out = StringIO()
         call_command('generate_recurring_events', '--months=3', stdout=out)
-        
+
         # 生成されたイベントを確認
         generated_events = Event.objects.filter(
             recurring_master=monthly_master,
             date__gte=timezone.now().date()
         )
-        
-        # 生成されたイベントの詳細を確認
+
+        # Communityのstart_time/durationが使われることを確認
+        self.assertGreater(generated_events.count(), 0, "月次イベントが生成されていない")
         for event in generated_events:
-            # MONTHLY_BY_WEEKの場合、曜日はマスターイベントの曜日に依存
-            self.assertEqual(event.start_time, time(20, 0))
-            self.assertEqual(event.duration, 120)
+            self.assertEqual(event.start_time, time(19, 0))
+            self.assertEqual(event.duration, 30)
+
+    def test_community_time_change_reflected(self):
+        """Communityの時刻変更が生成イベントに反映されることのテスト
+
+        マスターイベントは21:00だが、Communityを22:00に変更した場合、
+        生成されるイベントは22:00になるべき。
+        """
+        # Communityの開始時刻を変更（マスターイベントは21:00のまま）
+        self.community.start_time = time(22, 0)
+        self.community.save()
+
+        out = StringIO()
+        call_command('generate_recurring_events', '--months=1', stdout=out)
+
+        # 生成されたイベントを確認
+        generated_events = Event.objects.filter(
+            recurring_master=self.master_event,
+            date__gte=timezone.now().date()
+        )
+        self.assertGreater(generated_events.count(), 0)
+
+        for event in generated_events:
+            self.assertEqual(
+                event.start_time, time(22, 0),
+                f"イベント {event.date} の開始時刻が22:00ではなく{event.start_time}"
+            )
+
+    def test_community_duration_change_reflected(self):
+        """Communityのduration変更が生成イベントに反映されることのテスト
+
+        マスターイベントはduration=60だが、Communityを90に変更した場合、
+        生成されるイベントはduration=90になるべき。
+        """
+        # Communityのdurationを変更（マスターイベントは60のまま）
+        self.community.duration = 90
+        self.community.save()
+
+        out = StringIO()
+        call_command('generate_recurring_events', '--months=1', stdout=out)
+
+        # 生成されたイベントを確認
+        generated_events = Event.objects.filter(
+            recurring_master=self.master_event,
+            date__gte=timezone.now().date()
+        )
+        self.assertGreater(generated_events.count(), 0)
+
+        for event in generated_events:
+            self.assertEqual(
+                event.duration, 90,
+                f"イベント {event.date} のdurationが90ではなく{event.duration}"
+            )
