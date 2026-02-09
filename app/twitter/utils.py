@@ -19,7 +19,7 @@ def format_event_info(event):
     weekdays = ['月', '火', '水', '木', '金', '土', '日']
     weekday = weekdays[event.date.weekday()]
     
-    details = event.details.all().order_by('start_time')
+    details = event.details.filter(status='approved').order_by('start_time')
     details_text = "\n".join([f"{d.start_time.strftime('%H:%M')} - {d.theme} ({d.speaker})" for d in details])
     return {
         "event_name": event.community.name,

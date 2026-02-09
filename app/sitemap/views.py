@@ -10,7 +10,7 @@ class SitemapView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        event_details = EventDetail.objects.all().order_by('-pk')
+        event_details = EventDetail.objects.filter(status='approved').order_by('-pk')
         context['event_details'] = event_details
         communities = Community.objects.filter(status='approved').order_by('-pk')
         context['communities'] = communities

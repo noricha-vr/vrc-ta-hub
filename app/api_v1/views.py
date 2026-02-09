@@ -126,7 +126,8 @@ class EventDetailFilter(filters.FilterSet):
 @method_decorator(csrf_exempt, name='dispatch')
 class EventDetailViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = EventDetail.objects.filter(
-        event__community__status='approved'
+        event__community__status='approved',
+        status='approved'
     ).select_related('event', 'event__community').order_by('event__date', 'start_time')
     serializer_class = EventDetailSerializer
     filterset_class = EventDetailFilter

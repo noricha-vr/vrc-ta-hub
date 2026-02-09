@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.cache import cache
-from django.db.models import QuerySet
+from django.db.models import Prefetch, QuerySet
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
@@ -180,7 +180,8 @@ class EventListView(ListView):
         # VRChatterの生活リズムに合わせて朝4時を日付の境界とする
         today = get_vrchat_today()
         queryset = queryset.filter(date__gte=today).select_related('community').prefetch_related(
-            'details').order_by('date', 'start_time')
+            Prefetch('details', queryset=EventDetail.objects.filter(status='approved'))
+        ).order_by('date', 'start_time')
 
         form = EventSearchForm(self.request.GET)
         if form.is_valid():
@@ -325,6 +326,12 @@ class EventDetailView(DetailView):
     template_name = 'event/detail.html'
     context_object_name = 'event_detail'
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.user.is_authenticated and self.request.user.is_superuser:
+            return queryset
+        return queryset.filter(status='approved')
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         event_detail = self.get_object()
@@ -438,6 +445,7 @@ class EventDetailView(DetailView):
                 EventDetail.objects
                 .filter(
                     event__community=event_detail.event.community,
+                    status='approved',
                     h1__isnull=False,
                     h1__gt=''  # より効率的な空文字列の除外
                 )
@@ -976,7 +984,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         event_ids = [event.id for event in events]
 
         if event_ids:
-            # イベント詳細を一括取得
+            # イベント詳細を一括取得（管理画面のため全ステータスを含む）
             event_details = EventDetail.objects.filter(
                 event_id__in=event_ids
             ).select_related('event').order_by('created_at')
@@ -1091,7 +1099,8 @@ class EventDetailPastList(ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset().filter(
-            detail_type='LT'  # LTのみ表示
+            detail_type='LT',  # LTのみ表示
+            status='approved',
         ).select_related('event', 'event__community').order_by('-event__date', '-start_time')
 
         community_name = self.request.GET.get('community_name', '').strip()
@@ -1157,7 +1166,8 @@ class EventLogListView(ListView):
 
     def get_queryset(self):
         queryset = super().get_queryset().filter(
-            detail_type__in=['SPECIAL', 'BLOG']  # 特別企画とブログのみ表示
+            detail_type__in=['SPECIAL', 'BLOG'],  # 特別企画とブログのみ表示
+            status='approved',
         ).select_related('event', 'event__community').order_by('-event__date', '-start_time')
 
         community_name = self.request.GET.get('community_name', '').strip()

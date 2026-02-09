@@ -91,6 +91,7 @@ class IndexView(TemplateView):
         upcoming_event_details = EventDetail.objects.filter(
             event__date__gte=today,
             detail_type='LT',  # LTのみ
+            status='approved',
             # ポスター画像があるコミュニティのイベントのみ
             event__community__poster_image__isnull=False
         ).exclude(
@@ -100,6 +101,7 @@ class IndexView(TemplateView):
         # 特別企画を取得（今日からイベント終了日の24時まで表示）
         special_events = EventDetail.objects.filter(
             detail_type='SPECIAL',
+            status='approved',
             event__date__gte=today,  # 今日以降のイベント
             # ポスター画像があるコミュニティのイベントのみ
             event__community__poster_image__isnull=False
