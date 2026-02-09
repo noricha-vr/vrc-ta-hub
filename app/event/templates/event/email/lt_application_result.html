@@ -26,7 +26,8 @@
         }
         .button {
             display: inline-block;
-            padding: 12px 24px;
+            padding: 10px 20px;
+            font-size: 1.05em;
             background-color: #0066cc;
             color: #ffffff !important;
             text-decoration: none;
@@ -58,6 +59,7 @@
         .application-details td {
             padding: 8px 0;
             border-bottom: 1px solid #e1e4e8;
+            font-size: 1em;
         }
         .application-details td:first-child {
             font-weight: bold;
@@ -101,6 +103,13 @@
             margin-top: 0;
             font-size: 1.1em;
         }
+        .next-steps ol,
+        .next-steps li {
+            font-size: 1em;
+        }
+        .next-steps small {
+            font-size: 0.95em;
+        }
         .footer {
             margin-top: 30px;
             padding-top: 20px;
@@ -136,16 +145,20 @@
                     <td>{{ community.name }}</td>
                 </tr>
                 <tr>
-                    <td>開催日</td>
-                    <td>{{ event.date }}</td>
-                </tr>
-                <tr>
                     <td>テーマ</td>
                     <td>{{ event_detail.theme }}</td>
                 </tr>
                 <tr>
                     <td>発表者</td>
                     <td>{{ event_detail.speaker }}</td>
+                </tr>
+                <tr>
+                    <td>開催日</td>
+                    <td>{{ event.date }}</td>
+                </tr>
+                <tr>
+                    <td>開始時間</td>
+                    <td>{{ community.start_time|time:"H:i" }}</td>
                 </tr>
                 <tr>
                     <td>発表時間</td>
@@ -165,8 +178,15 @@
                     <li>VRChatのスライドシステムにURLを設定する</li>
                 </ol>
 
-                <h3>発表後にできること</h3>
-                <p>発表後、以下のページからスライド（PDF）やYouTube URLをアップロードすると、記事を自動生成できます。内容の手動編集も可能です。</p>
+                <h3>発表後のお願い</h3>
+                <p>スライド（PDF）やYouTube URLをアップロードすると、発表内容の記事を自動生成できます。</p>
+                <p>アップロードしていただくと…</p>
+                <ul style="margin: 8px 0; padding-left: 20px;">
+                    <li>ハブの情報が充実し、より多くの人にアクセスしてもらえます</li>
+                    <li>見逃した方や参加できなかった方が後から内容を確認できます</li>
+                    <li>過去にどんな発表があったか振り返れる記録になります</li>
+                </ul>
+                <p>VRChatの技術・学術系コミュニティへの貢献にもつながります。ぜひご協力ください！</p>
                 <p><a href="{{ detail_url }}" class="button">スライド・動画を追加する</a></p>
             </div>
         {% else %}
