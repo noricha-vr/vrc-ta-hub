@@ -114,9 +114,10 @@ class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):
         description = [f"参加方法: {community_url}"]
 
         # 発表情報を追加（存在する場合）
-        if event.details.exists():
+        approved_details = event.details.filter(status='approved')
+        if approved_details.exists():
             description.extend([f"発表者: {detail.speaker}\nテーマ: {
-            detail.theme}" for detail in event.details.all()])
+            detail.theme}" for detail in approved_details])
 
         # URLパラメータを作成
         params = {
