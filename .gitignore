@@ -89,6 +89,7 @@ local_settings.py
 .env.local
 .env.production.local
 db.sqlite3
+test_db.sqlite3
 /.local.env
 /app/ta_hub/static/ta_hub/js/*.js
 /output.txt
@@ -97,6 +98,7 @@ secret
 /app/summary.config.json
 /app/credentials.json
 /app/test-emails
+/app/docs/tmp/
 .mcp.json
 *.log
 
