@@ -125,7 +125,7 @@ class Command(BaseCommand):
             dates = service.generate_dates(
                 rule=rule,
                 base_date=base_date,
-                base_time=master.start_time,
+                base_time=community.start_time,
                 months=months,
                 community=community
             )
@@ -137,7 +137,7 @@ class Command(BaseCommand):
                     exists = Event.objects.filter(
                         community=community,
                         date=date,
-                        start_time=master.start_time
+                        start_time=community.start_time
                     ).exists()
                     if not exists:
                         new_dates.append(date)
@@ -156,8 +156,8 @@ class Command(BaseCommand):
                         Event.objects.create(
                             community=community,
                             date=date,
-                            start_time=master.start_time,
-                            duration=master.duration,
+                            start_time=community.start_time,
+                            duration=community.duration,
                             weekday=date.strftime('%a').upper()[:3],
                             recurring_master=master
                         )
