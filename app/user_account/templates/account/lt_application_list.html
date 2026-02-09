@@ -44,9 +44,11 @@
                                                     {% endif %}
                                                 </td>
                                                 <td>
-                                                    <a href="{% url 'account:lt_application_edit' app.pk %}" class="btn btn-sm btn-outline-primary">
-                                                        <i class="fa-solid fa-pen-to-square"></i> 編集
-                                                    </a>
+                                                    {% if app.status != 'rejected' %}
+                                                        <a href="{% url 'account:lt_application_edit' app.pk %}" class="btn btn-sm btn-outline-primary">
+                                                            <i class="fa-solid fa-pen-to-square"></i> 編集
+                                                        </a>
+                                                    {% endif %}
                                                     {% if app.status == 'approved' %}
                                                         <a href="{% url 'event:detail' app.pk %}" class="btn btn-sm btn-outline-secondary">
                                                             <i class="fa-solid fa-eye"></i> 確認

@@ -13,7 +13,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, Client, RequestFactory, override_settings
 from django.urls import reverse
 
-from community.models import Community
+from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 
 User = get_user_model()
@@ -546,6 +546,40 @@ class EventDetailViewAccessTest(TestCase):
             password='testpass123',
         )
 
+        # コミュニティ管理者を作成
+        self.community_manager = User.objects.create_user(
+            user_name='community_mgr',
+            email='mgr@test.com',
+            password='testpass123',
+        )
+        from allauth.socialaccount.models import SocialAccount
+        SocialAccount.objects.create(user=self.community_manager, provider='discord', uid='discord_mgr')
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.community_manager,
+            role=CommunityMember.Role.STAFF,
+        )
+
+        # 一般ユーザー（管理者でない）を作成
+        self.normal_user = User.objects.create_user(
+            user_name='normal_user',
+            email='normal@test.com',
+            password='testpass123',
+        )
+        SocialAccount.objects.create(user=self.normal_user, provider='discord', uid='discord_normal')
+
+        # 申請者ユーザーを作成
+        self.applicant_user = User.objects.create_user(
+            user_name='applicant_user',
+            email='applicant@test.com',
+            password='testpass123',
+        )
+        SocialAccount.objects.create(user=self.applicant_user, provider='discord', uid='discord_applicant')
+
+        # pending_detail に申請者を設定
+        self.pending_detail.applicant = self.applicant_user
+        self.pending_detail.save()
+
     def test_anonymous_can_access_approved_detail(self):
         """未認証ユーザーはapprovedの詳細にアクセスできる"""
         url = reverse('event:detail', kwargs={'pk': self.approved_detail.pk})
@@ -575,6 +609,50 @@ class EventDetailViewAccessTest(TestCase):
         """スーパーユーザーはpendingの詳細にもアクセスできる"""
         self.client.login(username='admin_test', password='testpass123')
         url = reverse('event:detail', kwargs={'pk': self.pending_detail.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_community_manager_can_access_pending_detail(self):
+        """コミュニティ管理者はpendingの詳細にアクセスできる"""
+        self.client.login(username='community_mgr', password='testpass123')
+        url = reverse('event:detail', kwargs={'pk': self.pending_detail.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_community_manager_can_access_rejected_detail(self):
+        """コミュニティ管理者はrejectedの詳細にアクセスできる"""
+        self.client.login(username='community_mgr', password='testpass123')
+        url = reverse('event:detail', kwargs={'pk': self.rejected_detail.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_normal_user_cannot_access_pending_detail(self):
+        """一般ユーザーはpendingの詳細にアクセスすると404"""
+        self.client.login(username='normal_user', password='testpass123')
+        url = reverse('event:detail', kwargs={'pk': self.pending_detail.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+    def test_normal_user_cannot_access_rejected_detail(self):
+        """一般ユーザーはrejectedの詳細にアクセスすると404"""
+        self.client.login(username='normal_user', password='testpass123')
+        url = reverse('event:detail', kwargs={'pk': self.rejected_detail.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+    def test_applicant_can_access_own_pending_detail(self):
+        """申請者本人は自分のpendingの詳細にアクセスできる"""
+        self.client.login(username='applicant_user', password='testpass123')
+        url = reverse('event:detail', kwargs={'pk': self.pending_detail.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_applicant_can_access_own_rejected_detail(self):
+        """申請者本人は自分のrejectedの詳細にアクセスできる"""
+        self.rejected_detail.applicant = self.applicant_user
+        self.rejected_detail.save()
+        self.client.login(username='applicant_user', password='testpass123')
+        url = reverse('event:detail', kwargs={'pk': self.rejected_detail.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 

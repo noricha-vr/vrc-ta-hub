@@ -203,3 +203,27 @@ class LTApplicationEditViewTests(LTApplicationViewTestBase):
         })
         self.my_application.refresh_from_db()
         self.assertEqual(self.my_application.status, 'approved')
+
+    def test_cannot_edit_rejected_application(self):
+        """却下済みのLT申請は編集画面にアクセスすると404"""
+        self.client.login(username='applicant', password='testpass123')
+        rejected_edit_url = reverse('account:lt_application_edit', kwargs={'pk': self.my_rejected.pk})
+        response = self.client.get(rejected_edit_url)
+        self.assertEqual(response.status_code, 404)
+
+    def test_can_edit_pending_application(self):
+        """承認待ちのLT申請は編集画面にアクセスできる"""
+        my_pending = EventDetail.objects.create(
+            event=self.event,
+            detail_type='LT',
+            theme='Pending Theme',
+            speaker='applicant',
+            start_time=time(23, 0),
+            duration=15,
+            status='pending',
+            applicant=self.user,
+        )
+        self.client.login(username='applicant', password='testpass123')
+        pending_edit_url = reverse('account:lt_application_edit', kwargs={'pk': my_pending.pk})
+        response = self.client.get(pending_edit_url)
+        self.assertEqual(response.status_code, 200)
