@@ -125,4 +125,20 @@
             </div>
         </div>
     </div>
+    <script>
+        (function() {
+            const checkbox = document.getElementById('id_generate_blog_article');
+            const h1Wrapper = document.querySelector('.field-wrapper[data-field="h1"]');
+            const contentsWrapper = document.querySelector('.field-wrapper[data-field="contents"]');
+
+            function toggleFields() {
+                const hide = checkbox.checked;
+                if (h1Wrapper) h1Wrapper.style.display = hide ? 'none' : '';
+                if (contentsWrapper) contentsWrapper.style.display = hide ? 'none' : '';
+            }
+
+            toggleFields();
+            checkbox.addEventListener('change', toggleFields);
+        })();
+    </script>
 {% endblock %}

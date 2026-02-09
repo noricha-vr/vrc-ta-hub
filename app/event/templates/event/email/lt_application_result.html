@@ -156,13 +156,17 @@
 
         {% if is_approved %}
             <div class="next-steps">
-                <h3>次のステップ</h3>
-                <p>発表の詳細ページから、以下の情報を追加できます。</p>
-                <ul>
-                    <li>スライドのURL または PDFファイル</li>
-                    <li>YouTube動画のURL</li>
-                    <li>発表内容の詳細</li>
-                </ul>
+                <h3>発表の準備</h3>
+                <ol>
+                    <li>スライドを作成（PowerPoint / Canva / Googleスライド など）</li>
+                    <li>PDFとして書き出す</li>
+                    <li><a href="https://web-screen.net/ja/pdf/">WebScreen</a>で動画のURLに変換する<br>
+                        <small>動画URLに変換するとVRChatの動画プレイヤーで再生できます。</small></li>
+                    <li>VRChatのスライドシステムにURLを設定する</li>
+                </ol>
+
+                <h3>発表後にできること</h3>
+                <p>発表後、以下のページからスライド（PDF）やYouTube URLをアップロードすると、記事を自動生成できます。内容の手動編集も可能です。</p>
                 <p><a href="{{ detail_url }}" class="button">スライド・動画を追加する</a></p>
             </div>
         {% else %}
