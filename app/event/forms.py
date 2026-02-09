@@ -317,7 +317,7 @@ class LTApplicationEditForm(forms.ModelForm):
     generate_blog_article = forms.BooleanField(
         label='記事を自動生成する',
         required=False,
-        initial=False,
+        initial=True,
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input form-check-input-lg'}),
         help_text='PDFまたはYouTube URLが設定されている場合、AIによって記事を自動生成します'
     )
@@ -347,9 +347,9 @@ class LTApplicationEditForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # 既存の記事がある場合は自動生成チェックボックスをOFFにする
-        if self.instance and self.instance.pk and self.instance.meta_description:
-            self.fields['generate_blog_article'].initial = False
+        # 記事未生成ならON、生成済みならOFF
+        has_article = self.instance and self.instance.pk and self.instance.meta_description
+        self.initial['generate_blog_article'] = not has_article
 
     def clean_slide_file(self):
         return _validate_and_sanitize_pdf(self.cleaned_data.get('slide_file'))
