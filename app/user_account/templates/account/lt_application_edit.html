@@ -1,0 +1,128 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block main %}
+    <style>
+        .card {
+            transition: none !important;
+        }
+        .card:hover {
+            transform: none !important;
+            box-shadow: none !important;
+        }
+        .field-wrapper[data-field="generate_blog_article"] {
+            padding: 0.75rem 1rem;
+            background-color: #f8f9fa;
+            border-radius: 0.375rem;
+            border: 1px solid #dee2e6;
+        }
+        .field-wrapper[data-field="generate_blog_article"]:hover {
+            background-color: #e9ecef;
+        }
+        .field-wrapper[data-field="generate_blog_article"] .form-check-input {
+            width: 2.5rem;
+            height: 1.25rem;
+            cursor: pointer;
+            margin-top: 0;
+        }
+        .field-wrapper[data-field="generate_blog_article"] .form-check-label {
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+        }
+    </style>
+    <div class="container my-4">
+        <div class="row">
+            <div class="col-md-10 mx-auto">
+                <div class="card">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0"><i class="fa-solid fa-pen-to-square me-2"></i>LT情報の編集</h4>
+                        <a href="{% url 'account:lt_application_list' %}" class="btn btn-sm btn-light">
+                            <i class="fa-solid fa-arrow-left"></i> 一覧に戻る
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        {% include 'ta_hub/messages.html' %}
+
+                        {# 読み取り専用情報 #}
+                        <div class="mb-4 p-3 bg-light rounded border">
+                            <div class="row">
+                                <div class="col-md-4 mb-2">
+                                    <small class="text-muted d-block">集会</small>
+                                    <strong>{{ community.name }}</strong>
+                                </div>
+                                <div class="col-md-3 mb-2">
+                                    <small class="text-muted d-block">開催日</small>
+                                    <strong>{{ event.date|date:"Y年n月j日" }}</strong>
+                                </div>
+                                <div class="col-md-2 mb-2">
+                                    <small class="text-muted d-block">ステータス</small>
+                                    {% if object.status == 'pending' %}
+                                        <span class="badge bg-warning text-dark"><i class="fa-solid fa-clock"></i> 承認待ち</span>
+                                    {% elif object.status == 'approved' %}
+                                        <span class="badge bg-success"><i class="fa-solid fa-check"></i> 承認済み</span>
+                                    {% elif object.status == 'rejected' %}
+                                        <span class="badge bg-danger"><i class="fa-solid fa-xmark"></i> 却下</span>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-1 mb-2">
+                                    <small class="text-muted d-block">開始</small>
+                                    <strong>{{ object.start_time|time:"H:i" }}</strong>
+                                </div>
+                                <div class="col-md-2 mb-2">
+                                    <small class="text-muted d-block">発表時間</small>
+                                    <strong>{{ object.duration }}分</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        {# 編集フォーム #}
+                        <form method="post" enctype="multipart/form-data">
+                            {% csrf_token %}
+
+                            {% for field in form %}
+                                <div class="mb-3 field-wrapper" data-field="{{ field.name }}">
+                                    {% if field.name == 'generate_blog_article' %}
+                                        <div class="form-check form-switch d-flex align-items-center">
+                                            {{ field }}
+                                            <label class="form-check-label ms-2 mb-0" for="{{ field.id_for_label }}">
+                                                {{ field.label }}
+                                            </label>
+                                        </div>
+                                        {% if field.help_text %}
+                                            <div class="form-text ms-5">{{ field.help_text }}</div>
+                                        {% endif %}
+                                    {% else %}
+                                        {{ field.label_tag }}
+                                        {% if field.name == 'speaker' %}
+                                            <div class="input-group">
+                                                {{ field }}
+                                                <span class="input-group-text">さん</span>
+                                            </div>
+                                        {% else %}
+                                            {{ field }}
+                                        {% endif %}
+                                        {% if field.help_text %}
+                                            <div class="form-text">{{ field.help_text }}</div>
+                                        {% endif %}
+                                    {% endif %}
+                                    {% if field.errors %}
+                                        <div class="text-danger">{{ field.errors }}</div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+
+                            <div class="d-flex justify-content-between">
+                                <a href="{% url 'account:lt_application_list' %}" class="btn btn-secondary">
+                                    <i class="fa-solid fa-arrow-left me-1"></i>戻る
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fa-solid fa-floppy-disk me-1"></i>保存
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

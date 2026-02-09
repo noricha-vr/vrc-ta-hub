@@ -163,6 +163,72 @@ class APIKeyDeleteView(LoginRequiredMixin, View):
         return redirect('account:api_key_list')
 
 
+class LTApplicationListView(LoginRequiredMixin, ListView):
+    """LT申請一覧ページ"""
+    template_name = 'account/lt_application_list.html'
+    context_object_name = 'applications'
+
+    def get_queryset(self):
+        from event.models import EventDetail
+        return EventDetail.objects.filter(
+            applicant=self.request.user,
+            detail_type='LT',
+        ).select_related('event', 'event__community').order_by('-event__date', '-created_at')
+
+
+class LTApplicationEditView(LoginRequiredMixin, UpdateView):
+    """LT申請編集ページ"""
+    template_name = 'account/lt_application_edit.html'
+
+    def get_form_class(self):
+        from event.forms import LTApplicationEditForm
+        return LTApplicationEditForm
+
+    def get_queryset(self):
+        from event.models import EventDetail
+        return EventDetail.objects.filter(
+            applicant=self.request.user,
+            detail_type='LT',
+        ).select_related('event', 'event__community')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['event'] = self.object.event
+        context['community'] = self.object.event.community
+        return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+
+        generate_blog_flag = form.cleaned_data.get('generate_blog_article', False)
+        if (generate_blog_flag and
+                (form.instance.slide_file or form.instance.youtube_url)):
+            try:
+                from event.libs import generate_blog
+                from django.conf import settings as django_settings
+                blog_output = generate_blog(form.instance, model=django_settings.GEMINI_MODEL)
+                if blog_output.title:
+                    form.instance.h1 = blog_output.title
+                    form.instance.contents = blog_output.text
+                    form.instance.meta_description = blog_output.meta_description
+                    form.instance.save()
+                    messages.success(self.request, "LT申請情報を更新し、記事を自動生成しました。")
+                    logger.info(f"記事を自動生成しました: {form.instance.id}")
+                else:
+                    logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
+                    messages.warning(self.request, "LT申請情報を更新しましたが、記事の自動生成に失敗しました。")
+            except Exception as e:
+                logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
+                messages.error(self.request, "LT申請情報を更新しましたが、記事の自動生成中にエラーが発生しました。")
+        else:
+            messages.success(self.request, 'LT申請情報を更新しました。')
+
+        return response
+
+    def get_success_url(self):
+        return reverse('account:lt_application_list')
+
+
 class DiscordRequiredView(LoginRequiredMixin, TemplateView):
     """Discord連携必須ページ."""
 

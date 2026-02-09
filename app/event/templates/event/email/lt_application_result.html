@@ -163,7 +163,7 @@
                     <li>YouTube動画のURL</li>
                     <li>発表内容の詳細</li>
                 </ul>
-                <p><a href="{{ detail_url }}" class="button">発表詳細を編集する</a></p>
+                <p><a href="{{ detail_url }}" class="button">スライド・動画を追加する</a></p>
             </div>
         {% else %}
             {% if event_detail.rejection_reason %}
@@ -173,6 +173,7 @@
                 </div>
             {% endif %}
             <p>ご不明な点がございましたら、集会の主催者にお問い合わせください。</p>
+            <p><a href="{{ list_url }}" class="button">LT申請一覧を確認する</a></p>
         {% endif %}
     </div>
 

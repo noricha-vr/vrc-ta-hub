@@ -102,12 +102,22 @@ def notify_applicant_of_result(event_detail: EventDetail, request=None) -> None:
 
     community = event_detail.event.community
 
-    # イベント詳細ページのURL
-    detail_path = reverse('event:detail', kwargs={'pk': event_detail.pk})
+    # 承認時: LT申請編集ページ、却下時: LT申請一覧ページ
+    if event_detail.status == 'approved':
+        detail_path = reverse('account:lt_application_edit', kwargs={'pk': event_detail.pk})
+    else:
+        detail_path = reverse('account:lt_application_list')
     if request:
         detail_url = request.build_absolute_uri(detail_path)
     else:
         detail_url = f"https://vrc-ta-hub.com{detail_path}"
+
+    # 却下時は一覧ページへのリンクも用意
+    list_path = reverse('account:lt_application_list')
+    if request:
+        list_url = request.build_absolute_uri(list_path)
+    else:
+        list_url = f"https://vrc-ta-hub.com{list_path}"
 
     context = {
         'applicant': applicant,
@@ -115,6 +125,7 @@ def notify_applicant_of_result(event_detail: EventDetail, request=None) -> None:
         'event_detail': event_detail,
         'event': event_detail.event,
         'detail_url': detail_url,
+        'list_url': list_url,
         'is_approved': event_detail.status == 'approved',
     }
 

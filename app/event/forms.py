@@ -7,6 +7,22 @@ from community.models import WEEKDAY_CHOICES, TAGS, Community
 from .models import EventDetail, RecurrenceRule, Event, validate_pdf_file
 
 
+def _validate_and_sanitize_pdf(slide_file):
+    """PDFファイルのバリデーションとサニタイズ（共通ヘルパー）"""
+    if not slide_file:
+        return slide_file
+    if not slide_file.name.lower().endswith('.pdf'):
+        raise ValidationError('PDFファイルのみアップロード可能です。')
+    if slide_file.size > 30 * 1024 * 1024:  # 30MB
+        raise ValidationError('ファイルサイズが30MBを超えています。')
+    validate_pdf_file(slide_file)
+    try:
+        slide_file.content_type = 'application/pdf'
+    except Exception:
+        pass
+    return slide_file
+
+
 class EventSearchForm(forms.Form):
     name = forms.CharField(
         label='集会名',
@@ -292,25 +308,51 @@ class EventDetailForm(forms.ModelForm):
         return cleaned_data
     
     def clean_slide_file(self):
-        slide_file = self.cleaned_data.get('slide_file')
-        if slide_file:
-            # ファイル形式チェック（PDFのみ許可）
-            if not slide_file.name.lower().endswith('.pdf'):
-                raise ValidationError('PDFファイルのみアップロード可能です。')
-            
-            # ファイルサイズチェック
-            if slide_file.size > 30 * 1024 * 1024:  # 30MB
-                raise ValidationError('ファイルサイズが30MBを超えています。')
+        return _validate_and_sanitize_pdf(self.cleaned_data.get('slide_file'))
 
-            # 実体がPDFかを検証（拡張子偽装対策）
-            validate_pdf_file(slide_file)
 
-            # R2/S3のContent-Typeが攻撃者指定（text/html等）にならないよう強制
-            try:
-                slide_file.content_type = 'application/pdf'
-            except Exception:
-                pass
-        return slide_file
+class LTApplicationEditForm(forms.ModelForm):
+    """LT申請者が自分の申請内容を編集するフォーム"""
+
+    generate_blog_article = forms.BooleanField(
+        label='記事を自動生成する',
+        required=False,
+        initial=False,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input form-check-input-lg'}),
+        help_text='PDFまたはYouTube URLが設定されている場合、AIによって記事を自動生成します'
+    )
+
+    class Meta:
+        model = EventDetail
+        fields = ['theme', 'speaker', 'slide_url', 'slide_file', 'youtube_url', 'h1', 'contents', 'generate_blog_article']
+        widgets = {
+            'theme': forms.TextInput(attrs={'class': 'form-control'}),
+            'speaker': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'VRChat表示名を入力'
+            }),
+            'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
+            'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': '.pdf'}),
+            'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
+            'h1': forms.TextInput(attrs={'class': 'form-control'}),
+            'contents': forms.Textarea(attrs={'class': 'form-control', 'rows': '8'}),
+        }
+        help_texts = {
+            'contents': '※ Markdown形式で記述してください。',
+            'h1': '※ 空のときはテーマが使われます。',
+            'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
+            'slide_url': '外部のスライドシステムのURLや、参考ページのURLを入力してください。',
+            'slide_file': '※ PDFファイルのみアップロード可能です（最大30MB）。',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 既存の記事がある場合は自動生成チェックボックスをOFFにする
+        if self.instance and self.instance.pk and self.instance.meta_description:
+            self.fields['generate_blog_article'].initial = False
+
+    def clean_slide_file(self):
+        return _validate_and_sanitize_pdf(self.cleaned_data.get('slide_file'))
 
 
 RECURRENCE_CHOICES = [
