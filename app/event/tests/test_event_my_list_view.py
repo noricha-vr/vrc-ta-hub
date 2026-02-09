@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from community.models import Community, CommunityMember
-from event.models import Event
+from event.models import Event, EventDetail
 
 User = get_user_model()
 
@@ -248,3 +248,90 @@ class EventMyListDashboardTest(TestCase):
         self.assertContains(response, 'LT履歴')
         self.assertContains(response, '集会設定')
         self.assertContains(response, '公開ページ')
+
+    def test_pending_lt_shows_approve_reject_buttons(self):
+        """承認待ちLT申請に承認・却下ボタンが表示される"""
+        event = Event.objects.create(
+            community=self.community1,
+            date=date.today() + timedelta(days=7),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Mon'
+        )
+        detail = EventDetail.objects.create(
+            event=event,
+            theme='テスト発表',
+            speaker='テスト発表者',
+            start_time=time(22, 30),
+            applicant=self.user,
+            status='pending',
+        )
+
+        self.client.login(username='Dashboard User', password='dashboardpass123')
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '承認待ち')
+        self.assertContains(response, f'approveModal{detail.pk}')
+        self.assertContains(response, f'rejectModal{detail.pk}')
+
+    def test_pending_lt_modals_rendered_outside_card(self):
+        """承認・却下モーダルがcard要素の外に出力される（CSSトランジション干渉回避）"""
+        event = Event.objects.create(
+            community=self.community1,
+            date=date.today() + timedelta(days=7),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Mon'
+        )
+        detail = EventDetail.objects.create(
+            event=event,
+            theme='モーダル配置テスト',
+            speaker='テスト発表者',
+            start_time=time(22, 30),
+            applicant=self.user,
+            status='pending',
+        )
+
+        self.client.login(username='Dashboard User', password='dashboardpass123')
+        response = self.client.get(reverse('event:my_list'))
+        content = response.content.decode()
+
+        # モーダルDOMがcard-body内ではなく、paginationの後に配置されていることを確認
+        modal_approve_pos = content.find(f'id="approveModal{detail.pk}"')
+        modal_reject_pos = content.find(f'id="rejectModal{detail.pk}"')
+
+        # モーダルが存在することを確認
+        self.assertGreater(modal_approve_pos, -1)
+        self.assertGreater(modal_reject_pos, -1)
+
+        # モーダルがpaginationの後に出力されていることを確認
+        pagination_pos = content.find('pagination')
+        self.assertGreater(modal_approve_pos, pagination_pos)
+        self.assertGreater(modal_reject_pos, pagination_pos)
+
+    def test_approved_lt_no_modals(self):
+        """承認済みLT申請にはモーダルが出力されない"""
+        event = Event.objects.create(
+            community=self.community1,
+            date=date.today() + timedelta(days=7),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Mon'
+        )
+        EventDetail.objects.create(
+            event=event,
+            theme='承認済み発表',
+            speaker='テスト発表者',
+            start_time=time(22, 30),
+            applicant=self.user,
+            status='approved',
+        )
+
+        self.client.login(username='Dashboard User', password='dashboardpass123')
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '承認済み')
+        self.assertNotContains(response, 'approveModal')
+        self.assertNotContains(response, 'rejectModal')

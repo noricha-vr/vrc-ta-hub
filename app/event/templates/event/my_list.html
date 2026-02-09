@@ -202,65 +202,6 @@
                                             </button>
                                             {% endif %}
                                         </div>
-
-                                        {% if detail.applicant and detail.status == 'pending' %}
-                                        <div class="modal fade" id="approveModal{{ detail.pk }}" tabindex="-1" aria-labelledby="approveModalLabel{{ detail.pk }}" aria-hidden="true">
-                                            <div class="modal-dialog">
-                                                <div class="modal-content">
-                                                    <div class="modal-header">
-                                                        <h5 class="modal-title" id="approveModalLabel{{ detail.pk }}">LT申請を承認</h5>
-                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                    </div>
-                                                    <div class="modal-body">
-                                                        <p>以下のLT申請を承認しますか？</p>
-                                                        <ul class="list-unstyled">
-                                                            <li><strong>テーマ:</strong> {{ detail.theme }}</li>
-                                                            <li><strong>発表者:</strong> {{ detail.speaker }}</li>
-                                                            <li><strong>申請者:</strong> {{ detail.applicant.user_name }}</li>
-                                                            <li><strong>イベント日:</strong> {{ event.date }}</li>
-                                                        </ul>
-                                                    </div>
-                                                    <div class="modal-footer">
-                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                                                        <form method="post" action="{% url 'event:lt_application_approve' detail.pk %}" class="d-inline">
-                                                            {% csrf_token %}
-                                                            <button type="submit" class="btn btn-success">承認する</button>
-                                                        </form>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="modal fade" id="rejectModal{{ detail.pk }}" tabindex="-1" aria-labelledby="rejectModalLabel{{ detail.pk }}" aria-hidden="true">
-                                            <div class="modal-dialog">
-                                                <div class="modal-content">
-                                                    <form method="post" action="{% url 'event:lt_application_reject' detail.pk %}">
-                                                        {% csrf_token %}
-                                                        <div class="modal-header">
-                                                            <h5 class="modal-title" id="rejectModalLabel{{ detail.pk }}">LT申請を却下</h5>
-                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                                        </div>
-                                                        <div class="modal-body">
-                                                            <p>以下のLT申請を却下しますか？</p>
-                                                            <ul class="list-unstyled mb-3">
-                                                                <li><strong>テーマ:</strong> {{ detail.theme }}</li>
-                                                                <li><strong>発表者:</strong> {{ detail.speaker }}</li>
-                                                                <li><strong>申請者:</strong> {{ detail.applicant.user_name }}</li>
-                                                            </ul>
-                                                            <div class="mb-3">
-                                                                <label for="rejection_reason_{{ detail.pk }}" class="form-label">却下理由 <span class="text-danger">*</span></label>
-                                                                <textarea class="form-control" id="rejection_reason_{{ detail.pk }}" name="rejection_reason" rows="3" required placeholder="却下理由を入力してください"></textarea>
-                                                            </div>
-                                                        </div>
-                                                        <div class="modal-footer">
-                                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                                                            <button type="submit" class="btn btn-danger">却下する</button>
-                                                        </div>
-                                                    </form>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {% endif %}
                                         <hr>
                                     {% endfor %}
                                     <div class="">
@@ -284,6 +225,70 @@
         {% endfor %}
 
         {% include "ta_hub/pagination.html" %}
+
+        {# モーダルをcard要素の外に一括出力（CSSトランジション干渉を回避） #}
+        {% for event in events %}
+            {% for detail in event.detail_list %}
+                {% if detail.applicant and detail.status == 'pending' %}
+                <div class="modal fade" id="approveModal{{ detail.pk }}" tabindex="-1" aria-labelledby="approveModalLabel{{ detail.pk }}" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="approveModalLabel{{ detail.pk }}">LT申請を承認</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <p>以下のLT申請を承認しますか？</p>
+                                <ul class="list-unstyled">
+                                    <li><strong>テーマ:</strong> {{ detail.theme }}</li>
+                                    <li><strong>発表者:</strong> {{ detail.speaker }}</li>
+                                    <li><strong>申請者:</strong> {{ detail.applicant.user_name }}</li>
+                                    <li><strong>イベント日:</strong> {{ event.date }}</li>
+                                </ul>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                                <form method="post" action="{% url 'event:lt_application_approve' detail.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-success">承認する</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal fade" id="rejectModal{{ detail.pk }}" tabindex="-1" aria-labelledby="rejectModalLabel{{ detail.pk }}" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form method="post" action="{% url 'event:lt_application_reject' detail.pk %}">
+                                {% csrf_token %}
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="rejectModalLabel{{ detail.pk }}">LT申請を却下</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>以下のLT申請を却下しますか？</p>
+                                    <ul class="list-unstyled mb-3">
+                                        <li><strong>テーマ:</strong> {{ detail.theme }}</li>
+                                        <li><strong>発表者:</strong> {{ detail.speaker }}</li>
+                                        <li><strong>申請者:</strong> {{ detail.applicant.user_name }}</li>
+                                    </ul>
+                                    <div class="mb-3">
+                                        <label for="rejection_reason_{{ detail.pk }}" class="form-label">却下理由 <span class="text-danger">*</span></label>
+                                        <textarea class="form-control" id="rejection_reason_{{ detail.pk }}" name="rejection_reason" rows="3" required placeholder="却下理由を入力してください"></textarea>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                                    <button type="submit" class="btn btn-danger">却下する</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        {% endfor %}
 
     </div>
 
