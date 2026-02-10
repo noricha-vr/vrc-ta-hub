@@ -1,6 +1,6 @@
 """Vketコラボ機能のテスト."""
 
-from datetime import timedelta
+from datetime import time, timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -296,9 +296,54 @@ class VketManageViewsTests(TestCase):
         self.client.login(username='admin_user', password='adminpass123')
         response = self.client.get(reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk}))
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.context['warnings'])
-        self.assertContains(response, '重複')
+        self.assertTrue(response.context['overlap_warnings'])
+        self.assertContains(response, '重複（開催時間）')
         self.assertContains(response, 'vket-bar overlap')
+
+    def test_manage_schedule_page_marks_lt_slot(self):
+        EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            start_time='21:30',
+            duration=30,
+            status='approved',
+        )
+
+        self.client.login(username='admin_user', password='adminpass123')
+        response = self.client.get(reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk}))
+        self.assertEqual(response.status_code, 200)
+
+        slots = response.context['slots']
+        expected_idx = next(i for i, s in enumerate(slots) if s.start == time(21, 30))
+
+        rows = response.context['rows']
+        row = next(r for r in rows if r['participation'].pk == self.participation1.pk)
+        lt_indices = [i for i, cell in enumerate(row['cells']) if cell.get('lt')]
+        self.assertEqual(lt_indices, [expected_idx])
+
+    def test_manage_schedule_page_shows_lt_overlap_warning(self):
+        EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            start_time='21:30',
+            duration=30,
+            status='approved',
+        )
+        EventDetail.objects.create(
+            event=self.event2,
+            detail_type='LT',
+            start_time='21:30',
+            duration=30,
+            status='approved',
+        )
+
+        self.client.login(username='admin_user', password='adminpass123')
+        response = self.client.get(reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['warnings'])
+        self.assertContains(response, '⚠️ 警告')
+        self.assertContains(response, 'LT開始が重複')
+        self.assertContains(response, 'vket-lt-dot overlap')
 
     def test_manage_update_updates_event_and_admin_note(self):
         self.client.login(username='admin_user', password='adminpass123')

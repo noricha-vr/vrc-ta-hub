@@ -507,14 +507,29 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         collaboration = get_object_or_404(VketCollaboration, pk=kwargs['pk'])
 
+        lt_details_qs = (
+            EventDetail.objects.filter(detail_type='LT', status='approved')
+            .only('id', 'event_id', 'start_time', 'duration', 'speaker', 'theme', 'status', 'detail_type')
+            .order_by('start_time', 'id')
+        )
+
         participations = (
             VketParticipation.objects.filter(collaboration=collaboration, event__isnull=False)
             .select_related('community', 'event')
+            .prefetch_related(Prefetch('event__details', queryset=lt_details_qs))
             .order_by('event__date', 'event__start_time', 'community__name')
         )
 
         if not participations.exists():
-            context.update({'collaboration': collaboration, 'slots': [], 'rows': [], 'warnings': []})
+            context.update(
+                {
+                    'collaboration': collaboration,
+                    'slots': [],
+                    'rows': [],
+                    'overlap_warnings': [],
+                    'warnings': [],
+                }
+            )
             return context
 
         # Slot range (30-min grid) is determined from all scheduled events.
@@ -539,6 +554,15 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             slots.append(Slot(start=s_dt.time(), end=e_dt.time()))
             current += slot_minutes
 
+        def slot_index_for(t: time) -> int | None:
+            delta = to_minutes(t) - min_start
+            if delta < 0:
+                return None
+            idx = delta // slot_minutes
+            if idx >= len(slots):
+                return None
+            return idx
+
         # Overlap map per date/slot index
         occupancy: dict[tuple, int] = {}
         for p in participations:
@@ -553,7 +577,41 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                     occupancy[key] = occupancy.get(key, 0) + 1
 
         rows = []
+        overlap_warnings = []
         warnings = []
+
+        lt_slot_counts: dict[tuple, int] = {}
+        lt_slot_names: dict[tuple, list[str]] = {}
+        lt_index_by_event_id: dict[int, int] = {}
+        lt_time_by_event_id: dict[int, time] = {}
+
+        for p in participations:
+            event = p.event
+            lt_time = None
+            lt_details = list(event.details.all())
+            if lt_details:
+                lt_time = lt_details[0].start_time
+            else:
+                lt_time = event.start_time
+
+            lt_time_by_event_id[event.id] = lt_time
+
+            idx = slot_index_for(lt_time)
+            if idx is None:
+                warnings.append(
+                    f'{event.date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が表示範囲外です'
+                )
+                continue
+
+            lt_index_by_event_id[event.id] = idx
+            key = (event.date, idx)
+            lt_slot_counts[key] = lt_slot_counts.get(key, 0) + 1
+            lt_slot_names.setdefault(key, []).append(p.community.name)
+
+            if not (event.start_time <= lt_time < event.end_time):
+                warnings.append(
+                    f'{event.date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が開催時間（{event.start_time.strftime("%H:%M")}〜{event.end_time.strftime("%H:%M")}）の範囲外です'
+                )
 
         # Pairwise warnings
         for d, group in groupby(participations, key=lambda p: p.event.date):
@@ -562,23 +620,42 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 e1, e2 = p1.event, p2.event
                 if _time_ranges_overlap(e1.start_time, e1.duration, e2.start_time, e2.duration):
                     overlap_start = max(e1.start_time, e2.start_time)
-                    warnings.append(
+                    overlap_warnings.append(
                         f'{d.strftime("%Y/%m/%d")} {overlap_start.strftime("%H:%M")} {p1.community.name} と {p2.community.name} が重複'
                     )
+
+        for (d, idx), names in sorted(lt_slot_names.items(), key=lambda x: (x[0][0], x[0][1])):
+            if len(names) <= 1:
+                continue
+            warnings.append(
+                f'{d.strftime("%Y/%m/%d")} {slots[idx].start.strftime("%H:%M")} LT開始が重複: {", ".join(sorted(names))}'
+            )
 
         for p in participations:
             event = p.event
             base_date = timezone.localdate()
             event_start = datetime.combine(base_date, event.start_time)
             event_end = event_start + timedelta(minutes=event.duration)
+            lt_time = lt_time_by_event_id.get(event.id)
+            lt_idx = lt_index_by_event_id.get(event.id)
             cells = []
             for idx, slot in enumerate(slots):
                 slot_start = datetime.combine(base_date, slot.start)
                 slot_end = datetime.combine(base_date, slot.end)
                 occupied = slot_start < event_end and slot_end > event_start
                 overlap = occupied and occupancy.get((event.date, idx), 0) > 1
-                cells.append({'occupied': occupied, 'overlap': overlap})
-            rows.append({'participation': p, 'event': event, 'cells': cells})
+                lt = lt_idx == idx if lt_idx is not None else False
+                lt_overlap = lt and lt_slot_counts.get((event.date, idx), 0) > 1
+                cells.append({'occupied': occupied, 'overlap': overlap, 'lt': lt, 'lt_overlap': lt_overlap})
+            rows.append({'participation': p, 'event': event, 'cells': cells, 'lt_time': lt_time})
 
-        context.update({'collaboration': collaboration, 'slots': slots, 'rows': rows, 'warnings': warnings})
+        context.update(
+            {
+                'collaboration': collaboration,
+                'slots': slots,
+                'rows': rows,
+                'overlap_warnings': overlap_warnings,
+                'warnings': warnings,
+            }
+        )
         return context
