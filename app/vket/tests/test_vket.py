@@ -345,6 +345,29 @@ class VketManageViewsTests(TestCase):
         self.assertContains(response, 'LT開始が重複')
         self.assertContains(response, 'vket-lt-dot overlap')
 
+    def test_manage_schedule_page_warns_when_lt_outside_event_range(self):
+        EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            start_time='20:00',
+            duration=30,
+            status='approved',
+        )
+
+        self.client.login(username='admin_user', password='adminpass123')
+        response = self.client.get(reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['warnings'])
+        self.assertContains(response, '開催時間')
+
+        slots = response.context['slots']
+        expected_idx = next(i for i, s in enumerate(slots) if s.start == time(20, 0))
+
+        rows = response.context['rows']
+        row = next(r for r in rows if r['participation'].pk == self.participation1.pk)
+        lt_indices = [i for i, cell in enumerate(row['cells']) if cell.get('lt')]
+        self.assertEqual(lt_indices, [expected_idx])
+
     def test_manage_update_updates_event_and_admin_note(self):
         self.client.login(username='admin_user', password='adminpass123')
         new_date = self.collaboration.period_start + timedelta(days=1)
