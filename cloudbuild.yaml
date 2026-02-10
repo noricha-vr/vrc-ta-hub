@@ -13,6 +13,9 @@ steps:
     args:
       - 'run'
       - 'deploy'
+      - '--no-traffic'
+      - '--tag'
+      - 'rev-$SHORT_SHA'
       - '--allow-unauthenticated'
       - '--cpu'
       - '1'
