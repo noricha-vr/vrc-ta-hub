@@ -24,7 +24,7 @@ steps:
       - '--region'
       - 'asia-northeast1'
       - '--image'
-      - '${_DOCKER_PATH}${_SERVICE_NAME}:latest'
+      - '${_DOCKER_PATH}${_SERVICE_NAME}:$SHORT_SHA'
       - '--platform'
       - 'managed'
       - '--revision-suffix'
