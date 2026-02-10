@@ -318,8 +318,65 @@ class VketManageViewsTests(TestCase):
 
         rows = response.context['rows']
         row = next(r for r in rows if r['participation'].pk == self.participation1.pk)
-        lt_indices = [i for i, cell in enumerate(row['cells']) if cell.get('lt')]
+        lt_indices = [i for i, cell in enumerate(row['cells']) if cell.get('lt_times')]
         self.assertEqual(lt_indices, [expected_idx])
+        self.assertEqual(row['cells'][expected_idx]['lt_times'], [time(21, 30)])
+
+    def test_manage_schedule_page_marks_all_lt_slots(self):
+        EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            start_time='21:00',
+            duration=30,
+            status='approved',
+        )
+        EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            start_time='21:30',
+            duration=30,
+            status='approved',
+        )
+
+        self.client.login(username='admin_user', password='adminpass123')
+        response = self.client.get(reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk}))
+        self.assertEqual(response.status_code, 200)
+
+        slots = response.context['slots']
+        idx_2100 = next(i for i, s in enumerate(slots) if s.start == time(21, 0))
+        idx_2130 = next(i for i, s in enumerate(slots) if s.start == time(21, 30))
+
+        rows = response.context['rows']
+        row = next(r for r in rows if r['participation'].pk == self.participation1.pk)
+        lt_indices = [i for i, cell in enumerate(row['cells']) if cell.get('lt_times')]
+        self.assertEqual(lt_indices, [idx_2100, idx_2130])
+
+    def test_manage_schedule_page_marks_multiple_lts_in_same_slot(self):
+        EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            start_time='21:35',
+            duration=30,
+            status='approved',
+        )
+        EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            start_time='21:40',
+            duration=30,
+            status='approved',
+        )
+
+        self.client.login(username='admin_user', password='adminpass123')
+        response = self.client.get(reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk}))
+        self.assertEqual(response.status_code, 200)
+
+        slots = response.context['slots']
+        expected_idx = next(i for i, s in enumerate(slots) if s.start == time(21, 30))
+
+        rows = response.context['rows']
+        row = next(r for r in rows if r['participation'].pk == self.participation1.pk)
+        self.assertEqual(row['cells'][expected_idx]['lt_times'], [time(21, 35), time(21, 40)])
 
     def test_manage_schedule_page_shows_lt_overlap_warning(self):
         EventDetail.objects.create(
@@ -365,7 +422,7 @@ class VketManageViewsTests(TestCase):
 
         rows = response.context['rows']
         row = next(r for r in rows if r['participation'].pk == self.participation1.pk)
-        lt_indices = [i for i, cell in enumerate(row['cells']) if cell.get('lt')]
+        lt_indices = [i for i, cell in enumerate(row['cells']) if cell.get('lt_times')]
         self.assertEqual(lt_indices, [expected_idx])
 
     def test_manage_update_updates_event_and_admin_note(self):

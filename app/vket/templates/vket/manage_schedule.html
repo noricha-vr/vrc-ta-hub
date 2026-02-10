@@ -25,11 +25,18 @@
             background: rgba(220, 53, 69, 0.35);
             outline: 1px solid rgba(220, 53, 69, 0.55);
         }
-        .vket-lt-dot {
+        .vket-lt-dots {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        .vket-lt-dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
@@ -75,8 +82,12 @@
                                     {% if cell.occupied %}
                                         <div class="vket-bar {% if cell.overlap %}overlap{% endif %}"></div>
                                     {% endif %}
-                                    {% if cell.lt %}
-                                        <div class="vket-lt-dot {% if cell.lt_overlap %}overlap{% endif %}" title="LT開始: {{ row.lt_time|date:"H:i" }}"></div>
+                                    {% if cell.lt_times %}
+                                        <div class="vket-lt-dots" title="LT開始: {{ cell.lt_tooltip }}">
+                                            {% for t in cell.lt_times %}
+                                                <span class="vket-lt-dot {% if cell.lt_overlap %}overlap{% endif %}"></span>
+                                            {% endfor %}
+                                        </div>
                                     {% endif %}
                                 </td>
                             {% endfor %}

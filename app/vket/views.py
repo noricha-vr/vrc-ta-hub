@@ -543,7 +543,7 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         max_end = None
         warnings = []
 
-        lt_time_by_event_id: dict[int, time] = {}
+        lt_times_by_event_id: dict[int, list[time]] = {}
 
         for p in participations:
             event = p.event
@@ -557,14 +557,17 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 end_min = day_minutes
 
             lt_details = list(event.details.all())
-            lt_time = lt_details[0].start_time if lt_details else event.start_time
-            lt_time_by_event_id[event.id] = lt_time
+            lt_times = [d.start_time for d in lt_details] if lt_details else []
+            if not lt_times:
+                lt_times = [event.start_time]
+            lt_times_by_event_id[event.id] = lt_times
 
-            lt_min = to_minutes(lt_time)
-            lt_end_min = min(lt_min + slot_minutes, day_minutes)
+            lt_mins = [to_minutes(t) for t in lt_times]
+            lt_min = min(lt_mins)
+            lt_end_max = max(min(m + slot_minutes, day_minutes) for m in lt_mins)
 
             candidate_min = min(start_min, lt_min)
-            candidate_max = max(end_min, lt_end_min)
+            candidate_max = max(end_min, lt_end_max)
             min_start = candidate_min if min_start is None else min(min_start, candidate_min)
             max_end = candidate_max if max_end is None else max(max_end, candidate_max)
 
@@ -618,32 +621,37 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         rows = []
         overlap_warnings = []
 
-        lt_slot_counts: dict[tuple, int] = {}
-        lt_slot_names: dict[tuple, list[str]] = {}
-        lt_index_by_event_id: dict[int, int] = {}
+        lt_slots_by_event_id: dict[int, dict[int, list[time]]] = {}
+        lt_slot_communities: dict[tuple, set[str]] = {}
 
         for p in participations:
             event = p.event
-            lt_time = lt_time_by_event_id[event.id]
-
-            idx = slot_index_for(lt_time)
-            if idx is None:
-                warnings.append(
-                    f'{event.date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が表示範囲外です'
-                )
-                continue
-
-            lt_index_by_event_id[event.id] = idx
-            key = (event.date, idx)
-            lt_slot_counts[key] = lt_slot_counts.get(key, 0) + 1
-            lt_slot_names.setdefault(key, []).append(p.community.name)
+            lt_times = lt_times_by_event_id[event.id]
 
             event_start_dt = datetime.combine(base, event.start_time)
             event_end_dt = event_start_dt + timedelta(minutes=event.duration)
-            lt_dt = datetime.combine(base, lt_time)
-            if not (event_start_dt <= lt_dt < event_end_dt):
+            invalid_lt_times = []
+
+            for lt_time in lt_times:
+                idx = slot_index_for(lt_time)
+                if idx is None:
+                    warnings.append(
+                        f'{event.date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が表示範囲外です'
+                    )
+                    continue
+
+                lt_slots_by_event_id.setdefault(event.id, {}).setdefault(idx, []).append(lt_time)
+                key = (event.date, idx)
+                lt_slot_communities.setdefault(key, set()).add(p.community.name)
+
+                lt_dt = datetime.combine(base, lt_time)
+                if not (event_start_dt <= lt_dt < event_end_dt):
+                    invalid_lt_times.append(lt_time)
+
+            if invalid_lt_times:
+                times_label = ', '.join(sorted({t.strftime('%H:%M') for t in invalid_lt_times}))
                 warnings.append(
-                    f'{event.date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が開催時間（{event.start_time.strftime("%H:%M")}〜{event.end_time.strftime("%H:%M")}）の範囲外です'
+                    f'{event.date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{times_label}）が開催時間（{event.start_time.strftime("%H:%M")}〜{event.end_time.strftime("%H:%M")}）の範囲外です'
                 )
 
         # Pairwise warnings
@@ -657,11 +665,11 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                         f'{d.strftime("%Y/%m/%d")} {overlap_start.strftime("%H:%M")} {p1.community.name} と {p2.community.name} が重複'
                     )
 
-        for (d, idx), names in sorted(lt_slot_names.items(), key=lambda x: (x[0][0], x[0][1])):
-            if len(names) <= 1:
+        for (d, idx), communities in sorted(lt_slot_communities.items(), key=lambda x: (x[0][0], x[0][1])):
+            if len(communities) <= 1:
                 continue
             warnings.append(
-                f'{d.strftime("%Y/%m/%d")} {slots[idx].start.strftime("%H:%M")} LT開始が重複: {", ".join(sorted(names))}'
+                f'{d.strftime("%Y/%m/%d")} {slots[idx].start.strftime("%H:%M")} LT開始が重複: {", ".join(sorted(communities))}'
             )
 
         for p in participations:
@@ -669,18 +677,26 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             base_date = timezone.localdate()
             event_start = datetime.combine(base_date, event.start_time)
             event_end = event_start + timedelta(minutes=event.duration)
-            lt_time = lt_time_by_event_id.get(event.id)
-            lt_idx = lt_index_by_event_id.get(event.id)
+            lt_slots = lt_slots_by_event_id.get(event.id, {})
             cells = []
             for idx, slot in enumerate(slots):
                 slot_start = datetime.combine(base_date, slot.start)
                 slot_end = datetime.combine(base_date, slot.end)
                 occupied = slot_start < event_end and slot_end > event_start
                 overlap = occupied and occupancy.get((event.date, idx), 0) > 1
-                lt = lt_idx == idx if lt_idx is not None else False
-                lt_overlap = lt and lt_slot_counts.get((event.date, idx), 0) > 1
-                cells.append({'occupied': occupied, 'overlap': overlap, 'lt': lt, 'lt_overlap': lt_overlap})
-            rows.append({'participation': p, 'event': event, 'cells': cells, 'lt_time': lt_time})
+                lt_times = sorted(lt_slots.get(idx, []))
+                lt_overlap = bool(lt_times) and len(lt_slot_communities.get((event.date, idx), set())) > 1
+                lt_tooltip = ', '.join([t.strftime('%H:%M') for t in lt_times]) if lt_times else ''
+                cells.append(
+                    {
+                        'occupied': occupied,
+                        'overlap': overlap,
+                        'lt_times': lt_times,
+                        'lt_overlap': lt_overlap,
+                        'lt_tooltip': lt_tooltip,
+                    }
+                )
+            rows.append({'participation': p, 'event': event, 'cells': cells})
 
         context.update(
             {
