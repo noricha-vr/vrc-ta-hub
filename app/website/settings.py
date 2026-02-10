@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'twitter',
     'news',
     'guide',
+    'vket',
     'django_bootstrap5',
     'api_v1',
     'django_filters',
@@ -156,7 +157,9 @@ DATABASES = {
 # 本番環境（DEBUG=False）では有効化
 DISCORD_AUTH_REQUIRED = not DEBUG
 
-if 'test' in sys.argv:
+TESTING = os.environ.get('TESTING', '').strip().lower() in {'1', 'true', 'yes', 'on'}
+
+if 'test' in sys.argv or TESTING:
     DATABASES['default'] = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': 'test_db.sqlite3',

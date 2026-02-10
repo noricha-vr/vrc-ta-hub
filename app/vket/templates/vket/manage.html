@@ -1,0 +1,126 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}
+    <title>{{ collaboration.name }} 管理（登壇者） - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+{% block main %}
+    <div class="container my-4">
+        {% include 'ta_hub/messages.html' %}
+
+        <div class="mb-4">
+            <h1 class="fw-bold mb-1">{{ collaboration.name }} 管理</h1>
+            <div class="text-muted">
+                期間: {{ collaboration.period_start|date:"Y/m/d" }}〜{{ collaboration.period_end|date:"Y/m/d" }}
+                / 締切1: {{ collaboration.registration_deadline|date:"Y/m/d" }}
+                / 締切2: {{ collaboration.lt_deadline|date:"Y/m/d" }}
+            </div>
+            <div class="mt-2 text-muted">
+                参加: {{ participation_count }}/{{ community_total }}集会
+                / 日程確定: {{ scheduled_count }}/{{ participation_count }}
+                / LT登録済: {{ lt_registered_count }}/{{ scheduled_count }}
+            </div>
+        </div>
+
+        {% include 'vket/includes/manage_tabs.html' with active_tab='speakers' %}
+
+        <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle">
+                <thead>
+                <tr class="table-light">
+                    <th style="min-width: 220px;">集会名</th>
+                    <th style="min-width: 150px;">日付</th>
+                    <th style="min-width: 120px;">時刻</th>
+                    <th style="min-width: 200px;">登壇者</th>
+                    <th style="min-width: 260px;">テーマ</th>
+                    <th style="min-width: 220px;">備考</th>
+                    <th style="min-width: 220px;">編集</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for p in participations %}
+                    <tr>
+                        <td class="fw-bold">{{ p.community.name }}</td>
+                        <td>
+                            {% if p.event %}
+                                {{ p.event.date|date:"n/j（D）" }}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.event %}
+                                {{ p.event.start_time|date:"H:i" }}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.event and p.event.details.all %}
+                                {% with lt=p.event.details.all.0 %}
+                                    {{ lt.speaker|default:"—" }}
+                                {% endwith %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.event and p.event.details.all %}
+                                {% with lt=p.event.details.all.0 %}
+                                    {{ lt.theme|default:"—" }}
+                                {% endwith %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            {% if p.note %}
+                                <div><span class="text-muted">主催者:</span> {{ p.note|linebreaksbr }}</div>
+                            {% endif %}
+                            {% if p.admin_note %}
+                                <div><span class="text-muted">運営:</span> {{ p.admin_note|linebreaksbr }}</div>
+                            {% endif %}
+                            {% if not p.note and not p.admin_note %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if p.event %}
+                                <form method="post"
+                                      action="{% url 'vket:manage_participation_update' collaboration.id p.id %}"
+                                      class="d-flex flex-column gap-1">
+                                    {% csrf_token %}
+                                    <div class="d-flex gap-1">
+                                        <input class="form-control form-control-sm" type="date" name="date"
+                                               value="{{ p.event.date|date:"Y-m-d" }}" required>
+                                        <input class="form-control form-control-sm" type="time" name="start_time"
+                                               value="{{ p.event.start_time|date:"H:i" }}" required>
+                                    </div>
+                                    <textarea class="form-control form-control-sm" name="admin_note" rows="2"
+                                              placeholder="備考（運営）">{{ p.admin_note }}</textarea>
+                                    <button class="btn btn-outline-primary btn-sm" type="submit">保存</button>
+                                </form>
+                            {% else %}
+                                <span class="text-muted small">日程未登録</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if unregistered_communities %}
+            <div class="mt-4">
+                <h2 class="h5 fw-bold">未登録</h2>
+                <div class="list-group">
+                    {% for c in unregistered_communities %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div class="fw-bold">{{ c.name }}</div>
+                            <span class="text-muted small">未登録</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}
+

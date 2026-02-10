@@ -1,0 +1,54 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}
+    <title>Vketコラボ一覧 - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+{% block main %}
+    <div class="container my-4">
+        <h1 class="fw-bold mb-4">Vketコラボ</h1>
+
+        {% include 'ta_hub/messages.html' %}
+
+        {% if collaborations %}
+            <div class="row g-3">
+                {% for c in collaborations %}
+                    <div class="col-12 col-md-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div>
+                                        <h5 class="card-title mb-1 fw-bold">{{ c.name }}</h5>
+                                        <div class="text-muted small">
+                                            {{ c.period_start|date:"Y/m/d" }}〜{{ c.period_end|date:"Y/m/d" }}
+                                        </div>
+                                    </div>
+                                    <span class="badge
+                                        {% if c.status == 'open' %} bg-success
+                                        {% elif c.status == 'closed' %} bg-secondary
+                                        {% elif c.status == 'draft' %} bg-warning text-dark
+                                        {% else %} bg-light text-dark{% endif %}">
+                                        {{ c.get_status_display }}
+                                    </span>
+                                </div>
+
+                                {% if c.description %}
+                                    <p class="mt-3 mb-3 text-muted">{{ c.description|truncatechars:120 }}</p>
+                                {% endif %}
+
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <a class="btn btn-primary btn-sm" href="{% url 'vket:detail' c.id %}">詳細を見る</a>
+                                    {% if request.user.is_authenticated and request.user.is_superuser %}
+                                        <a class="btn btn-outline-primary btn-sm"
+                                           href="{% url 'vket:manage' c.id %}">管理</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-muted">コラボがまだありません。</p>
+        {% endif %}
+    </div>
+{% endblock %}
+

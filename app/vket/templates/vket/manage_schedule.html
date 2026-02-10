@@ -1,0 +1,125 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}
+    <title>{{ collaboration.name }} 管理（日程表） - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+{% block main %}
+    <style>
+        .vket-slot {
+            width: 64px;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .vket-cell {
+            width: 64px;
+            min-width: 64px;
+            height: 28px;
+            padding: 0 !important;
+            position: relative;
+        }
+        .vket-bar {
+            width: 100%;
+            height: 100%;
+            background: rgba(13, 110, 253, 0.35);
+        }
+        .vket-bar.overlap {
+            background: rgba(220, 53, 69, 0.35);
+            outline: 1px solid rgba(220, 53, 69, 0.55);
+        }
+        .vket-lt-dots {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        .vket-lt-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #212529;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+        }
+        .vket-lt-dot.overlap {
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 4px rgba(220, 53, 69, 0.85);
+        }
+    </style>
+
+    <div class="container my-4">
+        {% include 'ta_hub/messages.html' %}
+
+        <div class="mb-4">
+            <h1 class="fw-bold mb-1">{{ collaboration.name }} 管理</h1>
+            <div class="text-muted">
+                期間: {{ collaboration.period_start|date:"Y/m/d" }}〜{{ collaboration.period_end|date:"Y/m/d" }}
+            </div>
+        </div>
+
+        {% include 'vket/includes/manage_tabs.html' with active_tab='schedule' %}
+
+        {% if rows and slots %}
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered align-middle">
+                    <thead class="table-light">
+                    <tr>
+                        <th style="min-width: 140px;">日付</th>
+                        <th style="min-width: 220px;">集会名</th>
+                        {% for slot in slots %}
+                            <th class="vket-slot">{{ slot.start|date:"H:i" }}</th>
+                        {% endfor %}
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in rows %}
+                        <tr>
+                            <td>{{ row.event.date|date:"n/j（D）" }}</td>
+                            <td class="fw-bold">{{ row.participation.community.name }}</td>
+                            {% for cell in row.cells %}
+                                <td class="vket-cell">
+                                    {% if cell.occupied %}
+                                        <div class="vket-bar {% if cell.overlap %}overlap{% endif %}"></div>
+                                    {% endif %}
+                                    {% if cell.lt_times %}
+                                        <div class="vket-lt-dots" title="LT開始: {{ cell.lt_tooltip }}">
+                                            {% for t in cell.lt_times %}
+                                                <span class="vket-lt-dot {% if cell.lt_overlap %}overlap{% endif %}"></span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if overlap_warnings %}
+                <div class="alert alert-warning mt-3">
+                    <div class="fw-bold mb-2">⚠️ 重複（開催時間）</div>
+                    <ul class="mb-0">
+                        {% for w in overlap_warnings %}
+                            <li>{{ w }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            {% if warnings %}
+                <div class="alert alert-warning mt-3">
+                    <div class="fw-bold mb-2">⚠️ 警告</div>
+                    <ul class="mb-0">
+                        {% for w in warnings %}
+                            <li>{{ w }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+        {% else %}
+            <p class="text-muted">日程がまだ登録されていません。</p>
+        {% endif %}
+    </div>
+{% endblock %}

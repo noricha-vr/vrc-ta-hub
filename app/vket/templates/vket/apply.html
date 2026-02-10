@@ -1,0 +1,79 @@
+{% extends 'ta_hub/base.html' %}
+{% load django_bootstrap5 %}
+{% block meta %}
+    <title>{{ collaboration.name }} 参加登録 - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+{% block main %}
+    <div class="container my-4" style="max-width: 860px;">
+        {% include 'ta_hub/messages.html' %}
+
+        <div class="mb-4">
+            <h1 class="fw-bold mb-1">{{ collaboration.name }} 参加登録</h1>
+            <div class="text-muted">
+                集会: <span class="fw-bold">{{ community.name }}</span><br>
+                締切1(参加表明): {{ collaboration.registration_deadline|date:"Y/m/d" }}
+                / 締切2(LT情報): {{ collaboration.lt_deadline|date:"Y/m/d" }}
+            </div>
+        </div>
+
+        {% if not permissions.can_edit_schedule %}
+            <div class="alert alert-warning">
+                参加日程（Step 1）は締切を過ぎているため編集できません。
+            </div>
+        {% endif %}
+        {% if not permissions.can_edit_lt %}
+            <div class="alert alert-warning">
+                LT情報（Step 2）は締切を過ぎているため編集できません。
+            </div>
+        {% endif %}
+
+        <form method="post" class="card shadow-sm">
+            <div class="card-body">
+                {% csrf_token %}
+                {% bootstrap_form_errors form %}
+
+                <h2 class="h5 fw-bold mb-3">参加日程（締切1）</h2>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">{{ form.participation_date.label }}</label>
+                    <div class="ms-2">
+                        {{ form.participation_date }}
+                    </div>
+                    {% if form.participation_date.errors %}
+                        <div class="text-danger small mt-1">{{ form.participation_date.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-4">
+                        {% bootstrap_field form.start_time %}
+                    </div>
+                    <div class="col-12 col-md-4">
+                        {% bootstrap_field form.duration %}
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <h2 class="h5 fw-bold mb-3">LT情報（締切2・今入力しなくてもOK）</h2>
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        {% bootstrap_field form.speaker %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        {% bootstrap_field form.theme %}
+                    </div>
+                    <div class="col-12">
+                        {% bootstrap_field form.note %}
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end mt-3">
+                    <button class="btn btn-primary" type="submit">保存する</button>
+                </div>
+            </div>
+        </form>
+    </div>
+{% endblock %}
+

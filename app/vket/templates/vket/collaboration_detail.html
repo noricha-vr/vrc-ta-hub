@@ -1,0 +1,75 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}
+    <title>{{ collaboration.name }} - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+{% block main %}
+    <div class="container my-4">
+        {% include 'ta_hub/messages.html' %}
+
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-4">
+            <div>
+                <h1 class="fw-bold mb-1">{{ collaboration.name }}</h1>
+                <div class="text-muted">
+                    期間: {{ collaboration.period_start|date:"Y/m/d" }}〜{{ collaboration.period_end|date:"Y/m/d" }}
+                    / 締切1: {{ collaboration.registration_deadline|date:"Y/m/d" }}
+                    / 締切2: {{ collaboration.lt_deadline|date:"Y/m/d" }}
+                </div>
+                {% if collaboration.hashtags %}
+                    <div class="mt-2">
+                        {% for tag in collaboration.hashtags %}
+                            <span class="badge bg-light text-dark me-1">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                {% if is_superuser %}
+                    <a class="btn btn-outline-primary" href="{% url 'vket:manage' collaboration.id %}">管理</a>
+                {% endif %}
+                {% if can_apply %}
+                    <a class="btn btn-primary" href="{% url 'vket:apply' collaboration.id %}">参加登録</a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if collaboration.description %}
+            <div class="alert alert-light">{{ collaboration.description|linebreaksbr }}</div>
+        {% endif %}
+
+        <h2 class="h4 fw-bold mb-3">スケジュール（確定分）</h2>
+
+        {% if grouped_entries %}
+            {% for group in grouped_entries %}
+                <div class="mb-4">
+                    <div class="fw-bold mb-2">
+                        <i class="bi bi-calendar3"></i> {{ group.date|date:"n/j（D）" }}
+                    </div>
+                    <div class="list-group">
+                        {% for e in group.entries %}
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-start gap-3">
+                                    <div class="fw-bold">
+                                        {{ e.event.start_time|date:"H:i" }} {{ e.participation.community.name }}
+                                    </div>
+                                    <div class="text-muted small">
+                                        {{ e.event.start_time|date:"H:i" }}-{{ e.event.end_time|date:"H:i" }}
+                                    </div>
+                                </div>
+                                <div class="mt-1 small">
+                                    {% if e.lt_detail %}
+                                        LT: {{ e.lt_detail.speaker|default:"—" }}「{{ e.lt_detail.theme|default:"—" }}」
+                                    {% else %}
+                                        <span class="text-muted">LT情報は後日公開</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-muted">まだスケジュールが確定していません。</p>
+        {% endif %}
+    </div>
+{% endblock %}
+
