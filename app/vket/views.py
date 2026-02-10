@@ -534,16 +534,55 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
         # Slot range (30-min grid) is determined from all scheduled events.
         slot_minutes = 30
-        starts = [p.event.start_time for p in participations]
-        ends = [p.event.end_time for p in participations]
 
         def to_minutes(t: time) -> int:
             return t.hour * 60 + t.minute
 
-        min_start = min(to_minutes(t) for t in starts)
-        max_end = max(to_minutes(t) for t in ends)
+        day_minutes = 24 * 60
+        min_start = None
+        max_end = None
+        warnings = []
+
+        lt_time_by_event_id: dict[int, time] = {}
+
+        for p in participations:
+            event = p.event
+
+            start_min = to_minutes(event.start_time)
+            end_min = start_min + event.duration
+            if end_min > day_minutes:
+                warnings.append(
+                    f'{event.date.strftime("%Y/%m/%d")} {p.community.name} の開催時間が日跨ぎのため、0:00で切り捨て表示します'
+                )
+                end_min = day_minutes
+
+            lt_details = list(event.details.all())
+            lt_time = lt_details[0].start_time if lt_details else event.start_time
+            lt_time_by_event_id[event.id] = lt_time
+
+            lt_min = to_minutes(lt_time)
+            lt_end_min = min(lt_min + slot_minutes, day_minutes)
+
+            candidate_min = min(start_min, lt_min)
+            candidate_max = max(end_min, lt_end_min)
+            min_start = candidate_min if min_start is None else min(min_start, candidate_min)
+            max_end = candidate_max if max_end is None else max(max_end, candidate_max)
+
+        if min_start is None or max_end is None:
+            context.update(
+                {
+                    'collaboration': collaboration,
+                    'slots': [],
+                    'rows': [],
+                    'overlap_warnings': [],
+                    'warnings': warnings,
+                }
+            )
+            return context
+
         min_start = (min_start // slot_minutes) * slot_minutes
         max_end = ((max_end + slot_minutes - 1) // slot_minutes) * slot_minutes
+        max_end = min(max_end, day_minutes)
 
         slots: list[Slot] = []
         current = min_start
@@ -578,23 +617,14 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
         rows = []
         overlap_warnings = []
-        warnings = []
 
         lt_slot_counts: dict[tuple, int] = {}
         lt_slot_names: dict[tuple, list[str]] = {}
         lt_index_by_event_id: dict[int, int] = {}
-        lt_time_by_event_id: dict[int, time] = {}
 
         for p in participations:
             event = p.event
-            lt_time = None
-            lt_details = list(event.details.all())
-            if lt_details:
-                lt_time = lt_details[0].start_time
-            else:
-                lt_time = event.start_time
-
-            lt_time_by_event_id[event.id] = lt_time
+            lt_time = lt_time_by_event_id[event.id]
 
             idx = slot_index_for(lt_time)
             if idx is None:
@@ -608,7 +638,10 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             lt_slot_counts[key] = lt_slot_counts.get(key, 0) + 1
             lt_slot_names.setdefault(key, []).append(p.community.name)
 
-            if not (event.start_time <= lt_time < event.end_time):
+            event_start_dt = datetime.combine(base, event.start_time)
+            event_end_dt = event_start_dt + timedelta(minutes=event.duration)
+            lt_dt = datetime.combine(base, lt_time)
+            if not (event_start_dt <= lt_dt < event_end_dt):
                 warnings.append(
                     f'{event.date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が開催時間（{event.start_time.strftime("%H:%M")}〜{event.end_time.strftime("%H:%M")}）の範囲外です'
                 )
