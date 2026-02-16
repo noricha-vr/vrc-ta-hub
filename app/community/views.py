@@ -1,5 +1,6 @@
 # app/community/views.py
 import logging
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -21,6 +22,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 import requests
 
 from event.models import Event, EventDetail
+from event.community_cleanup import cleanup_community_future_data
 from url_filters import get_filtered_url
 from django.views.generic import TemplateView
 from user_account.models import CustomUser
@@ -413,6 +415,10 @@ class CloseCommunityView(LoginRequiredMixin, UserPassesTestMixin, View):
         community = get_object_or_404(Community, pk=self.kwargs['pk'])
         return self.request.user.is_superuser or community.is_owner(self.request.user)
 
+    def get(self, request, pk):
+        messages.warning(request, 'この操作はPOSTリクエストでのみ実行できます。')
+        return redirect('community:detail', pk=pk)
+
     def post(self, request, pk):
         community = get_object_or_404(Community, pk=pk)
 
@@ -425,39 +431,85 @@ class CloseCommunityView(LoginRequiredMixin, UserPassesTestMixin, View):
         today = timezone.now().date()
         community.end_at = today
         community.save()
+
+        # 当日開催分は残し、翌日以降の予定を停止対象にする
+        cleanup_from_date = today + timedelta(days=1)
+        try:
+            stats = cleanup_community_future_data(
+                community=community,
+                from_date=cleanup_from_date,
+                delete_rules=True,
+                delete_google_events=True,
+                google_window_days=365,
+                google_years=1,
+            )
+
+            logger.info(
+                f'集会「{community.name}」を閉鎖しました。'
+                f'削除イベント数={stats["db_events"]}、'
+                f'削除定期ルール数={stats["rules"]}、'
+                f'削除Googleイベント数={stats["google_events"]}'
+            )
+            messages.success(
+                request,
+                f'{community.name}を閉鎖しました。'
+                f'{stats["db_events"]}件のイベント、{stats["rules"]}件の定期ルール、'
+                f'{stats["google_events"]}件のGoogleイベントを削除しました。'
+            )
+        except Exception as e:
+            logger.exception(f'集会「{community.name}」の閉鎖後クリーンアップでエラー: {e}')
+            messages.warning(
+                request,
+                f'{community.name}は閉鎖しましたが、関連データ削除中にエラーが発生しました。'
+                '管理者に連絡してください。'
+            )
         
-        # 閉鎖日以降のイベントを削除
-        deleted_count = Event.objects.filter(
-            community=community,
-            date__gt=today
-        ).delete()[0]
-        
-        # 定期ルールを削除
-        from event.models import RecurrenceRule
-        deleted_rules = RecurrenceRule.objects.filter(community=community).delete()[0]
-        
-        logger.info(f'集会「{community.name}」を閉鎖しました。削除されたイベント数: {deleted_count}、削除された定期ルール数: {deleted_rules}')
-        messages.success(request, f'{community.name}を閉鎖しました。{deleted_count}件のイベントと{deleted_rules}件の定期ルールが削除されました。')
-        
-        # バックグラウンドでGoogleカレンダーを同期
-        import threading
-        from event.sync_to_google import DatabaseToGoogleSync
-        
-        def sync_calendar_in_background():
-            try:
-                logger.info(f'集会「{community.name}」の閉鎖に伴い、Googleカレンダーの同期を開始します。')
-                sync = DatabaseToGoogleSync()
-                stats = sync.sync_all_communities(months_ahead=3)
-                logger.info(f'Googleカレンダーの同期が完了しました。削除: {stats["deleted"]}件')
-            except Exception as e:
-                logger.error(f'Googleカレンダーの同期中にエラーが発生しました: {str(e)}')
-        
-        thread = threading.Thread(target=sync_calendar_in_background)
-        thread.daemon = True
-        thread.start()
-        
-        messages.info(request, 'Googleカレンダーの同期をバックグラウンドで実行しています。')
-        
+        return redirect('community:detail', pk=pk)
+
+
+class AdminCommunityCleanupView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """管理者用: 集会停止と関連データ削除をワンクリックで実行する。"""
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def get(self, request, pk):
+        messages.warning(request, 'この操作はPOSTリクエストでのみ実行できます。')
+        return redirect('community:detail', pk=pk)
+
+    def post(self, request, pk):
+        community = get_object_or_404(Community, pk=pk)
+        today = timezone.now().date()
+
+        # 閉鎖されていない場合は閉鎖状態にする
+        if community.end_at is None:
+            community.end_at = today
+            community.save(update_fields=['end_at'])
+
+        # 当日開催分は残し、翌日以降を停止対象にする
+        cleanup_from_date = today + timedelta(days=1)
+        try:
+            stats = cleanup_community_future_data(
+                community=community,
+                from_date=cleanup_from_date,
+                delete_rules=True,
+                delete_google_events=True,
+                google_window_days=365,
+                google_years=1,
+            )
+
+            messages.success(
+                request,
+                f'管理者クリーンアップ完了: {community.name} / '
+                f'イベント{stats["db_events"]}件・定期ルール{stats["rules"]}件・'
+                f'Googleイベント{stats["google_events"]}件を削除しました。'
+            )
+        except Exception as e:
+            logger.exception(f'管理者クリーンアップでエラー: community={community.name}, error={e}')
+            messages.error(
+                request,
+                '管理者クリーンアップでエラーが発生しました。ログを確認してください。'
+            )
         return redirect('community:detail', pk=pk)
 
 

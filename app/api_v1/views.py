@@ -91,7 +91,8 @@ class EventFilter(filters.FilterSet):
 class EventViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Event.objects.filter(
         date__gte=timezone.now().date(),
-        community__status='approved'
+        community__status='approved',
+        community__end_at__isnull=True,
     ).select_related('community').order_by('date', 'start_time')
     serializer_class = EventSerializer
     filterset_class = EventFilter
@@ -127,6 +128,7 @@ class EventDetailFilter(filters.FilterSet):
 class EventDetailViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = EventDetail.objects.filter(
         event__community__status='approved',
+        event__community__end_at__isnull=True,
         status='approved'
     ).select_related('event', 'event__community').order_by('event__date', 'start_time')
     serializer_class = EventDetailSerializer

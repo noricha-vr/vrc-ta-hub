@@ -26,6 +26,7 @@ from .views import (
     UpdateWebhookView,
     TestWebhookView,
     UpdateLTSettingsView,
+    AdminCommunityCleanupView,
 )
 
 app_name = 'community'
@@ -43,6 +44,7 @@ urlpatterns = [
     path('reject/<int:pk>/', RejectView.as_view(), name='reject'),
     path('close/<int:pk>/', CloseCommunityView.as_view(), name='close'),
     path('reopen/<int:pk>/', ReopenCommunityView.as_view(), name='reopen'),
+    path('<int:pk>/admin-cleanup/', AdminCommunityCleanupView.as_view(), name='admin_cleanup'),
     path('<int:pk>/members/', CommunityMemberManageView.as_view(), name='member_manage'),
     path('<int:pk>/members/<int:member_id>/remove/', RemoveStaffView.as_view(), name='remove_staff'),
     path('<int:pk>/invite/create/', CreateInvitationView.as_view(), name='create_invitation'),

@@ -179,7 +179,11 @@ class EventListView(ListView):
         queryset = super().get_queryset()
         # VRChatterの生活リズムに合わせて朝4時を日付の境界とする
         today = get_vrchat_today()
-        queryset = queryset.filter(date__gte=today).select_related('community').prefetch_related(
+        queryset = queryset.filter(
+            date__gte=today,
+            community__status='approved',
+            community__end_at__isnull=True,
+        ).select_related('community').prefetch_related(
             Prefetch('details', queryset=EventDetail.objects.filter(status='approved'))
         ).order_by('date', 'start_time')
 
@@ -1080,6 +1084,65 @@ class EventDetailPastList(ListView):
     model = EventDetail
     context_object_name = 'event_details'
     paginate_by = 20
+    RATE_LIMIT_WINDOW_SECONDS = 10 * 60
+    RATE_LIMIT_MAX_REQUESTS = 20
+    ALLOWED_FILTER_KEYS = ('community_name', 'speaker', 'theme')
+
+    def _get_client_ip(self):
+        """Cloud Run配下を考慮してクライアントIPを取得する。"""
+        forwarded_for = self.request.META.get('HTTP_X_FORWARDED_FOR', '')
+        if forwarded_for:
+            return forwarded_for.split(',')[0].strip()
+        return self.request.META.get('REMOTE_ADDR', 'unknown')
+
+    def _get_rate_limit_cache_key(self, client_ip):
+        bucket = int(timezone.now().timestamp()) // self.RATE_LIMIT_WINDOW_SECONDS
+        return f"event_detail_history:ip:{client_ip}:bucket:{bucket}"
+
+    def _is_rate_limited(self):
+        client_ip = self._get_client_ip()
+        cache_key = self._get_rate_limit_cache_key(client_ip)
+        request_count = cache.get(cache_key, 0)
+
+        if request_count >= self.RATE_LIMIT_MAX_REQUESTS:
+            return True
+
+        if request_count == 0:
+            cache.set(cache_key, 1, timeout=self.RATE_LIMIT_WINDOW_SECONDS)
+        else:
+            try:
+                cache.incr(cache_key)
+            except ValueError:
+                # race condition等でキーが消えていた場合は初期化し直す
+                cache.set(cache_key, 1, timeout=self.RATE_LIMIT_WINDOW_SECONDS)
+
+        return False
+
+    def _get_sanitized_filter_params(self):
+        """検索に必要なキーのみ残し、単一値へ正規化したQueryDictを返す。"""
+        params = self.request.GET.copy()
+
+        for key in list(params.keys()):
+            if key not in self.ALLOWED_FILTER_KEYS:
+                del params[key]
+
+        for key in self.ALLOWED_FILTER_KEYS:
+            value = params.get(key, '').strip()
+            if value:
+                params.setlist(key, [value])
+            elif key in params:
+                del params[key]
+
+        return params
+
+    def dispatch(self, request, *args, **kwargs):
+        if self._is_rate_limited():
+            return HttpResponse(
+                "アクセスが集中しています。しばらくしてから再度お試しください。",
+                status=429,
+                content_type='text/plain; charset=utf-8',
+            )
+        return super().dispatch(request, *args, **kwargs)
 
     def get(self, request, *args, **kwargs):
         # 通常のget処理の前にページ番号をチェック
@@ -1131,12 +1194,18 @@ class EventDetailPastList(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        # 現在のGETパラメータを取得
-        query_params = self.request.GET.copy()
-        if 'page' in query_params:
-            del query_params['page']
-
+        query_params = self._get_sanitized_filter_params()
         context['current_query_params'] = query_params.urlencode()
+
+        speaker_link_base_params = query_params.copy()
+        if 'speaker' in speaker_link_base_params:
+            del speaker_link_base_params['speaker']
+        context['speaker_link_base_query'] = speaker_link_base_params.urlencode()
+
+        community_link_base_params = query_params.copy()
+        if 'community_name' in community_link_base_params:
+            del community_link_base_params['community_name']
+        context['community_link_base_query'] = community_link_base_params.urlencode()
 
         return context
 

@@ -210,15 +210,25 @@ class GoogleCalendarService:
             time_min_str = time_min.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ') if time_min else None
             time_max_str = time_max.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ') if time_max else None
 
-            events_result = self.service.events().list(
-                calendarId=self.calendar_id,
-                maxResults=max_results,
-                timeMin=time_min_str,
-                timeMax=time_max_str,
-                singleEvents=True,
-                orderBy='startTime'
-            ).execute()
-            return events_result.get('items', [])
+            all_items = []
+            page_token = None
+
+            while True:
+                events_result = self.service.events().list(
+                    calendarId=self.calendar_id,
+                    maxResults=max_results,
+                    timeMin=time_min_str,
+                    timeMax=time_max_str,
+                    singleEvents=True,
+                    orderBy='startTime',
+                    pageToken=page_token,
+                ).execute()
+                all_items.extend(events_result.get('items', []))
+                page_token = events_result.get('nextPageToken')
+                if not page_token:
+                    break
+
+            return all_items
         except HttpError as error:
             print(f'An error occurred: {error}')
             raise
