@@ -1,6 +1,7 @@
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
+from unittest.mock import patch
 
 from community.models import Community, CommunityMember
 
@@ -347,10 +348,12 @@ class CloseCommunityViewPermissionTest(TestCase):
         """主催者は集会を閉鎖できる"""
         self.client.login(username='オーナー', password='testpass123')
 
-        response = self.client.post(reverse('community:close', kwargs={'pk': self.community.pk}))
+        with patch('community.views.cleanup_community_future_data', return_value={'db_events': 0, 'rules': 0, 'google_events': 0}) as cleanup_mock:
+            response = self.client.post(reverse('community:close', kwargs={'pk': self.community.pk}))
 
         # リダイレクトを確認
         self.assertEqual(response.status_code, 302)
+        cleanup_mock.assert_called_once()
 
         # 集会が閉鎖されていることを確認
         self.community.refresh_from_db()
@@ -369,11 +372,72 @@ class CloseCommunityViewPermissionTest(TestCase):
         """管理者は集会を閉鎖できる"""
         self.client.login(username='管理者', password='testpass123')
 
-        response = self.client.post(reverse('community:close', kwargs={'pk': self.community.pk}))
+        with patch('community.views.cleanup_community_future_data', return_value={'db_events': 0, 'rules': 0, 'google_events': 0}) as cleanup_mock:
+            response = self.client.post(reverse('community:close', kwargs={'pk': self.community.pk}))
 
         # リダイレクトを確認
         self.assertEqual(response.status_code, 302)
+        cleanup_mock.assert_called_once()
 
         # 集会が閉鎖されていることを確認
         self.community.refresh_from_db()
         self.assertIsNotNone(self.community.end_at)
+
+    def test_get_request_redirects_to_detail_instead_of_405(self):
+        """GETアクセス時は405ではなく詳細へ戻す"""
+        self.client.login(username='管理者', password='testpass123')
+        response = self.client.get(reverse('community:close', kwargs={'pk': self.community.pk}))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('community:detail', kwargs={'pk': self.community.pk}))
+
+
+class AdminCommunityCleanupViewTest(TestCase):
+    """管理者ワンクリック修復のテスト"""
+
+    def setUp(self):
+        self.client = Client()
+
+        self.owner = CustomUser.objects.create_user(
+            email='owner2@example.com',
+            password='testpass123',
+            user_name='オーナー2'
+        )
+        self.admin = CustomUser.objects.create_superuser(
+            email='admin2@example.com',
+            password='testpass123',
+            user_name='管理者2'
+        )
+
+        self.community = Community.objects.create(
+            name='管理者修復テスト集会',
+            status='approved',
+            frequency='毎週'
+        )
+
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner,
+            role=CommunityMember.Role.OWNER
+        )
+
+    def test_superuser_can_run_admin_cleanup(self):
+        self.client.login(username='管理者2', password='testpass123')
+
+        with patch('community.views.cleanup_community_future_data', return_value={'db_events': 3, 'rules': 1, 'google_events': 2}) as cleanup_mock:
+            response = self.client.post(reverse('community:admin_cleanup', kwargs={'pk': self.community.pk}))
+
+        self.assertEqual(response.status_code, 302)
+        cleanup_mock.assert_called_once()
+        self.community.refresh_from_db()
+        self.assertIsNotNone(self.community.end_at)
+
+    def test_non_superuser_cannot_run_admin_cleanup(self):
+        self.client.login(username='オーナー2', password='testpass123')
+        response = self.client.post(reverse('community:admin_cleanup', kwargs={'pk': self.community.pk}))
+        self.assertEqual(response.status_code, 403)
+
+    def test_get_request_redirects_to_detail_instead_of_405(self):
+        self.client.login(username='管理者2', password='testpass123')
+        response = self.client.get(reverse('community:admin_cleanup', kwargs={'pk': self.community.pk}))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('community:detail', kwargs={'pk': self.community.pk}))

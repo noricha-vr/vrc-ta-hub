@@ -82,6 +82,8 @@ class IndexView(TemplateView):
         upcoming_events = Event.objects.filter(
             date__gte=today,
             date__lte=end_date,
+            community__status='approved',
+            community__end_at__isnull=True,
             # ポスター画像があるコミュニティのイベントのみ
             community__poster_image__isnull=False
         ).exclude(
@@ -90,6 +92,8 @@ class IndexView(TemplateView):
 
         upcoming_event_details = EventDetail.objects.filter(
             event__date__gte=today,
+            event__community__status='approved',
+            event__community__end_at__isnull=True,
             detail_type='LT',  # LTのみ
             status='approved',
             # ポスター画像があるコミュニティのイベントのみ
@@ -103,6 +107,8 @@ class IndexView(TemplateView):
             detail_type='SPECIAL',
             status='approved',
             event__date__gte=today,  # 今日以降のイベント
+            event__community__status='approved',
+            event__community__end_at__isnull=True,
             # ポスター画像があるコミュニティのイベントのみ
             event__community__poster_image__isnull=False
         ).exclude(
