@@ -17,7 +17,7 @@
         {% for detail in event_details %}
             <tr>
                 <td>
-                    <a href="{{ request.path }}?{{ request.GET.urlencode }}&community_name={{ detail.event.community.name }}">
+                    <a href="{{ request.path }}?{% if community_link_base_query %}{{ community_link_base_query }}&{% endif %}community_name={{ detail.event.community.name|urlencode }}">
                         {{ detail.event.community.name }}
                     </a>
                 </td>
@@ -41,7 +41,7 @@
                     </td>
                 {% endif %}
                 <td>
-                    <a href="{{ request.path }}?{{ request.GET.urlencode }}&speaker={{ detail.speaker }}">
+                    <a href="{{ request.path }}?{% if speaker_link_base_query %}{{ speaker_link_base_query }}&{% endif %}speaker={{ detail.speaker|urlencode }}">
                         {{ detail.speaker }}
                     </a>
                 </td>

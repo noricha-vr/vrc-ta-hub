@@ -6,6 +6,7 @@
 
 - [x] `docs/notes/index.md` のリンク整備（存在しない `how/deployment.md` / `how/django.md` / `logs/2026-01.md` の扱いを決める）
 - [x] `docker-compose.test.yml` の `version:` が obsolete のため削除する（警告抑止）
+- [ ] `event/detail/{id}` ページでコンソールエラー `Cannot read properties of null` が発生しているため修正する（`https://vrc-ta-hub.com/event/detail/522/` と `https://vrc-ta-hub.com/event/detail/523/` で再現）
 
 ## Vket コラボ
 

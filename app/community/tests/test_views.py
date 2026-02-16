@@ -360,3 +360,42 @@ class CommunityUpdateViewPromotionBannerTest(TestCase):
         # JavaScriptのlocalStorage処理が含まれていることを確認
         self.assertContains(response, 'localStorage.setItem')
         self.assertContains(response, 'hidePromotionBanner')
+
+
+class CommunityDetailAdminCleanupButtonTest(TestCase):
+    """コミュニティ詳細の管理者ワンクリック修復ボタン表示テスト"""
+
+    def setUp(self):
+        self.client = Client()
+
+        self.admin = CustomUser.objects.create_superuser(
+            email='admin-cleanup@example.com',
+            password='testpass123',
+            user_name='管理者メンテ'
+        )
+        self.normal_user = CustomUser.objects.create_user(
+            email='normal@example.com',
+            password='testpass123',
+            user_name='一般ユーザー'
+        )
+        self.community = Community.objects.create(
+            name='ボタン表示テスト集会',
+            status='approved',
+            frequency='毎週',
+            organizers='テスト主催'
+        )
+
+    def test_superuser_sees_admin_cleanup_button(self):
+        self.client.login(username='管理者メンテ', password='testpass123')
+        response = self.client.get(reverse('community:detail', kwargs={'pk': self.community.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '管理者メンテナンス（ワンクリック）')
+        self.assertContains(response, 'adminCleanupModal')
+        self.assertContains(response, '管理者ワンクリック修復を実行')
+
+    def test_non_superuser_cannot_see_admin_cleanup_button(self):
+        self.client.login(username='一般ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:detail', kwargs={'pk': self.community.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '管理者メンテナンス（ワンクリック）')
+        self.assertNotContains(response, 'adminCleanupModal')
