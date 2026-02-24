@@ -28,7 +28,7 @@ DEBUG = os.environ.get('DEBUG') == 'True'
 ALLOWED_HOSTS = ['vrc-ta-hub.com', 'localhost', '127.0.0.1', os.environ.get('HTTP_HOST')]
 
 # Cloud Run + nginx プロキシ経由の HTTPS 判定（本番: nginx が https を付加）
-# ローカルでは .env.local で HTTP_X_FORWARDED_PROTO=http を設定して is_secure()=False を保証する
+# ローカルでは .env.local で HTTP_X_FORWARDED_PROTO=http を設定して is_secure()=False を保証する。参照: PR #87
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 CSRF_TRUSTED_ORIGINS = [
