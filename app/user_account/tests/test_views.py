@@ -33,6 +33,11 @@ class CustomLoginViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'account/login.html')
 
+    def test_login_page_sets_csrf_cookie(self):
+        """GETリクエスト時にCSRFクッキーが発行されること（ensure_csrf_cookie確認）."""
+        response = self.client.get(self.login_url)
+        self.assertIn('csrftoken', response.cookies)
+
     def test_login_page_contains_discord_button(self):
         """ログインページにDiscordログインボタンが含まれていること."""
         response = self.client.get(self.login_url)
