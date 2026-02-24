@@ -4,6 +4,8 @@ import requests
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth.views import PasswordChangeView
 from django.core.mail import send_mail
 from django.http import JsonResponse
@@ -26,6 +28,7 @@ from .forms import BootstrapAuthenticationForm, BootstrapPasswordChangeForm
 from .models import APIKey
 
 
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class CustomLoginView(LoginView):
     template_name = 'account/login.html'
     # success_url = reverse_lazy('account:settings')  # ログイン成功後のリダイレクト先
