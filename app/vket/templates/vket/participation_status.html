@@ -1,0 +1,159 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}
+    <title>{{ collaboration.name }} 参加状況 - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+{% block main %}
+    <div class="container my-4" style="max-width: 860px;">
+        {% include 'ta_hub/messages.html' %}
+
+        <div class="mb-4">
+            <h1 class="fw-bold mb-1">{{ collaboration.name }} 参加状況</h1>
+            {% if community %}
+                <div class="text-muted">集会: <strong>{{ community.name }}</strong></div>
+            {% endif %}
+        </div>
+
+        {% if not participation %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                まだ参加登録がありません。
+                <a href="{% url 'vket:apply' collaboration.pk %}" class="alert-link">参加登録する</a>
+            </div>
+        {% else %}
+            {# 進捗ステップ #}
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h2 class="h5 fw-bold mb-3">
+                        <i class="fas fa-tasks me-2"></i>進捗ステップ
+                    </h2>
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        {% for step in progress_steps %}
+                            {% if participation.progress == step.value %}
+                                <span class="badge bg-primary px-3 py-2">
+                                    <i class="fas fa-circle-dot me-1"></i>{{ step.label }}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-light text-muted border px-2 py-1">{{ step.label }}</span>
+                            {% endif %}
+                            {% if not forloop.last %}
+                                <i class="fas fa-chevron-right text-muted small"></i>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            {# 日程情報 #}
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h2 class="h5 fw-bold mb-3">
+                        <i class="fas fa-calendar me-2"></i>日程情報
+                    </h2>
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6">
+                            <div class="p-3 bg-light rounded">
+                                <div class="text-muted small mb-1">
+                                    <i class="fas fa-hand-paper me-1"></i>希望日程（入力値）
+                                </div>
+                                {% if participation.requested_date %}
+                                    <div class="fw-bold">{{ participation.requested_date|date:"Y年n月j日（D）" }}</div>
+                                    <div>
+                                        {{ participation.requested_start_time|date:"H:i" }}
+                                        {% if participation.requested_duration %}（{{ participation.requested_duration }}分）{% endif %}
+                                    </div>
+                                {% else %}
+                                    <div class="text-muted">未入力</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="p-3 {% if participation.confirmed_date %}bg-success bg-opacity-10 border border-success border-opacity-25{% else %}bg-light{% endif %} rounded">
+                                <div class="small mb-1">
+                                    <i class="fas fa-check-circle me-1 {% if participation.confirmed_date %}text-success{% else %}text-muted{% endif %}"></i>
+                                    <span class="{% if participation.confirmed_date %}text-success fw-bold{% else %}text-muted{% endif %}">確定日程（運営）</span>
+                                </div>
+                                {% if participation.confirmed_date %}
+                                    <div class="fw-bold text-success">{{ participation.confirmed_date|date:"Y年n月j日（D）" }}</div>
+                                    <div>
+                                        {{ participation.confirmed_start_time|date:"H:i" }}
+                                        {% if participation.confirmed_duration %}（{{ participation.confirmed_duration }}分）{% endif %}
+                                    </div>
+                                {% else %}
+                                    <div class="text-muted">調整中（運営からの通知をお待ちください）</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {# LT情報 #}
+            {% with presentations=participation.presentations.all %}
+                {% if presentations %}
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-body">
+                            <h2 class="h5 fw-bold mb-3">
+                                <i class="fas fa-microphone me-2"></i>LT情報
+                            </h2>
+                            {% for pres in presentations %}
+                                <div class="p-2 bg-light rounded mb-2">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <div><span class="text-muted small">登壇者:</span> {{ pres.speaker|default:"（未入力）" }}</div>
+                                            <div><span class="text-muted small">テーマ:</span> {{ pres.theme|default:"（未入力）" }}</div>
+                                        </div>
+                                        <span class="badge
+                                            {% if pres.status == 'confirmed' %}bg-success
+                                            {% elif pres.status == 'submitted' %}bg-primary
+                                            {% else %}bg-secondary{% endif %} ms-2">
+                                            {{ pres.get_status_display }}
+                                        </span>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {# 最新お知らせ #}
+            {% if latest_notices %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h5 fw-bold mb-0">
+                                <i class="fas fa-bell me-2"></i>最新お知らせ
+                            </h2>
+                            <a href="{% url 'vket:notice_list' collaboration.pk %}" class="btn btn-sm btn-outline-secondary">
+                                すべて見る
+                            </a>
+                        </div>
+                        {% for receipt in latest_notices %}
+                            <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
+                                <div>
+                                    <div class="fw-bold">{{ receipt.notice.title }}</div>
+                                    <div class="text-muted small">{{ receipt.created_at|date:"Y/m/d H:i" }}</div>
+                                </div>
+                                {% if receipt.acknowledged_at %}
+                                    <span class="badge bg-success ms-2">確認済み</span>
+                                {% elif receipt.notice.requires_ack %}
+                                    <span class="badge bg-warning text-dark ms-2">要確認</span>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+
+            {# アクションボタン #}
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{% url 'vket:apply' collaboration.pk %}" class="btn btn-outline-primary">
+                    <i class="fas fa-edit me-1"></i>参加情報を編集
+                </a>
+                <a href="{% url 'vket:notice_list' collaboration.pk %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-bell me-1"></i>お知らせ一覧
+                </a>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

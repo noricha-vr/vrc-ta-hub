@@ -1,0 +1,47 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}
+    <title>お知らせ確認 - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+{% block main %}
+    <div class="container my-4" style="max-width: 600px;">
+        <div class="text-center py-5">
+            {% if already_acked %}
+                <div class="display-1 text-success mb-3">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h1 class="h3 fw-bold mb-2">確認済みです</h1>
+                <p class="text-muted">このお知らせはすでに確認済みです。</p>
+            {% else %}
+                <div class="display-1 text-warning mb-3">
+                    <i class="fas fa-bell"></i>
+                </div>
+                <h1 class="h3 fw-bold mb-2">お知らせを確認しましたか？</h1>
+                <p class="text-muted">内容を確認した上で、下のボタンを押してください。</p>
+            {% endif %}
+
+            <div class="card shadow-sm mt-4 text-start">
+                <div class="card-body">
+                    <h2 class="h5 fw-bold mb-2">{{ notice.title }}</h2>
+                    <div class="text-muted small mb-3">
+                        <i class="fas fa-calendar me-1"></i>
+                        {{ notice.created_at|date:"Y年n月j日 H:i" }}
+                    </div>
+                    <div class="border-top pt-3" style="white-space: pre-wrap;">{{ notice.body }}</div>
+                </div>
+            </div>
+
+            {% if receipt.acknowledged_at %}
+                <div class="mt-3 text-muted small">
+                    確認日時: {{ receipt.acknowledged_at|date:"Y/m/d H:i" }}
+                </div>
+            {% else %}
+                <form method="post" class="mt-4">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success btn-lg px-5">
+                        <i class="fas fa-check me-2"></i>確認しました
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

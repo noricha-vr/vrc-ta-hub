@@ -1,0 +1,153 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}
+    <title>{{ collaboration.name }} お知らせ管理 - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+{% block main %}
+    <div class="container my-4">
+        {% include 'ta_hub/messages.html' %}
+
+        <div class="mb-4">
+            <h1 class="fw-bold mb-1">{{ collaboration.name }} お知らせ管理</h1>
+        </div>
+
+        {% include 'vket/includes/manage_tabs.html' with active_tab='notices' %}
+
+        <div class="d-flex justify-content-end mb-3">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#noticeCreateModal">
+                <i class="fas fa-plus me-1"></i>お知らせ作成
+            </button>
+        </div>
+
+        {% if not notice_stats %}
+            <div class="alert alert-secondary">
+                <i class="fas fa-info-circle me-2"></i>
+                お知らせはまだありません。
+            </div>
+        {% else %}
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle">
+                    <thead>
+                    <tr class="table-light">
+                        <th style="min-width: 200px;">タイトル</th>
+                        <th style="min-width: 100px;">対象</th>
+                        <th style="min-width: 80px;">要確認</th>
+                        <th style="min-width: 120px;">配送状況</th>
+                        <th style="min-width: 100px;">ACK状況</th>
+                        <th style="min-width: 130px;">送信日時</th>
+                        <th style="min-width: 180px;">操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for stat in notice_stats %}
+                        <tr>
+                            <td>
+                                <div class="fw-bold">{{ stat.notice.title }}</div>
+                                <div class="text-muted small">{{ stat.notice.body|truncatechars:60 }}</div>
+                            </td>
+                            <td class="small">{{ stat.notice.get_target_scope_display }}</td>
+                            <td class="text-center">
+                                {% if stat.notice.requires_ack %}
+                                    <i class="fas fa-check-circle text-success"></i>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="small">
+                                {% if stat.total > 0 %}
+                                    <span class="text-success">{{ stat.sent }}</span>/{{ stat.total }}送信
+                                    {% if stat.failed > 0 %}
+                                        <span class="text-danger">（{{ stat.failed }}失敗）</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">未送信</span>
+                                {% endif %}
+                            </td>
+                            <td class="small">
+                                {% if stat.notice.requires_ack and stat.total > 0 %}
+                                    <span class="text-success">{{ stat.acked }}</span>/{{ stat.total }}確認
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="small">
+                                {% if stat.notice.sent_at %}
+                                    {{ stat.notice.sent_at|date:"Y/m/d H:i" }}
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form method="post"
+                                      action="{% url 'vket:manage_notice_send' collaboration.id stat.notice.id %}"
+                                      class="d-inline">
+                                    {% csrf_token %}
+                                    <button class="btn btn-sm btn-outline-primary me-1" type="submit"
+                                            onclick="return confirm('この通知を送信しますか？')">
+                                        <i class="fab fa-discord me-1"></i>
+                                        {% if stat.notice.sent_at %}再送信{% else %}送信{% endif %}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+
+    {# お知らせ作成モーダル #}
+    <div class="modal fade" id="noticeCreateModal" tabindex="-1" aria-labelledby="noticeCreateModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="noticeCreateModalLabel">
+                        <i class="fas fa-bell me-2"></i>お知らせ作成
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">
+                        作成後、「送信」ボタンを押すとDiscord webhookで各集会に通知されます。
+                    </p>
+                    <form method="post" action="{% url 'vket:manage_notice_create' collaboration.id %}" id="noticeCreateForm">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">タイトル <span class="text-danger">*</span></label>
+                            <input type="text" name="title" class="form-control" required maxlength="200"
+                                   placeholder="例: 【重要】LT情報の締切について">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">本文 <span class="text-danger">*</span></label>
+                            <textarea name="body" class="form-control" rows="6" required
+                                      placeholder="お知らせの内容を入力してください。"></textarea>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-bold">配信対象</label>
+                                <select name="target_scope" class="form-select">
+                                    <option value="all">全参加者</option>
+                                    <option value="unacked">未確認者のみ</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="requires_ack" id="requiresAck" value="1">
+                                    <label class="form-check-label fw-bold" for="requiresAck">
+                                        確認必須（ACKリンクを含める）
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer px-0 pb-0">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>作成する
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

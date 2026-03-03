@@ -1,6 +1,7 @@
 import secrets
 from datetime import timedelta
 
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
@@ -64,7 +65,40 @@ class Community(models.Model):
         '集会を紹介するためのポスター転載を許可する',
         default=False,
     )
-    notification_webhook_url = models.URLField('Discord Webhook URL', blank=True, default='')
+    notification_webhook_url = models.URLField(
+        'Discord Webhook URL',
+        blank=True,
+        default='',
+        validators=[
+            RegexValidator(
+                regex=r'^https://discord\.com/api/webhooks/',
+                message='Discord Webhook URL は https://discord.com/api/webhooks/ で始まる必要があります。',
+            )
+        ],
+    )
+
+    class DiscordMentionType(models.TextChoices):
+        NONE = "none", "メンションなし"
+        ROLE = "role", "ロールメンション"
+        USERS = "users", "ユーザーメンション"
+
+    discord_mention_type = models.CharField(
+        'Discordメンション種別',
+        max_length=10,
+        choices=DiscordMentionType.choices,
+        default=DiscordMentionType.NONE,
+    )
+    discord_mention_role_id = models.CharField(
+        'DiscordロールID',
+        max_length=50,
+        blank=True,
+    )
+    discord_mention_user_ids = models.JSONField(
+        'DiscordユーザーIDリスト',
+        default=list,
+        blank=True,
+        help_text='例: ["123456789012345678", "987654321098765432"]',
+    )
     accepts_lt_application = models.BooleanField(
         '発表（LT）申し込み受付',
         default=True,
