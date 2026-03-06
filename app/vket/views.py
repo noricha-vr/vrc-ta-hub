@@ -961,7 +961,7 @@ class ManageNoticeCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
         if target_scope not in dict(VketNotice.TargetScope.choices):
             target_scope = VketNotice.TargetScope.ALL_PARTICIPANTS
 
-        VketNotice.objects.create(
+        notice = VketNotice.objects.create(
             collaboration=collaboration,
             title=title,
             body=body,
@@ -969,6 +969,21 @@ class ManageNoticeCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
             requires_ack=requires_ack,
             created_by=request.user,
         )
+
+        # 対象参加者にReceiptを自動生成
+        participations = VketParticipation.objects.filter(
+            collaboration=collaboration,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+        if target_scope == VketNotice.TargetScope.UNACKED:
+            participations = participations.filter(last_acknowledged_at__isnull=True)
+
+        receipts = [
+            VketNoticeReceipt(notice=notice, participation=p)
+            for p in participations
+        ]
+        VketNoticeReceipt.objects.bulk_create(receipts)
+
         messages.success(request, 'お知らせを作成しました。')
         return redirect('vket:manage_notice_list', pk=pk)
 

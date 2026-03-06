@@ -526,6 +526,24 @@ class VketNoticeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.notice.title)
 
+    def test_notice_create_auto_generates_receipts(self):
+        """お知らせ作成時にactive参加者分のReceiptが自動生成される"""
+        self.client.login(username='admin_user2', password='adminpass123')
+        response = self.client.post(
+            reverse('vket:manage_notice_create', kwargs={'pk': self.collaboration.pk}),
+            data={
+                'title': '自動生成テスト',
+                'body': 'テスト本文',
+                'target_scope': 'all',
+                'requires_ack': 'on',
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        notice = VketNotice.objects.get(title='自動生成テスト')
+        receipts = VketNoticeReceipt.objects.filter(notice=notice)
+        self.assertEqual(receipts.count(), 1)
+        self.assertEqual(receipts.first().participation, self.participation)
+
 
 class VketPublishViewTests(TestCase):
     """ManagePublishViewのテスト"""
