@@ -545,6 +545,128 @@ class VketNoticeTests(TestCase):
         self.assertEqual(receipts.first().participation, self.participation)
 
 
+class VketParticipationStatusTests(TestCase):
+    """ParticipationStatusView のテスト（未確認お知らせバナー等）"""
+
+    def setUp(self):
+        self.client = Client()
+        self.owner = User.objects.create_user(
+            user_name='status_owner',
+            email='status_owner@example.com',
+            password='testpass123',
+        )
+        self.community = Community.objects.create(
+            name='ステータステスト集会',
+            status='approved',
+            frequency='毎週',
+        )
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner,
+            role=CommunityMember.Role.OWNER,
+        )
+
+        today = timezone.localdate()
+        self.collaboration = VketCollaboration.objects.create(
+            slug='vket-2026-status-test',
+            name='ステータステスト',
+            period_start=today,
+            period_end=today + timedelta(days=7),
+            registration_deadline=today + timedelta(days=1),
+            lt_deadline=today + timedelta(days=3),
+            phase=VketCollaboration.Phase.SCHEDULING,
+        )
+        self.participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+
+    def _set_active_community(self):
+        session = self.client.session
+        session['active_community_id'] = self.community.id
+        session.save()
+
+    def test_status_page_shows_unacked_count(self):
+        """未確認のrequires_ackお知らせがあるとバナーに件数が表示される"""
+        superuser = User.objects.create_superuser(
+            user_name='su_status', email='su_status@example.com', password='p',
+        )
+        notice = VketNotice.objects.create(
+            collaboration=self.collaboration,
+            title='要確認',
+            body='本文',
+            requires_ack=True,
+            target_scope=VketNotice.TargetScope.ALL_PARTICIPANTS,
+            created_by=superuser,
+        )
+        VketNoticeReceipt.objects.create(
+            notice=notice, participation=self.participation,
+        )
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.get(
+            reverse('vket:status', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['unacked_count'], 1)
+        self.assertContains(response, '未確認のお知らせ')
+
+    def test_status_page_unacked_count_zero_when_all_acked(self):
+        """全レシートがACK済みならバナーは表示されない"""
+        superuser = User.objects.create_superuser(
+            user_name='su_status2', email='su_status2@example.com', password='p',
+        )
+        notice = VketNotice.objects.create(
+            collaboration=self.collaboration,
+            title='確認済み',
+            body='本文',
+            requires_ack=True,
+            target_scope=VketNotice.TargetScope.ALL_PARTICIPANTS,
+            created_by=superuser,
+        )
+        VketNoticeReceipt.objects.create(
+            notice=notice,
+            participation=self.participation,
+            acknowledged_at=timezone.now(),
+        )
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.get(
+            reverse('vket:status', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['unacked_count'], 0)
+        self.assertNotContains(response, '未確認のお知らせ')
+
+    def test_status_page_without_participation(self):
+        """participation がない場合 unacked_count=0"""
+        other_user = User.objects.create_user(
+            user_name='no_part_user', email='nopart@example.com', password='testpass123',
+        )
+        other_community = Community.objects.create(
+            name='別の集会', status='approved', frequency='毎週',
+        )
+        CommunityMember.objects.create(
+            community=other_community,
+            user=other_user,
+            role=CommunityMember.Role.OWNER,
+        )
+
+        self.client.login(username='no_part_user', password='testpass123')
+        session = self.client.session
+        session['active_community_id'] = other_community.id
+        session.save()
+        response = self.client.get(
+            reverse('vket:status', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['unacked_count'], 0)
+        self.assertNotContains(response, '未確認のお知らせ')
+
+
 class VketPublishViewTests(TestCase):
     """ManagePublishViewのテスト"""
 
