@@ -1,7 +1,9 @@
 """Discord OAuth用のカスタムアダプター."""
 import logging
 
+from allauth.account.models import EmailAddress
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
+from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
@@ -32,12 +34,13 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         """
         # Discordから取得したデータを確認
         email = sociallogin.account.extra_data.get('email', '')
+        is_verified = sociallogin.account.extra_data.get('verified') is True
 
-        if email:
-            logger.info("Email found, allowing auto signup")
+        if email and is_verified:
+            logger.info("Verified email found, allowing auto signup")
             return True
         else:
-            logger.info("No email found, redirecting to signup form")
+            logger.info("Missing or unverified email, redirecting to signup form")
             return False
 
     def pre_social_login(self, request, sociallogin):
@@ -60,7 +63,60 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
             return
 
         discord_id = sociallogin.account.uid
-        logger.info(f"Discord login attempt: discord_id={discord_id}")
+        discord_id_suffix = discord_id[-4:] if len(discord_id) > 4 else discord_id
+        email = sociallogin.account.extra_data.get('email', '')
+        is_verified = sociallogin.account.extra_data.get('verified') is True
+        logger.info("Discord login attempt: discord_id_suffix=%s", discord_id_suffix)
+
+        if not email or not is_verified:
+            if email and not is_verified:
+                logger.warning(
+                    "Skipping auto connect for unverified Discord email: discord_id_suffix=%s",
+                    discord_id_suffix,
+                )
+            return
+
+        existing_user = User.objects.filter(email__iexact=email).first()
+        if not existing_user:
+            return
+
+        if not EmailAddress.objects.filter(
+            user=existing_user,
+            email__iexact=email,
+            verified=True,
+        ).exists():
+            logger.warning(
+                "Skipping auto connect because existing user email is not verified: user_id=%s",
+                existing_user.id,
+            )
+            return
+
+        if SocialAccount.objects.filter(
+            user=existing_user,
+            provider=sociallogin.account.provider,
+        ).exclude(uid=discord_id).exists():
+            logger.warning(
+                "Skipping auto connect because user already has another Discord account: user_id=%s",
+                existing_user.id,
+            )
+            return
+
+        if SocialAccount.objects.filter(
+            provider=sociallogin.account.provider,
+            uid=discord_id,
+        ).exclude(user=existing_user).exists():
+            logger.warning(
+                "Discord account conflict detected for existing user: user_id=%s",
+                existing_user.id,
+            )
+            return
+
+        logger.info(
+            "Connecting Discord account to existing user: user_id=%s, discord_id_suffix=%s",
+            existing_user.id,
+            discord_id_suffix,
+        )
+        sociallogin.connect(request, existing_user)
 
     def populate_user(self, request, sociallogin, data):
         """新規ユーザー作成時のフィールド設定.
