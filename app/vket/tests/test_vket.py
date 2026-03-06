@@ -317,6 +317,28 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['overlap_warnings'])
 
+    def test_manage_schedule_shows_confirmed_without_published_event(self):
+        """confirmed_dateがあればpublished_eventなしでも日程表に表示される"""
+        community3 = Community.objects.create(name='集会C', status='approved', frequency='毎週')
+        today = timezone.localdate()
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=community3,
+            confirmed_date=today,
+            confirmed_start_time='22:00',
+            confirmed_duration=60,
+        )
+
+        self.client.login(username='admin_user', password='adminpass123')
+        response = self.client.get(
+            reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+
+        rows = response.context['rows']
+        communities = [r['participation'].community.name for r in rows]
+        self.assertIn('集会C', communities)
+
     def test_manage_schedule_page_marks_lt_slot(self):
         """LT詳細があるスロットにlt_timesが設定される"""
         EventDetail.objects.create(

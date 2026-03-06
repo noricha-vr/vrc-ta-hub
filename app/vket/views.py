@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import logging
-import urllib.request
-import urllib.error
-import json
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from itertools import combinations, groupby
@@ -11,13 +8,14 @@ from itertools import combinations, groupby
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db import transaction
-from django.db.models import Case, Count, IntegerField, Prefetch, When
+from django.db.models import Case, IntegerField, Prefetch, When
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.generic import DetailView, ListView, TemplateView
+
+from allauth.socialaccount.models import SocialAccount
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
@@ -108,16 +106,6 @@ def _shift_time(t: time, delta: timedelta) -> time:
     return dt.time()
 
 
-def _build_discord_mention(community: Community) -> str:
-    """コミュニティのDiscordメンション設定からメンション文字列を生成する"""
-    mention_type = community.discord_mention_type
-    if mention_type == Community.DiscordMentionType.ROLE:
-        role_id = community.discord_mention_role_id
-        return f'<@&{role_id}>' if role_id else ''
-    if mention_type == Community.DiscordMentionType.USERS:
-        user_ids = community.discord_mention_user_ids or []
-        return ' '.join(f'<@{uid}>' for uid in user_ids if uid)
-    return ''
 
 
 class CollaborationListView(ListView):
@@ -472,6 +460,9 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         )
         scheduled_count = sum(1 for p in participations if p.confirmed_date)
 
+        # Discordメンションリスト生成（SocialAccountのDiscord UIDから）
+        discord_mentions = self._build_discord_mentions(participations)
+
         context.update(
             {
                 'collaboration': collaboration,
@@ -481,6 +472,7 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                 'participation_count': participations.count(),
                 'scheduled_count': scheduled_count,
                 'lt_registered_count': lt_registered_count,
+                'discord_mentions': discord_mentions,
                 # progressラベルの辞書（テンプレートで参照可能）
                 'progress_choices': dict(VketParticipation.Progress.choices),
                 'lifecycle_choices': dict(VketParticipation.Lifecycle.choices),
@@ -489,6 +481,47 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             }
         )
         return context
+
+    @staticmethod
+    def _build_discord_mentions(participations) -> dict[str, str]:
+        """参加者のDiscordメンション文字列を生成する"""
+        active_parts = [
+            p for p in participations
+            if p.lifecycle == VketParticipation.Lifecycle.ACTIVE and p.applied_by_id
+        ]
+
+        user_ids = [p.applied_by_id for p in active_parts]
+        discord_accounts = {
+            sa.user_id: sa.uid
+            for sa in SocialAccount.objects.filter(
+                provider='discord', user_id__in=user_ids
+            )
+        }
+
+        def mentions_for(parts):
+            uids = []
+            for p in parts:
+                uid = discord_accounts.get(p.applied_by_id)
+                if uid:
+                    uids.append(f'<@{uid}>')
+            return ' '.join(uids)
+
+        all_mention = mentions_for(active_parts)
+
+        not_applied = [p for p in active_parts if p.progress == VketParticipation.Progress.NOT_APPLIED]
+        lt_pending = [
+            p for p in active_parts
+            if p.progress in (
+                VketParticipation.Progress.SCHEDULE_CONFIRMED,
+                VketParticipation.Progress.LT_PENDING,
+            )
+        ]
+
+        return {
+            'all': all_mention,
+            'not_applied': mentions_for(not_applied),
+            'lt_pending': mentions_for(lt_pending),
+        }
 
 
 class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, View):
@@ -561,42 +594,44 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         collaboration = get_object_or_404(VketCollaboration, pk=kwargs['pk'])
 
-        lt_details_qs = (
-            EventDetail.objects.filter(detail_type='LT', status='approved')
-            .only('id', 'event_id', 'start_time', 'duration', 'speaker', 'theme', 'status', 'detail_type')
-            .order_by('start_time', 'id')
-        )
-
-        # published_event が紐づいている（公開済み）参加のみ表示
-        participations = (
+        # confirmed_date+start_time がある参加を表示（公開同期前でも日程表に出す）
+        participations = list(
             VketParticipation.objects.filter(
                 collaboration=collaboration,
-                published_event__isnull=False,
+                confirmed_date__isnull=False,
+                confirmed_start_time__isnull=False,
             )
             .select_related('community', 'published_event')
             .prefetch_related(
-                Prefetch('published_event__details', queryset=lt_details_qs)
+                Prefetch(
+                    'published_event__details',
+                    queryset=EventDetail.objects.filter(
+                        detail_type='LT', status='approved'
+                    ).only(
+                        'id', 'event_id', 'start_time', 'duration',
+                        'speaker', 'theme', 'status', 'detail_type',
+                    ).order_by('start_time', 'id'),
+                )
             )
             .order_by(
-                'published_event__date',
-                'published_event__start_time',
+                'confirmed_date',
+                'confirmed_start_time',
                 'community__name',
             )
         )
 
-        if not participations.exists():
-            context.update(
-                {
-                    'collaboration': collaboration,
-                    'slots': [],
-                    'rows': [],
-                    'overlap_warnings': [],
-                    'warnings': [],
-                }
-            )
+        empty_ctx = {
+            'collaboration': collaboration,
+            'slots': [],
+            'rows': [],
+            'overlap_warnings': [],
+            'warnings': [],
+        }
+
+        if not participations:
+            context.update(empty_ctx)
             return context
 
-        # タイムスロット（30分刻み）の生成
         slot_minutes = 30
 
         def to_minutes(t: time) -> int:
@@ -607,24 +642,30 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         max_end = None
         warnings = []
 
-        lt_times_by_event_id: dict[int, list[time]] = {}
+        # 各参加ごとの LT 開始時刻リスト（participation.id → list[time]）
+        lt_times_by_pid: dict[int, list[time]] = {}
 
         for p in participations:
-            event = p.published_event
+            p_date = p.confirmed_date
+            p_start = p.confirmed_start_time
+            p_duration = p.confirmed_duration or 60
 
-            start_min = to_minutes(event.start_time)
-            end_min = start_min + event.duration
+            start_min = to_minutes(p_start)
+            end_min = start_min + p_duration
             if end_min > day_minutes:
                 warnings.append(
-                    f'{event.date.strftime("%Y/%m/%d")} {p.community.name} の開催時間が日跨ぎのため、0:00で切り捨て表示します'
+                    f'{p_date.strftime("%Y/%m/%d")} {p.community.name} の開催時間が日跨ぎのため、0:00で切り捨て表示します'
                 )
                 end_min = day_minutes
 
-            lt_details = list(event.details.all())
-            lt_times = [d.start_time for d in lt_details] if lt_details else []
+            # LT 情報: published_event があればそこから取得
+            lt_times = []
+            if p.published_event:
+                lt_details = list(p.published_event.details.all())
+                lt_times = [d.start_time for d in lt_details] if lt_details else []
             if not lt_times:
-                lt_times = [event.start_time]
-            lt_times_by_event_id[event.id] = lt_times
+                lt_times = [p_start]
+            lt_times_by_pid[p.id] = lt_times
 
             lt_mins = [to_minutes(t) for t in lt_times]
             lt_min = min(lt_mins)
@@ -636,15 +677,7 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             max_end = candidate_max if max_end is None else max(max_end, candidate_max)
 
         if min_start is None or max_end is None:
-            context.update(
-                {
-                    'collaboration': collaboration,
-                    'slots': [],
-                    'rows': [],
-                    'overlap_warnings': [],
-                    'warnings': warnings,
-                }
-            )
+            context.update(empty_ctx | {'warnings': warnings})
             return context
 
         min_start = (min_start // slot_minutes) * slot_minutes
@@ -672,40 +705,43 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         # 日付×スロットごとの占有数
         occupancy: dict[tuple, int] = {}
         for p in participations:
-            event = p.published_event
-            start_dt = datetime.combine(base, event.start_time)
-            end_dt = start_dt + timedelta(minutes=event.duration)
+            p_start = p.confirmed_start_time
+            p_duration = p.confirmed_duration or 60
+            start_dt = datetime.combine(base, p_start)
+            end_dt = start_dt + timedelta(minutes=p_duration)
             for idx, slot in enumerate(slots):
                 slot_start = datetime.combine(base, slot.start)
                 slot_end = datetime.combine(base, slot.end)
                 if slot_start < end_dt and slot_end > start_dt:
-                    key = (event.date, idx)
+                    key = (p.confirmed_date, idx)
                     occupancy[key] = occupancy.get(key, 0) + 1
 
         rows = []
         overlap_warnings = []
 
-        lt_slots_by_event_id: dict[int, dict[int, list[time]]] = {}
+        lt_slots_by_pid: dict[int, dict[int, list[time]]] = {}
         lt_slot_communities: dict[tuple, set[str]] = {}
 
         for p in participations:
-            event = p.published_event
-            lt_times = lt_times_by_event_id[event.id]
+            p_date = p.confirmed_date
+            p_start = p.confirmed_start_time
+            p_duration = p.confirmed_duration or 60
+            lt_times = lt_times_by_pid[p.id]
 
-            event_start_dt = datetime.combine(base, event.start_time)
-            event_end_dt = event_start_dt + timedelta(minutes=event.duration)
+            event_start_dt = datetime.combine(base, p_start)
+            event_end_dt = event_start_dt + timedelta(minutes=p_duration)
             invalid_lt_times = []
 
             for lt_time in lt_times:
                 idx = slot_index_for(lt_time)
                 if idx is None:
                     warnings.append(
-                        f'{event.date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が表示範囲外です'
+                        f'{p_date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が表示範囲外です'
                     )
                     continue
 
-                lt_slots_by_event_id.setdefault(event.id, {}).setdefault(idx, []).append(lt_time)
-                key = (event.date, idx)
+                lt_slots_by_pid.setdefault(p.id, {}).setdefault(idx, []).append(lt_time)
+                key = (p_date, idx)
                 lt_slot_communities.setdefault(key, set()).add(p.community.name)
 
                 lt_dt = datetime.combine(base, lt_time)
@@ -714,18 +750,20 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
             if invalid_lt_times:
                 times_label = ', '.join(sorted({t.strftime('%H:%M') for t in invalid_lt_times}))
-                end_time = event_start_dt + timedelta(minutes=event.duration)
+                end_time = event_start_dt + timedelta(minutes=p_duration)
                 warnings.append(
-                    f'{event.date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{times_label}）が開催時間（{event.start_time.strftime("%H:%M")}〜{end_time.strftime("%H:%M")}）の範囲外です'
+                    f'{p_date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{times_label}）が開催時間（{p_start.strftime("%H:%M")}〜{end_time.strftime("%H:%M")}）の範囲外です'
                 )
 
         # 同日に重複する参加のペアワーニング
-        for d, group in groupby(participations, key=lambda p: p.published_event.date):
-            events_on_date = list(group)
-            for p1, p2 in combinations(events_on_date, 2):
-                e1, e2 = p1.published_event, p2.published_event
-                if _time_ranges_overlap(e1.start_time, e1.duration, e2.start_time, e2.duration):
-                    overlap_start = max(e1.start_time, e2.start_time)
+        for d, group in groupby(participations, key=lambda p: p.confirmed_date):
+            parts_on_date = list(group)
+            for p1, p2 in combinations(parts_on_date, 2):
+                if _time_ranges_overlap(
+                    p1.confirmed_start_time, p1.confirmed_duration or 60,
+                    p2.confirmed_start_time, p2.confirmed_duration or 60,
+                ):
+                    overlap_start = max(p1.confirmed_start_time, p2.confirmed_start_time)
                     overlap_warnings.append(
                         f'{d.strftime("%Y/%m/%d")} {overlap_start.strftime("%H:%M")} {p1.community.name} と {p2.community.name} が重複'
                     )
@@ -740,19 +778,20 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             )
 
         for p in participations:
-            event = p.published_event
+            p_start = p.confirmed_start_time
+            p_duration = p.confirmed_duration or 60
             base_date = timezone.localdate()
-            event_start = datetime.combine(base_date, event.start_time)
-            event_end = event_start + timedelta(minutes=event.duration)
-            lt_slots = lt_slots_by_event_id.get(event.id, {})
+            event_start = datetime.combine(base_date, p_start)
+            event_end = event_start + timedelta(minutes=p_duration)
+            lt_slots = lt_slots_by_pid.get(p.id, {})
             cells = []
             for idx, slot in enumerate(slots):
                 slot_start = datetime.combine(base_date, slot.start)
                 slot_end = datetime.combine(base_date, slot.end)
                 occupied = slot_start < event_end and slot_end > event_start
-                overlap = occupied and occupancy.get((event.date, idx), 0) > 1
+                overlap = occupied and occupancy.get((p.confirmed_date, idx), 0) > 1
                 lt_times = sorted(lt_slots.get(idx, []))
-                lt_overlap = bool(lt_times) and len(lt_slot_communities.get((event.date, idx), set())) > 1
+                lt_overlap = bool(lt_times) and len(lt_slot_communities.get((p.confirmed_date, idx), set())) > 1
                 lt_tooltip = ', '.join([t.strftime('%H:%M') for t in lt_times]) if lt_times else ''
                 cells.append(
                     {
@@ -763,7 +802,13 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
                         'lt_tooltip': lt_tooltip,
                     }
                 )
-            rows.append({'participation': p, 'event': event, 'cells': cells})
+            rows.append({
+                'participation': p,
+                'date': p.confirmed_date,
+                'start_time': p_start,
+                'duration': p_duration,
+                'cells': cells,
+            })
 
         context.update(
             {
@@ -878,22 +923,12 @@ class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
         for notice in notices:
             receipts = list(notice.receipts.all())
             total = len(receipts)
-            sent = sum(
-                1 for r in receipts
-                if r.delivery_status == VketNoticeReceipt.DeliveryStatus.SENT
-            )
             acked = sum(1 for r in receipts if r.acknowledged_at is not None)
-            failed = sum(
-                1 for r in receipts
-                if r.delivery_status == VketNoticeReceipt.DeliveryStatus.FAILED
-            )
             notice_stats.append(
                 {
                     'notice': notice,
                     'total': total,
-                    'sent': sent,
                     'acked': acked,
-                    'failed': failed,
                 }
             )
 
@@ -934,141 +969,8 @@ class ManageNoticeCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
             requires_ack=requires_ack,
             created_by=request.user,
         )
-        messages.success(request, 'お知らせを作成しました。送信ボタンで配信してください。')
+        messages.success(request, 'お知らせを作成しました。')
         return redirect('vket:manage_notice_list', pk=pk)
-
-
-class ManageNoticeSendView(LoginRequiredMixin, UserPassesTestMixin, View):
-    """運営向け: お知らせのDiscord webhook送信ビュー"""
-
-    def test_func(self):
-        return self.request.user.is_superuser
-
-    def post(self, request, pk: int, nid: int):
-        collaboration = get_object_or_404(VketCollaboration, pk=pk)
-        notice = get_object_or_404(VketNotice, pk=nid, collaboration=collaboration)
-
-        # target_scope に応じて対象参加を絞り込む
-        base_qs = VketParticipation.objects.filter(
-            collaboration=collaboration,
-            lifecycle=VketParticipation.Lifecycle.ACTIVE,
-        ).select_related('community')
-
-        if notice.target_scope == VketNotice.TargetScope.ALL_PARTICIPANTS:
-            target_participations = base_qs
-        elif notice.target_scope == VketNotice.TargetScope.UNACKED:
-            # 未確認者: 確認済み（acked）の参加を除いた全員（未受信者も含む）
-            acked_ids = notice.receipts.filter(
-                acknowledged_at__isnull=False
-            ).values_list('participation_id', flat=True)
-            target_participations = base_qs.exclude(id__in=acked_ids)
-        else:
-            # MANUAL: 既存のreceiptがある参加のみ対象
-            existing_ids = notice.receipts.values_list('participation_id', flat=True)
-            target_participations = base_qs.filter(id__in=existing_ids)
-
-        sent_count = 0
-        failed_count = 0
-
-        for participation in target_participations:
-            receipt, _ = VketNoticeReceipt.objects.get_or_create(
-                notice=notice,
-                participation=participation,
-            )
-
-            community = participation.community
-            webhook_url = community.notification_webhook_url
-
-            # 確認URLを生成
-            ack_url = request.build_absolute_uri(
-                reverse('vket:ack_notice', args=[str(receipt.ack_token)])
-            )
-            mention = _build_discord_mention(community)
-
-            # Discordメッセージ本文の組み立て
-            body_parts = []
-            if mention:
-                body_parts.append(mention)
-            body_parts.append(f'**{notice.title}**')
-            body_parts.append('')
-            body_parts.append(notice.body)
-            if notice.requires_ack:
-                body_parts.append('')
-                body_parts.append(f'確認URL: {ack_url}')
-            message_content = '\n'.join(body_parts)
-
-            if not webhook_url:
-                # Webhook URLが未設定の場合はスキップ（未送信のまま）
-                # SENT扱いにすると通知到達率・ACK運用が壊れるためPENDINGを維持する
-                logger.info(
-                    'Webhook未設定のためスキップ（通知未送信）',
-                    extra={
-                        'community_id': community.id,
-                        'community_name': community.name,
-                        'notice_id': notice.id,
-                    },
-                )
-                continue
-
-            # Discord webhook へ送信
-            try:
-                payload = json.dumps({'content': message_content}).encode('utf-8')
-                req = urllib.request.Request(
-                    webhook_url,
-                    data=payload,
-                    headers={'Content-Type': 'application/json'},
-                    method='POST',
-                )
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    resp.read()
-
-                receipt.delivery_status = VketNoticeReceipt.DeliveryStatus.SENT
-                receipt.last_sent_at = timezone.now()
-                receipt.reminder_count += 1
-                receipt.delivery_error = ''
-                receipt.save(
-                    update_fields=[
-                        'delivery_status',
-                        'last_sent_at',
-                        'reminder_count',
-                        'delivery_error',
-                        'updated_at',
-                    ]
-                )
-                sent_count += 1
-                logger.info(
-                    'Discord webhook送信成功',
-                    extra={
-                        'community_id': community.id,
-                        'notice_id': notice.id,
-                        'receipt_id': receipt.id,
-                    },
-                )
-
-            except (urllib.error.URLError, urllib.error.HTTPError, Exception) as e:
-                receipt.delivery_status = VketNoticeReceipt.DeliveryStatus.FAILED
-                receipt.delivery_error = str(e)
-                receipt.save(update_fields=['delivery_status', 'delivery_error', 'updated_at'])
-                failed_count += 1
-                logger.error(
-                    'Discord webhook送信失敗',
-                    extra={
-                        'community_id': community.id,
-                        'notice_id': notice.id,
-                        'error': str(e),
-                    },
-                )
-
-        # 初回送信時のみsent_atをセット
-        if notice.sent_at is None and sent_count > 0:
-            notice.sent_at = timezone.now()
-            notice.save(update_fields=['sent_at'])
-
-        messages.success(
-            request,
-            f'送信完了: {sent_count}件成功、{failed_count}件失敗。',
-        )
-        return redirect('vket:manage_notice_list', pk=collaboration.pk)
 
 
 class AckNoticeView(View):
@@ -1164,6 +1066,8 @@ class ManagePublishView(LoginRequiredMixin, UserPassesTestMixin, View):
                 if participation.published_event_id:
                     event = participation.published_event
                     Event.objects.filter(pk=event.pk).update(
+                        date=participation.confirmed_date,
+                        start_time=participation.confirmed_start_time,
                         duration=participation.confirmed_duration,
                         weekday=weekday_code,
                     )

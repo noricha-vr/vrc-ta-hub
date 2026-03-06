@@ -148,6 +148,33 @@
             </div>
         {% endif %}
 
+        {% if discord_mentions.all %}
+            <div class="mt-4">
+                <h2 class="h5 fw-bold">
+                    <i class="fab fa-discord me-2"></i>Discordメンションリスト
+                </h2>
+                <p class="text-muted small mb-3">メンション文字列をコピーしてDiscordに貼り付けてください。</p>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label fw-bold">全参加者</label>
+                        <textarea class="form-control form-control-sm" rows="2" readonly onclick="this.select()">{{ discord_mentions.all }}</textarea>
+                    </div>
+                    {% if discord_mentions.not_applied %}
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">未応募</label>
+                            <textarea class="form-control form-control-sm" rows="2" readonly onclick="this.select()">{{ discord_mentions.not_applied }}</textarea>
+                        </div>
+                    {% endif %}
+                    {% if discord_mentions.lt_pending %}
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-bold">LT未登録</label>
+                            <textarea class="form-control form-control-sm" rows="2" readonly onclick="this.select()">{{ discord_mentions.lt_pending }}</textarea>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+
         {% if unregistered_communities %}
             <div class="mt-4">
                 <h2 class="h5 fw-bold">未登録集会</h2>

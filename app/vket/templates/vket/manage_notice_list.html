@@ -31,10 +31,8 @@
                         <th style="min-width: 200px;">タイトル</th>
                         <th style="min-width: 100px;">対象</th>
                         <th style="min-width: 80px;">要確認</th>
-                        <th style="min-width: 120px;">配送状況</th>
                         <th style="min-width: 100px;">ACK状況</th>
-                        <th style="min-width: 130px;">送信日時</th>
-                        <th style="min-width: 180px;">操作</th>
+                        <th style="min-width: 130px;">作成日時</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -53,40 +51,14 @@
                                 {% endif %}
                             </td>
                             <td class="small">
-                                {% if stat.total > 0 %}
-                                    <span class="text-success">{{ stat.sent }}</span>/{{ stat.total }}送信
-                                    {% if stat.failed > 0 %}
-                                        <span class="text-danger">（{{ stat.failed }}失敗）</span>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="text-muted">未送信</span>
-                                {% endif %}
-                            </td>
-                            <td class="small">
                                 {% if stat.notice.requires_ack and stat.total > 0 %}
                                     <span class="text-success">{{ stat.acked }}</span>/{{ stat.total }}確認
                                 {% else %}
-                                    <span class="text-muted">—</span>
+                                    <span class="text-muted">--</span>
                                 {% endif %}
                             </td>
                             <td class="small">
-                                {% if stat.notice.sent_at %}
-                                    {{ stat.notice.sent_at|date:"Y/m/d H:i" }}
-                                {% else %}
-                                    <span class="text-muted">—</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <form method="post"
-                                      action="{% url 'vket:manage_notice_send' collaboration.id stat.notice.id %}"
-                                      class="d-inline">
-                                    {% csrf_token %}
-                                    <button class="btn btn-sm btn-outline-primary me-1" type="submit"
-                                            onclick="return confirm('この通知を送信しますか？')">
-                                        <i class="fab fa-discord me-1"></i>
-                                        {% if stat.notice.sent_at %}再送信{% else %}送信{% endif %}
-                                    </button>
-                                </form>
+                                {{ stat.notice.created_at|date:"Y/m/d H:i" }}
                             </td>
                         </tr>
                     {% endfor %}
@@ -108,7 +80,7 @@
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small">
-                        作成後、「送信」ボタンを押すとDiscord webhookで各集会に通知されます。
+                        ACK確認が必要な場合は「確認必須」にチェックを入れてください。
                     </p>
                     <form method="post" action="{% url 'vket:manage_notice_create' collaboration.id %}" id="noticeCreateForm">
                         {% csrf_token %}

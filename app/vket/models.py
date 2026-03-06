@@ -69,8 +69,6 @@ class VketParticipation(models.Model):
         SCHEDULE_CONFIRMED = "schedule_confirmed", "日程確定"
         LT_PENDING = "lt_pending", "LT情報待ち"
         LT_SUBMITTED = "lt_submitted", "LT提出済み"
-        NOTICE_PENDING = "notice_pending", "告知確認待ち"
-        ACKED = "acked", "確認済み"
         DONE = "done", "完了"
 
     collaboration = models.ForeignKey(
@@ -267,11 +265,6 @@ class VketNotice(models.Model):
 
 
 class VketNoticeReceipt(models.Model):
-    class DeliveryStatus(models.TextChoices):
-        PENDING = "pending", "未送信"
-        SENT = "sent", "送信済み"
-        FAILED = "failed", "失敗"
-
     notice = models.ForeignKey(
         VketNotice,
         on_delete=models.CASCADE,
@@ -284,17 +277,6 @@ class VketNoticeReceipt(models.Model):
         related_name="notice_receipts",
         verbose_name="参加",
     )
-    delivery_status = models.CharField(
-        "配送状態",
-        max_length=20,
-        choices=DeliveryStatus.choices,
-        default=DeliveryStatus.PENDING,
-        db_index=True,
-    )
-    delivery_error = models.TextField("配送エラー", blank=True)
-    discord_message_id = models.CharField("Discord メッセージID", max_length=100, blank=True)
-    reminder_count = models.PositiveIntegerField("リマインダー送信回数", default=0)
-    last_sent_at = models.DateTimeField("最終送信日時", null=True, blank=True)
     acknowledged_at = models.DateTimeField("確認日時", null=True, blank=True)
     acknowledged_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

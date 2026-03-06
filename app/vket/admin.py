@@ -59,8 +59,8 @@ class VketPresentationAdmin(admin.ModelAdmin):
 class VketNoticeReceiptInline(admin.TabularInline):
     model = VketNoticeReceipt
     extra = 0
-    readonly_fields = ("ack_token", "delivery_status", "last_sent_at", "acknowledged_at")
-    fields = ("participation", "delivery_status", "last_sent_at", "acknowledged_at", "ack_token")
+    readonly_fields = ("ack_token", "acknowledged_at")
+    fields = ("participation", "acknowledged_at", "ack_token")
 
 
 @admin.register(VketNotice)
@@ -76,9 +76,6 @@ class VketNoticeReceiptAdmin(admin.ModelAdmin):
     list_display = (
         "notice",
         "participation",
-        "delivery_status",
-        "last_sent_at",
         "acknowledged_at",
     )
-    list_filter = ("delivery_status",)
     readonly_fields = ("ack_token",)
