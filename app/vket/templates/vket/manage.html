@@ -156,36 +156,71 @@
                 <p class="text-muted small mb-3">メンション文字列をコピーしてDiscordに貼り付けてください。</p>
                 <div class="row g-3">
                     <div class="col-12">
-                        <label class="form-label fw-bold">全参加者</label>
-                        <textarea class="form-control form-control-sm" rows="2" readonly onclick="this.select()">{{ discord_mentions.all }}</textarea>
+                        <div class="d-flex align-items-center mb-1">
+                            <label class="form-label fw-bold mb-0">全参加者</label>
+                            <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionAll">
+                                <i class="fas fa-copy me-1"></i>コピー
+                            </button>
+                        </div>
+                        <textarea class="form-control form-control-sm" rows="2" readonly id="mentionAll" onclick="this.select()">{{ discord_mentions.all }}</textarea>
                     </div>
                     {% if discord_mentions.not_applied %}
                         <div class="col-12 col-md-6">
-                            <label class="form-label fw-bold">未応募</label>
-                            <textarea class="form-control form-control-sm" rows="2" readonly onclick="this.select()">{{ discord_mentions.not_applied }}</textarea>
+                            <div class="d-flex align-items-center mb-1">
+                                <label class="form-label fw-bold mb-0">未応募</label>
+                                <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionNotApplied">
+                                    <i class="fas fa-copy me-1"></i>コピー
+                                </button>
+                            </div>
+                            <textarea class="form-control form-control-sm" rows="2" readonly id="mentionNotApplied" onclick="this.select()">{{ discord_mentions.not_applied }}</textarea>
                         </div>
                     {% endif %}
                     {% if discord_mentions.lt_pending %}
                         <div class="col-12 col-md-6">
-                            <label class="form-label fw-bold">LT未登録</label>
-                            <textarea class="form-control form-control-sm" rows="2" readonly onclick="this.select()">{{ discord_mentions.lt_pending }}</textarea>
+                            <div class="d-flex align-items-center mb-1">
+                                <label class="form-label fw-bold mb-0">LT未登録</label>
+                                <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionLtPending">
+                                    <i class="fas fa-copy me-1"></i>コピー
+                                </button>
+                            </div>
+                            <textarea class="form-control form-control-sm" rows="2" readonly id="mentionLtPending" onclick="this.select()">{{ discord_mentions.lt_pending }}</textarea>
                         </div>
                     {% endif %}
                 </div>
+                <script>
+                document.querySelectorAll('.copy-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const textarea = document.getElementById(this.dataset.target);
+                        navigator.clipboard.writeText(textarea.value).then(() => {
+                            const original = this.innerHTML;
+                            this.innerHTML = '<i class="fas fa-check me-1 text-success"></i>コピー済み';
+                            setTimeout(() => { this.innerHTML = original; }, 1500);
+                        });
+                    });
+                });
+                </script>
             </div>
         {% endif %}
 
         {% if unregistered_communities %}
             <div class="mt-4">
-                <h2 class="h5 fw-bold">未登録集会</h2>
-                <div class="list-group">
+                <h2 class="h5 fw-bold">未登録集会 <span class="text-muted fw-normal small">({{ unregistered_communities|length }}件)</span></h2>
+                <div class="list-group" id="unregisteredList">
                     {% for c in unregistered_communities %}
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="{% url 'community:detail' c.pk %}"
+                           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center{% if forloop.counter > 3 %} d-none unregistered-hidden{% endif %}"
+                           target="_blank">
                             <div class="fw-bold">{{ c.name }}</div>
-                            <span class="text-muted small">未登録</span>
-                        </div>
+                            <span class="text-muted small">未登録 <i class="fas fa-external-link-alt ms-1"></i></span>
+                        </a>
                     {% endfor %}
                 </div>
+                {% if unregistered_communities|length > 3 %}
+                    <button class="btn btn-sm btn-outline-secondary mt-2" id="showAllUnregistered"
+                            onclick="document.querySelectorAll('.unregistered-hidden').forEach(el => el.classList.remove('d-none'));this.remove();">
+                        <i class="fas fa-chevron-down me-1"></i>すべて表示（{{ unregistered_communities|length }}件）
+                    </button>
+                {% endif %}
             </div>
         {% endif %}
     </div>

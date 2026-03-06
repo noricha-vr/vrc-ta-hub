@@ -848,6 +848,12 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                     .order_by('-created_at')[:3]
                 )
 
+        unacked_count = 0
+        if participation:
+            unacked_count = participation.notice_receipts.filter(
+                notice__requires_ack=True, acknowledged_at__isnull=True
+            ).count()
+
         # progressの選択肢をリスト化してテンプレートに渡す
         progress_steps = [
             {'value': value, 'label': label}
@@ -863,6 +869,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'community': community,
                 'progress_steps': progress_steps,
                 'latest_notices': latest_notices,
+                'unacked_count': unacked_count,
             },
         )
 
