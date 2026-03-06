@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
 
+from allauth.account.models import EmailAddress
 from allauth.socialaccount.models import SocialAccount
 from user_account.adapters import CustomSocialAccountAdapter
 from user_account.tests.utils import create_discord_linked_user
@@ -23,24 +24,47 @@ class CustomSocialAccountAdapterTests(TestCase):
             email='existing@example.com',
             password='testpass123',
         )
+        EmailAddress.objects.create(
+            user=self.existing_user,
+            email='existing@example.com',
+            verified=True,
+            primary=True,
+        )
 
     def test_is_auto_signup_allowed_returns_true_when_email_exists(self):
-        """メールアドレスがある場合、自動サインアップを許可すること."""
+        """検証済みメールアドレスがある場合、自動サインアップを許可すること."""
         request = self.factory.get('/accounts/discord/login/callback/')
 
         sociallogin = MagicMock()
-        sociallogin.account.extra_data = {'email': 'test@example.com'}
+        sociallogin.account.extra_data = {
+            'email': 'test@example.com',
+            'verified': True,
+        }
 
         result = self.adapter.is_auto_signup_allowed(request, sociallogin)
 
         self.assertTrue(result)
+
+    def test_is_auto_signup_allowed_returns_false_when_email_is_unverified(self):
+        """未検証メールアドレスでは自動サインアップを許可しないこと."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.account.extra_data = {
+            'email': 'test@example.com',
+            'verified': False,
+        }
+
+        result = self.adapter.is_auto_signup_allowed(request, sociallogin)
+
+        self.assertFalse(result)
 
     def test_is_auto_signup_allowed_returns_false_when_email_missing(self):
         """メールアドレスがない場合、自動サインアップを許可しないこと（フォーム表示）."""
         request = self.factory.get('/accounts/discord/login/callback/')
 
         sociallogin = MagicMock()
-        sociallogin.account.extra_data = {'email': ''}
+        sociallogin.account.extra_data = {'email': '', 'verified': False}
 
         result = self.adapter.is_auto_signup_allowed(request, sociallogin)
 
@@ -51,7 +75,7 @@ class CustomSocialAccountAdapterTests(TestCase):
         request = self.factory.get('/accounts/discord/login/callback/')
 
         sociallogin = MagicMock()
-        sociallogin.account.extra_data = {}
+        sociallogin.account.extra_data = {'verified': False}
 
         result = self.adapter.is_auto_signup_allowed(request, sociallogin)
 
@@ -64,6 +88,151 @@ class CustomSocialAccountAdapterTests(TestCase):
         sociallogin = MagicMock()
         sociallogin.is_existing = True
         sociallogin.account.uid = '123456789'
+
+        self.adapter.pre_social_login(request, sociallogin)
+
+        sociallogin.connect.assert_not_called()
+
+    def test_pre_social_login_connects_existing_user_with_same_email(self):
+        """Discord のメールアドレスが既存ユーザーと一致する場合は連携すること."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.is_existing = False
+        sociallogin.state = {}
+        sociallogin.account.provider = 'discord'
+        sociallogin.account.uid = '123456789'
+        sociallogin.account.extra_data = {
+            'email': 'existing@example.com',
+            'verified': True,
+        }
+
+        self.adapter.pre_social_login(request, sociallogin)
+
+        sociallogin.connect.assert_called_once_with(request, self.existing_user)
+
+    def test_pre_social_login_skips_when_email_is_not_verified(self):
+        """Discord 側でメール未検証なら自動連携しないこと."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.is_existing = False
+        sociallogin.state = {}
+        sociallogin.account.provider = 'discord'
+        sociallogin.account.uid = '123456789'
+        sociallogin.account.extra_data = {
+            'email': 'existing@example.com',
+            'verified': False,
+        }
+
+        self.adapter.pre_social_login(request, sociallogin)
+
+        sociallogin.connect.assert_not_called()
+
+    def test_pre_social_login_skips_connect_when_process_is_connect(self):
+        """process=connect の場合は既存ユーザー自動紐付けを行わないこと."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.is_existing = False
+        sociallogin.state = {'process': 'connect'}
+        sociallogin.account.provider = 'discord'
+        sociallogin.account.uid = '123456789'
+        sociallogin.account.extra_data = {
+            'email': 'existing@example.com',
+            'verified': True,
+        }
+
+        self.adapter.pre_social_login(request, sociallogin)
+
+        sociallogin.connect.assert_not_called()
+
+    def test_pre_social_login_skips_when_no_matching_email(self):
+        """一致するメールアドレスがない場合は新規フローを継続すること."""
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.is_existing = False
+        sociallogin.state = {}
+        sociallogin.account.provider = 'discord'
+        sociallogin.account.uid = '123456789'
+        sociallogin.account.extra_data = {
+            'email': 'missing@example.com',
+            'verified': True,
+        }
+
+        self.adapter.pre_social_login(request, sociallogin)
+
+        sociallogin.connect.assert_not_called()
+
+    def test_pre_social_login_skips_when_discord_uid_is_linked_to_other_user(self):
+        """同じ Discord UID が別ユーザーに紐付いている場合は自動連携しないこと."""
+        other_user = User.objects.create_user(
+            user_name='other_user',
+            email='other@example.com',
+            password='testpass123',
+        )
+        SocialAccount.objects.create(
+            user=other_user,
+            provider='discord',
+            uid='123456789',
+        )
+
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.is_existing = False
+        sociallogin.state = {}
+        sociallogin.account.provider = 'discord'
+        sociallogin.account.uid = '123456789'
+        sociallogin.account.extra_data = {
+            'email': 'existing@example.com',
+            'verified': True,
+        }
+
+        self.adapter.pre_social_login(request, sociallogin)
+
+        sociallogin.connect.assert_not_called()
+
+    def test_pre_social_login_skips_when_existing_user_email_is_not_verified(self):
+        """既存ユーザー側のメールが未検証なら自動連携しないこと."""
+        EmailAddress.objects.filter(user=self.existing_user).delete()
+
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.is_existing = False
+        sociallogin.state = {}
+        sociallogin.account.provider = 'discord'
+        sociallogin.account.uid = '123456789'
+        sociallogin.account.extra_data = {
+            'email': 'existing@example.com',
+            'verified': True,
+        }
+
+        self.adapter.pre_social_login(request, sociallogin)
+
+        sociallogin.connect.assert_not_called()
+
+    def test_pre_social_login_skips_when_existing_user_has_other_discord_account(self):
+        """既存ユーザーが別の Discord アカウントを連携済みなら自動連携しないこと."""
+        SocialAccount.objects.create(
+            user=self.existing_user,
+            provider='discord',
+            uid='999999999',
+        )
+
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.is_existing = False
+        sociallogin.state = {}
+        sociallogin.account.provider = 'discord'
+        sociallogin.account.uid = '123456789'
+        sociallogin.account.extra_data = {
+            'email': 'existing@example.com',
+            'verified': True,
+        }
 
         self.adapter.pre_social_login(request, sociallogin)
 
