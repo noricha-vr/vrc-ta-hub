@@ -144,9 +144,16 @@ class VketApplyFlowTests(TestCase):
                 'requested_date': target_date.isoformat(),
                 'requested_start_time': '21:00',
                 'requested_duration': '60',
-                'speaker': 'テスト登壇者',
-                'theme': 'テストテーマ',
                 'organizer_note': '備考テスト',
+                # formset management form
+                'lt-TOTAL_FORMS': '1',
+                'lt-INITIAL_FORMS': '0',
+                'lt-MIN_NUM_FORMS': '0',
+                'lt-MAX_NUM_FORMS': '20',
+                # LT data
+                'lt-0-speaker': 'テスト登壇者',
+                'lt-0-theme': 'テストテーマ',
+                'lt-0-lt_start_time': '',
             },
             follow=False,
         )
@@ -235,10 +242,14 @@ class VketApplyFlowTests(TestCase):
                 'requested_date': target_date.isoformat(),
                 'requested_start_time': '21:00',
                 'requested_duration': '60',
-                'speaker': 'テスト登壇者',
-                'theme': 'テストテーマ',
-                'lt_start_time': '21:30',
                 'organizer_note': '備考テスト',
+                'lt-TOTAL_FORMS': '1',
+                'lt-INITIAL_FORMS': '0',
+                'lt-MIN_NUM_FORMS': '0',
+                'lt-MAX_NUM_FORMS': '20',
+                'lt-0-speaker': 'テスト登壇者',
+                'lt-0-theme': 'テストテーマ',
+                'lt-0-lt_start_time': '21:30',
             },
             follow=False,
         )
@@ -281,6 +292,184 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         form = response.context['form']
         self.assertEqual(form.initial.get('organizer_note'), 'カスタム備考')
+
+    def _make_formset_data(self, lt_rows, initial_forms=0):
+        """formset用のPOSTデータを辞書で返すヘルパー"""
+        data = {
+            'lt-TOTAL_FORMS': str(len(lt_rows)),
+            'lt-INITIAL_FORMS': str(initial_forms),
+            'lt-MIN_NUM_FORMS': '0',
+            'lt-MAX_NUM_FORMS': '20',
+        }
+        for i, row in enumerate(lt_rows):
+            data[f'lt-{i}-speaker'] = row.get('speaker', '')
+            data[f'lt-{i}-theme'] = row.get('theme', '')
+            data[f'lt-{i}-lt_start_time'] = row.get('lt_start_time', '')
+            if row.get('DELETE'):
+                data[f'lt-{i}-DELETE'] = 'on'
+        return data
+
+    def test_apply_creates_multiple_presentations(self):
+        """複数LTを送信するとDBに複数件作成される"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        target_date = self.collaboration.period_start
+        lt_rows = [
+            {'speaker': '登壇者A', 'theme': 'テーマA'},
+            {'speaker': '登壇者B', 'theme': 'テーマB'},
+            {'speaker': '登壇者C', 'theme': 'テーマC'},
+        ]
+        post_data = {
+            'requested_date': target_date.isoformat(),
+            'requested_start_time': '21:00',
+            'requested_duration': '60',
+            'organizer_note': '',
+        }
+        post_data.update(self._make_formset_data(lt_rows))
+
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}),
+            data=post_data,
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        participation = VketParticipation.objects.get(
+            collaboration=self.collaboration, community=self.community
+        )
+        presentations = list(
+            VketPresentation.objects.filter(participation=participation).order_by('order')
+        )
+        self.assertEqual(len(presentations), 3)
+        self.assertEqual(presentations[0].speaker, '登壇者A')
+        self.assertEqual(presentations[0].order, 0)
+        self.assertEqual(presentations[1].speaker, '登壇者B')
+        self.assertEqual(presentations[1].order, 1)
+        self.assertEqual(presentations[2].speaker, '登壇者C')
+        self.assertEqual(presentations[2].order, 2)
+
+    def test_apply_deletes_presentation(self):
+        """DELETEフラグ付きで送信すると該当レコードが削除される"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        # 先に参加と2件のプレゼンを作成
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time='21:00',
+            requested_duration=60,
+            progress=VketParticipation.Progress.APPLIED,
+            applied_by=self.owner,
+        )
+        VketPresentation.objects.create(
+            participation=participation, order=0, speaker='残す登壇者', theme='残すテーマ'
+        )
+        VketPresentation.objects.create(
+            participation=participation, order=1, speaker='消す登壇者', theme='消すテーマ'
+        )
+
+        target_date = self.collaboration.period_start
+        lt_rows = [
+            {'speaker': '残す登壇者', 'theme': '残すテーマ'},
+            {'speaker': '消す登壇者', 'theme': '消すテーマ', 'DELETE': True},
+        ]
+        post_data = {
+            'requested_date': target_date.isoformat(),
+            'requested_start_time': '21:00',
+            'requested_duration': '60',
+            'organizer_note': '',
+        }
+        post_data.update(self._make_formset_data(lt_rows, initial_forms=2))
+
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}),
+            data=post_data,
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        presentations = list(
+            VketPresentation.objects.filter(participation=participation).order_by('order')
+        )
+        self.assertEqual(len(presentations), 1)
+        self.assertEqual(presentations[0].speaker, '残す登壇者')
+
+    def test_apply_get_prefills_multiple_presentations(self):
+        """既存の複数LTがGETでformsetにプリフィルされる"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time='21:00',
+            requested_duration=60,
+            progress=VketParticipation.Progress.APPLIED,
+            applied_by=self.owner,
+        )
+        VketPresentation.objects.create(
+            participation=participation, order=0, speaker='登壇者1', theme='テーマ1'
+        )
+        VketPresentation.objects.create(
+            participation=participation, order=1, speaker='登壇者2', theme='テーマ2'
+        )
+        VketPresentation.objects.create(
+            participation=participation, order=2, speaker='登壇者3', theme='テーマ3'
+        )
+
+        response = self.client.get(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+
+        formset = response.context['formset']
+        # initial + extra(1) = 4 forms
+        self.assertEqual(len(formset.forms), 4)
+        self.assertEqual(formset.forms[0].initial['speaker'], '登壇者1')
+        self.assertEqual(formset.forms[1].initial['speaker'], '登壇者2')
+        self.assertEqual(formset.forms[2].initial['speaker'], '登壇者3')
+
+    def test_apply_skips_empty_presentation_rows(self):
+        """空行はスキップされる（DBに保存されない）"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        target_date = self.collaboration.period_start
+        lt_rows = [
+            {'speaker': '登壇者A', 'theme': 'テーマA'},
+            {'speaker': '', 'theme': ''},
+            {'speaker': '登壇者C', 'theme': 'テーマC'},
+        ]
+        post_data = {
+            'requested_date': target_date.isoformat(),
+            'requested_start_time': '21:00',
+            'requested_duration': '60',
+            'organizer_note': '',
+        }
+        post_data.update(self._make_formset_data(lt_rows))
+
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}),
+            data=post_data,
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        participation = VketParticipation.objects.get(
+            collaboration=self.collaboration, community=self.community
+        )
+        presentations = list(
+            VketPresentation.objects.filter(participation=participation).order_by('order')
+        )
+        self.assertEqual(len(presentations), 2)
+        self.assertEqual(presentations[0].speaker, '登壇者A')
+        self.assertEqual(presentations[0].order, 0)
+        self.assertEqual(presentations[1].speaker, '登壇者C')
+        self.assertEqual(presentations[1].order, 1)
 
 
 class VketManageViewsTests(TestCase):

@@ -74,19 +74,44 @@
 
                 <h2 class="h5 fw-bold mb-3">LT情報（{{ collaboration.lt_deadline|date:"n/j" }} 締切・今入力しなくてもOK）</h2>
 
-                <div class="row g-3">
-                    <div class="col-12 col-md-6">
-                        {% bootstrap_field form.speaker %}
+                {{ formset.management_form }}
+                <div id="lt-formset-container">
+                    {% for lt_form in formset %}
+                    <div class="lt-row mb-3 {% if lt_form.DELETE.value %}d-none{% endif %}" data-lt-index="{{ forloop.counter0 }}">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">{{ lt_form.speaker.label }}</label>
+                                {{ lt_form.speaker }}
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">{{ lt_form.theme.label }}</label>
+                                {{ lt_form.theme }}
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">{{ lt_form.lt_start_time.label }}</label>
+                                {{ lt_form.lt_start_time }}
+                            </div>
+                            {% if permissions.can_edit_lt %}
+                            <div class="col-12 col-md-1 d-flex align-items-end">
+                                <button type="button" class="btn btn-outline-danger btn-sm lt-delete-btn" title="削除">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="d-none">{{ lt_form.DELETE }}</div>
                     </div>
-                    <div class="col-12 col-md-6">
-                        {% bootstrap_field form.theme %}
-                    </div>
-                    <div class="col-12 col-md-4">
-                        {% bootstrap_field form.lt_start_time %}
-                    </div>
-                    <div class="col-12">
-                        {% bootstrap_field form.organizer_note %}
-                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if permissions.can_edit_lt %}
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="add-lt-btn">
+                    <i class="fas fa-plus me-1"></i>LTを追加
+                </button>
+                {% endif %}
+
+                <div class="col-12 mt-3">
+                    {% bootstrap_field form.organizer_note %}
                 </div>
 
                 <div class="d-flex justify-content-end mt-3">
@@ -95,4 +120,55 @@
             </div>
         </form>
     </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var addBtn = document.getElementById('add-lt-btn');
+        if (!addBtn) return;
+
+        addBtn.addEventListener('click', function() {
+            var container = document.getElementById('lt-formset-container');
+            var rows = container.querySelectorAll('.lt-row');
+            var lastRow = rows[rows.length - 1];
+            var newRow = lastRow.cloneNode(true);
+            var totalForms = document.getElementById('id_lt-TOTAL_FORMS');
+            var newIndex = parseInt(totalForms.value);
+
+            newRow.querySelectorAll('input, select').forEach(function(el) {
+                if (el.name) {
+                    el.name = el.name.replace(/-\d+-/, '-' + newIndex + '-');
+                }
+                if (el.id) {
+                    el.id = el.id.replace(/-\d+-/, '-' + newIndex + '-');
+                }
+                if (el.type === 'hidden' && el.name.endsWith('-DELETE')) {
+                    el.value = '';
+                } else {
+                    el.value = '';
+                }
+            });
+            newRow.classList.remove('d-none');
+            newRow.dataset.ltIndex = newIndex;
+
+            container.appendChild(newRow);
+            totalForms.value = newIndex + 1;
+        });
+
+        document.addEventListener('click', function(e) {
+            var btn = e.target.closest('.lt-delete-btn');
+            if (!btn) return;
+
+            var container = document.getElementById('lt-formset-container');
+            var visibleRows = container.querySelectorAll('.lt-row:not(.d-none)');
+            if (visibleRows.length <= 1) return;
+
+            var row = btn.closest('.lt-row');
+            var deleteInput = row.querySelector('input[name$="-DELETE"]');
+            if (deleteInput) {
+                deleteInput.value = 'on';
+            }
+            row.classList.add('d-none');
+        });
+    });
+    </script>
 {% endblock %}

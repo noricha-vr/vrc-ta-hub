@@ -21,7 +21,7 @@ from allauth.socialaccount.models import SocialAccount
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 
-from .forms import VketApplyForm, VketApplyPermissions, VketManageParticipationForm
+from .forms import VketApplyForm, VketApplyPermissions, VketManageParticipationForm, VketPresentationFormSet
 from .models import (
     VketCollaboration,
     VketNotice,
@@ -254,6 +254,7 @@ class ApplyView(LoginRequiredMixin, View):
             permissions=permissions,
             initial=initial,
         )
+        formset = self._build_formset(participation=participation, permissions=permissions)
         return render(
             request,
             self.template_name,
@@ -262,6 +263,7 @@ class ApplyView(LoginRequiredMixin, View):
                 'community': community,
                 'participation': participation,
                 'form': form,
+                'formset': formset,
                 'permissions': permissions,
             },
         )
@@ -297,7 +299,11 @@ class ApplyView(LoginRequiredMixin, View):
             permissions=permissions,
             initial=initial,
         )
-        if not form.is_valid():
+        formset = VketPresentationFormSet(request.POST, prefix='lt')
+        if not permissions.can_edit_lt:
+            self._disable_formset(formset)
+
+        if not (form.is_valid() and formset.is_valid()):
             return render(
                 request,
                 self.template_name,
@@ -306,6 +312,7 @@ class ApplyView(LoginRequiredMixin, View):
                     'community': community,
                     'participation': participation,
                     'form': form,
+                    'formset': formset,
                     'permissions': permissions,
                 },
             )
@@ -319,6 +326,7 @@ class ApplyView(LoginRequiredMixin, View):
                     existing_participation=participation,
                     permissions=permissions,
                     cleaned=form.cleaned_data,
+                    formset_data=formset.cleaned_data,
                 )
         except ValueError as e:
             form.add_error(None, str(e))
@@ -330,12 +338,44 @@ class ApplyView(LoginRequiredMixin, View):
                     'community': community,
                     'participation': participation,
                     'form': form,
+                    'formset': formset,
                     'permissions': permissions,
                 },
             )
 
         messages.success(request, '参加登録を保存しました。')
         return redirect('vket:status', pk=collaboration.pk)
+
+    def _build_formset(
+        self,
+        *,
+        participation: VketParticipation | None,
+        permissions: VketApplyPermissions,
+        data=None,
+    ) -> VketPresentationFormSet:
+        """LT情報のformsetを構築する"""
+        lt_initial = []
+        if participation:
+            for pres in participation.presentations.order_by('order'):
+                lt_initial.append({
+                    'speaker': pres.speaker,
+                    'theme': pres.theme,
+                    'lt_start_time': pres.requested_start_time,
+                })
+
+        formset = VketPresentationFormSet(
+            data, initial=lt_initial or None, prefix='lt',
+        )
+        if not permissions.can_edit_lt:
+            self._disable_formset(formset)
+        return formset
+
+    @staticmethod
+    def _disable_formset(formset):
+        """formset の全フィールドを disabled にする"""
+        for form in formset:
+            for field in form.fields.values():
+                field.disabled = True
 
     def _build_initial(
         self, community: Community, participation: VketParticipation | None
@@ -347,7 +387,6 @@ class ApplyView(LoginRequiredMixin, View):
         }
 
         if participation:
-            # 参加レコードから希望日程を初期値にセット
             if participation.requested_date:
                 initial['requested_date'] = participation.requested_date
             if participation.requested_start_time:
@@ -355,15 +394,7 @@ class ApplyView(LoginRequiredMixin, View):
             if participation.requested_duration:
                 initial['requested_duration'] = participation.requested_duration
             initial['organizer_note'] = participation.organizer_note
-
-            # プレゼンテーション情報（最初の1件）を初期値にセット
-            first_pres = participation.presentations.first()
-            if first_pres:
-                initial['speaker'] = first_pres.speaker
-                initial['theme'] = first_pres.theme
-                initial['lt_start_time'] = first_pres.requested_start_time
         else:
-            # 新規の場合のみ organizer_note の初期値を設定
             initial['organizer_note'] = '当日サポートが欲しい（一人主催の場合）: YES・NO'
 
         return initial
@@ -377,6 +408,7 @@ class ApplyView(LoginRequiredMixin, View):
         existing_participation: VketParticipation | None,
         permissions: VketApplyPermissions,
         cleaned: dict,
+        formset_data: list[dict],
     ) -> VketParticipation:
         """参加情報をDBに保存する（新規作成 or 更新）"""
         is_new = existing_participation is None
@@ -391,7 +423,7 @@ class ApplyView(LoginRequiredMixin, View):
             participation.requested_start_time = cleaned['requested_start_time']
             participation.requested_duration = cleaned['requested_duration']
 
-        # LT・備考情報の保存
+        # 備考情報の保存
         if permissions.can_edit_lt:
             participation.organizer_note = cleaned.get('organizer_note', '')
 
@@ -403,19 +435,32 @@ class ApplyView(LoginRequiredMixin, View):
 
         participation.save()
 
-        # プレゼンテーション情報（speaker/theme）をVketPresentationに保存
+        # プレゼンテーション情報をVketPresentationに保存（formset）
         if permissions.can_edit_lt:
-            speaker = cleaned.get('speaker', '').strip()
-            theme = cleaned.get('theme', '').strip()
-            VketPresentation.objects.update_or_create(
+            saved_orders = set()
+            order = 0
+            for row in formset_data:
+                if row.get('DELETE'):
+                    continue
+                speaker = (row.get('speaker') or '').strip()
+                theme = (row.get('theme') or '').strip()
+                if not speaker and not theme:
+                    continue
+                VketPresentation.objects.update_or_create(
+                    participation=participation,
+                    order=order,
+                    defaults={
+                        'speaker': speaker,
+                        'theme': theme,
+                        'requested_start_time': row.get('lt_start_time'),
+                    },
+                )
+                saved_orders.add(order)
+                order += 1
+            # formsetで保存されなかったorderの既存レコードを削除
+            VketPresentation.objects.filter(
                 participation=participation,
-                order=0,
-                defaults={
-                    'speaker': speaker,
-                    'theme': theme,
-                    'requested_start_time': cleaned.get('lt_start_time'),
-                },
-            )
+            ).exclude(order__in=saved_orders).delete()
 
         return participation
 

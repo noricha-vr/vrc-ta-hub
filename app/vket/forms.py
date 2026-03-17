@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from django import forms
+from django.forms import formset_factory
 from django.utils import timezone
 
 from community.models import Community
@@ -73,10 +74,36 @@ class VketApplyPermissions:
     can_edit_lt: bool
 
 
+class VketPresentationForm(forms.Form):
+    """LT情報の1行分"""
+
+    speaker = forms.CharField(
+        label='登壇者名',
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    theme = forms.CharField(
+        label='テーマ',
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    lt_start_time = forms.TimeField(
+        label='LT開始時刻',
+        required=False,
+        widget=forms.TimeInput(attrs={'type': 'time', 'step': 300, 'class': 'form-control'}),
+    )
+
+
+VketPresentationFormSet = formset_factory(
+    VketPresentationForm, extra=1, max_num=20, can_delete=True,
+)
+
+
 class VketApplyForm(forms.Form):
     """集会主催者向けのVketコラボ参加申請フォーム"""
 
-    # フィールド名を新モデルに合わせて更新
     requested_date = forms.TypedChoiceField(
         label='参加希望日',
         coerce=date.fromisoformat,
@@ -89,13 +116,6 @@ class VketApplyForm(forms.Form):
     requested_duration = forms.TypedChoiceField(
         label='希望開催時間（分）',
         coerce=int,
-    )
-    speaker = forms.CharField(label='登壇者名', max_length=200, required=False)
-    theme = forms.CharField(label='テーマ', max_length=100, required=False)
-    lt_start_time = forms.TimeField(
-        label='LT開始時刻',
-        required=False,
-        widget=forms.TimeInput(attrs={'type': 'time', 'step': 300}),
     )
     organizer_note = forms.CharField(
         label='備考',
@@ -131,11 +151,8 @@ class VketApplyForm(forms.Form):
             self.fields['requested_start_time'].disabled = True
             self.fields['requested_duration'].disabled = True
 
-        # LT情報編集不可の場合はLT関連フィールドを無効化
+        # LT情報編集不可の場合は備考フィールドを無効化
         if not permissions.can_edit_lt:
-            self.fields['speaker'].disabled = True
-            self.fields['theme'].disabled = True
-            self.fields['lt_start_time'].disabled = True
             self.fields['organizer_note'].disabled = True
 
     def clean(self):
