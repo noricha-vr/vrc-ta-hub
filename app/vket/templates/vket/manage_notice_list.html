@@ -33,6 +33,7 @@
                         <th style="min-width: 80px;">要確認</th>
                         <th style="min-width: 100px;">ACK状況</th>
                         <th style="min-width: 130px;">作成日時</th>
+                        <th style="min-width: 80px;">操作</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -59,6 +60,17 @@
                             </td>
                             <td class="small">
                                 {{ stat.notice.created_at|date:"Y/m/d H:i" }}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#noticeEditModal"
+                                        data-notice-id="{{ stat.notice.id }}"
+                                        data-notice-title="{{ stat.notice.title }}"
+                                        data-notice-body="{{ stat.notice.body }}"
+                                        data-edit-url="{% url 'vket:manage_notice_update' collaboration.id stat.notice.id %}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
                             </td>
                         </tr>
                     {% endfor %}
@@ -122,4 +134,49 @@
             </div>
         </div>
     </div>
+
+    {# お知らせ編集モーダル #}
+    <div class="modal fade" id="noticeEditModal" tabindex="-1" aria-labelledby="noticeEditModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="noticeEditModalLabel">
+                        <i class="fas fa-edit me-2"></i>お知らせ編集
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="post" id="noticeEditForm">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">タイトル <span class="text-danger">*</span></label>
+                            <input type="text" name="title" class="form-control" required maxlength="200" id="editNoticeTitle">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">本文 <span class="text-danger">*</span></label>
+                            <textarea name="body" class="form-control" rows="6" required id="editNoticeBody"></textarea>
+                        </div>
+                        <div class="modal-footer px-0 pb-0">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>更新する
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const editModal = document.getElementById('noticeEditModal');
+        editModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            document.getElementById('editNoticeTitle').value = button.getAttribute('data-notice-title');
+            document.getElementById('editNoticeBody').value = button.getAttribute('data-notice-body');
+            document.getElementById('noticeEditForm').action = button.getAttribute('data-edit-url');
+        });
+    });
+    </script>
 {% endblock %}

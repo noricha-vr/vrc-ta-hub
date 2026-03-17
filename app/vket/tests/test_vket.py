@@ -699,6 +699,70 @@ class VketNoticeTests(TestCase):
         self.assertEqual(receipts.count(), 1)
         self.assertEqual(receipts.first().participation, self.participation)
 
+    def test_manage_notice_update_success(self):
+        """superuserがお知らせのタイトルと本文を編集できる"""
+        self.client.login(username='admin_user2', password='adminpass123')
+        response = self.client.post(
+            reverse('vket:manage_notice_update', kwargs={
+                'pk': self.collaboration.pk,
+                'notice_id': self.notice.pk,
+            }),
+            data={'title': '更新タイトル', 'body': '更新本文'},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.notice.refresh_from_db()
+        self.assertEqual(self.notice.title, '更新タイトル')
+        self.assertEqual(self.notice.body, '更新本文')
+
+    def test_manage_notice_update_requires_superuser(self):
+        """一般ユーザーはお知らせを編集できない"""
+        self.client.login(username='owner_user2', password='testpass123')
+        response = self.client.post(
+            reverse('vket:manage_notice_update', kwargs={
+                'pk': self.collaboration.pk,
+                'notice_id': self.notice.pk,
+            }),
+            data={'title': '不正更新', 'body': '不正本文'},
+        )
+        self.assertEqual(response.status_code, 403)
+        self.notice.refresh_from_db()
+        self.assertEqual(self.notice.title, 'テストお知らせ')
+
+    def test_manage_notice_update_validates_required_fields(self):
+        """タイトル・本文が空の場合はエラー"""
+        self.client.login(username='admin_user2', password='adminpass123')
+        response = self.client.post(
+            reverse('vket:manage_notice_update', kwargs={
+                'pk': self.collaboration.pk,
+                'notice_id': self.notice.pk,
+            }),
+            data={'title': '', 'body': ''},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.notice.refresh_from_db()
+        self.assertEqual(self.notice.title, 'テストお知らせ')
+
+    def test_manage_notice_update_rejects_other_collaboration_notice(self):
+        """他のcollaborationのお知らせは編集できない（404）"""
+        other_collab = VketCollaboration.objects.create(
+            slug='other-collab',
+            name='別コラボ',
+            period_start=timezone.localdate(),
+            period_end=timezone.localdate() + timedelta(days=7),
+            registration_deadline=timezone.localdate() + timedelta(days=1),
+            lt_deadline=timezone.localdate() + timedelta(days=3),
+            phase=VketCollaboration.Phase.SCHEDULING,
+        )
+        self.client.login(username='admin_user2', password='adminpass123')
+        response = self.client.post(
+            reverse('vket:manage_notice_update', kwargs={
+                'pk': other_collab.pk,
+                'notice_id': self.notice.pk,
+            }),
+            data={'title': '不正更新', 'body': '不正本文'},
+        )
+        self.assertEqual(response.status_code, 404)
+
 
 class VketParticipationStatusTests(TestCase):
     """ParticipationStatusView のテスト（未確認お知らせバナー等）"""

@@ -16,6 +16,7 @@ urlpatterns = [
     path('<int:pk>/manage/schedule/', views.ManageScheduleView.as_view(), name='manage_schedule'),
     path('<int:pk>/manage/notices/', views.ManageNoticeListView.as_view(), name='manage_notice_list'),
     path('<int:pk>/manage/notices/create/', views.ManageNoticeCreateView.as_view(), name='manage_notice_create'),
+    path('<int:pk>/manage/notices/<int:notice_id>/edit/', views.ManageNoticeUpdateView.as_view(), name='manage_notice_update'),
     path('<int:pk>/manage/publish/', views.ManagePublishView.as_view(), name='manage_publish'),
     path(
         '<int:pk>/manage/participations/<int:participation_id>/update/',

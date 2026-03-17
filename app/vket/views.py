@@ -1099,6 +1099,31 @@ class ManageNoticeCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
         return redirect('vket:manage_notice_list', pk=pk)
 
 
+class ManageNoticeUpdateView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """運営向け: お知らせ編集ビュー"""
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def post(self, request, pk: int, notice_id: int):
+        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        notice = get_object_or_404(VketNotice, pk=notice_id, collaboration=collaboration)
+
+        title = request.POST.get('title', '').strip()
+        body = request.POST.get('body', '').strip()
+
+        if not title or not body:
+            messages.error(request, 'タイトルと本文は必須です。')
+            return redirect('vket:manage_notice_list', pk=pk)
+
+        notice.title = title
+        notice.body = body
+        notice.save(update_fields=['title', 'body'])
+
+        messages.success(request, 'お知らせを更新しました。')
+        return redirect('vket:manage_notice_list', pk=pk)
+
+
 class AckNoticeView(View):
     """ログイン不要: お知らせ確認（ACK）ビュー
 
