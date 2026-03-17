@@ -135,3 +135,4 @@ docs/tmp/*
 docs/security_todo.md
 /r2_bkp/
 backup/
+dumps/
