@@ -817,6 +817,23 @@ class VketNoticeTests(TestCase):
         stat = response.context['notice_stats'][0]
         self.assertEqual(stat['unacked_mentions'], [])
 
+    def test_manage_notice_list_unacked_mentions_fallback_discord_id(self):
+        """メンション未設定のコミュニティはメンバーのDiscord IDでメンション生成"""
+        from allauth.socialaccount.models import SocialAccount
+        SocialAccount.objects.create(
+            user=self.owner, provider='discord', uid='123456789'
+        )
+        VketNoticeReceipt.objects.create(
+            notice=self.notice, participation=self.participation
+        )
+
+        self.client.login(username='admin_user2', password='adminpass123')
+        response = self.client.get(
+            reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
+        )
+        stat = response.context['notice_stats'][0]
+        self.assertIn('<@123456789>', stat['unacked_mentions'])
+
 
 class VketParticipationStatusTests(TestCase):
     """ParticipationStatusView のテスト（未確認お知らせバナー等）"""

@@ -1038,6 +1038,7 @@ class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
 
             # 未ACKのコミュニティからDiscordメンション文字列を収集
             unacked_mentions = []
+            unacked_community_names = []
             if notice.requires_ack:
                 seen_community_ids = set()
                 for r in receipts:
@@ -1047,12 +1048,23 @@ class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
                     if community.id in seen_community_ids:
                         continue
                     seen_community_ids.add(community.id)
+                    unacked_community_names.append(community.name)
                     mention_type = community.discord_mention_type
                     if mention_type == Community.DiscordMentionType.ROLE and community.discord_mention_role_id:
                         unacked_mentions.append(f'<@&{community.discord_mention_role_id}>')
                     elif mention_type == Community.DiscordMentionType.USERS:
                         for uid in community.discord_mention_user_ids:
                             unacked_mentions.append(f'<@{uid}>')
+                    else:
+                        # メンション未設定: メンバーのDiscord IDからメンション生成
+                        member_user_ids = CommunityMember.objects.filter(
+                            community=community
+                        ).values_list('user_id', flat=True)
+                        discord_ids = SocialAccount.objects.filter(
+                            user_id__in=member_user_ids, provider='discord'
+                        ).values_list('uid', flat=True)
+                        for did in discord_ids:
+                            unacked_mentions.append(f'<@{did}>')
 
             notice_stats.append(
                 {
@@ -1060,6 +1072,7 @@ class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
                     'total': total,
                     'acked': acked,
                     'unacked_mentions': unacked_mentions,
+                    'unacked_community_names': unacked_community_names,
                 }
             )
 

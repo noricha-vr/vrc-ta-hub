@@ -54,10 +54,11 @@
                             <td class="small">
                                 {% if stat.notice.requires_ack and stat.total > 0 %}
                                     <span class="text-success">{{ stat.acked }}</span>/{{ stat.total }}確認
-                                    {% if stat.unacked_mentions %}
+                                    {% if stat.unacked_community_names %}
                                         <button class="btn btn-sm btn-outline-warning ms-1 btn-copy-mentions"
-                                                title="未確認者のDiscordメンションをコピー"
-                                                data-mentions="{{ stat.unacked_mentions|join:' ' }}">
+                                                title="未確認: {{ stat.unacked_community_names|join:', ' }}"
+                                                data-mentions="{{ stat.unacked_mentions|join:' ' }}"
+                                                data-names="{{ stat.unacked_community_names|join:', ' }}">
                                             <i class="fas fa-at"></i>
                                         </button>
                                     {% endif %}
@@ -188,15 +189,28 @@
         document.querySelectorAll('.btn-copy-mentions').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 const text = this.getAttribute('data-mentions');
-                navigator.clipboard.writeText(text).then(function() {
+                function onSuccess() {
                     btn.classList.replace('btn-outline-warning', 'btn-success');
-                    const icon = btn.querySelector('i');
+                    var icon = btn.querySelector('i');
                     icon.classList.replace('fa-at', 'fa-check');
                     setTimeout(function() {
                         btn.classList.replace('btn-success', 'btn-outline-warning');
                         icon.classList.replace('fa-check', 'fa-at');
                     }, 1500);
-                });
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(onSuccess);
+                } else {
+                    var ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    onSuccess();
+                }
             });
         });
     });
