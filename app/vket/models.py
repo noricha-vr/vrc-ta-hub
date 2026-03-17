@@ -67,6 +67,7 @@ class VketParticipation(models.Model):
         NOT_APPLIED = "not_applied", "未申請"
         APPLIED = "applied", "申請済み"
         SCHEDULE_CONFIRMED = "schedule_confirmed", "日程確定"
+        STAGE_REGISTERED = "stage_registered", "ステージ登録済"
         LT_PENDING = "lt_pending", "LT情報待ち"
         LT_SUBMITTED = "lt_submitted", "LT提出済み"
         DONE = "done", "完了"
@@ -123,6 +124,7 @@ class VketParticipation(models.Model):
     )
     applied_at = models.DateTimeField("申請日時", null=True, blank=True)
     schedule_confirmed_at = models.DateTimeField("日程確定日時", null=True, blank=True)
+    stage_registered_at = models.DateTimeField("ステージ登録日時", null=True, blank=True)
     lt_submitted_at = models.DateTimeField("LT提出日時", null=True, blank=True)
     last_acknowledged_at = models.DateTimeField("最終確認日時", null=True, blank=True)
     last_acknowledged_by = models.ForeignKey(
@@ -192,6 +194,7 @@ class VketPresentation(models.Model):
     order = models.PositiveIntegerField("表示順", default=0)
     speaker = models.CharField("登壇者名", max_length=200, blank=True)
     theme = models.CharField("テーマ", max_length=200, blank=True)
+    requested_start_time = models.TimeField("希望開始時刻", null=True, blank=True)
     confirmed_start_time = models.TimeField("確定開始時刻", null=True, blank=True)
     duration = models.PositiveIntegerField("発表時間（分）", default=30)
     status = models.CharField(

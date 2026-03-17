@@ -223,6 +223,65 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['can_apply'])
 
+    def test_lt_start_time_saved_to_presentation(self):
+        """LT開始時刻が VketPresentation.requested_start_time に保存される"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        target_date = self.collaboration.period_start
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}),
+            data={
+                'requested_date': target_date.isoformat(),
+                'requested_start_time': '21:00',
+                'requested_duration': '60',
+                'speaker': 'テスト登壇者',
+                'theme': 'テストテーマ',
+                'lt_start_time': '21:30',
+                'organizer_note': '備考テスト',
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        participation = VketParticipation.objects.get(
+            collaboration=self.collaboration, community=self.community
+        )
+        pres = VketPresentation.objects.get(participation=participation, order=0)
+        self.assertEqual(pres.requested_start_time.strftime('%H:%M'), '21:30')
+
+    def test_new_apply_shows_organizer_note_template(self):
+        """新規申請GETで organizer_note の初期値テンプレートが表示される"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        response = self.client.get(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        form = response.context['form']
+        self.assertIn('当日サポートが欲しい', form.initial.get('organizer_note', ''))
+
+    def test_existing_participation_preserves_organizer_note(self):
+        """既存参加者のGETで organizer_note が初期テンプレートで上書きされない"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        # 先に参加を作成
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            organizer_note='カスタム備考',
+            progress=VketParticipation.Progress.APPLIED,
+        )
+
+        response = self.client.get(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        form = response.context['form']
+        self.assertEqual(form.initial.get('organizer_note'), 'カスタム備考')
+
 
 class VketManageViewsTests(TestCase):
     def setUp(self):
@@ -666,6 +725,65 @@ class VketParticipationStatusTests(TestCase):
         self.assertEqual(response.context['unacked_count'], 0)
         self.assertNotContains(response, '未確認のお知らせ')
 
+    def test_stage_register_advances_progress(self):
+        """ステージ登録POSTで progress が STAGE_REGISTERED に進む"""
+        self.participation.progress = VketParticipation.Progress.SCHEDULE_CONFIRMED
+        self.participation.save()
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.post(
+            reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        self.participation.refresh_from_db()
+        self.assertEqual(self.participation.progress, VketParticipation.Progress.STAGE_REGISTERED)
+        self.assertIsNotNone(self.participation.stage_registered_at)
+
+    def test_stage_register_requires_schedule_confirmed(self):
+        """SCHEDULE_CONFIRMED 以外ではステージ登録できない"""
+        self.participation.progress = VketParticipation.Progress.APPLIED
+        self.participation.save()
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.post(
+            reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.participation.refresh_from_db()
+        self.assertEqual(self.participation.progress, VketParticipation.Progress.APPLIED)
+
+    def test_status_page_shows_stage_banner(self):
+        """日程確定時にステージ登録バナーが表示される"""
+        self.participation.progress = VketParticipation.Progress.SCHEDULE_CONFIRMED
+        self.participation.save()
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.get(
+            reverse('vket:status', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Vketステージ登録')
+
+    def test_status_page_hides_stage_banner_after_registration(self):
+        """登録済み後はバナーが非表示になる"""
+        self.participation.progress = VketParticipation.Progress.STAGE_REGISTERED
+        self.participation.save()
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.get(
+            reverse('vket:status', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Vketステージ登録')
+
 
 class VketStatusRedirectViewTests(TestCase):
     """VketStatusRedirectView のテスト"""
@@ -801,7 +919,7 @@ class VketStatusRedirectViewTests(TestCase):
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '管理画面')
+        self.assertContains(response, 'fa-gear')
 
     def test_status_page_hides_admin_link_for_normal_user(self):
         """一般ユーザーには管理者リンクが表示されない"""
@@ -820,7 +938,7 @@ class VketStatusRedirectViewTests(TestCase):
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
         )
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, '管理画面')
+        self.assertNotContains(response, 'fa-gear')
 
 
 class VketPublishViewTests(TestCase):
@@ -906,3 +1024,30 @@ class VketPublishViewTests(TestCase):
         self.assertEqual(self.participation.published_event_id, first_event_id)
         # Eventが重複作成されていないこと
         self.assertEqual(Event.objects.filter(community=self.community).count(), 1)
+
+    def test_lt_start_time_flows_to_event_detail(self):
+        """requested_start_time が EventDetail.start_time に反映される"""
+        # プレゼンテーションに requested_start_time を設定（CONFIRMED で公開対象にする）
+        pres = VketPresentation.objects.create(
+            participation=self.participation,
+            order=0,
+            speaker='テスト登壇者',
+            theme='テストテーマ',
+            requested_start_time=time(21, 30),
+            status=VketPresentation.Status.CONFIRMED,
+        )
+
+        self.client.login(username='admin_pub', password='adminpass123')
+        response = self.client.post(
+            reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        self.participation.refresh_from_db()
+        event = self.participation.published_event
+        self.assertIsNotNone(event)
+
+        # EventDetail が作成され、start_time に requested_start_time が使われていること
+        detail = EventDetail.objects.get(event=event)
+        self.assertEqual(detail.start_time.strftime('%H:%M'), '21:30')

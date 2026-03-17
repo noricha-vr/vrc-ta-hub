@@ -55,6 +55,10 @@
                     {% if form.requested_date.errors %}
                         <div class="text-danger small mt-1">{{ form.requested_date.errors }}</div>
                     {% endif %}
+                    <p class="text-muted small mt-2">
+                        <i class="fas fa-info-circle me-1"></i>
+                        希望の日程がない場合は、先に<a href="{% url 'event:calendar_create' %}">イベント日程を追加</a>してから申込みしてください。
+                    </p>
                 </div>
 
                 <div class="row g-3 mb-4">
@@ -68,7 +72,7 @@
 
                 <hr class="my-4">
 
-                <h2 class="h5 fw-bold mb-3">LT情報（締切2・今入力しなくてもOK）</h2>
+                <h2 class="h5 fw-bold mb-3">LT情報（{{ collaboration.lt_deadline|date:"n/j" }} 締切・今入力しなくてもOK）</h2>
 
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
@@ -76,6 +80,9 @@
                     </div>
                     <div class="col-12 col-md-6">
                         {% bootstrap_field form.theme %}
+                    </div>
+                    <div class="col-12 col-md-4">
+                        {% bootstrap_field form.lt_start_time %}
                     </div>
                     <div class="col-12">
                         {% bootstrap_field form.organizer_note %}

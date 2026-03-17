@@ -92,6 +92,11 @@ class VketApplyForm(forms.Form):
     )
     speaker = forms.CharField(label='登壇者名', max_length=200, required=False)
     theme = forms.CharField(label='テーマ', max_length=100, required=False)
+    lt_start_time = forms.TimeField(
+        label='LT開始時刻',
+        required=False,
+        widget=forms.TimeInput(attrs={'type': 'time', 'step': 300}),
+    )
     organizer_note = forms.CharField(
         label='備考',
         required=False,
@@ -130,6 +135,7 @@ class VketApplyForm(forms.Form):
         if not permissions.can_edit_lt:
             self.fields['speaker'].disabled = True
             self.fields['theme'].disabled = True
+            self.fields['lt_start_time'].disabled = True
             self.fields['organizer_note'].disabled = True
 
     def clean(self):

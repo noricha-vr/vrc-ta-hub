@@ -8,29 +8,41 @@
 
         <div class="d-flex justify-content-between align-items-start mb-4">
             <div>
-                <h1 class="fw-bold mb-1">{{ collaboration.name }} 参加状況</h1>
+                <h1 class="fw-bold mb-1 me-3">{{ collaboration.name }} 参加状況</h1>
                 {% if community %}
                     <div class="text-muted">集会: <strong>{{ community.name }}</strong></div>
                 {% endif %}
             </div>
-            {% if collaborations|length > 1 %}
-            <div class="dropdown">
-                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
-                        data-bs-toggle="dropdown">
-                    切替
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                    {% for c in collaborations %}
-                    <li>
-                        <a class="dropdown-item {% if c.pk == collaboration.pk %}active{% endif %}"
-                           href="{% url 'vket:status' c.pk %}">
-                            {{ c.name }}
-                        </a>
-                    </li>
-                    {% endfor %}
-                </ul>
+            <div class="d-flex gap-2 align-items-center flex-shrink-0">
+                {% if participation %}
+                    <a href="{% url 'vket:apply' collaboration.pk %}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-edit me-1"></i>編集
+                    </a>
+                {% endif %}
+                {% if is_superuser %}
+                    <a href="{% url 'vket:manage' collaboration.pk %}" class="btn btn-outline-dark btn-sm">
+                        <i class="fas fa-gear me-1"></i>管理
+                    </a>
+                {% endif %}
+                {% if collaborations|length > 1 %}
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
+                            data-bs-toggle="dropdown">
+                        切替
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        {% for c in collaborations %}
+                        <li>
+                            <a class="dropdown-item {% if c.pk == collaboration.pk %}active{% endif %}"
+                               href="{% url 'vket:status' c.pk %}">
+                                {{ c.name }}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
 
         {% if unacked_count %}
@@ -119,6 +131,54 @@
                 </div>
             </div>
 
+            {# Vketステージ登録案内 #}
+            {% if participation.progress == 'schedule_confirmed' and stage_url %}
+                <div class="card shadow-sm mb-4 border-warning">
+                    <div class="card-body">
+                        <h2 class="h5 fw-bold mb-2">
+                            <i class="fas fa-external-link-alt me-2 text-warning"></i>Vketステージ登録
+                        </h2>
+                        <p class="mb-3">
+                            日程が確定しました。Vket公式サイトのステージページにイベント情報を登録してください。
+                        </p>
+                        <div class="d-flex gap-2 align-items-center">
+                            <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-outline-primary">
+                                <i class="fas fa-external-link-alt me-1"></i>ステージページを開く
+                            </a>
+                            <form method="post" action="{% url 'vket:stage_register' collaboration.pk %}"
+                                  class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-success"
+                                        onclick="return confirm('Vketステージページへの登録は完了しましたか？')">
+                                    <i class="fas fa-check me-1"></i>登録完了
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% elif participation.progress == 'schedule_confirmed' %}
+                {# stage_url 未設定時はテキストのみ #}
+                <div class="card shadow-sm mb-4 border-warning">
+                    <div class="card-body">
+                        <h2 class="h5 fw-bold mb-2">
+                            <i class="fas fa-external-link-alt me-2 text-warning"></i>Vketステージ登録
+                        </h2>
+                        <p class="mb-3">
+                            日程が確定しました。Vket公式サイトのステージページにイベント情報を登録してください。
+                            登録先URLは運営からのお知らせをご確認ください。
+                        </p>
+                        <form method="post" action="{% url 'vket:stage_register' collaboration.pk %}"
+                              class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-success"
+                                    onclick="return confirm('Vketステージページへの登録は完了しましたか？')">
+                                <i class="fas fa-check me-1"></i>登録完了
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% endif %}
+
             {# LT情報 #}
             {% with presentations=participation.presentations.all %}
                 {% if presentations %}
@@ -177,20 +237,12 @@
                 </div>
             {% endif %}
 
-            {# アクションボタン #}
-            <div class="d-flex gap-2 flex-wrap">
-                <a href="{% url 'vket:apply' collaboration.pk %}" class="btn btn-outline-primary">
-                    <i class="fas fa-edit me-1"></i>参加情報を編集
-                </a>
-                <a href="{% url 'vket:notice_list' collaboration.pk %}" class="btn btn-outline-secondary">
+            {# お知らせ一覧リンク（最新お知らせがない場合のフォールバック） #}
+            {% if not latest_notices %}
+                <a href="{% url 'vket:notice_list' collaboration.pk %}" class="btn btn-outline-secondary btn-sm">
                     <i class="fas fa-bell me-1"></i>お知らせ一覧
                 </a>
-                {% if is_superuser %}
-                    <a href="{% url 'vket:manage' collaboration.pk %}" class="btn btn-outline-dark">
-                        <i class="fas fa-gear me-1"></i>管理画面
-                    </a>
-                {% endif %}
-            </div>
+            {% endif %}
         {% endif %}
     </div>
 {% endblock %}

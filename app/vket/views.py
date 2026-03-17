@@ -334,7 +334,7 @@ class ApplyView(LoginRequiredMixin, View):
             )
 
         messages.success(request, '参加登録を保存しました。')
-        return redirect('vket:apply', pk=collaboration.pk)
+        return redirect('vket:status', pk=collaboration.pk)
 
     def _build_initial(
         self, community: Community, participation: VketParticipation | None
@@ -360,6 +360,10 @@ class ApplyView(LoginRequiredMixin, View):
             if first_pres:
                 initial['speaker'] = first_pres.speaker
                 initial['theme'] = first_pres.theme
+                initial['lt_start_time'] = first_pres.requested_start_time
+        else:
+            # 新規の場合のみ organizer_note の初期値を設定
+            initial['organizer_note'] = '当日サポートが欲しい（一人主催の場合）: YES・NO'
 
         return initial
 
@@ -408,6 +412,7 @@ class ApplyView(LoginRequiredMixin, View):
                 defaults={
                     'speaker': speaker,
                     'theme': theme,
+                    'requested_start_time': cleaned.get('lt_start_time'),
                 },
             )
 
@@ -513,6 +518,7 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             p for p in active_parts
             if p.progress in (
                 VketParticipation.Progress.SCHEDULE_CONFIRMED,
+                VketParticipation.Progress.STAGE_REGISTERED,
                 VketParticipation.Progress.LT_PENDING,
             )
         ]
@@ -840,6 +846,37 @@ class VketStatusRedirectView(LoginRequiredMixin, View):
         return redirect('vket:status', pk=collaboration.pk)
 
 
+class StageRegisterView(LoginRequiredMixin, View):
+    """主催者がVketステージ登録完了を自己申告するビュー"""
+
+    def post(self, request, pk: int):
+        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        community, membership = _get_active_membership(request)
+        if community is None or membership is None:
+            return HttpResponseForbidden('集会が選択されていません。')
+
+        if not (request.user.is_superuser or membership.role == CommunityMember.Role.OWNER):
+            return HttpResponseForbidden('主催者のみステージ登録を完了できます。')
+
+        participation = get_object_or_404(
+            VketParticipation,
+            collaboration=collaboration,
+            community=community,
+        )
+
+        # 日程確定済みの場合のみ登録可能
+        if participation.progress != VketParticipation.Progress.SCHEDULE_CONFIRMED:
+            messages.warning(request, 'ステージ登録は日程確定後に行ってください。')
+            return redirect('vket:status', pk=pk)
+
+        participation.progress = VketParticipation.Progress.STAGE_REGISTERED
+        participation.stage_registered_at = timezone.now()
+        participation.save(update_fields=['progress', 'stage_registered_at', 'updated_at'])
+
+        messages.success(request, 'Vketステージ登録完了を記録しました。')
+        return redirect('vket:status', pk=pk)
+
+
 class ParticipationStatusView(LoginRequiredMixin, View):
     """主催者向け: 自分の集会のコラボ参加状況を確認するビュー"""
 
@@ -881,6 +918,11 @@ class ParticipationStatusView(LoginRequiredMixin, View):
         # コラボ切替ドロップダウン用
         collaborations = list(_get_visible_collaborations(request.user))
 
+        # stage_url を settings_json から取得
+        stage_url = None
+        if collaboration.settings_json and isinstance(collaboration.settings_json, dict):
+            stage_url = collaboration.settings_json.get('stage_url')
+
         return render(
             request,
             self.template_name,
@@ -893,6 +935,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'unacked_count': unacked_count,
                 'collaborations': collaborations,
                 'is_superuser': request.user.is_superuser,
+                'stage_url': stage_url,
             },
         )
 
@@ -1140,7 +1183,7 @@ class ManagePublishView(LoginRequiredMixin, UserPassesTestMixin, View):
                         'event': event,
                         'theme': pres.theme,
                         'speaker': pres.speaker,
-                        'start_time': pres.confirmed_start_time or participation.confirmed_start_time,
+                        'start_time': pres.confirmed_start_time or pres.requested_start_time or participation.confirmed_start_time,
                         'duration': pres.duration,
                         'detail_type': 'LT',
                         'status': 'approved',
