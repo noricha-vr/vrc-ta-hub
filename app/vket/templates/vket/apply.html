@@ -16,13 +16,25 @@
             </div>
         </div>
 
+        {% if participation %}
+            <div class="alert alert-info py-2">
+                <i class="fas fa-info-circle me-1"></i>
+                現在の進捗: <strong>{{ participation.get_progress_display }}</strong>
+                {% if participation.confirmed_date %}
+                    &nbsp;/ 確定日程: <strong>{{ participation.confirmed_date|date:"n/j（D）" }} {{ participation.confirmed_start_time|date:"H:i" }}</strong>
+                {% endif %}
+            </div>
+        {% endif %}
+
         {% if not permissions.can_edit_schedule %}
             <div class="alert alert-warning">
+                <i class="fas fa-lock me-1"></i>
                 参加日程（Step 1）は締切を過ぎているため編集できません。
             </div>
         {% endif %}
         {% if not permissions.can_edit_lt %}
             <div class="alert alert-warning">
+                <i class="fas fa-lock me-1"></i>
                 LT情報（Step 2）は締切を過ぎているため編集できません。
             </div>
         {% endif %}
@@ -32,24 +44,25 @@
                 {% csrf_token %}
                 {% bootstrap_form_errors form %}
 
-                <h2 class="h5 fw-bold mb-3">参加日程（締切1）</h2>
+                <h2 class="h5 fw-bold mb-3">参加日程の希望（締切1）</h2>
+                <p class="text-muted small mb-3">運営が確認して確定日程を設定します。確定後はこの画面で「確定日程」として表示されます。</p>
 
                 <div class="mb-3">
-                    <label class="form-label fw-bold">{{ form.participation_date.label }}</label>
+                    <label class="form-label fw-bold">{{ form.requested_date.label }}</label>
                     <div class="ms-2">
-                        {{ form.participation_date }}
+                        {{ form.requested_date }}
                     </div>
-                    {% if form.participation_date.errors %}
-                        <div class="text-danger small mt-1">{{ form.participation_date.errors }}</div>
+                    {% if form.requested_date.errors %}
+                        <div class="text-danger small mt-1">{{ form.requested_date.errors }}</div>
                     {% endif %}
                 </div>
 
                 <div class="row g-3 mb-4">
                     <div class="col-12 col-md-4">
-                        {% bootstrap_field form.start_time %}
+                        {% bootstrap_field form.requested_start_time %}
                     </div>
                     <div class="col-12 col-md-4">
-                        {% bootstrap_field form.duration %}
+                        {% bootstrap_field form.requested_duration %}
                     </div>
                 </div>
 
@@ -65,7 +78,7 @@
                         {% bootstrap_field form.theme %}
                     </div>
                     <div class="col-12">
-                        {% bootstrap_field form.note %}
+                        {% bootstrap_field form.organizer_note %}
                     </div>
                 </div>
 
@@ -76,4 +89,3 @@
         </form>
     </div>
 {% endblock %}
-

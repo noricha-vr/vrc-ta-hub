@@ -1,6 +1,6 @@
 {% extends 'ta_hub/base.html' %}
 {% block meta %}
-    <title>{{ collaboration.name }} 管理（登壇者） - VRChat 技術・学術系イベントHub</title>
+    <title>{{ collaboration.name }} 管理 - VRChat 技術・学術系イベントHub</title>
 {% endblock %}
 {% block main %}
     <div class="container my-4">
@@ -13,10 +13,11 @@
                 / 締切1: {{ collaboration.registration_deadline|date:"Y/m/d" }}
                 / 締切2: {{ collaboration.lt_deadline|date:"Y/m/d" }}
             </div>
-            <div class="mt-2 text-muted">
-                参加: {{ participation_count }}/{{ community_total }}集会
-                / 日程確定: {{ scheduled_count }}/{{ participation_count }}
-                / LT登録済: {{ lt_registered_count }}/{{ scheduled_count }}
+            <div class="mt-2 d-flex gap-3 flex-wrap align-items-center">
+                <span class="text-muted small">参加: <strong>{{ participation_count }}</strong>/{{ community_total }}集会</span>
+                <span class="text-muted small">日程確定: <strong>{{ scheduled_count }}</strong>/{{ participation_count }}</span>
+                <span class="text-muted small">LT登録済: <strong>{{ lt_registered_count }}</strong>/{{ scheduled_count }}</span>
+                <span class="badge bg-secondary">{{ collaboration.get_phase_display }}</span>
             </div>
         </div>
 
@@ -26,81 +27,108 @@
             <table class="table table-sm table-hover align-middle">
                 <thead>
                 <tr class="table-light">
-                    <th style="min-width: 220px;">集会名</th>
-                    <th style="min-width: 150px;">日付</th>
-                    <th style="min-width: 120px;">時刻</th>
-                    <th style="min-width: 200px;">登壇者</th>
-                    <th style="min-width: 260px;">テーマ</th>
-                    <th style="min-width: 220px;">備考</th>
-                    <th style="min-width: 220px;">編集</th>
+                    <th style="min-width: 160px;">集会名</th>
+                    <th style="min-width: 90px;">進捗</th>
+                    <th style="min-width: 120px;">希望日程</th>
+                    <th style="min-width: 120px;">確定日程</th>
+                    <th style="min-width: 180px;">登壇者 / テーマ</th>
+                    <th style="min-width: 160px;">備考</th>
+                    <th style="min-width: 280px;">日程確定（運営）</th>
                 </tr>
                 </thead>
                 <tbody>
                 {% for p in participations %}
                     <tr>
-                        <td class="fw-bold">{{ p.community.name }}</td>
-                        <td>
-                            {% if p.event %}
-                                {{ p.event.date|date:"n/j（D）" }}
-                            {% else %}
-                                <span class="text-muted">—</span>
+                        <td class="fw-bold">
+                            {{ p.community.name }}
+                            {% if p.lifecycle != 'active' %}
+                                <span class="badge bg-danger ms-1">{{ p.get_lifecycle_display }}</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% if p.event %}
-                                {{ p.event.start_time|date:"H:i" }}
-                            {% else %}
-                                <span class="text-muted">—</span>
-                            {% endif %}
+                            <span class="badge
+                                {% if p.progress == 'done' %}bg-success
+                                {% elif p.progress == 'schedule_confirmed' %}bg-primary
+                                {% elif p.progress == 'lt_submitted' %}bg-info
+                                {% elif p.progress == 'applied' %}bg-warning text-dark
+                                {% elif p.progress == 'not_applied' %}bg-secondary
+                                {% else %}bg-light text-dark border{% endif %}">
+                                {{ p.get_progress_display }}
+                            </span>
                         </td>
-                        <td>
-                            {% if p.event and p.event.details.all %}
-                                {% with lt=p.event.details.all.0 %}
-                                    {{ lt.speaker|default:"—" }}
-                                {% endwith %}
-                            {% else %}
-                                <span class="text-muted">—</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if p.event and p.event.details.all %}
-                                {% with lt=p.event.details.all.0 %}
-                                    {{ lt.theme|default:"—" }}
-                                {% endwith %}
+                        <td class="small">
+                            {% if p.requested_date %}
+                                {{ p.requested_date|date:"n/j（D）" }}<br>
+                                {{ p.requested_start_time|date:"H:i" }}
+                                {% if p.requested_duration %}({{ p.requested_duration }}分){% endif %}
                             {% else %}
                                 <span class="text-muted">—</span>
                             {% endif %}
                         </td>
                         <td class="small">
-                            {% if p.note %}
-                                <div><span class="text-muted">主催者:</span> {{ p.note|linebreaksbr }}</div>
+                            {% if p.confirmed_date %}
+                                <span class="text-success fw-bold">{{ p.confirmed_date|date:"n/j（D）" }}</span><br>
+                                {{ p.confirmed_start_time|date:"H:i" }}
+                                {% if p.confirmed_duration %}({{ p.confirmed_duration }}分){% endif %}
+                                {% if p.schedule_adjusted_by_admin %}
+                                    <span class="badge bg-primary ms-1" style="font-size: 0.65em;">確定</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            {% with pres_list=p.confirmed_presentations %}
+                                {% if pres_list %}
+                                    {% for pres in pres_list %}
+                                        <div>{{ pres.speaker|default:"（未入力）" }}</div>
+                                        <div class="text-muted">{{ pres.theme|default:"—" }}</div>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td class="small">
+                            {% if p.organizer_note %}
+                                <div><span class="text-muted">主催者:</span> {{ p.organizer_note|linebreaksbr }}</div>
                             {% endif %}
                             {% if p.admin_note %}
                                 <div><span class="text-muted">運営:</span> {{ p.admin_note|linebreaksbr }}</div>
                             {% endif %}
-                            {% if not p.note and not p.admin_note %}
+                            {% if not p.organizer_note and not p.admin_note %}
                                 <span class="text-muted">—</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% if p.event %}
-                                <form method="post"
-                                      action="{% url 'vket:manage_participation_update' collaboration.id p.id %}"
-                                      class="d-flex flex-column gap-1">
-                                    {% csrf_token %}
-                                    <div class="d-flex gap-1">
-                                        <input class="form-control form-control-sm" type="date" name="date"
-                                               value="{{ p.event.date|date:"Y-m-d" }}" required>
-                                        <input class="form-control form-control-sm" type="time" name="start_time"
-                                               value="{{ p.event.start_time|date:"H:i" }}" required>
-                                    </div>
-                                    <textarea class="form-control form-control-sm" name="admin_note" rows="2"
-                                              placeholder="備考（運営）">{{ p.admin_note }}</textarea>
-                                    <button class="btn btn-outline-primary btn-sm" type="submit">保存</button>
-                                </form>
-                            {% else %}
-                                <span class="text-muted small">日程未登録</span>
-                            {% endif %}
+                            <form method="post"
+                                  action="{% url 'vket:manage_participation_update' collaboration.id p.id %}"
+                                  class="d-flex flex-column gap-1">
+                                {% csrf_token %}
+                                <div class="d-flex gap-1">
+                                    <input class="form-control form-control-sm" type="date" name="confirmed_date"
+                                           value="{% if p.confirmed_date %}{{ p.confirmed_date|date:"Y-m-d" }}{% elif p.requested_date %}{{ p.requested_date|date:"Y-m-d" }}{% endif %}"
+                                           required>
+                                    <input class="form-control form-control-sm" type="time" name="confirmed_start_time"
+                                           value="{% if p.confirmed_start_time %}{{ p.confirmed_start_time|date:"H:i" }}{% elif p.requested_start_time %}{{ p.requested_start_time|date:"H:i" }}{% endif %}"
+                                           required>
+                                </div>
+                                <select class="form-select form-select-sm" name="confirmed_duration">
+                                    {% for val, label in duration_choices %}
+                                        <option value="{{ val }}"
+                                                {% if p.confirmed_duration == val %}selected
+                                                {% elif not p.confirmed_duration and p.requested_duration == val %}selected
+                                                {% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <textarea class="form-control form-control-sm" name="admin_note" rows="2"
+                                          placeholder="備考（運営）">{{ p.admin_note }}</textarea>
+                                <button class="btn btn-outline-primary btn-sm" type="submit">
+                                    <i class="fas fa-check me-1"></i>確定
+                                </button>
+                            </form>
                         </td>
                     </tr>
                 {% endfor %}
@@ -108,19 +136,92 @@
             </table>
         </div>
 
+        {% if collaboration.phase == 'locked' %}
+            <div class="mt-3">
+                <form method="post" action="{% url 'vket:manage_publish' collaboration.id %}"
+                      onsubmit="return confirm('確定済み日程をすべてイベントとして公開します。よろしいですか？')">
+                    {% csrf_token %}
+                    <button class="btn btn-success" type="submit">
+                        <i class="fas fa-upload me-1"></i>公開同期（Event作成）
+                    </button>
+                </form>
+            </div>
+        {% endif %}
+
+        {% if discord_mentions.all %}
+            <div class="mt-4">
+                <h2 class="h5 fw-bold">
+                    <i class="fab fa-discord me-2"></i>Discordメンションリスト
+                </h2>
+                <p class="text-muted small mb-3">メンション文字列をコピーしてDiscordに貼り付けてください。</p>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="d-flex align-items-center mb-1">
+                            <label class="form-label fw-bold mb-0">全参加者</label>
+                            <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionAll">
+                                <i class="fas fa-copy me-1"></i>コピー
+                            </button>
+                        </div>
+                        <textarea class="form-control form-control-sm" rows="2" readonly id="mentionAll" onclick="this.select()">{{ discord_mentions.all }}</textarea>
+                    </div>
+                    {% if discord_mentions.not_applied %}
+                        <div class="col-12 col-md-6">
+                            <div class="d-flex align-items-center mb-1">
+                                <label class="form-label fw-bold mb-0">未応募</label>
+                                <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionNotApplied">
+                                    <i class="fas fa-copy me-1"></i>コピー
+                                </button>
+                            </div>
+                            <textarea class="form-control form-control-sm" rows="2" readonly id="mentionNotApplied" onclick="this.select()">{{ discord_mentions.not_applied }}</textarea>
+                        </div>
+                    {% endif %}
+                    {% if discord_mentions.lt_pending %}
+                        <div class="col-12 col-md-6">
+                            <div class="d-flex align-items-center mb-1">
+                                <label class="form-label fw-bold mb-0">LT未登録</label>
+                                <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionLtPending">
+                                    <i class="fas fa-copy me-1"></i>コピー
+                                </button>
+                            </div>
+                            <textarea class="form-control form-control-sm" rows="2" readonly id="mentionLtPending" onclick="this.select()">{{ discord_mentions.lt_pending }}</textarea>
+                        </div>
+                    {% endif %}
+                </div>
+                <script>
+                document.querySelectorAll('.copy-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const textarea = document.getElementById(this.dataset.target);
+                        navigator.clipboard.writeText(textarea.value).then(() => {
+                            const original = this.innerHTML;
+                            this.innerHTML = '<i class="fas fa-check me-1 text-success"></i>コピー済み';
+                            setTimeout(() => { this.innerHTML = original; }, 1500);
+                        });
+                    });
+                });
+                </script>
+            </div>
+        {% endif %}
+
         {% if unregistered_communities %}
             <div class="mt-4">
-                <h2 class="h5 fw-bold">未登録</h2>
-                <div class="list-group">
+                <h2 class="h5 fw-bold">未登録集会 <span class="text-muted fw-normal small">({{ unregistered_communities|length }}件)</span></h2>
+                <div class="list-group" id="unregisteredList">
                     {% for c in unregistered_communities %}
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <a href="{% url 'community:detail' c.pk %}"
+                           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center{% if forloop.counter > 3 %} d-none unregistered-hidden{% endif %}"
+                           target="_blank">
                             <div class="fw-bold">{{ c.name }}</div>
-                            <span class="text-muted small">未登録</span>
-                        </div>
+                            <span class="text-muted small">未登録 <i class="fas fa-external-link-alt ms-1"></i></span>
+                        </a>
                     {% endfor %}
                 </div>
+                {% if unregistered_communities|length > 3 %}
+                    <button class="btn btn-sm btn-outline-secondary mt-2" id="showAllUnregistered"
+                            onclick="document.querySelectorAll('.unregistered-hidden').forEach(el => el.classList.remove('d-none'));this.remove();">
+                        <i class="fas fa-chevron-down me-1"></i>すべて表示（{{ unregistered_communities|length }}件）
+                    </button>
+                {% endif %}
             </div>
         {% endif %}
     </div>
 {% endblock %}
-

@@ -75,7 +75,7 @@
                     <tbody>
                     {% for row in rows %}
                         <tr>
-                            <td>{{ row.event.date|date:"n/j（D）" }}</td>
+                            <td>{{ row.date|date:"n/j（D）" }}</td>
                             <td class="fw-bold">{{ row.participation.community.name }}</td>
                             {% for cell in row.cells %}
                                 <td class="vket-cell">

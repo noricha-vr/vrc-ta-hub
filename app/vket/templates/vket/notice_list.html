@@ -1,0 +1,61 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}
+    <title>{{ collaboration.name }} お知らせ - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+{% block main %}
+    <div class="container my-4" style="max-width: 860px;">
+        {% include 'ta_hub/messages.html' %}
+
+        <div class="mb-4">
+            <h1 class="fw-bold mb-1">{{ collaboration.name }} お知らせ一覧</h1>
+            {% if community %}
+                <div class="text-muted">集会: <strong>{{ community.name }}</strong></div>
+            {% endif %}
+        </div>
+
+        <div class="mb-3">
+            <a href="{% url 'vket:status' collaboration.pk %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-arrow-left me-1"></i>参加状況に戻る
+            </a>
+        </div>
+
+        {% if not receipts %}
+            <div class="alert alert-secondary">
+                <i class="fas fa-info-circle me-2"></i>
+                お知らせはまだありません。
+            </div>
+        {% else %}
+            <div class="list-group">
+                {% for receipt in receipts %}
+                    <div class="list-group-item list-group-item-action">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1 me-3">
+                                <div class="fw-bold mb-1">{{ receipt.notice.title }}</div>
+                                <div class="text-muted small mb-2">
+                                    <i class="fas fa-clock me-1"></i>{{ receipt.created_at|date:"Y/m/d H:i" }}
+                                </div>
+                                <div class="small text-secondary" style="white-space: pre-wrap;">{{ receipt.notice.body|truncatechars:200 }}</div>
+                            </div>
+                            <div class="d-flex flex-column align-items-end gap-2 flex-shrink-0">
+                                {# ACK状態 #}
+                                {% if receipt.notice.requires_ack %}
+                                    {% if receipt.acknowledged_at %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>確認済み
+                                            <span class="d-block small mt-1">{{ receipt.acknowledged_at|date:"m/d H:i" }}</span>
+                                        </span>
+                                    {% else %}
+                                        <a href="{% url 'vket:ack_notice' receipt.ack_token %}"
+                                           class="badge bg-warning text-dark text-decoration-none">
+                                            <i class="fas fa-exclamation-circle me-1"></i>要確認（タップして確認）
+                                        </a>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}
