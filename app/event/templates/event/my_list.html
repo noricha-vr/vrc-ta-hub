@@ -1,6 +1,16 @@
 {% extends 'ta_hub/base.html' %}
 {% load django_bootstrap5 %}
 
+{% block meta %}
+<style>
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); }
+}
+.vket-banner-btn { animation: pulse-glow 2s infinite; }
+</style>
+{% endblock %}
+
 {% block main %}
     <div class="container my-4">
         {# ヘッダー部分 - 集会切り替えドロップダウン #}
@@ -71,8 +81,8 @@
                                 <span class="text-white fw-bold">{{ vket_banner.message }}</span>
                             </div>
                             <a href="{% url vket_banner.url_name vket_banner.url_pk %}"
-                               class="btn btn-light btn-sm fw-bold">
-                                {{ vket_banner.button_text }}
+                               class="btn btn-outline-light fw-bold px-4 vket-banner-btn">
+                                <i class="fas fa-pen-to-square me-1"></i>{{ vket_banner.button_text }}
                             </a>
                         </div>
                     </div>
