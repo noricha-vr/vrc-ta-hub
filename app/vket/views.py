@@ -515,18 +515,14 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         all_mention = mentions_for(active_parts)
 
         not_applied = [p for p in active_parts if p.progress == VketParticipation.Progress.NOT_APPLIED]
-        pre_event = [
-            p for p in active_parts
-            if p.progress in (
-                VketParticipation.Progress.STAGE_REGISTERED,
-                VketParticipation.Progress.REHEARSAL,
-            )
-        ]
+        stage_not_registered = [p for p in active_parts if p.progress == VketParticipation.Progress.APPLIED]
+        lt_not_registered = [p for p in active_parts if p.progress == VketParticipation.Progress.STAGE_REGISTERED]
 
         return {
             'all': all_mention,
             'not_applied': mentions_for(not_applied),
-            'pre_event': mentions_for(pre_event),
+            'stage_not_registered': mentions_for(stage_not_registered),
+            'lt_not_registered': mentions_for(lt_not_registered),
         }
 
 
