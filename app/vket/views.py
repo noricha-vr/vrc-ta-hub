@@ -822,6 +822,24 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return context
 
 
+def _get_visible_collaborations(user):
+    """ユーザーに表示可能なコラボ一覧を返す（ARCHIVED除外、非superuserはDRAFTも除外）"""
+    qs = VketCollaboration.objects.exclude(phase=VketCollaboration.Phase.ARCHIVED)
+    if not user.is_superuser:
+        qs = qs.exclude(phase=VketCollaboration.Phase.DRAFT)
+    return qs.order_by('-period_start', '-id')
+
+
+class VketStatusRedirectView(LoginRequiredMixin, View):
+    """pk なしで最新コラボの参加状況ページにリダイレクト"""
+
+    def get(self, request):
+        collaboration = _get_visible_collaborations(request.user).first()
+        if not collaboration:
+            return redirect('vket:list')
+        return redirect('vket:status', pk=collaboration.pk)
+
+
 class ParticipationStatusView(LoginRequiredMixin, View):
     """主催者向け: 自分の集会のコラボ参加状況を確認するビュー"""
 
@@ -860,6 +878,9 @@ class ParticipationStatusView(LoginRequiredMixin, View):
             for value, label in VketParticipation.Progress.choices
         ]
 
+        # コラボ切替ドロップダウン用
+        collaborations = list(_get_visible_collaborations(request.user))
+
         return render(
             request,
             self.template_name,
@@ -870,6 +891,8 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'progress_steps': progress_steps,
                 'latest_notices': latest_notices,
                 'unacked_count': unacked_count,
+                'collaborations': collaborations,
+                'is_superuser': request.user.is_superuser,
             },
         )
 
