@@ -1,20 +1,25 @@
-<ul class="nav nav-tabs mb-4">
-    <li class="nav-item">
-        <a class="nav-link {% if active_tab == 'speakers' %}active{% endif %}"
-           href="{% url 'vket:manage' collaboration.id %}">
-            <i class="fas fa-table me-1"></i>一覧
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if active_tab == 'schedule' %}active{% endif %}"
-           href="{% url 'vket:manage_schedule' collaboration.id %}">
-            <i class="fas fa-calendar me-1"></i>日程表
-        </a>
-    </li>
-    <li class="nav-item">
-        <a class="nav-link {% if active_tab == 'notices' %}active{% endif %}"
-           href="{% url 'vket:manage_notice_list' collaboration.id %}">
-            <i class="fas fa-bell me-1"></i>お知らせ
-        </a>
-    </li>
-</ul>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <ul class="nav nav-tabs mb-0">
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'speakers' %}active{% endif %}"
+               href="{% url 'vket:manage' collaboration.id %}">
+                <i class="fas fa-table me-1"></i>一覧
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'schedule' %}active{% endif %}"
+               href="{% url 'vket:manage_schedule' collaboration.id %}">
+                <i class="fas fa-calendar me-1"></i>日程表
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'notices' %}active{% endif %}"
+               href="{% url 'vket:manage_notice_list' collaboration.id %}">
+                <i class="fas fa-bell me-1"></i>お知らせ
+            </a>
+        </li>
+    </ul>
+    <a href="{% url 'vket:status' collaboration.id %}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i>参加状況に戻る
+    </a>
+</div>
