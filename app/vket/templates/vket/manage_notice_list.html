@@ -54,6 +54,13 @@
                             <td class="small">
                                 {% if stat.notice.requires_ack and stat.total > 0 %}
                                     <span class="text-success">{{ stat.acked }}</span>/{{ stat.total }}確認
+                                    {% if stat.unacked_mentions %}
+                                        <button class="btn btn-sm btn-outline-warning ms-1 btn-copy-mentions"
+                                                title="未確認者のDiscordメンションをコピー"
+                                                data-mentions="{{ stat.unacked_mentions|join:' ' }}">
+                                            <i class="fas fa-at"></i>
+                                        </button>
+                                    {% endif %}
                                 {% else %}
                                     <span class="text-muted">--</span>
                                 {% endif %}
@@ -116,7 +123,7 @@
                             </div>
                             <div class="col-12 col-md-6 d-flex align-items-end">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="requires_ack" id="requiresAck" value="1">
+                                    <input class="form-check-input" type="checkbox" name="requires_ack" id="requiresAck" value="1" checked>
                                     <label class="form-check-label fw-bold" for="requiresAck">
                                         確認必須（ACKリンクを含める）
                                     </label>
@@ -176,6 +183,21 @@
             document.getElementById('editNoticeTitle').value = button.getAttribute('data-notice-title');
             document.getElementById('editNoticeBody').value = button.getAttribute('data-notice-body');
             document.getElementById('noticeEditForm').action = button.getAttribute('data-edit-url');
+        });
+
+        document.querySelectorAll('.btn-copy-mentions').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const text = this.getAttribute('data-mentions');
+                navigator.clipboard.writeText(text).then(function() {
+                    btn.classList.replace('btn-outline-warning', 'btn-success');
+                    const icon = btn.querySelector('i');
+                    icon.classList.replace('fa-at', 'fa-check');
+                    setTimeout(function() {
+                        btn.classList.replace('btn-success', 'btn-outline-warning');
+                        icon.classList.replace('fa-check', 'fa-at');
+                    }, 1500);
+                });
+            });
         });
     });
     </script>

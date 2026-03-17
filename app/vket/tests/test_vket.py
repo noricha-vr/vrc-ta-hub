@@ -763,6 +763,60 @@ class VketNoticeTests(TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
+    def test_manage_notice_list_unacked_mentions_role(self):
+        """未ACKのコミュニティのロールメンションがコンテキストに含まれる"""
+        self.community.discord_mention_type = Community.DiscordMentionType.ROLE
+        self.community.discord_mention_role_id = '111222333'
+        self.community.save()
+
+        VketNoticeReceipt.objects.create(
+            notice=self.notice, participation=self.participation
+        )
+
+        self.client.login(username='admin_user2', password='adminpass123')
+        response = self.client.get(
+            reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
+        )
+        stat = response.context['notice_stats'][0]
+        self.assertIn('<@&111222333>', stat['unacked_mentions'])
+
+    def test_manage_notice_list_unacked_mentions_users(self):
+        """未ACKのコミュニティのユーザーメンションがコンテキストに含まれる"""
+        self.community.discord_mention_type = Community.DiscordMentionType.USERS
+        self.community.discord_mention_user_ids = ['aaa', 'bbb']
+        self.community.save()
+
+        VketNoticeReceipt.objects.create(
+            notice=self.notice, participation=self.participation
+        )
+
+        self.client.login(username='admin_user2', password='adminpass123')
+        response = self.client.get(
+            reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
+        )
+        stat = response.context['notice_stats'][0]
+        self.assertIn('<@aaa>', stat['unacked_mentions'])
+        self.assertIn('<@bbb>', stat['unacked_mentions'])
+
+    def test_manage_notice_list_acked_not_in_mentions(self):
+        """ACK済みのコミュニティはメンションに含まれない"""
+        self.community.discord_mention_type = Community.DiscordMentionType.ROLE
+        self.community.discord_mention_role_id = '999888777'
+        self.community.save()
+
+        VketNoticeReceipt.objects.create(
+            notice=self.notice,
+            participation=self.participation,
+            acknowledged_at=timezone.now(),
+        )
+
+        self.client.login(username='admin_user2', password='adminpass123')
+        response = self.client.get(
+            reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
+        )
+        stat = response.context['notice_stats'][0]
+        self.assertEqual(stat['unacked_mentions'], [])
+
 
 class VketParticipationStatusTests(TestCase):
     """ParticipationStatusView のテスト（未確認お知らせバナー等）"""

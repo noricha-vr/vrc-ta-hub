@@ -1025,7 +1025,7 @@ class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
         # 各お知らせの配送状況を集計
         notices = (
             VketNotice.objects.filter(collaboration=collaboration)
-            .prefetch_related('receipts')
+            .prefetch_related('receipts__participation__community')
             .order_by('-created_at')
         )
 
@@ -1035,11 +1035,31 @@ class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
             receipts = list(notice.receipts.all())
             total = len(receipts)
             acked = sum(1 for r in receipts if r.acknowledged_at is not None)
+
+            # 未ACKのコミュニティからDiscordメンション文字列を収集
+            unacked_mentions = []
+            if notice.requires_ack:
+                seen_community_ids = set()
+                for r in receipts:
+                    if r.acknowledged_at is not None:
+                        continue
+                    community = r.participation.community
+                    if community.id in seen_community_ids:
+                        continue
+                    seen_community_ids.add(community.id)
+                    mention_type = community.discord_mention_type
+                    if mention_type == Community.DiscordMentionType.ROLE and community.discord_mention_role_id:
+                        unacked_mentions.append(f'<@&{community.discord_mention_role_id}>')
+                    elif mention_type == Community.DiscordMentionType.USERS:
+                        for uid in community.discord_mention_user_ids:
+                            unacked_mentions.append(f'<@{uid}>')
+
             notice_stats.append(
                 {
                     'notice': notice,
                     'total': total,
                     'acked': acked,
+                    'unacked_mentions': unacked_mentions,
                 }
             )
 
