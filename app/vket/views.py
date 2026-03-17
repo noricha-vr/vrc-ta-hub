@@ -921,10 +921,10 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 .first()
             )
             if participation:
-                # 最新3件のお知らせ受信記録を取得
+                # 最新2件のお知らせ受信記録を取得
                 latest_notices = (
                     participation.notice_receipts.select_related('notice')
-                    .order_by('-created_at')[:3]
+                    .order_by('-created_at')[:2]
                 )
 
         unacked_count = 0
