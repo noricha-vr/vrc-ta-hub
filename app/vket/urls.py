@@ -23,5 +23,15 @@ urlpatterns = [
         views.ManageParticipationUpdateView.as_view(),
         name='manage_participation_update',
     ),
+    path(
+        '<int:pk>/presentations/<int:presentation_id>/delete/',
+        views.PresentationDeleteView.as_view(),
+        name='presentation_delete',
+    ),
+    path(
+        '<int:pk>/manage/presentations/<int:presentation_id>/delete/',
+        views.ManagePresentationDeleteView.as_view(),
+        name='manage_presentation_delete',
+    ),
     path('ack/<uuid:ack_token>/', views.AckNoticeView.as_view(), name='ack_notice'),
 ]

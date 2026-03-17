@@ -69,7 +69,7 @@ class VketParticipation(models.Model):
         STAGE_REGISTERED = "stage_registered", "ステージ登録済"
         LT_REGISTERED = "lt_registered", "LT登録済み"
         REHEARSAL = "rehearsal", "リハーサル"
-        EVENT_WEEK = "event_week", "技術学術ウィーク"
+        EVENT_WEEK = "event_week", "技術学術WEEK"
         LT_MATERIAL_UPLOADED = "lt_material_uploaded", "LT資料アップロード"
         AFTER_PARTY = "after_party", "感想会"
         DONE = "done", "完了"
@@ -183,7 +183,7 @@ class VketParticipation(models.Model):
 
 class VketPresentation(models.Model):
     class Status(models.TextChoices):
-        DRAFT = "draft", "下書き"
+        DRAFT = "draft", "申請中"
         SUBMITTED = "submitted", "提出済み"
         CONFIRMED = "confirmed", "確定"
 

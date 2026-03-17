@@ -471,6 +471,59 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(presentations[1].speaker, '登壇者C')
         self.assertEqual(presentations[1].order, 1)
 
+    def test_presentation_delete_by_organizer(self):
+        """主催者がLTを削除できる"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            progress=VketParticipation.Progress.APPLIED,
+        )
+        pres = VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='削除テスト',
+            theme='テーマ',
+            status=VketPresentation.Status.DRAFT,
+        )
+        response = self.client.post(
+            reverse(
+                'vket:presentation_delete',
+                kwargs={'pk': self.collaboration.pk, 'presentation_id': pres.pk},
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(VketPresentation.objects.filter(pk=pres.pk).exists())
+
+    def test_presentation_delete_forbidden_for_non_member(self):
+        """コミュニティに所属しないユーザーはLTを削除できない"""
+        non_member = User.objects.create_user(
+            user_name='non_member_user',
+            email='nonmember@example.com',
+            password='testpass123',
+        )
+        self.client.login(username='non_member_user', password='testpass123')
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            progress=VketParticipation.Progress.APPLIED,
+        )
+        pres = VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='テスト',
+            status=VketPresentation.Status.DRAFT,
+        )
+        response = self.client.post(
+            reverse(
+                'vket:presentation_delete',
+                kwargs={'pk': self.collaboration.pk, 'presentation_id': pres.pk},
+            ),
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(VketPresentation.objects.filter(pk=pres.pk).exists())
+
 
 class VketManageViewsTests(TestCase):
     def setUp(self):
@@ -720,6 +773,73 @@ class VketManageViewsTests(TestCase):
         foreign_detail.refresh_from_db()
         self.assertEqual(foreign_detail.start_time.strftime('%H:%M'), '21:30')
 
+    def test_manage_update_confirms_draft_presentations(self):
+        """確定ボタン押下でDRAFTのLTがCONFIRMEDに一括更新される"""
+        self.client.login(username='admin_user', password='adminpass123')
+        new_community = Community.objects.create(
+            name='集会D', status='approved', frequency='毎週',
+        )
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=new_community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time='22:00',
+            requested_duration=60,
+        )
+        draft_pres = VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='DRAFT登壇者',
+            theme='DRAFTテーマ',
+            status=VketPresentation.Status.DRAFT,
+        )
+        confirmed_pres = VketPresentation.objects.create(
+            participation=participation,
+            order=1,
+            speaker='確定済み登壇者',
+            theme='確定済みテーマ',
+            status=VketPresentation.Status.CONFIRMED,
+        )
+
+        new_date = self.collaboration.period_start + timedelta(days=1)
+        self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': participation.pk,
+                },
+            ),
+            data={
+                'confirmed_date': new_date.isoformat(),
+                'confirmed_start_time': '22:00',
+                'confirmed_duration': '60',
+            },
+        )
+
+        draft_pres.refresh_from_db()
+        confirmed_pres.refresh_from_db()
+        self.assertEqual(draft_pres.status, VketPresentation.Status.CONFIRMED)
+        self.assertEqual(confirmed_pres.status, VketPresentation.Status.CONFIRMED)
+
+    def test_manage_page_shows_draft_badge(self):
+        """管理画面でDRAFTのLTに「申請中」バッジが表示される"""
+        self.client.login(username='admin_user', password='adminpass123')
+        VketPresentation.objects.create(
+            participation=self.participation1,
+            order=0,
+            speaker='DRAFT登壇者',
+            theme='DRAFTテーマ',
+            status=VketPresentation.Status.DRAFT,
+        )
+        response = self.client.get(
+            reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'DRAFT登壇者')
+        self.assertContains(response, '申請中')
+        self.assertContains(response, 'badge bg-warning')
+
     def test_manage_page_shows_lt_time_badge(self):
         """管理画面でLT時間バッジが表示される"""
         self.client.login(username='admin_user', password='adminpass123')
@@ -746,6 +866,52 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '21:30')
         self.assertContains(response, 'badge bg-info')
+
+    def test_manage_presentation_delete_removes_presentation_and_event_detail(self):
+        """管理者がLTを削除するとVketPresentationとEventDetailが両方削除される"""
+        self.client.login(username='admin_user', password='adminpass123')
+        detail = EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            start_time='21:30',
+            duration=30,
+            status='approved',
+        )
+        pres = VketPresentation.objects.create(
+            participation=self.participation1,
+            order=0,
+            speaker='削除テスト登壇者',
+            theme='削除テーマ',
+            status=VketPresentation.Status.CONFIRMED,
+            published_event_detail=detail,
+        )
+        response = self.client.post(
+            reverse(
+                'vket:manage_presentation_delete',
+                kwargs={'pk': self.collaboration.pk, 'presentation_id': pres.pk},
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(VketPresentation.objects.filter(pk=pres.pk).exists())
+        self.assertFalse(EventDetail.objects.filter(pk=detail.pk).exists())
+
+    def test_manage_presentation_delete_requires_superuser(self):
+        """一般ユーザーはLTを削除できない"""
+        self.client.login(username='normal_user', password='testpass123')
+        pres = VketPresentation.objects.create(
+            participation=self.participation1,
+            order=0,
+            speaker='テスト',
+            status=VketPresentation.Status.DRAFT,
+        )
+        response = self.client.post(
+            reverse(
+                'vket:manage_presentation_delete',
+                kwargs={'pk': self.collaboration.pk, 'presentation_id': pres.pk},
+            ),
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(VketPresentation.objects.filter(pk=pres.pk).exists())
 
 
 class BuildDiscordMentionsTests(TestCase):

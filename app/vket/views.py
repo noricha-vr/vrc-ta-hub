@@ -475,15 +475,15 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         collaboration = get_object_or_404(VketCollaboration, pk=kwargs['pk'])
 
-        presentations_qs = VketPresentation.objects.filter(
-            status__in=[VketPresentation.Status.SUBMITTED, VketPresentation.Status.CONFIRMED]
-        ).select_related('published_event_detail')
+        presentations_qs = VketPresentation.objects.select_related(
+            'published_event_detail'
+        )
 
         participations = (
             VketParticipation.objects.filter(collaboration=collaboration)
             .select_related('community', 'published_event')
             .prefetch_related(
-                Prefetch('presentations', queryset=presentations_qs, to_attr='confirmed_presentations')
+                Prefetch('presentations', queryset=presentations_qs, to_attr='all_presentations')
             )
             .annotate(
                 # 希望日程があるものを上に表示
@@ -505,9 +505,9 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         all_communities = Community.objects.filter(status='approved').order_by('name')
         unregistered_communities = all_communities.exclude(id__in=registered_community_ids)
 
-        # LT登録数: submitted/confirmed のプレゼンがある集会数
+        # LT登録数: プレゼンが1件以上ある集会数
         lt_registered_count = sum(
-            1 for p in participations if p.confirmed_presentations
+            1 for p in participations if p.all_presentations
         )
         scheduled_count = sum(1 for p in participations if p.confirmed_date)
 
@@ -617,6 +617,11 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
                 'updated_at',
             ]
         )
+
+        # DRAFT のLTを一括確定
+        participation.presentations.filter(
+            status=VketPresentation.Status.DRAFT,
+        ).update(status=VketPresentation.Status.CONFIRMED)
 
         # EventDetailのLT開始時刻を更新
         detail_pattern = re.compile(r'^detail_(\d+)_start_time$')
@@ -958,7 +963,13 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 VketParticipation.objects.filter(
                     collaboration=collaboration, community=community
                 )
-                .prefetch_related('presentations', 'notice_receipts__notice')
+                .prefetch_related(
+                    Prefetch(
+                        'presentations',
+                        queryset=VketPresentation.objects.select_related('published_event_detail'),
+                    ),
+                    'notice_receipts__notice',
+                )
                 .first()
             )
             if participation:
@@ -1252,6 +1263,56 @@ class AckNoticeView(View):
                 'collaboration_id': receipt.participation.collaboration_id,
             },
         )
+
+
+def _delete_presentation(presentation: VketPresentation) -> str:
+    """プレゼンテーションと関連するEventDetailを削除し、表示名を返す"""
+    speaker_name = presentation.speaker or 'LT'
+    with transaction.atomic():
+        if presentation.published_event_detail:
+            presentation.published_event_detail.delete()
+        presentation.delete()
+    return speaker_name
+
+
+class PresentationDeleteView(LoginRequiredMixin, View):
+    """主催者用: LTを個別削除する"""
+
+    def post(self, request, pk: int, presentation_id: int):
+        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        community, membership = _get_active_membership(request)
+        presentation = get_object_or_404(
+            VketPresentation,
+            pk=presentation_id,
+            participation__collaboration=collaboration,
+        )
+        if not community or presentation.participation.community_id != community.id:
+            return HttpResponseForbidden('この操作を行う権限がありません。')
+        if not (request.user.is_superuser or membership.role == CommunityMember.Role.OWNER):
+            return HttpResponseForbidden('主催者のみLTを削除できます。')
+
+        speaker_name = _delete_presentation(presentation)
+        messages.success(request, f'{speaker_name} を削除しました。')
+        return redirect('vket:status', pk=pk)
+
+
+class ManagePresentationDeleteView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """管理者用: LTを個別削除する"""
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+    def post(self, request, pk: int, presentation_id: int):
+        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        presentation = get_object_or_404(
+            VketPresentation,
+            pk=presentation_id,
+            participation__collaboration=collaboration,
+        )
+
+        speaker_name = _delete_presentation(presentation)
+        messages.success(request, f'{speaker_name} を削除しました。')
+        return redirect('vket:manage', pk=pk)
 
 
 class ManagePublishView(LoginRequiredMixin, UserPassesTestMixin, View):

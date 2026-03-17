@@ -33,7 +33,7 @@
                     <th style="min-width: 120px;">確定日程</th>
                     <th style="min-width: 180px;">登壇者 / テーマ</th>
                     <th style="min-width: 160px;">備考</th>
-                    <th style="min-width: 280px;">日程確定（運営）</th>
+                    <th style="min-width: 220px;">日程確定（運営）</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -78,10 +78,15 @@
                             {% endif %}
                         </td>
                         <td class="small">
-                            {% with pres_list=p.confirmed_presentations %}
+                            {% with pres_list=p.all_presentations %}
                                 {% if pres_list %}
                                     {% for pres in pres_list %}
-                                        <div>{{ pres.speaker|default:"（未入力）" }}</div>
+                                        <div>
+                                            {{ pres.speaker|default:"（未入力）" }}
+                                            {% if pres.status == 'draft' %}
+                                                <span class="badge bg-warning text-dark ms-1">申請中</span>
+                                            {% endif %}
+                                        </div>
                                         <div class="text-muted">
                                             {{ pres.theme|default:"—" }}
                                             {% if pres.published_event_detail %}
@@ -128,18 +133,25 @@
                                         </option>
                                     {% endfor %}
                                 </select>
-                                {% for pres in p.confirmed_presentations %}
-                                    {% if pres.published_event_detail %}
-                                        <div class="d-flex gap-1 align-items-center">
-                                            <span class="small text-muted text-nowrap" style="min-width: 60px;">
-                                                LT{{ forloop.counter }}
-                                            </span>
+                                {% for pres in p.all_presentations %}
+                                    <div class="d-flex gap-1 align-items-center">
+                                        <span class="small text-muted text-nowrap" style="min-width: 60px;" title="{{ pres.speaker|default:'（未入力）' }}">
+                                            {{ pres.speaker|default:"LT"|truncatechars:6 }}
+                                        </span>
+                                        {% if pres.published_event_detail %}
                                             <input class="form-control form-control-sm" type="time"
                                                    name="detail_{{ pres.published_event_detail.id }}_start_time"
                                                    value="{{ pres.published_event_detail.start_time|date:'H:i' }}"
                                                    step="300">
-                                        </div>
-                                    {% endif %}
+                                        {% else %}
+                                            <span class="small text-muted">&mdash;</span>
+                                        {% endif %}
+                                        <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                                type="button"
+                                                onclick="if(confirm('{{ pres.speaker|default:"このLT"|escapejs }} を削除しますか？')) document.getElementById('delete-pres-{{ pres.pk }}').submit()">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
                                 {% endfor %}
                                 <textarea class="form-control form-control-sm" name="admin_note" rows="2"
                                           placeholder="備考（運営）">{{ p.admin_note }}</textarea>
@@ -147,6 +159,13 @@
                                     <i class="fas fa-check me-1"></i>確定
                                 </button>
                             </form>
+                            {% for pres in p.all_presentations %}
+                                <form id="delete-pres-{{ pres.pk }}" method="post"
+                                      action="{% url 'vket:manage_presentation_delete' collaboration.id pres.pk %}"
+                                      class="d-none">
+                                    {% csrf_token %}
+                                </form>
+                            {% endfor %}
                         </td>
                     </tr>
                 {% endfor %}
