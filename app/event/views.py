@@ -1440,22 +1440,6 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 )
                 logger.info(f'イベントをDBに登録: ID={new_event.id}, 日付={start_date}, 開始時間={start_time}')
                 
-                # バックグラウンドで同期処理を実行
-                try:
-                    # 内部的にGETリクエストを作成
-                    from django.http import HttpRequest
-                    sync_request = HttpRequest()
-                    sync_request.method = 'GET'
-                    sync_request.META = self.request.META
-                    sync_request.headers = {'Request-Token': REQUEST_TOKEN}
-
-                    # 同期処理を実行（エラーがあっても継続）
-                    response = sync_calendar_events(sync_request)
-                    if response.status_code != 200:
-                        logger.warning(f'カレンダー同期で警告: ステータスコード={response.status_code}')
-                except Exception as e:
-                    logger.error(f'イベント同期中にエラーが発生しました: {str(e)}', exc_info=True)
-
                 # イベントの作成が成功した場合、キャッシュをクリア
                 cache_key = f'calendar_entry_url_{new_event.id}'
                 cache.delete(cache_key)
