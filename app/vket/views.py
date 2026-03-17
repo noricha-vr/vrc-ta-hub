@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from itertools import combinations, groupby
@@ -431,7 +432,7 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
         presentations_qs = VketPresentation.objects.filter(
             status__in=[VketPresentation.Status.SUBMITTED, VketPresentation.Status.CONFIRMED]
-        )
+        ).select_related('published_event_detail')
 
         participations = (
             VketParticipation.objects.filter(collaboration=collaboration)
@@ -575,6 +576,30 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
                 'updated_at',
             ]
         )
+
+        # EventDetailのLT開始時刻を更新
+        detail_pattern = re.compile(r'^detail_(\d+)_start_time$')
+        detail_updates = {}
+        for key, value in request.POST.items():
+            m = detail_pattern.match(key)
+            if m and value:
+                detail_updates[int(m.group(1))] = value
+
+        if detail_updates:
+            allowed_detail_ids = set(
+                EventDetail.objects.filter(
+                    event=participation.published_event
+                ).values_list('id', flat=True)
+            ) if participation.published_event else set()
+
+            for detail_id, time_str in detail_updates.items():
+                if detail_id not in allowed_detail_ids:
+                    continue
+                try:
+                    new_time = datetime.strptime(time_str, '%H:%M').time()
+                    EventDetail.objects.filter(pk=detail_id).update(start_time=new_time)
+                except (ValueError, KeyError):
+                    logger.warning('EventDetail #%d の start_time パース失敗: %s', detail_id, time_str)
 
         messages.success(
             request,
@@ -1084,7 +1109,10 @@ class AckNoticeView(View):
     template_name = 'vket/ack_notice.html'
 
     def get(self, request, ack_token):
-        receipt = get_object_or_404(VketNoticeReceipt, ack_token=ack_token)
+        receipt = get_object_or_404(
+            VketNoticeReceipt.objects.select_related('notice', 'participation'),
+            ack_token=ack_token,
+        )
         return render(
             request,
             self.template_name,
@@ -1092,6 +1120,7 @@ class AckNoticeView(View):
                 'receipt': receipt,
                 'notice': receipt.notice,
                 'already_acked': receipt.acknowledged_at is not None,
+                'collaboration_id': receipt.participation.collaboration_id,
             },
         )
 
@@ -1121,6 +1150,7 @@ class AckNoticeView(View):
                 'receipt': receipt,
                 'notice': receipt.notice,
                 'already_acked': True,
+                'collaboration_id': receipt.participation.collaboration_id,
             },
         )
 

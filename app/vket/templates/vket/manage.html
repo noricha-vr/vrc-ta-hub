@@ -82,7 +82,12 @@
                                 {% if pres_list %}
                                     {% for pres in pres_list %}
                                         <div>{{ pres.speaker|default:"（未入力）" }}</div>
-                                        <div class="text-muted">{{ pres.theme|default:"—" }}</div>
+                                        <div class="text-muted">
+                                            {{ pres.theme|default:"—" }}
+                                            {% if pres.published_event_detail %}
+                                                <span class="badge bg-info ms-1">{{ pres.published_event_detail.start_time|date:"H:i" }}</span>
+                                            {% endif %}
+                                        </div>
                                     {% endfor %}
                                 {% else %}
                                     <span class="text-muted">—</span>
@@ -123,6 +128,19 @@
                                         </option>
                                     {% endfor %}
                                 </select>
+                                {% for pres in p.confirmed_presentations %}
+                                    {% if pres.published_event_detail %}
+                                        <div class="d-flex gap-1 align-items-center">
+                                            <span class="small text-muted text-nowrap" style="min-width: 60px;">
+                                                LT{{ forloop.counter }}
+                                            </span>
+                                            <input class="form-control form-control-sm" type="time"
+                                                   name="detail_{{ pres.published_event_detail.id }}_start_time"
+                                                   value="{{ pres.published_event_detail.start_time|date:'H:i' }}"
+                                                   step="300">
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
                                 <textarea class="form-control form-control-sm" name="admin_note" rows="2"
                                           placeholder="備考（運営）">{{ p.admin_note }}</textarea>
                                 <button class="btn btn-outline-primary btn-sm" type="submit">

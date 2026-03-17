@@ -462,6 +462,102 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(new_participation.progress, VketParticipation.Progress.REHEARSAL)
         self.assertIsNotNone(new_participation.schedule_confirmed_at)
 
+    def test_manage_participation_update_updates_event_detail_start_time(self):
+        """日程確定時にEventDetailのLT開始時刻が更新される"""
+        self.client.login(username='admin_user', password='adminpass123')
+        # EventDetailを作成
+        detail = EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            start_time='21:30',
+            duration=30,
+            status='approved',
+        )
+        new_date = self.collaboration.period_start
+        response = self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': self.participation1.pk,
+                },
+            ),
+            data={
+                'confirmed_date': new_date.isoformat(),
+                'confirmed_start_time': '21:00',
+                'confirmed_duration': '60',
+                'admin_note': '',
+                f'detail_{detail.pk}_start_time': '22:15',
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        detail.refresh_from_db()
+        self.assertEqual(detail.start_time.strftime('%H:%M'), '22:15')
+
+    def test_manage_participation_update_rejects_foreign_event_detail(self):
+        """別のイベントのEventDetailは更新できない"""
+        self.client.login(username='admin_user', password='adminpass123')
+        # event2に属するdetailをevent1の参加で更新しようとする
+        foreign_detail = EventDetail.objects.create(
+            event=self.event2,
+            detail_type='LT',
+            start_time='21:30',
+            duration=30,
+            status='approved',
+        )
+        new_date = self.collaboration.period_start
+        response = self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': self.participation1.pk,
+                },
+            ),
+            data={
+                'confirmed_date': new_date.isoformat(),
+                'confirmed_start_time': '21:00',
+                'confirmed_duration': '60',
+                'admin_note': '',
+                f'detail_{foreign_detail.pk}_start_time': '23:00',
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        # 別イベントのdetailは更新されない
+        foreign_detail.refresh_from_db()
+        self.assertEqual(foreign_detail.start_time.strftime('%H:%M'), '21:30')
+
+    def test_manage_page_shows_lt_time_badge(self):
+        """管理画面でLT時間バッジが表示される"""
+        self.client.login(username='admin_user', password='adminpass123')
+        # プレゼンテーションとEventDetailを作成
+        detail = EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            start_time='21:30',
+            duration=30,
+            status='approved',
+        )
+        VketPresentation.objects.create(
+            participation=self.participation1,
+            order=0,
+            speaker='テスト登壇者',
+            theme='テストテーマ',
+            status=VketPresentation.Status.CONFIRMED,
+            published_event_detail=detail,
+        )
+
+        response = self.client.get(
+            reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '21:30')
+        self.assertContains(response, 'badge bg-info')
+
 
 class VketNoticeTests(TestCase):
     """お知らせ・ACK機能のテスト"""
