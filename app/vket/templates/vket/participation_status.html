@@ -13,36 +13,43 @@
                     <div class="text-muted">集会: <strong>{{ community.name }}</strong></div>
                 {% endif %}
             </div>
-            <div class="d-flex gap-2 align-items-center flex-shrink-0">
-                {% if participation %}
-                    <a href="{% url 'vket:apply' collaboration.pk %}" class="btn btn-outline-primary btn-sm">
-                        <i class="fas fa-edit me-1"></i>編集
-                    </a>
-                {% endif %}
-                {% if is_superuser %}
-                    <a href="{% url 'vket:manage' collaboration.pk %}" class="btn btn-outline-dark btn-sm">
-                        <i class="fas fa-gear me-1"></i>管理
-                    </a>
-                {% endif %}
-                {% if collaborations|length > 1 %}
-                <div class="dropdown">
-                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
-                            data-bs-toggle="dropdown">
-                        切替
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        {% for c in collaborations %}
-                        <li>
-                            <a class="dropdown-item {% if c.pk == collaboration.pk %}active{% endif %}"
-                               href="{% url 'vket:status' c.pk %}">
-                                {{ c.name }}
-                            </a>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
+            {% if collaborations|length > 1 %}
+            <div class="dropdown flex-shrink-0">
+                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
+                        data-bs-toggle="dropdown">
+                    切替
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    {% for c in collaborations %}
+                    <li>
+                        <a class="dropdown-item {% if c.pk == collaboration.pk %}active{% endif %}"
+                           href="{% url 'vket:status' c.pk %}">
+                            {{ c.name }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
             </div>
+            {% endif %}
+        </div>
+
+        <div class="d-flex gap-2 flex-wrap mb-4">
+            <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i>イベント管理
+            </a>
+            <a href="{% url 'vket:notice_list' collaboration.pk %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-bell me-1"></i>お知らせ一覧
+            </a>
+            {% if participation %}
+                <a href="{% url 'vket:apply' collaboration.pk %}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-edit me-1"></i>編集
+                </a>
+            {% endif %}
+            {% if is_superuser %}
+                <a href="{% url 'vket:manage' collaboration.pk %}" class="btn btn-outline-dark btn-sm">
+                    <i class="fas fa-gear me-1"></i>管理
+                </a>
+            {% endif %}
         </div>
 
         {% if unacked_count %}
@@ -193,6 +200,9 @@
                                         <div>
                                             <div><span class="text-muted small">登壇者:</span> {{ pres.speaker|default:"（未入力）" }}</div>
                                             <div><span class="text-muted small">テーマ:</span> {{ pres.theme|default:"（未入力）" }}</div>
+                                            {% if pres.confirmed_start_time or pres.requested_start_time %}
+                                                <div><span class="text-muted small">開始時刻:</span> {{ pres.confirmed_start_time|default:pres.requested_start_time|date:"H:i" }}{% if pres.duration %} （{{ pres.duration }}分）{% endif %}</div>
+                                            {% endif %}
                                         </div>
                                         <span class="badge
                                             {% if pres.status == 'confirmed' %}bg-success
@@ -237,12 +247,6 @@
                 </div>
             {% endif %}
 
-            {# お知らせ一覧リンク（最新お知らせがない場合のフォールバック） #}
-            {% if not latest_notices %}
-                <a href="{% url 'vket:notice_list' collaboration.pk %}" class="btn btn-outline-secondary btn-sm">
-                    <i class="fas fa-bell me-1"></i>お知らせ一覧
-                </a>
-            {% endif %}
         {% endif %}
     </div>
 {% endblock %}
