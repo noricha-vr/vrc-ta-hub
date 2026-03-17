@@ -120,6 +120,14 @@ class VketApplyFlowTests(TestCase):
             phase=VketCollaboration.Phase.ENTRY_OPEN,
         )
 
+        # 日付選択肢の元になるイベントを作成
+        Event.objects.create(
+            community=self.community,
+            date=today,
+            start_time='22:00',
+            duration=60,
+        )
+
     def _set_active_community(self):
         session = self.client.session
         session['active_community_id'] = self.community.id
