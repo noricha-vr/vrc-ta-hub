@@ -94,6 +94,62 @@
                 </div>
             </div>
 
+            {# Vketステージ登録 #}
+            {% if participation.progress == 'applied' %}
+                <div class="card shadow-sm mb-4 border-warning">
+                    <div class="card-body">
+                        <h2 class="h5 fw-bold mb-2">
+                            <i class="fas fa-external-link-alt me-2 text-warning"></i>Vketステージ登録
+                        </h2>
+                        <p class="mb-3">
+                            参加申込みが完了しました。Vket公式サイトのステージページにイベント情報を登録してください。
+                            {% if not stage_url %}登録先URLは運営からのお知らせをご確認ください。{% endif %}
+                        </p>
+                        <div class="d-flex gap-2 align-items-center">
+                            {% if stage_url %}
+                                <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-outline-primary">
+                                    <i class="fas fa-external-link-alt me-1"></i>ステージページを開く
+                                </a>
+                            {% endif %}
+                            <form method="post" action="{% url 'vket:stage_register' collaboration.pk %}"
+                                  class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-success"
+                                        onclick="return confirm('Vketステージページへの登録は完了しましたか？')">
+                                    <i class="fas fa-check me-1"></i>登録完了
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="card shadow-sm mb-4 {% if participation.stage_registered_at %}border-success{% else %}border-secondary{% endif %}">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h2 class="h5 fw-bold mb-0">
+                                    <i class="fas fa-external-link-alt me-2 {% if participation.stage_registered_at %}text-success{% else %}text-muted{% endif %}"></i>Vketステージ登録
+                                </h2>
+                            </div>
+                            <div class="d-flex align-items-center gap-2">
+                                {% if stage_url %}
+                                    <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
+                                        <i class="fas fa-external-link-alt me-1"></i>ステージページ
+                                    </a>
+                                {% endif %}
+                                {% if participation.stage_registered_at %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check me-1"></i>登録済み（{{ participation.stage_registered_at|date:"n/j" }}）
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">未登録</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
             {# 日程情報 #}
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
@@ -138,57 +194,9 @@
                 </div>
             </div>
 
-            {# Vketステージ登録案内 #}
-            {% if participation.progress == 'schedule_confirmed' and stage_url %}
-                <div class="card shadow-sm mb-4 border-warning">
-                    <div class="card-body">
-                        <h2 class="h5 fw-bold mb-2">
-                            <i class="fas fa-external-link-alt me-2 text-warning"></i>Vketステージ登録
-                        </h2>
-                        <p class="mb-3">
-                            日程が確定しました。Vket公式サイトのステージページにイベント情報を登録してください。
-                        </p>
-                        <div class="d-flex gap-2 align-items-center">
-                            <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-outline-primary">
-                                <i class="fas fa-external-link-alt me-1"></i>ステージページを開く
-                            </a>
-                            <form method="post" action="{% url 'vket:stage_register' collaboration.pk %}"
-                                  class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-success"
-                                        onclick="return confirm('Vketステージページへの登録は完了しましたか？')">
-                                    <i class="fas fa-check me-1"></i>登録完了
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            {% elif participation.progress == 'schedule_confirmed' %}
-                {# stage_url 未設定時はテキストのみ #}
-                <div class="card shadow-sm mb-4 border-warning">
-                    <div class="card-body">
-                        <h2 class="h5 fw-bold mb-2">
-                            <i class="fas fa-external-link-alt me-2 text-warning"></i>Vketステージ登録
-                        </h2>
-                        <p class="mb-3">
-                            日程が確定しました。Vket公式サイトのステージページにイベント情報を登録してください。
-                            登録先URLは運営からのお知らせをご確認ください。
-                        </p>
-                        <form method="post" action="{% url 'vket:stage_register' collaboration.pk %}"
-                              class="d-inline">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-success"
-                                    onclick="return confirm('Vketステージページへの登録は完了しましたか？')">
-                                <i class="fas fa-check me-1"></i>登録完了
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            {% endif %}
-
             {# LT情報 #}
             {% with presentations=participation.presentations.all %}
-                {% if presentations %}
+                {% if presentations or event_details %}
                     <div class="card shadow-sm mb-4">
                         <div class="card-body">
                             <h2 class="h5 fw-bold mb-3">
@@ -213,6 +221,27 @@
                                     </div>
                                 </div>
                             {% endfor %}
+                            {% if event_details %}
+                                <hr class="my-3">
+                                <h3 class="h6 fw-bold mb-2">
+                                    <i class="fas fa-file-upload me-2"></i>資料アップロード
+                                </h3>
+                                <p class="text-muted small mb-2">
+                                    集会終了後、公開可能な場合は登壇者にこちらのページから資料をアップロードしてもらってください。
+                                    主催者からもアップロードできます。
+                                </p>
+                                {% for detail in event_details %}
+                                    <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded mb-2">
+                                        <div>
+                                            <span class="fw-bold">{{ detail.speaker|default:"（未入力）" }}</span>
+                                            <span class="text-muted ms-2">{{ detail.theme|default:"" }}</span>
+                                        </div>
+                                        <a href="{% url 'event:detail_update' detail.pk %}" class="btn btn-outline-primary btn-sm">
+                                            <i class="fas fa-edit me-1"></i>編集
+                                        </a>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
                         </div>
                     </div>
                 {% endif %}
@@ -247,6 +276,17 @@
                 </div>
             {% endif %}
 
+            {# リハーサル #}
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h2 class="h5 fw-bold mb-2">
+                        <i class="fas fa-headset me-2"></i>リハーサル
+                    </h2>
+                    <p class="mb-0">
+                        <span class="fw-bold">7/24（金）</span>を予定しています。詳細は追ってお知らせします。
+                    </p>
+                </div>
+            </div>
         {% endif %}
     </div>
 {% endblock %}

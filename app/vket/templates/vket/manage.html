@@ -48,9 +48,9 @@
                         <td>
                             <span class="badge
                                 {% if p.progress == 'done' %}bg-success
-                                {% elif p.progress == 'schedule_confirmed' %}bg-primary
-                                {% elif p.progress == 'lt_submitted' %}bg-info
-                                {% elif p.progress == 'applied' %}bg-warning text-dark
+                                {% elif p.progress == 'event_week' %}bg-primary
+                                {% elif p.progress == 'rehearsal' %}bg-info
+                                {% elif p.progress == 'applied' or p.progress == 'stage_registered' %}bg-warning text-dark
                                 {% elif p.progress == 'not_applied' %}bg-secondary
                                 {% else %}bg-light text-dark border{% endif %}">
                                 {{ p.get_progress_display }}
@@ -175,15 +175,15 @@
                             <textarea class="form-control form-control-sm" rows="2" readonly id="mentionNotApplied" onclick="this.select()">{{ discord_mentions.not_applied }}</textarea>
                         </div>
                     {% endif %}
-                    {% if discord_mentions.lt_pending %}
+                    {% if discord_mentions.pre_event %}
                         <div class="col-12 col-md-6">
                             <div class="d-flex align-items-center mb-1">
-                                <label class="form-label fw-bold mb-0">LT未登録</label>
-                                <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionLtPending">
+                                <label class="form-label fw-bold mb-0">準備中</label>
+                                <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionPreEvent">
                                     <i class="fas fa-copy me-1"></i>コピー
                                 </button>
                             </div>
-                            <textarea class="form-control form-control-sm" rows="2" readonly id="mentionLtPending" onclick="this.select()">{{ discord_mentions.lt_pending }}</textarea>
+                            <textarea class="form-control form-control-sm" rows="2" readonly id="mentionPreEvent" onclick="this.select()">{{ discord_mentions.pre_event }}</textarea>
                         </div>
                     {% endif %}
                 </div>

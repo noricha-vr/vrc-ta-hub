@@ -459,7 +459,7 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(new_participation.confirmed_duration, 60)
         self.assertEqual(new_participation.admin_note, '確定しました')
         self.assertTrue(new_participation.schedule_adjusted_by_admin)
-        self.assertEqual(new_participation.progress, VketParticipation.Progress.SCHEDULE_CONFIRMED)
+        self.assertEqual(new_participation.progress, VketParticipation.Progress.REHEARSAL)
         self.assertIsNotNone(new_participation.schedule_confirmed_at)
 
 
@@ -727,7 +727,7 @@ class VketParticipationStatusTests(TestCase):
 
     def test_stage_register_advances_progress(self):
         """ステージ登録POSTで progress が STAGE_REGISTERED に進む"""
-        self.participation.progress = VketParticipation.Progress.SCHEDULE_CONFIRMED
+        self.participation.progress = VketParticipation.Progress.APPLIED
         self.participation.save()
 
         self.client.login(username='status_owner', password='testpass123')
@@ -742,9 +742,9 @@ class VketParticipationStatusTests(TestCase):
         self.assertEqual(self.participation.progress, VketParticipation.Progress.STAGE_REGISTERED)
         self.assertIsNotNone(self.participation.stage_registered_at)
 
-    def test_stage_register_requires_schedule_confirmed(self):
-        """SCHEDULE_CONFIRMED 以外ではステージ登録できない"""
-        self.participation.progress = VketParticipation.Progress.APPLIED
+    def test_stage_register_requires_applied(self):
+        """APPLIED 以外ではステージ登録できない"""
+        self.participation.progress = VketParticipation.Progress.REHEARSAL
         self.participation.save()
 
         self.client.login(username='status_owner', password='testpass123')
@@ -756,11 +756,11 @@ class VketParticipationStatusTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
         self.participation.refresh_from_db()
-        self.assertEqual(self.participation.progress, VketParticipation.Progress.APPLIED)
+        self.assertEqual(self.participation.progress, VketParticipation.Progress.REHEARSAL)
 
     def test_status_page_shows_stage_banner(self):
-        """日程確定時にステージ登録バナーが表示される"""
-        self.participation.progress = VketParticipation.Progress.SCHEDULE_CONFIRMED
+        """申請済み時にステージ登録バナーが表示される"""
+        self.participation.progress = VketParticipation.Progress.APPLIED
         self.participation.save()
 
         self.client.login(username='status_owner', password='testpass123')
@@ -771,9 +771,10 @@ class VketParticipationStatusTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Vketステージ登録')
 
-    def test_status_page_hides_stage_banner_after_registration(self):
-        """登録済み後はバナーが非表示になる"""
+    def test_status_page_shows_stage_registered_after_registration(self):
+        """登録済み後も「登録済み」としてカードが表示される"""
         self.participation.progress = VketParticipation.Progress.STAGE_REGISTERED
+        self.participation.stage_registered_at = timezone.now()
         self.participation.save()
 
         self.client.login(username='status_owner', password='testpass123')
@@ -782,7 +783,8 @@ class VketParticipationStatusTests(TestCase):
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
         )
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'Vketステージ登録')
+        self.assertContains(response, 'Vketステージ登録')
+        self.assertContains(response, '登録済み')
 
 
 class VketStatusRedirectViewTests(TestCase):

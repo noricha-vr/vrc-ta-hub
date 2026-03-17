@@ -514,19 +514,18 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         all_mention = mentions_for(active_parts)
 
         not_applied = [p for p in active_parts if p.progress == VketParticipation.Progress.NOT_APPLIED]
-        lt_pending = [
+        pre_event = [
             p for p in active_parts
             if p.progress in (
-                VketParticipation.Progress.SCHEDULE_CONFIRMED,
                 VketParticipation.Progress.STAGE_REGISTERED,
-                VketParticipation.Progress.LT_PENDING,
+                VketParticipation.Progress.REHEARSAL,
             )
         ]
 
         return {
             'all': all_mention,
             'not_applied': mentions_for(not_applied),
-            'lt_pending': mentions_for(lt_pending),
+            'pre_event': mentions_for(pre_event),
         }
 
 
@@ -561,7 +560,7 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
         participation.confirmed_duration = form.cleaned_data['confirmed_duration']
         participation.admin_note = form.cleaned_data.get('admin_note', '')
         participation.schedule_adjusted_by_admin = True
-        participation.progress = VketParticipation.Progress.SCHEDULE_CONFIRMED
+        participation.progress = VketParticipation.Progress.REHEARSAL
         participation.schedule_confirmed_at = timezone.now()
 
         participation.save(
@@ -864,9 +863,9 @@ class StageRegisterView(LoginRequiredMixin, View):
             community=community,
         )
 
-        # 日程確定済みの場合のみ登録可能
-        if participation.progress != VketParticipation.Progress.SCHEDULE_CONFIRMED:
-            messages.warning(request, 'ステージ登録は日程確定後に行ってください。')
+        # 申請済みの場合のみ登録可能
+        if participation.progress != VketParticipation.Progress.APPLIED:
+            messages.warning(request, 'ステージ登録は参加申込み後に行ってください。')
             return redirect('vket:status', pk=pk)
 
         participation.progress = VketParticipation.Progress.STAGE_REGISTERED
@@ -923,6 +922,19 @@ class ParticipationStatusView(LoginRequiredMixin, View):
         if collaboration.settings_json and isinstance(collaboration.settings_json, dict):
             stage_url = collaboration.settings_json.get('stage_url')
 
+        # published_event の EventDetail（LT資料アップロード用、LT情報確定済みのみ）
+        event_details = []
+        if participation and participation.published_event_id:
+            event_details = list(
+                EventDetail.objects.filter(
+                    event_id=participation.published_event_id,
+                    detail_type='LT',
+                    status='approved',
+                )
+                .exclude(speaker='', theme='')
+                .order_by('start_time', 'id')
+            )
+
         return render(
             request,
             self.template_name,
@@ -936,6 +948,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'collaborations': collaborations,
                 'is_superuser': request.user.is_superuser,
                 'stage_url': stage_url,
+                'event_details': event_details,
             },
         )
 

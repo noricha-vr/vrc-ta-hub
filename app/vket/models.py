@@ -66,10 +66,12 @@ class VketParticipation(models.Model):
     class Progress(models.TextChoices):
         NOT_APPLIED = "not_applied", "未申請"
         APPLIED = "applied", "申請済み"
-        SCHEDULE_CONFIRMED = "schedule_confirmed", "日程確定"
         STAGE_REGISTERED = "stage_registered", "ステージ登録済"
-        LT_PENDING = "lt_pending", "LT情報待ち"
-        LT_SUBMITTED = "lt_submitted", "LT提出済み"
+        LT_REGISTERED = "lt_registered", "LT登録済み"
+        REHEARSAL = "rehearsal", "リハーサル"
+        EVENT_WEEK = "event_week", "技術学術ウィーク"
+        LT_MATERIAL_UPLOADED = "lt_material_uploaded", "LT資料アップロード"
+        AFTER_PARTY = "after_party", "感想会"
         DONE = "done", "完了"
 
     collaboration = models.ForeignKey(
