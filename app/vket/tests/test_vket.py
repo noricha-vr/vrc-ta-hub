@@ -830,6 +830,39 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(draft_pres.status, VketPresentation.Status.CONFIRMED)
         self.assertEqual(confirmed_pres.status, VketPresentation.Status.CONFIRMED)
 
+    def test_manage_update_creates_event_detail_for_new_presentation(self):
+        """確定ボタンでpublished_event_detailがないCONFIRMED LTにEventDetailが作成される"""
+        self.client.login(username='admin_user', password='adminpass123')
+        # published_event_detail がない DRAFT のLTを追加
+        pres = VketPresentation.objects.create(
+            participation=self.participation1,
+            order=1,
+            speaker='新規登壇者',
+            theme='新規テーマ',
+            requested_start_time='21:45',
+            status=VketPresentation.Status.DRAFT,
+        )
+        new_date = self.collaboration.period_start + timedelta(days=1)
+        self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': self.participation1.pk,
+                },
+            ),
+            data={
+                'confirmed_date': new_date.isoformat(),
+                'confirmed_start_time': '21:00',
+                'confirmed_duration': '60',
+            },
+        )
+        pres.refresh_from_db()
+        self.assertEqual(pres.status, VketPresentation.Status.CONFIRMED)
+        self.assertIsNotNone(pres.published_event_detail)
+        self.assertEqual(pres.published_event_detail.speaker, '新規登壇者')
+        self.assertEqual(pres.published_event_detail.event_id, self.event1.id)
+
     def test_manage_page_shows_draft_badge(self):
         """管理画面でDRAFTのLTに「申請中」バッジが表示される"""
         self.client.login(username='admin_user', password='adminpass123')

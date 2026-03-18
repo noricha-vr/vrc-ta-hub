@@ -623,6 +623,24 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
             status=VketPresentation.Status.DRAFT,
         ).update(status=VketPresentation.Status.CONFIRMED)
 
+        # published_event がある場合、EventDetail 未作成の CONFIRMED LT に EventDetail を作成
+        if participation.published_event_id:
+            for pres in participation.presentations.filter(
+                status=VketPresentation.Status.CONFIRMED,
+                published_event_detail__isnull=True,
+            ):
+                detail = EventDetail.objects.create(
+                    event=participation.published_event,
+                    theme=pres.theme,
+                    speaker=pres.speaker,
+                    start_time=pres.confirmed_start_time or pres.requested_start_time or participation.confirmed_start_time,
+                    duration=pres.duration,
+                    detail_type='LT',
+                    status='approved',
+                )
+                pres.published_event_detail = detail
+                pres.save(update_fields=['published_event_detail', 'updated_at'])
+
         # EventDetailのLT開始時刻を更新
         detail_pattern = re.compile(r'^detail_(\d+)_start_time$')
         detail_updates = {}
