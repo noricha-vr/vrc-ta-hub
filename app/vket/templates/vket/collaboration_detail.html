@@ -23,7 +23,7 @@
                 {% endif %}
             </div>
             <div class="d-flex gap-2 flex-wrap">
-                {% if is_superuser %}
+                {% if is_admin %}
                     <a class="btn btn-outline-primary" href="{% url 'vket:manage' collaboration.id %}">管理</a>
                 {% endif %}
                 {% if can_apply %}

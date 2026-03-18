@@ -44,6 +44,10 @@ PHASE_SORT_ORDER = {
 }
 
 
+def _is_vket_admin(user) -> bool:
+    return user.is_authenticated and (user.is_superuser or user.is_staff)
+
+
 def _get_active_membership(request):
     """ログインユーザーのアクティブな集会メンバーシップを返す"""
     if not request.user.is_authenticated:
@@ -64,8 +68,8 @@ def _get_active_membership(request):
 
 def _apply_permissions_for_user(user, collaboration: VketCollaboration) -> VketApplyPermissions:
     """ユーザーのコラボ操作権限を計算して返す"""
-    # スーパーユーザーは全権限を持つ
-    if user.is_authenticated and user.is_superuser:
+    # 管理者（superuser または staff）は全権限を持つ
+    if _is_vket_admin(user):
         return VketApplyPermissions(can_edit_schedule=True, can_edit_lt=True)
 
     today = timezone.localdate()
@@ -116,8 +120,8 @@ class CollaborationListView(ListView):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # スーパーユーザー以外は下書きを除外
-        if not (self.request.user.is_authenticated and self.request.user.is_superuser):
+        # 管理者以外は下書きを除外
+        if not _is_vket_admin(self.request.user):
             qs = qs.exclude(phase=VketCollaboration.Phase.DRAFT)
 
         # フェーズ順 → 開催日降順 → ID降順
@@ -136,6 +140,11 @@ class CollaborationListView(ListView):
         )
         return qs.filter(pk__in=id_list).order_by(preserved_order)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['is_admin'] = _is_vket_admin(self.request.user)
+        return context
+
 
 class CollaborationDetailView(DetailView):
     model = VketCollaboration
@@ -144,8 +153,8 @@ class CollaborationDetailView(DetailView):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # スーパーユーザー以外は下書きを除外
-        if not (self.request.user.is_authenticated and self.request.user.is_superuser):
+        # 管理者以外は下書きを除外
+        if not _is_vket_admin(self.request.user):
             qs = qs.exclude(phase=VketCollaboration.Phase.DRAFT)
         return qs
 
@@ -214,9 +223,7 @@ class CollaborationDetailView(DetailView):
                 or (permissions.can_edit_lt and participation_exists)
             )
         )
-        context['is_superuser'] = (
-            self.request.user.is_authenticated and self.request.user.is_superuser
-        )
+        context['is_admin'] = _is_vket_admin(self.request.user)
         context['participation_exists'] = participation_exists
         context['participation_has_event'] = participation_has_event
         return context
@@ -469,7 +476,7 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = 'vket/manage.html'
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -502,7 +509,10 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         )
 
         registered_community_ids = set(p.community_id for p in participations)
-        all_communities = Community.objects.filter(status='approved').order_by('name')
+        today = timezone.localdate()
+        all_communities = Community.objects.filter(status='approved').exclude(
+            end_at__lt=today,
+        ).order_by('name')
         unregistered_communities = all_communities.exclude(id__in=registered_community_ids)
 
         # LT登録数: プレゼンが1件以上ある集会数
@@ -573,7 +583,7 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
 class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def post(self, request, pk: int, participation_id: int):
         collaboration = get_object_or_404(VketCollaboration, pk=pk)
@@ -682,7 +692,7 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = 'vket/manage_schedule.html'
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -917,9 +927,9 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
 
 
 def _get_visible_collaborations(user):
-    """ユーザーに表示可能なコラボ一覧を返す（ARCHIVED除外、非superuserはDRAFTも除外）"""
+    """ユーザーに表示可能なコラボ一覧を返す（ARCHIVED除外、非管理者はDRAFTも除外）"""
     qs = VketCollaboration.objects.exclude(phase=VketCollaboration.Phase.ARCHIVED)
-    if not user.is_superuser:
+    if not _is_vket_admin(user):
         qs = qs.exclude(phase=VketCollaboration.Phase.DRAFT)
     return qs.order_by('-period_start', '-id')
 
@@ -1041,7 +1051,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'latest_notices': latest_notices,
                 'unacked_count': unacked_count,
                 'collaborations': collaborations,
-                'is_superuser': request.user.is_superuser,
+                'is_admin': _is_vket_admin(request.user),
                 'stage_url': stage_url,
                 'event_details': event_details,
             },
@@ -1086,7 +1096,7 @@ class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
     template_name = 'vket/manage_notice_list.html'
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1159,7 +1169,7 @@ class ManageNoticeCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
     """運営向け: お知らせ作成ビュー"""
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def post(self, request, pk: int):
         collaboration = get_object_or_404(VketCollaboration, pk=pk)
@@ -1206,7 +1216,7 @@ class ManageNoticeUpdateView(LoginRequiredMixin, UserPassesTestMixin, View):
     """運営向け: お知らせ編集ビュー"""
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def post(self, request, pk: int, notice_id: int):
         collaboration = get_object_or_404(VketCollaboration, pk=pk)
@@ -1318,7 +1328,7 @@ class ManagePresentationDeleteView(LoginRequiredMixin, UserPassesTestMixin, View
     """管理者用: LTを個別削除する"""
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def post(self, request, pk: int, presentation_id: int):
         collaboration = get_object_or_404(VketCollaboration, pk=pk)
@@ -1337,7 +1347,7 @@ class ManagePublishView(LoginRequiredMixin, UserPassesTestMixin, View):
     """運営向け: LOCKEDフェーズのコラボをEventとして公開するビュー"""
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def post(self, request, pk: int):
         collaboration = get_object_or_404(VketCollaboration, pk=pk)

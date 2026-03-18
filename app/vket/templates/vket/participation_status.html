@@ -37,7 +37,7 @@
             <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-arrow-left me-1"></i>イベント管理
             </a>
-            {% if is_superuser %}
+            {% if is_admin %}
                 <a href="{% url 'vket:manage' collaboration.pk %}" class="btn btn-outline-dark btn-sm">
                     <i class="fas fa-gear me-1"></i>管理
                 </a>

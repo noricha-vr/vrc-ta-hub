@@ -36,7 +36,7 @@
 
                                 <div class="d-flex gap-2 flex-wrap">
                                     <a class="btn btn-primary btn-sm" href="{% url 'vket:detail' c.id %}">詳細を見る</a>
-                                    {% if request.user.is_authenticated and request.user.is_superuser %}
+                                    {% if is_admin %}
                                         <a class="btn btn-outline-primary btn-sm"
                                            href="{% url 'vket:manage' c.id %}">管理</a>
                                     {% endif %}
