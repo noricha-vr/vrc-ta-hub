@@ -134,23 +134,26 @@
                                     {% endfor %}
                                 </select>
                                 {% for pres in p.all_presentations %}
-                                    <div class="d-flex gap-1 align-items-center">
-                                        <span class="small text-muted text-nowrap" style="min-width: 60px;" title="{{ pres.speaker|default:'（未入力）' }}">
-                                            {{ pres.speaker|default:"LT"|truncatechars:6 }}
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span class="small text-muted text-nowrap" title="{{ pres.speaker|default:'（未入力）' }}">
+                                            {{ pres.speaker|default:"LT"|truncatechars:8 }}
                                         </span>
-                                        {% if pres.published_event_detail %}
-                                            <input class="form-control form-control-sm" type="time"
-                                                   name="detail_{{ pres.published_event_detail.id }}_start_time"
-                                                   value="{{ pres.published_event_detail.start_time|date:'H:i' }}"
-                                                   step="300">
-                                        {% else %}
-                                            <span class="small text-muted">&mdash;</span>
-                                        {% endif %}
-                                        <button class="btn btn-outline-danger btn-sm py-0 px-1"
-                                                type="button"
-                                                onclick="if(confirm('{{ pres.speaker|default:"このLT"|escapejs }} を削除しますか？')) document.getElementById('delete-pres-{{ pres.pk }}').submit()">
-                                            <i class="fas fa-times"></i>
-                                        </button>
+                                        <span class="d-flex gap-1 align-items-center">
+                                            {% if pres.published_event_detail %}
+                                                <input class="form-control form-control-sm" type="time"
+                                                       name="detail_{{ pres.published_event_detail.id }}_start_time"
+                                                       value="{{ pres.published_event_detail.start_time|date:'H:i' }}"
+                                                       step="300"
+                                                       style="width: 5.5rem; padding: 0.1rem 0.2rem;">
+                                            {% else %}
+                                                <span class="small text-muted">&mdash;</span>
+                                            {% endif %}
+                                            <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                                    type="button"
+                                                    onclick="if(confirm('{{ pres.speaker|default:"このLT"|escapejs }} を削除しますか？')) document.getElementById('delete-pres-{{ pres.pk }}').submit()">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </span>
                                     </div>
                                 {% endfor %}
                                 <textarea class="form-control form-control-sm" name="admin_note" rows="2"
