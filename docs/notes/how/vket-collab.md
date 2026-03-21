@@ -49,3 +49,15 @@ Hub上でこの2ビューをDB駆動で再現することが目標。
 - 問題: Googleフォーム + スプレッドシートだとHubのデータと紐づかない
 - 解決: Hub上で参加登録→スケジュール管理→LT登録を一気通貫で行う
 - 教訓: 管理者が一番必要なのは「全集会の進捗が一覧できるテーブル」
+
+## CommunityMember ロール設定
+
+### ロール値は TextChoices を必ず確認してから設定する
+- 問題: `CommunityMember` のロールを `organizer` に設定したが、実際の `Role.OWNER` は `'owner'`。不正値が保存されても Django はエラーを出さず、権限チェックで静かに失敗する
+- 解決: `CommunityMember.Role.choices` → `[('owner', '主催者'), ('staff', 'スタッフ')]` を確認し、Enum定数を使って設定する（`m.role = CommunityMember.Role.OWNER`）
+- 教訓: TextChoices の値は直感と異なることがある（主催者 = owner ≠ organizer）。文字列リテラルではなく必ず Enum 定数を使う
+
+### Vket ApplyView の権限チェック
+- `vket/views.py:243` で `membership.role == CommunityMember.Role.OWNER` をチェック
+- `is_superuser` または `OWNER` ロールのみ通過可能（`STAFF` は不可）
+- Vketテスト用に集会主催者権限を付与する場合は `OWNER` ロールが必要
