@@ -4,7 +4,6 @@ from unittest.mock import MagicMock, patch
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
 
-from allauth.account.models import EmailAddress
 from allauth.socialaccount.models import SocialAccount
 from user_account.adapters import CustomSocialAccountAdapter
 from user_account.tests.utils import create_discord_linked_user
@@ -23,12 +22,6 @@ class CustomSocialAccountAdapterTests(TestCase):
             user_name='existing_user',
             email='existing@example.com',
             password='testpass123',
-        )
-        EmailAddress.objects.create(
-            user=self.existing_user,
-            email='existing@example.com',
-            verified=True,
-            primary=True,
         )
 
     def test_is_auto_signup_allowed_returns_true_when_email_exists(self):
@@ -194,10 +187,8 @@ class CustomSocialAccountAdapterTests(TestCase):
 
         sociallogin.connect.assert_not_called()
 
-    def test_pre_social_login_skips_when_existing_user_email_is_not_verified(self):
-        """既存ユーザー側のメールが未検証なら自動連携しないこと."""
-        EmailAddress.objects.filter(user=self.existing_user).delete()
-
+    def test_pre_social_login_connects_when_no_email_address_record(self):
+        """EmailAddressレコードがなくてもDiscord verified なら自動連携すること."""
         request = self.factory.get('/accounts/discord/login/callback/')
 
         sociallogin = MagicMock()
@@ -212,7 +203,7 @@ class CustomSocialAccountAdapterTests(TestCase):
 
         self.adapter.pre_social_login(request, sociallogin)
 
-        sociallogin.connect.assert_not_called()
+        sociallogin.connect.assert_called_once_with(request, self.existing_user)
 
     def test_pre_social_login_skips_when_existing_user_has_other_discord_account(self):
         """既存ユーザーが別の Discord アカウントを連携済みなら自動連携しないこと."""
