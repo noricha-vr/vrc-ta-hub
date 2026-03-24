@@ -39,6 +39,7 @@ RUN pip3 install -r /app/requirements.txt
 
 # アプリケーションのコピー
 COPY ./app /app
+COPY ./docs /docs
 COPY uwsgi.ini /uwsgi.ini
 COPY uwsgi_params /uwsgi_params
 
