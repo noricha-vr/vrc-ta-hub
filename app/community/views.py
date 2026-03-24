@@ -1139,7 +1139,8 @@ def _send_report_webhook(community, report_count):
     message = {
         "content": (
             f"**集会の活動停止が通報されました**\n"
-            f"📢 **{community.name}**\n\n"
+            f"📢 **{community.name}**\n"
+            f"{community_url}\n\n"
             "活動しているかを確認して、リアクションで教えてください\n\n"
             "✅ → まだ開催されている　❌ → 停止している\n\n"
             "💬 詳しい情報があればスレッドで教えてください"
