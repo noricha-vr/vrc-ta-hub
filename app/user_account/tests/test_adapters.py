@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
 
 from allauth.socialaccount.models import SocialAccount
+from community.models import Community, CommunityMember
 from user_account.adapters import CustomSocialAccountAdapter
 from user_account.tests.utils import create_discord_linked_user
 
@@ -123,8 +124,9 @@ class CustomSocialAccountAdapterTests(TestCase):
         sociallogin.connect.assert_not_called()
 
     def test_pre_social_login_skips_connect_when_process_is_connect(self):
-        """process=connect の場合は既存ユーザー自動紐付けを行わないこと."""
+        """process=connect で競合がない場合は何もしないこと."""
         request = self.factory.get('/accounts/discord/login/callback/')
+        request.user = self.existing_user
 
         sociallogin = MagicMock()
         sociallogin.is_existing = False
@@ -139,6 +141,95 @@ class CustomSocialAccountAdapterTests(TestCase):
         self.adapter.pre_social_login(request, sociallogin)
 
         sociallogin.connect.assert_not_called()
+
+    def test_pre_social_login_merges_conflicting_account_on_connect(self):
+        """process=connect で競合するDiscordアカウントがある場合、自動マージすること."""
+        # 重複アカウント（Discord連携済み）を作成
+        other_user = User.objects.create_user(
+            user_name='duplicate_user',
+            email='duplicate@example.com',
+            password='testpass123',
+        )
+        SocialAccount.objects.create(
+            user=other_user,
+            provider='discord',
+            uid='123456789',
+        )
+        # other_user がコミュニティのオーナー
+        community = Community.objects.create(
+            name='Test Community',
+            status='approved',
+            frequency='毎週',
+            organizers='Test',
+        )
+        CommunityMember.objects.create(
+            community=community,
+            user=other_user,
+            role='owner',
+        )
+
+        request = self.factory.get('/accounts/discord/login/callback/')
+        request.user = self.existing_user
+
+        sociallogin = MagicMock()
+        sociallogin.is_existing = False
+        sociallogin.state = {'process': 'connect'}
+        sociallogin.account.provider = 'discord'
+        sociallogin.account.uid = '123456789'
+        sociallogin.account.extra_data = {'email': 'dup@example.com', 'verified': True}
+
+        self.adapter.pre_social_login(request, sociallogin)
+
+        # SocialAccountが existing_user に再割り当てされていること
+        sa = SocialAccount.objects.get(provider='discord', uid='123456789')
+        self.assertEqual(sa.user, self.existing_user)
+        # socialloginのuserが更新されていること
+        self.assertEqual(sociallogin.user, self.existing_user)
+        # CommunityMember が existing_user に移動していること
+        self.assertTrue(
+            CommunityMember.objects.filter(user=self.existing_user, community=community).exists()
+        )
+        self.assertFalse(
+            CommunityMember.objects.filter(user=other_user, community=community).exists()
+        )
+
+    def test_pre_social_login_merge_skips_existing_community_member(self):
+        """自動マージ時、既にメンバーのコミュニティは移動しないこと."""
+        other_user = User.objects.create_user(
+            user_name='dup_user2',
+            email='dup2@example.com',
+            password='testpass123',
+        )
+        SocialAccount.objects.create(
+            user=other_user,
+            provider='discord',
+            uid='123456789',
+        )
+        community = Community.objects.create(
+            name='Shared Community',
+            status='approved',
+            frequency='毎週',
+            organizers='Test',
+        )
+        # 両方のユーザーが同じコミュニティに所属
+        CommunityMember.objects.create(community=community, user=self.existing_user, role='owner')
+        CommunityMember.objects.create(community=community, user=other_user, role='staff')
+
+        request = self.factory.get('/accounts/discord/login/callback/')
+        request.user = self.existing_user
+
+        sociallogin = MagicMock()
+        sociallogin.is_existing = False
+        sociallogin.state = {'process': 'connect'}
+        sociallogin.account.provider = 'discord'
+        sociallogin.account.uid = '123456789'
+        sociallogin.account.extra_data = {'email': 'dup2@example.com', 'verified': True}
+
+        self.adapter.pre_social_login(request, sociallogin)
+
+        # existing_user のメンバーシップは元のまま（role=owner）
+        cm = CommunityMember.objects.get(user=self.existing_user, community=community)
+        self.assertEqual(cm.role, 'owner')
 
     def test_pre_social_login_skips_when_no_matching_email(self):
         """一致するメールアドレスがない場合は新規フローを継続すること."""
