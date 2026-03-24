@@ -17,6 +17,8 @@
     - title: 集会を閉鎖・再開する
       path: community/close
       owner_only: true
+    - title: 活動停止を通報する
+      path: community/report
 
 - title: イベントを管理する
   children:
