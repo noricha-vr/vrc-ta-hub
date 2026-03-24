@@ -173,6 +173,14 @@ class CommunityDetailView(DetailView):
         ).prefetch_related('details').order_by('-date', '-start_time')[:6]
         context['past_events'] = self.get_event_details(past_events)
 
+        # BLOG・特別企画の記事を取得
+        blog_special_details = EventDetail.objects.filter(
+            event__community=community,
+            detail_type__in=['BLOG', 'SPECIAL'],
+            status='approved',
+        ).select_related('event').order_by('-event__date')[:6]
+        context['blog_special_details'] = blog_special_details
+
         # 曜日の選択肢をコンテキストに追加
         context['weekday_choices'] = dict(WEEKDAY_CHOICES)
 
@@ -208,7 +216,7 @@ class CommunityDetailView(DetailView):
         last_event = None
         for event in events:
             # 承認済みのEventDetailのみ表示
-            details = event.details.filter(status='approved')
+            details = event.details.filter(status='approved', detail_type='LT')
             if event == last_event:
                 continue
             event_details_list.append({

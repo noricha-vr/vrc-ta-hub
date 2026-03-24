@@ -219,6 +219,101 @@ class CommunityDetailViewEventThemeDisplayTest(TestCase):
         self.assertContains(response, 'Blog')
 
 
+class CommunityDetailViewBlogSpecialSectionTest(TestCase):
+    """コミュニティ詳細ページのBLOG/SPECIAL記事セクション表示テスト"""
+
+    DURATION_MINUTES = 120
+
+    def setUp(self):
+        self.client = Client()
+        self.user = CustomUser.objects.create_user(
+            email='blogtest@example.com',
+            password='testpass123',
+            user_name='ブログテストユーザー'
+        )
+        self.community = Community.objects.create(
+            name='テスト集会BS',
+            status='approved',
+            frequency='毎週',
+            organizers='テスト主催者'
+        )
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.user,
+            role=CommunityMember.Role.OWNER
+        )
+        self.past_event = Event.objects.create(
+            community=self.community,
+            date=date.today() - timedelta(days=7),
+            start_time=time(21, 0),
+            duration=self.DURATION_MINUTES
+        )
+        self.url = reverse('community:detail', kwargs={'pk': self.community.pk})
+
+    def test_blog_special_section_shown_when_exists(self):
+        """BLOG/SPECIALがある場合、記事・特別企画セクションが表示される"""
+        EventDetail.objects.create(
+            event=self.past_event,
+            detail_type='BLOG',
+            status='approved',
+            h1='テストブログ記事',
+            theme='テストブログ記事',
+        )
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '記事・特別企画')
+        self.assertContains(response, 'テストブログ記事')
+        self.assertContains(response, 'badge bg-info')
+
+    def test_special_type_shows_warning_badge(self):
+        """SPECIALタイプは特別企画バッジで表示される"""
+        EventDetail.objects.create(
+            event=self.past_event,
+            detail_type='SPECIAL',
+            status='approved',
+            h1='テスト特別企画',
+            theme='Special Event',
+        )
+        response = self.client.get(self.url)
+        self.assertContains(response, 'テスト特別企画')
+        self.assertContains(response, 'badge bg-warning')
+
+    def test_blog_special_section_hidden_when_none(self):
+        """BLOG/SPECIALがない場合、セクションが表示されない"""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '記事・特別企画')
+
+    def test_unapproved_blog_not_shown(self):
+        """未承認のBLOG/SPECIALは表示されない"""
+        EventDetail.objects.create(
+            event=self.past_event,
+            detail_type='BLOG',
+            status='pending',
+            h1='未承認ブログ',
+            theme='未承認ブログ',
+        )
+        response = self.client.get(self.url)
+        self.assertNotContains(response, '未承認ブログ')
+        self.assertNotContains(response, '記事・特別企画')
+
+    def test_blog_excluded_from_lt_table(self):
+        """BLOGタイプはLT向けの発表履歴テーブルに表示されない"""
+        EventDetail.objects.create(
+            event=self.past_event,
+            detail_type='BLOG',
+            status='approved',
+            h1='ブログ記事タイトル',
+            theme='ブログ記事タイトル',
+        )
+        response = self.client.get(self.url)
+        # past_events コンテキスト内にBLOGが含まれない
+        past_events = response.context['past_events']
+        for event_dict in past_events:
+            for detail in event_dict['details']:
+                self.assertNotEqual(detail.detail_type, 'BLOG')
+
+
 class CommunityDetailViewLtApplicationSectionTest(TestCase):
     """CommunityDetailViewのLT申請セクション表示テスト"""
 

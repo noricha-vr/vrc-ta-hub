@@ -336,13 +336,65 @@
                         </tbody>
                     </table>
                     <div class="text-end">
-                        <a href="{% url 'event:detail_history' %}?&community_name={{ community.name }}"
+                        <a href="{% url 'event:detail_history' %}?community_name={{ community.name|urlencode }}"
                            class=" btn btn-primary">
                             もっと見る</a>
                     </div>
                 </div>
             </div>
         </div>
+
+        {# BLOG・特別企画セクション（投稿があれば表示） #}
+        {% if blog_special_details %}
+        <div class="card my-5 shadow">
+            <div class="card-body">
+                <h2 class="fs-3 fw-bold my-5 text-center">
+                    {{ community.name }}の記事・特別企画
+                </h2>
+                <div class="row">
+                    {% for detail in blog_special_details %}
+                    <div class="col-12 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <div class="col-md-8">
+                                        <h5 class="card-title mb-1">
+                                            <a href="{% url 'event:detail' detail.pk %}" class="text-decoration-none">
+                                                {% if detail.h1 %}{{ detail.h1 }}{% else %}{{ detail.theme }}{% endif %}
+                                            </a>
+                                        </h5>
+                                        <p class="text-muted mb-2">
+                                            <small>
+                                                {{ detail.event.date|date:"Y年n月j日" }}
+                                                {% if detail.detail_type == 'SPECIAL' %}
+                                                    <span class="badge bg-warning text-dark">特別企画</span>
+                                                {% else %}
+                                                    <span class="badge bg-info">ブログ</span>
+                                                {% endif %}
+                                            </small>
+                                        </p>
+                                        {% if detail.meta_description %}
+                                            <p class="card-text text-truncate">{{ detail.meta_description }}</p>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-4 text-md-end">
+                                        <a href="{% url 'event:detail' detail.pk %}" class="btn btn-sm btn-outline-primary">
+                                            詳細を見る
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="text-end">
+                    <a href="{% url 'event:event_log_list' %}?community_name={{ community.name|urlencode }}"
+                       class="btn btn-primary">もっと見る</a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     {# 通報ボタン #}
