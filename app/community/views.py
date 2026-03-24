@@ -1135,13 +1135,17 @@ def _send_report_webhook(community, report_count):
 
     community_url = f"https://vrc-ta-hub.com/community/{community.pk}/"
     message = {
+        "content": (
+            "**集会の活動停止が通報されました**\n"
+            "この集会が本当に停止しているか確認して、リアクションで教えてください\n"
+            "✅ → 停止している　❌ → まだ開催されている"
+        ),
         "embeds": [{
-            "title": "活動停止の通報",
+            "title": community.name,
+            "url": community_url,
             "color": 16776960,
             "fields": [
-                {"name": "集会名", "value": community.name, "inline": True},
                 {"name": "通報数", "value": str(report_count), "inline": True},
-                {"name": "集会URL", "value": community_url, "inline": False},
             ],
         }],
     }

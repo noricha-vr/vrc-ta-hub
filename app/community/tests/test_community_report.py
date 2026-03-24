@@ -57,8 +57,9 @@ class CommunityReportViewTest(TestCase):
             self.client.post(self.url)
         mock_post.assert_called_once()
         payload = mock_post.call_args[1]['json']
-        self.assertEqual(payload['embeds'][0]['fields'][0]['value'], 'テスト集会')
-        self.assertEqual(payload['embeds'][0]['fields'][1]['value'], '1')
+        self.assertIn('活動停止が通報されました', payload['content'])
+        self.assertEqual(payload['embeds'][0]['title'], 'テスト集会')
+        self.assertEqual(payload['embeds'][0]['fields'][0]['value'], '1')
 
     def test_webhook_not_sent_when_url_empty(self):
         """Webhook URLが空の場合は送信しない"""
