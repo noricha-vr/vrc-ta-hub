@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load static %}
+{% load static custom_filters %}
 {% block main %}
     <style>
         .rounded-custom {
@@ -396,7 +396,7 @@
                                                     </div>
                                                     <p class="card-text">
                                                         <i class="bi bi-calendar3"></i> {{ event_group.grouper.date|date:"Y/m/d" }}
-                                                        <small class="text-muted">（{{ event_group.grouper.date|date:"D" }}）</small><br>
+                                                        <small class="text-muted">（{{ event_group.grouper.date|date_weekday_jp }}）</small><br>
                                                         <i class="bi bi-clock"></i> {{ event_group.grouper.start_time|time:"H:i" }}<small
                                                             class="text-muted">（日本時間）</small>
                                                     </p>
@@ -545,7 +545,7 @@
                                             </div>
                                             <p class="card-text">
                                                 <i class="bi bi-calendar3"></i> {{ event_group.grouper.date|date:"Y/m/d" }}
-                                                <small class="text-muted">（{{ event_group.grouper.date|date:"D" }}）</small><br>
+                                                <small class="text-muted">（{{ event_group.grouper.date|date_weekday_jp }}）</small><br>
                                                 <i class="bi bi-clock"></i> {{ event_group.grouper.start_time|time:"H:i" }}<small
                                                     class="text-muted">（日本時間）</small>
                                             </p>
@@ -764,23 +764,7 @@
                                                                 <span>{{ event.date|date:"Y/m/d" }}</span>
                                                             </div>
                                                             <div class="weekday-badge weekday-{{ event.weekday|lower }}">
-                                                                {% if event.weekday == 'Sun' %}
-                                                                    日曜日
-                                                                {% elif event.weekday == 'Mon' %}
-                                                                    月曜日
-                                                                {% elif event.weekday == 'Tue' %}
-                                                                    火曜日
-                                                                {% elif event.weekday == 'Wed' %}
-                                                                    水曜日
-                                                                {% elif event.weekday == 'Thu' %}
-                                                                    木曜日
-                                                                {% elif event.weekday == 'Fri' %}
-                                                                    金曜日
-                                                                {% elif event.weekday == 'Sat' %}
-                                                                    土曜日
-                                                                {% else %}
-                                                                    {{ event.weekday }}
-                                                                {% endif %}
+                                                                {{ event.weekday|weekday_jp }}
                                                             </div>
                                                         </div>
                                                         <div class="time-info">
