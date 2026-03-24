@@ -18,6 +18,8 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.core.cache import cache
+
+from ta_hub.utils import get_client_ip
 from django.utils.http import url_has_allowed_host_and_scheme
 import requests
 
@@ -1129,13 +1131,6 @@ REPORT_DUPLICATE_TTL_SECONDS = 30 * 24 * 60 * 60
 REPORT_GLOBAL_LIMIT_PER_IP = 3
 
 
-def _get_client_ip(request):
-    """クライアントIPを取得する（Cloud Run の X-Forwarded-For 対応）"""
-    forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR', '')
-    if forwarded_for:
-        return forwarded_for.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR') or '0.0.0.0'
-
 
 def _send_report_webhook(community, report_count):
     """活動停止通報の Discord Webhook を送信する"""
@@ -1187,7 +1182,7 @@ class CommunityReportView(View):
     def post(self, request, pk):
         community = get_object_or_404(Community, pk=pk, status='approved')
 
-        ip = _get_client_ip(request)
+        ip = get_client_ip(request)
 
         # 同一集会の重複チェック
         cache_key = f"community_report:{pk}:{ip}"

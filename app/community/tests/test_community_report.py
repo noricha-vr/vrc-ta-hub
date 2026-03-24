@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from community.models import Community, CommunityReport
-from community.views import _get_client_ip
+from ta_hub.utils import get_client_ip
 
 
 @override_settings(DISCORD_REPORT_WEBHOOK_URL='')
@@ -103,17 +103,23 @@ class GetClientIpTest(TestCase):
         """X-Forwarded-For に単一IP"""
         request = self._make_request()
         request.META['HTTP_X_FORWARDED_FOR'] = '203.0.113.1'
-        self.assertEqual(_get_client_ip(request), '203.0.113.1')
+        self.assertEqual(get_client_ip(request), '203.0.113.1')
 
-    def test_forwarded_for_multiple_ips(self):
-        """X-Forwarded-For に複数IP → 先頭を取得"""
+    def test_forwarded_for_two_ips(self):
+        """X-Forwarded-For に2つのIP → 末尾から2番目を取得"""
         request = self._make_request()
         request.META['HTTP_X_FORWARDED_FOR'] = '203.0.113.1, 10.0.0.1'
-        self.assertEqual(_get_client_ip(request), '203.0.113.1')
+        self.assertEqual(get_client_ip(request), '203.0.113.1')
+
+    def test_forwarded_for_spoofed_ips(self):
+        """X-Forwarded-For にスプーフィングされたIP → 末尾から2番目を取得"""
+        request = self._make_request()
+        request.META['HTTP_X_FORWARDED_FOR'] = '1.2.3.4, 203.0.113.1, 10.128.0.1'
+        self.assertEqual(get_client_ip(request), '203.0.113.1')
 
     def test_remote_addr_fallback(self):
         """X-Forwarded-For がない場合は REMOTE_ADDR にフォールバック"""
         request = self._make_request()
         request.META.pop('HTTP_X_FORWARDED_FOR', None)
-        ip = _get_client_ip(request)
+        ip = get_client_ip(request)
         self.assertIsNotNone(ip)

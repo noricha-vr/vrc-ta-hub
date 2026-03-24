@@ -9,6 +9,8 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.cache import cache
+
+from ta_hub.utils import get_client_ip
 from django.db.models import Prefetch, QuerySet
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
@@ -1094,19 +1096,12 @@ class EventDetailPastList(ListView):
     RATE_LIMIT_MAX_REQUESTS = 20
     ALLOWED_FILTER_KEYS = ('community_name', 'speaker', 'theme')
 
-    def _get_client_ip(self):
-        """Cloud Run配下を考慮してクライアントIPを取得する。"""
-        forwarded_for = self.request.META.get('HTTP_X_FORWARDED_FOR', '')
-        if forwarded_for:
-            return forwarded_for.split(',')[0].strip()
-        return self.request.META.get('REMOTE_ADDR', 'unknown')
-
     def _get_rate_limit_cache_key(self, client_ip):
         bucket = int(timezone.now().timestamp()) // self.RATE_LIMIT_WINDOW_SECONDS
         return f"event_detail_history:ip:{client_ip}:bucket:{bucket}"
 
     def _is_rate_limited(self):
-        client_ip = self._get_client_ip()
+        client_ip = get_client_ip(self.request)
         cache_key = self._get_rate_limit_cache_key(client_ip)
         request_count = cache.get(cache_key, 0)
 
