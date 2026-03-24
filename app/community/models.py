@@ -310,3 +310,22 @@ class CommunityInvitation(models.Model):
             token=secrets.token_urlsafe(48),
             expires_at=timezone.now() + timedelta(days=INVITATION_EXPIRATION_DAYS)
         )
+
+
+class CommunityReport(models.Model):
+    """集会の活動停止通報"""
+    community = models.ForeignKey(
+        'Community',
+        on_delete=models.CASCADE,
+        related_name='reports',
+        verbose_name='集会'
+    )
+    ip_address = models.GenericIPAddressField('通報者IP')
+    created_at = models.DateTimeField('通報日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = '活動停止通報'
+        verbose_name_plural = '活動停止通報'
+
+    def __str__(self):
+        return f'{self.community.name} - {self.created_at:%Y-%m-%d %H:%M}'

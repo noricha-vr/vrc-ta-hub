@@ -27,6 +27,7 @@ from .views import (
     TestWebhookView,
     UpdateLTSettingsView,
     AdminCommunityCleanupView,
+    CommunityReportView,
 )
 
 app_name = 'community'
@@ -61,4 +62,6 @@ urlpatterns = [
     path('<int:pk>/webhook/test/', TestWebhookView.as_view(), name='test_webhook'),
     # LT申請設定
     path('<int:pk>/lt-settings/update/', UpdateLTSettingsView.as_view(), name='update_lt_settings'),
+    # 活動停止通報
+    path('<int:pk>/report/', CommunityReportView.as_view(), name='report'),
 ]
