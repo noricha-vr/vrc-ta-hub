@@ -69,13 +69,23 @@ class EventDetailPermissionTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_non_member_cannot_access_event_detail_update_view(self):
-        """非メンバーはEventDetail更新ページにアクセスできない（403）."""
+        """非メンバーはEventDetail更新ページにアクセスするとイベント詳細にリダイレクトされる."""
         self.client.login(username="other_user", password="testpass123")
 
         url = reverse("event:detail_update", kwargs={"pk": self.event_detail.pk})
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 302)
+        expected_url = reverse("event:detail", kwargs={"pk": self.event_detail.pk})
+        self.assertEqual(response.url, expected_url)
+
+    def test_anonymous_user_redirected_to_login_on_update(self):
+        """未ログインユーザーはEventDetail更新ページからログインページにリダイレクトされる."""
+        url = reverse("event:detail_update", kwargs={"pk": self.event_detail.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/account/login/", response.url)
 
     def test_non_member_cannot_delete_event_detail(self):
         """非メンバーはEventDetailを削除できない（403）."""

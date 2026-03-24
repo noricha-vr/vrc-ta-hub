@@ -729,7 +729,13 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
         event_detail = self.get_object()
         # イベント詳細は、所属コミュニティの管理者（owner/staff）またはsuperuserのみ更新可
         return self.request.user.is_superuser or event_detail.event.community.can_edit(self.request.user)
-    
+
+    def handle_no_permission(self):
+        """認証済みだが権限がないユーザーはイベント詳細ページにリダイレクトする."""
+        if self.request.user.is_authenticated:
+            return redirect('event:detail', pk=self.get_object().pk)
+        return super().handle_no_permission()
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['event'] = self.object.event
