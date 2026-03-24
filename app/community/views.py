@@ -1190,7 +1190,8 @@ class CommunityReportView(View):
         global_key = f"community_report_global:{ip}"
         global_count = cache.get(global_key, 0)
         if global_count >= REPORT_GLOBAL_LIMIT_PER_IP:
-            messages.info(request, '通報の上限に達しました。ご協力ありがとうございます。')
+            # 荒らしに気づかせないよう、成功時と同じメッセージを返す
+            messages.success(request, '通報を受け付けました。ご協力ありがとうございます。')
             return redirect('community:detail', pk=pk)
 
         CommunityReport.objects.create(
