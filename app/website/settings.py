@@ -452,3 +452,4 @@ SOCIALACCOUNT_DISCONNECT_REDIRECT_URL = '/account/settings/'
 
 # Discord Webhook（管理者通知用）
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')
+DISCORD_REPORT_WEBHOOK_URL = os.environ.get('DISCORD_REPORT_WEBHOOK_URL', '')

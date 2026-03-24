@@ -31,7 +31,7 @@ from .forms import CommunitySearchForm
 from .forms import CommunityUpdateForm
 from .forms import CommunityCreateForm
 from .libs import get_join_type
-from .models import Community, CommunityMember, CommunityInvitation
+from .models import Community, CommunityMember, CommunityInvitation, CommunityReport
 
 logger = logging.getLogger(__name__)
 
@@ -1111,3 +1111,84 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
         )
 
         return redirect('community:settings')
+
+
+# Discord Webhook 送信タイムアウト（秒）
+DISCORD_REPORT_TIMEOUT_SECONDS = 10
+# 重複通報ブロック期間（秒）= 24時間
+REPORT_DUPLICATE_TTL_SECONDS = 86400
+
+
+def _get_client_ip(request):
+    """クライアントIPを取得する（Cloud Run の X-Forwarded-For 対応）"""
+    forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if forwarded_for:
+        return forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR') or '0.0.0.0'
+
+
+def _send_report_webhook(community, report_count):
+    """活動停止通報の Discord Webhook を送信する"""
+    webhook_url = settings.DISCORD_REPORT_WEBHOOK_URL
+    if not webhook_url:
+        return
+
+    community_url = f"https://vrc-ta-hub.com/community/{community.pk}/"
+    message = {
+        "embeds": [{
+            "title": "活動停止の通報",
+            "color": 16776960,
+            "fields": [
+                {"name": "集会名", "value": community.name, "inline": True},
+                {"name": "通報数", "value": str(report_count), "inline": True},
+                {"name": "集会URL", "value": community_url, "inline": False},
+            ],
+        }],
+    }
+
+    try:
+        response = requests.post(
+            webhook_url, json=message, timeout=DISCORD_REPORT_TIMEOUT_SECONDS
+        )
+        if response.ok:
+            logger.info(
+                f"通報Webhook送信成功: Community={community.name}"
+            )
+        else:
+            logger.warning(
+                f"通報Webhook送信失敗: status={response.status_code}"
+            )
+    except requests.RequestException:
+        logger.exception("通報Webhook送信で例外が発生")
+
+
+class CommunityReportView(View):
+    """集会の活動停止通報ビュー（匿名OK、POST のみ）"""
+
+    http_method_names = ['post']
+
+    def post(self, request, pk):
+        community = get_object_or_404(Community, pk=pk, status='approved')
+
+        ip = _get_client_ip(request)
+        cache_key = f"community_report:{pk}:{ip}"
+
+        if cache.get(cache_key):
+            messages.info(request, 'すでに通報済みです。ご協力ありがとうございます。')
+            return redirect('community:detail', pk=pk)
+
+        CommunityReport.objects.create(
+            community=community,
+            ip_address=ip,
+        )
+        cache.set(cache_key, True, REPORT_DUPLICATE_TTL_SECONDS)
+
+        report_count = community.reports.count()
+        _send_report_webhook(community, report_count)
+
+        logger.info(
+            f"活動停止通報: Community={community.name}, 通報数={report_count}"
+        )
+
+        messages.success(request, '通報を受け付けました。ご協力ありがとうございます。')
+        return redirect('community:detail', pk=pk)

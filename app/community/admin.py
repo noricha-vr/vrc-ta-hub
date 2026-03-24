@@ -1,12 +1,12 @@
 from django.contrib import admin
-from .models import Community, CommunityMember
+from .models import Community, CommunityMember, CommunityReport
 from .forms import CommunityForm
 
 
 @admin.register(Community)
 class CommunityAdmin(admin.ModelAdmin):
     form = CommunityForm
-    list_display = ('name', 'get_weekdays', 'start_time', 'frequency', 'organizers', 'get_tags', 'status', 'get_closed_status')
+    list_display = ('name', 'get_weekdays', 'start_time', 'frequency', 'organizers', 'get_tags', 'status', 'get_closed_status', 'get_report_count')
     list_filter = ('weekdays', 'frequency', 'tags', 'status', 'end_at')  # end_atをフィルタに追加
     search_fields = ('name', 'organizers')
     
@@ -29,8 +29,20 @@ class CommunityAdmin(admin.ModelAdmin):
 
     get_tags.short_description = 'タグ'
 
+    def get_report_count(self, obj):
+        return obj.reports.count()
+    get_report_count.short_description = '通報数'
+
 @admin.register(CommunityMember)
 class CommunityMemberAdmin(admin.ModelAdmin):
     list_display = ('community', 'user', 'role', 'created_at')
     list_filter = ('role',)
     search_fields = ('community__name', 'user__user_name')
+
+
+@admin.register(CommunityReport)
+class CommunityReportAdmin(admin.ModelAdmin):
+    list_display = ('community', 'ip_address', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('community__name',)
+    readonly_fields = ('community', 'ip_address', 'created_at')

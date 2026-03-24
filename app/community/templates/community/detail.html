@@ -344,6 +344,37 @@
             </div>
         </div>
     </div>
+
+    {# 通報ボタン #}
+    <div class="text-center my-4">
+        <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#reportModal">
+            <i class="bi bi-exclamation-triangle me-1"></i>この集会が開催されていないかもしれない
+        </button>
+    </div>
+
+    {# 通報モーダル #}
+    <div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="reportModalLabel">活動停止の通報</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>この集会が現在開催されていない可能性がある場合、運営チームに通報できます。</p>
+                    <p class="text-muted small">通報内容は運営チームのみが確認します。匿名で送信されます。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <form action="{% url 'community:report' community.pk %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-warning">通報する</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Superuserの場合はコミュニティーのユーザーの連絡先を表示 -->
     {% if request.user.is_superuser %}
         <div class="card my-5 shadow">
