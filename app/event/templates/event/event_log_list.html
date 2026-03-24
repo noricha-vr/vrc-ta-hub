@@ -3,7 +3,7 @@
 
 {% block title %}イベントログ - {{ block.super }}{% endblock %}
 
-{% block content %}
+{% block main %}
     <div class="container-fluid mt-4">
         <h1 class="h3 mb-4">イベントログ</h1>
 
@@ -12,26 +12,26 @@
         </div>
 
         <!-- 検索フォーム -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <form method="get" class="row g-3">
-                    <div class="col-md-6">
-                        <label for="community_name" class="form-label">集会名</label>
-                        <input type="text" class="form-control" id="community_name" name="community_name"
-                               value="{{ request.GET.community_name }}" placeholder="集会名で検索">
-                    </div>
-                    <div class="col-md-6">
-                        <label for="theme" class="form-label">タイトル</label>
-                        <input type="text" class="form-control" id="theme" name="theme"
-                               value="{{ request.GET.theme }}" placeholder="タイトルで検索">
-                    </div>
-                    <div class="col-12">
-                        <button type="submit" class="btn btn-primary">検索</button>
-                        <a href="{% url 'event:event_log_list' %}" class="btn btn-secondary">クリア</a>
-                    </div>
-                </form>
+        <form method="get" class="row g-3 align-items-center mb-4">
+            <div class="col-auto">
+                <label for="community_name" class="col-form-label">集会名</label>
             </div>
-        </div>
+            <div class="col">
+                <input type="text" class="form-control" id="community_name" name="community_name"
+                       value="{{ request.GET.community_name }}" placeholder="集会名で検索">
+            </div>
+            <div class="col-auto">
+                <label for="theme" class="col-form-label">タイトル</label>
+            </div>
+            <div class="col">
+                <input type="text" class="form-control" id="theme" name="theme"
+                       value="{{ request.GET.theme }}" placeholder="タイトルで検索">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary">検索</button>
+                <a href="{% url 'event:event_log_list' %}" class="btn btn-secondary">クリア</a>
+            </div>
+        </form>
 
         <!-- イベントログ一覧 -->
         <div class="row">
