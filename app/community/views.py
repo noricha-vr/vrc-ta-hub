@@ -1138,7 +1138,7 @@ def _send_report_webhook(community, report_count):
         "content": (
             "**集会の活動停止が通報されました**\n"
             "この集会が本当に停止しているか確認して、リアクションで教えてください\n"
-            "✅ → 停止している　❌ → まだ開催されている"
+            "✅ → まだ開催されている　❌ → 停止している"
         ),
         "embeds": [{
             "title": community.name,
