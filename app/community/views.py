@@ -1115,8 +1115,8 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
 
 # Discord Webhook 送信タイムアウト（秒）
 DISCORD_REPORT_TIMEOUT_SECONDS = 10
-# 重複通報ブロック期間（秒）= 24時間
-REPORT_DUPLICATE_TTL_SECONDS = 86400
+# 重複通報ブロック期間（秒）= 30日
+REPORT_DUPLICATE_TTL_SECONDS = 30 * 24 * 60 * 60
 
 
 def _get_client_ip(request):
