@@ -49,6 +49,25 @@ class CommunityReportViewTest(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 405)
 
+    def test_global_limit_blocks_after_3_reports(self):
+        """同一IPから月3件を超えると通報がブロックされる"""
+        for i in range(3):
+            community = Community.objects.create(
+                name=f'集会{i}', frequency='毎週', status='approved',
+            )
+            url = reverse('community:report', kwargs={'pk': community.pk})
+            self.client.post(url)
+        self.assertEqual(CommunityReport.objects.count(), 3)
+
+        # 4件目はブロック
+        community4 = Community.objects.create(
+            name='集会4', frequency='毎週', status='approved',
+        )
+        url4 = reverse('community:report', kwargs={'pk': community4.pk})
+        response = self.client.post(url4)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(CommunityReport.objects.count(), 3)
+
     @override_settings(DISCORD_REPORT_WEBHOOK_URL='https://discord.com/api/webhooks/test')
     def test_webhook_sent_on_report(self):
         """通報時にDiscord Webhookが送信される"""

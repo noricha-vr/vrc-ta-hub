@@ -1117,6 +1117,8 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
 DISCORD_REPORT_TIMEOUT_SECONDS = 10
 # 重複通報ブロック期間（秒）= 30日
 REPORT_DUPLICATE_TTL_SECONDS = 30 * 24 * 60 * 60
+# 同一IPからの月間通報上限（全集会合計）
+REPORT_GLOBAL_LIMIT_PER_IP = 3
 
 
 def _get_client_ip(request):
@@ -1177,10 +1179,18 @@ class CommunityReportView(View):
         community = get_object_or_404(Community, pk=pk, status='approved')
 
         ip = _get_client_ip(request)
-        cache_key = f"community_report:{pk}:{ip}"
 
+        # 同一集会の重複チェック
+        cache_key = f"community_report:{pk}:{ip}"
         if cache.get(cache_key):
             messages.info(request, 'すでに通報済みです。ご協力ありがとうございます。')
+            return redirect('community:detail', pk=pk)
+
+        # 同一IPのグローバル制限チェック（月3件まで）
+        global_key = f"community_report_global:{ip}"
+        global_count = cache.get(global_key, 0)
+        if global_count >= REPORT_GLOBAL_LIMIT_PER_IP:
+            messages.info(request, '通報の上限に達しました。ご協力ありがとうございます。')
             return redirect('community:detail', pk=pk)
 
         CommunityReport.objects.create(
@@ -1188,6 +1198,7 @@ class CommunityReportView(View):
             ip_address=ip,
         )
         cache.set(cache_key, True, REPORT_DUPLICATE_TTL_SECONDS)
+        cache.set(global_key, global_count + 1, REPORT_DUPLICATE_TTL_SECONDS)
 
         report_count = community.reports.count()
         _send_report_webhook(community, report_count)
