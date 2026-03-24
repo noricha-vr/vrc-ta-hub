@@ -52,13 +52,15 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
             request: HTTPリクエスト
             sociallogin: ソーシャルログイン情報
         """
-        if sociallogin.is_existing:
+        # process='connect' の場合はログイン中のユーザーへの紐付け処理
+        # is_existing チェックより先に判定する必要がある
+        # （lookup() で is_existing=True になった後でも競合解決が必要なため）。
+        # 参照: PR #108（設定画面からのDiscord再連携だけで競合を自己解決できるようにするため）
+        if sociallogin.state.get('process') == 'connect':
+            self._merge_conflicting_account(request, sociallogin)
             return
 
-        # process='connect' の場合はログイン中のユーザーへの紐付け処理
-        # allauthのデフォルト動作に任せる
-        if sociallogin.state.get('process') == 'connect':
-            logger.info("process='connect': delegating to allauth default behavior")
+        if sociallogin.is_existing:
             return
 
         discord_id = sociallogin.account.uid
@@ -105,6 +107,57 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
             discord_id_suffix,
         )
         sociallogin.connect(request, existing_user)
+
+    def _merge_conflicting_account(self, request, sociallogin):
+        """process='connect' 時に競合するSocialAccountがあればマージする.
+
+        ログイン中のユーザーがDiscord接続を試みた際、同じDiscord UIDが
+        別アカウントに紐付いている場合、CommunityMemberを移動して
+        競合するSocialAccountを削除する。
+        """
+        from community.models import CommunityMember
+
+        discord_uid = sociallogin.account.uid
+        current_user = request.user
+
+        conflicting_sa = SocialAccount.objects.filter(
+            provider='discord', uid=discord_uid,
+        ).exclude(user=current_user).first()
+
+        if not conflicting_sa:
+            return
+
+        other_user = conflicting_sa.user
+        discord_id_suffix = discord_uid[-4:] if len(discord_uid) > 4 else discord_uid
+
+        # CommunityMember を移動（current_user にないものだけ）
+        for cm in CommunityMember.objects.filter(user=other_user):
+            if not CommunityMember.objects.filter(
+                user=current_user, community=cm.community,
+            ).exists():
+                cm.user = current_user
+                cm.save()
+                logger.info(
+                    "Auto-merge: moved CommunityMember community_id=%s from user_id=%s to user_id=%s",
+                    cm.community_id, other_user.id, current_user.id,
+                )
+
+        # 競合するSocialAccountを現在のユーザーに再割り当て
+        conflicting_sa.user = current_user
+        conflicting_sa.extra_data = sociallogin.account.extra_data
+        conflicting_sa.save()
+
+        # socialloginの状態を更新（allauthのdo_connectが正しく処理できるように）。
+        # 参照: PR #108（競合解消後も connect フローをそのまま継続させるため）
+        # is_existing は user.pk の存在で自動判定されるため、user の設定だけでOK
+        sociallogin.account = conflicting_sa
+        sociallogin.user = current_user
+
+        logger.info(
+            "Auto-merge: reassigned SocialAccount discord_id_suffix=%s "
+            "from user_id=%s to user_id=%s",
+            discord_id_suffix, other_user.id, current_user.id,
+        )
 
     def populate_user(self, request, sociallogin, data):
         """新規ユーザー作成時のフィールド設定.
