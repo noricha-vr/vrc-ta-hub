@@ -755,7 +755,7 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
 
     def test_func(self):
         event_detail = self.get_object()
-        # 発表者本人は自分の承認済みLTのみ更新可
+        # 発表者本人は自分の承認済みLTのみ更新可。参照: PR #116（発表者フローを保ちつつ権限範囲を限定するため）
         return can_manage_event_detail(self.request.user, event_detail)
 
     def handle_no_permission(self):
