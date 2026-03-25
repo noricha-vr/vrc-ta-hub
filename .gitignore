@@ -133,6 +133,7 @@ cookies.txt
 
 docs/tmp/*
 docs/security_todo.md
+test-results/
 /r2_bkp/
 backup/
 dumps/
