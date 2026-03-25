@@ -43,6 +43,28 @@ _bigquery_client = None
 _bigquery_project = None
 
 
+def _can_applicant_edit_approved_lt(user, event_detail: EventDetail) -> bool:
+    """発表者本人が承認済みLTを編集できるか判定する。"""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return (
+        event_detail.detail_type == 'LT'
+        and event_detail.status == 'approved'
+        and event_detail.applicant_id == user.id
+    )
+
+
+def can_manage_event_detail(user, event_detail: EventDetail) -> bool:
+    """イベント詳細の更新・記事生成可否を返す。"""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return (
+        getattr(user, "is_superuser", False)
+        or event_detail.event.community.can_edit(user)
+        or _can_applicant_edit_approved_lt(user, event_detail)
+    )
+
+
 def _get_bigquery_client():
     """BigQueryクライアントを遅延初期化して返す。
 
@@ -380,6 +402,10 @@ class EventDetailView(DetailView):
             context['is_community_owner'] = True
         else:
             context['is_community_owner'] = False
+        context['can_manage_event_detail'] = can_manage_event_detail(
+            self.request.user,
+            event_detail,
+        )
 
         # 構造化データ（BlogPosting）を生成（ブログ記事のみ）
         try:
@@ -729,8 +755,8 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
 
     def test_func(self):
         event_detail = self.get_object()
-        # イベント詳細は、所属コミュニティの管理者（owner/staff）またはsuperuserのみ更新可
-        return self.request.user.is_superuser or event_detail.event.community.can_edit(self.request.user)
+        # 発表者本人は自分の承認済みLTのみ更新可
+        return can_manage_event_detail(self.request.user, event_detail)
 
     def handle_no_permission(self):
         """認証済みだが権限がないユーザーはイベント詳細ページにリダイレクトする."""
@@ -785,7 +811,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
         try:
             event_detail = EventDetail.objects.get(id=pk)
 
-            if not event_detail.event.community.can_edit(request.user):
+            if not can_manage_event_detail(request.user, event_detail):
                 messages.error(request, "Invalid request. You don't have permission to perform this action.")
                 return redirect('event:detail', pk=event_detail.id)
 

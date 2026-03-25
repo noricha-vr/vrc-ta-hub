@@ -1,13 +1,16 @@
 """EventDetail（Web UI）の権限テスト."""
 
 from datetime import date, time
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
 from django.urls import reverse
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from event.libs import BlogOutput
 
 
 User = get_user_model()
@@ -27,6 +30,11 @@ class EventDetailPermissionTests(TestCase):
         self.other_user = User.objects.create_user(
             user_name="other_user",
             email="other@example.com",
+            password="testpass123",
+        )
+        self.applicant = User.objects.create_user(
+            user_name="applicant_user",
+            email="applicant@example.com",
             password="testpass123",
         )
 
@@ -57,6 +65,27 @@ class EventDetailPermissionTests(TestCase):
             speaker="Speaker",
             theme="Theme",
             contents="contents",
+        )
+        self.applicant_detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            start_time=time(22, 30),
+            duration=30,
+            speaker="Applicant Speaker",
+            theme="Applicant Theme",
+            contents="before",
+            applicant=self.applicant,
+            status="approved",
+        )
+        self.pending_applicant_detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            start_time=time(23, 0),
+            duration=30,
+            speaker="Pending Speaker",
+            theme="Pending Theme",
+            applicant=self.applicant,
+            status="pending",
         )
 
     def test_non_member_cannot_access_event_detail_create_view(self):
@@ -97,3 +126,92 @@ class EventDetailPermissionTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertTrue(EventDetail.objects.filter(pk=self.event_detail.pk).exists())
 
+    def test_applicant_can_access_approved_event_detail_update_view(self):
+        """発表者本人は自分の承認済みLTの更新画面にアクセスできる."""
+        self.client.login(username="applicant_user", password="testpass123")
+
+        url = reverse("event:detail_update", kwargs={"pk": self.applicant_detail.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_applicant_cannot_access_pending_event_detail_update_view(self):
+        """発表者本人でも承認待ちLTの更新画面にはアクセスできない."""
+        self.client.login(username="applicant_user", password="testpass123")
+
+        url = reverse("event:detail_update", kwargs={"pk": self.pending_applicant_detail.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 302)
+        expected_url = reverse("event:detail", kwargs={"pk": self.pending_applicant_detail.pk})
+        self.assertEqual(response.url, expected_url)
+
+    def test_applicant_can_upload_pdf_on_approved_event_detail(self):
+        """発表者本人は自分の承認済みLTにPDFをアップロードできる."""
+        self.client.login(username="applicant_user", password="testpass123")
+
+        pdf = SimpleUploadedFile(
+            "slides.pdf",
+            b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF",
+            content_type="application/pdf",
+        )
+        url = reverse("event:detail_update", kwargs={"pk": self.applicant_detail.pk})
+        response = self.client.post(
+            url,
+            {
+                "detail_type": "LT",
+                "theme": "Updated Theme",
+                "speaker": "Applicant Speaker",
+                "start_time": "22:30",
+                "duration": "30",
+                "contents": "updated contents",
+                "slide_file": pdf,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.applicant_detail.refresh_from_db()
+        self.assertEqual(self.applicant_detail.theme, "Updated Theme")
+        self.assertTrue(bool(self.applicant_detail.slide_file))
+
+    @patch("event.views.generate_blog")
+    def test_applicant_can_generate_blog_for_approved_event_detail(self, mock_generate_blog):
+        """発表者本人は自分の承認済みLTで記事生成できる."""
+        self.client.login(username="applicant_user", password="testpass123")
+        self.applicant_detail.slide_file = SimpleUploadedFile(
+            "slides.pdf",
+            b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF",
+            content_type="application/pdf",
+        )
+        self.applicant_detail.save()
+        mock_generate_blog.return_value = BlogOutput(
+            title="生成タイトル",
+            meta_description="生成ディスクリプション",
+            text="生成本文",
+        )
+
+        url = reverse("event:generate_blog", kwargs={"pk": self.applicant_detail.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 302)
+        self.applicant_detail.refresh_from_db()
+        self.assertEqual(self.applicant_detail.h1, "生成タイトル")
+        self.assertEqual(self.applicant_detail.meta_description, "生成ディスクリプション")
+        self.assertEqual(self.applicant_detail.contents, "生成本文")
+
+    @patch("event.views.generate_blog")
+    def test_applicant_cannot_generate_blog_for_pending_event_detail(self, mock_generate_blog):
+        """発表者本人でも承認待ちLTでは記事生成できない."""
+        self.client.login(username="applicant_user", password="testpass123")
+        self.pending_applicant_detail.slide_file = SimpleUploadedFile(
+            "slides.pdf",
+            b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF",
+            content_type="application/pdf",
+        )
+        self.pending_applicant_detail.save()
+
+        url = reverse("event:generate_blog", kwargs={"pk": self.pending_applicant_detail.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 302)
+        mock_generate_blog.assert_not_called()
