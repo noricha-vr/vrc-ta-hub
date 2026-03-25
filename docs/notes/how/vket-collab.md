@@ -57,7 +57,16 @@ Hub上でこの2ビューをDB駆動で再現することが目標。
 - 解決: `CommunityMember.Role.choices` → `[('owner', '主催者'), ('staff', 'スタッフ')]` を確認し、Enum定数を使って設定する（`m.role = CommunityMember.Role.OWNER`）
 - 教訓: TextChoices の値は直感と異なることがある（主催者 = owner ≠ organizer）。文字列リテラルではなく必ず Enum 定数を使う
 
-### Vket ApplyView の権限チェック
-- `vket/views.py:243` で `membership.role == CommunityMember.Role.OWNER` をチェック
-- `is_superuser` または `OWNER` ロールのみ通過可能（`STAFF` は不可）
-- Vketテスト用に集会主催者権限を付与する場合は `OWNER` ロールが必要
+### Vket 管理者権限（参照: PR #115）
+- `_is_vket_admin(user)`: `is_superuser` または `is_staff` で判定（`vket/views.py`）
+- コラボ一覧/詳細の下書き表示、ApplyView の全権限付与に使用
+- ApplyView 自体は `membership.role == CommunityMember.Role.OWNER` もチェック
+- テスト用に集会主催者権限を付与する場合は `OWNER` ロールが必要
+
+### Progress 状態の運営フロー（参照: PR #115）
+```
+NOT_APPLIED → APPLIED → STAGE_REGISTERED → LT_REGISTERED
+→ REHEARSAL → EVENT_WEEK → LT_MATERIAL_UPLOADED → AFTER_PARTY → DONE
+```
+- 旧: `SCHEDULE_CONFIRMED / LT_PENDING / LT_SUBMITTED` の3段階
+- 新: 実際の運営タスクに対応した8段階（各段階で管理者が進捗を更新）
