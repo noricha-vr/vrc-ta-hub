@@ -121,10 +121,12 @@
                     </div>
                 {% endif %}
 
-                {% if is_community_owner %}
+                {% if can_manage_event_detail %}
                     <div class="d-flex">
-                        <a href="{% url 'event:my_list' %}"
-                           class="btn btn-primary me-2">イベント一覧</a>
+                        {% if is_community_owner %}
+                            <a href="{% url 'event:my_list' %}"
+                               class="btn btn-primary me-2">イベント一覧</a>
+                        {% endif %}
 
                         {# 注意: Djangoテンプレートのif文では括弧を使わないこと。括弧を使うとTemplateSyntaxErrorが発生します #}
                         {# 誤: {% if condition and (condition2 or condition3) %} #}
@@ -140,7 +142,6 @@
 
                         <a href="{% url 'event:detail_update' event_detail.id %}"
                            class="btn btn-success me-2">編集</a>
-
 
                         <a href="{% url 'community:detail' event_detail.event.community.pk %}"
                            class="btn btn-secondary me-2">{{ event_detail.event.community.name }}</a>
