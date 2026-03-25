@@ -1,6 +1,17 @@
 {% extends 'ta_hub/base.html' %}
 {% load django_bootstrap5 %}
 
+{% block meta %}
+<style>
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); }
+}
+.vket-banner-btn { animation: pulse-glow 2s infinite; }
+.vket-banner-btn:hover { background-color: #e2e6ea; }
+</style>
+{% endblock %}
+
 {% block main %}
     <div class="container my-4">
         {# ヘッダー部分 - 集会切り替えドロップダウン #}
@@ -56,6 +67,28 @@
             <a href="{% url 'community:detail' community.pk %}" class="btn btn-outline-primary">
                 <i class="fas fa-eye"></i> 公開ページ
             </a>
+        </div>
+        {% endif %}
+
+        {# Vketコラボバナー #}
+        {% if vket_banner %}
+        <div class="row">
+            <div class="col-12 col-md-10 offset-md-1 mb-3">
+                <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #f97316 0%, #e11d48 100%);">
+                    <div class="card-body py-3">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="fas fa-handshake text-white fa-lg"></i>
+                                <span class="text-white fw-bold">{{ vket_banner.message }}</span>
+                            </div>
+                            <a href="{% url vket_banner.url_name vket_banner.url_pk %}"
+                               class="btn btn-light fw-bold px-4 vket-banner-btn">
+                                <i class="fas fa-pen-to-square me-1"></i>{{ vket_banner.button_text }}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         {% endif %}
 

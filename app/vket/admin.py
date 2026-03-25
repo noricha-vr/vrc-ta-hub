@@ -46,7 +46,7 @@ class VketParticipationAdmin(admin.ModelAdmin):
     search_fields = ("community__name", "collaboration__name")
     autocomplete_fields = ("community",)
     inlines = [VketPresentationInline]
-    readonly_fields = ("applied_at", "schedule_confirmed_at", "lt_submitted_at", "last_acknowledged_at")
+    readonly_fields = ("applied_at", "stage_registered_at", "schedule_confirmed_at", "last_acknowledged_at")
 
 
 @admin.register(VketPresentation)

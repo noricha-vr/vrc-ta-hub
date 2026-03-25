@@ -1079,12 +1079,95 @@ class EventMyList(LoginRequiredMixin, ListView):
         # ページネーション用のパラメータを設定
         context['current_query_params'] = self._prepare_pagination_params()
 
+        # Vketコラボバナー情報
+        context['vket_banner'] = self._get_vket_banner(active_community)
+
         # 未来のイベントが存在するかをチェック
         today = get_vrchat_today()
         future_events_exist = any(event.date >= today for event in events)
         context['has_future_events'] = future_events_exist
 
         return context
+
+    def _get_vket_banner(self, community):
+        """Vketコラボバナーに必要な情報を返す。
+
+        DRAFT/ARCHIVEDを除外した最新のコラボを取得し、
+        フェーズ・日付に基づいて状態メッセージとリンク先を決定する。
+
+        Args:
+            community: アクティブな集会（Noneの場合あり）
+
+        Returns:
+            dict or None: バナー表示に必要な情報。非表示の場合はNone
+        """
+        from vket.models import VketCollaboration, VketParticipation
+
+        collaboration = (
+            VketCollaboration.objects
+            .exclude(phase__in=[
+                VketCollaboration.Phase.DRAFT,
+                VketCollaboration.Phase.ARCHIVED,
+            ])
+            .order_by('-period_start', '-id')
+            .first()
+        )
+        if not collaboration:
+            return None
+
+        today = timezone.localdate()
+
+        has_participation = False
+        if community:
+            has_participation = VketParticipation.objects.filter(
+                collaboration=collaboration,
+                community=community,
+            ).exists()
+
+        is_during_event = (
+            collaboration.period_start <= today <= collaboration.period_end
+        )
+
+        phase = collaboration.phase
+        period = (
+            f'{collaboration.period_start.month}/{collaboration.period_start.day}'
+            f'〜{collaboration.period_end.month}/{collaboration.period_end.day}'
+        )
+        if is_during_event:
+            message = f'{collaboration.name} 開催中！（{collaboration.period_end.month}/{collaboration.period_end.day}まで）'
+        elif phase == VketCollaboration.Phase.ENTRY_OPEN:
+            message = f'{collaboration.name}（{period}）参加申し込み受付中'
+        elif phase in (
+            VketCollaboration.Phase.SCHEDULING,
+            VketCollaboration.Phase.LT_COLLECTION,
+        ):
+            message = f'{collaboration.name}（{period}）'
+        elif phase in (
+            VketCollaboration.Phase.ANNOUNCEMENT,
+            VketCollaboration.Phase.LOCKED,
+        ):
+            message = f'{collaboration.name}（{period}）'
+        else:
+            return None
+
+        if (
+            not has_participation
+            and phase == VketCollaboration.Phase.ENTRY_OPEN
+        ):
+            url_name = 'vket:apply'
+            button_text = '参加申し込み'
+        else:
+            url_name = 'vket:status'
+            button_text = '参加状況を確認'
+
+        return {
+            'collaboration': collaboration,
+            'message': message,
+            'url_name': url_name,
+            'url_pk': collaboration.pk,
+            'button_text': button_text,
+            'has_participation': has_participation,
+        }
 
 
 class EventDetailPastList(ListView):
@@ -1358,22 +1441,6 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 )
                 logger.info(f'イベントをDBに登録: ID={new_event.id}, 日付={start_date}, 開始時間={start_time}')
                 
-                # バックグラウンドで同期処理を実行
-                try:
-                    # 内部的にGETリクエストを作成
-                    from django.http import HttpRequest
-                    sync_request = HttpRequest()
-                    sync_request.method = 'GET'
-                    sync_request.META = self.request.META
-                    sync_request.headers = {'Request-Token': REQUEST_TOKEN}
-
-                    # 同期処理を実行（エラーがあっても継続）
-                    response = sync_calendar_events(sync_request)
-                    if response.status_code != 200:
-                        logger.warning(f'カレンダー同期で警告: ステータスコード={response.status_code}')
-                except Exception as e:
-                    logger.error(f'イベント同期中にエラーが発生しました: {str(e)}', exc_info=True)
-
                 # イベントの作成が成功した場合、キャッシュをクリア
                 cache_key = f'calendar_entry_url_{new_event.id}'
                 cache.delete(cache_key)
