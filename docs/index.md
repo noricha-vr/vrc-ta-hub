@@ -18,6 +18,7 @@ VRC技術学術ハブの開発・運用に関するドキュメントです。
 - [AI自動生成機能](ai_generation.md)
 - [コミュニティ管理](community_management.md)
 - [API仕様](api_specification.md)
+- [Vketコラボ現行仕様](vket-collaboration-spec.md)
 
 ### Discord Bot関連
 - [Discord Bot仕様書](discord-bot-specification.md)

@@ -4,49 +4,37 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from django import forms
+from django.forms import formset_factory
 from django.utils import timezone
 
 from community.models import Community
+from event.models import Event
 
 from .models import VketCollaboration, VketParticipation
-
-
-def _daterange(start: date, end: date) -> list[date]:
-    """start〜endの日付リストを返す（両端含む）"""
-    if start > end:
-        return []
-    days = (end - start).days
-    return [start + timedelta(days=i) for i in range(days + 1)]
-
-
-def _weekday_code(d: date) -> str:
-    """日付から曜日コードを返す（Python: Monday=0...Sunday=6）"""
-    mapping = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-    return mapping[d.weekday()]
 
 
 def _build_participation_date_choices(
     collaboration: VketCollaboration, community: Community
 ) -> list[tuple[str, str]]:
-    """集会の開催曜日に基づいて参加可能日の選択肢を生成する"""
-    all_dates = _daterange(collaboration.period_start, collaboration.period_end)
-    if not all_dates:
+    """集会のEvent開催日からコラボ期間内の選択肢を生成する"""
+    event_dates = list(
+        Event.objects.filter(
+            community=community,
+            date__gte=collaboration.period_start,
+            date__lte=collaboration.period_end,
+        )
+        .order_by('date')
+        .values_list('date', flat=True)
+        .distinct()
+    )
+    if not event_dates:
         return []
 
-    weekdays = set(community.weekdays or [])
-    if not weekdays or 'Other' in weekdays:
-        selected = all_dates
-    else:
-        selected = [d for d in all_dates if _weekday_code(d) in weekdays]
-        if not selected:
-            selected = all_dates
-
     weekday_jp = ['月', '火', '水', '木', '金', '土', '日']
-    labels = []
-    for d in selected:
-        # 例: 7/13(日)
-        labels.append((d.isoformat(), f'{d.month}/{d.day}({weekday_jp[d.weekday()]})'))
-    return labels
+    return [
+        (d.isoformat(), f'{d.month}/{d.day}({weekday_jp[d.weekday()]})')
+        for d in event_dates
+    ]
 
 
 def _build_duration_choices(default_minutes: int) -> list[tuple[int, str]]:
@@ -73,10 +61,36 @@ class VketApplyPermissions:
     can_edit_lt: bool
 
 
+class VketPresentationForm(forms.Form):
+    """LT情報の1行分"""
+
+    speaker = forms.CharField(
+        label='登壇者名',
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    theme = forms.CharField(
+        label='テーマ',
+        max_length=100,
+        required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    lt_start_time = forms.TimeField(
+        label='LT開始時刻',
+        required=False,
+        widget=forms.TimeInput(attrs={'type': 'time', 'step': 300, 'class': 'form-control'}),
+    )
+
+
+VketPresentationFormSet = formset_factory(
+    VketPresentationForm, extra=1, max_num=20, can_delete=True,
+)
+
+
 class VketApplyForm(forms.Form):
     """集会主催者向けのVketコラボ参加申請フォーム"""
 
-    # フィールド名を新モデルに合わせて更新
     requested_date = forms.TypedChoiceField(
         label='参加希望日',
         coerce=date.fromisoformat,
@@ -90,12 +104,10 @@ class VketApplyForm(forms.Form):
         label='希望開催時間（分）',
         coerce=int,
     )
-    speaker = forms.CharField(label='登壇者名', max_length=200, required=False)
-    theme = forms.CharField(label='テーマ', max_length=100, required=False)
     organizer_note = forms.CharField(
         label='備考',
         required=False,
-        widget=forms.Textarea(attrs={'rows': 3}),
+        widget=forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
     )
 
     def __init__(
@@ -126,10 +138,8 @@ class VketApplyForm(forms.Form):
             self.fields['requested_start_time'].disabled = True
             self.fields['requested_duration'].disabled = True
 
-        # LT情報編集不可の場合はLT関連フィールドを無効化
+        # LT情報編集不可の場合は備考フィールドを無効化
         if not permissions.can_edit_lt:
-            self.fields['speaker'].disabled = True
-            self.fields['theme'].disabled = True
             self.fields['organizer_note'].disabled = True
 
     def clean(self):

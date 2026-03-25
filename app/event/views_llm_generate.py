@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN', '')
 
 # 環境変数からデフォルトの生成月数を取得（デフォルト: 3ヶ月）
-DEFAULT_GENERATE_MONTHS = int(os.environ.get('DEFAULT_GENERATE_MONTHS', 3))
+DEFAULT_GENERATE_MONTHS = int(os.environ.get('DEFAULT_GENERATE_MONTHS', 5))
 
 
 @require_http_methods(["GET"])

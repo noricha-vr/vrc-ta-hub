@@ -14,6 +14,9 @@
 | ファイル | 日付 | 概要 |
 |----------|------|------|
 | discord-auth-01.md | 03-24 | Discord再連携で競合アカウントを自己回復できるようにした |
+| vket-collab-01.md | 03-21 | CommunityMemberロール不正値で Vket ApplyView 403 |
+| discord-auth-02.md | 03-24 | Discord本体アカウントへ staff 所属だけを追加して復旧した |
+| discord-auth-03.md | 03-24 | 元の owner アカウントから Discord を切り離して個人アカウントへ移した |
 
 ### 2026-02/
 

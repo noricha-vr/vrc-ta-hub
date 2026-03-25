@@ -33,6 +33,7 @@
                         <th style="min-width: 80px;">要確認</th>
                         <th style="min-width: 100px;">ACK状況</th>
                         <th style="min-width: 130px;">作成日時</th>
+                        <th style="min-width: 80px;">操作</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -53,12 +54,31 @@
                             <td class="small">
                                 {% if stat.notice.requires_ack and stat.total > 0 %}
                                     <span class="text-success">{{ stat.acked }}</span>/{{ stat.total }}確認
+                                    {% if stat.unacked_community_names %}
+                                        <button class="btn btn-sm btn-outline-warning ms-1 btn-copy-mentions"
+                                                title="未確認: {{ stat.unacked_community_names|join:', ' }}"
+                                                data-mentions="{{ stat.unacked_mentions|join:' ' }}"
+                                                data-names="{{ stat.unacked_community_names|join:', ' }}">
+                                            <i class="fas fa-at"></i>
+                                        </button>
+                                    {% endif %}
                                 {% else %}
                                     <span class="text-muted">--</span>
                                 {% endif %}
                             </td>
                             <td class="small">
                                 {{ stat.notice.created_at|date:"Y/m/d H:i" }}
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#noticeEditModal"
+                                        data-notice-id="{{ stat.notice.id }}"
+                                        data-notice-title="{{ stat.notice.title }}"
+                                        data-notice-body="{{ stat.notice.body }}"
+                                        data-edit-url="{% url 'vket:manage_notice_update' collaboration.id stat.notice.id %}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
                             </td>
                         </tr>
                     {% endfor %}
@@ -104,7 +124,7 @@
                             </div>
                             <div class="col-12 col-md-6 d-flex align-items-end">
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="requires_ack" id="requiresAck" value="1">
+                                    <input class="form-check-input" type="checkbox" name="requires_ack" id="requiresAck" value="1" checked>
                                     <label class="form-check-label fw-bold" for="requiresAck">
                                         確認必須（ACKリンクを含める）
                                     </label>
@@ -122,4 +142,77 @@
             </div>
         </div>
     </div>
+
+    {# お知らせ編集モーダル #}
+    <div class="modal fade" id="noticeEditModal" tabindex="-1" aria-labelledby="noticeEditModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="noticeEditModalLabel">
+                        <i class="fas fa-edit me-2"></i>お知らせ編集
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="post" id="noticeEditForm">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">タイトル <span class="text-danger">*</span></label>
+                            <input type="text" name="title" class="form-control" required maxlength="200" id="editNoticeTitle">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">本文 <span class="text-danger">*</span></label>
+                            <textarea name="body" class="form-control" rows="6" required id="editNoticeBody"></textarea>
+                        </div>
+                        <div class="modal-footer px-0 pb-0">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i>更新する
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const editModal = document.getElementById('noticeEditModal');
+        editModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            document.getElementById('editNoticeTitle').value = button.getAttribute('data-notice-title');
+            document.getElementById('editNoticeBody').value = button.getAttribute('data-notice-body');
+            document.getElementById('noticeEditForm').action = button.getAttribute('data-edit-url');
+        });
+
+        document.querySelectorAll('.btn-copy-mentions').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const text = this.getAttribute('data-mentions');
+                function onSuccess() {
+                    btn.classList.replace('btn-outline-warning', 'btn-success');
+                    var icon = btn.querySelector('i');
+                    icon.classList.replace('fa-at', 'fa-check');
+                    setTimeout(function() {
+                        btn.classList.replace('btn-success', 'btn-outline-warning');
+                        icon.classList.replace('fa-check', 'fa-at');
+                    }, 1500);
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(onSuccess);
+                } else {
+                    var ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    onSuccess();
+                }
+            });
+        });
+    });
+    </script>
 {% endblock %}

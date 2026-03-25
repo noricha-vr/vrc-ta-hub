@@ -1,4 +1,5 @@
 {% extends 'ta_hub/base.html' %}
+{% load markdown_extras %}
 {% block meta %}
     <title>お知らせ確認 - VRChat 技術・学術系イベントHub</title>
 {% endblock %}
@@ -26,7 +27,7 @@
                         <i class="fas fa-calendar me-1"></i>
                         {{ notice.created_at|date:"Y年n月j日 H:i" }}
                     </div>
-                    <div class="border-top pt-3" style="white-space: pre-wrap;">{{ notice.body }}</div>
+                    <div class="border-top pt-3">{{ notice.body|markdown }}</div>
                 </div>
             </div>
 
@@ -34,6 +35,9 @@
                 <div class="mt-3 text-muted small">
                     確認日時: {{ receipt.acknowledged_at|date:"Y/m/d H:i" }}
                 </div>
+                <a href="{% url 'vket:status' pk=collaboration_id %}" class="btn btn-primary mt-3">
+                    <i class="fas fa-arrow-right me-1"></i>参加状況ページへ
+                </a>
             {% else %}
                 <form method="post" class="mt-4">
                     {% csrf_token %}

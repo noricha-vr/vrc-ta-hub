@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from itertools import combinations, groupby
@@ -20,7 +21,7 @@ from allauth.socialaccount.models import SocialAccount
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 
-from .forms import VketApplyForm, VketApplyPermissions, VketManageParticipationForm
+from .forms import VketApplyForm, VketApplyPermissions, VketManageParticipationForm, VketPresentationFormSet
 from .models import (
     VketCollaboration,
     VketNotice,
@@ -43,6 +44,10 @@ PHASE_SORT_ORDER = {
 }
 
 
+def _is_vket_admin(user) -> bool:
+    return user.is_authenticated and (user.is_superuser or user.is_staff)
+
+
 def _get_active_membership(request):
     """ログインユーザーのアクティブな集会メンバーシップを返す"""
     if not request.user.is_authenticated:
@@ -63,8 +68,8 @@ def _get_active_membership(request):
 
 def _apply_permissions_for_user(user, collaboration: VketCollaboration) -> VketApplyPermissions:
     """ユーザーのコラボ操作権限を計算して返す"""
-    # スーパーユーザーは全権限を持つ
-    if user.is_authenticated and user.is_superuser:
+    # 管理者（superuser または staff）は全権限を持つ
+    if _is_vket_admin(user):
         return VketApplyPermissions(can_edit_schedule=True, can_edit_lt=True)
 
     today = timezone.localdate()
@@ -115,8 +120,8 @@ class CollaborationListView(ListView):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # スーパーユーザー以外は下書きを除外
-        if not (self.request.user.is_authenticated and self.request.user.is_superuser):
+        # 管理者以外は下書きを除外
+        if not _is_vket_admin(self.request.user):
             qs = qs.exclude(phase=VketCollaboration.Phase.DRAFT)
 
         # フェーズ順 → 開催日降順 → ID降順
@@ -135,6 +140,11 @@ class CollaborationListView(ListView):
         )
         return qs.filter(pk__in=id_list).order_by(preserved_order)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['is_admin'] = _is_vket_admin(self.request.user)
+        return context
+
 
 class CollaborationDetailView(DetailView):
     model = VketCollaboration
@@ -143,8 +153,8 @@ class CollaborationDetailView(DetailView):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # スーパーユーザー以外は下書きを除外
-        if not (self.request.user.is_authenticated and self.request.user.is_superuser):
+        # 管理者以外は下書きを除外
+        if not _is_vket_admin(self.request.user):
             qs = qs.exclude(phase=VketCollaboration.Phase.DRAFT)
         return qs
 
@@ -213,9 +223,7 @@ class CollaborationDetailView(DetailView):
                 or (permissions.can_edit_lt and participation_exists)
             )
         )
-        context['is_superuser'] = (
-            self.request.user.is_authenticated and self.request.user.is_superuser
-        )
+        context['is_admin'] = _is_vket_admin(self.request.user)
         context['participation_exists'] = participation_exists
         context['participation_has_event'] = participation_has_event
         return context
@@ -253,6 +261,7 @@ class ApplyView(LoginRequiredMixin, View):
             permissions=permissions,
             initial=initial,
         )
+        formset = self._build_formset(participation=participation, permissions=permissions)
         return render(
             request,
             self.template_name,
@@ -261,6 +270,7 @@ class ApplyView(LoginRequiredMixin, View):
                 'community': community,
                 'participation': participation,
                 'form': form,
+                'formset': formset,
                 'permissions': permissions,
             },
         )
@@ -296,7 +306,11 @@ class ApplyView(LoginRequiredMixin, View):
             permissions=permissions,
             initial=initial,
         )
-        if not form.is_valid():
+        formset = VketPresentationFormSet(request.POST, prefix='lt')
+        if not permissions.can_edit_lt:
+            self._disable_formset(formset)
+
+        if not (form.is_valid() and formset.is_valid()):
             return render(
                 request,
                 self.template_name,
@@ -305,6 +319,7 @@ class ApplyView(LoginRequiredMixin, View):
                     'community': community,
                     'participation': participation,
                     'form': form,
+                    'formset': formset,
                     'permissions': permissions,
                 },
             )
@@ -318,6 +333,7 @@ class ApplyView(LoginRequiredMixin, View):
                     existing_participation=participation,
                     permissions=permissions,
                     cleaned=form.cleaned_data,
+                    formset_data=formset.cleaned_data,
                 )
         except ValueError as e:
             form.add_error(None, str(e))
@@ -329,12 +345,44 @@ class ApplyView(LoginRequiredMixin, View):
                     'community': community,
                     'participation': participation,
                     'form': form,
+                    'formset': formset,
                     'permissions': permissions,
                 },
             )
 
         messages.success(request, '参加登録を保存しました。')
-        return redirect('vket:apply', pk=collaboration.pk)
+        return redirect('vket:status', pk=collaboration.pk)
+
+    def _build_formset(
+        self,
+        *,
+        participation: VketParticipation | None,
+        permissions: VketApplyPermissions,
+        data=None,
+    ) -> VketPresentationFormSet:
+        """LT情報のformsetを構築する"""
+        lt_initial = []
+        if participation:
+            for pres in participation.presentations.order_by('order'):
+                lt_initial.append({
+                    'speaker': pres.speaker,
+                    'theme': pres.theme,
+                    'lt_start_time': pres.requested_start_time,
+                })
+
+        formset = VketPresentationFormSet(
+            data, initial=lt_initial or None, prefix='lt',
+        )
+        if not permissions.can_edit_lt:
+            self._disable_formset(formset)
+        return formset
+
+    @staticmethod
+    def _disable_formset(formset):
+        """formset の全フィールドを disabled にする"""
+        for form in formset:
+            for field in form.fields.values():
+                field.disabled = True
 
     def _build_initial(
         self, community: Community, participation: VketParticipation | None
@@ -346,7 +394,6 @@ class ApplyView(LoginRequiredMixin, View):
         }
 
         if participation:
-            # 参加レコードから希望日程を初期値にセット
             if participation.requested_date:
                 initial['requested_date'] = participation.requested_date
             if participation.requested_start_time:
@@ -354,12 +401,8 @@ class ApplyView(LoginRequiredMixin, View):
             if participation.requested_duration:
                 initial['requested_duration'] = participation.requested_duration
             initial['organizer_note'] = participation.organizer_note
-
-            # プレゼンテーション情報（最初の1件）を初期値にセット
-            first_pres = participation.presentations.first()
-            if first_pres:
-                initial['speaker'] = first_pres.speaker
-                initial['theme'] = first_pres.theme
+        else:
+            initial['organizer_note'] = '当日サポートが欲しい（一人主催の場合）: YES・NO'
 
         return initial
 
@@ -372,6 +415,7 @@ class ApplyView(LoginRequiredMixin, View):
         existing_participation: VketParticipation | None,
         permissions: VketApplyPermissions,
         cleaned: dict,
+        formset_data: list[dict],
     ) -> VketParticipation:
         """参加情報をDBに保存する（新規作成 or 更新）"""
         is_new = existing_participation is None
@@ -386,7 +430,7 @@ class ApplyView(LoginRequiredMixin, View):
             participation.requested_start_time = cleaned['requested_start_time']
             participation.requested_duration = cleaned['requested_duration']
 
-        # LT・備考情報の保存
+        # 備考情報の保存
         if permissions.can_edit_lt:
             participation.organizer_note = cleaned.get('organizer_note', '')
 
@@ -398,18 +442,32 @@ class ApplyView(LoginRequiredMixin, View):
 
         participation.save()
 
-        # プレゼンテーション情報（speaker/theme）をVketPresentationに保存
+        # プレゼンテーション情報をVketPresentationに保存（formset）
         if permissions.can_edit_lt:
-            speaker = cleaned.get('speaker', '').strip()
-            theme = cleaned.get('theme', '').strip()
-            VketPresentation.objects.update_or_create(
+            saved_orders = set()
+            order = 0
+            for row in formset_data:
+                if row.get('DELETE'):
+                    continue
+                speaker = (row.get('speaker') or '').strip()
+                theme = (row.get('theme') or '').strip()
+                if not speaker and not theme:
+                    continue
+                VketPresentation.objects.update_or_create(
+                    participation=participation,
+                    order=order,
+                    defaults={
+                        'speaker': speaker,
+                        'theme': theme,
+                        'requested_start_time': row.get('lt_start_time'),
+                    },
+                )
+                saved_orders.add(order)
+                order += 1
+            # formsetで保存されなかったorderの既存レコードを削除
+            VketPresentation.objects.filter(
                 participation=participation,
-                order=0,
-                defaults={
-                    'speaker': speaker,
-                    'theme': theme,
-                },
-            )
+            ).exclude(order__in=saved_orders).delete()
 
         return participation
 
@@ -418,21 +476,21 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = 'vket/manage.html'
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         collaboration = get_object_or_404(VketCollaboration, pk=kwargs['pk'])
 
-        presentations_qs = VketPresentation.objects.filter(
-            status__in=[VketPresentation.Status.SUBMITTED, VketPresentation.Status.CONFIRMED]
+        presentations_qs = VketPresentation.objects.select_related(
+            'published_event_detail'
         )
 
         participations = (
             VketParticipation.objects.filter(collaboration=collaboration)
             .select_related('community', 'published_event')
             .prefetch_related(
-                Prefetch('presentations', queryset=presentations_qs, to_attr='confirmed_presentations')
+                Prefetch('presentations', queryset=presentations_qs, to_attr='all_presentations')
             )
             .annotate(
                 # 希望日程があるものを上に表示
@@ -451,12 +509,15 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         )
 
         registered_community_ids = set(p.community_id for p in participations)
-        all_communities = Community.objects.filter(status='approved').order_by('name')
+        today = timezone.localdate()
+        all_communities = Community.objects.filter(status='approved').exclude(
+            end_at__lt=today,
+        ).order_by('name')
         unregistered_communities = all_communities.exclude(id__in=registered_community_ids)
 
-        # LT登録数: submitted/confirmed のプレゼンがある集会数
+        # LT登録数: プレゼンが1件以上ある集会数
         lt_registered_count = sum(
-            1 for p in participations if p.confirmed_presentations
+            1 for p in participations if p.all_presentations
         )
         scheduled_count = sum(1 for p in participations if p.confirmed_date)
 
@@ -509,24 +570,20 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         all_mention = mentions_for(active_parts)
 
         not_applied = [p for p in active_parts if p.progress == VketParticipation.Progress.NOT_APPLIED]
-        lt_pending = [
-            p for p in active_parts
-            if p.progress in (
-                VketParticipation.Progress.SCHEDULE_CONFIRMED,
-                VketParticipation.Progress.LT_PENDING,
-            )
-        ]
+        stage_not_registered = [p for p in active_parts if p.progress == VketParticipation.Progress.APPLIED]
+        lt_not_registered = [p for p in active_parts if p.progress == VketParticipation.Progress.STAGE_REGISTERED]
 
         return {
             'all': all_mention,
             'not_applied': mentions_for(not_applied),
-            'lt_pending': mentions_for(lt_pending),
+            'stage_not_registered': mentions_for(stage_not_registered),
+            'lt_not_registered': mentions_for(lt_not_registered),
         }
 
 
 class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, View):
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def post(self, request, pk: int, participation_id: int):
         collaboration = get_object_or_404(VketCollaboration, pk=pk)
@@ -555,7 +612,7 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
         participation.confirmed_duration = form.cleaned_data['confirmed_duration']
         participation.admin_note = form.cleaned_data.get('admin_note', '')
         participation.schedule_adjusted_by_admin = True
-        participation.progress = VketParticipation.Progress.SCHEDULE_CONFIRMED
+        participation.progress = VketParticipation.Progress.REHEARSAL
         participation.schedule_confirmed_at = timezone.now()
 
         participation.save(
@@ -570,6 +627,53 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
                 'updated_at',
             ]
         )
+
+        # DRAFT のLTを一括確定
+        participation.presentations.filter(
+            status=VketPresentation.Status.DRAFT,
+        ).update(status=VketPresentation.Status.CONFIRMED)
+
+        # published_event がある場合、EventDetail 未作成の CONFIRMED LT に EventDetail を作成
+        if participation.published_event_id:
+            for pres in participation.presentations.filter(
+                status=VketPresentation.Status.CONFIRMED,
+                published_event_detail__isnull=True,
+            ):
+                detail = EventDetail.objects.create(
+                    event=participation.published_event,
+                    theme=pres.theme,
+                    speaker=pres.speaker,
+                    start_time=pres.confirmed_start_time or pres.requested_start_time or participation.confirmed_start_time,
+                    duration=pres.duration,
+                    detail_type='LT',
+                    status='approved',
+                )
+                pres.published_event_detail = detail
+                pres.save(update_fields=['published_event_detail', 'updated_at'])
+
+        # EventDetailのLT開始時刻を更新
+        detail_pattern = re.compile(r'^detail_(\d+)_start_time$')
+        detail_updates = {}
+        for key, value in request.POST.items():
+            m = detail_pattern.match(key)
+            if m and value:
+                detail_updates[int(m.group(1))] = value
+
+        if detail_updates:
+            allowed_detail_ids = set(
+                EventDetail.objects.filter(
+                    event=participation.published_event
+                ).values_list('id', flat=True)
+            ) if participation.published_event else set()
+
+            for detail_id, time_str in detail_updates.items():
+                if detail_id not in allowed_detail_ids:
+                    continue
+                try:
+                    new_time = datetime.strptime(time_str, '%H:%M').time()
+                    EventDetail.objects.filter(pk=detail_id).update(start_time=new_time)
+                except (ValueError, KeyError):
+                    logger.warning('EventDetail #%d の start_time パース失敗: %s', detail_id, time_str)
 
         messages.success(
             request,
@@ -588,7 +692,7 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = 'vket/manage_schedule.html'
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -822,6 +926,55 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return context
 
 
+def _get_visible_collaborations(user):
+    """ユーザーに表示可能なコラボ一覧を返す（ARCHIVED除外、非管理者はDRAFTも除外）"""
+    qs = VketCollaboration.objects.exclude(phase=VketCollaboration.Phase.ARCHIVED)
+    if not _is_vket_admin(user):
+        qs = qs.exclude(phase=VketCollaboration.Phase.DRAFT)
+    return qs.order_by('-period_start', '-id')
+
+
+class VketStatusRedirectView(LoginRequiredMixin, View):
+    """pk なしで最新コラボの参加状況ページにリダイレクト"""
+
+    def get(self, request):
+        collaboration = _get_visible_collaborations(request.user).first()
+        if not collaboration:
+            return redirect('vket:list')
+        return redirect('vket:status', pk=collaboration.pk)
+
+
+class StageRegisterView(LoginRequiredMixin, View):
+    """主催者がVketステージ登録完了を自己申告するビュー"""
+
+    def post(self, request, pk: int):
+        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        community, membership = _get_active_membership(request)
+        if community is None or membership is None:
+            return HttpResponseForbidden('集会が選択されていません。')
+
+        if not (request.user.is_superuser or membership.role == CommunityMember.Role.OWNER):
+            return HttpResponseForbidden('主催者のみステージ登録を完了できます。')
+
+        participation = get_object_or_404(
+            VketParticipation,
+            collaboration=collaboration,
+            community=community,
+        )
+
+        # 申請済みの場合のみ登録可能
+        if participation.progress != VketParticipation.Progress.APPLIED:
+            messages.warning(request, 'ステージ登録は参加申込み後に行ってください。')
+            return redirect('vket:status', pk=pk)
+
+        participation.progress = VketParticipation.Progress.STAGE_REGISTERED
+        participation.stage_registered_at = timezone.now()
+        participation.save(update_fields=['progress', 'stage_registered_at', 'updated_at'])
+
+        messages.success(request, 'Vketステージ登録完了を記録しました。')
+        return redirect('vket:status', pk=pk)
+
+
 class ParticipationStatusView(LoginRequiredMixin, View):
     """主催者向け: 自分の集会のコラボ参加状況を確認するビュー"""
 
@@ -838,14 +991,20 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 VketParticipation.objects.filter(
                     collaboration=collaboration, community=community
                 )
-                .prefetch_related('presentations', 'notice_receipts__notice')
+                .prefetch_related(
+                    Prefetch(
+                        'presentations',
+                        queryset=VketPresentation.objects.select_related('published_event_detail'),
+                    ),
+                    'notice_receipts__notice',
+                )
                 .first()
             )
             if participation:
-                # 最新3件のお知らせ受信記録を取得
+                # 最新2件のお知らせ受信記録を取得
                 latest_notices = (
                     participation.notice_receipts.select_related('notice')
-                    .order_by('-created_at')[:3]
+                    .order_by('-created_at')[:2]
                 )
 
         unacked_count = 0
@@ -860,6 +1019,27 @@ class ParticipationStatusView(LoginRequiredMixin, View):
             for value, label in VketParticipation.Progress.choices
         ]
 
+        # コラボ切替ドロップダウン用
+        collaborations = list(_get_visible_collaborations(request.user))
+
+        # stage_url を settings_json から取得
+        stage_url = None
+        if collaboration.settings_json and isinstance(collaboration.settings_json, dict):
+            stage_url = collaboration.settings_json.get('stage_url')
+
+        # published_event の EventDetail（LT資料アップロード用、LT情報確定済みのみ）
+        event_details = []
+        if participation and participation.published_event_id:
+            event_details = list(
+                EventDetail.objects.filter(
+                    event_id=participation.published_event_id,
+                    detail_type='LT',
+                    status='approved',
+                )
+                .exclude(speaker='', theme='')
+                .order_by('start_time', 'id')
+            )
+
         return render(
             request,
             self.template_name,
@@ -870,6 +1050,10 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'progress_steps': progress_steps,
                 'latest_notices': latest_notices,
                 'unacked_count': unacked_count,
+                'collaborations': collaborations,
+                'is_admin': _is_vket_admin(request.user),
+                'stage_url': stage_url,
+                'event_details': event_details,
             },
         )
 
@@ -912,7 +1096,7 @@ class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
     template_name = 'vket/manage_notice_list.html'
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -921,7 +1105,7 @@ class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
         # 各お知らせの配送状況を集計
         notices = (
             VketNotice.objects.filter(collaboration=collaboration)
-            .prefetch_related('receipts')
+            .prefetch_related('receipts__participation__community')
             .order_by('-created_at')
         )
 
@@ -931,11 +1115,44 @@ class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
             receipts = list(notice.receipts.all())
             total = len(receipts)
             acked = sum(1 for r in receipts if r.acknowledged_at is not None)
+
+            # 未ACKのコミュニティからDiscordメンション文字列を収集
+            unacked_mentions = []
+            unacked_community_names = []
+            if notice.requires_ack:
+                seen_community_ids = set()
+                for r in receipts:
+                    if r.acknowledged_at is not None:
+                        continue
+                    community = r.participation.community
+                    if community.id in seen_community_ids:
+                        continue
+                    seen_community_ids.add(community.id)
+                    unacked_community_names.append(community.name)
+                    mention_type = community.discord_mention_type
+                    if mention_type == Community.DiscordMentionType.ROLE and community.discord_mention_role_id:
+                        unacked_mentions.append(f'<@&{community.discord_mention_role_id}>')
+                    elif mention_type == Community.DiscordMentionType.USERS:
+                        for uid in community.discord_mention_user_ids:
+                            unacked_mentions.append(f'<@{uid}>')
+                    else:
+                        # メンション未設定: メンバーのDiscord IDからメンション生成
+                        member_user_ids = CommunityMember.objects.filter(
+                            community=community
+                        ).values_list('user_id', flat=True)
+                        discord_ids = SocialAccount.objects.filter(
+                            user_id__in=member_user_ids, provider='discord'
+                        ).values_list('uid', flat=True)
+                        for did in discord_ids:
+                            unacked_mentions.append(f'<@{did}>')
+
             notice_stats.append(
                 {
                     'notice': notice,
                     'total': total,
                     'acked': acked,
+                    'unacked_mentions': unacked_mentions,
+                    'unacked_community_names': unacked_community_names,
                 }
             )
 
@@ -952,7 +1169,7 @@ class ManageNoticeCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
     """運営向け: お知らせ作成ビュー"""
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def post(self, request, pk: int):
         collaboration = get_object_or_404(VketCollaboration, pk=pk)
@@ -995,6 +1212,31 @@ class ManageNoticeCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
         return redirect('vket:manage_notice_list', pk=pk)
 
 
+class ManageNoticeUpdateView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """運営向け: お知らせ編集ビュー"""
+
+    def test_func(self):
+        return _is_vket_admin(self.request.user)
+
+    def post(self, request, pk: int, notice_id: int):
+        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        notice = get_object_or_404(VketNotice, pk=notice_id, collaboration=collaboration)
+
+        title = request.POST.get('title', '').strip()
+        body = request.POST.get('body', '').strip()
+
+        if not title or not body:
+            messages.error(request, 'タイトルと本文は必須です。')
+            return redirect('vket:manage_notice_list', pk=pk)
+
+        notice.title = title
+        notice.body = body
+        notice.save(update_fields=['title', 'body'])
+
+        messages.success(request, 'お知らせを更新しました。')
+        return redirect('vket:manage_notice_list', pk=pk)
+
+
 class AckNoticeView(View):
     """ログイン不要: お知らせ確認（ACK）ビュー
 
@@ -1005,7 +1247,10 @@ class AckNoticeView(View):
     template_name = 'vket/ack_notice.html'
 
     def get(self, request, ack_token):
-        receipt = get_object_or_404(VketNoticeReceipt, ack_token=ack_token)
+        receipt = get_object_or_404(
+            VketNoticeReceipt.objects.select_related('notice', 'participation'),
+            ack_token=ack_token,
+        )
         return render(
             request,
             self.template_name,
@@ -1013,6 +1258,7 @@ class AckNoticeView(View):
                 'receipt': receipt,
                 'notice': receipt.notice,
                 'already_acked': receipt.acknowledged_at is not None,
+                'collaboration_id': receipt.participation.collaboration_id,
             },
         )
 
@@ -1042,15 +1288,66 @@ class AckNoticeView(View):
                 'receipt': receipt,
                 'notice': receipt.notice,
                 'already_acked': True,
+                'collaboration_id': receipt.participation.collaboration_id,
             },
         )
+
+
+def _delete_presentation(presentation: VketPresentation) -> str:
+    """プレゼンテーションと関連するEventDetailを削除し、表示名を返す"""
+    speaker_name = presentation.speaker or 'LT'
+    with transaction.atomic():
+        if presentation.published_event_detail:
+            presentation.published_event_detail.delete()
+        presentation.delete()
+    return speaker_name
+
+
+class PresentationDeleteView(LoginRequiredMixin, View):
+    """主催者用: LTを個別削除する"""
+
+    def post(self, request, pk: int, presentation_id: int):
+        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        community, membership = _get_active_membership(request)
+        presentation = get_object_or_404(
+            VketPresentation,
+            pk=presentation_id,
+            participation__collaboration=collaboration,
+        )
+        if not community or presentation.participation.community_id != community.id:
+            return HttpResponseForbidden('この操作を行う権限がありません。')
+        if not (request.user.is_superuser or membership.role == CommunityMember.Role.OWNER):
+            return HttpResponseForbidden('主催者のみLTを削除できます。')
+
+        speaker_name = _delete_presentation(presentation)
+        messages.success(request, f'{speaker_name} を削除しました。')
+        return redirect('vket:status', pk=pk)
+
+
+class ManagePresentationDeleteView(LoginRequiredMixin, UserPassesTestMixin, View):
+    """管理者用: LTを個別削除する"""
+
+    def test_func(self):
+        return _is_vket_admin(self.request.user)
+
+    def post(self, request, pk: int, presentation_id: int):
+        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        presentation = get_object_or_404(
+            VketPresentation,
+            pk=presentation_id,
+            participation__collaboration=collaboration,
+        )
+
+        speaker_name = _delete_presentation(presentation)
+        messages.success(request, f'{speaker_name} を削除しました。')
+        return redirect('vket:manage', pk=pk)
 
 
 class ManagePublishView(LoginRequiredMixin, UserPassesTestMixin, View):
     """運営向け: LOCKEDフェーズのコラボをEventとして公開するビュー"""
 
     def test_func(self):
-        return self.request.user.is_superuser
+        return _is_vket_admin(self.request.user)
 
     def post(self, request, pk: int):
         collaboration = get_object_or_404(VketCollaboration, pk=pk)
@@ -1117,7 +1414,7 @@ class ManagePublishView(LoginRequiredMixin, UserPassesTestMixin, View):
                         'event': event,
                         'theme': pres.theme,
                         'speaker': pres.speaker,
-                        'start_time': pres.confirmed_start_time or participation.confirmed_start_time,
+                        'start_time': pres.confirmed_start_time or pres.requested_start_time or participation.confirmed_start_time,
                         'duration': pres.duration,
                         'detail_type': 'LT',
                         'status': 'approved',

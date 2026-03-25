@@ -33,7 +33,7 @@
                     <th style="min-width: 120px;">確定日程</th>
                     <th style="min-width: 180px;">登壇者 / テーマ</th>
                     <th style="min-width: 160px;">備考</th>
-                    <th style="min-width: 280px;">日程確定（運営）</th>
+                    <th style="min-width: 220px;">日程確定（運営）</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -48,9 +48,9 @@
                         <td>
                             <span class="badge
                                 {% if p.progress == 'done' %}bg-success
-                                {% elif p.progress == 'schedule_confirmed' %}bg-primary
-                                {% elif p.progress == 'lt_submitted' %}bg-info
-                                {% elif p.progress == 'applied' %}bg-warning text-dark
+                                {% elif p.progress == 'event_week' %}bg-primary
+                                {% elif p.progress == 'rehearsal' %}bg-info
+                                {% elif p.progress == 'applied' or p.progress == 'stage_registered' %}bg-warning text-dark
                                 {% elif p.progress == 'not_applied' %}bg-secondary
                                 {% else %}bg-light text-dark border{% endif %}">
                                 {{ p.get_progress_display }}
@@ -78,11 +78,21 @@
                             {% endif %}
                         </td>
                         <td class="small">
-                            {% with pres_list=p.confirmed_presentations %}
+                            {% with pres_list=p.all_presentations %}
                                 {% if pres_list %}
                                     {% for pres in pres_list %}
-                                        <div>{{ pres.speaker|default:"（未入力）" }}</div>
-                                        <div class="text-muted">{{ pres.theme|default:"—" }}</div>
+                                        <div>
+                                            {{ pres.speaker|default:"（未入力）" }}
+                                            {% if pres.status == 'draft' %}
+                                                <span class="badge bg-warning text-dark ms-1">申請中</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="text-muted">
+                                            {{ pres.theme|default:"—" }}
+                                            {% if pres.published_event_detail %}
+                                                <span class="badge bg-info ms-1">{{ pres.published_event_detail.start_time|date:"H:i" }}</span>
+                                            {% endif %}
+                                        </div>
                                     {% endfor %}
                                 {% else %}
                                     <span class="text-muted">—</span>
@@ -123,12 +133,42 @@
                                         </option>
                                     {% endfor %}
                                 </select>
+                                {% for pres in p.all_presentations %}
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <span class="small text-muted text-nowrap" title="{{ pres.speaker|default:'（未入力）' }}">
+                                            {{ pres.speaker|default:"LT"|truncatechars:8 }}
+                                        </span>
+                                        <span class="d-flex gap-1 align-items-center">
+                                            {% if pres.published_event_detail %}
+                                                <input class="form-control form-control-sm" type="time"
+                                                       name="detail_{{ pres.published_event_detail.id }}_start_time"
+                                                       value="{{ pres.published_event_detail.start_time|date:'H:i' }}"
+                                                       step="300"
+                                                       style="width: 5.5rem; padding: 0.1rem 0.2rem;">
+                                            {% else %}
+                                                <span class="small text-muted">&mdash;</span>
+                                            {% endif %}
+                                            <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                                    type="button"
+                                                    onclick="if(confirm('{{ pres.speaker|default:"このLT"|escapejs }} を削除しますか？')) document.getElementById('delete-pres-{{ pres.pk }}').submit()">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </span>
+                                    </div>
+                                {% endfor %}
                                 <textarea class="form-control form-control-sm" name="admin_note" rows="2"
                                           placeholder="備考（運営）">{{ p.admin_note }}</textarea>
                                 <button class="btn btn-outline-primary btn-sm" type="submit">
                                     <i class="fas fa-check me-1"></i>確定
                                 </button>
                             </form>
+                            {% for pres in p.all_presentations %}
+                                <form id="delete-pres-{{ pres.pk }}" method="post"
+                                      action="{% url 'vket:manage_presentation_delete' collaboration.id pres.pk %}"
+                                      class="d-none">
+                                    {% csrf_token %}
+                                </form>
+                            {% endfor %}
                         </td>
                     </tr>
                 {% endfor %}
@@ -175,15 +215,26 @@
                             <textarea class="form-control form-control-sm" rows="2" readonly id="mentionNotApplied" onclick="this.select()">{{ discord_mentions.not_applied }}</textarea>
                         </div>
                     {% endif %}
-                    {% if discord_mentions.lt_pending %}
+                    {% if discord_mentions.stage_not_registered %}
                         <div class="col-12 col-md-6">
                             <div class="d-flex align-items-center mb-1">
-                                <label class="form-label fw-bold mb-0">LT未登録</label>
-                                <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionLtPending">
+                                <label class="form-label fw-bold mb-0">ステージ未登録</label>
+                                <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionStageNotRegistered">
                                     <i class="fas fa-copy me-1"></i>コピー
                                 </button>
                             </div>
-                            <textarea class="form-control form-control-sm" rows="2" readonly id="mentionLtPending" onclick="this.select()">{{ discord_mentions.lt_pending }}</textarea>
+                            <textarea class="form-control form-control-sm" rows="2" readonly id="mentionStageNotRegistered" onclick="this.select()">{{ discord_mentions.stage_not_registered }}</textarea>
+                        </div>
+                    {% endif %}
+                    {% if discord_mentions.lt_not_registered %}
+                        <div class="col-12 col-md-6">
+                            <div class="d-flex align-items-center mb-1">
+                                <label class="form-label fw-bold mb-0">LT未登録</label>
+                                <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionLtNotRegistered">
+                                    <i class="fas fa-copy me-1"></i>コピー
+                                </button>
+                            </div>
+                            <textarea class="form-control form-control-sm" rows="2" readonly id="mentionLtNotRegistered" onclick="this.select()">{{ discord_mentions.lt_not_registered }}</textarea>
                         </div>
                     {% endif %}
                 </div>
@@ -204,14 +255,14 @@
 
         {% if unregistered_communities %}
             <div class="mt-4">
-                <h2 class="h5 fw-bold">未登録集会 <span class="text-muted fw-normal small">({{ unregistered_communities|length }}件)</span></h2>
+                <h2 class="h5 fw-bold">未参加集会 <span class="text-muted fw-normal small">({{ unregistered_communities|length }}件)</span></h2>
                 <div class="list-group" id="unregisteredList">
                     {% for c in unregistered_communities %}
                         <a href="{% url 'community:detail' c.pk %}"
                            class="list-group-item list-group-item-action d-flex justify-content-between align-items-center{% if forloop.counter > 3 %} d-none unregistered-hidden{% endif %}"
                            target="_blank">
                             <div class="fw-bold">{{ c.name }}</div>
-                            <span class="text-muted small">未登録 <i class="fas fa-external-link-alt ms-1"></i></span>
+                            <span class="text-muted small">未参加 <i class="fas fa-external-link-alt ms-1"></i></span>
                         </a>
                     {% endfor %}
                 </div>

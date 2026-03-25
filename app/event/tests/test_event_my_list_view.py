@@ -7,9 +7,11 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.utils import timezone
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
 
@@ -335,3 +337,224 @@ class EventMyListDashboardTest(TestCase):
         self.assertContains(response, '承認済み')
         self.assertNotContains(response, 'approveModal')
         self.assertNotContains(response, 'rejectModal')
+
+
+class VketBannerTests(TestCase):
+    """EventMyListのVketコラボバナーテスト"""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            user_name='banner_user',
+            email='banner@example.com',
+            password='testpass123',
+        )
+        self.community = Community.objects.create(
+            name='Banner Test Community',
+            start_time=time(22, 0),
+            duration=60,
+            weekdays=['Mon'],
+            frequency='Every week',
+            organizers='Organizer',
+            status='approved',
+        )
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.user,
+            role=CommunityMember.Role.OWNER,
+        )
+
+    def _login_and_set_community(self):
+        self.client.login(username='banner_user', password='testpass123')
+        session = self.client.session
+        session['active_community_id'] = self.community.id
+        session.save()
+
+    def test_banner_shows_for_entry_open(self):
+        """ENTRY_OPENフェーズでバナーが表示される"""
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='banner-entry-open',
+            name='Vket Entry Open Test',
+            period_start=today + timedelta(days=14),
+            period_end=today + timedelta(days=21),
+            registration_deadline=today + timedelta(days=5),
+            lt_deadline=today + timedelta(days=10),
+            phase=VketCollaboration.Phase.ENTRY_OPEN,
+        )
+        self._login_and_set_community()
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(response.context['vket_banner'])
+        self.assertContains(response, '参加申し込み')
+
+    def test_banner_hidden_for_archived(self):
+        """ARCHIVEDフェーズではバナーが表示されない"""
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='banner-archived',
+            name='Archived Collab',
+            period_start=today - timedelta(days=30),
+            period_end=today - timedelta(days=23),
+            registration_deadline=today - timedelta(days=35),
+            lt_deadline=today - timedelta(days=32),
+            phase=VketCollaboration.Phase.ARCHIVED,
+        )
+        self._login_and_set_community()
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context['vket_banner'])
+
+    def test_banner_hidden_for_draft(self):
+        """DRAFTフェーズではバナーが表示されない"""
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='banner-draft',
+            name='Draft Collab',
+            period_start=today + timedelta(days=14),
+            period_end=today + timedelta(days=21),
+            registration_deadline=today + timedelta(days=5),
+            lt_deadline=today + timedelta(days=10),
+            phase=VketCollaboration.Phase.DRAFT,
+        )
+        self._login_and_set_community()
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context['vket_banner'])
+
+    def test_banner_shows_during_event(self):
+        """開催期間中は「開催中」バナーが表示される"""
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='banner-during',
+            name='During Event',
+            period_start=today - timedelta(days=1),
+            period_end=today + timedelta(days=5),
+            registration_deadline=today - timedelta(days=10),
+            lt_deadline=today - timedelta(days=5),
+            phase=VketCollaboration.Phase.LOCKED,
+        )
+        self._login_and_set_community()
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        banner = response.context['vket_banner']
+        self.assertIsNotNone(banner)
+        self.assertIn('開催中', banner['message'])
+
+    def test_banner_entry_open_with_participation_links_to_status(self):
+        """ENTRY_OPENで参加済みの場合はstatusページへリンクする"""
+        today = timezone.localdate()
+        collab = VketCollaboration.objects.create(
+            slug='banner-participated',
+            name='Participated Collab',
+            period_start=today + timedelta(days=14),
+            period_end=today + timedelta(days=21),
+            registration_deadline=today + timedelta(days=5),
+            lt_deadline=today + timedelta(days=10),
+            phase=VketCollaboration.Phase.ENTRY_OPEN,
+        )
+        VketParticipation.objects.create(
+            collaboration=collab,
+            community=self.community,
+        )
+        self._login_and_set_community()
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        banner = response.context['vket_banner']
+        self.assertIsNotNone(banner)
+        self.assertEqual(banner['url_name'], 'vket:status')
+        self.assertEqual(banner['button_text'], '参加状況を確認')
+
+    def test_banner_entry_open_without_participation_links_to_apply(self):
+        """ENTRY_OPENで未参加の場合はapplyページへリンクする"""
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='banner-not-participated',
+            name='Not Participated Collab',
+            period_start=today + timedelta(days=14),
+            period_end=today + timedelta(days=21),
+            registration_deadline=today + timedelta(days=5),
+            lt_deadline=today + timedelta(days=10),
+            phase=VketCollaboration.Phase.ENTRY_OPEN,
+        )
+        self._login_and_set_community()
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        banner = response.context['vket_banner']
+        self.assertIsNotNone(banner)
+        self.assertEqual(banner['url_name'], 'vket:apply')
+        self.assertEqual(banner['button_text'], '参加申し込み')
+
+    def test_banner_scheduling_phase_shows_lt_deadline(self):
+        """SCHEDULINGフェーズでLT締切情報が表示される"""
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='banner-scheduling',
+            name='Scheduling Collab',
+            period_start=today + timedelta(days=14),
+            period_end=today + timedelta(days=21),
+            registration_deadline=today - timedelta(days=5),
+            lt_deadline=today + timedelta(days=3),
+            phase=VketCollaboration.Phase.SCHEDULING,
+        )
+        self._login_and_set_community()
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        banner = response.context['vket_banner']
+        self.assertIsNotNone(banner)
+        self.assertIn('Scheduling Collab', banner['message'])
+
+    def test_banner_announcement_phase_shows_period(self):
+        """ANNOUNCEMENTフェーズで開催期間が表示される"""
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='banner-announcement',
+            name='Announcement Collab',
+            period_start=today + timedelta(days=7),
+            period_end=today + timedelta(days=14),
+            registration_deadline=today - timedelta(days=10),
+            lt_deadline=today - timedelta(days=5),
+            phase=VketCollaboration.Phase.ANNOUNCEMENT,
+        )
+        self._login_and_set_community()
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        banner = response.context['vket_banner']
+        self.assertIsNotNone(banner)
+        self.assertIn('Announcement Collab', banner['message'])
+
+    def test_banner_none_when_no_collaboration(self):
+        """コラボが存在しない場合はバナーがNone"""
+        self._login_and_set_community()
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context['vket_banner'])
+
+    def test_banner_deadline_today_shows_today_text(self):
+        """締切が本日の場合「本日締切」と表示される"""
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='banner-deadline-today',
+            name='Deadline Today Collab',
+            period_start=today + timedelta(days=14),
+            period_end=today + timedelta(days=21),
+            registration_deadline=today,
+            lt_deadline=today + timedelta(days=10),
+            phase=VketCollaboration.Phase.ENTRY_OPEN,
+        )
+        self._login_and_set_community()
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        banner = response.context['vket_banner']
+        self.assertIsNotNone(banner)
+        self.assertIn('受付中', banner['message'])

@@ -429,8 +429,9 @@
 
     <!-- Superuserの場合はコミュニティーのユーザーの連絡先を表示 -->
     {% if request.user.is_superuser %}
+    <div class="container my-4">
         <div class="card my-5 shadow">
-            <div class="card-body">
+            <div class="card-body p-4">
                 <h2 class="fs-3 fw-bold my-5 text-center">
                     集会主催者の連絡先
                 </h2>
@@ -444,7 +445,7 @@
         </div>
 
         <div class="card my-5 shadow border-danger">
-            <div class="card-body">
+            <div class="card-body p-4">
                 <h2 class="fs-3 fw-bold my-4 text-center text-danger">
                     管理者メンテナンス（ワンクリック）
                 </h2>
@@ -459,6 +460,7 @@
                 </button>
             </div>
         </div>
+    </div>
     {% endif %}
 
     {% if request.user.is_superuser %}
@@ -483,7 +485,7 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
                     <form action="{% url 'community:admin_cleanup' community.pk %}" method="post" class="d-inline">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-danger">実行する</button>
+                        <button type="submit" class="btn btn-danger">管理者ワンクリック修復を実行</button>
                     </form>
                 </div>
             </div>
