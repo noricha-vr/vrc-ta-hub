@@ -1,5 +1,6 @@
 # Create your views here.
 # from corsheaders.middleware import CorsMiddleware  # No longer needed
+from datetime import time as datetime_time
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -20,7 +21,7 @@ from event.models import Event, EventDetail, RecurrenceRule
 from .authentication import APIKeyAuthentication
 from .serializers import (
     CommunitySerializer, EventSerializer, EventDetailSerializer, EventDetailWriteSerializer,
-    RecurrenceRuleSerializer, RecurrenceRuleDeleteSerializer
+    RecurrenceRuleSerializer, RecurrenceRuleDeleteSerializer, GatheringListSerializer
 )
 
 
@@ -61,6 +62,43 @@ class CommunityViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = CommunityFilter
     filter_backends = [DjangoFilterBackend]
     throttle_classes = [AnonRateThrottle, UserRateThrottle]
+
+    @extend_schema(
+        summary="TaAGatheringListSys向け集会一覧取得",
+        description=(
+            "VRChat ワールド内の TaAGatheringListSys がそのまま読み込める JSON 形式で、"
+            "承認済みかつアクティブな技術系・学術系集会の一覧を返します。"
+        ),
+        tags=["Community"],
+        responses=GatheringListSerializer(many=True),
+    )
+    @action(detail=False, methods=['get'], url_path='gathering-list')
+    def gathering_list(self, request):
+        communities = Community.objects.filter(
+            end_at__isnull=True,
+            status='approved',
+        )
+        communities = [
+            community
+            for community in communities
+            if {'tech', 'academic'} & set(GatheringListSerializer.normalize_choice_list(community.tags))
+        ]
+
+        ordered_communities = sorted(
+            communities,
+            key=lambda community: (
+                GatheringListSerializer.get_weekday_sort_index(community.weekdays),
+                community.start_time or datetime_time.max,
+                community.name,
+            ),
+        )
+
+        serializer = GatheringListSerializer(
+            ordered_communities,
+            many=True,
+            context={'request': request},
+        )
+        return Response(serializer.data)
 
 
 class EventFilter(filters.FilterSet):
