@@ -90,7 +90,7 @@
                                     <p>
                                         <strong>Twitterハッシュタグ:</strong>
                                         {% for hashtag in community.twitter_hashtags %}
-                                            <a href="https://twitter.com/hashtag/{{ hashtag|slice:"1:" }}?f=live"
+                                            <a href="https://twitter.com/hashtag/{% if hashtag|slice:':1' == '#' %}{{ hashtag|slice:'1:' }}{% else %}{{ hashtag }}{% endif %}?f=live"
                                                target="_blank">{{ hashtag }}</a>{% if not forloop.last %}, {% endif %}
                                         {% endfor %}
                                     </p>
