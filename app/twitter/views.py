@@ -1,4 +1,5 @@
 # twitter/views.py
+import html
 import logging
 import urllib.parse
 from django.contrib import messages
@@ -141,7 +142,7 @@ class TweetEventWithTemplateView(TemplateView):
             intent_url = f"{self.TWITTER_INTENT_BASE_URL}{encoded_text}"
 
         # Replace newlines with HTML line breaks for display
-        tweet_text = raw_tweet_text.replace('\n', '<br>') if raw_tweet_text else ""
+        tweet_text = html.escape(raw_tweet_text).replace('\n', '<br>') if raw_tweet_text else ""
 
         context.update({
             'tweet_text': tweet_text,

@@ -310,6 +310,29 @@ class TweetEventWithTemplateViewTest(TestCase):
             self.assertContains(response, '予約投稿')
             self.assertContains(response, 'fa-x-twitter')
 
+    def test_tweet_preview_view_escapes_xss_in_tweet_text(self):
+        """LLM生成テキストに含まれるHTMLタグがエスケープされることを確認（XSS防止）"""
+        from unittest.mock import patch
+
+        with patch('twitter.views.generate_tweet') as mock_generate_tweet:
+            mock_generate_tweet.return_value = '<script>alert("xss")</script>\nTest'
+
+            url = reverse('twitter:tweet_event_with_template', kwargs={
+                'event_pk': self.event.pk,
+                'template_pk': self.template.pk
+            })
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, 200)
+            tweet_text = response.context['tweet_text']
+
+            # scriptタグがエスケープされていることを確認
+            self.assertNotIn('<script>', tweet_text)
+            self.assertIn('&lt;script&gt;', tweet_text)
+
+            # 改行がbrタグに変換されていることを確認
+            self.assertIn('<br>', tweet_text)
+
     def test_tweet_preview_view_empty_tweet_text(self):
         """ツイートテキストが空の場合の処理を確認"""
         from unittest.mock import patch

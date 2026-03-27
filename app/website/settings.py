@@ -13,6 +13,14 @@ import os
 import sys
 from pathlib import Path
 
+
+def _mask(value: str, visible: int = 5) -> str:
+    """設定値の先頭数文字のみ表示し、残りをマスクする"""
+    if len(value) <= visible:
+        return value
+    return value[:visible] + '***'
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -30,6 +38,14 @@ ALLOWED_HOSTS = ['vrc-ta-hub.com', 'localhost', '127.0.0.1', os.environ.get('HTT
 # Cloud Run + nginx プロキシ経由の HTTPS 判定（本番: nginx が https を付加）
 # ローカルでは .env.local で HTTP_X_FORWARDED_PROTO=http を設定して is_secure()=False を保証する。参照: PR #87
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# 本番環境のセキュリティ強化
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000  # 1年
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 CSRF_TRUSTED_ORIGINS = [
     o for o in [
@@ -176,7 +192,7 @@ if 'test' in sys.argv or TESTING:
     # 個別のテストで検証する場合は override_settings で有効化
     DISCORD_AUTH_REQUIRED = False
 
-print('DB_NAME ' + DATABASES['default']['NAME'])
+print('DB_NAME: ' + _mask(DATABASES['default']['NAME']))
 
 # Cache settings
 CACHES = {
@@ -266,7 +282,7 @@ GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 assert GOOGLE_API_KEY is not None, 'Please set GOOGLE_API_KEY'
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
 assert GOOGLE_CALENDAR_ID is not None, 'Please set GOOGLE_CALENDAR_ID'
-print('GOOGLE_CALENDAR_ID: ' + GOOGLE_CALENDAR_ID)
+print('GOOGLE_CALENDAR_ID: ' + _mask(GOOGLE_CALENDAR_ID))
 if GOOGLE_CALENDAR_ID.startswith('d80eac'):
     print('Debug mode: GOOGLE_CALENDAR_ID starts with d80eac')
 else:
