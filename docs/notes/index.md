@@ -4,6 +4,7 @@
 
 | ファイル | 概要 |
 |----------|------|
+| cloud-run.md | Cloud Run 運用パターン |
 | discord-auth.md | Discord OAuth 競合解消パターン |
 | github-pages-json.md | VRChatワールド向けJSON配信（toGithubPagesJson） |
 | vket-collab.md | Vketコラボ運営パターン |
@@ -14,6 +15,7 @@
 
 | ファイル | 日付 | 概要 |
 |----------|------|------|
+| cloud-run-01.md | 03-27 | Cloud Run のリビジョンURLで `DisallowedHost` が発生 |
 | discord-auth-01.md | 03-24 | Discord再連携で競合アカウントを自己回復できるようにした |
 | vket-collab-01.md | 03-21 | CommunityMemberロール不正値で Vket ApplyView 403 |
 | vket-collab-02.md | 03-25 | Vketコラボ機能拡充（権限・Progress・FormSet・バナー） |
