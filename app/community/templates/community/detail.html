@@ -293,6 +293,7 @@
             </div>
         </div>
 
+        {% if past_events %}
         <div class="card my-5 shadow community-table-card">
             <div class="card-body">
                 <h2 class="fs-3 fw-bold my-5 text-center">
@@ -343,6 +344,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
 
         {# BLOG・特別企画セクション（投稿があれば表示） #}
         {% if blog_special_details %}
