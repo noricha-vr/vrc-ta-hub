@@ -241,6 +241,7 @@ class GuideViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "集会を登録する")
+        self.assertContains(response, "A4比率・縦4096px")
 
     def test_guide_page_view_not_found(self):
         """存在しないページは404を返すこと"""
@@ -297,3 +298,23 @@ class GuideViewsTest(TestCase):
         self.assertContains(response, "ポスターを掲示する")
         # 本文の内容
         self.assertContains(response, "ワールドへのポスター掲示")
+        self.assertContains(response, "A4比率・縦4096px")
+        self.assertContains(
+            response,
+            "半分に縮小して Image Loader 用に流用しやすくなります",
+        )
+
+    def test_guide_promotion_asset_page(self):
+        """promotion/assetページが表示されること"""
+        response = self.client.get(
+            reverse("guide:page", kwargs={"path": "promotion/asset"})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "アセットを設置する")
+        self.assertContains(response, "技術・学術系イベント情報アセット")
+        self.assertContains(response, "VCCから導入")
+        self.assertContains(
+            response,
+            "https://data.vrc-ta-hub.com/images/VRChat_2023-10-24_23-09-50.771_1920x1080-720-480.png",
+        )

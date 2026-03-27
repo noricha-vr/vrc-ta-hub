@@ -435,8 +435,8 @@ class CommunityUpdateViewPromotionBannerTest(TestCase):
             role=CommunityMember.Role.OWNER
         )
 
-    def test_promotion_banner_displayed_on_update_page(self):
-        """集会編集ページにプロモーションバナーが表示されること"""
+    def test_promotion_banner_not_displayed_on_update_page(self):
+        """集会編集ページにプロモーションバナーを表示しないこと"""
         self.client.login(username='テストユーザー', password='testpass123')
 
         # アクティブ集会を設定するためセッションを設定
@@ -449,31 +449,9 @@ class CommunityUpdateViewPromotionBannerTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        # バナーのタイトル
-        self.assertContains(response, 'Hubを広めるご協力のお願い')
-        # バナーの説明文
-        self.assertContains(response, 'ワールドへのポスター掲示やDiscordでの紹介')
-        # バナーのリンク
-        self.assertContains(response, '/guide/promotion/poster/')
-        # 「今後表示しない」ボタン
-        self.assertContains(response, '今後表示しない')
-
-    def test_promotion_banner_has_dismiss_functionality(self):
-        """プロモーションバナーに非表示機能のJavaScriptが含まれること"""
-        self.client.login(username='テストユーザー', password='testpass123')
-
-        session = self.client.session
-        session['active_community_id'] = self.community.pk
-        session.save()
-
-        response = self.client.get(
-            reverse('community:update')
-        )
-
-        self.assertEqual(response.status_code, 200)
-        # JavaScriptのlocalStorage処理が含まれていることを確認
-        self.assertContains(response, 'localStorage.setItem')
-        self.assertContains(response, 'hidePromotionBanner')
+        self.assertNotContains(response, 'Hubを広めるご協力のお願い')
+        self.assertNotContains(response, 'ワールドへのポスター掲示やDiscordでの紹介')
+        self.assertNotContains(response, '今後表示しない')
 
 
 class CommunityDetailAdminCleanupButtonTest(TestCase):
