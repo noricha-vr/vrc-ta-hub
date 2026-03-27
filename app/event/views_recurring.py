@@ -56,7 +56,8 @@ def create_recurring_event(request, community_id):
                         messages.error(request, 'イベントの作成に失敗しました。')
             
             except Exception as e:
-                messages.error(request, f'エラーが発生しました: {str(e)}')
+                logger.exception("定期イベント処理中にエラーが発生")
+                messages.error(request, 'エラーが発生しました')
     else:
         form = RecurringEventForm(community=community)
     
