@@ -55,6 +55,6 @@ def generate_llm_events(request):
         logger.error(f'LLMイベント自動生成でエラーが発生しました: {str(e)}')
         return JsonResponse({
             'status': 'error',
-            'message': str(e),
+            'message': 'Internal server error. Check server logs for details.',
             'timestamp': timezone.now().isoformat()
         }, status=500)
