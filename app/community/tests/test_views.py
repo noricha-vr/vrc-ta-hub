@@ -200,6 +200,15 @@ class CommunityDetailViewEventThemeDisplayTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'VRの未来を語る')
 
+    def test_past_events_section_hidden_when_empty(self):
+        """発表履歴が0件の場合、発表履歴セクションが表示されない"""
+        # past_event に EventDetail を作成しない状態でアクセス
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'の発表履歴')
+
     def test_theme_blog_without_h1_shows_blog(self):
         """themeが「Blog」でh1が空の場合はBlogが表示される"""
         # themeが「Blog」、h1が空（フォールバック）
