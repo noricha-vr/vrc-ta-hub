@@ -4,7 +4,7 @@
 
 | ファイル | 概要 |
 |----------|------|
-| cloud-run.md | Cloud Run 本番切替パターン |
+| cloud-run.md | Cloud Run 運用パターン |
 | django-pagination.md | Djangoページネーション入力検証パターン |
 | discord-auth.md | Discord OAuth 競合解消パターン |
 | github-pages-json.md | VRChatワールド向けJSON配信（toGithubPagesJson） |
@@ -16,7 +16,7 @@
 
 | ファイル | 日付 | 概要 |
 |----------|------|------|
-| cloud-run-01.md | 03-27 | Cloud Run 本番切替と JSON 再生成を手動確認 |
+| cloud-run-01.md | 03-27 | Cloud Run 本番切替・JSON再生成・リビジョンURL DisallowedHost |
 | django-pagination-01.md | 03-29 | 集会一覧の壊れた page クエリで 500 エラー |
 | discord-auth-01.md | 03-24 | Discord再連携で競合アカウントを自己回復できるようにした |
 | vket-collab-01.md | 03-21 | CommunityMemberロール不正値で Vket ApplyView 403 |
