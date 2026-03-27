@@ -811,5 +811,7 @@ class LTSettingsUpdateFormTest(TestCase):
         response = self.client.get(reverse('community:update'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'A4比率・縦4096px')
-        self.assertContains(response, 'Image Loader')
+        self.assertContains(response, 'A4比率')
+        self.assertContains(response, '長辺1000px以内')
+        self.assertNotContains(response, 'A4比率・縦4096px')
+        self.assertNotContains(response, 'Image Loader')

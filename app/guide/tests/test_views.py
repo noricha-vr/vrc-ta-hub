@@ -241,7 +241,9 @@ class GuideViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "集会を登録する")
-        self.assertContains(response, "A4比率・縦4096px")
+        self.assertContains(response, "A4比率")
+        self.assertContains(response, "長辺1000px以内")
+        self.assertNotContains(response, "A4比率・縦4096px")
 
     def test_guide_page_view_not_found(self):
         """存在しないページは404を返すこと"""

@@ -1,12 +1,14 @@
 from django import forms
 from django.forms.widgets import CheckboxSelectMultiple
 
+from ta_hub.libs import DEFAULT_MAX_SIZE
+
 from .models import Community, WEEKDAY_CHOICES, TAGS, FORM_TAGS
 
 POSTER_REQUIREMENTS_HELP_TEXT = (
-    "推奨サイズ: A4比率・縦4096px。"
-    "印刷に耐えやすく、テクスチャとしても扱いやすいサイズです。"
-    "半分に縮小して Image Loader 用にも流用しやすいです。"
+    "推奨サイズ: A4比率。"
+    f"アップロード後は長辺{DEFAULT_MAX_SIZE}px以内に自動調整されるため、"
+    "サイト表示向けの画像を想定してください。"
 )
 
 
