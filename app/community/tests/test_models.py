@@ -8,6 +8,7 @@ from django.test import TestCase
 from PIL import Image
 
 from community.models import Community
+from ta_hub.libs import DEFAULT_MAX_SIZE
 
 CustomUser = get_user_model()
 
@@ -143,7 +144,7 @@ class CommunitySaveMethodTestCase(TestCase):
             community.save(update_fields=['poster_image'])
 
             # 新しいファイル（_committed=False）があるのでリサイズ処理が呼ばれる
-            mock_resize.assert_called_once()
+            mock_resize.assert_called_once_with(community.poster_image, max_size=DEFAULT_MAX_SIZE)
 
     def test_save_without_update_fields_no_new_file(self):
         """update_fieldsが指定されていなくても、新しいファイルがなければリサイズされないことを確認"""
@@ -182,7 +183,7 @@ class CommunitySaveMethodTestCase(TestCase):
             community.save()
 
             # 新しいファイルがあるのでリサイズ処理が呼ばれる
-            mock_resize.assert_called_once()
+            mock_resize.assert_called_once_with(community.poster_image, max_size=DEFAULT_MAX_SIZE)
 
     def test_save_with_empty_update_fields(self):
         """update_fieldsが空リストの場合、リサイズ処理がスキップされることを確認"""
