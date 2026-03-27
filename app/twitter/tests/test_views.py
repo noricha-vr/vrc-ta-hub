@@ -276,7 +276,7 @@ class TweetEventWithTemplateViewTest(TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertIn('intent_url', response.context)
             self.assertIn('raw_tweet_text', response.context)
-            self.assertIn('tweet_text', response.context)
+            self.assertIn('tweet_text_lines', response.context)
 
             # intent URLが正しい形式であることを確認
             intent_url = response.context['intent_url']
@@ -286,9 +286,10 @@ class TweetEventWithTemplateViewTest(TestCase):
             raw_tweet_text = response.context['raw_tweet_text']
             self.assertIn('\n', raw_tweet_text)
 
-            # tweet_textがHTMLの改行に変換されていることを確認
-            tweet_text = response.context['tweet_text']
-            self.assertIn('<br>', tweet_text)
+            self.assertEqual(
+                response.context['tweet_text_lines'],
+                ["Test tweet text", "with newline"]
+            )
 
     def test_tweet_preview_view_template_content(self):
         """テンプレートに適切なコンテンツが含まれることを確認"""
@@ -325,4 +326,23 @@ class TweetEventWithTemplateViewTest(TestCase):
 
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.context['intent_url'], '')
-            self.assertEqual(response.context['tweet_text'], '')
+            self.assertEqual(response.context['tweet_text_lines'], [])
+
+    def test_tweet_preview_view_escapes_generated_html(self):
+        """生成テキストに含まれるHTMLはそのまま描画しない"""
+        from unittest.mock import patch
+
+        with patch('twitter.views.generate_tweet') as mock_generate_tweet:
+            mock_generate_tweet.return_value = "<script>alert('xss')</script>\n2行目"
+
+            url = reverse('twitter:tweet_event_with_template', kwargs={
+                'event_pk': self.event.pk,
+                'template_pk': self.template.pk
+            })
+            response = self.client.get(url)
+
+            self.assertEqual(response.status_code, 200)
+            content = response.content.decode()
+            self.assertNotIn("<script>alert('xss')</script>", content)
+            self.assertIn("&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;", content)
+            self.assertIn("<br>", content)

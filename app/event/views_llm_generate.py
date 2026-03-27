@@ -51,10 +51,10 @@ def generate_llm_events(request):
             'timestamp': timezone.now().isoformat()
         })
         
-    except Exception as e:
-        logger.error(f'LLMイベント自動生成でエラーが発生しました: {str(e)}')
+    except Exception:
+        logger.exception('LLMイベント自動生成でエラーが発生しました')
         return JsonResponse({
             'status': 'error',
-            'message': str(e),
+            'message': 'LLM event generation failed.',
             'timestamp': timezone.now().isoformat()
         }, status=500)

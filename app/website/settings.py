@@ -9,12 +9,14 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
+import logging
 import os
 import sys
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+logger = logging.getLogger(__name__)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -37,6 +39,18 @@ CSRF_TRUSTED_ORIGINS = [
         os.environ.get('CSRF_TRUSTED_ORIGIN'),
     ] if o
 ]
+
+
+def _get_cors_allowed_origins() -> list[str]:
+    origins = ['https://vrc-ta-hub.com']
+    raw_origins = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+    if raw_origins:
+        origins.extend(
+            origin.strip()
+            for origin in raw_origins.split(',')
+            if origin.strip()
+        )
+    return list(dict.fromkeys(origins))
 # Application definition
 
 INSTALLED_APPS = [
@@ -99,8 +113,17 @@ SPECTACULAR_SETTINGS = {
     ],
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = _get_cors_allowed_origins()
 CORS_URLS_REGEX = r'^/api/.*$'
+
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
+SECURE_HSTS_PRELOAD = not DEBUG
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
 
 AUTH_USER_MODEL = 'user_account.CustomUser'
 
@@ -176,7 +199,7 @@ if 'test' in sys.argv or TESTING:
     # 個別のテストで検証する場合は override_settings で有効化
     DISCORD_AUTH_REQUIRED = False
 
-print('DB_NAME ' + DATABASES['default']['NAME'])
+logger.debug('Database configured for %s', DATABASES['default']['NAME'])
 
 # Cache settings
 CACHES = {
@@ -266,15 +289,15 @@ GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 assert GOOGLE_API_KEY is not None, 'Please set GOOGLE_API_KEY'
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
 assert GOOGLE_CALENDAR_ID is not None, 'Please set GOOGLE_CALENDAR_ID'
-print('GOOGLE_CALENDAR_ID: ' + GOOGLE_CALENDAR_ID)
+logger.debug('GOOGLE_CALENDAR_ID configured')
 if GOOGLE_CALENDAR_ID.startswith('d80eac'):
-    print('Debug mode: GOOGLE_CALENDAR_ID starts with d80eac')
+    logger.debug('Debug mode: GOOGLE_CALENDAR_ID starts with d80eac')
 else:
-    print('Production mode: GOOGLE_CALENDAR_ID')
+    logger.debug('Production mode: GOOGLE_CALENDAR_ID configured')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'google/gemini-2.5-flash-lite-preview-06-17')
-print(f'GEMINI_MODEL: {GEMINI_MODEL}')
+logger.debug('GEMINI_MODEL configured: %s', GEMINI_MODEL)
 
 # OpenAI API
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')

@@ -9,7 +9,7 @@
             </div>
             <div class="card-body">
                 <div class="tweet-content p-3 bg-light rounded mb-4">
-                    <p id="tweet-text" class="mb-0">{{ tweet_text|safe }}</p>
+                    <p id="tweet-text" class="mb-0">{% for line in tweet_text_lines %}{{ line }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</p>
                 </div>
 
                 <hr class="my-4">

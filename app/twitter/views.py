@@ -1,4 +1,3 @@
-# twitter/views.py
 import logging
 import urllib.parse
 from django.contrib import messages
@@ -140,11 +139,11 @@ class TweetEventWithTemplateView(TemplateView):
             encoded_text = urllib.parse.quote(raw_tweet_text)
             intent_url = f"{self.TWITTER_INTENT_BASE_URL}{encoded_text}"
 
-        # Replace newlines with HTML line breaks for display
-        tweet_text = raw_tweet_text.replace('\n', '<br>') if raw_tweet_text else ""
+        # 改行はテンプレートでのみ <br> に変換し、本文は自動エスケープに任せる。
+        tweet_text_lines = raw_tweet_text.split('\n') if raw_tweet_text else []
 
         context.update({
-            'tweet_text': tweet_text,
+            'tweet_text_lines': tweet_text_lines,
             'raw_tweet_text': raw_tweet_text,
             'intent_url': intent_url,
             'event': event,

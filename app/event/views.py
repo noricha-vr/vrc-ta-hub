@@ -554,11 +554,11 @@ def sync_calendar_events(request):
         
         return HttpResponse(response_message, status=200)
 
-    except Exception as e:
+    except Exception:
         logger.error('=' * 80)
-        logger.error(f"同期失敗: {str(e)}")
+        logger.error("同期失敗")
         logger.error('=' * 80, exc_info=True)
-        return HttpResponse(f"Failed to sync calendar events: {str(e)}", status=500)
+        return HttpResponse("Failed to sync calendar events.", status=500)
 
 
 def delete_outdated_events(calendar_events: List[Dict], today: date) -> None:
