@@ -200,6 +200,16 @@ class CommunityDetailViewEventThemeDisplayTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'VRの未来を語る')
 
+    def test_scheduled_events_section_hidden_when_empty(self):
+        """開催日程が0件の場合、開催日程セクションが表示されない"""
+        # future_event を削除して開催予定を空にする
+        self.future_event.delete()
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'の開催日程')
+
     def test_past_events_section_hidden_when_empty(self):
         """発表履歴が0件の場合、発表履歴セクションが表示されない"""
         # past_event に EventDetail を作成しない状態でアクセス
