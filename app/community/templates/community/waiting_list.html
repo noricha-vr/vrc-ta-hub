@@ -86,12 +86,12 @@
                                                                     target="_blank">{{ community.get_sns_display }}</a>
                                     </p>
                                 {% endif %}
-                                {% if community.twitter_hashtags %}
+                                {% if community.hashtag_names %}
                                     <p>
                                         <strong>Twitterハッシュタグ:</strong>
-                                        {% for hashtag in community.twitter_hashtags %}
-                                            <a href="https://twitter.com/hashtag/{{ hashtag|slice:"1:" }}?f=live"
-                                               target="_blank">{{ hashtag }}</a>{% if not forloop.last %}, {% endif %}
+                                        {% for name in community.hashtag_names %}
+                                            <a href="https://twitter.com/hashtag/{{ name }}?f=live"
+                                               target="_blank">#{{ name }}</a>{% if not forloop.last %}, {% endif %}
                                         {% endfor %}
                                     </p>
                                 {% endif %}
