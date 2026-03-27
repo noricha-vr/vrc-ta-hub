@@ -35,7 +35,6 @@ def _build_allowed_hosts() -> list[str]:
         'vrc-ta-hub.com',
         'localhost',
         '127.0.0.1',
-        '.a.run.app',
         *_split_csv_env('ALLOWED_HOSTS'),
     ]
 
@@ -147,6 +146,7 @@ AUTH_USER_MODEL = 'user_account.CustomUser'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'website.middleware.CanonicalCloudRunHostMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
