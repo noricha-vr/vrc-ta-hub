@@ -12,6 +12,65 @@ from community.models import Community
 CustomUser = get_user_model()
 
 
+class CommunityHashtagPropertyTestCase(TestCase):
+    """Community.hashtag_list / hashtag_names プロパティのテスト"""
+
+    def _make_community(self, twitter_hashtag=''):
+        return Community(
+            name='テスト集会',
+            frequency='毎週',
+            organizers='テスト主催者',
+            twitter_hashtag=twitter_hashtag,
+        )
+
+    def test_hashtag_list_empty_string(self):
+        """twitter_hashtagが空文字の場合、空リストを返す"""
+        c = self._make_community('')
+        self.assertEqual(c.hashtag_list, [])
+        self.assertEqual(c.hashtag_names, [])
+
+    def test_hashtag_list_single_tag_with_leading_hash(self):
+        """先頭#付き単一タグ: '#VRChat' -> ['#VRChat']"""
+        c = self._make_community('#VRChat')
+        self.assertEqual(c.hashtag_list, ['#VRChat'])
+        self.assertEqual(c.hashtag_names, ['VRChat'])
+
+    def test_hashtag_list_single_tag_without_leading_hash(self):
+        """先頭#なし単一タグ: 'VRChat' -> ['#VRChat']"""
+        c = self._make_community('VRChat')
+        self.assertEqual(c.hashtag_list, ['#VRChat'])
+        self.assertEqual(c.hashtag_names, ['VRChat'])
+
+    def test_hashtag_list_multiple_tags(self):
+        """複数タグ: '#VRChat#技術' -> ['#VRChat', '#技術']"""
+        c = self._make_community('#VRChat#技術')
+        self.assertEqual(c.hashtag_list, ['#VRChat', '#技術'])
+        self.assertEqual(c.hashtag_names, ['VRChat', '技術'])
+
+    def test_hashtag_list_multiple_tags_with_spaces(self):
+        """空白付き複数タグ: '#VRChat # 技術 ' -> ['#VRChat', '#技術']"""
+        c = self._make_community('#VRChat # 技術 ')
+        self.assertEqual(c.hashtag_list, ['#VRChat', '#技術'])
+        self.assertEqual(c.hashtag_names, ['VRChat', '技術'])
+
+    def test_hashtag_names_does_not_trim_first_char(self):
+        """先頭文字がトリミングされないことを確認（修正前のバグの再発防止）
+
+        修正前は slice:"1:" で先頭文字が無条件にトリミングされていた。
+        例: 'VRChat' -> 'RChat' になっていた。
+        """
+        c = self._make_community('VRChat')
+        self.assertEqual(c.hashtag_names, ['VRChat'])
+        self.assertNotEqual(c.hashtag_names, ['RChat'])
+
+    def test_hashtag_list_none_value(self):
+        """twitter_hashtagがNoneの場合（blank=True）、空リストを返す"""
+        c = self._make_community('')
+        c.twitter_hashtag = None
+        self.assertEqual(c.hashtag_list, [])
+        self.assertEqual(c.hashtag_names, [])
+
+
 class CommunitySaveMethodTestCase(TestCase):
     """Community.save()メソッドのテスト"""
 

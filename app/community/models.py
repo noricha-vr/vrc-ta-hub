@@ -125,6 +125,20 @@ class Community(models.Model):
         return self.name
 
     @property
+    def hashtag_list(self):
+        """#付きハッシュタグのリストを返す（表示用）"""
+        if not self.twitter_hashtag:
+            return []
+        return [f'#{tag.strip()}' for tag in self.twitter_hashtag.split('#') if tag.strip()]
+
+    @property
+    def hashtag_names(self):
+        """#なしハッシュタグのリストを返す（URL用）"""
+        if not self.twitter_hashtag:
+            return []
+        return [tag.strip() for tag in self.twitter_hashtag.split('#') if tag.strip()]
+
+    @property
     def end_time(self):
         return (timezone.datetime.combine(timezone.datetime.today(), self.start_time) + timedelta(
             minutes=self.duration)).time()

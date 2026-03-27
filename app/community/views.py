@@ -155,9 +155,6 @@ class CommunityDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         community = context['community']
-        if community.twitter_hashtag:
-            community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
-                                          tag.strip()]
         community.join_type = get_join_type(community.organizer_url)
 
         now = timezone.now()
@@ -327,9 +324,6 @@ class WaitingCommunityListView(LoginRequiredMixin, UserPassesTestMixin, ListView
         context['form'] = form
         context['search_count'] = self.get_queryset().count()
         for community in context['communities']:
-            if community.twitter_hashtag:
-                community.twitter_hashtags = [f'#{tag.strip()}' for tag in community.twitter_hashtag.split('#') if
-                                              tag.strip()]
             community.join_type = get_join_type(community.organizer_url)
 
         # 曜日の選択肢をコンテキストに追加
