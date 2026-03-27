@@ -5,6 +5,8 @@
   children:
     - title: ポスターを掲示する
       path: promotion/poster
+    - title: アセットを設置する
+      path: promotion/asset
 
 - title: 集会を管理する
   children:

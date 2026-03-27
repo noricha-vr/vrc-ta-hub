@@ -799,3 +799,17 @@ class LTSettingsUpdateFormTest(TestCase):
         self.assertNotContains(response, 'LT申請を受け付ける')
         # フォームフィールドがないことを確認
         self.assertNotContains(response, 'id="id_accepts_lt_application"')
+
+    def test_update_page_shows_poster_requirements(self):
+        """集会更新ページにポスター推奨要件が表示される"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+
+        session = self.client.session
+        session['active_community_id'] = self.community.pk
+        session.save()
+
+        response = self.client.get(reverse('community:update'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'A4比率・縦4096px')
+        self.assertContains(response, 'Image Loader')

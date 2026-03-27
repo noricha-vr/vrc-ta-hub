@@ -3,6 +3,12 @@ from django.forms.widgets import CheckboxSelectMultiple
 
 from .models import Community, WEEKDAY_CHOICES, TAGS, FORM_TAGS
 
+POSTER_REQUIREMENTS_HELP_TEXT = (
+    "推奨サイズ: A4比率・縦4096px。"
+    "印刷に耐えやすく、テクスチャとしても扱いやすいサイズです。"
+    "半分に縮小して Image Loader 用にも流用しやすいです。"
+)
+
 
 class CommunitySearchForm(forms.Form):
     query = forms.CharField(
@@ -111,6 +117,7 @@ class CommunityUpdateForm(forms.ModelForm):
         if self.instance and self.instance.pk:
             self.fields['weekdays'].initial = self.instance.weekdays
             self.fields['tags'].initial = self.instance.tags
+        self.fields['poster_image'].help_text = POSTER_REQUIREMENTS_HELP_TEXT
 
 
 class CommunityCreateForm(forms.ModelForm):
@@ -165,7 +172,10 @@ class CommunityCreateForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['poster_image'].required = True
-        self.fields['poster_image'].help_text = """最大サイズ: 30MB
-対応フォーマット: jpg, jpeg, png
-このサイトやイベント紹介、ワールドに設置されているアセット、APIなどで利用されます"""
+        self.fields['poster_image'].help_text = (
+            "最大サイズ: 30MB。"
+            "対応フォーマット: jpg, jpeg, png。"
+            "このサイトやイベント紹介、ワールドに設置されているアセット、APIなどで利用されます。"
+            f"{POSTER_REQUIREMENTS_HELP_TEXT}"
+        )
         self.fields['allow_poster_repost'].initial = True

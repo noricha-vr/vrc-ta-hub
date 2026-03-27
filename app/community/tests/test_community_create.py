@@ -6,7 +6,7 @@ from django.contrib.sites.models import Site
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 
-from community.forms import CommunityCreateForm
+from community.forms import CommunityCreateForm, CommunityUpdateForm
 from community.models import Community, CommunityMember
 from user_account.models import CustomUser
 
@@ -55,6 +55,18 @@ class CommunityCreateFormTest(TestCase):
         form = CommunityCreateForm()
         self.assertTrue(form.fields['allow_poster_repost'].initial)
 
+    def test_create_form_poster_help_text_includes_requirements(self):
+        """作成フォームのposter_imageに推奨要件が表示されることをテスト."""
+        form = CommunityCreateForm()
+        self.assertIn('A4比率・縦4096px', form.fields['poster_image'].help_text)
+        self.assertIn('Image Loader', form.fields['poster_image'].help_text)
+
+    def test_update_form_poster_help_text_includes_requirements(self):
+        """更新フォームのposter_imageに推奨要件が表示されることをテスト."""
+        form = CommunityUpdateForm()
+        self.assertIn('A4比率・縦4096px', form.fields['poster_image'].help_text)
+        self.assertIn('Image Loader', form.fields['poster_image'].help_text)
+
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 class CommunityCreateViewTest(TestCase):
@@ -92,6 +104,7 @@ class CommunityCreateViewTest(TestCase):
         response = self.client.get(self.create_url)
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'community/create.html')
+        self.assertContains(response, 'A4比率・縦4096px')
 
     def test_user_with_existing_community_can_access_create_page(self):
         """既に集会を持っているユーザーも集会登録ページにアクセスできることをテスト（複数集会対応）."""
