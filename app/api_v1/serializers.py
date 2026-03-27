@@ -1,7 +1,9 @@
 # Create your models here.
+from urllib.parse import urlparse
+
 from rest_framework import serializers
 
-from community.models import Community
+from community.models import Community, WEEKDAY_CHOICES
 from event.models import Event, EventDetail, RecurrenceRule
 
 
@@ -21,6 +23,94 @@ class CommunitySerializer(serializers.ModelSerializer):
         if obj.poster_image:
             return obj.poster_image.url
         return None
+
+
+class GatheringListSerializer(serializers.BaseSerializer):
+    """TaAGatheringListSys 向けの JSON 形式に変換する。"""
+
+    GENRE_LABELS = {
+        'tech': '技術系',
+        'academic': '学術系',
+    }
+    WEEKDAY_LABELS = dict(WEEKDAY_CHOICES)
+    WEEKDAY_ORDER = {
+        'Sun': 0,
+        'Mon': 1,
+        'Tue': 2,
+        'Wed': 3,
+        'Thu': 4,
+        'Fri': 5,
+        'Sat': 6,
+        'Other': 7,
+    }
+
+    @classmethod
+    def normalize_choice_list(cls, value):
+        if isinstance(value, list):
+            return value
+        if isinstance(value, tuple):
+            return list(value)
+        if isinstance(value, str):
+            return [value] if value else []
+        return []
+
+    @classmethod
+    def get_primary_weekday_code(cls, value):
+        weekdays = cls.normalize_choice_list(value)
+        return weekdays[0] if weekdays else 'Other'
+
+    @classmethod
+    def get_weekday_sort_index(cls, value):
+        weekday = cls.get_primary_weekday_code(value)
+        return cls.WEEKDAY_ORDER.get(weekday, cls.WEEKDAY_ORDER['Other'])
+
+    def to_representation(self, instance):
+        tags = self.normalize_choice_list(instance.tags)
+        genre = (
+            self.GENRE_LABELS['tech']
+            if 'tech' in tags
+            else self.GENRE_LABELS['academic']
+            if 'academic' in tags
+            else 'その他'
+        )
+
+        primary_weekday = self.get_primary_weekday_code(instance.weekdays)
+
+        return {
+            'ジャンル': genre,
+            '曜日': self.WEEKDAY_LABELS.get(primary_weekday, 'その他'),
+            'イベント名': instance.name,
+            '開始時刻': instance.start_time.strftime('%H:%M') if instance.start_time else '',
+            '開催周期': instance.frequency or '',
+            '主催・副主催': instance.organizers or '',
+            'Join先': instance.group_url or instance.organizer_url or '',
+            'Discord': instance.discord or '',
+            'Twitter': instance.sns_url or '',
+            'ハッシュタグ': instance.twitter_hashtag or '',
+            'ポスター': self._build_absolute_url(self._get_poster_url(instance)),
+            'イベント紹介': instance.description or '',
+        }
+
+    def _get_poster_url(self, instance):
+        poster_image = getattr(instance, 'poster_image', None)
+        if not poster_image:
+            return None
+
+        try:
+            return poster_image.url
+        except ValueError:
+            return None
+
+    def _build_absolute_url(self, url):
+        if not url:
+            return None
+        if urlparse(url).scheme:
+            return url
+
+        request = self.context.get('request')
+        if request is None:
+            return url
+        return request.build_absolute_uri(url)
 
 
 class EventSerializer(serializers.ModelSerializer):

@@ -10,6 +10,7 @@
 
 - `GET /community/`: すべてのコミュニティを取得
 - `GET /community/{id}/`: 特定のコミュニティを取得
+- `GET /community/gathering-list/`: TaAGatheringListSys 向けの `sample.json` 互換形式で集会一覧を取得
 
 #### フィルタリングオプション
 
