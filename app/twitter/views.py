@@ -139,7 +139,7 @@ class TweetEventWithTemplateView(TemplateView):
             encoded_text = urllib.parse.quote(raw_tweet_text)
             intent_url = f"{self.TWITTER_INTENT_BASE_URL}{encoded_text}"
 
-        # 改行はテンプレートでのみ <br> に変換し、本文は自動エスケープに任せる。
+        # 改行はテンプレートでのみ <br> に変換し、本文は自動エスケープに任せる。参照: PR #124
         tweet_text_lines = raw_tweet_text.split('\n') if raw_tweet_text else []
 
         context.update({
