@@ -1,6 +1,5 @@
 # Create your views here.
 # from corsheaders.middleware import CorsMiddleware  # No longer needed
-from datetime import time as datetime_time
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -88,7 +87,6 @@ class CommunityViewSet(viewsets.ReadOnlyModelViewSet):
             communities,
             key=lambda community: (
                 GatheringListSerializer.get_weekday_sort_index(community.weekdays),
-                community.start_time or datetime_time.max,
                 community.name,
             ),
         )

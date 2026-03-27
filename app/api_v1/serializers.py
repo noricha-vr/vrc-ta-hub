@@ -31,7 +31,6 @@ class GatheringListSerializer(serializers.BaseSerializer):
     GENRE_LABELS = {
         'tech': '技術系',
         'academic': '学術系',
-        'partner': '協力団体',
     }
     WEEKDAY_LABELS = dict(WEEKDAY_CHOICES)
     WEEKDAY_ORDER = {
@@ -67,26 +66,24 @@ class GatheringListSerializer(serializers.BaseSerializer):
 
     def to_representation(self, instance):
         tags = self.normalize_choice_list(instance.tags)
-        weekdays = self.normalize_choice_list(instance.weekdays)
-
-        genre_labels = [
-            self.GENRE_LABELS[tag]
-            for tag in tags
-            if tag in ('tech', 'academic')
-        ]
-        if not genre_labels and 'partner' in tags:
-            genre_labels = [self.GENRE_LABELS['partner']]
+        genre = (
+            self.GENRE_LABELS['tech']
+            if 'tech' in tags
+            else self.GENRE_LABELS['academic']
+            if 'academic' in tags
+            else 'その他'
+        )
 
         primary_weekday = self.get_primary_weekday_code(instance.weekdays)
 
         return {
-            'ジャンル': '・'.join(genre_labels),
+            'ジャンル': genre,
             '曜日': self.WEEKDAY_LABELS.get(primary_weekday, 'その他'),
             'イベント名': instance.name,
             '開始時刻': instance.start_time.strftime('%H:%M') if instance.start_time else '',
             '開催周期': instance.frequency or '',
             '主催・副主催': instance.organizers or '',
-            'Join先': instance.group_url or instance.organizer_url or instance.organizers or '',
+            'Join先': instance.group_url or instance.organizer_url or '',
             'Discord': instance.discord or '',
             'Twitter': instance.sns_url or '',
             'ハッシュタグ': instance.twitter_hashtag or '',

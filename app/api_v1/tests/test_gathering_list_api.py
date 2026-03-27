@@ -106,7 +106,7 @@ class GatheringListAPITest(TestCase):
         payload = response.json()
         self.assertEqual(len(payload), 3)
 
-        self.assertEqual(payload[0]['ジャンル'], '技術系・学術系')
+        self.assertEqual(payload[0]['ジャンル'], '技術系')
         self.assertEqual(payload[0]['曜日'], '日曜日')
         self.assertEqual(payload[0]['イベント名'], '日曜技術学術集会')
         self.assertEqual(payload[0]['開始時刻'], '20:30')
@@ -124,7 +124,17 @@ class GatheringListAPITest(TestCase):
         self.assertIsNone(payload[1]['ポスター'])
 
         self.assertEqual(payload[2]['曜日'], 'その他')
-        self.assertEqual(payload[2]['Join先'], '主催D')
+        self.assertEqual(payload[2]['Join先'], '')
+
+    def test_gathering_list_uses_existing_sample_json_genre_priority(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        payload = response.json()
+        self.assertEqual(payload[0]['ジャンル'], '技術系')
+        self.assertEqual(payload[1]['ジャンル'], '学術系')
+        self.assertEqual(payload[2]['ジャンル'], '技術系')
 
     def test_gathering_list_excludes_non_active_or_non_gathering_communities(self):
         response = self.client.get(self.url)
