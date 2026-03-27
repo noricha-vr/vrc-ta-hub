@@ -313,6 +313,9 @@ class GuideViewsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "アセットを設置する")
         self.assertContains(response, "技術・学術系イベント情報アセット")
+        self.assertContains(response, "開催予定を一覧表示できます")
+        self.assertContains(response, "Prefab を置くだけ")
+        self.assertContains(response, "更新負担がほとんどありません")
         self.assertContains(response, "VCCから導入")
         self.assertContains(
             response,
