@@ -55,7 +55,9 @@ class CommunityFilter(filters.FilterSet):
 class CommunityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Community.objects.filter(
         end_at__isnull=True,
-        status='approved'
+        status='approved',
+    ).exclude(
+        tags=[]
     ).order_by('-pk')
     serializer_class = CommunitySerializer
     filterset_class = CommunityFilter

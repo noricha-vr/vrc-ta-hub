@@ -739,8 +739,8 @@ class EventDetailCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
                     logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
                     messages.warning(self.request, "記事の自動生成に失敗しました。")
             except Exception as e:
-                logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
-                messages.error(self.request, f"記事の自動生成中にエラーが発生しました: {str(e)}")
+                logger.exception("記事の自動生成中にエラーが発生しました")
+                messages.error(self.request, "記事の自動生成中にエラーが発生しました")
 
         return response
 
@@ -794,8 +794,8 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
                     logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
                     messages.warning(self.request, "記事の自動生成に失敗しました。")
             except Exception as e:
-                logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
-                messages.error(self.request, f"記事の自動生成中にエラーが発生しました: {str(e)}")
+                logger.exception("記事の自動生成中にエラーが発生しました")
+                messages.error(self.request, "記事の自動生成中にエラーが発生しました")
 
         return response
 
@@ -842,8 +842,8 @@ class GenerateBlogView(LoginRequiredMixin, View):
             return redirect('event:detail', pk=event_detail.id)
 
         except Exception as e:
-            logger.error(f"ブログ記事の生成中にエラーが発生しました: {str(e)}")
-            messages.error(request, f"エラーが発生しました: {str(e)}")
+            logger.exception("ブログ記事の生成中にエラーが発生しました")
+            messages.error(request, "エラーが発生しました。しばらくしてから再度お試しください。")
             return redirect('event:detail', pk=pk)
 
     def save_to_bigquery(self, pk, video_id, user_id, transcript, prompt, response):
@@ -1481,7 +1481,8 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
             return super().form_valid(form)
 
         except Exception as e:
-            messages.error(self.request, f'イベントの登録に失敗しました: {str(e)}')
+            logger.exception("イベントの登録に失敗しました")
+            messages.error(self.request, 'イベントの登録に失敗しました')
             return self.form_invalid(form)
 
     def get_context_data(self, **kwargs):

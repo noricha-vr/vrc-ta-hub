@@ -266,7 +266,8 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             messages.success(self.request, '集会情報を更新しました。')
             return response
         except DataError as e:
-            messages.error(self.request, f'データの保存中にエラーが発生しました: {str(e)}')
+            logger.exception("データの保存中にエラーが発生")
+            messages.error(self.request, 'データの保存中にエラーが発生しました')
             return self.form_invalid(form)
 
 

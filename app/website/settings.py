@@ -9,9 +9,12 @@ https://docs.djangoproject.com/en/4.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
+import logging
 import os
 import sys
 from pathlib import Path
+
+_settings_logger = logging.getLogger('django.settings')
 
 
 def _mask(value: str, visible: int = 5) -> str:
@@ -192,7 +195,7 @@ if 'test' in sys.argv or TESTING:
     # 個別のテストで検証する場合は override_settings で有効化
     DISCORD_AUTH_REQUIRED = False
 
-print('DB_NAME: ' + _mask(DATABASES['default']['NAME']))
+_settings_logger.info('DB_NAME: %s', _mask(DATABASES['default']['NAME']))
 
 # Cache settings
 CACHES = {
@@ -282,15 +285,15 @@ GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 assert GOOGLE_API_KEY is not None, 'Please set GOOGLE_API_KEY'
 GOOGLE_CALENDAR_ID = os.environ.get('GOOGLE_CALENDAR_ID')
 assert GOOGLE_CALENDAR_ID is not None, 'Please set GOOGLE_CALENDAR_ID'
-print('GOOGLE_CALENDAR_ID: ' + _mask(GOOGLE_CALENDAR_ID))
+_settings_logger.info('GOOGLE_CALENDAR_ID: %s', _mask(GOOGLE_CALENDAR_ID))
 if GOOGLE_CALENDAR_ID.startswith('d80eac'):
-    print('Debug mode: GOOGLE_CALENDAR_ID starts with d80eac')
+    _settings_logger.info('Debug mode: GOOGLE_CALENDAR_ID starts with d80eac')
 else:
-    print('Production mode: GOOGLE_CALENDAR_ID')
+    _settings_logger.info('Production mode: GOOGLE_CALENDAR_ID')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'google/gemini-2.5-flash-lite-preview-06-17')
-print(f'GEMINI_MODEL: {GEMINI_MODEL}')
+_settings_logger.info('GEMINI_MODEL: %s', GEMINI_MODEL)
 
 # OpenAI API
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
