@@ -11,7 +11,7 @@ from event.models import Event, EventDetail
 CustomUser = get_user_model()
 
 
-class CommunityListViewPaginationTest(TestCase):
+class TestCommunityListViewPagination(TestCase):
     def setUp(self):
         self.client = Client()
         self.community = Community.objects.create(
@@ -28,12 +28,15 @@ class CommunityListViewPaginationTest(TestCase):
             {'page': "1'", 'query': '一覧'},
         )
 
-        self.assertRedirects(response, "/community/?page=1&query=%E4%B8%80%E8%A6%A7")
+        self.assertRedirects(
+            response,
+            "/community/list/?page=1&query=%E4%B8%80%E8%A6%A7",
+        )
 
     def test_out_of_range_page_redirects_to_first_page(self):
         response = self.client.get(reverse('community:list'), {'page': '999'})
 
-        self.assertRedirects(response, '/community/?page=1')
+        self.assertRedirects(response, '/community/list/?page=1')
 
     def test_last_page_query_is_accepted(self):
         response = self.client.get(reverse('community:list'), {'page': 'last'})

@@ -49,10 +49,13 @@ class CommunityListView(ListView):
 
     def get(self, request, *args, **kwargs):
         # 通常のget処理の前にページ番号をチェック
-        page = request.GET.get(self.page_kwarg, 1)
+        page = request.GET.get(self.page_kwarg) or 1
         self.object_list = self.get_queryset()
 
         paginator = self.get_paginator(self.object_list, self.paginate_by)
+        if page == 'last':
+            return super().get(request, *args, **kwargs)
+
         try:
             paginator.validate_number(page)
         except InvalidPage:
