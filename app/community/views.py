@@ -5,6 +5,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.core.paginator import InvalidPage
 from django.db import DataError
 from django.db.models import Min, Q, F, Count
 from django.shortcuts import get_object_or_404, redirect, render
@@ -48,14 +49,16 @@ class CommunityListView(ListView):
 
     def get(self, request, *args, **kwargs):
         # 通常のget処理の前にページ番号をチェック
-        page = request.GET.get('page', 1)
+        page = request.GET.get(self.page_kwarg, 1)
         self.object_list = self.get_queryset()
 
         paginator = self.get_paginator(self.object_list, self.paginate_by)
-        if int(page) > paginator.num_pages and paginator.num_pages > 0:
+        try:
+            paginator.validate_number(page)
+        except InvalidPage:
             # クエリパラメータを維持したまま1ページ目にリダイレクト
             params = request.GET.copy()
-            params['page'] = 1
+            params[self.page_kwarg] = 1
             return redirect(f"{request.path}?{params.urlencode()}")
 
         return super().get(request, *args, **kwargs)
