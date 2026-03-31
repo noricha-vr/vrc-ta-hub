@@ -11,6 +11,7 @@ from django.urls import reverse
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 from event.libs import BlogOutput
+from vket.models import VketCollaboration, VketParticipation
 
 
 User = get_user_model()
@@ -86,6 +87,36 @@ class EventDetailPermissionTests(TestCase):
             theme="Pending Theme",
             applicant=self.applicant,
             status="pending",
+        )
+        self.locked_event = Event.objects.create(
+            community=self.community,
+            date=date(2026, 2, 17),
+            start_time=time(22, 0),
+            duration=60,
+            weekday="Tue",
+        )
+        self.locked_detail = EventDetail.objects.create(
+            event=self.locked_event,
+            detail_type="LT",
+            start_time=time(22, 0),
+            duration=30,
+            speaker="Locked Speaker",
+            theme="Locked Theme",
+            contents="locked contents",
+        )
+        collaboration = VketCollaboration.objects.create(
+            slug="vket-2026-winter",
+            name="Vket 2026 Winter",
+            phase=VketCollaboration.Phase.LOCKED,
+            period_start=date(2026, 2, 1),
+            period_end=date(2026, 2, 28),
+            registration_deadline=date(2026, 1, 15),
+            lt_deadline=date(2026, 1, 31),
+        )
+        VketParticipation.objects.create(
+            collaboration=collaboration,
+            community=self.community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
         )
 
     def test_non_member_cannot_access_event_detail_create_view(self):
@@ -215,3 +246,39 @@ class EventDetailPermissionTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         mock_generate_blog.assert_not_called()
+
+    def test_locked_event_detail_update_view_disables_datetime_fields(self):
+        """Vket 期間中の更新画面では日時欄を無効化して案内文を表示する."""
+        self.client.login(username="owner_user", password="testpass123")
+
+        url = reverse("event:detail_update", kwargs={"pk": self.locked_detail.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Vketコラボ期間中のため運営のみ変更できます。")
+        self.assertTrue(response.context["form"].fields["start_time"].disabled)
+        self.assertTrue(response.context["form"].fields["duration"].disabled)
+
+    def test_locked_event_detail_rejects_tampered_datetime_post(self):
+        """Vket 期間中は改変 POST でも日時変更できない."""
+        self.client.login(username="owner_user", password="testpass123")
+
+        url = reverse("event:detail_update", kwargs={"pk": self.locked_detail.pk})
+        response = self.client.post(
+            url,
+            {
+                "detail_type": "LT",
+                "theme": "Updated Theme",
+                "speaker": "Locked Speaker",
+                "start_time": "22:30",
+                "duration": "45",
+                "contents": "updated contents",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Vketコラボ期間中のため運営のみ変更できます。")
+        self.locked_detail.refresh_from_db()
+        self.assertEqual(self.locked_detail.start_time, time(22, 0))
+        self.assertEqual(self.locked_detail.duration, 30)
+        self.assertEqual(self.locked_detail.theme, "Locked Theme")

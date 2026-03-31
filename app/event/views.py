@@ -796,6 +796,11 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
             return redirect('event:detail', pk=self.get_object().pk)
         return super().handle_no_permission()
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['event'] = self.object.event
