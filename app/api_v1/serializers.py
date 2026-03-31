@@ -8,11 +8,23 @@ from event.models import Event, EventDetail, RecurrenceRule
 
 
 def _extract_group_id(group_url):
-    """group_url からグループIDを抽出する。"""
+    """group_url からVRChatグループIDを抽出する。
+
+    vrc.group: パス直下のコード（例: VRCTS.5197）
+    vrchat.com: grp_ で始まるセグメント（例: grp_ad1356bc-...）
+    """
     if not group_url:
         return None
-    path = urlparse(group_url).path.strip('/')
-    return path.split('/')[-1] if path else None
+    parsed = urlparse(group_url)
+    host = parsed.netloc.lower()
+    segments = [s for s in parsed.path.split('/') if s]
+    if not segments:
+        return None
+    if 'vrc.group' in host:
+        return segments[0]
+    if 'vrchat.com' in host:
+        return next((s for s in segments if s.startswith('grp_')), None)
+    return None
 
 
 class CommunitySerializer(serializers.ModelSerializer):
