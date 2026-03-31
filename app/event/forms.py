@@ -308,12 +308,13 @@ class EventDetailForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         detail_type = cleaned_data.get('detail_type')
-
-        if (
+        is_datetime_locked = (
             self.instance.pk
             and self.request
             and is_event_detail_datetime_locked(self.instance, self.request.user)
-        ):
+        )
+
+        if is_datetime_locked:
             if has_event_detail_start_time_changed(self.instance, self.data.get('start_time')):
                 self.add_error('start_time', EVENT_DETAIL_DATETIME_LOCK_MESSAGE)
             if has_event_detail_duration_changed(self.instance, self.data.get('duration')):
@@ -335,6 +336,10 @@ class EventDetailForm(forms.ModelForm):
             if not getattr(self, 'datetime_locked', False):
                 cleaned_data['start_time'] = self.instance.event.start_time if self.instance.pk else self.fields['start_time'].initial
                 cleaned_data['duration'] = 30
+
+        if is_datetime_locked:
+            cleaned_data['start_time'] = self.instance.start_time
+            cleaned_data['duration'] = self.instance.duration
 
         return cleaned_data
     

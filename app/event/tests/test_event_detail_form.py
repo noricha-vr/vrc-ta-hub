@@ -291,3 +291,21 @@ class EventDetailFormCleanTest(TestCase):
         form = EventDetailForm(data=form_data, request=request, instance=self.locked_detail)
 
         self.assertTrue(form.is_valid(), msg=f"Form errors: {form.errors}")
+
+    def test_vket_locked_detail_keeps_datetime_when_detail_type_changes(self):
+        """Vket 期間中は detail_type の補正でも日時を変更しない."""
+        request = self._create_request()
+        form_data = {
+            'detail_type': 'SPECIAL',
+            'h1': '',
+            'theme': '',
+            'speaker': '',
+            'contents': 'Special event content',
+            'generate_blog_article': False,
+        }
+
+        form = EventDetailForm(data=form_data, request=request, instance=self.locked_detail)
+
+        self.assertTrue(form.is_valid(), msg=f"Form errors: {form.errors}")
+        self.assertEqual(form.cleaned_data['start_time'], time(22, 0))
+        self.assertEqual(form.cleaned_data['duration'], 30)
