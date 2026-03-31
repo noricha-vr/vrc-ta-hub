@@ -285,6 +285,18 @@
                 </div>
             </div>
 
+            {# 日程表 #}
+            {% if rows and slots %}
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <h2 class="h5 fw-bold mb-3">
+                            <i class="fas fa-table me-2"></i>日程表
+                        </h2>
+                        {% include 'vket/includes/schedule_table.html' with show_warnings=False show_legend=True %}
+                    </div>
+                </div>
+            {% endif %}
+
             {# Vketステージ登録（登録済みは最下部に表示） #}
             {% if participation.stage_registered_at and participation.progress != 'applied' %}
                 <div class="card shadow-sm mb-4 border-success">
