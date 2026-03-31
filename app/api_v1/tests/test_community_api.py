@@ -99,10 +99,20 @@ class CommunityAPITest(TestCase):
 
     def test_group_id_none_when_no_url(self):
         """group_urlが空の場合group_idはnull"""
+        Community.objects.create(
+            name='URL無し集会',
+            start_time=time(21, 0),
+            duration=60,
+            weekdays=['Tue'],
+            frequency='毎週',
+            organizers='主催者X',
+            group_url='',
+            tags=['tech'],
+            status='approved',
+        )
         response = self.client.get(self.list_url)
-        community = next(c for c in response.data if c['name'] == '技術集会A')
-        # group_urlが設定されているのでgroup_idもある
-        self.assertIsNotNone(community['group_id'])
+        community = next(c for c in response.data if c['name'] == 'URL無し集会')
+        self.assertIsNone(community['group_id'])
 
     def test_start_time_format_without_seconds(self):
         """start_timeが秒なしのHH:MM形式で返される"""
