@@ -9,20 +9,29 @@ from event.models import Event, EventDetail, RecurrenceRule
 
 class CommunitySerializer(serializers.ModelSerializer):
     poster_image = serializers.SerializerMethodField()
+    group_id = serializers.SerializerMethodField()
+    start_time = serializers.TimeField(format='%H:%M')
 
     class Meta:
         model = Community
         fields = [
             'id', 'name', 'created_at', 'updated_at', 'start_time', 'duration', 'weekdays',
-            'frequency', 'organizers', 'group_url', 'organizer_url', 'sns_url',
+            'frequency', 'organizers', 'group_url', 'group_id', 'organizer_url', 'sns_url',
             'discord', 'twitter_hashtag', 'poster_image', 'description',
-            'platform', 'tags'
+            'platform', 'tags', 'allow_poster_repost'
         ]
 
     def get_poster_image(self, obj):
         if obj.poster_image:
             return obj.poster_image.url
         return None
+
+    def get_group_id(self, obj):
+        """group_url からグループIDを抽出する。"""
+        if not obj.group_url:
+            return None
+        path = urlparse(obj.group_url).path.strip('/')
+        return path.split('/')[-1] if path else None
 
 
 class GatheringListSerializer(serializers.BaseSerializer):
@@ -84,12 +93,22 @@ class GatheringListSerializer(serializers.BaseSerializer):
             '開催周期': instance.frequency or '',
             '主催・副主催': instance.organizers or '',
             'Join先': instance.group_url or instance.organizer_url or '',
+            'グループID': self._extract_group_id(instance.group_url),
             'Discord': instance.discord or '',
             'Twitter': instance.sns_url or '',
             'ハッシュタグ': instance.twitter_hashtag or '',
             'ポスター': self._build_absolute_url(self._get_poster_url(instance)),
             'イベント紹介': instance.description or '',
+            'ポスター転載可': instance.allow_poster_repost,
         }
+
+    @staticmethod
+    def _extract_group_id(group_url):
+        """group_url からグループIDを抽出する。"""
+        if not group_url:
+            return None
+        path = urlparse(group_url).path.strip('/')
+        return path.split('/')[-1] if path else None
 
     def _get_poster_url(self, instance):
         poster_image = getattr(instance, 'poster_image', None)
@@ -115,6 +134,7 @@ class GatheringListSerializer(serializers.BaseSerializer):
 
 class EventSerializer(serializers.ModelSerializer):
     community = CommunitySerializer()  # ネストしてコミュニティ情報を含める
+    start_time = serializers.TimeField(format='%H:%M')
 
     class Meta:
         model = Event

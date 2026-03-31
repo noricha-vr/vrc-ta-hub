@@ -29,6 +29,7 @@ class GatheringListAPITest(TestCase):
             description='日曜日に開催する技術と学術の集会です。',
             status='approved',
             tags=['tech', 'academic'],
+            allow_poster_repost=True,
         )
         Event.objects.create(
             community=self.sunday_community,
@@ -118,13 +119,19 @@ class GatheringListAPITest(TestCase):
         self.assertEqual(payload[0]['ハッシュタグ'], '#SundayGathering')
         self.assertTrue(payload[0]['ポスター'].endswith('/poster/sunday.jpg'))
         self.assertEqual(payload[0]['イベント紹介'], '日曜日に開催する技術と学術の集会です。')
+        self.assertEqual(payload[0]['グループID'], 'SUN.0001')
+        self.assertTrue(payload[0]['ポスター転載可'])
 
         self.assertEqual(payload[1]['曜日'], '月曜日')
         self.assertEqual(payload[1]['Join先'], 'https://vrchat.com/home/user/usr_monday')
+        self.assertIsNone(payload[1]['グループID'])
+        self.assertFalse(payload[1]['ポスター転載可'])
         self.assertIsNone(payload[1]['ポスター'])
 
         self.assertEqual(payload[2]['曜日'], 'その他')
         self.assertEqual(payload[2]['Join先'], '')
+        self.assertIsNone(payload[2]['グループID'])
+        self.assertFalse(payload[2]['ポスター転載可'])
 
     def test_gathering_list_uses_existing_sample_json_genre_priority(self):
         response = self.client.get(self.url)
