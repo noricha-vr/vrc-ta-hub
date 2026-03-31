@@ -1,4 +1,5 @@
 import secrets
+import uuid
 from datetime import timedelta
 
 from django.core.validators import RegexValidator
@@ -6,6 +7,15 @@ from django.db import models
 from django.utils import timezone
 
 from ta_hub.libs import DEFAULT_MAX_SIZE, resize_and_convert_image
+
+
+def poster_upload_path(instance, filename):
+    """ポスター画像のアップロードパスを生成する。
+
+    poster/{community_id}/{uuid}.{ext} 形式で保存し、ファイル名の衝突を防ぐ。
+    """
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'jpg'
+    return f'poster/{instance.pk}/{uuid.uuid4().hex[:12]}.{ext}'
 
 # Create your models here.
 WEEKDAY_CHOICES = (
@@ -56,7 +66,7 @@ class Community(models.Model):
     sns_url = models.URLField('X（旧Twitter）', blank=True)
     discord = models.URLField('Discordサーバー', blank=True)
     twitter_hashtag = models.CharField('Xハッシュタグ', max_length=100, blank=True)
-    poster_image = models.ImageField('ポスター', upload_to='poster/', blank=True)
+    poster_image = models.ImageField('ポスター', upload_to=poster_upload_path, blank=True)
     description = models.TextField('集会紹介', default='', blank=True)
     platform = models.CharField('対応プラットフォーム', max_length=10, choices=PLATFORM_CHOICES, default='All')
     tags = models.JSONField('タグ', max_length=10, default=list)
@@ -161,6 +171,15 @@ class Community(models.Model):
             # 新しいファイルがアップロードされた場合のみリサイズ
             # _committed が False = 新しいファイルがまだストレージに保存されていない
             if self.poster_image and not getattr(self.poster_image, '_committed', True):
+                if not self.pk:
+                    # 新規作成: 先にINSERTしてpkを確保（upload_toでpkを使うため）
+                    poster = self.poster_image
+                    self.poster_image = None
+                    super().save(*args, **kwargs)
+                    self.poster_image = poster
+                    resize_and_convert_image(self.poster_image, max_size=DEFAULT_MAX_SIZE)
+                    super().save(update_fields=['poster_image'])
+                    return
                 resize_and_convert_image(self.poster_image, max_size=DEFAULT_MAX_SIZE)
         super().save(*args, **kwargs)
 
