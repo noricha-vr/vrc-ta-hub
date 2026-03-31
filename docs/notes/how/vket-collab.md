@@ -63,6 +63,11 @@ Hub上でこの2ビューをDB駆動で再現することが目標。
 - ApplyView 自体は `membership.role == CommunityMember.Role.OWNER` もチェック
 - テスト用に集会主催者権限を付与する場合は `OWNER` ロールが必要
 
+### Vket 主催者向け操作は membership ベースで揃える（参照: PR #144）
+- 問題: `ApplyView`、`StageRegisterView`、`PresentationDeleteView`、`CollaborationDetailView.can_apply` が `membership.role == OWNER` 固定だと、同じ集会の `staff` メンバーが実務を代行できない
+- 解決: アクティブ集会の membership があることを helper で判定し、主催者向け操作の権限・UI表示を同じ基準へ揃える（`superuser` は従来どおり許可）
+- 教訓: owner/staff の両方を許可したい運用では、ビューごとにロール文字列を直書きせず membership 判定 helper に集約した方が UI と POST 権限のズレを防げる
+
 ### Progress 状態の運営フロー（参照: PR #115）
 ```
 NOT_APPLIED → APPLIED → STAGE_REGISTERED → LT_REGISTERED
