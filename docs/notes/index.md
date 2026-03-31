@@ -9,6 +9,7 @@
 | discord-auth.md | Discord OAuth 競合解消パターン |
 | github-pages-json.md | VRChatワールド向けJSON配信（toGithubPagesJson） |
 | vket-collab.md | Vketコラボ運営パターン |
+| worktree-docker.md | Worktree Docker パターン |
 
 ## logs/
 
@@ -26,6 +27,7 @@
 | github-pages-json-01.md | 03-27 | テストデータがVRChatワールドカレンダーに混入 |
 | github-pages-json-02.md | 03-27 | 最終アセットのジャンル互換を確認 |
 | security-audit-01.md | 03-27 | セキュリティ監査対応: XSS修正・セキュリティヘッダー・print文マスク・エラーレスポンス |
+| worktree-docker-01.md | 03-31 | worktree の Docker 検証先ずれ |
 
 ### 2026-02/
 
