@@ -133,12 +133,12 @@ class VketApplyFlowTests(TestCase):
         session['active_community_id'] = self.community.id
         session.save()
 
-    def test_apply_get_requires_owner(self):
-        """スタッフはapplyページに403が返る"""
+    def test_apply_get_allows_staff_member(self):
+        """スタッフメンバーも apply ページにアクセスできる"""
         self.client.login(username='other_user', password='testpass123')
         self._set_active_community()
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
 
     def test_apply_get_shows_organizer_note_guidance_above_textarea(self):
         """備考欄の案内文がテキストエリア外に表示される"""
@@ -208,6 +208,37 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(pres.speaker, 'テスト登壇者')
         self.assertEqual(pres.theme, 'テストテーマ')
 
+    def test_apply_post_creates_participation_for_staff_member(self):
+        """スタッフメンバーも参加申請を作成できる"""
+        self.client.login(username='other_user', password='testpass123')
+        self._set_active_community()
+
+        target_date = self.collaboration.period_start
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}),
+            data={
+                'requested_date': target_date.isoformat(),
+                'requested_start_time': '21:00',
+                'requested_duration': '60',
+                'organizer_note': 'staff 申請',
+                'lt-TOTAL_FORMS': '1',
+                'lt-INITIAL_FORMS': '0',
+                'lt-MIN_NUM_FORMS': '0',
+                'lt-MAX_NUM_FORMS': '20',
+                'lt-0-speaker': 'スタッフ登壇者',
+                'lt-0-theme': 'スタッフテーマ',
+                'lt-0-lt_start_time': '',
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        participation = VketParticipation.objects.get(
+            collaboration=self.collaboration, community=self.community
+        )
+        self.assertEqual(participation.applied_by, self.other_user)
+        self.assertEqual(participation.progress, VketParticipation.Progress.APPLIED)
+
     def test_apply_is_forbidden_after_registration_deadline_for_new_participation(self):
         """参加申請締切後は新規参加登録が403になる"""
         self.collaboration.registration_deadline = timezone.localdate() - timedelta(days=1)
@@ -253,6 +284,15 @@ class VketApplyFlowTests(TestCase):
 
         self.client.login(username='owner_user', password='testpass123')
         self._set_active_community()
+        response = self.client.get(reverse('vket:detail', kwargs={'pk': self.collaboration.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['can_apply'])
+
+    def test_detail_can_apply_is_true_for_staff_member(self):
+        """スタッフメンバーにも参加申請ボタンが表示される"""
+        self.client.login(username='other_user', password='testpass123')
+        self._set_active_community()
+
         response = self.client.get(reverse('vket:detail', kwargs={'pk': self.collaboration.pk}))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['can_apply'])
@@ -536,6 +576,31 @@ class VketApplyFlowTests(TestCase):
             participation=participation,
             order=0,
             speaker='削除テスト',
+            theme='テーマ',
+            status=VketPresentation.Status.DRAFT,
+        )
+        response = self.client.post(
+            reverse(
+                'vket:presentation_delete',
+                kwargs={'pk': self.collaboration.pk, 'presentation_id': pres.pk},
+            ),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(VketPresentation.objects.filter(pk=pres.pk).exists())
+
+    def test_presentation_delete_by_staff_member(self):
+        """スタッフメンバーもLTを削除できる"""
+        self.client.login(username='other_user', password='testpass123')
+        self._set_active_community()
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            progress=VketParticipation.Progress.APPLIED,
+        )
+        pres = VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='スタッフ削除テスト',
             theme='テーマ',
             status=VketPresentation.Status.DRAFT,
         )
@@ -1463,6 +1528,11 @@ class VketParticipationStatusTests(TestCase):
             email='status_owner@example.com',
             password='testpass123',
         )
+        self.staff_user = User.objects.create_user(
+            user_name='status_staff',
+            email='status_staff@example.com',
+            password='testpass123',
+        )
         self.community = Community.objects.create(
             name='ステータステスト集会',
             status='approved',
@@ -1472,6 +1542,11 @@ class VketParticipationStatusTests(TestCase):
             community=self.community,
             user=self.owner,
             role=CommunityMember.Role.OWNER,
+        )
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.staff_user,
+            role=CommunityMember.Role.STAFF,
         )
 
         today = timezone.localdate()
@@ -1580,6 +1655,23 @@ class VketParticipationStatusTests(TestCase):
         self.participation.save()
 
         self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.post(
+            reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        self.participation.refresh_from_db()
+        self.assertEqual(self.participation.progress, VketParticipation.Progress.STAGE_REGISTERED)
+        self.assertIsNotNone(self.participation.stage_registered_at)
+
+    def test_stage_register_advances_progress_for_staff_member(self):
+        """スタッフメンバーもステージ登録完了を記録できる"""
+        self.participation.progress = VketParticipation.Progress.APPLIED
+        self.participation.save()
+
+        self.client.login(username='status_staff', password='testpass123')
         self._set_active_community()
         response = self.client.post(
             reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),

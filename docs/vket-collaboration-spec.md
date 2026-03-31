@@ -86,7 +86,7 @@
 ## 権限と締切
 
 ### 主催者側
-- `ApplyView` は基本的に集会 owner が操作
+- `ApplyView` / ステージ登録完了 / LT削除 は、アクティブ集会に所属するメンバー（owner / staff）が操作
 - `registration_deadline` までは日程編集可能
 - `lt_deadline` までは LT 情報と備考を編集可能
 
