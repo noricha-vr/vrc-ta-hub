@@ -81,6 +81,15 @@ Community.objects.filter(
 
 PosterMovieMaker プロジェクトも sample.json を参照している。更新内容は他プロジェクトに波及する点に注意。
 
+## TaAGatheringListSystem 互換
+
+- 最終表示先のアセット `Azukimochi/TaAGatheringListSystem` は README で `sample.json` を元データとして参照している
+- アセット側 `EventInfo.Parse()` は `ジャンル` を `技術系` / `学術系` の完全一致で判定し、それ以外は `Other` 扱い
+- そのため `技術系・学術系` のような複合文字列は互換性がなく、アセット上では `Other` に落ちる
+- 2026-03-27 時点の公開 `sample.json` の `ジャンル` 値は `技術系` / `学術系` / `その他` のみで、ここは互換
+- ただし `gathering-list` API は `tech` / `academic` を持つ集会だけを返すため、公開 `sample.json` にある `その他` 2件（`仮想学生集会`, `メタリエ (metariea)`）は落ちる
+- 「最終アセット互換」を重視するなら、`ジャンル` 文字列だけでなく `その他` を含むデータ集合まで一致させるか、逆に「技術・学術のみ」が正式仕様だと明文化する
+
 ## 本番DB直接接続
 
 ```bash

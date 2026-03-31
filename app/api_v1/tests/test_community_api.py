@@ -22,8 +22,10 @@ class CommunityAPITest(TestCase):
             weekdays=['Mon'],
             frequency='毎週',
             organizers='主催者A',
+            group_url='https://vrc.group/TECH.0001',
             tags=['tech'],
             status='approved',
+            allow_poster_repost=True,
         )
 
         # tags空のコミュニティ（approved）→ 除外されるべき
@@ -88,3 +90,38 @@ class CommunityAPITest(TestCase):
         response = self.client.get(self.list_url)
         names = [c['name'] for c in response.data]
         self.assertNotIn('終了した集会', names)
+
+    def test_group_id_extracted_from_short_url(self):
+        """group_urlからgroup_idが抽出される（短縮URL）"""
+        response = self.client.get(self.list_url)
+        community = next(c for c in response.data if c['name'] == '技術集会A')
+        self.assertEqual(community['group_id'], 'TECH.0001')
+
+    def test_group_id_none_when_no_url(self):
+        """group_urlが空の場合group_idはnull"""
+        Community.objects.create(
+            name='URL無し集会',
+            start_time=time(21, 0),
+            duration=60,
+            weekdays=['Tue'],
+            frequency='毎週',
+            organizers='主催者X',
+            group_url='',
+            tags=['tech'],
+            status='approved',
+        )
+        response = self.client.get(self.list_url)
+        community = next(c for c in response.data if c['name'] == 'URL無し集会')
+        self.assertIsNone(community['group_id'])
+
+    def test_start_time_format_without_seconds(self):
+        """start_timeが秒なしのHH:MM形式で返される"""
+        response = self.client.get(self.list_url)
+        community = next(c for c in response.data if c['name'] == '技術集会A')
+        self.assertEqual(community['start_time'], '22:00')
+
+    def test_allow_poster_repost_included(self):
+        """allow_poster_repostがレスポンスに含まれる"""
+        response = self.client.get(self.list_url)
+        community = next(c for c in response.data if c['name'] == '技術集会A')
+        self.assertTrue(community['allow_poster_repost'])
