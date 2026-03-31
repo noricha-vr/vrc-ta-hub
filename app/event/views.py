@@ -130,6 +130,25 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
             events_to_delete.extend(subsequent_events)
             logger.info(f"以降のイベントも削除します: {len(subsequent_events)}件")
 
+        # Vketコラボ期間中のイベントを削除対象から除外（参照: PR #138）
+        if not (request.user.is_superuser or request.user.is_staff):
+            from vket.services import get_vket_lock_info
+            locked_events = []
+            lock_message = ""
+            for evt in events_to_delete:
+                locked, message = get_vket_lock_info(evt)
+                if locked:
+                    locked_events.append(evt)
+                    lock_message = message
+            if locked_events:
+                events_to_delete = [e for e in events_to_delete if e not in locked_events]
+                messages.warning(
+                    request,
+                    f"{lock_message} ロック中のイベント{len(locked_events)}件をスキップしました。",
+                )
+                if not events_to_delete:
+                    return redirect('event:my_list')
+
         success_count = 0
         error_count = 0
 

@@ -226,6 +226,24 @@ class VketScheduleLockViewTests(TestCase):
         response = self.client.post(url)
         self.assertFalse(EventDetail.objects.filter(pk=self.detail.pk).exists())
 
+    def test_bulk_delete_skips_locked_events(self):
+        """一括削除でVket期間内のイベントはスキップされる"""
+        today = timezone.localdate()
+        # 期間外のイベント（起点として使用）
+        event_outside = Event.objects.create(
+            community=self.community,
+            date=today - timedelta(days=10),
+            start_time='22:00',
+            duration=60,
+        )
+        self._login_as_owner()
+        url = reverse('event:delete', kwargs={'pk': event_outside.pk})
+        response = self.client.post(url, {'delete_subsequent': 'on'})
+        # 期間外のイベントは削除される
+        self.assertFalse(Event.objects.filter(pk=event_outside.pk).exists())
+        # Vket期間内のイベントは削除されずに残る
+        self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
+
     def test_no_lock_without_vket_participation(self):
         """Vket参加がないCommunityのイベントはロックされない"""
         self.participation.delete()
