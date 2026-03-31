@@ -133,12 +133,12 @@ class VketApplyFlowTests(TestCase):
         session['active_community_id'] = self.community.id
         session.save()
 
-    def test_apply_get_requires_owner(self):
-        """スタッフはapplyページに403が返る"""
+    def test_apply_get_allows_staff(self):
+        """スタッフもapplyページにアクセスできる"""
         self.client.login(username='other_user', password='testpass123')
         self._set_active_community()
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
 
     def test_apply_get_shows_organizer_note_guidance_above_textarea(self):
         """備考欄の案内文がテキストエリア外に表示される"""
