@@ -1,4 +1,4 @@
-"""Vketコラボ期間中の日時変更・削除ロックのテスト（参照: PR #135）"""
+"""Vketコラボ期間中の日時変更・削除ロックのテスト（参照: PR #138）"""
 
 from datetime import time, timedelta
 

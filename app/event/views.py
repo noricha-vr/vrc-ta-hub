@@ -96,7 +96,7 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
     def post(self, request, *args, **kwargs):
         event = self.get_object()
 
-        # Vketコラボ期間中のイベント削除をブロック（参照: PR #135）
+        # Vketコラボ期間中のイベント削除をブロック（参照: PR #138）
         if not (request.user.is_superuser or request.user.is_staff):
             from vket.services import get_vket_lock_info
             locked, message = get_vket_lock_info(event)
@@ -904,7 +904,7 @@ class EventDetailDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView)
         return self.request.user.is_superuser or event_detail.event.community.can_edit(self.request.user)
 
     def post(self, request, *args, **kwargs):
-        # Vketコラボ期間中のEventDetail削除をブロック（参照: PR #135）
+        # Vketコラボ期間中のEventDetail削除をブロック（参照: PR #138）
         event_detail = self.get_object()
         if not (request.user.is_superuser or request.user.is_staff):
             from vket.services import get_vket_lock_info

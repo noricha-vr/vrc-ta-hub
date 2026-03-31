@@ -286,7 +286,7 @@ class EventDetailForm(forms.ModelForm):
             if self.instance.meta_description:
                 self.fields['generate_blog_article'].initial = False
 
-        # Vketコラボ期間中は日時フィールドをロック（superuser/staffは除外）参照: PR #135
+        # Vketコラボ期間中は日時フィールドをロック（superuser/staffは除外）参照: PR #138
         self.vket_schedule_locked = False
         self.vket_lock_message = ""
         if self.instance and self.instance.pk:
@@ -306,7 +306,7 @@ class EventDetailForm(forms.ModelForm):
         cleaned_data = super().clean()
         detail_type = cleaned_data.get('detail_type')
 
-        # Vketコラボ期間中は日時変更をブロック（参照: PR #135）
+        # Vketコラボ期間中は日時変更をブロック（参照: PR #138）
         if self.vket_schedule_locked and self.instance.pk:
             # disabled フィールドはブラウザから送信されないため、元の値を維持
             cleaned_data['start_time'] = self.instance.start_time

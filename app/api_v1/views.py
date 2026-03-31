@@ -270,7 +270,7 @@ class EventDetailAPIViewSet(viewsets.ModelViewSet):
         serializer.save()
 
     def perform_update(self, serializer):
-        # Vketコラボ期間中は日時変更をブロック（参照: PR #135）
+        # Vketコラボ期間中は日時変更をブロック（参照: PR #138）
         instance = serializer.instance
         user = self.request.user
         if not (user.is_superuser or user.is_staff):
@@ -286,7 +286,7 @@ class EventDetailAPIViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
 
-        # Vketコラボ期間中のEventDetail削除をブロック（参照: PR #135）
+        # Vketコラボ期間中のEventDetail削除をブロック（参照: PR #138）
         if not (request.user.is_superuser or request.user.is_staff):
             from vket.services import get_vket_lock_info
             locked, message = get_vket_lock_info(instance.event)
