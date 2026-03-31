@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from community.models import Community
 from event.forms import EventDetailForm
 from event.models import Event, EventDetail
+from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
 
@@ -53,6 +54,36 @@ class EventDetailFormCleanTest(TestCase):
             speaker='Existing Speaker',
             start_time=time(22, 0),
             duration=30
+        )
+
+        self.locked_event = Event.objects.create(
+            community=self.community,
+            date=date(2026, 12, 10),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Thu'
+        )
+        self.locked_detail = EventDetail.objects.create(
+            event=self.locked_event,
+            detail_type='LT',
+            theme='Locked Theme',
+            speaker='Locked Speaker',
+            start_time=time(22, 0),
+            duration=30
+        )
+        self.vket_collaboration = VketCollaboration.objects.create(
+            slug='winter-2026',
+            name='Vket 2026 Winter',
+            phase=VketCollaboration.Phase.LOCKED,
+            period_start=date(2026, 12, 1),
+            period_end=date(2026, 12, 31),
+            registration_deadline=date(2026, 11, 20),
+            lt_deadline=date(2026, 11, 30),
+        )
+        VketParticipation.objects.create(
+            collaboration=self.vket_collaboration,
+            community=self.community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
         )
 
     def _create_request(self):
@@ -202,3 +233,79 @@ class EventDetailFormCleanTest(TestCase):
         self.assertEqual(cleaned_data['theme'], 'User Entered Theme')
         self.assertEqual(cleaned_data['speaker'], 'User Entered Speaker')
         self.assertEqual(cleaned_data['duration'], 45)
+
+    def test_vket_locked_detail_rejects_start_time_change_for_non_superuser(self):
+        """Vket 期間中は非 superuser が開始時間を変更できない."""
+        request = self._create_request()
+        form_data = {
+            'detail_type': 'LT',
+            'h1': '',
+            'theme': 'Locked Theme',
+            'speaker': 'Locked Speaker',
+            'start_time': '22:30',
+            'duration': 30,
+            'contents': 'LT content',
+            'generate_blog_article': False,
+        }
+
+        form = EventDetailForm(data=form_data, request=request, instance=self.locked_detail)
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('start_time', form.errors)
+
+    def test_vket_locked_detail_rejects_duration_change_for_non_superuser(self):
+        """Vket 期間中は非 superuser が発表時間を変更できない."""
+        request = self._create_request()
+        form_data = {
+            'detail_type': 'LT',
+            'h1': '',
+            'theme': 'Locked Theme',
+            'speaker': 'Locked Speaker',
+            'start_time': '22:00',
+            'duration': 45,
+            'contents': 'LT content',
+            'generate_blog_article': False,
+        }
+
+        form = EventDetailForm(data=form_data, request=request, instance=self.locked_detail)
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('duration', form.errors)
+
+    def test_vket_locked_detail_allows_datetime_change_for_superuser(self):
+        """Vket 期間中でも superuser は日時変更できる."""
+        self.user.is_superuser = True
+        self.user.save(update_fields=['is_superuser'])
+        request = self._create_request()
+        form_data = {
+            'detail_type': 'LT',
+            'h1': '',
+            'theme': 'Locked Theme',
+            'speaker': 'Locked Speaker',
+            'start_time': '22:30',
+            'duration': 45,
+            'contents': 'LT content',
+            'generate_blog_article': False,
+        }
+
+        form = EventDetailForm(data=form_data, request=request, instance=self.locked_detail)
+
+        self.assertTrue(form.is_valid(), msg=f"Form errors: {form.errors}")
+
+    def test_vket_locked_detail_keeps_datetime_when_detail_type_changes(self):
+        """Vket 期間中は detail_type の補正でも日時を変更しない."""
+        request = self._create_request()
+        form_data = {
+            'detail_type': 'SPECIAL',
+            'h1': '',
+            'theme': '',
+            'speaker': '',
+            'contents': 'Special event content',
+            'generate_blog_article': False,
+        }
+
+        form = EventDetailForm(data=form_data, request=request, instance=self.locked_detail)
+
+        self.assertTrue(form.is_valid(), msg=f"Form errors: {form.errors}")
+        self.assertEqual(form.cleaned_data['start_time'], time(22, 0))
+        self.assertEqual(form.cleaned_data['duration'], 30)

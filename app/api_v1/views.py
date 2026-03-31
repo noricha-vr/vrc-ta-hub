@@ -8,6 +8,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import serializers, viewsets, status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -16,6 +17,12 @@ from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiPara
 from drf_spectacular.types import OpenApiTypes
 
 from community.models import Community
+from event.datetime_lock import (
+    EVENT_DETAIL_DATETIME_LOCK_MESSAGE,
+    has_event_detail_duration_changed,
+    has_event_detail_start_time_changed,
+    is_event_datetime_locked,
+)
 from event.models import Event, EventDetail, RecurrenceRule
 from .authentication import APIKeyAuthentication
 from .serializers import (
@@ -270,17 +277,16 @@ class EventDetailAPIViewSet(viewsets.ModelViewSet):
         serializer.save()
 
     def perform_update(self, serializer):
-        # Vketコラボ期間中は日時変更をブロック（参照: PR #138）
         instance = serializer.instance
-        user = self.request.user
-        if not (user.is_superuser or user.is_staff):
-            from vket.services import get_vket_lock_info
-            locked, message = get_vket_lock_info(instance.event)
-            if locked:
-                new_start_time = serializer.validated_data.get('start_time', instance.start_time)
-                new_duration = serializer.validated_data.get('duration', instance.duration)
-                if new_start_time != instance.start_time or new_duration != instance.duration:
-                    raise serializers.ValidationError({"detail": message})
+        target_event = serializer.validated_data.get('event', instance.event)
+        if is_event_datetime_locked(target_event, self.request.user):
+            errors = {}
+            if has_event_detail_start_time_changed(instance, serializer.validated_data.get('start_time')):
+                errors['start_time'] = [EVENT_DETAIL_DATETIME_LOCK_MESSAGE]
+            if has_event_detail_duration_changed(instance, serializer.validated_data.get('duration')):
+                errors['duration'] = [EVENT_DETAIL_DATETIME_LOCK_MESSAGE]
+            if errors:
+                raise ValidationError(errors)
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):

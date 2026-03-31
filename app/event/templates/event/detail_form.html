@@ -49,14 +49,18 @@
                         <h4 class="mb-0">イベント詳細の{% if form.instance.pk %}編集{% else %}作成{% endif %}{% if event %}（{{ event.date|date:"Y年n月j日" }}）{% endif %}</h4>
                     </div>
                     <div class="card-body">
-                        {% if form.vket_schedule_locked %}
+                        {% if form.datetime_locked %}
                             <div class="alert alert-warning mb-3">
-                                <i class="fas fa-lock me-1"></i>{{ form.vket_lock_message }}
+                                <i class="fas fa-lock me-1"></i>{{ form.datetime_lock_message }}
                             </div>
                         {% endif %}
                         <form method="post" enctype="multipart/form-data">
                             {% csrf_token %}
-
+                            {% if form.datetime_locked %}
+                                <div class="alert alert-warning" role="alert">
+                                    {{ form.datetime_lock_message }}
+                                </div>
+                            {% endif %}
                             <!-- detail_type フィールドを特別に表示 -->
                             <div class="mb-4">
                                 <label class="form-label fw-bold">{{ form.detail_type.label }}</label>

@@ -70,3 +70,8 @@ NOT_APPLIED → APPLIED → STAGE_REGISTERED → LT_REGISTERED
 ```
 - 旧: `SCHEDULE_CONFIRMED / LT_PENDING / LT_SUBMITTED` の3段階
 - 新: 実際の運営タスクに対応した8段階（各段階で管理者が進捗を更新）
+
+## EventDetail 日時ロック（参照: PR #140）
+- 問題: Vket 開催期間中に集会側が `EventDetail.start_time` / `duration` を変えると、運営が調整した日程が崩れる
+- 解決: `VketParticipation.lifecycle=active` かつ `collaboration.period_start <= Event.date <= period_end` の期間は、superuser 以外の日時変更を Web/UI と API の両方でブロックする
+- 教訓: 運営が確定したスケジュールは、表示の readonly だけで済ませず、フォーム/API まで共通ルールで守る

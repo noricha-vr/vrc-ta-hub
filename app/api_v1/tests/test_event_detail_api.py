@@ -6,8 +6,9 @@ from rest_framework.test import APIClient
 from datetime import date, time
 
 from user_account.models import CustomUser, APIKey
-from community.models import Community
+from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from vket.models import VketCollaboration, VketParticipation
 
 
 class EventDetailAPITest(TestCase):
@@ -41,8 +42,6 @@ class EventDetailAPITest(TestCase):
         )
         
         # コミュニティ作成
-        from community.models import CommunityMember
-
         self.community1 = Community.objects.create(
             name='Test Community 1',
             start_time=time(20, 0),
@@ -100,6 +99,37 @@ class EventDetailAPITest(TestCase):
             h1='Test Title 1',
             contents='Test contents 1'
         )
+        self.locked_event = Event.objects.create(
+            community=self.community1,
+            date=date(2026, 2, 17),
+            start_time=time(20, 0),
+            duration=120,
+            weekday='tue'
+        )
+        self.locked_event_detail = EventDetail.objects.create(
+            event=self.locked_event,
+            detail_type='LT',
+            start_time=time(20, 0),
+            duration=30,
+            speaker='Locked Speaker',
+            theme='Locked Theme',
+            h1='Locked Title',
+            contents='Locked contents'
+        )
+        collaboration = VketCollaboration.objects.create(
+            slug='vket-2026-winter-api',
+            name='Vket 2026 Winter API',
+            phase=VketCollaboration.Phase.LOCKED,
+            period_start=date(2026, 2, 1),
+            period_end=date(2026, 2, 28),
+            registration_deadline=date(2026, 1, 15),
+            lt_deadline=date(2026, 1, 31),
+        )
+        VketParticipation.objects.create(
+            collaboration=collaboration,
+            community=self.community1,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
         
         self.client = APIClient()
         self.url = reverse('event-detail-api-list')
@@ -133,20 +163,19 @@ class EventDetailAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # ページネーションがある場合とない場合の両方に対応
         if 'results' in response.data:
-            self.assertEqual(len(response.data['results']), 1)
-            self.assertEqual(response.data['results'][0]['id'], self.event_detail1.id)
+            ids = {item['id'] for item in response.data['results']}
         else:
-            self.assertEqual(len(response.data), 1)
-            self.assertEqual(response.data[0]['id'], self.event_detail1.id)
+            ids = {item['id'] for item in response.data}
+        self.assertEqual(ids, {self.event_detail1.id, self.locked_event_detail.id})
         
         # Superuserは全て取得
         self.client.force_authenticate(user=self.superuser)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         if 'results' in response.data:
-            self.assertEqual(len(response.data['results']), 1)
+            self.assertEqual(len(response.data['results']), 2)
         else:
-            self.assertEqual(len(response.data), 1)
+            self.assertEqual(len(response.data), 2)
     
     def test_create_event_detail(self):
         """イベント詳細作成のテスト"""
@@ -166,7 +195,7 @@ class EventDetailAPITest(TestCase):
         
         response = self.client.post(self.url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(EventDetail.objects.count(), 2)
+        self.assertEqual(EventDetail.objects.count(), 3)
         
         # 別ユーザーのイベントには作成できない
         data['event'] = self.event2.id
@@ -195,6 +224,104 @@ class EventDetailAPITest(TestCase):
         self.event_detail1.refresh_from_db()
         self.assertEqual(self.event_detail1.detail_type, 'SPECIAL')
         self.assertEqual(self.event_detail1.speaker, 'Updated Speaker')
+
+    def test_update_event_detail_rejects_datetime_change_during_vket_period(self):
+        """Vket 期間中は日時変更 API を拒否する."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
+
+        url = reverse('event-detail-api-detail', kwargs={'pk': self.locked_event_detail.id})
+        data = {
+            'event': self.locked_event.id,
+            'detail_type': 'LT',
+            'start_time': '20:30:00',
+            'duration': 45,
+            'speaker': 'Locked Speaker',
+            'theme': 'Locked Theme',
+            'h1': 'Locked Title',
+            'contents': 'Locked contents'
+        }
+
+        response = self.client.put(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('start_time', response.data)
+        self.assertIn('duration', response.data)
+        self.locked_event_detail.refresh_from_db()
+        self.assertEqual(self.locked_event_detail.start_time, time(20, 0))
+        self.assertEqual(self.locked_event_detail.duration, 30)
+
+    def test_update_event_detail_allows_non_datetime_change_during_vket_period(self):
+        """Vket 期間中でも日時以外の更新 API は許可する."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
+
+        url = reverse('event-detail-api-detail', kwargs={'pk': self.locked_event_detail.id})
+        data = {
+            'event': self.locked_event.id,
+            'detail_type': 'LT',
+            'start_time': '20:00:00',
+            'duration': 30,
+            'speaker': 'Locked Speaker',
+            'theme': 'Updated Locked Theme',
+            'h1': 'Locked Title',
+            'contents': 'Updated locked contents'
+        }
+
+        response = self.client.put(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.locked_event_detail.refresh_from_db()
+        self.assertEqual(self.locked_event_detail.start_time, time(20, 0))
+        self.assertEqual(self.locked_event_detail.duration, 30)
+        self.assertEqual(self.locked_event_detail.theme, 'Updated Locked Theme')
+
+    def test_update_event_detail_cannot_bypass_lock_by_switching_event(self):
+        """未ロック詳細をロック対象イベントへ移しながら日時変更する抜け道を防ぐ."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
+
+        url = reverse('event-detail-api-detail', kwargs={'pk': self.event_detail1.id})
+        data = {
+            'event': self.locked_event.id,
+            'detail_type': 'LT',
+            'start_time': '20:30:00',
+            'duration': 45,
+            'speaker': 'Speaker 1',
+            'theme': 'Test Theme 1',
+            'h1': 'Test Title 1',
+            'contents': 'Test contents 1'
+        }
+
+        response = self.client.put(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('start_time', response.data)
+        self.assertIn('duration', response.data)
+        self.event_detail1.refresh_from_db()
+        self.assertEqual(self.event_detail1.event_id, self.event1.id)
+        self.assertEqual(self.event_detail1.start_time, time(20, 0))
+        self.assertEqual(self.event_detail1.duration, 30)
+
+    def test_superuser_can_update_locked_event_detail_datetime(self):
+        """superuser は Vket 期間中でも日時変更できる."""
+        self.client.force_authenticate(user=self.superuser)
+
+        url = reverse('event-detail-api-detail', kwargs={'pk': self.locked_event_detail.id})
+        data = {
+            'event': self.locked_event.id,
+            'detail_type': 'LT',
+            'start_time': '20:30:00',
+            'duration': 45,
+            'speaker': 'Locked Speaker',
+            'theme': 'Locked Theme',
+            'h1': 'Locked Title',
+            'contents': 'Locked contents'
+        }
+
+        response = self.client.put(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.locked_event_detail.refresh_from_db()
+        self.assertEqual(self.locked_event_detail.start_time, time(20, 30))
+        self.assertEqual(self.locked_event_detail.duration, 45)
     
     def test_delete_event_detail(self):
         """イベント詳細削除のテスト"""
@@ -203,7 +330,7 @@ class EventDetailAPITest(TestCase):
         url = reverse('event-detail-api-detail', kwargs={'pk': self.event_detail1.id})
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(EventDetail.objects.count(), 0)
+        self.assertEqual(EventDetail.objects.count(), 1)
     
     def test_permission_check(self):
         """権限チェックのテスト"""
@@ -235,11 +362,10 @@ class EventDetailAPITest(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         if 'results' in response.data:
-            self.assertEqual(len(response.data['results']), 1)
-            self.assertEqual(response.data['results'][0]['id'], self.event_detail1.id)
+            ids = {item['id'] for item in response.data['results']}
         else:
-            self.assertEqual(len(response.data), 1)
-            self.assertEqual(response.data[0]['id'], self.event_detail1.id)
+            ids = {item['id'] for item in response.data}
+        self.assertEqual(ids, {self.event_detail1.id, self.locked_event_detail.id})
     
     def test_api_key_last_used_update(self):
         """APIキー最終使用時刻更新のテスト"""
@@ -286,9 +412,9 @@ class EventDetailAPITest(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         if 'results' in response.data:
-            self.assertEqual(len(response.data['results']), 1)
+            self.assertEqual(len(response.data['results']), 2)
         else:
-            self.assertEqual(len(response.data), 1)
+            self.assertEqual(len(response.data), 2)
 
     def test_additional_info_in_response(self):
         """additional_infoフィールドがレスポンスに含まれるテスト"""
@@ -302,9 +428,9 @@ class EventDetailAPITest(TestCase):
 
         # レスポンスデータを取得
         if 'results' in response.data:
-            data = response.data['results'][0]
+            data = next(item for item in response.data['results'] if item['id'] == self.event_detail1.id)
         else:
-            data = response.data[0]
+            data = next(item for item in response.data if item['id'] == self.event_detail1.id)
 
         # additional_infoが含まれていることを確認
         self.assertIn('additional_info', data)
