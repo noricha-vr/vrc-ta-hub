@@ -125,3 +125,42 @@ class CommunityAPITest(TestCase):
         response = self.client.get(self.list_url)
         community = next(c for c in response.data if c['name'] == '技術集会A')
         self.assertTrue(community['allow_poster_repost'])
+
+    def test_group_id_from_vrchat_long_url(self):
+        """vrchat.com長URLからgrp_IDが抽出される"""
+        Community.objects.create(
+            name='長URL集会',
+            start_time=time(21, 0), duration=60, weekdays=['Wed'],
+            frequency='毎週', organizers='主催者Y',
+            group_url='https://vrchat.com/home/group/grp_ad1356bc-ae44-4483-8409-d0c69585b296',
+            tags=['tech'], status='approved',
+        )
+        response = self.client.get(self.list_url)
+        community = next(c for c in response.data if c['name'] == '長URL集会')
+        self.assertEqual(community['group_id'], 'grp_ad1356bc-ae44-4483-8409-d0c69585b296')
+
+    def test_group_id_from_vrchat_url_with_events_suffix(self):
+        """vrchat.com/events付きURLでもgrp_IDが正しく抽出される（参照: PR #137）"""
+        Community.objects.create(
+            name='events付きURL集会',
+            start_time=time(21, 0), duration=60, weekdays=['Thu'],
+            frequency='毎週', organizers='主催者Z',
+            group_url='https://vrchat.com/home/group/grp_fd884689-2a62-474d-af7c-86894644d0b3/events',
+            tags=['tech'], status='approved',
+        )
+        response = self.client.get(self.list_url)
+        community = next(c for c in response.data if c['name'] == 'events付きURL集会')
+        self.assertEqual(community['group_id'], 'grp_fd884689-2a62-474d-af7c-86894644d0b3')
+
+    def test_group_id_none_for_unknown_domain(self):
+        """未知ドメインのURLではgroup_idがnull"""
+        Community.objects.create(
+            name='未知ドメイン集会',
+            start_time=time(21, 0), duration=60, weekdays=['Fri'],
+            frequency='毎週', organizers='主催者W',
+            group_url='https://example.com/some/path',
+            tags=['tech'], status='approved',
+        )
+        response = self.client.get(self.list_url)
+        community = next(c for c in response.data if c['name'] == '未知ドメイン集会')
+        self.assertIsNone(community['group_id'])
