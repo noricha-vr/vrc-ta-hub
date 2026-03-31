@@ -12,7 +12,7 @@ from ta_hub.libs import DEFAULT_MAX_SIZE, resize_and_convert_image
 def poster_upload_path(instance, filename):
     """ポスター画像のアップロードパスを生成する。
 
-    poster/{community_id}/{uuid}.{ext} 形式で保存し、ファイル名の衝突を防ぐ。
+    poster/{community_id}/{uuid}.{ext} 形式で保存し、ファイル名の衝突を防ぐ。参照: PR #149
     """
     ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'jpg'
     return f'poster/{instance.pk}/{uuid.uuid4().hex[:12]}.{ext}'
