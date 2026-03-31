@@ -1,0 +1,138 @@
+<style>
+    .vket-slot {
+        width: 64px;
+        text-align: center;
+        white-space: nowrap;
+    }
+    .vket-cell {
+        width: 64px;
+        min-width: 64px;
+        height: 28px;
+        padding: 0 !important;
+        position: relative;
+    }
+    .vket-bar {
+        width: 100%;
+        height: 100%;
+        background: rgba(13, 110, 253, 0.35);
+    }
+    .vket-bar.requested {
+        background: rgba(13, 110, 253, 0.15);
+        background-image: repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 4px,
+            rgba(13, 110, 253, 0.15) 4px,
+            rgba(13, 110, 253, 0.15) 8px
+        );
+    }
+    .vket-bar.overlap {
+        background: rgba(220, 53, 69, 0.35);
+        outline: 1px solid rgba(220, 53, 69, 0.55);
+    }
+    .vket-lt-dots {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+    }
+    .vket-lt-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #212529;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+    }
+    .vket-lt-dot.overlap {
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 4px rgba(220, 53, 69, 0.85);
+    }
+    .vket-community-requested {
+        opacity: 0.65;
+    }
+</style>
+
+{% if rows and slots %}
+    <div class="table-responsive">
+        <table class="table table-sm table-bordered align-middle">
+            <thead class="table-light">
+            <tr>
+                <th style="min-width: 140px;">日付</th>
+                <th style="min-width: 220px;">集会名</th>
+                {% for slot in slots %}
+                    <th class="vket-slot">{{ slot.start|date:"H:i" }}</th>
+                {% endfor %}
+            </tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+                <tr>
+                    <td>{{ row.date|date:"n/j（D）" }}</td>
+                    <td class="{% if not row.is_confirmed %}vket-community-requested{% endif %}">
+                        <span class="fw-bold">{{ row.participation.community.name }}</span>
+                        {% if not row.is_confirmed %}
+                            <span class="badge bg-secondary ms-1" style="font-size: 0.7em;">申請中</span>
+                        {% endif %}
+                    </td>
+                    {% for cell in row.cells %}
+                        <td class="vket-cell">
+                            {% if cell.occupied %}
+                                <div class="vket-bar {% if cell.overlap %}overlap{% elif not row.is_confirmed %}requested{% endif %}"></div>
+                            {% endif %}
+                            {% if cell.lt_times %}
+                                <div class="vket-lt-dots" title="LT開始: {{ cell.lt_tooltip }}">
+                                    {% for t in cell.lt_times %}
+                                        <span class="vket-lt-dot {% if cell.lt_overlap %}overlap{% endif %}"></span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if show_legend %}
+        <div class="d-flex flex-wrap gap-3 mt-2 small text-muted">
+            <div class="d-flex align-items-center gap-1">
+                <span style="display:inline-block;width:20px;height:12px;background:rgba(13,110,253,0.35);border-radius:2px;"></span> 確定
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <span style="display:inline-block;width:20px;height:12px;background:rgba(13,110,253,0.15);background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(13,110,253,0.15) 4px,rgba(13,110,253,0.15) 8px);border-radius:2px;border:1px dashed rgba(13,110,253,0.3);"></span> 申請中（未確定）
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#212529;"></span> LT開始
+            </div>
+        </div>
+    {% endif %}
+
+    {% if overlap_warnings %}
+        <div class="alert alert-warning mt-3">
+            <div class="fw-bold mb-2"><i class="fas fa-exclamation-triangle me-1"></i>重複（開催時間）</div>
+            <ul class="mb-0">
+                {% for w in overlap_warnings %}
+                    <li>{{ w }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
+    {% if show_warnings and warnings %}
+        <div class="alert alert-warning mt-3">
+            <div class="fw-bold mb-2"><i class="fas fa-exclamation-triangle me-1"></i>警告</div>
+            <ul class="mb-0">
+                {% for w in warnings %}
+                    <li>{{ w }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+{% else %}
+    <p class="text-muted">日程がまだ登録されていません。</p>
+{% endif %}
