@@ -96,6 +96,14 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
     def post(self, request, *args, **kwargs):
         event = self.get_object()
 
+        # Vketコラボ期間中のイベント削除をブロック（参照: PR #138）
+        if not (request.user.is_superuser or request.user.is_staff):
+            from vket.services import get_vket_lock_info
+            locked, message = get_vket_lock_info(event)
+            if locked:
+                messages.error(request, message)
+                return redirect('event:my_list')
+
         # イベントが属する集会に対する削除権限をチェック（主催者のみ）
         if not event.community.can_delete(request.user):
             messages.error(request, "このイベントを削除する権限がありません。")
@@ -121,6 +129,25 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
             ).order_by('date', 'start_time')
             events_to_delete.extend(subsequent_events)
             logger.info(f"以降のイベントも削除します: {len(subsequent_events)}件")
+
+        # Vketコラボ期間中のイベントを削除対象から除外（参照: PR #138）
+        if not (request.user.is_superuser or request.user.is_staff):
+            from vket.services import get_vket_lock_info
+            locked_events = []
+            lock_message = ""
+            for evt in events_to_delete:
+                locked, message = get_vket_lock_info(evt)
+                if locked:
+                    locked_events.append(evt)
+                    lock_message = message
+            if locked_events:
+                events_to_delete = [e for e in events_to_delete if e not in locked_events]
+                messages.warning(
+                    request,
+                    f"{lock_message} ロック中のイベント{len(locked_events)}件をスキップしました。",
+                )
+                if not events_to_delete:
+                    return redirect('event:my_list')
 
         success_count = 0
         error_count = 0
@@ -758,6 +785,11 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
         # 発表者本人は自分の承認済みLTのみ更新可。参照: PR #116（発表者フローを保ちつつ権限範囲を限定するため）
         return can_manage_event_detail(self.request.user, event_detail)
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['request'] = self.request
+        return kwargs
+
     def handle_no_permission(self):
         """認証済みだが権限がないユーザーはイベント詳細ページにリダイレクトする."""
         if self.request.user.is_authenticated:
@@ -889,6 +921,17 @@ class EventDetailDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView)
         event_detail = self.get_object()
         # イベント詳細は、所属コミュニティの管理者（owner/staff）またはsuperuserのみ削除可
         return self.request.user.is_superuser or event_detail.event.community.can_edit(self.request.user)
+
+    def post(self, request, *args, **kwargs):
+        # Vketコラボ期間中のEventDetail削除をブロック（参照: PR #138）
+        event_detail = self.get_object()
+        if not (request.user.is_superuser or request.user.is_staff):
+            from vket.services import get_vket_lock_info
+            locked, message = get_vket_lock_info(event_detail.event)
+            if locked:
+                messages.error(request, message)
+                return redirect('event:detail', pk=event_detail.pk)
+        return super().post(request, *args, **kwargs)
 
     def get_success_url(self):
         return reverse_lazy('event:my_list')

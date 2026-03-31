@@ -279,32 +279,56 @@ class EventDetailForm(forms.ModelForm):
             if membership:
                 self.fields['start_time'].initial = membership.community.start_time
             self.fields['duration'].initial = 30
-        
+
         # 既存の記事がある場合（更新時）は自動生成チェックボックスをOFFにする
         if self.instance and self.instance.pk:
             # meta_descriptionが存在する場合は記事が既に生成されていると判断
             if self.instance.meta_description:
                 self.fields['generate_blog_article'].initial = False
 
+        # Vketコラボ期間中は日時フィールドをロック（superuser/staffは除外）参照: PR #138
+        self.vket_schedule_locked = False
+        self.vket_lock_message = ""
+        if self.instance and self.instance.pk:
+            user = self.request.user if self.request else None
+            if user and not (user.is_superuser or user.is_staff):
+                from vket.services import get_vket_lock_info
+                locked, message = get_vket_lock_info(self.instance.event)
+                if locked:
+                    self.vket_schedule_locked = True
+                    self.vket_lock_message = message
+                    self.fields['start_time'].widget.attrs['disabled'] = True
+                    self.fields['start_time'].required = False
+                    self.fields['duration'].widget.attrs['disabled'] = True
+                    self.fields['duration'].required = False
+
     def clean(self):
         cleaned_data = super().clean()
         detail_type = cleaned_data.get('detail_type')
-        
+
+        # Vketコラボ期間中は日時変更をブロック（参照: PR #138）
+        if self.vket_schedule_locked and self.instance.pk:
+            # disabled フィールドはブラウザから送信されないため、元の値を維持
+            cleaned_data['start_time'] = self.instance.start_time
+            cleaned_data['duration'] = self.instance.duration
+
         # 特別企画とブログの場合、非表示フィールドにデフォルト値を設定
         if detail_type == 'SPECIAL':
             # 特別企画のデフォルト値
             cleaned_data['theme'] = 'Special Event'
             cleaned_data['speaker'] = ''
-            # start_timeは入力されたものを使用
-            cleaned_data['duration'] = 60
+            # start_timeは入力されたものを使用（ただしVketロック中は元の値を維持）
+            if not self.vket_schedule_locked:
+                cleaned_data['duration'] = 60
         elif detail_type == 'BLOG':
             # ブログのデフォルト値（h1があればthemeにコピー）
             h1 = cleaned_data.get('h1', '')
             cleaned_data['theme'] = h1 if h1 else 'Blog'
             cleaned_data['speaker'] = ''
-            cleaned_data['start_time'] = self.instance.event.start_time if self.instance.pk else self.fields['start_time'].initial
-            cleaned_data['duration'] = 30
-        
+            if not self.vket_schedule_locked:
+                cleaned_data['start_time'] = self.instance.event.start_time if self.instance.pk else self.fields['start_time'].initial
+                cleaned_data['duration'] = 30
+
         return cleaned_data
     
     def clean_slide_file(self):
