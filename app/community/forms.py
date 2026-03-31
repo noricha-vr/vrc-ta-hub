@@ -3,6 +3,7 @@ from django.forms.widgets import CheckboxSelectMultiple
 
 from ta_hub.libs import DEFAULT_MAX_SIZE
 
+from .libs import resolve_vrc_group_url
 from .models import Community, WEEKDAY_CHOICES, TAGS, FORM_TAGS
 
 POSTER_REQUIREMENTS_HELP_TEXT = (
@@ -10,6 +11,26 @@ POSTER_REQUIREMENTS_HELP_TEXT = (
     f"アップロード後は長辺{DEFAULT_MAX_SIZE}px以内に自動調整されるため、"
     "サイト表示向けの画像を想定してください。"
 )
+
+
+ALLOWED_GROUP_URL_DOMAINS = {"vrc.group", "vrchat.com"}
+
+
+class VrcGroupUrlMixin:
+    """vrc.group 短縮URLを正規URLに変換し、許可ドメインのみ受け付ける。"""
+
+    def clean_group_url(self):
+        url = self.cleaned_data.get('group_url', '')
+        if not url:
+            return url
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        hostname = (parsed.hostname or '').lower()
+        if not any(domain in hostname for domain in ALLOWED_GROUP_URL_DOMAINS):
+            raise forms.ValidationError(
+                "VRChatグループのURL（vrchat.com または vrc.group）を入力してください。"
+            )
+        return resolve_vrc_group_url(url)
 
 
 class CommunitySearchForm(forms.Form):
@@ -35,7 +56,7 @@ class CommunitySearchForm(forms.Form):
     )
 
 
-class CommunityForm(forms.ModelForm):
+class CommunityForm(VrcGroupUrlMixin, forms.ModelForm):
     weekdays = forms.MultipleChoiceField(
         choices=WEEKDAY_CHOICES,
         widget=CheckboxSelectMultiple(),
@@ -74,7 +95,7 @@ class CommunityForm(forms.ModelForm):
         return instance
 
 
-class CommunityUpdateForm(forms.ModelForm):
+class CommunityUpdateForm(VrcGroupUrlMixin, forms.ModelForm):
     weekdays = forms.MultipleChoiceField(
         label='曜日',
         choices=WEEKDAY_CHOICES,
@@ -122,7 +143,7 @@ class CommunityUpdateForm(forms.ModelForm):
         self.fields['poster_image'].help_text = POSTER_REQUIREMENTS_HELP_TEXT
 
 
-class CommunityCreateForm(forms.ModelForm):
+class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
     """集会新規登録用フォーム."""
 
     weekdays = forms.MultipleChoiceField(

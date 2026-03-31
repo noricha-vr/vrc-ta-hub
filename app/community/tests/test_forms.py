@@ -1,4 +1,6 @@
 """CommunityUpdateFormのテスト"""
+from unittest.mock import patch, MagicMock
+
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 
@@ -67,3 +69,55 @@ class CommunityUpdateFormTest(TestCase):
         """accepts_lt_applicationフィールドがフォームに含まれていない(settings.htmlで管理)"""
         form = CommunityUpdateForm(instance=self.community)
         self.assertNotIn('accepts_lt_application', form.fields)
+
+    def test_group_url_rejects_non_vrchat_domain(self):
+        """VRChat以外のドメインのURLは拒否される。"""
+        form_data = {
+            'name': 'テスト集会',
+            'start_time': '22:00',
+            'duration': 60,
+            'frequency': '毎週',
+            'organizers': 'テスト主催者',
+            'weekdays': ['Mon'],
+            'tags': ['tech'],
+            'platform': 'All',
+            'group_url': 'https://t.co/abc123',
+        }
+        form = CommunityUpdateForm(data=form_data, instance=self.community)
+        self.assertFalse(form.is_valid())
+        self.assertIn('group_url', form.errors)
+
+    def test_group_url_accepts_vrchat_com(self):
+        """vrchat.com のURLは受け付ける。"""
+        form_data = {
+            'name': 'テスト集会',
+            'start_time': '22:00',
+            'duration': 60,
+            'frequency': '毎週',
+            'organizers': 'テスト主催者',
+            'weekdays': ['Mon'],
+            'tags': ['tech'],
+            'platform': 'All',
+            'group_url': 'https://vrchat.com/home/group/grp_test-1234',
+        }
+        form = CommunityUpdateForm(data=form_data, instance=self.community)
+        self.assertTrue(form.is_valid(), form.errors)
+
+    @patch('community.forms.resolve_vrc_group_url')
+    def test_group_url_converts_short_url(self, mock_resolve):
+        """vrc.group 短縮URLが正規URLに変換される。"""
+        mock_resolve.return_value = 'https://vrchat.com/home/group/grp_resolved-id'
+        form_data = {
+            'name': 'テスト集会',
+            'start_time': '22:00',
+            'duration': 60,
+            'frequency': '毎週',
+            'organizers': 'テスト主催者',
+            'weekdays': ['Mon'],
+            'tags': ['tech'],
+            'platform': 'All',
+            'group_url': 'https://vrc.group/TEST.1234',
+        }
+        form = CommunityUpdateForm(data=form_data, instance=self.community)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['group_url'], 'https://vrchat.com/home/group/grp_resolved-id')
