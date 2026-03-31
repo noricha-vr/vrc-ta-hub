@@ -449,10 +449,10 @@ class CollaborationDetailView(DetailView):
 
         community, membership = _get_active_membership(self.request)
         context['active_community_for_apply'] = community
-        is_owner = bool(membership and membership.role == CommunityMember.Role.OWNER)
+        is_member = bool(membership)
         participation_exists = False
         participation_has_event = False
-        if is_owner and community:
+        if is_member and community:
             row = (
                 VketParticipation.objects.filter(collaboration=collaboration, community=community)
                 .values_list('id', 'published_event_id')
@@ -464,7 +464,7 @@ class CollaborationDetailView(DetailView):
         permissions = _apply_permissions_for_user(self.request.user, collaboration)
         # LT編集はpublished_event不要: SCHEDULING/LT_COLLECTIONフェーズではEventなしでもLT情報を入力可能
         context['can_apply'] = bool(
-            is_owner
+            is_member
             and (
                 permissions.can_edit_schedule
                 or (permissions.can_edit_lt and participation_exists)
@@ -487,8 +487,8 @@ class ApplyView(LoginRequiredMixin, View):
                 '集会が選択されていません。ヘッダーの「マイ集会」から集会を選択してください。'
             )
 
-        if not (request.user.is_superuser or membership.role == CommunityMember.Role.OWNER):
-            return HttpResponseForbidden('主催者のみ参加登録できます。')
+        if not (request.user.is_superuser or membership):
+            return HttpResponseForbidden('集会メンバーのみ参加登録できます。')
 
         participation = (
             VketParticipation.objects.filter(collaboration=collaboration, community=community)
@@ -532,8 +532,8 @@ class ApplyView(LoginRequiredMixin, View):
                 '集会が選択されていません。ヘッダーの「マイ集会」から集会を選択してください。'
             )
 
-        if not (request.user.is_superuser or membership.role == CommunityMember.Role.OWNER):
-            return HttpResponseForbidden('主催者のみ参加登録できます。')
+        if not (request.user.is_superuser or membership):
+            return HttpResponseForbidden('集会メンバーのみ参加登録できます。')
 
         participation = (
             VketParticipation.objects.filter(collaboration=collaboration, community=community)
@@ -980,8 +980,8 @@ class StageRegisterView(LoginRequiredMixin, View):
         if community is None or membership is None:
             return HttpResponseForbidden('集会が選択されていません。')
 
-        if not (request.user.is_superuser or membership.role == CommunityMember.Role.OWNER):
-            return HttpResponseForbidden('主催者のみステージ登録を完了できます。')
+        if not (request.user.is_superuser or membership):
+            return HttpResponseForbidden('集会メンバーのみステージ登録を完了できます。')
 
         participation = get_object_or_404(
             VketParticipation,
@@ -1349,8 +1349,8 @@ class PresentationDeleteView(LoginRequiredMixin, View):
         )
         if not community or presentation.participation.community_id != community.id:
             return HttpResponseForbidden('この操作を行う権限がありません。')
-        if not (request.user.is_superuser or membership.role == CommunityMember.Role.OWNER):
-            return HttpResponseForbidden('主催者のみLTを削除できます。')
+        if not (request.user.is_superuser or membership):
+            return HttpResponseForbidden('集会メンバーのみLTを削除できます。')
 
         speaker_name = _delete_presentation(presentation)
         messages.success(request, f'{speaker_name} を削除しました。')
