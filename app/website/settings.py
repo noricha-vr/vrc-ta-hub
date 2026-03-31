@@ -24,6 +24,27 @@ def _mask(value: str, visible: int = 5) -> str:
     return value[:visible] + '***'
 
 
+def _split_csv_env(env_name: str) -> list[str]:
+    """カンマ区切り環境変数を空要素なしで展開する"""
+    value = os.environ.get(env_name, '')
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+
+def _build_allowed_hosts() -> list[str]:
+    hosts = [
+        'vrc-ta-hub.com',
+        'localhost',
+        '127.0.0.1',
+        *_split_csv_env('ALLOWED_HOSTS'),
+    ]
+
+    http_host = os.environ.get('HTTP_HOST')
+    if http_host:
+        hosts.append(http_host)
+
+    return list(dict.fromkeys(hosts))
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -36,7 +57,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG') == 'True'
 
-ALLOWED_HOSTS = ['vrc-ta-hub.com', 'localhost', '127.0.0.1', os.environ.get('HTTP_HOST')]
+ALLOWED_HOSTS = _build_allowed_hosts()
 
 # Cloud Run + nginx プロキシ経由の HTTPS 判定（本番: nginx が https を付加）
 # ローカルでは .env.local で HTTP_X_FORWARDED_PROTO=http を設定して is_secure()=False を保証する。参照: PR #87
@@ -125,6 +146,7 @@ AUTH_USER_MODEL = 'user_account.CustomUser'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'website.middleware.CanonicalCloudRunHostMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
