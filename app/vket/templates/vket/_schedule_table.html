@@ -1,0 +1,159 @@
+<style>
+    .vket-schedule-table .vket-slot {
+        width: 64px;
+        text-align: center;
+        white-space: nowrap;
+    }
+    .vket-schedule-table .vket-cell {
+        width: 64px;
+        min-width: 64px;
+        height: 28px;
+        padding: 0 !important;
+        position: relative;
+    }
+    .vket-schedule-table .vket-bar {
+        width: 100%;
+        height: 100%;
+    }
+    .vket-schedule-table .vket-bar.confirmed {
+        background: rgba(13, 110, 253, 0.35);
+    }
+    .vket-schedule-table .vket-bar.pending {
+        background: rgba(108, 117, 125, 0.2);
+        outline: 1px dashed rgba(108, 117, 125, 0.8);
+        outline-offset: -1px;
+    }
+    .vket-schedule-table .vket-bar.overlap {
+        background: rgba(220, 53, 69, 0.35);
+        outline: 1px solid rgba(220, 53, 69, 0.55);
+        outline-offset: -1px;
+    }
+    .vket-schedule-table .vket-bar.pending.overlap {
+        background: rgba(220, 53, 69, 0.18);
+        outline: 1px dashed rgba(220, 53, 69, 0.8);
+    }
+    .vket-schedule-table .vket-lt-dots {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+    }
+    .vket-schedule-table .vket-lt-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #212529;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+    }
+    .vket-schedule-table .vket-lt-dot.overlap {
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 4px rgba(220, 53, 69, 0.85);
+    }
+    .vket-schedule-table .vket-legend-swatch {
+        width: 18px;
+        height: 12px;
+        display: inline-block;
+        border-radius: 3px;
+        vertical-align: middle;
+    }
+    .vket-schedule-table .vket-legend-swatch.confirmed {
+        background: rgba(13, 110, 253, 0.35);
+    }
+    .vket-schedule-table .vket-legend-swatch.pending {
+        background: rgba(108, 117, 125, 0.2);
+        outline: 1px dashed rgba(108, 117, 125, 0.8);
+        outline-offset: -1px;
+    }
+    .vket-schedule-table .vket-legend-swatch.overlap {
+        background: rgba(220, 53, 69, 0.35);
+        outline: 1px solid rgba(220, 53, 69, 0.55);
+        outline-offset: -1px;
+    }
+</style>
+
+{% if rows and slots %}
+    <div class="vket-schedule-table">
+        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+            <div class="d-flex gap-3 flex-wrap small text-muted">
+                <span><span class="vket-legend-swatch confirmed me-1"></span>確定</span>
+                <span><span class="vket-legend-swatch pending me-1"></span>申請中（未確定）</span>
+                <span><span class="vket-lt-dot me-1"></span>LT開始</span>
+                <span><span class="vket-legend-swatch overlap me-1"></span>重複あり</span>
+            </div>
+            {% if schedule_note %}
+                <div class="small text-muted">{{ schedule_note }}</div>
+            {% endif %}
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle">
+                <thead class="table-light">
+                <tr>
+                    <th style="min-width: 140px;">日付</th>
+                    <th style="min-width: 260px;">集会名</th>
+                    {% for slot in slots %}
+                        <th class="vket-slot">{{ slot.start|date:"H:i" }}</th>
+                    {% endfor %}
+                </tr>
+                </thead>
+                <tbody>
+                {% for row in rows %}
+                    <tr>
+                        <td>{{ row.date|date:"n/j（D）" }}</td>
+                        <td>
+                            <div class="d-flex justify-content-between align-items-center gap-2">
+                                <span class="fw-bold">{{ row.participation.community.name }}</span>
+                                <span class="badge {% if row.is_confirmed %}text-bg-primary{% else %}text-bg-secondary{% endif %}">
+                                    {{ row.status_label }}
+                                </span>
+                            </div>
+                        </td>
+                        {% for cell in row.cells %}
+                            <td class="vket-cell">
+                                {% if cell.occupied %}
+                                    <div class="vket-bar {% if row.is_confirmed %}confirmed{% else %}pending{% endif %} {% if cell.overlap %}overlap{% endif %}"></div>
+                                {% endif %}
+                                {% if cell.lt_times %}
+                                    <div class="vket-lt-dots" {% if cell.lt_tooltip %}title="LT開始: {{ cell.lt_tooltip }}"{% endif %}>
+                                        {% for t in cell.lt_times %}
+                                            <span class="vket-lt-dot {% if cell.lt_overlap %}overlap{% endif %}"></span>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if overlap_warnings %}
+            <div class="alert alert-warning mt-3">
+                <div class="fw-bold mb-2">⚠️ 重複（開催時間）</div>
+                <ul class="mb-0">
+                    {% for warning in overlap_warnings %}
+                        <li>{{ warning }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
+        {% if warnings %}
+            <div class="alert alert-warning mt-3">
+                <div class="fw-bold mb-2">⚠️ 警告</div>
+                <ul class="mb-0">
+                    {% for warning in warnings %}
+                        <li>{{ warning }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+    </div>
+{% else %}
+    <p class="text-muted mb-0">{{ schedule_empty_message|default:'日程がまだ登録されていません。' }}</p>
+{% endif %}

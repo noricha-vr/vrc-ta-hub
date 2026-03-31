@@ -717,6 +717,37 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(lt_indices, [expected_idx])
         self.assertEqual(row['cells'][expected_idx]['lt_times'], [time(21, 30)])
 
+    def test_manage_schedule_shows_requested_participation_as_pending(self):
+        """requestedのみの参加も申請中として日程表に表示される"""
+        community3 = Community.objects.create(name='集会C', status='approved', frequency='毎週')
+        participation3 = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=community3,
+            requested_date=self.collaboration.period_start,
+            requested_start_time='22:00',
+            requested_duration=60,
+        )
+        VketPresentation.objects.create(
+            participation=participation3,
+            speaker='Pending Speaker',
+            theme='Pending Theme',
+            requested_start_time='22:30',
+        )
+
+        self.client.login(username='admin_user', password='adminpass123')
+        response = self.client.get(
+            reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+
+        rows = response.context['rows']
+        row = next(r for r in rows if r['participation'].pk == participation3.pk)
+        self.assertFalse(row['is_confirmed'])
+        self.assertContains(response, '集会C')
+        self.assertContains(response, '申請中')
+        self.assertContains(response, 'vket-bar pending', html=False)
+        self.assertIn(time(22, 30), [t for cell in row['cells'] for t in cell['lt_times']])
+
     def test_manage_participation_update_sets_confirmed_fields(self):
         """ManageParticipationUpdateViewが確定日程・progressを正しくセットする"""
         self.client.login(username='admin_user', password='adminpass123')
@@ -1634,6 +1665,100 @@ class VketParticipationStatusTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Vketステージ登録')
         self.assertContains(response, '登録済み')
+
+    def test_status_page_shows_schedule_tab_with_pending_rows(self):
+        """参加状況画面に日程表タブが表示され、未確定も色分け表示される"""
+        self.participation.confirmed_date = self.collaboration.period_start
+        self.participation.confirmed_start_time = time(21, 0)
+        self.participation.confirmed_duration = 60
+        self.participation.save()
+        VketPresentation.objects.create(
+            participation=self.participation,
+            speaker='自コミュLT',
+            theme='公開テーマ',
+            confirmed_start_time='21:30',
+        )
+
+        other_community = Community.objects.create(
+            name='別コミュ',
+            status='approved',
+            frequency='毎週',
+        )
+        other_participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=other_community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time='21:30',
+            requested_duration=60,
+        )
+        VketPresentation.objects.create(
+            participation=other_participation,
+            speaker='他コミュLT',
+            theme='非表示テーマ',
+            requested_start_time='22:00',
+        )
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.get(
+            reverse('vket:status', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '日程表')
+        self.assertContains(response, 'vket-bar confirmed', html=False)
+        self.assertContains(response, 'vket-bar pending', html=False)
+        self.assertContains(response, '他コミュニティのLT詳細は表示せず')
+        self.assertContains(response, '自コミュLT')
+        self.assertNotContains(response, '他コミュLT')
+        self.assertNotContains(response, '非表示テーマ')
+
+        schedule_rows = response.context['schedule']['rows']
+        pending_row = next(r for r in schedule_rows if r['participation'].pk == other_participation.pk)
+        self.assertFalse(pending_row['is_confirmed'])
+
+    def test_status_page_schedule_shows_lt_dots_and_overlap_warning(self):
+        """参加状況画面の日程表でLTドットと重複警告が表示される"""
+        self.participation.confirmed_date = self.collaboration.period_start
+        self.participation.confirmed_start_time = time(21, 0)
+        self.participation.confirmed_duration = 60
+        self.participation.save()
+        VketPresentation.objects.create(
+            participation=self.participation,
+            speaker='自コミュLT',
+            theme='公開テーマ',
+            confirmed_start_time='21:30',
+        )
+
+        other_community = Community.objects.create(
+            name='重複コミュ',
+            status='approved',
+            frequency='毎週',
+        )
+        other_participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=other_community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time='21:30',
+            requested_duration=60,
+        )
+        VketPresentation.objects.create(
+            participation=other_participation,
+            speaker='他コミュLT',
+            theme='非表示テーマ',
+            requested_start_time='21:30',
+        )
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.get(
+            reverse('vket:status', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'vket-lt-dot', html=False)
+        self.assertContains(response, '重複（開催時間）')
+        self.assertContains(response, 'LT開始が重複')
+        self.assertTrue(response.context['schedule']['overlap_warnings'])
+        self.assertTrue(response.context['schedule']['warnings'])
 
 
 class VketStatusRedirectViewTests(TestCase):

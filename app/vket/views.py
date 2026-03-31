@@ -688,6 +688,283 @@ class Slot:
     end: time
 
 
+def _schedule_lt_times_for_participation(participation: VketParticipation) -> list[time]:
+    """日程表に表示するLT開始時刻一覧を返す。"""
+    if participation.published_event_id:
+        lt_times = [detail.start_time for detail in participation.published_event.details.all()]
+        if lt_times:
+            return lt_times
+
+    lt_times = [
+        presentation.confirmed_start_time or presentation.requested_start_time
+        for presentation in participation.presentations.all()
+        if presentation.confirmed_start_time or presentation.requested_start_time
+    ]
+    if lt_times:
+        return lt_times
+
+    if participation.effective_start_time:
+        return [participation.effective_start_time]
+    return []
+
+
+def _build_schedule_table_context(
+    collaboration: VketCollaboration,
+    *,
+    visible_lt_detail_community_id: int | None = None,
+) -> dict[str, object]:
+    lt_details_qs = EventDetail.objects.filter(
+        detail_type='LT',
+        status='approved',
+    ).only(
+        'id',
+        'event_id',
+        'start_time',
+        'duration',
+        'speaker',
+        'theme',
+        'status',
+        'detail_type',
+    ).order_by('start_time', 'id')
+    presentations_qs = VketPresentation.objects.only(
+        'id',
+        'participation_id',
+        'confirmed_start_time',
+        'requested_start_time',
+        'duration',
+        'order',
+        'status',
+    ).order_by('order', 'id')
+
+    participations = [
+        participation
+        for participation in VketParticipation.objects.filter(
+            collaboration=collaboration,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+        .select_related('community', 'published_event')
+        .prefetch_related(
+            Prefetch('published_event__details', queryset=lt_details_qs),
+            Prefetch('presentations', queryset=presentations_qs),
+        )
+        if participation.effective_date and participation.effective_start_time
+    ]
+    participations.sort(
+        key=lambda participation: (
+            participation.effective_date,
+            participation.effective_start_time,
+            participation.community.name,
+        )
+    )
+
+    empty_ctx = {
+        'slots': [],
+        'rows': [],
+        'overlap_warnings': [],
+        'warnings': [],
+    }
+    if not participations:
+        return empty_ctx
+
+    slot_minutes = 30
+    day_minutes = 24 * 60
+    warnings: list[str] = []
+
+    def to_minutes(value: time) -> int:
+        return value.hour * 60 + value.minute
+
+    min_start = None
+    max_end = None
+    lt_times_by_pid: dict[int, list[time]] = {}
+
+    for participation in participations:
+        event_date = participation.effective_date
+        event_start = participation.effective_start_time
+        event_duration = participation.effective_duration or 60
+
+        start_min = to_minutes(event_start)
+        end_min = start_min + event_duration
+        if end_min > day_minutes:
+            warnings.append(
+                f'{event_date.strftime("%Y/%m/%d")} {participation.community.name} の開催時間が日跨ぎのため、0:00で切り捨て表示します'
+            )
+            end_min = day_minutes
+
+        lt_times = _schedule_lt_times_for_participation(participation)
+        lt_times_by_pid[participation.id] = lt_times
+
+        if lt_times:
+            lt_mins = [to_minutes(value) for value in lt_times]
+            lt_min = min(lt_mins)
+            lt_end_max = max(min(value + slot_minutes, day_minutes) for value in lt_mins)
+            candidate_min = min(start_min, lt_min)
+            candidate_max = max(end_min, lt_end_max)
+        else:
+            candidate_min = start_min
+            candidate_max = end_min
+
+        min_start = candidate_min if min_start is None else min(min_start, candidate_min)
+        max_end = candidate_max if max_end is None else max(max_end, candidate_max)
+
+    if min_start is None or max_end is None:
+        return empty_ctx | {'warnings': warnings}
+
+    min_start = (min_start // slot_minutes) * slot_minutes
+    max_end = ((max_end + slot_minutes - 1) // slot_minutes) * slot_minutes
+    max_end = min(max_end, day_minutes)
+
+    base_date = timezone.localdate()
+    slots: list[Slot] = []
+    current = min_start
+    while current < max_end:
+        start_dt = datetime.combine(base_date, time(hour=current // 60, minute=current % 60))
+        end_dt = start_dt + timedelta(minutes=slot_minutes)
+        slots.append(Slot(start=start_dt.time(), end=end_dt.time()))
+        current += slot_minutes
+
+    def slot_index_for(value: time) -> int | None:
+        delta = to_minutes(value) - min_start
+        if delta < 0:
+            return None
+        idx = delta // slot_minutes
+        if idx >= len(slots):
+            return None
+        return idx
+
+    occupancy: dict[tuple, int] = {}
+    for participation in participations:
+        event_start = participation.effective_start_time
+        event_duration = participation.effective_duration or 60
+        start_dt = datetime.combine(base_date, event_start)
+        end_dt = start_dt + timedelta(minutes=event_duration)
+        for idx, slot in enumerate(slots):
+            slot_start = datetime.combine(base_date, slot.start)
+            slot_end = datetime.combine(base_date, slot.end)
+            if slot_start < end_dt and slot_end > start_dt:
+                key = (participation.effective_date, idx)
+                occupancy[key] = occupancy.get(key, 0) + 1
+
+    lt_slots_by_pid: dict[int, dict[int, list[time]]] = {}
+    lt_slot_communities: dict[tuple, set[str]] = {}
+
+    for participation in participations:
+        event_date = participation.effective_date
+        event_start = participation.effective_start_time
+        event_duration = participation.effective_duration or 60
+        lt_times = lt_times_by_pid[participation.id]
+
+        event_start_dt = datetime.combine(base_date, event_start)
+        event_end_dt = event_start_dt + timedelta(minutes=event_duration)
+        invalid_lt_times = []
+
+        for lt_time in lt_times:
+            idx = slot_index_for(lt_time)
+            if idx is None:
+                warnings.append(
+                    f'{event_date.strftime("%Y/%m/%d")} {participation.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が表示範囲外です'
+                )
+                continue
+
+            lt_slots_by_pid.setdefault(participation.id, {}).setdefault(idx, []).append(lt_time)
+            key = (event_date, idx)
+            lt_slot_communities.setdefault(key, set()).add(participation.community.name)
+
+            lt_dt = datetime.combine(base_date, lt_time)
+            if not (event_start_dt <= lt_dt < event_end_dt):
+                invalid_lt_times.append(lt_time)
+
+        if invalid_lt_times:
+            times_label = ', '.join(sorted({value.strftime('%H:%M') for value in invalid_lt_times}))
+            end_time = event_start_dt + timedelta(minutes=event_duration)
+            warnings.append(
+                f'{event_date.strftime("%Y/%m/%d")} {participation.community.name} のLT開始時刻（{times_label}）が開催時間（{event_start.strftime("%H:%M")}〜{end_time.strftime("%H:%M")}）の範囲外です'
+            )
+
+    overlap_warnings = []
+    rows = []
+
+    for event_date, group in groupby(participations, key=lambda participation: participation.effective_date):
+        parts_on_date = list(group)
+        for p1, p2 in combinations(parts_on_date, 2):
+            if _time_ranges_overlap(
+                p1.effective_start_time,
+                p1.effective_duration or 60,
+                p2.effective_start_time,
+                p2.effective_duration or 60,
+            ):
+                overlap_start = max(p1.effective_start_time, p2.effective_start_time)
+                overlap_warnings.append(
+                    f'{event_date.strftime("%Y/%m/%d")} {overlap_start.strftime("%H:%M")} {p1.community.name} と {p2.community.name} が重複'
+                )
+
+    for (event_date, idx), communities in sorted(
+        lt_slot_communities.items(), key=lambda item: (item[0][0], item[0][1])
+    ):
+        if len(communities) <= 1:
+            continue
+        warnings.append(
+            f'{event_date.strftime("%Y/%m/%d")} {slots[idx].start.strftime("%H:%M")} LT開始が重複: {", ".join(sorted(communities))}'
+        )
+
+    for participation in participations:
+        event_date = participation.effective_date
+        event_start = participation.effective_start_time
+        event_duration = participation.effective_duration or 60
+        is_confirmed = bool(participation.confirmed_date and participation.confirmed_start_time)
+        can_view_lt_detail = (
+            visible_lt_detail_community_id is None
+            or participation.community_id == visible_lt_detail_community_id
+        )
+
+        start_dt = datetime.combine(base_date, event_start)
+        end_dt = start_dt + timedelta(minutes=event_duration)
+        lt_slots = lt_slots_by_pid.get(participation.id, {})
+        cells = []
+
+        for idx, slot in enumerate(slots):
+            slot_start = datetime.combine(base_date, slot.start)
+            slot_end = datetime.combine(base_date, slot.end)
+            occupied = slot_start < end_dt and slot_end > start_dt
+            overlap = occupied and occupancy.get((event_date, idx), 0) > 1
+            lt_times = sorted(lt_slots.get(idx, []))
+            lt_overlap = bool(lt_times) and len(
+                lt_slot_communities.get((event_date, idx), set())
+            ) > 1
+            lt_tooltip = (
+                ', '.join(value.strftime('%H:%M') for value in lt_times)
+                if lt_times and can_view_lt_detail
+                else ''
+            )
+            cells.append(
+                {
+                    'occupied': occupied,
+                    'overlap': overlap,
+                    'lt_times': lt_times,
+                    'lt_overlap': lt_overlap,
+                    'lt_tooltip': lt_tooltip,
+                }
+            )
+
+        rows.append(
+            {
+                'participation': participation,
+                'date': event_date,
+                'start_time': event_start,
+                'duration': event_duration,
+                'is_confirmed': is_confirmed,
+                'status_label': '確定' if is_confirmed else '申請中',
+                'cells': cells,
+            }
+        )
+
+    return {
+        'slots': slots,
+        'rows': rows,
+        'overlap_warnings': overlap_warnings,
+        'warnings': warnings,
+    }
+
+
 class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = 'vket/manage_schedule.html'
 
@@ -697,232 +974,8 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         collaboration = get_object_or_404(VketCollaboration, pk=kwargs['pk'])
-
-        # confirmed_date+start_time がある参加を表示（公開同期前でも日程表に出す）
-        participations = list(
-            VketParticipation.objects.filter(
-                collaboration=collaboration,
-                confirmed_date__isnull=False,
-                confirmed_start_time__isnull=False,
-            )
-            .select_related('community', 'published_event')
-            .prefetch_related(
-                Prefetch(
-                    'published_event__details',
-                    queryset=EventDetail.objects.filter(
-                        detail_type='LT', status='approved'
-                    ).only(
-                        'id', 'event_id', 'start_time', 'duration',
-                        'speaker', 'theme', 'status', 'detail_type',
-                    ).order_by('start_time', 'id'),
-                )
-            )
-            .order_by(
-                'confirmed_date',
-                'confirmed_start_time',
-                'community__name',
-            )
-        )
-
-        empty_ctx = {
-            'collaboration': collaboration,
-            'slots': [],
-            'rows': [],
-            'overlap_warnings': [],
-            'warnings': [],
-        }
-
-        if not participations:
-            context.update(empty_ctx)
-            return context
-
-        slot_minutes = 30
-
-        def to_minutes(t: time) -> int:
-            return t.hour * 60 + t.minute
-
-        day_minutes = 24 * 60
-        min_start = None
-        max_end = None
-        warnings = []
-
-        # 各参加ごとの LT 開始時刻リスト（participation.id → list[time]）
-        lt_times_by_pid: dict[int, list[time]] = {}
-
-        for p in participations:
-            p_date = p.confirmed_date
-            p_start = p.confirmed_start_time
-            p_duration = p.confirmed_duration or 60
-
-            start_min = to_minutes(p_start)
-            end_min = start_min + p_duration
-            if end_min > day_minutes:
-                warnings.append(
-                    f'{p_date.strftime("%Y/%m/%d")} {p.community.name} の開催時間が日跨ぎのため、0:00で切り捨て表示します'
-                )
-                end_min = day_minutes
-
-            # LT 情報: published_event があればそこから取得
-            lt_times = []
-            if p.published_event:
-                lt_details = list(p.published_event.details.all())
-                lt_times = [d.start_time for d in lt_details] if lt_details else []
-            if not lt_times:
-                lt_times = [p_start]
-            lt_times_by_pid[p.id] = lt_times
-
-            lt_mins = [to_minutes(t) for t in lt_times]
-            lt_min = min(lt_mins)
-            lt_end_max = max(min(m + slot_minutes, day_minutes) for m in lt_mins)
-
-            candidate_min = min(start_min, lt_min)
-            candidate_max = max(end_min, lt_end_max)
-            min_start = candidate_min if min_start is None else min(min_start, candidate_min)
-            max_end = candidate_max if max_end is None else max(max_end, candidate_max)
-
-        if min_start is None or max_end is None:
-            context.update(empty_ctx | {'warnings': warnings})
-            return context
-
-        min_start = (min_start // slot_minutes) * slot_minutes
-        max_end = ((max_end + slot_minutes - 1) // slot_minutes) * slot_minutes
-        max_end = min(max_end, day_minutes)
-
-        slots: list[Slot] = []
-        current = min_start
-        base = timezone.localdate()
-        while current < max_end:
-            s_dt = datetime.combine(base, time(hour=current // 60, minute=current % 60))
-            e_dt = s_dt + timedelta(minutes=slot_minutes)
-            slots.append(Slot(start=s_dt.time(), end=e_dt.time()))
-            current += slot_minutes
-
-        def slot_index_for(t: time) -> int | None:
-            delta = to_minutes(t) - min_start
-            if delta < 0:
-                return None
-            idx = delta // slot_minutes
-            if idx >= len(slots):
-                return None
-            return idx
-
-        # 日付×スロットごとの占有数
-        occupancy: dict[tuple, int] = {}
-        for p in participations:
-            p_start = p.confirmed_start_time
-            p_duration = p.confirmed_duration or 60
-            start_dt = datetime.combine(base, p_start)
-            end_dt = start_dt + timedelta(minutes=p_duration)
-            for idx, slot in enumerate(slots):
-                slot_start = datetime.combine(base, slot.start)
-                slot_end = datetime.combine(base, slot.end)
-                if slot_start < end_dt and slot_end > start_dt:
-                    key = (p.confirmed_date, idx)
-                    occupancy[key] = occupancy.get(key, 0) + 1
-
-        rows = []
-        overlap_warnings = []
-
-        lt_slots_by_pid: dict[int, dict[int, list[time]]] = {}
-        lt_slot_communities: dict[tuple, set[str]] = {}
-
-        for p in participations:
-            p_date = p.confirmed_date
-            p_start = p.confirmed_start_time
-            p_duration = p.confirmed_duration or 60
-            lt_times = lt_times_by_pid[p.id]
-
-            event_start_dt = datetime.combine(base, p_start)
-            event_end_dt = event_start_dt + timedelta(minutes=p_duration)
-            invalid_lt_times = []
-
-            for lt_time in lt_times:
-                idx = slot_index_for(lt_time)
-                if idx is None:
-                    warnings.append(
-                        f'{p_date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が表示範囲外です'
-                    )
-                    continue
-
-                lt_slots_by_pid.setdefault(p.id, {}).setdefault(idx, []).append(lt_time)
-                key = (p_date, idx)
-                lt_slot_communities.setdefault(key, set()).add(p.community.name)
-
-                lt_dt = datetime.combine(base, lt_time)
-                if not (event_start_dt <= lt_dt < event_end_dt):
-                    invalid_lt_times.append(lt_time)
-
-            if invalid_lt_times:
-                times_label = ', '.join(sorted({t.strftime('%H:%M') for t in invalid_lt_times}))
-                end_time = event_start_dt + timedelta(minutes=p_duration)
-                warnings.append(
-                    f'{p_date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{times_label}）が開催時間（{p_start.strftime("%H:%M")}〜{end_time.strftime("%H:%M")}）の範囲外です'
-                )
-
-        # 同日に重複する参加のペアワーニング
-        for d, group in groupby(participations, key=lambda p: p.confirmed_date):
-            parts_on_date = list(group)
-            for p1, p2 in combinations(parts_on_date, 2):
-                if _time_ranges_overlap(
-                    p1.confirmed_start_time, p1.confirmed_duration or 60,
-                    p2.confirmed_start_time, p2.confirmed_duration or 60,
-                ):
-                    overlap_start = max(p1.confirmed_start_time, p2.confirmed_start_time)
-                    overlap_warnings.append(
-                        f'{d.strftime("%Y/%m/%d")} {overlap_start.strftime("%H:%M")} {p1.community.name} と {p2.community.name} が重複'
-                    )
-
-        for (d, idx), communities in sorted(
-            lt_slot_communities.items(), key=lambda x: (x[0][0], x[0][1])
-        ):
-            if len(communities) <= 1:
-                continue
-            warnings.append(
-                f'{d.strftime("%Y/%m/%d")} {slots[idx].start.strftime("%H:%M")} LT開始が重複: {", ".join(sorted(communities))}'
-            )
-
-        for p in participations:
-            p_start = p.confirmed_start_time
-            p_duration = p.confirmed_duration or 60
-            base_date = timezone.localdate()
-            event_start = datetime.combine(base_date, p_start)
-            event_end = event_start + timedelta(minutes=p_duration)
-            lt_slots = lt_slots_by_pid.get(p.id, {})
-            cells = []
-            for idx, slot in enumerate(slots):
-                slot_start = datetime.combine(base_date, slot.start)
-                slot_end = datetime.combine(base_date, slot.end)
-                occupied = slot_start < event_end and slot_end > event_start
-                overlap = occupied and occupancy.get((p.confirmed_date, idx), 0) > 1
-                lt_times = sorted(lt_slots.get(idx, []))
-                lt_overlap = bool(lt_times) and len(lt_slot_communities.get((p.confirmed_date, idx), set())) > 1
-                lt_tooltip = ', '.join([t.strftime('%H:%M') for t in lt_times]) if lt_times else ''
-                cells.append(
-                    {
-                        'occupied': occupied,
-                        'overlap': overlap,
-                        'lt_times': lt_times,
-                        'lt_overlap': lt_overlap,
-                        'lt_tooltip': lt_tooltip,
-                    }
-                )
-            rows.append({
-                'participation': p,
-                'date': p.confirmed_date,
-                'start_time': p_start,
-                'duration': p_duration,
-                'cells': cells,
-            })
-
-        context.update(
-            {
-                'collaboration': collaboration,
-                'slots': slots,
-                'rows': rows,
-                'overlap_warnings': overlap_warnings,
-                'warnings': warnings,
-            }
-        )
+        context.update({'collaboration': collaboration})
+        context.update(_build_schedule_table_context(collaboration))
         return context
 
 
@@ -1054,6 +1107,14 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'is_admin': _is_vket_admin(request.user),
                 'stage_url': stage_url,
                 'event_details': event_details,
+                'schedule': (
+                    _build_schedule_table_context(
+                        collaboration,
+                        visible_lt_detail_community_id=community.id,
+                    )
+                    if participation
+                    else {'slots': [], 'rows': [], 'overlap_warnings': [], 'warnings': []}
+                ),
             },
         )
 
