@@ -5,7 +5,7 @@ from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
-from ta_hub.libs import resize_and_convert_image
+from ta_hub.libs import DEFAULT_MAX_SIZE, resize_and_convert_image
 
 # Create your models here.
 WEEKDAY_CHOICES = (
@@ -161,7 +161,7 @@ class Community(models.Model):
             # 新しいファイルがアップロードされた場合のみリサイズ
             # _committed が False = 新しいファイルがまだストレージに保存されていない
             if self.poster_image and not getattr(self.poster_image, '_committed', True):
-                resize_and_convert_image(self.poster_image, max_size=1000)
+                resize_and_convert_image(self.poster_image, max_size=DEFAULT_MAX_SIZE)
         super().save(*args, **kwargs)
 
     def get_owners(self):
