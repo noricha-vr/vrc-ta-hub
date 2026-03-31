@@ -5,7 +5,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets, status
+from rest_framework import serializers, viewsets, status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -270,10 +270,31 @@ class EventDetailAPIViewSet(viewsets.ModelViewSet):
         serializer.save()
 
     def perform_update(self, serializer):
+        # Vketコラボ期間中は日時変更をブロック（参照: PR #135）
+        instance = serializer.instance
+        user = self.request.user
+        if not (user.is_superuser or user.is_staff):
+            from vket.services import get_vket_lock_info
+            locked, message = get_vket_lock_info(instance.event)
+            if locked:
+                new_start_time = serializer.validated_data.get('start_time', instance.start_time)
+                new_duration = serializer.validated_data.get('duration', instance.duration)
+                if new_start_time != instance.start_time or new_duration != instance.duration:
+                    raise serializers.ValidationError({"detail": message})
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
+
+        # Vketコラボ期間中のEventDetail削除をブロック（参照: PR #135）
+        if not (request.user.is_superuser or request.user.is_staff):
+            from vket.services import get_vket_lock_info
+            locked, message = get_vket_lock_info(instance.event)
+            if locked:
+                return Response(
+                    {"detail": message},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
         # 権限チェック
         if not request.user.is_superuser:
