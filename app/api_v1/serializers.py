@@ -50,7 +50,7 @@ class CommunitySerializer(serializers.ModelSerializer):
         return _extract_group_id(obj.group_url)
 
 
-class GatheringListSerializer(serializers.BaseSerializer):
+class GatheringListSerializer(serializers.Serializer):
     """TaAGatheringListSys 向けの JSON 形式に変換する。"""
 
     GENRE_LABELS = {
@@ -68,6 +68,31 @@ class GatheringListSerializer(serializers.BaseSerializer):
         'Sat': 6,
         'Other': 7,
     }
+    FIELD_DEFINITIONS = (
+        ('ジャンル', serializers.CharField),
+        ('曜日', serializers.CharField),
+        ('イベント名', serializers.CharField),
+        ('開始時刻', serializers.CharField),
+        ('開催周期', serializers.CharField),
+        ('主催・副主催', serializers.CharField),
+        ('Join先', serializers.CharField),
+        ('グループID', serializers.CharField),
+        ('Discord', serializers.CharField),
+        ('Twitter', serializers.CharField),
+        ('ハッシュタグ', serializers.CharField),
+        ('ポスター', serializers.URLField),
+        ('イベント紹介', serializers.CharField),
+        ('ポスター転載可', serializers.BooleanField),
+    )
+
+    def get_fields(self):
+        fields = {}
+        for field_name, field_class in self.FIELD_DEFINITIONS:
+            field_kwargs = {'allow_null': True}
+            if field_class is serializers.CharField:
+                field_kwargs['allow_blank'] = True
+            fields[field_name] = field_class(**field_kwargs)
+        return fields
 
     @classmethod
     def normalize_choice_list(cls, value):
