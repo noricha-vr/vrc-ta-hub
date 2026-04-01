@@ -5,12 +5,19 @@
 | ファイル | 概要 |
 |----------|------|
 | cloud-run.md | Cloud Run 運用パターン |
+| drf-spectacular.md | DRF Spectacular パターン |
 | django-pagination.md | Djangoページネーション入力検証パターン |
 | discord-auth.md | Discord OAuth 競合解消パターン |
 | github-pages-json.md | VRChatワールド向けJSON配信（toGithubPagesJson） |
 | vket-collab.md | Vketコラボ運営パターン |
 
 ## logs/
+
+### 2026-04/
+
+| ファイル | 日付 | 概要 |
+|----------|------|------|
+| drf-spectacular-01.md | 04-01 | GatheringListSerializer の schema 生成エラー修正 |
 
 ### 2026-03/
 
