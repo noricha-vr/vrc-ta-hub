@@ -317,10 +317,6 @@ assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'google/gemini-2.5-flash-lite-preview-06-17')
 _settings_logger.info('GEMINI_MODEL: %s', GEMINI_MODEL)
 
-# OpenAI API
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-assert OPENAI_API_KEY is not None, 'Please set OPENAI_API_KEY'
-
 REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN')
 assert REQUEST_TOKEN is not None, 'Please set REQUEST_TOKEN'
 

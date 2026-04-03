@@ -1,16 +1,14 @@
 import logging
+import os
 from typing import Optional
 from urllib.parse import urlencode
 
-from django.conf import settings
 from openai import OpenAI
 
 from event.models import Event
 from twitter.models import TwitterTemplate
 
 logger = logging.getLogger(__name__)
-# OpenAI API の設定
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 def format_event_info(event):
@@ -30,7 +28,7 @@ def format_event_info(event):
 
 
 def generate_tweet(template, event_info):
-    """OpenAI APIを使用してツイートを生成する"""
+    """OpenRouter API経由でツイートを生成する"""
     prompt = f"""
     過去のツイートのフォーマットに合わせて、イベントの告知ツイートを作成してください。
     テンプレートのスタイルを模倣しつつ、与えられたイベント情報を自然に組み込んでください。
@@ -49,15 +47,32 @@ def generate_tweet(template, event_info):
     ツイートのみを出力し、追加の説明は不要です。
     """
 
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        logger.error("OPENROUTER_API_KEY environment variable is not set")
+        return None
+
+    model = os.environ.get('GEMINI_MODEL', 'google/gemini-3.1-flash-lite-preview')
+    if ':' in model:
+        model = model.split(':')[0]
+
     try:
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key,
+        )
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            extra_headers={
+                "HTTP-Referer": "https://vrc-ta-hub.com/",
+                "X-Title": "VRC TA Hub",
+            },
+            model=model,
             messages=[
                 {"role": "system", "content": "あなたはイベント告知ツイートを作成する専門家です。"},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=280
+            max_tokens=280,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
