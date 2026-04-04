@@ -16,7 +16,7 @@ def add_stage_registered_at_column_if_missing(apps, schema_editor):
     table_name = participation._meta.db_table
     column_name = "stage_registered_at"
 
-    # 0003 が適用済み扱いでも実カラム欠損の本番DBを復旧できるようにする。
+    # 0003 が適用済み扱いでも実カラム欠損の本番DBを復旧できるようにする。参照: PR #171（migration履歴と実スキーマのズレを自己修復するため）
     if column_name in _column_names(schema_editor, table_name):
         return
 
