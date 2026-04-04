@@ -2,6 +2,7 @@
 import html
 import logging
 import os
+import threading
 import urllib.parse
 from datetime import timedelta
 
@@ -11,11 +12,11 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import models
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views import View
 from django.views.decorators.http import require_http_methods
-from django.views.generic import CreateView, UpdateView, ListView, DeleteView, TemplateView
+from django.views.generic import CreateView, UpdateView, ListView, DeleteView, DetailView, TemplateView
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,8 @@ from .models import TwitterTemplate, TweetQueue
 from .tweet_generator import get_generator, get_poster_image_url
 from .utils import format_event_info, generate_tweet, generate_tweet_url
 from .x_api import post_tweet, upload_media
+
+TWEET_QUEUE_PAGINATE_BY = 20
 
 
 class TwitterTemplateBaseView(LoginRequiredMixin, UserPassesTestMixin):
@@ -265,3 +268,126 @@ def post_scheduled_tweets(request):
         "processed": len(results),
         "results": results,
     })
+
+
+# --- TweetQueue 管理ビュー (superuser only) ---
+
+
+class SuperuserRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    """スーパーユーザーのみアクセスを許可する Mixin。"""
+
+    def test_func(self):
+        return self.request.user.is_superuser
+
+
+class TweetQueueListView(SuperuserRequiredMixin, ListView):
+    """TweetQueue 一覧ページ。ステータスフィルタとページネーション付き。"""
+
+    model = TweetQueue
+    template_name = 'twitter/tweet_queue_list.html'
+    context_object_name = 'tweet_queues'
+    paginate_by = TWEET_QUEUE_PAGINATE_BY
+
+    def get_queryset(self):
+        qs = TweetQueue.objects.select_related('community', 'event').order_by('-created_at')
+        status = self.request.GET.get('status', '')
+        valid_statuses = {choice[0] for choice in TweetQueue.STATUS_CHOICES}
+        if status in valid_statuses:
+            qs = qs.filter(status=status)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        status = self.request.GET.get('status', '')
+        context['current_status'] = status
+        context['status_choices'] = TweetQueue.STATUS_CHOICES
+        # ページネーション用にステータスフィルタをクエリパラメータとして保持
+        if status:
+            context['current_query_params'] = f'status={status}'
+        else:
+            context['current_query_params'] = ''
+        return context
+
+
+class TweetQueueDetailView(SuperuserRequiredMixin, DetailView):
+    """TweetQueue 詳細・編集ページ。
+
+    POST アクションに応じて update / retry / post_now を処理する。
+    """
+
+    model = TweetQueue
+    template_name = 'twitter/tweet_queue_detail.html'
+    context_object_name = 'object'
+
+    def get_queryset(self):
+        return TweetQueue.objects.select_related('community', 'event', 'event_detail')
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        action = request.POST.get('action', 'update')
+
+        if action == 'retry':
+            return self._handle_retry()
+        elif action == 'post_now':
+            return self._handle_post_now()
+        else:
+            return self._handle_update(request)
+
+    def _handle_update(self, request):
+        """generated_text を更新する。"""
+        self.object.generated_text = request.POST.get('generated_text', '')
+        self.object.save(update_fields=['generated_text'])
+        messages.success(request, 'テキストを保存しました。')
+        return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
+
+    def _handle_retry(self):
+        """generating に戻してバックグラウンドでテキスト再生成を開始する。"""
+        if self.object.status not in ('generation_failed', 'generating'):
+            messages.error(self.request, 'このステータスではリトライできません。')
+            return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
+
+        self.object.status = 'generating'
+        self.object.error_message = ''
+        self.object.save(update_fields=['status', 'error_message'])
+
+        thread = threading.Thread(
+            target=_retry_generation,
+            args=(self.object,),
+            daemon=True,
+        )
+        thread.start()
+
+        messages.info(self.request, 'テキスト再生成を開始しました。')
+        return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
+
+    def _handle_post_now(self):
+        """ready キューを即座に投稿する。"""
+        if self.object.status != 'ready':
+            messages.error(self.request, '投稿待ちステータスのキューのみ投稿できます。')
+            return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
+
+        # 画像アップロード
+        media_ids = None
+        if self.object.image_url:
+            media_id = upload_media(self.object.image_url)
+            if media_id:
+                media_ids = [media_id]
+
+        # ツイート投稿
+        response_data = post_tweet(self.object.generated_text, media_ids=media_ids)
+
+        if response_data:
+            self.object.status = 'posted'
+            self.object.tweet_id = response_data.get('id', '')
+            self.object.posted_at = timezone.now()
+            self.object.save()
+            messages.success(self.request, 'ツイートを投稿しました。')
+            logger.info("Manual tweet posted for queue %d: %s", self.object.pk, self.object.tweet_id)
+        else:
+            self.object.status = 'failed'
+            self.object.error_message = 'X API投稿に失敗'
+            self.object.save()
+            messages.error(self.request, '投稿に失敗しました。')
+            logger.warning("Manual tweet post failed for queue %d", self.object.pk)
+
+        return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
