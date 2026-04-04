@@ -1,6 +1,8 @@
 from django.test import TestCase, RequestFactory
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.middleware import SessionMiddleware
+from django.db import OperationalError
+from unittest.mock import patch
 
 from community.models import Community, CommunityMember
 from community.context_processors import active_community
@@ -116,3 +118,16 @@ class ActiveCommunityContextProcessorTest(TestCase):
         # 無効なIDの場合、最初の集会にフォールバック
         self.assertIsNotNone(result['active_community'])
         self.assertIn(result['active_community'], [self.community1, self.community2])
+
+    def test_returns_empty_context_when_database_is_unavailable(self):
+        """DB接続に失敗した場合は空コンテキストへフォールバックする"""
+        request = self.factory.get('/')
+        request.user = self.user1
+        self._add_session_to_request(request)
+
+        with patch('community.context_processors.list', side_effect=OperationalError('db unavailable')):
+            result = active_community(request)
+
+        self.assertEqual(result['user_communities'], [])
+        self.assertIsNone(result['active_community'])
+        self.assertIsNone(result['active_membership'])
