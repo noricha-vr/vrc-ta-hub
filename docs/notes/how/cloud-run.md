@@ -20,3 +20,11 @@
   2. `gh run watch <RUN_ID> --repo noricha-vr/toGithubPagesJson`
   3. `curl -fsS 'https://noricha-vr.github.io/toGithubPagesJson/sample.json?ts=$(date +%s)' | jq ...` で件数・ジャンル値・不要データ混入を確認する
 - 教訓: `sample.json` の再確認ではキャッシュ回避クエリを付けると公開反映を即確認しやすい
+
+## デプロイ時に Django migration を自動適用する
+- 問題: `cloudbuild.yaml` が Cloud Run へ新リビジョンをデプロイするだけで、Django migration は一度も実行しない。モデル追加後に migration が未適用のまま本番へ出ると `Table ... doesn't exist` で即 500 になる
+- 解決:
+  1. コンテナ起動時の entrypoint で `python manage.py migrate_with_lock --noinput` を実行する
+  2. `migrate_with_lock` では MySQL advisory lock (`GET_LOCK` / `RELEASE_LOCK`) を使い、複数インスタンス起動時の migration 競合を避ける
+  3. 起動設定と管理コマンドの回帰テストを追加して、`--noinput` の受け口まで固定する
+- 教訓: Cloud Run のビルド成功はスキーマ反映を保証しない。新テーブル追加系の障害は migration 実行経路の有無から先に疑う

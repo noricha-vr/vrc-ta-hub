@@ -17,6 +17,7 @@
 
 | ファイル | 日付 | 概要 |
 |----------|------|------|
+| cloud-run-01.md | 04-05 | Cloud Run デプロイで tweet_queue テーブル未作成のまま 500 |
 | drf-spectacular-01.md | 04-01 | GatheringListSerializer の schema 生成エラー修正 |
 
 ### 2026-03/

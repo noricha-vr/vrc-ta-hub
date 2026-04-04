@@ -40,6 +40,7 @@ RUN pip3 install -r /app/requirements.txt
 # アプリケーションのコピー
 COPY ./app /app
 COPY ./docs /docs
+COPY docker-entrypoint.sh /docker-entrypoint.sh
 COPY uwsgi.ini /uwsgi.ini
 COPY uwsgi_params /uwsgi_params
 
@@ -49,5 +50,6 @@ ENV PYTHON_PATH=/app
 # ポートの公開
 EXPOSE 8080
 
-# Supervisorの実行
-CMD ["supervisord", "-c", "/etc/supervisor/supervisord.conf", "-n"]
+RUN chmod +x /docker-entrypoint.sh
+
+CMD ["/docker-entrypoint.sh"]
