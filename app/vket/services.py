@@ -17,7 +17,7 @@ def get_vket_lock_info(event) -> tuple[bool, str]:
         (ロック中か, メッセージ) のタプル。ロックされていない場合は (False, "")
     """
     # ロック判定に不要な列まで読むと、列追加直後の古いDBスキーマで 500 になりうるため、
-    # メッセージ生成に必要な情報だけを取得する。
+    # メッセージ生成に必要な情報だけを取得する。参照: PR #167（欠損カラム参照による 500 回避）
     participation = (
         VketParticipation.objects.filter(
             community=event.community,
