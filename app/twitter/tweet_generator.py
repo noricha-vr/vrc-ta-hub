@@ -181,7 +181,7 @@ def generate_slide_share_tweet(event_detail) -> str | None:
 
     # 公開リソースの種類をフラグで判定（URLはプロンプトに含めない）
     resources = []
-    if event_detail.slide_url:
+    if event_detail.slide_url or event_detail.slide_file:
         resources.append("スライド")
     if event_detail.youtube_url:
         resources.append("動画")

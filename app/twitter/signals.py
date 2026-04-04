@@ -105,14 +105,17 @@ def track_event_detail_status_change(sender, instance, **kwargs):
             instance._old_status = old.status
             instance._old_slide_url = old.slide_url or ""
             instance._old_youtube_url = old.youtube_url or ""
+            instance._old_slide_file = str(old.slide_file) if old.slide_file else ""
         except EventDetail.DoesNotExist:
             instance._old_status = None
             instance._old_slide_url = ""
             instance._old_youtube_url = ""
+            instance._old_slide_file = ""
     else:
         instance._old_status = None
         instance._old_slide_url = ""
         instance._old_youtube_url = ""
+        instance._old_slide_file = ""
 
 
 @receiver(post_save, sender=Community)
@@ -163,7 +166,8 @@ def queue_slide_share_tweet(sender, instance, created, **kwargs):
     """スライド/記事が初めてアップロードされた時にツイートキューに追加する。
 
     以下の条件をすべて満たす場合にキューを追加する:
-    - slide_url または youtube_url が初めて設定された（空から値あり）
+    - slide_url, youtube_url, slide_file のいずれかが初めて設定された
+    - status が approved（承認済み）
     - event.date が過去（発表日が終わっている）
     - 同じ event_detail に対して slide_share キューが未登録
     """
@@ -175,20 +179,27 @@ def queue_slide_share_tweet(sender, instance, created, **kwargs):
     if instance.detail_type not in ("LT", "SPECIAL"):
         return
 
+    # 承認済みのみ対象
+    if instance.status != "approved":
+        return
+
     # 発表日が過去かチェック
     if instance.event.date >= timezone.now().date():
         return
 
-    # slide_url または youtube_url が初めて設定されたかチェック
+    # slide_url, youtube_url, slide_file が初めて設定されたかチェック
     old_slide_url = getattr(instance, "_old_slide_url", "")
     old_youtube_url = getattr(instance, "_old_youtube_url", "")
+    old_slide_file = getattr(instance, "_old_slide_file", "")
     new_slide_url = instance.slide_url or ""
     new_youtube_url = instance.youtube_url or ""
+    new_slide_file = str(instance.slide_file) if instance.slide_file else ""
 
     slide_newly_set = not old_slide_url and new_slide_url
     youtube_newly_set = not old_youtube_url and new_youtube_url
+    slide_file_newly_set = not old_slide_file and new_slide_file
 
-    if not slide_newly_set and not youtube_newly_set:
+    if not slide_newly_set and not youtube_newly_set and not slide_file_newly_set:
         return
 
     # 重複チェック

@@ -1491,3 +1491,37 @@ class SlideShareSignalTest(AutoTweetTestBase):
         blog_detail.save()
 
         self.assertEqual(TweetQueue.objects.count(), 0)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_pending_detail_does_not_create_slide_share_queue(self, mock_thread_cls):
+        """未承認の EventDetail ではスライド共有キューが作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
+        with patch("twitter.signals.threading.Thread") as mt:
+            mt.return_value = MagicMock()
+            pending_detail = EventDetail.objects.create(
+                event=self.past_event,
+                detail_type="LT",
+                status="pending",
+                speaker="未承認太郎",
+                theme="未承認テーマ",
+                start_time=datetime.time(22, 30),
+            )
+        TweetQueue.objects.all().delete()
+
+        pending_detail.slide_url = "https://example.com/slides"
+        pending_detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 0)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_slide_file_first_set_creates_queue(self, mock_thread_cls):
+        """slide_file が初めて設定され、発表日が過去ならキューが作成される"""
+        mock_thread_cls.return_value = MagicMock()
+
+        self.detail.slide_file = "slide/test.pdf"
+        self.detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.tweet_type, "slide_share")
