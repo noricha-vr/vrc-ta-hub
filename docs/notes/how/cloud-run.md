@@ -13,6 +13,11 @@
 - 解決: `ALLOWED_HOSTS` は正規ホストのまま維持し、Cloud Run のこのサービス向け preview host だけを middleware で `vrc-ta-hub.com` に正規化する。追加ホストが必要な場合だけ `ALLOWED_HOSTS` / `HTTP_HOST` 環境変数から明示的に取り込む。
 - 教訓: `*.a.run.app` を広く許可すると他サービス由来の Host まで通してしまう。Cloud Run preview URL 対応は「サービス名で絞って正規ホストへ寄せる」方が安全。
 
+## preview tag を1本に固定して古い revision URL を残さない
+- 問題: Django 側で preview host を正規化しても、`cloudbuild.yaml` が `--tag rev-$SHORT_SHA` を使い続けると古い tagged revision URL が公開されたまま残り、修正前リビジョン由来の `DisallowedHost` が再発し続ける。
+- 解決: デプロイ時の SHA 固定 tag をやめ、`gcloud run services update-traffic --update-tags=preview=LATEST` で stable な preview URL 1本へ集約する。あわせて `--remove-tags` で既存の `rev-*` tag を掃除し、設定をテストで固定する。
+- 教訓: アプリ側の host 対応だけでは「昔の revision URL がまだ外に残る」問題は止まらない。Cloud Run の tag 運用もセットで閉じないと、古いリビジョンがエラー源として居残る。
+
 ## toGithubPagesJson 再生成
 - 問題: VRChat ワールド表示用 JSON は `noricha-vr/toGithubPagesJson` 側の GitHub Actions が生成しており、`vrc-ta-hub` 本番反映だけでは更新されない
 - 解決:
