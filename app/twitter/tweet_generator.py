@@ -160,6 +160,53 @@ def generate_lt_tweet(event_detail) -> str | None:
     return _call_llm(system_prompt, user_prompt)
 
 
+def generate_slide_share_tweet(event_detail) -> str | None:
+    """スライド/記事共有ツイートを生成する。
+
+    Args:
+        event_detail: EventDetail モデルインスタンス（slide_url または youtube_url が設定済み）
+    """
+    system_prompt = (
+        "あなたはVRChat技術学術系集会のLT発表後の共有ツイートを作成する専門家です。"
+        "発表が行われたことを報告し、スライドや動画が公開されたことを伝えてください。"
+    )
+
+    event = event_detail.event
+    community = event.community
+    hashtag_suffix = _build_hashtag_suffix(community)
+
+    name = _sanitize_for_prompt(community.name)
+    speaker = _sanitize_for_prompt(event_detail.speaker)
+    theme = _sanitize_for_prompt(event_detail.theme)
+
+    # 公開リソースの種類をフラグで判定（URLはプロンプトに含めない）
+    resources = []
+    if event_detail.slide_url or event_detail.slide_file:
+        resources.append("スライド")
+    if event_detail.youtube_url:
+        resources.append("動画")
+    resources_text = "・".join(resources)
+
+    user_prompt = f"""以下のLT発表の{resources_text}が公開されたことを伝えるツイートを作成してください。
+
+集会名: {name}
+開催日: {event.date.strftime('%Y年%m月%d日')}
+発表者: {speaker}
+テーマ: {theme}
+公開された資料: {resources_text}
+
+以下のルールを守ってください:
+- 280文字以内
+- 発表後の共有であること（事後報告のトーン）
+- {resources_text}が公開されたことへの嬉しさ・見てほしい気持ちを伝える
+- 末尾に以下を含める:
+  詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
+  {hashtag_suffix}
+- ツイート本文のみ出力（説明不要）
+"""
+    return _call_llm(system_prompt, user_prompt)
+
+
 def get_generator(tweet_type: str):
     """tweet_type に応じた生成関数を返す。
 
@@ -170,6 +217,7 @@ def get_generator(tweet_type: str):
         "new_community": lambda qi: generate_new_community_tweet(qi.community, qi.event),
         "lt": lambda qi: generate_lt_tweet(qi.event_detail),
         "special": lambda qi: generate_special_event_tweet(qi.event_detail),
+        "slide_share": lambda qi: generate_slide_share_tweet(qi.event_detail),
     }
     return generator_map.get(tweet_type)
 

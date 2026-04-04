@@ -27,6 +27,7 @@ class TweetQueue(models.Model):
         ('new_community', '新規集会'),
         ('lt', 'LT告知'),
         ('special', '特別回告知'),
+        ('slide_share', 'スライド/記事共有'),
     ]
     STATUS_CHOICES = [
         ('generating', '生成中'),
