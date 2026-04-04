@@ -66,7 +66,7 @@ class IndexView(TemplateView):
         try:
             context.update(self._build_database_context(today, cache_key))
         except OperationalError:
-            # トップページはRDS瞬断でも静的導線を返し続ける。参照: PR #PENDING
+            # トップページはRDS瞬断でも静的導線を返し続ける。参照: PR #170（公開導線だけは維持する判断）
             logger.warning(
                 "IndexView degraded gracefully because the database was unavailable",
                 exc_info=True,
