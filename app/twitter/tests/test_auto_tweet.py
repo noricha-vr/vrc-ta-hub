@@ -323,9 +323,10 @@ class GenerateTweetAsyncTest(AutoTweetTestBase):
         # Should not raise
         _generate_tweet_async(99999)
 
+    @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
     @patch("twitter.tweet_generator.generate_new_community_tweet")
     def test_generate_async_sets_image_url(self, mock_generate):
-        """ポスター画��がある場��、image_url が設定される"""
+        """ポスター画像がある場合、CF Image Resizing URL が設定される"""
         mock_generate.return_value = "告知テスト"
 
         # poster_image に名前だけ設定（実ファイルは不要）
@@ -336,16 +337,13 @@ class GenerateTweetAsyncTest(AutoTweetTestBase):
 
         queue_item = self._create_queue()
 
-        with patch.dict("os.environ", {"AWS_S3_CUSTOM_DOMAIN": "data.vrc-ta-hub.com"}):
-            from twitter.signals import _generate_tweet_async
-            _generate_tweet_async(queue_item.pk)
+        from twitter.signals import _generate_tweet_async
+        _generate_tweet_async(queue_item.pk)
 
         queue_item.refresh_from_db()
         self.assertEqual(queue_item.status, "ready")
-        self.assertEqual(
-            queue_item.image_url,
-            "https://data.vrc-ta-hub.com/community/1/poster.webp",
-        )
+        self.assertIn("/cdn-cgi/image/width=960", queue_item.image_url)
+        self.assertIn("community/1/poster.webp", queue_item.image_url)
 
 
 class PostScheduledTweetsViewTest(AutoTweetTestBase):
@@ -696,9 +694,10 @@ class RetryGenerationTest(AutoTweetTestBase):
         self.assertEqual(queue2.status, "ready")
         self.assertEqual(queue2.generated_text, "2番目のアイテムは成功")
 
+    @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
     @patch("twitter.tweet_generator.generate_new_community_tweet")
     def test_retry_success_sets_image_url(self, mock_generate):
-        """リトライ成功時にポスター画像URLが設定される"""
+        """リトライ成功時にCF Image Resizing URLが設定される"""
         mock_generate.return_value = "リトライ成功"
 
         Community.objects.filter(pk=self.community.pk).update(
@@ -713,16 +712,13 @@ class RetryGenerationTest(AutoTweetTestBase):
             status="generation_failed",
         )
 
-        with patch.dict("os.environ", {"AWS_S3_CUSTOM_DOMAIN": "data.vrc-ta-hub.com"}):
-            from twitter.views import _retry_generation
-            _retry_generation(queue_item)
+        from twitter.views import _retry_generation
+        _retry_generation(queue_item)
 
         queue_item.refresh_from_db()
         self.assertEqual(queue_item.status, "ready")
-        self.assertEqual(
-            queue_item.image_url,
-            "https://data.vrc-ta-hub.com/community/1/poster.webp",
-        )
+        self.assertIn("/cdn-cgi/image/width=960", queue_item.image_url)
+        self.assertIn("community/1/poster.webp", queue_item.image_url)
 
 
 class GetGeneratorHelperTest(TestCase):
@@ -785,18 +781,22 @@ class GetPosterImageUrlHelperTest(TestCase):
         result = get_poster_image_url(self.community)
         self.assertEqual(result, "")
 
-    def test_with_custom_domain(self):
-        """AWS_S3_CUSTOM_DOMAIN が設定されている場合はR2 URLを返す"""
+    @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
+    def test_with_custom_domain_returns_cf_resized_url(self):
+        """AWS_S3_CUSTOM_DOMAIN 設定時は CF Image Resizing URL を返す"""
         Community.objects.filter(pk=self.community.pk).update(
             poster_image="community/1/poster.webp",
         )
         self.community.refresh_from_db()
 
         from twitter.tweet_generator import get_poster_image_url
-        with patch.dict("os.environ", {"AWS_S3_CUSTOM_DOMAIN": "data.vrc-ta-hub.com"}):
-            result = get_poster_image_url(self.community)
-        self.assertEqual(result, "https://data.vrc-ta-hub.com/community/1/poster.webp")
+        result = get_poster_image_url(self.community)
+        self.assertEqual(
+            result,
+            "https://data.vrc-ta-hub.com/cdn-cgi/image/width=960,quality=80,format=auto/community/1/poster.webp",
+        )
 
+    @override_settings(AWS_S3_CUSTOM_DOMAIN='')
     def test_without_custom_domain_falls_back_to_url(self):
         """AWS_S3_CUSTOM_DOMAIN が未設定の場合は poster.url にフォールバック"""
         Community.objects.filter(pk=self.community.pk).update(
@@ -805,8 +805,7 @@ class GetPosterImageUrlHelperTest(TestCase):
         self.community.refresh_from_db()
 
         from twitter.tweet_generator import get_poster_image_url
-        with patch.dict("os.environ", {"AWS_S3_CUSTOM_DOMAIN": ""}):
-            result = get_poster_image_url(self.community)
+        result = get_poster_image_url(self.community)
         # FileField に url 属性があるので何かしらの値が返る
         self.assertNotEqual(result, "")
 
@@ -1027,6 +1026,26 @@ class UploadMediaFunctionTest(TestCase):
             result = upload_media("https://data.vrc-ta-hub.com/poster.webp")
 
         self.assertEqual(result, "media_ok")
+
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_upload_media_allows_cf_transform_url(self, mock_get, mock_post):
+        """CF Image Resizing URL も許可ドメインとして通過する"""
+        mock_get.return_value = self._make_stream_response()
+        mock_upload_response = MagicMock()
+        mock_upload_response.json.return_value = {"media_id_string": "media_cf"}
+        mock_upload_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_upload_response
+
+        cf_url = (
+            "https://data.vrc-ta-hub.com/cdn-cgi/image/"
+            "width=960,quality=80,format=auto/community/1/poster.webp"
+        )
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            result = upload_media(cf_url)
+
+        self.assertEqual(result, "media_cf")
 
     # --- サイズ制限テスト ---
     @patch("twitter.x_api.requests.get")

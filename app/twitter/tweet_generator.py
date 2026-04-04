@@ -7,7 +7,10 @@ OpenRouter API 経由で LLM を呼び出し、各種告知ツイートを生成
 import logging
 import os
 
+from django.conf import settings
 from openai import OpenAI
+
+from ta_hub.libs import cloudflare_image_url
 
 logger = logging.getLogger(__name__)
 
@@ -222,8 +225,14 @@ def get_generator(tweet_type: str):
     return generator_map.get(tweet_type)
 
 
+TWITTER_IMAGE_WIDTH = 960
+
+
 def get_poster_image_url(community) -> str:
-    """Community のポスター画像の R2 URL を返す。
+    """Community のポスター画像の URL を返す。
+
+    Cloudflare Image Resizing で Twitter 推奨サイズ（幅960px）に変換する。
+    既存の小さい画像（1000px以下）は拡大されず、そのまま通過する。
 
     Returns:
         画像URLの文字列。ポスター画像が無い場合は空文字列。
@@ -232,9 +241,10 @@ def get_poster_image_url(community) -> str:
     if not poster:
         return ""
 
-    custom_domain = os.environ.get("AWS_S3_CUSTOM_DOMAIN", "")
+    custom_domain = getattr(settings, 'AWS_S3_CUSTOM_DOMAIN', '')
     if custom_domain:
-        return f"https://{custom_domain}/{poster.name}"
+        url = f"https://{custom_domain}/{poster.name}"
+        return cloudflare_image_url(url, width=TWITTER_IMAGE_WIDTH)
 
     if hasattr(poster, "url"):
         return poster.url
