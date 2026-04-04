@@ -59,6 +59,11 @@ def upload_media(image_url: str) -> str | None:
         成功時: media_id 文字列
         失敗時: None
     """
+    from django.conf import settings
+    if getattr(settings, 'TESTING', False):
+        logger.warning("Blocked X API media upload in test environment")
+        return None
+
     auth = _get_oauth1()
     if not auth:
         return None
@@ -112,6 +117,11 @@ def post_tweet(text: str, media_ids: list[str] | None = None) -> dict | None:
         成功時: {"id": "...", "text": "..."} の dict
         失敗時: None
     """
+    from django.conf import settings
+    if getattr(settings, 'TESTING', False):
+        logger.warning("Blocked X API tweet post in test environment")
+        return None
+
     if not text or len(text) > MAX_TWEET_LENGTH:
         logger.error(
             "Tweet text is empty or exceeds %d characters: %d",
