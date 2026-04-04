@@ -27,7 +27,8 @@ from event.models import Event, EventDetail, RecurrenceRule
 from .authentication import APIKeyAuthentication
 from .serializers import (
     CommunitySerializer, EventSerializer, EventDetailSerializer, EventDetailWriteSerializer,
-    RecurrenceRuleSerializer, RecurrenceRuleDeleteSerializer, GatheringListSerializer
+    RecurrenceRuleSerializer, RecurrenceRuleDeleteSerializer, GatheringListSerializer,
+    GatheringListSchemaSerializer,
 )
 
 
@@ -78,7 +79,8 @@ class CommunityViewSet(viewsets.ReadOnlyModelViewSet):
             "承認済みかつアクティブな技術系・学術系集会の一覧を返します。"
         ),
         tags=["Community"],
-        responses=GatheringListSerializer(many=True),
+        # OpenAPI は fields を持つ専用 serializer を参照し、to_representation 実装との差分で壊れないようにする。
+        responses=GatheringListSchemaSerializer(many=True),
     )
     @action(detail=False, methods=['get'], url_path='gathering-list')
     def gathering_list(self, request):

@@ -51,24 +51,9 @@ class CommunitySerializer(serializers.ModelSerializer):
         return _extract_group_id(obj.group_url)
 
 
-class GatheringListSerializer(serializers.Serializer):
-    """TaAGatheringListSys 向けの JSON 形式に変換する。"""
+class GatheringListSchemaSerializer(serializers.Serializer):
+    """GatheringList の OpenAPI スキーマ定義。"""
 
-    GENRE_LABELS = {
-        'tech': '技術系',
-        'academic': '学術系',
-    }
-    WEEKDAY_LABELS = dict(WEEKDAY_CHOICES)
-    WEEKDAY_ORDER = {
-        'Sun': 0,
-        'Mon': 1,
-        'Tue': 2,
-        'Wed': 3,
-        'Thu': 4,
-        'Fri': 5,
-        'Sat': 6,
-        'Other': 7,
-    }
     FIELD_DEFINITIONS = (
         ('ジャンル', serializers.CharField),
         ('曜日', serializers.CharField),
@@ -94,6 +79,26 @@ class GatheringListSerializer(serializers.Serializer):
                 field_kwargs['allow_blank'] = True
             fields[field_name] = field_class(**field_kwargs)
         return fields
+
+
+class GatheringListSerializer(GatheringListSchemaSerializer):
+    """TaAGatheringListSys 向けの JSON 形式に変換する。"""
+
+    GENRE_LABELS = {
+        'tech': '技術系',
+        'academic': '学術系',
+    }
+    WEEKDAY_LABELS = dict(WEEKDAY_CHOICES)
+    WEEKDAY_ORDER = {
+        'Sun': 0,
+        'Mon': 1,
+        'Tue': 2,
+        'Wed': 3,
+        'Thu': 4,
+        'Fri': 5,
+        'Sat': 6,
+        'Other': 7,
+    }
 
     @classmethod
     def normalize_choice_list(cls, value):
