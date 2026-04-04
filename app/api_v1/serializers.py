@@ -2,7 +2,6 @@
 from urllib.parse import urlparse
 
 from drf_spectacular.utils import extend_schema_serializer
-from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from community.models import Community, WEEKDAY_CHOICES
@@ -53,7 +52,6 @@ class CommunitySerializer(serializers.ModelSerializer):
         return _extract_group_id(obj.group_url)
 
 
-@extend_schema_serializer(component_name='GatheringList')
 @extend_schema_serializer(component_name='GatheringList')
 class GatheringListSchemaSerializer(serializers.Serializer):
     """GatheringList の OpenAPI スキーマ定義。"""
