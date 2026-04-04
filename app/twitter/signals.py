@@ -1,6 +1,11 @@
-"""Django シグナル: 集会承認・LT/特別回承認時に TweetQueue へ自動追加"""
+"""Django シグナル: 集会承認・LT/特別回承認時に TweetQueue へ自動追加
+
+シグナル発火時に TweetQueue を generating 状態で作成し、
+バックグラウンドスレッドでテキスト生成を非同期実行する。
+"""
 
 import logging
+import threading
 
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
@@ -9,6 +14,51 @@ from community.models import Community
 from event.models import EventDetail
 
 logger = logging.getLogger(__name__)
+
+
+def _generate_tweet_async(queue_id: int) -> None:
+    """バックグラウンドスレッドでツイートテキストを生成する。
+
+    生成成功時は status を ready に、失敗時は generation_failed に更新する。
+    """
+    from twitter.models import TweetQueue
+    from twitter.tweet_generator import get_generator, get_poster_image_url
+
+    try:
+        queue_item = TweetQueue.objects.select_related(
+            'community', 'event', 'event_detail',
+        ).get(pk=queue_id)
+    except TweetQueue.DoesNotExist:
+        logger.error("TweetQueue %d not found", queue_id)
+        return
+
+    try:
+        generator = get_generator(queue_item.tweet_type)
+        text = generator(queue_item) if generator else None
+
+        if not text:
+            queue_item.status = 'generation_failed'
+            queue_item.error_message = 'テキスト生成に失敗'
+            queue_item.save()
+            return
+
+        queue_item.generated_text = text
+
+        # 画像URL取得（ポスター画像がある場合）
+        image_url = get_poster_image_url(queue_item.community)
+        if image_url:
+            queue_item.image_url = image_url
+
+        queue_item.status = 'ready'
+        queue_item.error_message = ''
+        queue_item.save()
+        logger.info("Tweet text generated for queue %d", queue_id)
+
+    except Exception as e:
+        logger.error("Failed to generate tweet for queue %d: %s", queue_id, e)
+        queue_item.status = 'generation_failed'
+        queue_item.error_message = str(e)[:500]
+        queue_item.save()
 
 
 @receiver(pre_save, sender=Community)
@@ -73,12 +123,17 @@ def queue_new_community_tweet(sender, instance, created, **kwargs):
         .first()
     )
 
-    TweetQueue.objects.create(
+    queue_item = TweetQueue.objects.create(
         tweet_type="new_community",
         community=instance,
         event=first_event,
     )
     logger.info("Queued new community tweet: %s", instance.name)
+
+    thread = threading.Thread(
+        target=_generate_tweet_async, args=(queue_item.pk,), daemon=True,
+    )
+    thread.start()
 
 
 @receiver(post_save, sender=EventDetail)
@@ -112,10 +167,15 @@ def queue_event_detail_tweet(sender, instance, created, **kwargs):
     if TweetQueue.objects.filter(event_detail=instance, tweet_type=tweet_type).exists():
         return
 
-    TweetQueue.objects.create(
+    queue_item = TweetQueue.objects.create(
         tweet_type=tweet_type,
         community=instance.event.community,
         event=instance.event,
         event_detail=instance,
     )
     logger.info("Queued %s tweet: %s - %s", tweet_type, instance.speaker, instance.theme)
+
+    thread = threading.Thread(
+        target=_generate_tweet_async, args=(queue_item.pk,), daemon=True,
+    )
+    thread.start()

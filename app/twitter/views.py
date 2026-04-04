@@ -3,10 +3,12 @@ import html
 import logging
 import os
 import urllib.parse
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.db import models
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
@@ -21,13 +23,9 @@ from community.models import Community
 from event.models import Event
 from .forms import TwitterTemplateForm
 from .models import TwitterTemplate, TweetQueue
-from .tweet_generator import (
-    generate_lt_tweet,
-    generate_new_community_tweet,
-    generate_special_event_tweet,
-)
+from .tweet_generator import get_generator, get_poster_image_url
 from .utils import format_event_info, generate_tweet, generate_tweet_url
-from .x_api import post_tweet
+from .x_api import post_tweet, upload_media
 
 
 class TwitterTemplateBaseView(LoginRequiredMixin, UserPassesTestMixin):
@@ -164,60 +162,97 @@ class TweetEventWithTemplateView(TemplateView):
         return context
 
 
+RETRY_THRESHOLD_HOURS = 1
+
+
+def _retry_generation(queue_item) -> None:
+    """生成失敗キューのテキスト生成をリトライする（同期）。
+
+    成功時は status を ready に、失敗時は generation_failed に更新する。
+    例外発生時も generation_failed に更新し、次のアイテムの処理に進む。
+    """
+    try:
+        generator = get_generator(queue_item.tweet_type)
+        text = generator(queue_item) if generator else None
+    except Exception:
+        logger.exception("Retry generation raised exception for queue %d", queue_item.pk)
+        queue_item.status = 'generation_failed'
+        queue_item.error_message = 'リトライ中に例外が発生'
+        queue_item.save()
+        return
+
+    if text:
+        queue_item.generated_text = text
+        queue_item.status = 'ready'
+        queue_item.error_message = ''
+
+        # 画像URLも設定（まだない場合）
+        if not queue_item.image_url:
+            image_url = get_poster_image_url(queue_item.community)
+            if image_url:
+                queue_item.image_url = image_url
+
+        queue_item.save()
+        logger.info("Retry generation succeeded for queue %d", queue_item.pk)
+    else:
+        queue_item.status = 'generation_failed'
+        queue_item.error_message = 'リトライ生成にも失敗'
+        queue_item.save()
+        logger.error("Retry generation failed for queue %d", queue_item.pk)
+
+
 @require_http_methods(["GET"])
 def post_scheduled_tweets(request):
     """Cloud Scheduler から毎日 19:00 JST に呼ばれるエンドポイント。
 
-    pending 状態のツイートキューを一括処理する:
-    1. LLM でツイートテキストを生成
-    2. X API v2 で投稿
+    Phase 1: 生成失敗/停滞キューのリトライ
+    Phase 2: ready キューの投稿
     """
     request_token = request.headers.get("Request-Token", "")
     if request_token != os.environ.get("REQUEST_TOKEN", ""):
         return HttpResponse("Unauthorized", status=401)
 
-    pending_tweets = TweetQueue.objects.filter(status="pending").select_related(
-        "community", "event", "event_detail",
+    # Phase 1: 生成リトライ（generation_failed + 1時間以上前の generating）
+    retry_threshold = timezone.now() - timedelta(hours=RETRY_THRESHOLD_HOURS)
+    retry_items = list(
+        TweetQueue.objects.filter(
+            models.Q(status='generation_failed')
+            | models.Q(status='generating', created_at__lt=retry_threshold),
+        ).select_related('community', 'event', 'event_detail')
+    )
+    retried_count = len(retry_items)
+
+    for item in retry_items:
+        _retry_generation(item)
+
+    # Phase 2: ready キューの投稿
+    ready_items = TweetQueue.objects.filter(status='ready').select_related(
+        'community', 'event', 'event_detail',
     )
 
     results = []
-    for queue_item in pending_tweets:
-        # 1. テキスト生成 (未生成の場合)
-        if not queue_item.generated_text:
-            generator_map = {
-                "new_community": lambda qi: generate_new_community_tweet(qi.community, qi.event),
-                "lt": lambda qi: generate_lt_tweet(qi.event_detail),
-                "special": lambda qi: generate_special_event_tweet(qi.event_detail),
-            }
-            generator = generator_map.get(queue_item.tweet_type)
-            text = generator(queue_item) if generator else None
+    for queue_item in ready_items:
+        # 画像アップロード
+        media_ids = None
+        if queue_item.image_url:
+            media_id = upload_media(queue_item.image_url)
+            if media_id:
+                media_ids = [media_id]
 
-            if not text:
-                queue_item.status = "failed"
-                queue_item.error_message = "テキスト生成に失敗"
-                queue_item.save()
-                results.append({
-                    "id": queue_item.pk, "status": "failed", "error": "generation_failed",
-                })
-                logger.warning("Tweet generation failed for queue %d", queue_item.pk)
-                continue
-
-            queue_item.generated_text = text
-
-        # 2. X API 投稿
-        response_data = post_tweet(queue_item.generated_text)
+        # ツイート投稿
+        response_data = post_tweet(queue_item.generated_text, media_ids=media_ids)
 
         if response_data:
-            queue_item.status = "posted"
-            queue_item.tweet_id = response_data.get("id", "")
+            queue_item.status = 'posted'
+            queue_item.tweet_id = response_data.get('id', '')
             queue_item.posted_at = timezone.now()
             results.append({
                 "id": queue_item.pk, "status": "posted", "tweet_id": queue_item.tweet_id,
             })
             logger.info("Tweet posted for queue %d: %s", queue_item.pk, queue_item.tweet_id)
         else:
-            queue_item.status = "failed"
-            queue_item.error_message = "X API投稿に失敗"
+            queue_item.status = 'failed'
+            queue_item.error_message = 'X API投稿に失敗'
             results.append({
                 "id": queue_item.pk, "status": "failed", "error": "post_failed",
             })
@@ -225,4 +260,8 @@ def post_scheduled_tweets(request):
 
         queue_item.save()
 
-    return JsonResponse({"processed": len(results), "results": results})
+    return JsonResponse({
+        "retried": retried_count,
+        "processed": len(results),
+        "results": results,
+    })

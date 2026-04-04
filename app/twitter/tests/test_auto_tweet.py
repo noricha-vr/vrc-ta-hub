@@ -1,7 +1,7 @@
 """X (Twitter) 自動告知機能のテスト
 
-シグナルによるキュー追加、スケジュール投稿エンドポイント、
-X API 投稿関数、告知文生成関数をテストする。
+シグナルによるキュー追加、非同期テキスト生成、スケジュール投稿エンドポイント、
+X API 投稿関数、画像アップロード、告知文生成関数をテストする。
 """
 
 import datetime
@@ -58,8 +58,12 @@ class AutoTweetTestBase(TestCase):
 class CommunityApprovalSignalTest(AutoTweetTestBase):
     """Community 承認時のシグナルテスト"""
 
-    def test_community_approval_creates_queue(self):
-        """Community が pending -> approved に変更されたらキューが作成される"""
+    @patch("twitter.signals.threading.Thread")
+    def test_community_approval_creates_queue(self, mock_thread_cls):
+        """Community が pending -> approved に変更されたらキューが generating で作成される"""
+        mock_thread = MagicMock()
+        mock_thread_cls.return_value = mock_thread
+
         self.assertEqual(TweetQueue.objects.count(), 0)
 
         self.community.status = "approved"
@@ -69,10 +73,17 @@ class CommunityApprovalSignalTest(AutoTweetTestBase):
         queue = TweetQueue.objects.first()
         self.assertEqual(queue.tweet_type, "new_community")
         self.assertEqual(queue.community, self.community)
-        self.assertEqual(queue.status, "pending")
+        self.assertEqual(queue.status, "generating")
 
-    def test_duplicate_community_queue_prevention(self):
+        # スレッドが起動されたことを確認
+        mock_thread_cls.assert_called_once()
+        mock_thread.start.assert_called_once()
+
+    @patch("twitter.signals.threading.Thread")
+    def test_duplicate_community_queue_prevention(self, mock_thread_cls):
         """同一 community の重複キューは作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
         self.community.status = "approved"
         self.community.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
@@ -82,15 +93,19 @@ class CommunityApprovalSignalTest(AutoTweetTestBase):
         self.community.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
 
-    def test_rejected_community_does_not_create_queue(self):
+    @patch("twitter.signals.threading.Thread")
+    def test_rejected_community_does_not_create_queue(self, mock_thread_cls):
         """rejected への変更ではキューは作成されない"""
         self.community.status = "rejected"
         self.community.save()
 
         self.assertEqual(TweetQueue.objects.count(), 0)
 
-    def test_already_approved_community_does_not_create_queue(self):
+    @patch("twitter.signals.threading.Thread")
+    def test_already_approved_community_does_not_create_queue(self, mock_thread_cls):
         """既に approved だった community の再保存ではキューは作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
         self.community.status = "approved"
         self.community.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
@@ -107,13 +122,18 @@ class EventDetailSignalTest(AutoTweetTestBase):
     def setUp(self):
         super().setUp()
         # community を approved にしておく (LT テスト用)
-        self.community.status = "approved"
-        self.community.save()
+        with patch("twitter.signals.threading.Thread") as mock_thread_cls:
+            mock_thread_cls.return_value = MagicMock()
+            self.community.status = "approved"
+            self.community.save()
         # community 承認時のキューをクリア
         TweetQueue.objects.all().delete()
 
-    def test_lt_approval_creates_queue(self):
+    @patch("twitter.signals.threading.Thread")
+    def test_lt_approval_creates_queue(self, mock_thread_cls):
         """LT タイプの EventDetail 承認時にキューが作成される"""
+        mock_thread_cls.return_value = MagicMock()
+
         detail = EventDetail.objects.create(
             event=self.event,
             detail_type="LT",
@@ -128,9 +148,13 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.tweet_type, "lt")
         self.assertEqual(queue.event_detail, detail)
         self.assertEqual(queue.event, self.event)
+        self.assertEqual(queue.status, "generating")
 
-    def test_special_event_creates_queue(self):
+    @patch("twitter.signals.threading.Thread")
+    def test_special_event_creates_queue(self, mock_thread_cls):
         """SPECIAL タイプの EventDetail 承認時にキューが作成される"""
+        mock_thread_cls.return_value = MagicMock()
+
         detail = EventDetail.objects.create(
             event=self.event,
             detail_type="SPECIAL",
@@ -145,7 +169,8 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.tweet_type, "special")
         self.assertEqual(queue.event_detail, detail)
 
-    def test_blog_type_does_not_create_queue(self):
+    @patch("twitter.signals.threading.Thread")
+    def test_blog_type_does_not_create_queue(self, mock_thread_cls):
         """BLOG タイプではキューが作成されない"""
         EventDetail.objects.create(
             event=self.event,
@@ -158,7 +183,8 @@ class EventDetailSignalTest(AutoTweetTestBase):
 
         self.assertEqual(TweetQueue.objects.count(), 0)
 
-    def test_pending_detail_does_not_create_queue(self):
+    @patch("twitter.signals.threading.Thread")
+    def test_pending_detail_does_not_create_queue(self, mock_thread_cls):
         """status=pending の EventDetail ではキューが作成されない"""
         EventDetail.objects.create(
             event=self.event,
@@ -171,8 +197,11 @@ class EventDetailSignalTest(AutoTweetTestBase):
 
         self.assertEqual(TweetQueue.objects.count(), 0)
 
-    def test_duplicate_event_detail_queue_prevention(self):
+    @patch("twitter.signals.threading.Thread")
+    def test_duplicate_event_detail_queue_prevention(self, mock_thread_cls):
         """同一 event_detail の重複キューは作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
         detail = EventDetail.objects.create(
             event=self.event,
             detail_type="LT",
@@ -188,8 +217,11 @@ class EventDetailSignalTest(AutoTweetTestBase):
         detail.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
 
-    def test_pending_to_approved_creates_queue(self):
+    @patch("twitter.signals.threading.Thread")
+    def test_pending_to_approved_creates_queue(self, mock_thread_cls):
         """EventDetail が pending -> approved に更新されたらキューが作成される"""
+        mock_thread_cls.return_value = MagicMock()
+
         detail = EventDetail.objects.create(
             event=self.event,
             detail_type="LT",
@@ -209,8 +241,11 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.tweet_type, "lt")
         self.assertEqual(queue.event_detail, detail)
 
-    def test_already_approved_detail_update_does_not_create_queue(self):
+    @patch("twitter.signals.threading.Thread")
+    def test_already_approved_detail_update_does_not_create_queue(self, mock_thread_cls):
         """既に approved の EventDetail を再保存してもキューは追加されない"""
+        mock_thread_cls.return_value = MagicMock()
+
         detail = EventDetail.objects.create(
             event=self.event,
             detail_type="LT",
@@ -228,6 +263,89 @@ class EventDetailSignalTest(AutoTweetTestBase):
 
         # approved -> approved なのでキューは作成されない
         self.assertEqual(TweetQueue.objects.count(), 0)
+
+
+class GenerateTweetAsyncTest(AutoTweetTestBase):
+    """_generate_tweet_async 関数のテスト"""
+
+    def _create_queue(self, tweet_type="new_community"):
+        """テスト用にキューを作成するヘルパー"""
+        return TweetQueue.objects.create(
+            tweet_type=tweet_type,
+            community=self.community,
+            event=self.event,
+            status="generating",
+        )
+
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_generate_async_success(self, mock_generate):
+        """テキスト生成成功時に status が ready になる"""
+        mock_generate.return_value = "新しい集会の告知テスト"
+        queue_item = self._create_queue()
+
+        from twitter.signals import _generate_tweet_async
+        _generate_tweet_async(queue_item.pk)
+
+        queue_item.refresh_from_db()
+        self.assertEqual(queue_item.status, "ready")
+        self.assertEqual(queue_item.generated_text, "新しい集会の告知テスト")
+        self.assertEqual(queue_item.error_message, "")
+
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_generate_async_failure(self, mock_generate):
+        """テキスト生成失敗時に status が generation_failed になる"""
+        mock_generate.return_value = None
+        queue_item = self._create_queue()
+
+        from twitter.signals import _generate_tweet_async
+        _generate_tweet_async(queue_item.pk)
+
+        queue_item.refresh_from_db()
+        self.assertEqual(queue_item.status, "generation_failed")
+        self.assertIn("テキスト生成に失敗", queue_item.error_message)
+
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_generate_async_exception(self, mock_generate):
+        """テキスト生成中に例外が発生した場合 generation_failed になる"""
+        mock_generate.side_effect = RuntimeError("LLM API error")
+        queue_item = self._create_queue()
+
+        from twitter.signals import _generate_tweet_async
+        _generate_tweet_async(queue_item.pk)
+
+        queue_item.refresh_from_db()
+        self.assertEqual(queue_item.status, "generation_failed")
+        self.assertIn("LLM API error", queue_item.error_message)
+
+    def test_generate_async_nonexistent_queue(self):
+        """存在しないキューIDでもエラーにならない"""
+        from twitter.signals import _generate_tweet_async
+        # Should not raise
+        _generate_tweet_async(99999)
+
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_generate_async_sets_image_url(self, mock_generate):
+        """ポスター画��がある場��、image_url が設定される"""
+        mock_generate.return_value = "告知テスト"
+
+        # poster_image に名前だけ設定（実ファイルは不要）
+        self.community.poster_image.name = "community/1/poster.webp"
+        Community.objects.filter(pk=self.community.pk).update(
+            poster_image="community/1/poster.webp",
+        )
+
+        queue_item = self._create_queue()
+
+        with patch.dict("os.environ", {"AWS_S3_CUSTOM_DOMAIN": "data.vrc-ta-hub.com"}):
+            from twitter.signals import _generate_tweet_async
+            _generate_tweet_async(queue_item.pk)
+
+        queue_item.refresh_from_db()
+        self.assertEqual(queue_item.status, "ready")
+        self.assertEqual(
+            queue_item.image_url,
+            "https://data.vrc-ta-hub.com/community/1/poster.webp",
+        )
 
 
 class PostScheduledTweetsViewTest(AutoTweetTestBase):
@@ -249,17 +367,16 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             self.assertEqual(response.status_code, 401)
 
     @patch("twitter.views.post_tweet")
-    @patch("twitter.views.generate_new_community_tweet")
-    def test_post_scheduled_tweets_success(self, mock_generate, mock_post):
-        """正常な投稿フロー"""
-        mock_generate.return_value = "新しい集会の告知テスト"
+    def test_post_scheduled_tweets_success(self, mock_post):
+        """ready 状態のキューが正常に投稿される"""
         mock_post.return_value = {"id": "12345", "text": "新しい集会の告知テスト"}
 
         TweetQueue.objects.create(
             tweet_type="new_community",
             community=self.community,
             event=self.event,
-            status="pending",
+            status="ready",
+            generated_text="新しい集会の告知テスト",
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -280,43 +397,16 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertIsNotNone(queue.posted_at)
 
     @patch("twitter.views.post_tweet")
-    @patch("twitter.views.generate_new_community_tweet")
-    def test_post_scheduled_tweets_generation_failure(self, mock_generate, mock_post):
-        """テキスト生成失敗時の処理"""
-        mock_generate.return_value = None
-
-        TweetQueue.objects.create(
-            tweet_type="new_community",
-            community=self.community,
-            event=self.event,
-            status="pending",
-        )
-
-        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
-            url = reverse("twitter:post_scheduled_tweets")
-            response = self.client.get(
-                url, HTTP_REQUEST_TOKEN="test-token",
-            )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertEqual(data["results"][0]["error"], "generation_failed")
-
-        queue = TweetQueue.objects.first()
-        self.assertEqual(queue.status, "failed")
-
-    @patch("twitter.views.post_tweet")
-    @patch("twitter.views.generate_new_community_tweet")
-    def test_post_scheduled_tweets_post_failure(self, mock_generate, mock_post):
+    def test_post_scheduled_tweets_post_failure(self, mock_post):
         """X API 投稿失敗時の処理"""
-        mock_generate.return_value = "テストツイート"
         mock_post.return_value = None
 
         TweetQueue.objects.create(
             tweet_type="new_community",
             community=self.community,
             event=self.event,
-            status="pending",
+            status="ready",
+            generated_text="テストツイート",
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -344,17 +434,18 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         data = response.json()
         self.assertEqual(data["processed"], 0)
         self.assertEqual(data["results"], [])
+        self.assertEqual(data["retried"], 0)
 
     @patch("twitter.views.post_tweet")
     def test_post_scheduled_tweets_with_pregenerated_text(self, mock_post):
-        """事前にテキストが生成されている場合は LLM を呼ばない"""
+        """ready 状態で事前テキストがある場合はそのまま投稿"""
         mock_post.return_value = {"id": "99999", "text": "事前生成テキスト"}
 
         TweetQueue.objects.create(
             tweet_type="new_community",
             community=self.community,
             event=self.event,
-            status="pending",
+            status="ready",
             generated_text="事前生成テキスト",
         )
 
@@ -367,6 +458,357 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["results"][0]["status"], "posted")
+
+    @patch("twitter.views.post_tweet")
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_retry_generation_failed_items(self, mock_generate, mock_post):
+        """generation_failed のキューがリトライされて投稿される"""
+        mock_generate.return_value = "リトライ成功テキスト"
+        mock_post.return_value = {"id": "77777", "text": "リトライ成功テキスト"}
+
+        TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="generation_failed",
+            error_message="前回の失敗",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(
+                url, HTTP_REQUEST_TOKEN="test-token",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["retried"], 1)
+
+        # リトライ成功 -> 投稿成功
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "posted")
+        self.assertEqual(queue.generated_text, "リトライ成功テキスト")
+
+    @patch("twitter.views.post_tweet")
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_retry_stale_generating_items(self, mock_generate, mock_post):
+        """1時間以上前の generating キューがリトライされて投稿される"""
+        mock_generate.return_value = "リトライ成功テキスト"
+        mock_post.return_value = {"id": "88888", "text": "リトライ成功テキスト"}
+
+        queue = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="generating",
+        )
+        # created_at を1時間以上前に更新
+        from datetime import timedelta
+        TweetQueue.objects.filter(pk=queue.pk).update(
+            created_at=timezone.now() - timedelta(hours=2),
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(
+                url, HTTP_REQUEST_TOKEN="test-token",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["retried"], 1)
+
+        queue.refresh_from_db()
+        self.assertEqual(queue.status, "posted")
+
+    def test_recent_generating_not_retried(self):
+        """1時間以内の generating キューはリトライされない"""
+        TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="generating",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(
+                url, HTTP_REQUEST_TOKEN="test-token",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["retried"], 0)
+
+        # generating のまま
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "generating")
+
+    @patch("twitter.views.upload_media")
+    @patch("twitter.views.post_tweet")
+    def test_post_with_image(self, mock_post, mock_upload):
+        """画像URL付きキューが画像をアップロードして投稿される"""
+        mock_upload.return_value = "media_123"
+        mock_post.return_value = {"id": "55555", "text": "画像付きツイート"}
+
+        TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="ready",
+            generated_text="画像付きツイート",
+            image_url="https://data.vrc-ta-hub.com/community/1/poster.webp",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(
+                url, HTTP_REQUEST_TOKEN="test-token",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["results"][0]["status"], "posted")
+
+        # upload_media が呼ばれたことを確認
+        mock_upload.assert_called_once_with("https://data.vrc-ta-hub.com/community/1/poster.webp")
+        # post_tweet に media_ids が渡されたことを確認
+        mock_post.assert_called_once_with("画像付きツイート", media_ids=["media_123"])
+
+    @patch("twitter.views.upload_media")
+    @patch("twitter.views.post_tweet")
+    def test_post_with_image_upload_failure(self, mock_post, mock_upload):
+        """画像アップロード失敗時でもテキストだけで投稿される"""
+        mock_upload.return_value = None
+        mock_post.return_value = {"id": "66666", "text": "テキストのみ"}
+
+        TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="ready",
+            generated_text="テキストのみ",
+            image_url="https://data.vrc-ta-hub.com/community/1/poster.webp",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(
+                url, HTTP_REQUEST_TOKEN="test-token",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        # media_ids=None で投稿される
+        mock_post.assert_called_once_with("テキストのみ", media_ids=None)
+
+
+class RetryGenerationTest(AutoTweetTestBase):
+    """_retry_generation 関数のテスト"""
+
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_retry_success(self, mock_generate):
+        """リトライ成功時に status が ready になる"""
+        mock_generate.return_value = "リトライ成功テキスト"
+
+        queue_item = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="generation_failed",
+            error_message="前回の失敗",
+        )
+
+        from twitter.views import _retry_generation
+        _retry_generation(queue_item)
+
+        queue_item.refresh_from_db()
+        self.assertEqual(queue_item.status, "ready")
+        self.assertEqual(queue_item.generated_text, "リトライ成功テキスト")
+        self.assertEqual(queue_item.error_message, "")
+
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_retry_failure(self, mock_generate):
+        """リトライ失敗時に status が generation_failed のまま"""
+        mock_generate.return_value = None
+
+        queue_item = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="generation_failed",
+        )
+
+        from twitter.views import _retry_generation
+        _retry_generation(queue_item)
+
+        queue_item.refresh_from_db()
+        self.assertEqual(queue_item.status, "generation_failed")
+        self.assertIn("リトライ生成にも失敗", queue_item.error_message)
+
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_retry_exception_sets_generation_failed(self, mock_generate):
+        """リトライ中に例外が発生した場合 generation_failed に更新される"""
+        mock_generate.side_effect = RuntimeError("LLM connection timeout")
+
+        queue_item = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="generation_failed",
+            error_message="前回の失敗",
+        )
+
+        from twitter.views import _retry_generation
+        _retry_generation(queue_item)
+
+        queue_item.refresh_from_db()
+        self.assertEqual(queue_item.status, "generation_failed")
+        self.assertIn("リトライ中に例外が発生", queue_item.error_message)
+
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_retry_exception_does_not_stop_loop(self, mock_generate):
+        """リトライ中の例外が他のアイテム処理を妨げないことを確認"""
+        mock_generate.side_effect = [
+            RuntimeError("1st item exception"),
+            "2番目のアイテムは成功",
+        ]
+
+        queue1 = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="generation_failed",
+        )
+        queue2 = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="generation_failed",
+        )
+
+        from twitter.views import _retry_generation
+        _retry_generation(queue1)
+        _retry_generation(queue2)
+
+        queue1.refresh_from_db()
+        queue2.refresh_from_db()
+        self.assertEqual(queue1.status, "generation_failed")
+        self.assertEqual(queue2.status, "ready")
+        self.assertEqual(queue2.generated_text, "2番目のアイテムは成功")
+
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_retry_success_sets_image_url(self, mock_generate):
+        """リトライ成功時にポスター画像URLが設定される"""
+        mock_generate.return_value = "リトライ成功"
+
+        Community.objects.filter(pk=self.community.pk).update(
+            poster_image="community/1/poster.webp",
+        )
+        self.community.refresh_from_db()
+
+        queue_item = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="generation_failed",
+        )
+
+        with patch.dict("os.environ", {"AWS_S3_CUSTOM_DOMAIN": "data.vrc-ta-hub.com"}):
+            from twitter.views import _retry_generation
+            _retry_generation(queue_item)
+
+        queue_item.refresh_from_db()
+        self.assertEqual(queue_item.status, "ready")
+        self.assertEqual(
+            queue_item.image_url,
+            "https://data.vrc-ta-hub.com/community/1/poster.webp",
+        )
+
+
+class GetGeneratorHelperTest(TestCase):
+    """get_generator ヘルパー関数のテスト"""
+
+    def test_new_community_returns_callable(self):
+        """new_community タイプで callable が返る"""
+        from twitter.tweet_generator import get_generator
+        generator = get_generator("new_community")
+        self.assertIsNotNone(generator)
+        self.assertTrue(callable(generator))
+
+    def test_lt_returns_callable(self):
+        """lt タイプで callable が返る"""
+        from twitter.tweet_generator import get_generator
+        generator = get_generator("lt")
+        self.assertIsNotNone(generator)
+        self.assertTrue(callable(generator))
+
+    def test_special_returns_callable(self):
+        """special タイプで callable が返る"""
+        from twitter.tweet_generator import get_generator
+        generator = get_generator("special")
+        self.assertIsNotNone(generator)
+        self.assertTrue(callable(generator))
+
+    def test_unknown_type_returns_none(self):
+        """未知の tweet_type で None が返る"""
+        from twitter.tweet_generator import get_generator
+        generator = get_generator("unknown")
+        self.assertIsNone(generator)
+
+    def test_empty_string_returns_none(self):
+        """空文字列で None が返る"""
+        from twitter.tweet_generator import get_generator
+        generator = get_generator("")
+        self.assertIsNone(generator)
+
+
+class GetPosterImageUrlHelperTest(TestCase):
+    """get_poster_image_url ヘルパー関数のテスト"""
+
+    def setUp(self):
+        with patch("twitter.signals.threading.Thread"):
+            self.community = Community.objects.create(
+                name="Poster Test Community",
+                start_time=datetime.time(22, 0),
+                duration=60,
+                weekdays=["Mon"],
+                frequency="毎週",
+                organizers="Test",
+                description="テスト用",
+                platform="All",
+                status="approved",
+            )
+
+    def test_no_poster_returns_empty_string(self):
+        """ポスター画像がない場合は空文字列を返す"""
+        from twitter.tweet_generator import get_poster_image_url
+        result = get_poster_image_url(self.community)
+        self.assertEqual(result, "")
+
+    def test_with_custom_domain(self):
+        """AWS_S3_CUSTOM_DOMAIN が設定されている場合はR2 URLを返す"""
+        Community.objects.filter(pk=self.community.pk).update(
+            poster_image="community/1/poster.webp",
+        )
+        self.community.refresh_from_db()
+
+        from twitter.tweet_generator import get_poster_image_url
+        with patch.dict("os.environ", {"AWS_S3_CUSTOM_DOMAIN": "data.vrc-ta-hub.com"}):
+            result = get_poster_image_url(self.community)
+        self.assertEqual(result, "https://data.vrc-ta-hub.com/community/1/poster.webp")
+
+    def test_without_custom_domain_falls_back_to_url(self):
+        """AWS_S3_CUSTOM_DOMAIN が未設定の場合は poster.url にフォールバック"""
+        Community.objects.filter(pk=self.community.pk).update(
+            poster_image="community/1/poster.webp",
+        )
+        self.community.refresh_from_db()
+
+        from twitter.tweet_generator import get_poster_image_url
+        with patch.dict("os.environ", {"AWS_S3_CUSTOM_DOMAIN": ""}):
+            result = get_poster_image_url(self.community)
+        # FileField に url 属性があるので何かしらの値が返る
+        self.assertNotEqual(result, "")
 
 
 class PostTweetFunctionTest(TestCase):
@@ -399,6 +841,26 @@ class PostTweetFunctionTest(TestCase):
         # OAuth1 認証が使われていることを確認
         call_kwargs = mock_post.call_args
         self.assertIsNotNone(call_kwargs.kwargs.get("auth"))
+
+    @patch("twitter.x_api.requests.post")
+    def test_post_tweet_with_media_ids(self, mock_post):
+        """media_ids 付きでツイートが投稿される"""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "data": {"id": "12345", "text": "画像付き"},
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import post_tweet
+            result = post_tweet("画像付き", media_ids=["media_111"])
+
+        self.assertIsNotNone(result)
+        # payload に media フィールドが含まれている
+        call_kwargs = mock_post.call_args
+        payload = call_kwargs.kwargs.get("json")
+        self.assertEqual(payload["media"], {"media_ids": ["media_111"]})
 
     def test_post_tweet_no_credentials(self):
         """環境変数が未設定の場合は None を返す"""
@@ -451,22 +913,189 @@ class PostTweetFunctionTest(TestCase):
         self.assertIsNone(result)
 
 
+class UploadMediaFunctionTest(TestCase):
+    """upload_media 関数のテスト"""
+
+    OAUTH1_ENV = {
+        "X_API_KEY": "test-api-key",
+        "X_API_SECRET": "test-api-secret",
+        "X_ACCESS_TOKEN": "test-access-token",
+        "X_ACCESS_TOKEN_SECRET": "test-access-token-secret",
+    }
+    ALLOWED_IMAGE_URL = "https://data.vrc-ta-hub.com/community/1/poster.webp"
+
+    def _make_stream_response(self, data=b"fake-image-data", content_type="image/webp"):
+        """stream=True のレスポンスモックを生成するヘルパー"""
+        mock_response = MagicMock()
+        mock_response.headers = {"Content-Type": content_type}
+        mock_response.raise_for_status = MagicMock()
+        mock_response.iter_content = MagicMock(return_value=[data])
+        return mock_response
+
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_upload_media_success(self, mock_get, mock_post):
+        """正常に画像がアップロードされる"""
+        mock_get.return_value = self._make_stream_response()
+
+        # メディアアップロードのモック
+        mock_upload_response = MagicMock()
+        mock_upload_response.json.return_value = {"media_id_string": "media_12345"}
+        mock_upload_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_upload_response
+
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            result = upload_media(self.ALLOWED_IMAGE_URL)
+
+        self.assertEqual(result, "media_12345")
+
+    @patch("twitter.x_api.requests.get")
+    def test_upload_media_download_failure(self, mock_get):
+        """画像ダウンロード失敗時は None を返す"""
+        import requests
+        mock_get.side_effect = requests.RequestException("Download failed")
+
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            result = upload_media(self.ALLOWED_IMAGE_URL)
+
+        self.assertIsNone(result)
+
+    def test_upload_media_no_credentials(self):
+        """認証情報がない場合は None を返す"""
+        with patch.dict("os.environ", {
+            "X_API_KEY": "",
+            "X_API_SECRET": "",
+            "X_ACCESS_TOKEN": "",
+            "X_ACCESS_TOKEN_SECRET": "",
+        }):
+            from twitter.x_api import upload_media
+            result = upload_media(self.ALLOWED_IMAGE_URL)
+        self.assertIsNone(result)
+
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_upload_media_upload_failure(self, mock_get, mock_post):
+        """X API へのアップロード失敗時は None を返す"""
+        import requests
+
+        mock_get.return_value = self._make_stream_response(content_type="image/png")
+        mock_post.side_effect = requests.RequestException("Upload failed")
+
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            result = upload_media(self.ALLOWED_IMAGE_URL)
+
+        self.assertIsNone(result)
+
+    # --- SSRF防止テスト ---
+    def test_upload_media_blocks_untrusted_domain(self):
+        """許可リストにないドメインからの画像ダウンロードを拒否する"""
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            result = upload_media("https://evil.example.com/malicious.png")
+        self.assertIsNone(result)
+
+    def test_upload_media_blocks_localhost(self):
+        """localhost からの画像ダウンロードを拒否する"""
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            result = upload_media("http://localhost:8080/internal-api")
+        self.assertIsNone(result)
+
+    def test_upload_media_blocks_internal_ip(self):
+        """内部IPアドレスからの画像ダウンロードを拒否する"""
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            result = upload_media("http://169.254.169.254/latest/meta-data/")
+        self.assertIsNone(result)
+
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_upload_media_allows_trusted_domain(self, mock_get, mock_post):
+        """許可ドメインからのダウンロードは成功する"""
+        mock_get.return_value = self._make_stream_response()
+
+        mock_upload_response = MagicMock()
+        mock_upload_response.json.return_value = {"media_id_string": "media_ok"}
+        mock_upload_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_upload_response
+
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            result = upload_media("https://data.vrc-ta-hub.com/poster.webp")
+
+        self.assertEqual(result, "media_ok")
+
+    # --- サイズ制限テスト ---
+    @patch("twitter.x_api.requests.get")
+    def test_upload_media_rejects_oversized_image(self, mock_get):
+        """5MB超の画像は拒否される"""
+        # 6MB のチャンクを返すモック
+        oversized_data = b"x" * (6 * 1024 * 1024)
+        mock_get.return_value = self._make_stream_response(data=oversized_data)
+
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            result = upload_media(self.ALLOWED_IMAGE_URL)
+
+        self.assertIsNone(result)
+
+    @patch("twitter.x_api.requests.get")
+    def test_upload_media_rejects_oversized_chunked_image(self, mock_get):
+        """複数チャンクで合計5MB超の場合も拒否される"""
+        chunk_size = 1024 * 1024  # 1MB per chunk
+        chunks = [b"x" * chunk_size for _ in range(6)]  # 6MB total
+
+        mock_response = MagicMock()
+        mock_response.headers = {"Content-Type": "image/png"}
+        mock_response.raise_for_status = MagicMock()
+        mock_response.iter_content = MagicMock(return_value=iter(chunks))
+        mock_get.return_value = mock_response
+
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            result = upload_media(self.ALLOWED_IMAGE_URL)
+
+        self.assertIsNone(result)
+
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_upload_media_accepts_exactly_5mb(self, mock_get, mock_post):
+        """ちょうど5MBの画像は受け入れられる"""
+        exactly_5mb = b"x" * (5 * 1024 * 1024)
+        mock_get.return_value = self._make_stream_response(data=exactly_5mb)
+
+        mock_upload_response = MagicMock()
+        mock_upload_response.json.return_value = {"media_id_string": "media_5mb"}
+        mock_upload_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_upload_response
+
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            result = upload_media(self.ALLOWED_IMAGE_URL)
+
+        self.assertEqual(result, "media_5mb")
+
+
 class TweetGeneratorTest(TestCase):
     """告知文生成関数のテスト"""
 
     def setUp(self):
-        self.community = Community.objects.create(
-            name="Generator Test Community",
-            start_time=datetime.time(22, 0),
-            duration=60,
-            weekdays=["Mon"],
-            frequency="毎週",
-            organizers="Test",
-            description="テスト用集会",
-            platform="All",
-            status="approved",
-            twitter_hashtag="GenTest",
-        )
+        with patch("twitter.signals.threading.Thread"):
+            self.community = Community.objects.create(
+                name="Generator Test Community",
+                start_time=datetime.time(22, 0),
+                duration=60,
+                weekdays=["Mon"],
+                frequency="毎週",
+                organizers="Test",
+                description="テスト用集会",
+                platform="All",
+                status="approved",
+                twitter_hashtag="GenTest",
+            )
         self.event = Event.objects.create(
             community=self.community,
             date=datetime.date(2026, 5, 1),
@@ -474,9 +1103,10 @@ class TweetGeneratorTest(TestCase):
             duration=60,
         )
 
+    @patch("twitter.signals.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_new_community_tweet(self, mock_llm):
-        """新規集会の告知文が生成される"""
+    def test_generate_new_community_tweet(self, mock_llm, _mock_thread):
+        """新規集会の告知文が生成��れる"""
         mock_llm.return_value = "新しい集会がはじまります！"
 
         from twitter.tweet_generator import generate_new_community_tweet
@@ -489,8 +1119,9 @@ class TweetGeneratorTest(TestCase):
         call_args = mock_llm.call_args
         self.assertIn("Generator Test Community", call_args[0][1])
 
+    @patch("twitter.signals.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_lt_tweet(self, mock_llm):
+    def test_generate_lt_tweet(self, mock_llm, _mock_thread):
         """LT 告知文が生成される"""
         mock_llm.return_value = "LT告知テスト"
 
@@ -511,8 +1142,9 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("テスト太郎", call_args[0][1])
         self.assertIn("Pythonのテスト技法", call_args[0][1])
 
+    @patch("twitter.signals.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_special_event_tweet(self, mock_llm):
+    def test_generate_special_event_tweet(self, mock_llm, _mock_thread):
         """特別回告知文が生成される"""
         mock_llm.return_value = "特別回告知テスト"
 
@@ -542,8 +1174,9 @@ class TweetGeneratorTest(TestCase):
 
         self.assertIsNone(result)
 
+    @patch("twitter.signals.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_sanitize_strips_newlines_in_prompt(self, mock_llm):
+    def test_sanitize_strips_newlines_in_prompt(self, mock_llm, _mock_thread):
         """ユーザー入力の改行・制御文字がサニタイズされてプロンプトに渡される"""
         mock_llm.return_value = "サニタイズテスト"
 
