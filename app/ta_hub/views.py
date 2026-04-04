@@ -2,12 +2,12 @@ import logging
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import DatabaseError
 from django.utils import timezone
 from django.views.generic import TemplateView
 from django.views.static import serve
 
 from event.models import Event, EventDetail
-from event.views import EventListView
 from event_calendar.calendar_utils import generate_google_calendar_url
 from news.models import Post
 from utils.vrchat_time import get_vrchat_today
@@ -38,6 +38,18 @@ VKET_ACHIEVEMENTS = [
 class IndexView(TemplateView):
     template_name = 'ta_hub/index.html'
 
+    @staticmethod
+    def _build_vket_achievements(thumbnail_map=None):
+        thumbnail_map = thumbnail_map or {}
+
+        achievements = []
+        for achievement in VKET_ACHIEVEMENTS:
+            achievement_copy = achievement.copy()
+            achievement_copy['image'] = thumbnail_map.get(achievement['news_slug'])
+            achievements.append(achievement_copy)
+
+        return achievements
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
@@ -55,19 +67,6 @@ class IndexView(TemplateView):
         context['vket_end_date'] = vket_end_datetime.date()
         logger.info(f"Vket notice visibility: {context['show_vket_notice']} (current: {current_datetime})")
 
-        # VKETコラボ実績をコンテキストに追加（ニュース記事のサムネイルを取得）
-        news_slugs = [a['news_slug'] for a in VKET_ACHIEVEMENTS]
-        news_posts = Post.objects.filter(slug__in=news_slugs).only('slug', 'thumbnail')
-        thumbnail_map = {post.slug: post.get_absolute_thumbnail_url(self.request) for post in news_posts}
-
-        vket_achievements_with_images = []
-        for achievement in VKET_ACHIEVEMENTS:
-            achievement_copy = achievement.copy()
-            achievement_copy['image'] = thumbnail_map.get(achievement['news_slug'])
-            vket_achievements_with_images.append(achievement_copy)
-
-        context['vket_achievements'] = vket_achievements_with_images
-
         # Googleカレンダー連携用のカレンダーIDを追加
         context['google_calendar_id'] = settings.GOOGLE_CALENDAR_ID
 
@@ -77,107 +76,118 @@ class IndexView(TemplateView):
             context.update(cached_data)
             return context
 
-        # キャッシュがない場合はデータベースから取得
-        end_date = today + timezone.timedelta(days=7)
-        upcoming_events = Event.objects.filter(
-            date__gte=today,
-            date__lte=end_date,
-            community__status='approved',
-            community__end_at__isnull=True,
-            # ポスター画像があるコミュニティのイベントのみ
-            community__poster_image__isnull=False
-        ).exclude(
-            community__poster_image=''
-        ).select_related('community').order_by('date', 'start_time')
+        try:
+            # DBが一時的に不安定でも、トップページ自体は空状態で返して 500 を避ける。
+            news_slugs = [achievement['news_slug'] for achievement in VKET_ACHIEVEMENTS]
+            news_posts = Post.objects.filter(slug__in=news_slugs).only('slug', 'thumbnail')
+            thumbnail_map = {post.slug: post.get_absolute_thumbnail_url(self.request) for post in news_posts}
 
-        upcoming_event_details = EventDetail.objects.filter(
-            event__date__gte=today,
-            event__community__status='approved',
-            event__community__end_at__isnull=True,
-            detail_type='LT',  # LTのみ
-            status='approved',
-            # ポスター画像があるコミュニティのイベントのみ
-            event__community__poster_image__isnull=False
-        ).exclude(
-            event__community__poster_image=''
-        ).select_related('event', 'event__community').order_by('event__date', 'start_time')
+            end_date = today + timezone.timedelta(days=7)
+            upcoming_events = Event.objects.filter(
+                date__gte=today,
+                date__lte=end_date,
+                community__status='approved',
+                community__end_at__isnull=True,
+                # ポスター画像があるコミュニティのイベントのみ
+                community__poster_image__isnull=False
+            ).exclude(
+                community__poster_image=''
+            ).select_related('community').order_by('date', 'start_time')
 
-        # 特別企画を取得（今日からイベント終了日の24時まで表示）
-        special_events = EventDetail.objects.filter(
-            detail_type='SPECIAL',
-            status='approved',
-            event__date__gte=today,  # 今日以降のイベント
-            event__community__status='approved',
-            event__community__end_at__isnull=True,
-            # ポスター画像があるコミュニティのイベントのみ
-            event__community__poster_image__isnull=False
-        ).exclude(
-            event__community__poster_image=''
-        ).select_related('event', 'event__community').order_by('-event__date', '-start_time')[:10]
+            upcoming_event_details = EventDetail.objects.filter(
+                event__date__gte=today,
+                event__community__status='approved',
+                event__community__end_at__isnull=True,
+                detail_type='LT',  # LTのみ
+                status='approved',
+                # ポスター画像があるコミュニティのイベントのみ
+                event__community__poster_image__isnull=False
+            ).exclude(
+                event__community__poster_image=''
+            ).select_related('event', 'event__community').order_by('event__date', 'start_time')
 
-        # Google Calendar URLを生成
-        event_list_view = EventListView()
-        event_list_view.request = self.request
+            # 特別企画を取得（今日からイベント終了日の24時まで表示）
+            special_events = EventDetail.objects.filter(
+                detail_type='SPECIAL',
+                status='approved',
+                event__date__gte=today,  # 今日以降のイベント
+                event__community__status='approved',
+                event__community__end_at__isnull=True,
+                # ポスター画像があるコミュニティのイベントのみ
+                event__community__poster_image__isnull=False
+            ).exclude(
+                event__community__poster_image=''
+            ).select_related('event', 'event__community').order_by('-event__date', '-start_time')[:10]
 
-        # イベントとイベント詳細のGoogle Calendar URLを生成
-        events_with_urls = []
-        for event in upcoming_events:
-            event_dict = {
-                'id': event.id,
-                'date': event.date,
-                'start_time': event.start_time,
-                'end_time': event.end_time,
-                'community': event.community,
-                'google_calendar_url': generate_google_calendar_url(self.request, event),
-                'weekday': event.weekday,
+            # イベントとイベント詳細のGoogle Calendar URLを生成
+            events_with_urls = []
+            for event in upcoming_events:
+                event_dict = {
+                    'id': event.id,
+                    'date': event.date,
+                    'start_time': event.start_time,
+                    'end_time': event.end_time,
+                    'community': event.community,
+                    'google_calendar_url': generate_google_calendar_url(self.request, event),
+                    'weekday': event.weekday,
+                }
+                events_with_urls.append(event_dict)
+
+            details_with_urls = []
+            for detail in upcoming_event_details:
+                detail_dict = {
+                    'id': detail.id,
+                    'event': {
+                        'id': detail.event.id,
+                        'date': detail.event.date,
+                        'start_time': detail.event.start_time,
+                        'end_time': detail.event.end_time,
+                        'community': detail.event.community,
+                        'google_calendar_url': generate_google_calendar_url(self.request, detail.event),
+                    },
+                    'start_time': detail.start_time,
+                    'end_time': detail.end_time,
+                    'speaker': detail.speaker,
+                    'theme': detail.theme,
+                }
+                details_with_urls.append(detail_dict)
+
+            # 特別企画の情報を整形
+            special_events_data = []
+            for special in special_events:
+                special_dict = {
+                    'id': special.id,
+                    'pk': special.pk,  # テンプレートでpkを使用しているため追加
+                    'event': {
+                        'id': special.event.id,
+                        'date': special.event.date,
+                        'start_time': special.event.start_time,
+                        'end_time': special.event.end_time,
+                        'community': special.event.community,
+                    },
+                    'h1': special.h1,
+                    'theme': special.theme,
+                    'meta_description': special.meta_description,
+                    'contents': special.contents,  # 記事本文を追加
+                }
+                special_events_data.append(special_dict)
+
+            cache_data = {
+                'vket_achievements': self._build_vket_achievements(thumbnail_map),
+                'upcoming_events': events_with_urls,
+                'upcoming_event_details': details_with_urls,
+                'special_events': special_events_data,
             }
-            events_with_urls.append(event_dict)
+        except DatabaseError:
+            logger.exception('IndexView degraded gracefully because the database was unavailable')
+            context.update({
+                'vket_achievements': self._build_vket_achievements(),
+                'upcoming_events': [],
+                'upcoming_event_details': [],
+                'special_events': [],
+            })
+            return context
 
-        details_with_urls = []
-        for detail in upcoming_event_details:
-            detail_dict = {
-                'id': detail.id,
-                'event': {
-                    'id': detail.event.id,
-                    'date': detail.event.date,
-                    'start_time': detail.event.start_time,
-                    'end_time': detail.event.end_time,
-                    'community': detail.event.community,
-                    'google_calendar_url': generate_google_calendar_url(self.request, detail.event),
-                },
-                'start_time': detail.start_time,
-                'end_time': detail.end_time,
-                'speaker': detail.speaker,
-                'theme': detail.theme,
-            }
-            details_with_urls.append(detail_dict)
-
-        # 特別企画の情報を整形
-        special_events_data = []
-        for special in special_events:
-            special_dict = {
-                'id': special.id,
-                'pk': special.pk,  # テンプレートでpkを使用しているため追加
-                'event': {
-                    'id': special.event.id,
-                    'date': special.event.date,
-                    'start_time': special.event.start_time,
-                    'end_time': special.event.end_time,
-                    'community': special.event.community,
-                },
-                'h1': special.h1,
-                'theme': special.theme,
-                'meta_description': special.meta_description,
-                'contents': special.contents,  # 記事本文を追加
-            }
-            special_events_data.append(special_dict)
-
-        # データをキャッシュに保存（1時間）
-        cache_data = {
-            'upcoming_events': events_with_urls,
-            'upcoming_event_details': details_with_urls,
-            'special_events': special_events_data,
-        }
         cache.set(cache_key, cache_data, 60 * 60)  # 60分 * 60秒
 
         context.update(cache_data)
