@@ -96,16 +96,23 @@ def track_community_status_change(sender, instance, **kwargs):
 def track_event_detail_status_change(sender, instance, **kwargs):
     """EventDetail のステータス変更を追跡する。
 
-    post_save で旧値を参照できるよう _old_status を instance に保持する。
+    post_save で旧値を参照できるよう _old_status, _old_slide_url,
+    _old_youtube_url を instance に保持する。
     """
     if instance.pk:
         try:
             old = EventDetail.objects.get(pk=instance.pk)
             instance._old_status = old.status
+            instance._old_slide_url = old.slide_url or ""
+            instance._old_youtube_url = old.youtube_url or ""
         except EventDetail.DoesNotExist:
             instance._old_status = None
+            instance._old_slide_url = ""
+            instance._old_youtube_url = ""
     else:
         instance._old_status = None
+        instance._old_slide_url = ""
+        instance._old_youtube_url = ""
 
 
 @receiver(post_save, sender=Community)
@@ -144,6 +151,61 @@ def queue_new_community_tweet(sender, instance, created, **kwargs):
         event=first_event,
     )
     logger.info("Queued new community tweet: %s", instance.name)
+
+    thread = threading.Thread(
+        target=_generate_tweet_async, args=(queue_item.pk,), daemon=True,
+    )
+    thread.start()
+
+
+@receiver(post_save, sender=EventDetail)
+def queue_slide_share_tweet(sender, instance, created, **kwargs):
+    """スライド/記事が初めてアップロードされた時にツイートキューに追加する。
+
+    以下の条件をすべて満たす場合にキューを追加する:
+    - slide_url または youtube_url が初めて設定された（空から値あり）
+    - event.date が過去（発表日が終わっている）
+    - 同じ event_detail に対して slide_share キューが未登録
+    """
+    from django.utils import timezone
+
+    from twitter.models import TweetQueue
+
+    # detail_type チェック（LT/SPECIAL のみ対象）
+    if instance.detail_type not in ("LT", "SPECIAL"):
+        return
+
+    # 発表日が過去かチェック
+    if instance.event.date >= timezone.now().date():
+        return
+
+    # slide_url または youtube_url が初めて設定されたかチェック
+    old_slide_url = getattr(instance, "_old_slide_url", "")
+    old_youtube_url = getattr(instance, "_old_youtube_url", "")
+    new_slide_url = instance.slide_url or ""
+    new_youtube_url = instance.youtube_url or ""
+
+    slide_newly_set = not old_slide_url and new_slide_url
+    youtube_newly_set = not old_youtube_url and new_youtube_url
+
+    if not slide_newly_set and not youtube_newly_set:
+        return
+
+    # 重複チェック
+    if TweetQueue.objects.filter(
+        event_detail=instance, tweet_type="slide_share",
+    ).exists():
+        return
+
+    queue_item = TweetQueue.objects.create(
+        tweet_type="slide_share",
+        community=instance.event.community,
+        event=instance.event,
+        event_detail=instance,
+    )
+    logger.info(
+        "Queued slide share tweet: %s - %s", instance.speaker, instance.theme,
+    )
 
     thread = threading.Thread(
         target=_generate_tweet_async, args=(queue_item.pk,), daemon=True,

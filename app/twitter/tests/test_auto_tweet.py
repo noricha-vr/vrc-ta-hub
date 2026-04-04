@@ -1164,6 +1164,86 @@ class TweetGeneratorTest(TestCase):
         call_args = mock_llm.call_args
         self.assertIn("ゲスト講師", call_args[0][1])
 
+    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.tweet_generator._call_llm")
+    def test_generate_slide_share_tweet_with_slide(self, mock_llm, _mock_thread):
+        """スライド共有ツイートが生成される（slide_url のみ）"""
+        mock_llm.return_value = "スライド公開しました！"
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="Pythonのテスト技法",
+            start_time=datetime.time(22, 15),
+            slide_url="https://example.com/slides",
+        )
+
+        from twitter.tweet_generator import generate_slide_share_tweet
+        result = generate_slide_share_tweet(detail)
+
+        self.assertEqual(result, "スライド公開しました！")
+        call_args = mock_llm.call_args
+        user_prompt = call_args[0][1]
+        self.assertIn("テスト太郎", user_prompt)
+        self.assertIn("Pythonのテスト技法", user_prompt)
+        # URLはプロンプトに含めない（プロンプトインジェクション防止）
+        self.assertNotIn("https://example.com/slides", user_prompt)
+        self.assertIn("スライド", user_prompt)
+        self.assertNotIn("動画", user_prompt)
+
+    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.tweet_generator._call_llm")
+    def test_generate_slide_share_tweet_with_youtube(self, mock_llm, _mock_thread):
+        """スライド共有ツイートが生成される（youtube_url のみ）"""
+        mock_llm.return_value = "動画公開しました！"
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VR技術入門",
+            start_time=datetime.time(22, 15),
+            youtube_url="https://youtube.com/watch?v=test123",
+        )
+
+        from twitter.tweet_generator import generate_slide_share_tweet
+        result = generate_slide_share_tweet(detail)
+
+        self.assertEqual(result, "動画公開しました！")
+        call_args = mock_llm.call_args
+        user_prompt = call_args[0][1]
+        self.assertNotIn("https://youtube.com", user_prompt)
+        self.assertIn("動画", user_prompt)
+        self.assertNotIn("スライド", user_prompt)
+
+    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.tweet_generator._call_llm")
+    def test_generate_slide_share_tweet_with_both(self, mock_llm, _mock_thread):
+        """スライド共有ツイートが生成される（slide_url + youtube_url 両方）"""
+        mock_llm.return_value = "スライドと動画公開！"
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VR技術入門",
+            start_time=datetime.time(22, 15),
+            slide_url="https://example.com/slides",
+            youtube_url="https://youtube.com/watch?v=test123",
+        )
+
+        from twitter.tweet_generator import generate_slide_share_tweet
+        result = generate_slide_share_tweet(detail)
+
+        self.assertEqual(result, "スライドと動画公開！")
+        call_args = mock_llm.call_args
+        user_prompt = call_args[0][1]
+        self.assertIn("スライド・動画", user_prompt)
+
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_tweet_llm_failure(self, mock_llm):
         """LLM 呼び出し失敗時は None を返す"""
@@ -1268,3 +1348,146 @@ class PostTweetValidationTest(TestCase):
             result = post_tweet("a" * 280)
         # 認証情報がないので None だが、文字数バリデーションは通過している
         self.assertIsNone(result)
+
+
+class SlideShareSignalTest(AutoTweetTestBase):
+    """スライド/記事共有時のシグナルテスト"""
+
+    def setUp(self):
+        super().setUp()
+        # community を approved にしておく
+        with patch("twitter.signals.threading.Thread") as mock_thread_cls:
+            mock_thread_cls.return_value = MagicMock()
+            self.community.status = "approved"
+            self.community.save()
+        TweetQueue.objects.all().delete()
+
+        # 過去の日付のイベントを作成
+        self.past_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 1, 1),  # 過去の日付
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        # 承認済みの EventDetail を作成（slide_url/youtube_url なし）
+        with patch("twitter.signals.threading.Thread") as mock_thread_cls:
+            mock_thread_cls.return_value = MagicMock()
+            self.detail = EventDetail.objects.create(
+                event=self.past_event,
+                detail_type="LT",
+                status="approved",
+                speaker="テスト太郎",
+                theme="VRChatで学ぶPython",
+                start_time=datetime.time(22, 15),
+            )
+        # LT承認時のキューをクリア
+        TweetQueue.objects.all().delete()
+
+    @patch("twitter.signals.threading.Thread")
+    def test_slide_url_first_set_creates_queue(self, mock_thread_cls):
+        """slide_url が初めて設定され、発表日が過去ならキューが作成される"""
+        mock_thread_cls.return_value = MagicMock()
+
+        self.detail.slide_url = "https://example.com/slides"
+        self.detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.tweet_type, "slide_share")
+        self.assertEqual(queue.event_detail, self.detail)
+        self.assertEqual(queue.event, self.past_event)
+        self.assertEqual(queue.status, "generating")
+        mock_thread_cls.assert_called_once()
+
+    @patch("twitter.signals.threading.Thread")
+    def test_youtube_url_first_set_creates_queue(self, mock_thread_cls):
+        """youtube_url が初めて設定され、発表日が過去ならキューが作成される"""
+        mock_thread_cls.return_value = MagicMock()
+
+        self.detail.youtube_url = "https://youtube.com/watch?v=test123"
+        self.detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.tweet_type, "slide_share")
+
+    @patch("twitter.signals.threading.Thread")
+    def test_future_event_does_not_create_queue(self, mock_thread_cls):
+        """発表日が未来の場合はキューが作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
+        # 未来のイベントに紐づくEventDetail
+        future_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2099, 12, 31),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        with patch("twitter.signals.threading.Thread") as mt:
+            mt.return_value = MagicMock()
+            future_detail = EventDetail.objects.create(
+                event=future_event,
+                detail_type="LT",
+                status="approved",
+                speaker="テスト太郎",
+                theme="未来のテーマ",
+                start_time=datetime.time(22, 15),
+            )
+        TweetQueue.objects.all().delete()
+
+        future_detail.slide_url = "https://example.com/slides"
+        future_detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 0)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_duplicate_slide_share_prevention(self, mock_thread_cls):
+        """同じ event_detail の slide_share キューは重複作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
+        self.detail.slide_url = "https://example.com/slides"
+        self.detail.save()
+        self.assertEqual(TweetQueue.objects.count(), 1)
+
+        # youtube_url も追加 → 重複なので作成されない
+        self.detail.youtube_url = "https://youtube.com/watch?v=test123"
+        self.detail.save()
+        self.assertEqual(TweetQueue.objects.count(), 1)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_slide_url_update_does_not_create_queue(self, mock_thread_cls):
+        """既に slide_url があるものを更新してもキューは作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
+        # まず slide_url を設定
+        self.detail.slide_url = "https://example.com/slides"
+        self.detail.save()
+        TweetQueue.objects.all().delete()
+
+        # 別のURLに更新
+        self.detail.slide_url = "https://example.com/slides-v2"
+        self.detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 0)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_blog_type_does_not_create_slide_share_queue(self, mock_thread_cls):
+        """BLOG タイプではスライド共有キューが作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
+        with patch("twitter.signals.threading.Thread") as mt:
+            mt.return_value = MagicMock()
+            blog_detail = EventDetail.objects.create(
+                event=self.past_event,
+                detail_type="BLOG",
+                status="approved",
+                speaker="ブロガー",
+                theme="振り返り",
+                start_time=datetime.time(22, 0),
+            )
+        TweetQueue.objects.all().delete()
+
+        blog_detail.slide_url = "https://example.com/article"
+        blog_detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 0)
