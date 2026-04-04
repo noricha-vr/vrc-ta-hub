@@ -14,3 +14,52 @@ class TwitterTemplate(models.Model):
 
     class Meta:
         db_table = 'twitter_template'
+
+
+class TweetQueue(models.Model):
+    """X (Twitter) 自動投稿キュー
+
+    集会承認・LT/特別回承認時にシグナルでキューに追加され、
+    Cloud Scheduler (毎日19:00 JST) からのリクエストで一括投稿される。
+    """
+
+    TWEET_TYPE_CHOICES = [
+        ('new_community', '新規集会'),
+        ('lt', 'LT告知'),
+        ('special', '特別回告知'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', '投稿待ち'),
+        ('posted', '投稿済み'),
+        ('failed', '失敗'),
+    ]
+
+    tweet_type = models.CharField(
+        '種別', max_length=20, choices=TWEET_TYPE_CHOICES,
+    )
+    community = models.ForeignKey(
+        'community.Community', on_delete=models.CASCADE, related_name='tweet_queues',
+    )
+    event = models.ForeignKey(
+        'event.Event', on_delete=models.CASCADE, null=True, blank=True, related_name='tweet_queues',
+    )
+    event_detail = models.ForeignKey(
+        'event.EventDetail', on_delete=models.CASCADE, null=True, blank=True, related_name='tweet_queues',
+    )
+    generated_text = models.TextField('生成テキスト', blank=True)
+    status = models.CharField(
+        '状態', max_length=10, choices=STATUS_CHOICES, default='pending',
+    )
+    tweet_id = models.CharField('ツイートID', max_length=50, blank=True)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    posted_at = models.DateTimeField('投稿日時', null=True, blank=True)
+    error_message = models.TextField('エラーメッセージ', blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'ツイートキュー'
+        verbose_name_plural = 'ツイートキュー'
+        db_table = 'tweet_queue'
+
+    def __str__(self):
+        return f"[{self.get_tweet_type_display()}] {self.community.name} - {self.get_status_display()}"
