@@ -79,7 +79,7 @@ class CommunityViewSet(viewsets.ReadOnlyModelViewSet):
             "承認済みかつアクティブな技術系・学術系集会の一覧を返します。"
         ),
         tags=["Community"],
-        # OpenAPI は fields を持つ専用 serializer を参照し、to_representation 実装との差分で壊れないようにする。
+        # OpenAPI は fields を持つ専用 serializer を参照し、to_representation 実装との差分で壊れないようにする。参照: PR #169（gathering-list schema生成安定化の理由）
         responses=GatheringListSchemaSerializer(many=True),
     )
     @action(detail=False, methods=['get'], url_path='gathering-list')
