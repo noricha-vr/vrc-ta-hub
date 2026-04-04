@@ -1454,6 +1454,10 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
         return None
 
     def dispatch(self, request, *args, **kwargs):
+        # このviewでdispatchを上書きしているため、匿名時は先に認証チェックする。
+        if not request.user.is_authenticated:
+            return self.handle_no_permission()
+
         # コミュニティの承認状態をチェック
         community = self._get_active_community()
         if not community or community.status != 'approved':
