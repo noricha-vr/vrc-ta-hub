@@ -19,6 +19,7 @@
 | ファイル | 日付 | 概要 |
 |----------|------|------|
 | db-sync-01.md | 04-06 | 本番DBからローカルへの初回同期 |
+| cloud-run-01.md | 04-05 | Cloud Run の古い tagged revision URL cleanup |
 | drf-spectacular-01.md | 04-01 | GatheringListSerializer の schema 生成エラー修正 |
 
 ### 2026-03/
