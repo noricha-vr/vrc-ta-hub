@@ -142,7 +142,7 @@ def queue_new_community_tweet(sender, instance, created, **kwargs):
     if instance.status != "approved" or old_status == "approved":
         return
 
-    # デプロイ直後にコードだけ先行しても本体操作を 500 にしない。
+    # デプロイ直後にコードだけ先行しても本体操作を 500 にしない。参照: PR #175（migration未適用中でも保存操作を継続するため）
     if not _tweet_queue_table_exists():
         logger.warning("Skipping tweet queue creation because tweet_queue table is unavailable")
         return
