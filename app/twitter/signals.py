@@ -20,19 +20,23 @@ def _generate_tweet_async(queue_id: int) -> None:
     """バックグラウンドスレッドでツイートテキストを生成する。
 
     生成成功時は status を ready に、失敗時は generation_failed に更新する。
+    別スレッドで実行されるため、全例外をキャッチしてテストを妨げないようにし、
+    終了時に DB 接続を確実にクローズする。
     """
-    from twitter.models import TweetQueue
-    from twitter.tweet_generator import get_generator, get_poster_image_url
+    from django.db import connection
 
     try:
-        queue_item = TweetQueue.objects.select_related(
-            'community', 'event', 'event_detail',
-        ).get(pk=queue_id)
-    except TweetQueue.DoesNotExist:
-        logger.error("TweetQueue %d not found", queue_id)
-        return
+        from twitter.models import TweetQueue
+        from twitter.tweet_generator import get_generator, get_poster_image_url
 
-    try:
+        try:
+            queue_item = TweetQueue.objects.select_related(
+                'community', 'event', 'event_detail',
+            ).get(pk=queue_id)
+        except TweetQueue.DoesNotExist:
+            logger.error("TweetQueue %d not found", queue_id)
+            return
+
         generator = get_generator(queue_item.tweet_type)
         text = generator(queue_item) if generator else None
 
@@ -55,10 +59,21 @@ def _generate_tweet_async(queue_id: int) -> None:
         logger.info("Tweet text generated for queue %d", queue_id)
 
     except Exception as e:
-        logger.error("Failed to generate tweet for queue %d: %s", queue_id, e)
-        queue_item.status = 'generation_failed'
-        queue_item.error_message = str(e)[:500]
-        queue_item.save()
+        logger.warning(
+            "Async tweet generation failed for queue %d: %s", queue_id, e,
+        )
+        # ステータス更新を試みるが、DBロック時は静かに失敗する
+        try:
+            from twitter.models import TweetQueue
+
+            item = TweetQueue.objects.get(pk=queue_id)
+            item.status = 'generation_failed'
+            item.error_message = str(e)[:500]
+            item.save()
+        except Exception:
+            pass
+    finally:
+        connection.close()
 
 
 @receiver(pre_save, sender=Community)
