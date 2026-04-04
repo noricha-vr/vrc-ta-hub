@@ -7,6 +7,7 @@
 import logging
 import threading
 
+from django.db import connection
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
@@ -14,6 +15,13 @@ from community.models import Community
 from event.models import EventDetail
 
 logger = logging.getLogger(__name__)
+
+
+def _tweet_queue_table_exists() -> bool:
+    """TweetQueue テーブルが利用可能かを返す。"""
+    from twitter.models import TweetQueue
+
+    return TweetQueue._meta.db_table in connection.introspection.table_names()
 
 
 def _generate_tweet_async(queue_id: int) -> None:
@@ -134,6 +142,11 @@ def queue_new_community_tweet(sender, instance, created, **kwargs):
     if instance.status != "approved" or old_status == "approved":
         return
 
+    # デプロイ直後にコードだけ先行しても本体操作を 500 にしない。参照: PR #175（migration未適用中でも保存操作を継続するため）
+    if not _tweet_queue_table_exists():
+        logger.warning("Skipping tweet queue creation because tweet_queue table is unavailable")
+        return
+
     # 重複チェック
     if TweetQueue.objects.filter(community=instance, tweet_type="new_community").exists():
         return
@@ -202,6 +215,10 @@ def queue_slide_share_tweet(sender, instance, created, **kwargs):
     if not slide_newly_set and not youtube_newly_set and not slide_file_newly_set:
         return
 
+    if not _tweet_queue_table_exists():
+        logger.warning("Skipping tweet queue creation because tweet_queue table is unavailable")
+        return
+
     # 重複チェック
     if TweetQueue.objects.filter(
         event_detail=instance, tweet_type="slide_share",
@@ -250,6 +267,10 @@ def queue_event_detail_tweet(sender, instance, created, **kwargs):
         return
 
     tweet_type = "lt" if instance.detail_type == "LT" else "special"
+
+    if not _tweet_queue_table_exists():
+        logger.warning("Skipping tweet queue creation because tweet_queue table is unavailable")
+        return
 
     # 重複チェック
     if TweetQueue.objects.filter(event_detail=instance, tweet_type=tweet_type).exists():
