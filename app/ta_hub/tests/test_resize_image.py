@@ -109,7 +109,7 @@ class ResizeAndConvertImageTestCase(TestCase):
 
     def test_default_values(self):
         """デフォルト値が正しいことを確認"""
-        self.assertEqual(DEFAULT_MAX_SIZE, 1000)
+        self.assertEqual(DEFAULT_MAX_SIZE, 4096)
         self.assertEqual(DEFAULT_JPEG_QUALITY, 82)
         self.assertEqual(DEFAULT_PNG_TO_JPEG_THRESHOLD, 200 * 1024)
 

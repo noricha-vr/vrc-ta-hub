@@ -5,6 +5,7 @@ from rest_framework import serializers
 
 from community.models import Community, WEEKDAY_CHOICES
 from event.models import Event, EventDetail, RecurrenceRule
+from ta_hub.libs import cloudflare_image_url
 
 
 def _extract_group_id(group_url):
@@ -43,7 +44,7 @@ class CommunitySerializer(serializers.ModelSerializer):
 
     def get_poster_image(self, obj):
         if obj.poster_image:
-            return obj.poster_image.url
+            return cloudflare_image_url(obj.poster_image.url, width=800)
         return None
 
     def get_group_id(self, obj):

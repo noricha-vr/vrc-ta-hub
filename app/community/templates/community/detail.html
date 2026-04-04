@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load custom_filters %}
+{% load custom_filters image_tags %}
 
 {% block meta %}
     <title>{{ community.name }} - VRChat 技術・学術系イベントHub</title>
@@ -27,7 +27,7 @@
                     <div class="col-lg-5">
                         <div class="position-relative">
                             {% if community.poster_image %}
-                                <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
+                                <img src="{{ community.poster_image.url|cf_resize:'800' }}" alt="{{ community.name }}"
                                      class="img-fluid rounded shadow-sm w-100">
                             {% else %}
                                 <img src="https://vrc-ta-hub.com/poster/no-image.png" alt="{{ community.name }}"

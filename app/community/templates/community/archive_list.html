@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load custom_filters %}
+{% load custom_filters image_tags %}
 {% block meta %}
     <title>終了した集会 - VRChat 技術・学術系イベントHub</title>
     <meta name="twitter:title" content="終了した集会 - VRChat 技術・学術系イベントHub">
@@ -157,7 +157,7 @@
                             <div class="card-body d-flex flex-column"> <!-- カードの内容を card-body で囲む -->
                                 <a href="{% url 'community:detail' community.id %}" class="text-decoration-none">
                                     {% if community.poster_image %}
-                                        <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
+                                        <img src="{{ community.poster_image.url|cf_resize:'400' }}" alt="{{ community.name }}"
                                              class="img-fluid mb-3" style="max-width: 100%; height: auto; opacity: 0.8;"
                                              loading="lazy">
                                     {% else %}
