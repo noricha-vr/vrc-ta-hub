@@ -16,6 +16,8 @@ def get_vket_lock_info(event) -> tuple[bool, str]:
     Returns:
         (ロック中か, メッセージ) のタプル。ロックされていない場合は (False, "")
     """
+    # ロック判定に不要な列まで読むと、列追加直後の古いDBスキーマで 500 になりうるため、
+    # メッセージ生成に必要な情報だけを取得する。
     participation = (
         VketParticipation.objects.filter(
             community=event.community,
@@ -23,14 +25,18 @@ def get_vket_lock_info(event) -> tuple[bool, str]:
             collaboration__period_start__lte=event.date,
             collaboration__period_end__gte=event.date,
         )
-        .select_related('collaboration')
+        .values_list(
+            "collaboration__name",
+            "collaboration__period_start",
+            "collaboration__period_end",
+        )
         .first()
     )
     if not participation:
         return False, ""
-    collab = participation.collaboration
+    collab_name, period_start, period_end = participation
     message = (
-        f"「{collab.name}」期間中（{collab.period_start}〜{collab.period_end}）"
+        f"「{collab_name}」期間中（{period_start}〜{period_end}）"
         f"のため、日時の変更は運営のみ可能です。"
     )
     return True, message

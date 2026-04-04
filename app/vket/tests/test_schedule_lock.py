@@ -3,7 +3,9 @@
 from datetime import time, timedelta
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import Client, TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -85,6 +87,22 @@ class VketScheduleLockServiceTests(TestCase):
         msg = get_vket_lock_message(self.event_in_period)
         self.assertIn('Vket Lock Test', msg)
         self.assertIn('運営のみ', msg)
+
+    def test_get_vket_lock_info_does_not_select_stage_registered_at(self):
+        """ロック判定は不要列をSELECTせず、列追加直後の古いDBでも動ける"""
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+
+        with CaptureQueriesContext(connection) as queries:
+            locked, msg = get_vket_lock_info(self.event_in_period)
+
+        self.assertTrue(locked)
+        self.assertIn('Vket Lock Test', msg)
+        executed_sql = "\n".join(query["sql"] for query in queries.captured_queries)
+        self.assertNotIn("stage_registered_at", executed_sql)
 
     def test_lock_message_empty_when_not_locked(self):
         """ロックされていない場合は空文字列"""
