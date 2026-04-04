@@ -48,6 +48,8 @@ jobs:
           #   - ta_hub.tests.test_resize_image (image processing issues)
           #   - user_account.tests.test_views (Discord OAuth SocialApp required)
           python manage.py test \
+            website.tests.test_host_settings \
+            website.tests.test_cloudbuild_config \
             community.tests \
             user_account.tests.test_discord_notification \
             api_v1.tests
