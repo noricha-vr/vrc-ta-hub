@@ -2,8 +2,14 @@
 
 from django.urls import path
 
-from .views import TwitterTemplateCreateView, TwitterTemplateUpdateView, TwitterTemplateListView, \
-    TwitterTemplateDeleteView, TweetEventWithTemplateView
+from .views import (
+    TwitterTemplateCreateView,
+    TwitterTemplateUpdateView,
+    TwitterTemplateListView,
+    TwitterTemplateDeleteView,
+    TweetEventWithTemplateView,
+    post_scheduled_tweets,
+)
 
 app_name = 'twitter'
 
@@ -14,5 +20,5 @@ urlpatterns = [
     path('template/<int:pk>/delete/', TwitterTemplateDeleteView.as_view(), name='template_delete'),
     path('tweet/<int:event_pk>/<int:template_pk>/', TweetEventWithTemplateView.as_view(),
          name='tweet_event_with_template'),
-
+    path('post-scheduled/', post_scheduled_tweets, name='post_scheduled_tweets'),
 ]

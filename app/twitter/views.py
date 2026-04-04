@@ -1,14 +1,18 @@
 # twitter/views.py
 import html
 import logging
+import os
 import urllib.parse
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views import View
+from django.views.decorators.http import require_http_methods
 from django.views.generic import CreateView, UpdateView, ListView, DeleteView, TemplateView
 
 logger = logging.getLogger(__name__)
@@ -16,8 +20,14 @@ logger = logging.getLogger(__name__)
 from community.models import Community
 from event.models import Event
 from .forms import TwitterTemplateForm
-from .models import TwitterTemplate
+from .models import TwitterTemplate, TweetQueue
+from .tweet_generator import (
+    generate_lt_tweet,
+    generate_new_community_tweet,
+    generate_special_event_tweet,
+)
 from .utils import format_event_info, generate_tweet, generate_tweet_url
+from .x_api import post_tweet
 
 
 class TwitterTemplateBaseView(LoginRequiredMixin, UserPassesTestMixin):
@@ -152,3 +162,67 @@ class TweetEventWithTemplateView(TemplateView):
             'template': template,
         })
         return context
+
+
+@require_http_methods(["GET"])
+def post_scheduled_tweets(request):
+    """Cloud Scheduler から毎日 19:00 JST に呼ばれるエンドポイント。
+
+    pending 状態のツイートキューを一括処理する:
+    1. LLM でツイートテキストを生成
+    2. X API v2 で投稿
+    """
+    request_token = request.headers.get("Request-Token", "")
+    if request_token != os.environ.get("REQUEST_TOKEN", ""):
+        return HttpResponse("Unauthorized", status=401)
+
+    pending_tweets = TweetQueue.objects.filter(status="pending").select_related(
+        "community", "event", "event_detail",
+    )
+
+    results = []
+    for queue_item in pending_tweets:
+        # 1. テキスト生成 (未生成の場合)
+        if not queue_item.generated_text:
+            generator_map = {
+                "new_community": lambda qi: generate_new_community_tweet(qi.community, qi.event),
+                "lt": lambda qi: generate_lt_tweet(qi.event_detail),
+                "special": lambda qi: generate_special_event_tweet(qi.event_detail),
+            }
+            generator = generator_map.get(queue_item.tweet_type)
+            text = generator(queue_item) if generator else None
+
+            if not text:
+                queue_item.status = "failed"
+                queue_item.error_message = "テキスト生成に失敗"
+                queue_item.save()
+                results.append({
+                    "id": queue_item.pk, "status": "failed", "error": "generation_failed",
+                })
+                logger.warning("Tweet generation failed for queue %d", queue_item.pk)
+                continue
+
+            queue_item.generated_text = text
+
+        # 2. X API 投稿
+        response_data = post_tweet(queue_item.generated_text)
+
+        if response_data:
+            queue_item.status = "posted"
+            queue_item.tweet_id = response_data.get("id", "")
+            queue_item.posted_at = timezone.now()
+            results.append({
+                "id": queue_item.pk, "status": "posted", "tweet_id": queue_item.tweet_id,
+            })
+            logger.info("Tweet posted for queue %d: %s", queue_item.pk, queue_item.tweet_id)
+        else:
+            queue_item.status = "failed"
+            queue_item.error_message = "X API投稿に失敗"
+            results.append({
+                "id": queue_item.pk, "status": "failed", "error": "post_failed",
+            })
+            logger.warning("Tweet post failed for queue %d", queue_item.pk)
+
+        queue_item.save()
+
+    return JsonResponse({"processed": len(results), "results": results})

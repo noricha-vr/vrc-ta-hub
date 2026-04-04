@@ -1,12 +1,10 @@
 import logging
-import os
 from typing import Optional
 from urllib.parse import urlencode
 
-from openai import OpenAI
-
 from event.models import Event
 from twitter.models import TwitterTemplate
+from twitter.tweet_generator import _call_llm
 
 logger = logging.getLogger(__name__)
 
@@ -28,56 +26,29 @@ def format_event_info(event):
 
 
 def generate_tweet(template, event_info):
-    """OpenRouter API経由でツイートを生成する"""
-    prompt = f"""
-    過去のツイートのフォーマットに合わせて、イベントの告知ツイートを作成してください。
-    テンプレートのスタイルを模倣しつつ、与えられたイベント情報を自然に組み込んでください。
+    """OpenRouter API経由でツイートを生成する。
 
-    過去のツイート:
-    {template}
-
-    イベント情報:
-    イベント名: {event_info['event_name']}
-    日付: {event_info['date']}
-    時間: {event_info['time']}
-    詳細:
-    {event_info['details']}
-
-    生成するツイートは280文字以内にしてください。
-    ツイートのみを出力し、追加の説明は不要です。
+    _call_llm に委譲して LLM 呼び出しコードの重複を排除する。
     """
+    system_prompt = "あなたはイベント告知ツイートを作成する専門家です。"
 
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        logger.error("OPENROUTER_API_KEY environment variable is not set")
-        return None
+    user_prompt = f"""過去のツイートのフォーマットに合わせて、イベントの告知ツイートを作成してください。
+テンプレートのスタイルを模倣しつつ、与えられたイベント情報を自然に組み込んでください。
 
-    model = os.environ.get('GEMINI_MODEL', 'google/gemini-3.1-flash-lite-preview')
-    if ':' in model:
-        model = model.split(':')[0]
+過去のツイート:
+{template}
 
-    try:
-        client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key,
-        )
-        response = client.chat.completions.create(
-            extra_headers={
-                "HTTP-Referer": "https://vrc-ta-hub.com/",
-                "X-Title": "VRC TA Hub",
-            },
-            model=model,
-            messages=[
-                {"role": "system", "content": "あなたはイベント告知ツイートを作成する専門家です。"},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=280,
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error(f"Error generating tweet: {e}")
-        return None
+イベント情報:
+イベント名: {event_info['event_name']}
+日付: {event_info['date']}
+時間: {event_info['time']}
+詳細:
+{event_info['details']}
+
+生成するツイートは280文字以内にしてください。
+ツイートのみを出力し、追加の説明は不要です。"""
+
+    return _call_llm(system_prompt, user_prompt)
 
 
 def generate_tweet_url(event: Event, template: TwitterTemplate) -> Optional[str]:
