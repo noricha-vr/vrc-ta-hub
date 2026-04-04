@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db.utils import OperationalError
 from django.utils import timezone
 from django.views.generic import TemplateView
 from django.views.static import serve
@@ -53,7 +54,31 @@ class IndexView(TemplateView):
         context['show_vket_notice'] = current_datetime < vket_end_datetime
         context['vket_start_date'] = vket_start_datetime.date()
         context['vket_end_date'] = vket_end_datetime.date()
+        context['google_calendar_id'] = settings.GOOGLE_CALENDAR_ID
         logger.info(f"Vket notice visibility: {context['show_vket_notice']} (current: {current_datetime})")
+
+        context['database_degraded'] = False
+        context['vket_achievements'] = []
+        context['upcoming_events'] = []
+        context['upcoming_event_details'] = []
+        context['special_events'] = []
+
+        try:
+            context.update(self._build_database_context(today, cache_key))
+        except OperationalError:
+            # トップページはRDS瞬断でも静的導線を返し続ける。参照: PR #PENDING
+            logger.warning(
+                "IndexView degraded gracefully because the database was unavailable",
+                exc_info=True,
+            )
+            context['database_degraded'] = True
+
+        return context
+
+    def _build_database_context(self, today, cache_key):
+        cached_data = cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
 
         # VKETコラボ実績をコンテキストに追加（ニュース記事のサムネイルを取得）
         news_slugs = [a['news_slug'] for a in VKET_ACHIEVEMENTS]
@@ -65,17 +90,6 @@ class IndexView(TemplateView):
             achievement_copy = achievement.copy()
             achievement_copy['image'] = thumbnail_map.get(achievement['news_slug'])
             vket_achievements_with_images.append(achievement_copy)
-
-        context['vket_achievements'] = vket_achievements_with_images
-
-        # Googleカレンダー連携用のカレンダーIDを追加
-        context['google_calendar_id'] = settings.GOOGLE_CALENDAR_ID
-
-        # キャッシュからデータを取得
-        cached_data = cache.get(cache_key)
-        if cached_data is not None:
-            context.update(cached_data)
-            return context
 
         # キャッシュがない場合はデータベースから取得
         end_date = today + timezone.timedelta(days=7)
@@ -174,15 +188,15 @@ class IndexView(TemplateView):
 
         # データをキャッシュに保存（1時間）
         cache_data = {
+            'vket_achievements': vket_achievements_with_images,
             'upcoming_events': events_with_urls,
             'upcoming_event_details': details_with_urls,
             'special_events': special_events_data,
         }
         cache.set(cache_key, cache_data, 60 * 60)  # 60分 * 60秒
 
-        context.update(cache_data)
         logger.info(f"Cache miss for {cache_key}")
-        return context
+        return cache_data
 
 
 def favicon_view(request):
