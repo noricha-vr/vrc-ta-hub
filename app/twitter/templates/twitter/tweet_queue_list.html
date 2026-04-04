@@ -1,0 +1,62 @@
+{% extends 'ta_hub/base.html' %}
+{% load twitter_tags %}
+
+{% block meta %}
+    <title>ツイートキュー - VRC技術学術Hub</title>
+{% endblock %}
+
+{% block main %}
+<div class="container my-5">
+    {% include 'ta_hub/messages.html' %}
+    <h1 class="text-center mb-4 fw-bold">ツイートキュー</h1>
+
+    {# ステータスフィルタ #}
+    <div class="mb-3 d-flex flex-wrap gap-2">
+        <a href="{% url 'twitter:tweet_queue_list' %}"
+           class="btn btn-sm btn-outline-secondary {% if not current_status %}active{% endif %}">すべて</a>
+        {% for value, label in status_choices %}
+        <a href="?status={{ value }}"
+           class="btn btn-sm btn-outline-{{ value|status_badge_color }} {% if current_status == value %}active{% endif %}">{{ label }}</a>
+        {% endfor %}
+    </div>
+
+    {# テーブル #}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>種別</th>
+                    <th>集会</th>
+                    <th>ステータス</th>
+                    <th>画像</th>
+                    <th>作成日時</th>
+                    <th>投稿日時</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in page_obj %}
+                <tr onclick="location.href='{% url 'twitter:tweet_queue_detail' item.pk %}'" style="cursor:pointer">
+                    <td>{{ item.pk }}</td>
+                    <td>{{ item.get_tweet_type_display }}</td>
+                    <td>{{ item.community.name }}</td>
+                    <td><span class="badge bg-{{ item.status|status_badge_color }}">{{ item.get_status_display }}</span></td>
+                    <td>{% if item.image_url %}<i class="fas fa-image text-muted"></i>{% else %}-{% endif %}</td>
+                    <td>{{ item.created_at|date:"m/d H:i" }}</td>
+                    <td>{% if item.posted_at %}{{ item.posted_at|date:"m/d H:i" }}{% else %}-{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">キューがありません</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {# ページネーション #}
+    {% if page_obj.has_other_pages %}
+        {% include 'ta_hub/pagination.html' %}
+    {% endif %}
+</div>
+{% endblock %}
