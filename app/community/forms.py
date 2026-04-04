@@ -7,9 +7,8 @@ from .libs import resolve_vrc_group_url
 from .models import Community, WEEKDAY_CHOICES, TAGS, FORM_TAGS
 
 POSTER_REQUIREMENTS_HELP_TEXT = (
-    "推奨サイズ: A4比率。"
-    f"アップロード後は長辺{DEFAULT_MAX_SIZE}px以内に自動調整されるため、"
-    "サイト表示向けの画像を想定してください。"
+    "推奨サイズ: A4比率・縦4096px。"
+    "高解像度の原本を保持し、表示時に自動で最適サイズに変換されます。"
 )
 
 

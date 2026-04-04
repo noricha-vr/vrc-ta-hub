@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load static custom_filters %}
+{% load static custom_filters image_tags %}
 {% block main %}
     <style>
         .rounded-custom {
@@ -378,7 +378,7 @@
                                         <div class="row g-0">
                                             <div class="col-md-4">
                                                 {% if event_group.grouper.community.poster_image %}
-                                                    <img src="{{ event_group.grouper.community.poster_image.url }}"
+                                                    <img src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
                                                          class="img-fluid h-100 w-100"
                                                          alt="{{ event_group.grouper.community.name }}のポスター"
                                                          style="object-fit: cover;">
@@ -520,7 +520,7 @@
                                 <div class="row g-0">
                                     <div class="col-md-4">
                                         {% if event_group.grouper.community.poster_image %}
-                                            <img src="{{ event_group.grouper.community.poster_image.url }}"
+                                            <img src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
                                                  class="img-fluid h-100 w-100"
                                                  alt="{{ event_group.grouper.community.name }}のポスター"
                                                  style="object-fit: cover;">
@@ -743,7 +743,7 @@
                                         <div class="col-4">
                                             <div class="event-image-container">
                                                 {% if event.community.poster_image %}
-                                                    <img src="{{ event.community.poster_image.url }}"
+                                                    <img src="{{ event.community.poster_image.url|cf_resize:'400' }}"
                                                          class="img-fluid"
                                                          alt="{{ event.community.name }}のポスター">
                                                 {% else %}

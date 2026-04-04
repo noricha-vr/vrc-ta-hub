@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load django_bootstrap5 %}
+{% load django_bootstrap5 image_tags %}
 
 {% block main %}
     <div class="container my-5">
@@ -46,7 +46,7 @@
                                 <label class="form-label">現在のポスター</label>
                                 <div>
                                     {% if community.poster_image %}
-                                        <img src="{{ community.poster_image.url }}"
+                                        <img src="{{ community.poster_image.url|cf_resize:'400' }}"
                                              alt="{{ community.name }}"
                                              class="img-fluid rounded border"
                                              style="max-width: 320px;">

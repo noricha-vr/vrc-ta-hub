@@ -1,11 +1,13 @@
 import os
 from io import BytesIO
+from urllib.parse import urlparse
 
 from PIL import Image
+from django.conf import settings
 from django.core.files.base import ContentFile
 
 # 定数定義
-DEFAULT_MAX_SIZE = 1000
+DEFAULT_MAX_SIZE = 4096
 DEFAULT_JPEG_QUALITY = 82
 DEFAULT_PNG_TO_JPEG_THRESHOLD = 200 * 1024  # 200KB
 
@@ -25,7 +27,7 @@ def resize_and_convert_image(
 
     Args:
         image_field (ImageFieldFile): 画像フィールド
-        max_size (int): 最大サイズ (デフォルトは1000px)
+        max_size (int): 最大サイズ (デフォルトは4096px)
         jpeg_quality (int): JPEG圧縮品質 (デフォルトは82)
         png_to_jpeg_threshold (int): PNG→JPEG変換の閾値バイト数 (デフォルトは200KB)
 
@@ -143,3 +145,38 @@ def resize_and_convert_image(
         # ディレクトリパスがない = 新規作成時
         # → image_field.save() を使用してupload_toを適用
         image_field.save(new_file_name, content, save=False)
+
+
+def cloudflare_image_url(url, width, quality=80, format='auto'):
+    """Cloudflare Image Resizing の URL を生成する。
+
+    R2 カスタムドメインの URL に対して /cdn-cgi/image/ パスを挿入する。
+    ローカル環境や非 R2 URL はそのまま返す。
+
+    Args:
+        url: 画像の URL
+        width: リサイズ後の幅（px）
+        quality: JPEG 品質（1-100）
+        format: 出力フォーマット（'auto' で WebP/AVIF 自動選択）
+
+    Returns:
+        変換後の URL 文字列
+    """
+    if not url:
+        return url
+
+    custom_domain = getattr(settings, 'AWS_S3_CUSTOM_DOMAIN', None)
+    if not custom_domain:
+        return url
+
+    parsed = urlparse(url)
+    if parsed.hostname != custom_domain:
+        return url
+
+    # /cdn-cgi/image/ が既に含まれている場合はそのまま返す
+    if '/cdn-cgi/image/' in parsed.path:
+        return url
+
+    params = f'width={width},quality={quality},format={format}'
+    path = parsed.path.lstrip('/')
+    return f'{parsed.scheme}://{parsed.hostname}/cdn-cgi/image/{params}/{path}'

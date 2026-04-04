@@ -100,8 +100,8 @@ class OptimizePosterImagesTestCase(TestCase):
         その後の seek(0) が失敗する問題の回帰テスト
         """
         # 大きな画像（リサイズ対象）を作成
-        # デフォルト max_size=1000px なので 2000px の画像はリサイズ対象
-        large_image = self._create_test_image(width=2000, height=2000, format='JPEG')
+        # デフォルト max_size=4096px なので 5000px の画像はリサイズ対象
+        large_image = self._create_test_image(width=5000, height=5000, format='JPEG')
         uploaded_file = SimpleUploadedFile(
             name='large_test.jpg',
             content=large_image.read(),

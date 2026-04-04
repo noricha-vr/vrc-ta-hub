@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load custom_filters %}
+{% load custom_filters image_tags %}
 {% block meta %}
     <title>VRC 技術学術系集会一覧 - VRChat 技術・学術系イベントHub</title>
     <meta name="twitter:title" content="VRC 技術学術系集会一覧 - VRChat 技術・学術系イベントHub">
@@ -28,8 +28,8 @@
                     <div class="col-md-5 order-md-1 order-2 p-3 d-flex justify-content-center justify-content-md-end">
                         <a href="{% url 'community:detail' community.id %}">
                             {% if community.poster_image %}
-                                <img src="{{ community.poster_image.url }}" style="max-width: 350px" loading=”lazy”
-                                     alt="{{ community.name }}" class="img-fluid  card-img">
+                                <img src=”{{ community.poster_image.url|cf_resize:'400' }}” style=”max-width: 350px” loading=”lazy”
+                                     alt=”{{ community.name }}” class=”img-fluid  card-img”>
                             {% else %}
                                 <img src="https://vrc-ta-hub.com/poster/no-image.png" style="max-width: 350px"
                                      loading=”lazy”

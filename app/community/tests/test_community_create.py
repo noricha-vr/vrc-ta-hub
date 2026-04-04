@@ -58,18 +58,12 @@ class CommunityCreateFormTest(TestCase):
     def test_create_form_poster_help_text_includes_requirements(self):
         """作成フォームのposter_imageに推奨要件が表示されることをテスト."""
         form = CommunityCreateForm()
-        self.assertIn('A4比率', form.fields['poster_image'].help_text)
-        self.assertIn('長辺1000px以内', form.fields['poster_image'].help_text)
-        self.assertNotIn('4096px', form.fields['poster_image'].help_text)
-        self.assertNotIn('Image Loader', form.fields['poster_image'].help_text)
+        self.assertIn('A4比率・縦4096px', form.fields['poster_image'].help_text)
 
     def test_update_form_poster_help_text_includes_requirements(self):
         """更新フォームのposter_imageに推奨要件が表示されることをテスト."""
         form = CommunityUpdateForm()
-        self.assertIn('A4比率', form.fields['poster_image'].help_text)
-        self.assertIn('長辺1000px以内', form.fields['poster_image'].help_text)
-        self.assertNotIn('4096px', form.fields['poster_image'].help_text)
-        self.assertNotIn('Image Loader', form.fields['poster_image'].help_text)
+        self.assertIn('A4比率・縦4096px', form.fields['poster_image'].help_text)
 
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
@@ -108,9 +102,7 @@ class CommunityCreateViewTest(TestCase):
         response = self.client.get(self.create_url)
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'community/create.html')
-        self.assertContains(response, 'A4比率')
-        self.assertContains(response, '長辺1000px以内')
-        self.assertNotContains(response, 'A4比率・縦4096px')
+        self.assertContains(response, 'A4比率・縦4096px')
 
     def test_user_with_existing_community_can_access_create_page(self):
         """既に集会を持っているユーザーも集会登録ページにアクセスできることをテスト（複数集会対応）."""

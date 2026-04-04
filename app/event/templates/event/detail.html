@@ -1,4 +1,5 @@
 {% extends 'ta_hub/base.html' %}
+{% load image_tags %}
 {% block meta %}
     <title>{{ event_detail.title }} - VRChat 技術・学術系イベントHub</title>
     <meta name="twitter:title" content="{{ event_detail.title }} - VRChat 技術・学術系イベントHub">
@@ -215,7 +216,7 @@
                             <div class="row">
                                 <div class="col-md-4">
                                     {% if event_detail.event.community.poster_image %}
-                                        <img src="{{ event_detail.event.community.poster_image.url }}"
+                                        <img src="{{ event_detail.event.community.poster_image.url|cf_resize:'400' }}"
                                              class="img-fluid rounded"
                                              alt="{{ event_detail.event.community.name }}のポスター">
                                     {% endif %}

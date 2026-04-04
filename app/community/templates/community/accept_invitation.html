@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load static %}
+{% load static image_tags %}
 
 {% block title %}招待 - {{ community.name }}{% endblock %}
 
@@ -13,7 +13,7 @@
                 </div>
                 <div class="card-body text-center">
                     {% if community.poster_image %}
-                    <img src="{{ community.poster_image.url }}" alt="{{ community.name }}"
+                    <img src="{{ community.poster_image.url|cf_resize:'400' }}" alt="{{ community.name }}"
                          class="img-fluid rounded mb-3" style="max-height: 200px;">
                     {% endif %}
 
