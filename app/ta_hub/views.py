@@ -77,7 +77,7 @@ class IndexView(TemplateView):
             return context
 
         try:
-            # DBが一時的に不安定でも、トップページ自体は空状態で返して 500 を避ける。
+            # DBが一時的に不安定でも、トップページ自体は空状態で返して 500 を避ける。参照: PR #168（RDS瞬断時もトップページ閲覧を継続するため）
             news_slugs = [achievement['news_slug'] for achievement in VKET_ACHIEVEMENTS]
             news_posts = Post.objects.filter(slug__in=news_slugs).only('slug', 'thumbnail')
             thumbnail_map = {post.slug: post.get_absolute_thumbnail_url(self.request) for post in news_posts}
