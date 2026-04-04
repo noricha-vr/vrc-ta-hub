@@ -160,6 +160,40 @@ def generate_lt_tweet(event_detail) -> str | None:
     return _call_llm(system_prompt, user_prompt)
 
 
+def get_generator(tweet_type: str):
+    """tweet_type に応じた生成関数を返す。
+
+    Returns:
+        生成関数 (queue_item -> str | None)。未知の tweet_type の場合は None。
+    """
+    generator_map = {
+        "new_community": lambda qi: generate_new_community_tweet(qi.community, qi.event),
+        "lt": lambda qi: generate_lt_tweet(qi.event_detail),
+        "special": lambda qi: generate_special_event_tweet(qi.event_detail),
+    }
+    return generator_map.get(tweet_type)
+
+
+def get_poster_image_url(community) -> str:
+    """Community のポスター画像の R2 URL を返す。
+
+    Returns:
+        画像URLの文字列。ポスター画像が無い場合は空文字列。
+    """
+    poster = community.poster_image
+    if not poster:
+        return ""
+
+    custom_domain = os.environ.get("AWS_S3_CUSTOM_DOMAIN", "")
+    if custom_domain:
+        return f"https://{custom_domain}/{poster.name}"
+
+    if hasattr(poster, "url"):
+        return poster.url
+
+    return ""
+
+
 def generate_special_event_tweet(event_detail) -> str | None:
     """特別回告知ツイートを生成する。
 

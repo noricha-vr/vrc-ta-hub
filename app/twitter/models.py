@@ -29,9 +29,11 @@ class TweetQueue(models.Model):
         ('special', '特別回告知'),
     ]
     STATUS_CHOICES = [
-        ('pending', '投稿待ち'),
+        ('generating', '生成中'),
+        ('generation_failed', '生成失敗'),
+        ('ready', '投稿待ち'),
         ('posted', '投稿済み'),
-        ('failed', '失敗'),
+        ('failed', '投稿失敗'),
     ]
 
     tweet_type = models.CharField(
@@ -47,8 +49,9 @@ class TweetQueue(models.Model):
         'event.EventDetail', on_delete=models.CASCADE, null=True, blank=True, related_name='tweet_queues',
     )
     generated_text = models.TextField('生成テキスト', blank=True)
+    image_url = models.URLField('画像URL', blank=True, help_text='投稿に添付する画像のURL（R2等）')
     status = models.CharField(
-        '状態', max_length=10, choices=STATUS_CHOICES, default='pending',
+        '状態', max_length=20, choices=STATUS_CHOICES, default='generating',
     )
     tweet_id = models.CharField('ツイートID', max_length=50, blank=True)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
