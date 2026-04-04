@@ -1454,7 +1454,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
         return None
 
     def dispatch(self, request, *args, **kwargs):
-        # このviewでdispatchを上書きしているため、匿名時は先に認証チェックする。
+        # このviewでdispatchを上書きしているため、匿名時は先に認証チェックする。参照: PR #172（匿名アクセスで500を防ぐため）
         if not request.user.is_authenticated:
             return self.handle_no_permission()
 
