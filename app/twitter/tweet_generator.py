@@ -155,8 +155,8 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
         target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
-        "あなたはVRChat技術学術系集会の告知ツイートを作成する専門家です。"
-        "新しい集会がオープンしたことを伝える短いツイートを作成してください。"
+        "あなたはVRChat技術学術系集会の告知ツイートを作成するライターです。"
+        "「参加したい」と思わせる告知を書いてください。"
     )
 
     weekdays_str = _format_weekdays(community.weekdays)
@@ -164,7 +164,7 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
     event_info = ""
     if first_event:
         event_info = (
-            f"\n初回開催日: {first_event.date.strftime('%Y年%m月%d日')}"
+            f"\n初回開催日: {first_event.date.strftime('%m/%d')}({WEEKDAY_NAMES.get(first_event.date.strftime('%a'), '')})"
             f" {first_event.start_time.strftime('%H:%M')}~"
         )
 
@@ -172,18 +172,21 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
     name = _sanitize_for_prompt(community.name)
     description = _sanitize_for_prompt(community.description) or "(なし)"
 
-    user_prompt = f"""以下の新しいVRChat技術学術系集会の告知ツイートを作成してください。
+    user_prompt = f"""以下の新しいVRChat集会の告知ツイートを作成してください。
 
 集会名: {name}
-開催曜日: {weekdays_str}曜日
-開始時刻: {community.start_time.strftime('%H:%M')}
-開催周期: {community.frequency}
+開催: {community.frequency} {weekdays_str}曜日 {community.start_time.strftime('%H:%M')}~
 紹介: {description}{event_info}
 
-以下のルールを守ってください:
+## 必須要素（必ず本文に含めること）
+1. 集会名
+2. 開催スケジュール（曜日・時刻）
+3. どんな人向けか / 何が得られるか（紹介文から1行で）
+
+## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
-- 新しい集会が始まることへの期待感を伝える
-- 末尾に以下を含める:
+- 「こんな集会が始まりました」ではなく「こういう人は来て」というトーン
+- 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
   {hashtag_suffix}
 - ツイート本文のみ出力（説明不要）
@@ -199,12 +202,14 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
         target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
-        "あなたはVRChat技術学術系集会のLT（ライトニングトーク）告知ツイートを作成する専門家です。"
+        "あなたはVRChat集会のLT告知ツイートを書くライターです。"
+        "読んだ人が「聞きたい」「行きたい」と思う告知を書いてください。"
     )
 
     event = event_detail.event
     community = event.community
     hashtag_suffix = _build_hashtag_suffix(community)
+    weekday = WEEKDAY_NAMES.get(event.date.strftime("%a"), "")
 
     name = _sanitize_for_prompt(community.name)
     speaker = _sanitize_for_prompt(event_detail.speaker)
@@ -213,15 +218,20 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
     user_prompt = f"""以下のLT（ライトニングトーク）の告知ツイートを作成してください。
 
 集会名: {name}
-開催日: {event.date.strftime('%Y年%m月%d日')}
-開始時刻: {event.start_time.strftime('%H:%M')}
+日時: {event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~
 発表者: {speaker}
 テーマ: {theme}
 
-以下のルールを守ってください:
+## 必須要素（必ず本文に含めること）
+1. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
+2. 発表テーマ
+3. 発表者名
+4. 「このテーマが気になる人は聞きに来て」という呼びかけ
+
+## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
-- LTの内容への期待感を伝える
-- 末尾に以下を含める:
+- テーマの面白さを1文で伝える（ポエムではなく具体的に何が聞けるか）
+- 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
   {hashtag_suffix}
 - ツイート本文のみ出力（説明不要）
@@ -237,8 +247,8 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
         target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
-        "あなたはVRChat技術学術系集会のLT発表後の共有ツイートを作成する専門家です。"
-        "発表が行われたことを報告し、スライドや動画が公開されたことを伝えてください。"
+        "あなたはVRChat集会の発表資料を紹介するライターです。"
+        "「この資料、読んでみたい」と思わせるツイートを書いてください。"
     )
 
     event = event_detail.event
@@ -257,19 +267,23 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
         resources.append("動画")
     resources_text = "・".join(resources)
 
-    user_prompt = f"""以下のLT発表の{resources_text}が公開されたことを伝えるツイートを作成してください。
+    user_prompt = f"""以下の発表の{resources_text}が公開されたことを伝えるツイートを作成してください。
 
 集会名: {name}
-開催日: {event.date.strftime('%Y年%m月%d日')}
 発表者: {speaker}
 テーマ: {theme}
 公開された資料: {resources_text}
 
-以下のルールを守ってください:
+## 必須要素（必ず本文に含めること）
+1. 発表テーマ（何についての発表か）
+2. {resources_text}が公開されたこと
+3. 「こういう人はチェックして」という呼びかけ
+
+## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
-- 発表後の共有であること（事後報告のトーン）
-- {resources_text}が公開されたことへの嬉しさ・見てほしい気持ちを伝える
-- 末尾に以下を含める:
+- 日付は不要（過去のイベントなので）
+- テーマから「読むと何がわかるか」を具体的に伝える
+- 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
   {hashtag_suffix}
 - ツイート本文のみ出力（説明不要）
@@ -335,13 +349,14 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
         target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
-        "あなたはVRChat技術学術系集会の特別イベント告知ツイートを作成する専門家です。"
-        "通常回とは違う特別感を伝えてください。"
+        "あなたはVRChat集会の特別イベント告知ツイートを書くライターです。"
+        "通常回とは違う特別な回であることを伝え、「行きたい」と思わせてください。"
     )
 
     event = event_detail.event
     community = event.community
     hashtag_suffix = _build_hashtag_suffix(community)
+    weekday = WEEKDAY_NAMES.get(event.date.strftime("%a"), "")
 
     name = _sanitize_for_prompt(community.name)
     speaker = _sanitize_for_prompt(event_detail.speaker)
@@ -350,15 +365,20 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
     user_prompt = f"""以下の特別イベントの告知ツイートを作成してください。
 
 集会名: {name}
-開催日: {event.date.strftime('%Y年%m月%d日')}
-開始時刻: {event.start_time.strftime('%H:%M')}
-発表者: {speaker}
+日時: {event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~
+発表者/ゲスト: {speaker}
 テーマ: {theme}
 
-以下のルールを守ってください:
+## 必須要素（必ず本文に含めること）
+1. 「特別回」であること
+2. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
+3. テーマと発表者/ゲスト
+4. 「このテーマに興味ある人は来て」という呼びかけ
+
+## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
-- 特別回ならではのワクワク感を伝える
-- 末尾に以下を含める:
+- 通常回との違い（ゲスト・テーマの特別さ）を具体的に伝える
+- 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
   {hashtag_suffix}
 - ツイート本文のみ出力（説明不要）
