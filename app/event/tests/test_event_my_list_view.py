@@ -247,9 +247,43 @@ class EventMyListDashboardTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # クイックアクションボタンのテキストが含まれる
         self.assertContains(response, 'イベント登録')
+        self.assertContains(response, 'LT申請一覧')
         self.assertContains(response, 'LT履歴')
         self.assertContains(response, '集会設定')
         self.assertContains(response, '公開ページ')
+
+    def test_lt_application_link_is_next_to_calendar_create(self):
+        """LT申請一覧リンクがイベント登録ボタンの直後に表示される"""
+        self.client.login(username='Dashboard User', password='dashboardpass123')
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+
+        create_button_pos = content.find('イベント登録')
+        lt_application_pos = content.find('LT申請一覧')
+        lt_history_pos = content.find('LT履歴')
+
+        self.assertGreater(create_button_pos, -1)
+        self.assertGreater(lt_application_pos, create_button_pos)
+        self.assertGreater(lt_history_pos, lt_application_pos)
+        self.assertContains(response, reverse('account:lt_application_list'))
+
+    def test_lt_application_link_displayed_without_community(self):
+        """集会未所属ユーザーでもLT申請一覧リンクに到達できる"""
+        participant = User.objects.create_user(
+            user_name='Participant User',
+            email='participant@example.com',
+            password='participantpass123',
+        )
+
+        self.client.login(username='Participant User', password='participantpass123')
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'LT申請一覧')
+        self.assertContains(response, reverse('account:lt_application_list'))
+        self.assertNotContains(response, 'イベント登録')
 
     def test_pending_lt_shows_approve_reject_buttons(self):
         """承認待ちLT申請に承認・却下ボタンが表示される"""

@@ -53,11 +53,16 @@
         </div>
 
         {# クイックアクション #}
-        {% if community %}
         <div class="d-flex flex-wrap gap-2 justify-content-center mb-4">
+            {% if community %}
             <a href="{% url 'event:calendar_create' %}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> イベント登録
             </a>
+            {% endif %}
+            <a href="{% url 'account:lt_application_list' %}" class="btn btn-outline-secondary">
+                <i class="fa-solid fa-microphone"></i> LT申請一覧
+            </a>
+            {% if community %}
             <a href="{% url 'event:detail_history' %}?community_name={{ community.name }}" class="btn btn-outline-secondary">
                 <i class="fas fa-history"></i> LT履歴
             </a>
@@ -67,8 +72,8 @@
             <a href="{% url 'community:detail' community.pk %}" class="btn btn-outline-primary">
                 <i class="fas fa-eye"></i> 公開ページ
             </a>
+            {% endif %}
         </div>
-        {% endif %}
 
         {# Vketコラボバナー #}
         {% if vket_banner %}
