@@ -232,7 +232,7 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
 - テーマ名をそのまま書いた上で、何が聞けるかを1文で補足する
 - 末尾に以下を必ず含める:
-  詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
+  詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
   {hashtag_suffix}
 - ツイート本文のみ出力（説明不要）
 """
@@ -380,7 +380,7 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
 - テーマ名をそのまま書いた上で、特別回ならではの見どころを1文で補足する
 - 末尾に以下を必ず含める:
-  詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
+  詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
   {hashtag_suffix}
 - ツイート本文のみ出力（説明不要）
 """
