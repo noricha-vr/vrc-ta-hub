@@ -235,6 +235,18 @@ def post_scheduled_tweets(request):
 
     results = []
     for queue_item in ready_items:
+        # LT/特別回告知は、イベント日が過去ならスキップ（期限切れ防止）
+        if queue_item.tweet_type in ('lt', 'special') and queue_item.event:
+            if queue_item.event.date < timezone.localdate():
+                queue_item.status = 'failed'
+                queue_item.error_message = 'イベント日が過去のため投稿スキップ'
+                queue_item.save()
+                results.append({
+                    "id": queue_item.pk, "status": "skipped", "reason": "event_date_passed",
+                })
+                logger.info("Skipped expired %s tweet for queue %d", queue_item.tweet_type, queue_item.pk)
+                continue
+
         # 画像アップロード
         media_ids = None
         if queue_item.image_url:

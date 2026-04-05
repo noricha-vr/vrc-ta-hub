@@ -198,22 +198,30 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.count(), 0)
 
     @patch("twitter.signals.threading.Thread")
-    def test_duplicate_event_detail_queue_prevention(self, mock_thread_cls):
-        """同一 event_detail の重複キューは作成されない"""
+    def test_duplicate_event_detail_queue_prevention_on_initial_approval(self, mock_thread_cls):
+        """初回承認時、同一 event_detail の重複キューは作成されない"""
         mock_thread_cls.return_value = MagicMock()
 
         detail = EventDetail.objects.create(
             event=self.event,
             detail_type="LT",
-            status="approved",
+            status="pending",
             speaker="テスト太郎",
             theme="VRChatで学ぶPython",
             start_time=datetime.time(22, 15),
         )
+        # 手動でキューを作成（重複状態をシミュレート）
+        TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=self.event,
+            event_detail=detail,
+            status="ready",
+        )
         self.assertEqual(TweetQueue.objects.count(), 1)
 
-        # 再保存しても増えない
-        detail.theme = "更新テーマ"
+        # pending -> approved でも既にキューがあるので増えない
+        detail.status = "approved"
         detail.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
 
@@ -242,8 +250,8 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.event_detail, detail)
 
     @patch("twitter.signals.threading.Thread")
-    def test_already_approved_detail_update_does_not_create_queue(self, mock_thread_cls):
-        """既に approved の EventDetail を再保存してもキューは追加されない"""
+    def test_approved_detail_no_content_change_keeps_existing_tweet(self, mock_thread_cls):
+        """既に approved の EventDetail を内容変更なしで再保存してもキューは追加されない"""
         mock_thread_cls.return_value = MagicMock()
 
         detail = EventDetail.objects.create(
@@ -256,13 +264,172 @@ class EventDetailSignalTest(AutoTweetTestBase):
         )
         self.assertEqual(TweetQueue.objects.count(), 1)
 
-        # キューを消して再保存
-        TweetQueue.objects.all().delete()
+        # 内容変更なしで再保存
+        detail.save()
+        self.assertEqual(TweetQueue.objects.count(), 1)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_approved_detail_content_change_regenerates_tweet(self, mock_thread_cls):
+        """approved 状態で speaker/theme が変更されたらツイートを再生成する"""
+        mock_thread_cls.return_value = MagicMock()
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VRChatで学ぶPython",
+            start_time=datetime.time(22, 15),
+        )
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        old_queue_id = TweetQueue.objects.first().pk
+
+        # speaker を変更
         detail.speaker = "更新太郎"
         detail.save()
 
-        # approved -> approved なのでキューは作成されない
-        self.assertEqual(TweetQueue.objects.count(), 0)
+        # 古いキューが削除され、新しいキューが作成される
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        new_queue = TweetQueue.objects.first()
+        self.assertNotEqual(new_queue.pk, old_queue_id)
+        self.assertEqual(new_queue.status, "generating")
+
+    @patch("twitter.signals.threading.Thread")
+    def test_approved_detail_theme_change_regenerates_tweet(self, mock_thread_cls):
+        """approved 状態で theme が変更されたらツイートを再生成する"""
+        mock_thread_cls.return_value = MagicMock()
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VRChatで学ぶPython",
+            start_time=datetime.time(22, 15),
+        )
+        self.assertEqual(TweetQueue.objects.count(), 1)
+
+        detail.theme = "VRChatで学ぶRust"
+        detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "generating")
+
+    @patch("twitter.signals.threading.Thread")
+    def test_approved_detail_posted_tweet_not_deleted_on_change(self, mock_thread_cls):
+        """投稿済みツイートは削除されず、新しいキューが追加される"""
+        mock_thread_cls.return_value = MagicMock()
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VRChatで学ぶPython",
+            start_time=datetime.time(22, 15),
+        )
+        # 投稿済みにする
+        queue = TweetQueue.objects.first()
+        queue.status = "posted"
+        queue.save()
+
+        detail.speaker = "更新太郎"
+        detail.save()
+
+        # 投稿済み + 新規 = 2件
+        self.assertEqual(TweetQueue.objects.count(), 2)
+        self.assertEqual(TweetQueue.objects.filter(status="posted").count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(status="generating").count(), 1)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_approved_detail_creates_tweet_if_none_exists_on_content_change(self, mock_thread_cls):
+        """approved 状態でツイート未作成 + コンテンツ変更時に新規作成する"""
+        mock_thread_cls.return_value = MagicMock()
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VRChatで学ぶPython",
+            start_time=datetime.time(22, 15),
+        )
+        # 初回のキューを削除（ツイート未作成状態をシミュレート）
+        TweetQueue.objects.all().delete()
+
+        # コンテンツ変更で再保存 → 新規作成
+        detail.theme = "VRChatで学ぶRust"
+        detail.save()
+        self.assertEqual(TweetQueue.objects.count(), 1)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_past_event_does_not_create_lt_queue(self, mock_thread_cls):
+        """過去のイベントにLTが承認されてもキューは作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
+        past_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        EventDetail.objects.create(
+            event=past_event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="過去のLT",
+            start_time=datetime.time(22, 15),
+        )
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 0)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_past_event_content_change_does_not_create_queue(self, mock_thread_cls):
+        """過去のイベントのLT内容を変更してもキューは作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
+        past_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        detail = EventDetail.objects.create(
+            event=past_event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="過去のLT",
+            start_time=datetime.time(22, 15),
+        )
+        TweetQueue.objects.all().delete()
+
+        detail.speaker = "更新太郎"
+        detail.save()
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 0)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_today_event_creates_queue(self, mock_thread_cls):
+        """当日のイベントにLTが承認されたらキューは作成される"""
+        mock_thread_cls.return_value = MagicMock()
+
+        from django.utils import timezone
+        today_event = Event.objects.create(
+            community=self.community,
+            date=timezone.localdate(),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        EventDetail.objects.create(
+            event=today_event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="当日のLT",
+            start_time=datetime.time(22, 15),
+        )
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
 
 
 class GenerateTweetAsyncTest(AutoTweetTestBase):
@@ -598,6 +765,119 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertEqual(response.status_code, 200)
         # media_ids=None で投稿される
         mock_post.assert_called_once_with("テキストのみ", media_ids=None)
+
+
+class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
+    """投稿時のイベント日チェックテスト"""
+
+    REQUEST_TOKEN_ENV = {"REQUEST_TOKEN": "test-token"}
+
+    def setUp(self):
+        super().setUp()
+        with patch("twitter.signals.threading.Thread") as mock_thread_cls:
+            mock_thread_cls.return_value = MagicMock()
+            self.community.status = "approved"
+            self.community.save()
+        TweetQueue.objects.all().delete()
+
+    @patch("twitter.views.post_tweet")
+    def test_expired_lt_tweet_is_skipped(self, mock_post):
+        """イベント日が過去のLTツイートは投稿されずスキップされる"""
+        past_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=past_event,
+            status="ready",
+            generated_text="過去のLT告知",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        self.assertEqual(response.status_code, 200)
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "failed")
+        self.assertIn("過去", queue.error_message)
+        mock_post.assert_not_called()
+
+    @patch("twitter.views.post_tweet")
+    def test_future_lt_tweet_is_posted(self, mock_post):
+        """未来のイベントのLTツイートは通常通り投稿される"""
+        mock_post.return_value = {"id": "99999", "text": "未来のLT告知"}
+
+        TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=self.event,  # 2026-05-01（未来）
+            status="ready",
+            generated_text="未来のLT告知",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        self.assertEqual(response.status_code, 200)
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "posted")
+
+    @patch("twitter.views.post_tweet")
+    def test_expired_special_tweet_is_skipped(self, mock_post):
+        """イベント日が過去の特別回ツイートもスキップされる"""
+        past_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        TweetQueue.objects.create(
+            tweet_type="special",
+            community=self.community,
+            event=past_event,
+            status="ready",
+            generated_text="過去の特別回告知",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "failed")
+        mock_post.assert_not_called()
+
+    @patch("twitter.views.post_tweet")
+    def test_slide_share_is_not_affected_by_date_check(self, mock_post):
+        """スライド共有は過去イベントでも投稿される（資料共有は事後）"""
+        mock_post.return_value = {"id": "88888", "text": "スライド共有"}
+
+        past_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        TweetQueue.objects.create(
+            tweet_type="slide_share",
+            community=self.community,
+            event=past_event,
+            status="ready",
+            generated_text="スライド共有",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "posted")
 
 
 class RetryGenerationTest(AutoTweetTestBase):

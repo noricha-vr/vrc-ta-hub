@@ -106,16 +106,22 @@ def track_event_detail_status_change(sender, instance, **kwargs):
             instance._old_slide_url = old.slide_url or ""
             instance._old_youtube_url = old.youtube_url or ""
             instance._old_slide_file = str(old.slide_file) if old.slide_file else ""
+            instance._old_speaker = old.speaker or ""
+            instance._old_theme = old.theme or ""
         except EventDetail.DoesNotExist:
             instance._old_status = None
             instance._old_slide_url = ""
             instance._old_youtube_url = ""
             instance._old_slide_file = ""
+            instance._old_speaker = ""
+            instance._old_theme = ""
     else:
         instance._old_status = None
         instance._old_slide_url = ""
         instance._old_youtube_url = ""
         instance._old_slide_file = ""
+        instance._old_speaker = ""
+        instance._old_theme = ""
 
 
 @receiver(post_save, sender=Community)
@@ -259,10 +265,13 @@ def _queue_event_detail_tweet(instance, created):
 
     - 新規作成 (created=True) かつ status='approved'
     - 既存更新で _old_status != 'approved' から status='approved' に遷移
+    - 既に approved 状態で speaker/theme が変更された場合（未投稿ツイートを再生成）
 
     detail_type が 'LT' or 'SPECIAL' の場合のみ。
-    同一 event_detail の重複キューは作成しない。
+    イベント日が過去の場合はスキップ（終了イベントの告知を防止）。
     """
+    from django.utils import timezone as tz
+
     from twitter.models import TweetQueue
 
     if instance.detail_type not in ("LT", "SPECIAL"):
@@ -271,17 +280,36 @@ def _queue_event_detail_tweet(instance, created):
     if instance.status != "approved":
         return
 
-    old_status = getattr(instance, "_old_status", None)
-
-    # 既に approved だった場合はスキップ（新規作成時は old_status=None なので通過）
-    if not created and old_status == "approved":
+    # 過去のイベントには告知ツイートを作成しない
+    if instance.event.date < tz.localdate():
         return
 
+    old_status = getattr(instance, "_old_status", None)
     tweet_type = "lt" if instance.detail_type == "LT" else "special"
 
-    # 重複チェック
-    if TweetQueue.objects.filter(event_detail=instance, tweet_type=tweet_type).exists():
-        return
+    # 既に approved → approved の更新（コンテンツ変更チェック）
+    if not created and old_status == "approved":
+        old_speaker = getattr(instance, "_old_speaker", "")
+        old_theme = getattr(instance, "_old_theme", "")
+        new_speaker = instance.speaker or ""
+        new_theme = instance.theme or ""
+
+        if old_speaker == new_speaker and old_theme == new_theme:
+            return
+
+        # コンテンツ変更あり → 未投稿のツイートを削除して再生成
+        deleted, _ = TweetQueue.objects.filter(
+            event_detail=instance,
+            tweet_type=tweet_type,
+            status__in=('generating', 'generation_failed', 'ready'),
+        ).delete()
+        if deleted:
+            logger.info("Deleted %d unposted %s tweet(s) for regeneration", deleted, tweet_type)
+
+    else:
+        # 初回承認: 重複チェック
+        if TweetQueue.objects.filter(event_detail=instance, tweet_type=tweet_type).exists():
+            return
 
     queue_item = TweetQueue.objects.create(
         tweet_type=tweet_type,
