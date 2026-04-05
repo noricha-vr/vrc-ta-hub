@@ -224,13 +224,13 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
 
 ## 必須要素（必ず本文に含めること）
 1. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
-2. 発表テーマ
+2. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
 3. 発表者名
 4. 「このテーマが気になる人は聞きに来て」という呼びかけ
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
-- テーマの面白さを1文で伝える（ポエムではなく具体的に何が聞けるか）
+- テーマ名をそのまま書いた上で、何が聞けるかを1文で補足する
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
   {hashtag_suffix}
@@ -275,14 +275,14 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
 公開された資料: {resources_text}
 
 ## 必須要素（必ず本文に含めること）
-1. 発表テーマ（何についての発表か）
+1. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
 2. {resources_text}が公開されたこと
 3. 「こういう人はチェックして」という呼びかけ
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
 - 日付は不要（過去のイベントなので）
-- テーマから「読むと何がわかるか」を具体的に伝える
+- テーマ名をそのまま書いた上で、「読むと何がわかるか」を1文で補足する
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
   {hashtag_suffix}
@@ -372,12 +372,13 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
 ## 必須要素（必ず本文に含めること）
 1. 「特別回」であること
 2. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
-3. テーマと発表者/ゲスト
-4. 「このテーマに興味ある人は来て」という呼びかけ
+3. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
+4. 発表者/ゲスト名
+5. 「このテーマに興味ある人は来て」という呼びかけ
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
-- 通常回との違い（ゲスト・テーマの特別さ）を具体的に伝える
+- テーマ名をそのまま書いた上で、特別回ならではの見どころを1文で補足する
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
   {hashtag_suffix}
