@@ -1,16 +1,50 @@
 """Communityモデルのテスト"""
+from datetime import timedelta
 from io import BytesIO
 from unittest.mock import patch, MagicMock
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.utils import timezone
 from PIL import Image
 
 from community.models import Community
 from ta_hub.libs import DEFAULT_MAX_SIZE
 
 CustomUser = get_user_model()
+
+
+class CommunityIsEndedTestCase(TestCase):
+    """Community.is_ended プロパティのテスト"""
+
+    def _make_community(self, end_at=None):
+        return Community(
+            name='テスト集会',
+            frequency='毎週',
+            organizers='テスト主催者',
+            end_at=end_at,
+        )
+
+    def test_is_ended_none(self):
+        """end_atがNoneの場合、終了していない"""
+        c = self._make_community(end_at=None)
+        self.assertFalse(c.is_ended)
+
+    def test_is_ended_past(self):
+        """end_atが過去の場合、終了している"""
+        c = self._make_community(end_at=timezone.localdate() - timedelta(days=1))
+        self.assertTrue(c.is_ended)
+
+    def test_is_ended_today(self):
+        """end_atが今日（ローカル日付）の場合、終了していない"""
+        c = self._make_community(end_at=timezone.localdate())
+        self.assertFalse(c.is_ended)
+
+    def test_is_ended_future(self):
+        """end_atが未来の場合、終了していない"""
+        c = self._make_community(end_at=timezone.localdate() + timedelta(days=30))
+        self.assertFalse(c.is_ended)
 
 
 class CommunityHashtagPropertyTestCase(TestCase):

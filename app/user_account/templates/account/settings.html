@@ -29,25 +29,37 @@
                         <div class="list-group list-group-flush">
                             {% if user_communities %}
                                 {% for membership in user_communities %}
-                                    <div class="list-group-item d-flex justify-content-between align-items-center mb-0">
-                                        <form method="post" action="{% url 'community:switch' %}" class="d-inline flex-grow-1">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="community_id" value="{{ membership.community.id }}">
-                                            <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
-                                            <button type="submit" class="btn btn-link text-decoration-none p-0 text-start">
-                                                <i class="fa-solid fa-house me-2"></i>{{ membership.community.name }}
-                                                <span class="badge bg-secondary ms-1">{{ membership.get_role_display }}</span>
-                                            </button>
-                                        </form>
-                                        <form method="post" action="{% url 'community:switch' %}" class="d-inline">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="community_id" value="{{ membership.community.id }}">
-                                            <input type="hidden" name="redirect_to" value="{% url 'community:settings' %}">
-                                            <button type="submit" class="btn btn-link text-decoration-none p-0">
-                                                <span class="text-muted">設定</span>
-                                                <i class="fa-solid fa-chevron-right ms-2 text-muted"></i>
-                                            </button>
-                                        </form>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center mb-0{% if membership.community.is_ended %} opacity-50{% endif %}">
+                                        <div class="d-inline flex-grow-1">
+                                            {% if membership.community.is_ended %}
+                                                <span class="text-muted">
+                                                    <i class="fa-solid fa-house me-2"></i>{{ membership.community.name }}
+                                                    <span class="badge bg-secondary ms-1">{{ membership.get_role_display }}</span>
+                                                    <span class="badge bg-light text-muted ms-1">終了</span>
+                                                </span>
+                                            {% else %}
+                                                <form method="post" action="{% url 'community:switch' %}" class="d-inline">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="community_id" value="{{ membership.community.id }}">
+                                                    <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
+                                                    <button type="submit" class="btn btn-link text-decoration-none p-0 text-start">
+                                                        <i class="fa-solid fa-house me-2"></i>{{ membership.community.name }}
+                                                        <span class="badge bg-secondary ms-1">{{ membership.get_role_display }}</span>
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                        </div>
+                                        {% if not membership.community.is_ended %}
+                                            <form method="post" action="{% url 'community:switch' %}" class="d-inline">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="community_id" value="{{ membership.community.id }}">
+                                                <input type="hidden" name="redirect_to" value="{% url 'community:settings' %}">
+                                                <button type="submit" class="btn btn-link text-decoration-none p-0">
+                                                    <span class="text-muted">設定</span>
+                                                    <i class="fa-solid fa-chevron-right ms-2 text-muted"></i>
+                                                </button>
+                                            </form>
+                                        {% endif %}
                                     </div>
                                 {% endfor %}
                                 <a href="{% url 'community:create' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center border-top-0 mt-0">

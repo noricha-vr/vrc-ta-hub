@@ -164,6 +164,11 @@ class Community(models.Model):
     def is_accepted(self):
         return self.status == 'approved'
 
+    @property
+    def is_ended(self):
+        """集会が終了しているかどうかを判定する"""
+        return self.end_at is not None and self.end_at < timezone.localdate()
+
     def save(self, *args, **kwargs):
         update_fields = kwargs.get('update_fields')
         # update_fieldsが指定されていない、またはposter_imageが含まれている場合のみリサイズ
