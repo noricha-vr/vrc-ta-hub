@@ -124,7 +124,15 @@ def queue_new_community_tweet(sender, instance, created, **kwargs):
 
     pending -> approved への遷移時のみトリガーされる。
     同一 community の重複キューは作成しない。
+    ツイートキューは補助機能のため、失敗しても本体の保存処理に影響させない。
     """
+    try:
+        _queue_new_community_tweet(instance, created)
+    except Exception:
+        logger.exception("Failed to queue new community tweet for %s", instance.pk)
+
+
+def _queue_new_community_tweet(instance, created):
     # 遅延インポートで循環インポートを回避
     from twitter.models import TweetQueue
 
@@ -165,7 +173,17 @@ def queue_new_community_tweet(sender, instance, created, **kwargs):
 def queue_slide_share_tweet(sender, instance, created, **kwargs):
     """スライド/記事が初めてアップロードされた時にツイートキューに追加する。
 
-    以下の条件をすべて満たす場合にキューを追加する:
+    ツイートキューは補助機能のため、失敗しても本体の保存処理に影響させない。
+    """
+    try:
+        _queue_slide_share_tweet(instance, created)
+    except Exception:
+        logger.exception("Failed to queue slide share tweet for EventDetail %s", instance.pk)
+
+
+def _queue_slide_share_tweet(instance, created):
+    """以下の条件をすべて満たす場合にキューを追加する:
+
     - slide_url, youtube_url, slide_file のいずれかが初めて設定された
     - status が approved（承認済み）
     - event.date が過去（発表日が終わっている）
@@ -228,7 +246,17 @@ def queue_slide_share_tweet(sender, instance, created, **kwargs):
 def queue_event_detail_tweet(sender, instance, created, **kwargs):
     """LT/特別回の EventDetail が承認された時にツイートキューに追加する。
 
-    以下の場合にキューを追加する:
+    ツイートキューは補助機能のため、失敗しても本体の保存処理に影響させない。
+    """
+    try:
+        _queue_event_detail_tweet(instance, created)
+    except Exception:
+        logger.exception("Failed to queue event detail tweet for EventDetail %s", instance.pk)
+
+
+def _queue_event_detail_tweet(instance, created):
+    """以下の場合にキューを追加する:
+
     - 新規作成 (created=True) かつ status='approved'
     - 既存更新で _old_status != 'approved' から status='approved' に遷移
 
