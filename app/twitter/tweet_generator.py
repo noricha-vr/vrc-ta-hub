@@ -225,10 +225,11 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
 テーマ: {theme}
 
 ## 必須要素（必ず本文に含めること）
-1. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
-2. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
-3. 発表者名
-4. 「このテーマが気になる人は聞きに来て」という呼びかけ
+1. 集会名（「{name}」）
+2. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
+3. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
+4. 発表者名
+5. 「このテーマが気になる人は聞きに来て」という呼びかけ
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
@@ -279,9 +280,10 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
 公開された資料: {resources_text}
 
 ## 必須要素（必ず本文に含めること）
-1. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
-2. {resources_text}が公開されたこと
-3. 「こういう人はチェックして」という呼びかけ
+1. 集会名（「{name}」）
+2. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
+3. {resources_text}が公開されたこと
+4. 「こういう人はチェックして」という呼びかけ
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
@@ -376,11 +378,12 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
 テーマ: {theme}
 
 ## 必須要素（必ず本文に含めること）
-1. 「特別回」であること
-2. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
-3. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
-4. 発表者/ゲスト名
-5. 「このテーマに興味ある人は来て」という呼びかけ
+1. 集会名（「{name}」）
+2. 「特別回」であること
+3. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
+4. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
+5. 発表者/ゲスト名
+6. 「このテーマに興味ある人は来て」という呼びかけ
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
