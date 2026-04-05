@@ -17,6 +17,7 @@
 
 | ファイル | 日付 | 概要 |
 |----------|------|------|
+| discord-auth-01.md | 04-05 | allauth テンプレートの view テストが SocialApp なしで失敗 |
 | drf-spectacular-01.md | 04-01 | GatheringListSerializer の schema 生成エラー修正 |
 
 ### 2026-03/
