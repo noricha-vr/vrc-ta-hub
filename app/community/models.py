@@ -167,7 +167,7 @@ class Community(models.Model):
     @property
     def is_ended(self):
         """集会が終了しているかどうかを判定する"""
-        return self.end_at is not None and self.end_at < timezone.now().date()
+        return self.end_at is not None and self.end_at < timezone.localdate()
 
     def save(self, *args, **kwargs):
         update_fields = kwargs.get('update_fields')

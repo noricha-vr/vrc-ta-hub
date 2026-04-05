@@ -1,11 +1,12 @@
 """Communityモデルのテスト"""
-from datetime import date, timedelta
+from datetime import timedelta
 from io import BytesIO
 from unittest.mock import patch, MagicMock
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from django.utils import timezone
 from PIL import Image
 
 from community.models import Community
@@ -32,17 +33,17 @@ class CommunityIsEndedTestCase(TestCase):
 
     def test_is_ended_past(self):
         """end_atが過去の場合、終了している"""
-        c = self._make_community(end_at=date.today() - timedelta(days=1))
+        c = self._make_community(end_at=timezone.localdate() - timedelta(days=1))
         self.assertTrue(c.is_ended)
 
     def test_is_ended_today(self):
-        """end_atが今日の場合、終了していない"""
-        c = self._make_community(end_at=date.today())
+        """end_atが今日（ローカル日付）の場合、終了していない"""
+        c = self._make_community(end_at=timezone.localdate())
         self.assertFalse(c.is_ended)
 
     def test_is_ended_future(self):
         """end_atが未来の場合、終了していない"""
-        c = self._make_community(end_at=date.today() + timedelta(days=30))
+        c = self._make_community(end_at=timezone.localdate() + timedelta(days=30))
         self.assertFalse(c.is_ended)
 
 

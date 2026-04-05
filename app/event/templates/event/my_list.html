@@ -26,13 +26,20 @@
                     <ul class="dropdown-menu">
                         {% for community in communities %}
                         <li>
-                            <form method="post" action="{% url 'community:switch' %}">
-                                {% csrf_token %}
-                                <input type="hidden" name="community_id" value="{{ community.id }}">
-                                <button type="submit" class="dropdown-item {% if active_community and community.id == active_community.id %}active{% endif %}">
+                            {% if community.is_ended %}
+                                <span class="dropdown-item disabled text-muted">
                                     {{ community.name }}
-                                </button>
-                            </form>
+                                    <span class="badge bg-light text-muted ms-1">終了</span>
+                                </span>
+                            {% else %}
+                                <form method="post" action="{% url 'community:switch' %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="community_id" value="{{ community.id }}">
+                                    <button type="submit" class="dropdown-item {% if active_community and community.id == active_community.id %}active{% endif %}">
+                                        {{ community.name }}
+                                    </button>
+                                </form>
+                            {% endif %}
                         </li>
                         {% endfor %}
                     </ul>
