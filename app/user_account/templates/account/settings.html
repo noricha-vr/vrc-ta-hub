@@ -29,21 +29,24 @@
                         <div class="list-group list-group-flush">
                             {% if user_communities %}
                                 {% for membership in user_communities %}
-                                    <div class="list-group-item d-flex justify-content-between align-items-center mb-0">
+                                    <div class="list-group-item d-flex justify-content-between align-items-center mb-0 {% if membership.community.end_at %}bg-light text-body-secondary community-list-item-ended{% endif %}">
                                         <form method="post" action="{% url 'community:switch' %}" class="d-inline flex-grow-1">
                                             {% csrf_token %}
                                             <input type="hidden" name="community_id" value="{{ membership.community.id }}">
                                             <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
-                                            <button type="submit" class="btn btn-link text-decoration-none p-0 text-start">
+                                            <button type="submit" class="btn btn-link text-decoration-none p-0 text-start {% if membership.community.end_at %}text-body-secondary{% endif %}">
                                                 <i class="fa-solid fa-house me-2"></i>{{ membership.community.name }}
                                                 <span class="badge bg-secondary ms-1">{{ membership.get_role_display }}</span>
+                                                {% if membership.community.end_at %}
+                                                    <span class="badge bg-secondary ms-1">{{ membership.community.end_at|date:"Y/m/d" }}終了</span>
+                                                {% endif %}
                                             </button>
                                         </form>
                                         <form method="post" action="{% url 'community:switch' %}" class="d-inline">
                                             {% csrf_token %}
                                             <input type="hidden" name="community_id" value="{{ membership.community.id }}">
                                             <input type="hidden" name="redirect_to" value="{% url 'community:settings' %}">
-                                            <button type="submit" class="btn btn-link text-decoration-none p-0">
+                                            <button type="submit" class="btn btn-link text-decoration-none p-0 {% if membership.community.end_at %}text-body-secondary{% endif %}">
                                                 <span class="text-muted">設定</span>
                                                 <i class="fa-solid fa-chevron-right ms-2 text-muted"></i>
                                             </button>

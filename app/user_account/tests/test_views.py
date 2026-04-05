@@ -1,4 +1,6 @@
 """認証ビューのテスト."""
+from datetime import date
+
 from django.contrib.auth import get_user_model
 from django.contrib.messages import get_messages
 from django.test import Client, TestCase
@@ -317,6 +319,47 @@ class SettingsViewTests(TestCase):
 
         # 主催者バッジが表示されていること
         self.assertContains(response, '主催者')
+
+    def test_settings_view_ended_community_is_grayed_out(self):
+        """終了した集会はグレーアウト用クラスと終了表示が付くこと."""
+        community = Community.objects.create(
+            name='終了した集会',
+            frequency='毎週',
+            status='approved',
+            end_at=date(2026, 4, 1),
+        )
+        CommunityMember.objects.create(
+            community=community,
+            user=self.test_user,
+            role=CommunityMember.Role.OWNER,
+        )
+        self.client.login(username='test_settings_user', password='testpass123')
+
+        response = self.client.get(self.settings_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'community-list-item-ended')
+        self.assertContains(response, '2026/04/01終了')
+
+    def test_settings_view_active_community_is_not_grayed_out(self):
+        """活動中の集会には終了表示が付かないこと."""
+        community = Community.objects.create(
+            name='活動中の集会',
+            frequency='毎週',
+            status='approved',
+        )
+        CommunityMember.objects.create(
+            community=community,
+            user=self.test_user,
+            role=CommunityMember.Role.OWNER,
+        )
+        self.client.login(username='test_settings_user', password='testpass123')
+
+        response = self.client.get(self.settings_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'community-list-item-ended')
+        self.assertNotContains(response, '終了')
 
     def test_settings_view_owner_can_add_more_communities(self):
         """主催者でも集会追加ボタンが表示されること."""
