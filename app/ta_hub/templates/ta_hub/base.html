@@ -376,24 +376,26 @@
                                 <i class="bi bi-person-circle"></i>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                {% if user_communities %}
+                                {% if active_community %}
                                     <li class="dropdown-header small text-muted"><a href="{% url 'event:my_list' %}" class="text-muted text-decoration-none">マイ集会</a></li>
                                     {% for membership in user_communities %}
-                                        {% if active_community and membership.community.id == active_community.id %}
-                                            <li><a class="dropdown-item" href="{% url 'event:my_list' %}">
-                                                <i class="bi bi-check-lg me-2 text-primary"></i>{{ membership.community.name|truncatechars:12 }}
-                                            </a></li>
-                                        {% else %}
-                                            <li>
-                                                <form action="{% url 'community:switch' %}" method="post" class="d-inline w-100">
-                                                    {% csrf_token %}
-                                                    <input type="hidden" name="community_id" value="{{ membership.community.id }}">
-                                                    <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
-                                                    <button type="submit" class="dropdown-item">
-                                                        <i class="bi bi-circle me-2 text-muted"></i>{{ membership.community.name|truncatechars:12 }}
-                                                    </button>
-                                                </form>
-                                            </li>
+                                        {% if not membership.community.is_ended %}
+                                            {% if membership.community.id == active_community.id %}
+                                                <li><a class="dropdown-item" href="{% url 'event:my_list' %}">
+                                                    <i class="bi bi-check-lg me-2 text-primary"></i>{{ membership.community.name|truncatechars:12 }}
+                                                </a></li>
+                                            {% else %}
+                                                <li>
+                                                    <form action="{% url 'community:switch' %}" method="post" class="d-inline w-100">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="community_id" value="{{ membership.community.id }}">
+                                                        <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
+                                                        <button type="submit" class="dropdown-item">
+                                                            <i class="bi bi-circle me-2 text-muted"></i>{{ membership.community.name|truncatechars:12 }}
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                            {% endif %}
                                         {% endif %}
                                     {% endfor %}
                                     <li><hr class="dropdown-divider"></li>

@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from django.test import TestCase, RequestFactory
 from django.contrib.auth import get_user_model
 from django.contrib.sessions.middleware import SessionMiddleware
@@ -116,3 +118,50 @@ class ActiveCommunityContextProcessorTest(TestCase):
         # 無効なIDの場合、最初の集会にフォールバック
         self.assertIsNotNone(result['active_community'])
         self.assertIn(result['active_community'], [self.community1, self.community2])
+
+    def test_ended_active_community_auto_switches(self):
+        """アクティブな集会が終了している場合、次のアクティブな集会に切り替わる"""
+        self.community1.end_at = date.today() - timedelta(days=1)
+        self.community1.save(update_fields=['end_at'])
+
+        request = self.factory.get('/')
+        request.user = self.user1
+        self._add_session_to_request(request)
+        request.session['active_community_id'] = self.community1.id
+
+        result = active_community(request)
+
+        # 終了した集会1ではなく、アクティブな集会2に切り替わる
+        self.assertEqual(result['active_community'], self.community2)
+        self.assertEqual(request.session['active_community_id'], self.community2.id)
+
+    def test_all_communities_ended_returns_none(self):
+        """全集会が終了している場合、active_communityはNone"""
+        self.community1.end_at = date.today() - timedelta(days=1)
+        self.community1.save(update_fields=['end_at'])
+        self.community2.end_at = date.today() - timedelta(days=1)
+        self.community2.save(update_fields=['end_at'])
+
+        request = self.factory.get('/')
+        request.user = self.user1
+        self._add_session_to_request(request)
+
+        result = active_community(request)
+
+        self.assertIsNone(result['active_community'])
+        self.assertIsNone(result['active_membership'])
+        # user_communitiesは全集会を返す（設定ページで表示するため）
+        self.assertEqual(len(result['user_communities']), 2)
+
+    def test_default_fallback_skips_ended_community(self):
+        """セッションにIDがない場合、終了した集会をスキップしてアクティブな集会を選ぶ"""
+        self.community1.end_at = date.today() - timedelta(days=1)
+        self.community1.save(update_fields=['end_at'])
+
+        request = self.factory.get('/')
+        request.user = self.user1
+        self._add_session_to_request(request)
+
+        result = active_community(request)
+
+        self.assertEqual(result['active_community'], self.community2)

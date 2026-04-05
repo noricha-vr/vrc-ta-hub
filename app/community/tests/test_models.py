@@ -1,4 +1,5 @@
 """Communityモデルのテスト"""
+from datetime import date, timedelta
 from io import BytesIO
 from unittest.mock import patch, MagicMock
 
@@ -11,6 +12,38 @@ from community.models import Community
 from ta_hub.libs import DEFAULT_MAX_SIZE
 
 CustomUser = get_user_model()
+
+
+class CommunityIsEndedTestCase(TestCase):
+    """Community.is_ended プロパティのテスト"""
+
+    def _make_community(self, end_at=None):
+        return Community(
+            name='テスト集会',
+            frequency='毎週',
+            organizers='テスト主催者',
+            end_at=end_at,
+        )
+
+    def test_is_ended_none(self):
+        """end_atがNoneの場合、終了していない"""
+        c = self._make_community(end_at=None)
+        self.assertFalse(c.is_ended)
+
+    def test_is_ended_past(self):
+        """end_atが過去の場合、終了している"""
+        c = self._make_community(end_at=date.today() - timedelta(days=1))
+        self.assertTrue(c.is_ended)
+
+    def test_is_ended_today(self):
+        """end_atが今日の場合、終了していない"""
+        c = self._make_community(end_at=date.today())
+        self.assertFalse(c.is_ended)
+
+    def test_is_ended_future(self):
+        """end_atが未来の場合、終了していない"""
+        c = self._make_community(end_at=date.today() + timedelta(days=30))
+        self.assertFalse(c.is_ended)
 
 
 class CommunityHashtagPropertyTestCase(TestCase):

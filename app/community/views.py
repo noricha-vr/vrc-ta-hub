@@ -651,7 +651,14 @@ class SwitchCommunityView(LoginRequiredMixin, View):
                 return redirect(self._get_redirect_url(request, success=False))
 
             # ユーザーがその集会のメンバーであることを確認
-            if request.user.community_memberships.filter(community_id=community_id_int).exists():
+            membership = request.user.community_memberships.select_related(
+                'community'
+            ).filter(community_id=community_id_int).first()
+
+            if membership:
+                if membership.community.is_ended:
+                    messages.error(request, 'この集会は終了しています。')
+                    return redirect(self._get_redirect_url(request, success=False))
                 request.session['active_community_id'] = community_id_int
                 messages.success(request, '集会を切り替えました。')
                 # 切り替え成功時はredirect_toまたはevent:my_listに遷移

@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -211,6 +213,23 @@ class SwitchCommunityViewTest(TestCase):
 
         # 外部refererは無視され、デフォルトにリダイレクトされる
         self.assertRedirects(response, reverse('event:my_list'), fetch_redirect_response=False)
+
+    def test_cannot_switch_to_ended_community(self):
+        """終了した集会には切り替えできない"""
+        self.client.login(username='テストユーザー', password='testpass123')
+
+        self.community1.end_at = date.today() - timedelta(days=1)
+        self.community1.save(update_fields=['end_at'])
+
+        response = self.client.post(
+            reverse('community:switch'),
+            {'community_id': self.community1.id},
+            HTTP_REFERER='/account/settings/'
+        )
+
+        self.assertEqual(response.status_code, 302)
+        session = self.client.session
+        self.assertNotEqual(session.get('active_community_id'), self.community1.id)
 
     def test_switch_failure_redirects_to_referer_not_redirect_to(self):
         """失敗時はredirect_toではなくrefererにリダイレクトする"""
