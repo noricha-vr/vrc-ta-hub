@@ -198,22 +198,30 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.count(), 0)
 
     @patch("twitter.signals.threading.Thread")
-    def test_duplicate_event_detail_queue_prevention(self, mock_thread_cls):
-        """同一 event_detail の重複キューは作成されない"""
+    def test_duplicate_event_detail_queue_prevention_on_initial_approval(self, mock_thread_cls):
+        """初回承認時、同一 event_detail の重複キューは作成されない"""
         mock_thread_cls.return_value = MagicMock()
 
         detail = EventDetail.objects.create(
             event=self.event,
             detail_type="LT",
-            status="approved",
+            status="pending",
             speaker="テスト太郎",
             theme="VRChatで学ぶPython",
             start_time=datetime.time(22, 15),
         )
+        # 手動でキューを作成（重複状態をシミュレート）
+        TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=self.event,
+            event_detail=detail,
+            status="ready",
+        )
         self.assertEqual(TweetQueue.objects.count(), 1)
 
-        # 再保存しても増えない
-        detail.theme = "更新テーマ"
+        # pending -> approved でも既にキューがあるので増えない
+        detail.status = "approved"
         detail.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
 
@@ -242,8 +250,8 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.event_detail, detail)
 
     @patch("twitter.signals.threading.Thread")
-    def test_already_approved_detail_update_does_not_create_queue(self, mock_thread_cls):
-        """既に approved の EventDetail を再保存してもキューは追加されない"""
+    def test_approved_detail_no_content_change_keeps_existing_tweet(self, mock_thread_cls):
+        """既に approved の EventDetail を内容変更なしで再保存してもキューは追加されない"""
         mock_thread_cls.return_value = MagicMock()
 
         detail = EventDetail.objects.create(
@@ -256,13 +264,104 @@ class EventDetailSignalTest(AutoTweetTestBase):
         )
         self.assertEqual(TweetQueue.objects.count(), 1)
 
-        # キューを消して再保存
-        TweetQueue.objects.all().delete()
+        # 内容変更なしで再保存
+        detail.save()
+        self.assertEqual(TweetQueue.objects.count(), 1)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_approved_detail_content_change_regenerates_tweet(self, mock_thread_cls):
+        """approved 状態で speaker/theme が変更されたらツイートを再生成する"""
+        mock_thread_cls.return_value = MagicMock()
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VRChatで学ぶPython",
+            start_time=datetime.time(22, 15),
+        )
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        old_queue_id = TweetQueue.objects.first().pk
+
+        # speaker を変更
         detail.speaker = "更新太郎"
         detail.save()
 
-        # approved -> approved なのでキューは作成されない
-        self.assertEqual(TweetQueue.objects.count(), 0)
+        # 古いキューが削除され、新しいキューが作成される
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        new_queue = TweetQueue.objects.first()
+        self.assertNotEqual(new_queue.pk, old_queue_id)
+        self.assertEqual(new_queue.status, "generating")
+
+    @patch("twitter.signals.threading.Thread")
+    def test_approved_detail_theme_change_regenerates_tweet(self, mock_thread_cls):
+        """approved 状態で theme が変更されたらツイートを再生成する"""
+        mock_thread_cls.return_value = MagicMock()
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VRChatで学ぶPython",
+            start_time=datetime.time(22, 15),
+        )
+        self.assertEqual(TweetQueue.objects.count(), 1)
+
+        detail.theme = "VRChatで学ぶRust"
+        detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "generating")
+
+    @patch("twitter.signals.threading.Thread")
+    def test_approved_detail_posted_tweet_not_deleted_on_change(self, mock_thread_cls):
+        """投稿済みツイートは削除されず、新しいキューが追加される"""
+        mock_thread_cls.return_value = MagicMock()
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VRChatで学ぶPython",
+            start_time=datetime.time(22, 15),
+        )
+        # 投稿済みにする
+        queue = TweetQueue.objects.first()
+        queue.status = "posted"
+        queue.save()
+
+        detail.speaker = "更新太郎"
+        detail.save()
+
+        # 投稿済み + 新規 = 2件
+        self.assertEqual(TweetQueue.objects.count(), 2)
+        self.assertEqual(TweetQueue.objects.filter(status="posted").count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(status="generating").count(), 1)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_approved_detail_creates_tweet_if_none_exists_on_content_change(self, mock_thread_cls):
+        """approved 状態でツイート未作成 + コンテンツ変更時に新規作成する"""
+        mock_thread_cls.return_value = MagicMock()
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VRChatで学ぶPython",
+            start_time=datetime.time(22, 15),
+        )
+        # 初回のキューを削除（ツイート未作成状態をシミュレート）
+        TweetQueue.objects.all().delete()
+
+        # コンテンツ変更で再保存 → 新規作成
+        detail.theme = "VRChatで学ぶRust"
+        detail.save()
+        self.assertEqual(TweetQueue.objects.count(), 1)
 
 
 class GenerateTweetAsyncTest(AutoTweetTestBase):
