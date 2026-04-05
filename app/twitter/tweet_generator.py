@@ -6,6 +6,7 @@ OpenRouter API 経由で LLM を呼び出し、各種告知ツイートを生成
 
 import logging
 import os
+import re
 
 from django.conf import settings
 from openai import OpenAI
@@ -18,10 +19,73 @@ MAX_TWEET_TOKENS = 280
 LLM_TEMPERATURE = 0.7
 SANITIZE_MAX_LENGTH = 200
 
+TWEET_MAX_WEIGHTED_LENGTH = 280
+URL_WEIGHTED_LENGTH = 23
+RETRY_TARGET_CHARS_STEP = 20
+
 WEEKDAY_NAMES = {
     "Sun": "日", "Mon": "月", "Tue": "火", "Wed": "水",
     "Thu": "木", "Fri": "金", "Sat": "土",
 }
+
+
+def count_tweet_length(text: str) -> int:
+    """Twitter/X の重み付きカウント方式で文字数を返す。
+
+    - URL (https?://\S+): 常に23としてカウント
+    - U+0000〜U+10FF の文字: 重み1
+    - U+1100 以上の文字 (CJK等): 重み2
+    """
+    url_pattern = re.compile(r"https?://\S+")
+    urls = url_pattern.findall(text)
+    text_without_urls = url_pattern.sub("", text)
+
+    weight = 0
+    for ch in text_without_urls:
+        weight += 2 if ord(ch) >= 0x1100 else 1
+
+    weight += len(urls) * URL_WEIGHTED_LENGTH
+    return weight
+
+
+def _generate_with_retry(generate_fn, *args, max_retries=3, **kwargs) -> str | None:
+    """生成関数をリトライラッパーで実行する。
+
+    1. target_chars=140 で生成
+    2. count_tweet_length() でバリデーション（上限 TWEET_MAX_WEIGHTED_LENGTH）
+    3. 超過していたら target_chars を RETRY_TARGET_CHARS_STEP ずつ減らしてリトライ
+    4. max_retries 回リトライ後も超過している場合は最後の結果を返す
+    """
+    target_chars = 140
+    result = None
+
+    for attempt in range(max_retries + 1):
+        result = generate_fn(*args, target_chars=target_chars, **kwargs)
+        if result is None:
+            return None
+
+        length = count_tweet_length(result)
+        if length <= TWEET_MAX_WEIGHTED_LENGTH:
+            if attempt > 0:
+                logger.info(
+                    "Tweet length OK after %d retries (weighted=%d, target_chars=%d)",
+                    attempt,
+                    length,
+                    target_chars,
+                )
+            return result
+
+        logger.warning(
+            "Tweet length exceeded (weighted=%d > %d, attempt=%d/%d, target_chars=%d). Retrying.",
+            length,
+            TWEET_MAX_WEIGHTED_LENGTH,
+            attempt + 1,
+            max_retries + 1,
+            target_chars,
+        )
+        target_chars -= RETRY_TARGET_CHARS_STEP
+
+    return result
 
 
 def _sanitize_for_prompt(text: str, max_length: int = SANITIZE_MAX_LENGTH) -> str:
@@ -82,12 +146,13 @@ def _build_hashtag_suffix(community) -> str:
     return f"#VRChat技術学術{hashtag}"
 
 
-def generate_new_community_tweet(community, first_event=None) -> str | None:
+def generate_new_community_tweet(community, first_event=None, target_chars=140) -> str | None:
     """新規集会の告知ツイートを生成する。
 
     Args:
         community: Community モデルインスタンス
         first_event: 初回 Event (あれば日程を含める)
+        target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
         "あなたはVRChat技術学術系集会の告知ツイートを作成する専門家です。"
@@ -116,7 +181,7 @@ def generate_new_community_tweet(community, first_event=None) -> str | None:
 紹介: {description}{event_info}
 
 以下のルールを守ってください:
-- 280文字以内
+- {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
 - 新しい集会が始まることへの期待感を伝える
 - 末尾に以下を含める:
   詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
@@ -126,11 +191,12 @@ def generate_new_community_tweet(community, first_event=None) -> str | None:
     return _call_llm(system_prompt, user_prompt)
 
 
-def generate_lt_tweet(event_detail) -> str | None:
+def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
     """LT 告知ツイートを生成する。
 
     Args:
         event_detail: EventDetail モデルインスタンス (detail_type='LT')
+        target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
         "あなたはVRChat技術学術系集会のLT（ライトニングトーク）告知ツイートを作成する専門家です。"
@@ -153,7 +219,7 @@ def generate_lt_tweet(event_detail) -> str | None:
 テーマ: {theme}
 
 以下のルールを守ってください:
-- 280文字以内
+- {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
 - LTの内容への期待感を伝える
 - 末尾に以下を含める:
   詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
@@ -163,11 +229,12 @@ def generate_lt_tweet(event_detail) -> str | None:
     return _call_llm(system_prompt, user_prompt)
 
 
-def generate_slide_share_tweet(event_detail) -> str | None:
+def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
     """スライド/記事共有ツイートを生成する。
 
     Args:
         event_detail: EventDetail モデルインスタンス（slide_url または youtube_url が設定済み）
+        target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
         "あなたはVRChat技術学術系集会のLT発表後の共有ツイートを作成する専門家です。"
@@ -199,7 +266,7 @@ def generate_slide_share_tweet(event_detail) -> str | None:
 公開された資料: {resources_text}
 
 以下のルールを守ってください:
-- 280文字以内
+- {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
 - 発表後の共有であること（事後報告のトーン）
 - {resources_text}が公開されたことへの嬉しさ・見てほしい気持ちを伝える
 - 末尾に以下を含める:
@@ -213,14 +280,22 @@ def generate_slide_share_tweet(event_detail) -> str | None:
 def get_generator(tweet_type: str):
     """tweet_type に応じた生成関数を返す。
 
+    各生成関数は _generate_with_retry でラップされ、文字数バリデーションとリトライを行う。
+
     Returns:
         生成関数 (queue_item -> str | None)。未知の tweet_type の場合は None。
     """
     generator_map = {
-        "new_community": lambda qi: generate_new_community_tweet(qi.community, qi.event),
-        "lt": lambda qi: generate_lt_tweet(qi.event_detail),
-        "special": lambda qi: generate_special_event_tweet(qi.event_detail),
-        "slide_share": lambda qi: generate_slide_share_tweet(qi.event_detail),
+        "new_community": lambda qi: _generate_with_retry(
+            generate_new_community_tweet, qi.community, qi.event
+        ),
+        "lt": lambda qi: _generate_with_retry(generate_lt_tweet, qi.event_detail),
+        "special": lambda qi: _generate_with_retry(
+            generate_special_event_tweet, qi.event_detail
+        ),
+        "slide_share": lambda qi: _generate_with_retry(
+            generate_slide_share_tweet, qi.event_detail
+        ),
     }
     return generator_map.get(tweet_type)
 
@@ -252,11 +327,12 @@ def get_poster_image_url(community) -> str:
     return ""
 
 
-def generate_special_event_tweet(event_detail) -> str | None:
+def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
     """特別回告知ツイートを生成する。
 
     Args:
         event_detail: EventDetail モデルインスタンス (detail_type='SPECIAL')
+        target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
         "あなたはVRChat技術学術系集会の特別イベント告知ツイートを作成する専門家です。"
@@ -280,7 +356,7 @@ def generate_special_event_tweet(event_detail) -> str | None:
 テーマ: {theme}
 
 以下のルールを守ってください:
-- 280文字以内
+- {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
 - 特別回ならではのワクワク感を伝える
 - 末尾に以下を含める:
   詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
