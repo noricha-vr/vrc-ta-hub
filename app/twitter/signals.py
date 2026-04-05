@@ -266,16 +266,22 @@ def _queue_event_detail_tweet(instance, created):
     - 新規作成 (created=True) かつ status='approved'
     - 既存更新で _old_status != 'approved' から status='approved' に遷移
     - 既に approved 状態で speaker/theme が変更された場合（未投稿ツイートを再生成）
-    - 既に approved 状態でツイートが未作成の場合（新規作成）
 
     detail_type が 'LT' or 'SPECIAL' の場合のみ。
+    イベント日が過去の場合はスキップ（終了イベントの告知を防止）。
     """
+    from django.utils import timezone as tz
+
     from twitter.models import TweetQueue
 
     if instance.detail_type not in ("LT", "SPECIAL"):
         return
 
     if instance.status != "approved":
+        return
+
+    # 過去のイベントには告知ツイートを作成しない
+    if instance.event.date < tz.localdate():
         return
 
     old_status = getattr(instance, "_old_status", None)

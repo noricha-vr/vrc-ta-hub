@@ -363,6 +363,74 @@ class EventDetailSignalTest(AutoTweetTestBase):
         detail.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
 
+    @patch("twitter.signals.threading.Thread")
+    def test_past_event_does_not_create_lt_queue(self, mock_thread_cls):
+        """過去のイベントにLTが承認されてもキューは作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
+        past_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        EventDetail.objects.create(
+            event=past_event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="過去のLT",
+            start_time=datetime.time(22, 15),
+        )
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 0)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_past_event_content_change_does_not_create_queue(self, mock_thread_cls):
+        """過去のイベントのLT内容を変更してもキューは作成されない"""
+        mock_thread_cls.return_value = MagicMock()
+
+        past_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        detail = EventDetail.objects.create(
+            event=past_event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="過去のLT",
+            start_time=datetime.time(22, 15),
+        )
+        TweetQueue.objects.all().delete()
+
+        detail.speaker = "更新太郎"
+        detail.save()
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 0)
+
+    @patch("twitter.signals.threading.Thread")
+    def test_today_event_creates_queue(self, mock_thread_cls):
+        """当日のイベントにLTが承認されたらキューは作成される"""
+        mock_thread_cls.return_value = MagicMock()
+
+        from django.utils import timezone
+        today_event = Event.objects.create(
+            community=self.community,
+            date=timezone.localdate(),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        EventDetail.objects.create(
+            event=today_event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="当日のLT",
+            start_time=datetime.time(22, 15),
+        )
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
+
 
 class GenerateTweetAsyncTest(AutoTweetTestBase):
     """_generate_tweet_async 関数のテスト"""
@@ -697,6 +765,119 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertEqual(response.status_code, 200)
         # media_ids=None で投稿される
         mock_post.assert_called_once_with("テキストのみ", media_ids=None)
+
+
+class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
+    """投稿時のイベント日チェックテスト"""
+
+    REQUEST_TOKEN_ENV = {"REQUEST_TOKEN": "test-token"}
+
+    def setUp(self):
+        super().setUp()
+        with patch("twitter.signals.threading.Thread") as mock_thread_cls:
+            mock_thread_cls.return_value = MagicMock()
+            self.community.status = "approved"
+            self.community.save()
+        TweetQueue.objects.all().delete()
+
+    @patch("twitter.views.post_tweet")
+    def test_expired_lt_tweet_is_skipped(self, mock_post):
+        """イベント日が過去のLTツイートは投稿されずスキップされる"""
+        past_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=past_event,
+            status="ready",
+            generated_text="過去のLT告知",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        self.assertEqual(response.status_code, 200)
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "failed")
+        self.assertIn("過去", queue.error_message)
+        mock_post.assert_not_called()
+
+    @patch("twitter.views.post_tweet")
+    def test_future_lt_tweet_is_posted(self, mock_post):
+        """未来のイベントのLTツイートは通常通り投稿される"""
+        mock_post.return_value = {"id": "99999", "text": "未来のLT告知"}
+
+        TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=self.event,  # 2026-05-01（未来）
+            status="ready",
+            generated_text="未来のLT告知",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        self.assertEqual(response.status_code, 200)
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "posted")
+
+    @patch("twitter.views.post_tweet")
+    def test_expired_special_tweet_is_skipped(self, mock_post):
+        """イベント日が過去の特別回ツイートもスキップされる"""
+        past_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        TweetQueue.objects.create(
+            tweet_type="special",
+            community=self.community,
+            event=past_event,
+            status="ready",
+            generated_text="過去の特別回告知",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "failed")
+        mock_post.assert_not_called()
+
+    @patch("twitter.views.post_tweet")
+    def test_slide_share_is_not_affected_by_date_check(self, mock_post):
+        """スライド共有は過去イベントでも投稿される（資料共有は事後）"""
+        mock_post.return_value = {"id": "88888", "text": "スライド共有"}
+
+        past_event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2025, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        TweetQueue.objects.create(
+            tweet_type="slide_share",
+            community=self.community,
+            event=past_event,
+            status="ready",
+            generated_text="スライド共有",
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.status, "posted")
 
 
 class RetryGenerationTest(AutoTweetTestBase):
