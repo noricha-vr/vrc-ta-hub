@@ -189,6 +189,7 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
   {hashtag_suffix}
+- ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
 - ツイート本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
@@ -234,6 +235,7 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
   {hashtag_suffix}
+- ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
 - ツイート本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
@@ -286,6 +288,7 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
   {hashtag_suffix}
+- ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
 - ツイート本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
@@ -382,6 +385,7 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
   {hashtag_suffix}
+- ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
 - ツイート本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
