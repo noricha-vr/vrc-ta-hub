@@ -14,3 +14,8 @@
 - 問題: staff が複数集会の運用を担当しているケースでは、Discord が一時的に集会 owner アカウントへ接続されていても、既存 owner/staff アカウントを安易にマージすると別人の権限や連絡先を壊す。
 - 解決: Discord の `SocialAccount` とメールアドレスが本人一致するアカウントを本体候補として扱い、既存の owner/staff に別 Discord や別メールがある場合はマージせず、本人アカウントへ `CommunityMember(role=staff)` を追加する。
 - 教訓: 「同じ集会に関わっている」だけでは統合根拠にならない。Discord UID・メールアドレス・既存 role を合わせて確認し、別人の owner/staff はそのまま残す。
+
+## allauth テンプレートをローカル view テストで描画する条件
+- 問題: `account/login.html` や `account/register.html` のように `{% provider_login_url 'discord' %}` を使うテンプレートは、ローカルで `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` を空のまま `manage.py test` すると `SocialApp.DoesNotExist` で落ちる。
+- 解決: ローカル実行ではダミー値でもいいので `DISCORD_CLIENT_ID` と `DISCORD_CLIENT_SECRET` を環境変数に渡して、`SOCIALACCOUNT_PROVIDERS['discord']['APPS']` が有効になる状態でテストする。
+- 教訓: allauth の view テスト失敗がアプリコード変更に見えても、まずはテンプレートが要求する provider 設定の有無を確認する。
