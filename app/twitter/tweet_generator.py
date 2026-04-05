@@ -228,7 +228,7 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
 1. 集会名（「{name}」）
 2. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
 3. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
-4. 発表者名
+4. 発表者名（敬称は「さん」を付ける）
 5. 「このテーマが気になる人は聞きに来て」という呼びかけ
 
 ## スタイル
@@ -281,9 +281,10 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
 
 ## 必須要素（必ず本文に含めること）
 1. 集会名（「{name}」）
-2. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
-3. {resources_text}が公開されたこと
-4. 「こういう人はチェックして」という呼びかけ
+2. 発表者名（敬称は「さん」を付ける）
+3. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
+4. {resources_text}が公開されたこと
+5. 「こういう人はチェックして」という呼びかけ
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
@@ -382,7 +383,7 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
 2. 「特別回」であること
 3. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
 4. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
-5. 発表者/ゲスト名
+5. 発表者/ゲスト名（敬称は「さん」を付ける）
 6. 「このテーマに興味ある人は来て」という呼びかけ
 
 ## スタイル
