@@ -1177,6 +1177,24 @@ class BuildDiscordMentionsTests(TestCase):
         self.assertIn('<@333>', result['all'])
 
 
+class VketViewsPackageCompatibilityTests(TestCase):
+    """vket.views package 化後も既存importが使えることを保証する."""
+
+    def test_module_import_keeps_public_views(self):
+        from vket import views
+        from vket.views import ApplyView, ManageView
+
+        self.assertIs(views.ApplyView, ApplyView)
+        self.assertIs(views.ManageView, ManageView)
+
+    def test_module_import_keeps_helper_exports(self):
+        from vket import views
+        from vket.views import _build_schedule_context, _get_active_membership
+
+        self.assertIs(views._build_schedule_context, _build_schedule_context)
+        self.assertIs(views._get_active_membership, _get_active_membership)
+
+
 class VketNoticeTests(TestCase):
     """お知らせ・ACK機能のテスト"""
 
