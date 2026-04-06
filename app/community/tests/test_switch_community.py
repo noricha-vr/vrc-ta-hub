@@ -367,7 +367,7 @@ class CloseCommunityViewPermissionTest(TestCase):
         """主催者は集会を閉鎖できる"""
         self.client.login(username='オーナー', password='testpass123')
 
-        with patch('community.views.cleanup_community_future_data', return_value={'db_events': 0, 'rules': 0, 'google_events': 0}) as cleanup_mock:
+        with patch('community.views.manage.cleanup_community_future_data', return_value={'db_events': 0, 'rules': 0, 'google_events': 0}) as cleanup_mock:
             response = self.client.post(reverse('community:close', kwargs={'pk': self.community.pk}))
 
         # リダイレクトを確認
@@ -391,7 +391,7 @@ class CloseCommunityViewPermissionTest(TestCase):
         """管理者は集会を閉鎖できる"""
         self.client.login(username='管理者', password='testpass123')
 
-        with patch('community.views.cleanup_community_future_data', return_value={'db_events': 0, 'rules': 0, 'google_events': 0}) as cleanup_mock:
+        with patch('community.views.manage.cleanup_community_future_data', return_value={'db_events': 0, 'rules': 0, 'google_events': 0}) as cleanup_mock:
             response = self.client.post(reverse('community:close', kwargs={'pk': self.community.pk}))
 
         # リダイレクトを確認
@@ -442,7 +442,7 @@ class AdminCommunityCleanupViewTest(TestCase):
     def test_superuser_can_run_admin_cleanup(self):
         self.client.login(username='管理者2', password='testpass123')
 
-        with patch('community.views.cleanup_community_future_data', return_value={'db_events': 3, 'rules': 1, 'google_events': 2}) as cleanup_mock:
+        with patch('community.views.manage.cleanup_community_future_data', return_value={'db_events': 3, 'rules': 1, 'google_events': 2}) as cleanup_mock:
             response = self.client.post(reverse('community:admin_cleanup', kwargs={'pk': self.community.pk}))
 
         self.assertEqual(response.status_code, 302)

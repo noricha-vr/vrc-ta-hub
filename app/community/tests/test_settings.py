@@ -462,7 +462,7 @@ class WebhookSettingsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'テスト送信')
 
-    @patch('community.views.requests.post')
+    @patch('community.views.settings.requests.post')
     def test_test_webhook_success(self, mock_post):
         """Webhookテスト送信が成功する"""
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
@@ -483,7 +483,7 @@ class WebhookSettingsTest(TestCase):
         call_kwargs = mock_post.call_args[1]
         self.assertIn('テスト通知', call_kwargs['json']['content'])
 
-    @patch('community.views.requests.post')
+    @patch('community.views.settings.requests.post')
     def test_test_webhook_failure(self, mock_post):
         """Webhookテスト送信が失敗した場合のエラーハンドリング"""
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'

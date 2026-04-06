@@ -124,7 +124,7 @@ class CommunityCreateViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'community/create.html')
 
-    @patch('community.views.requests.post')
+    @patch('community.views.manage.requests.post')
     def test_community_creation_via_post(self, mock_discord_post):
         """POSTリクエストで集会が作成されることをテスト.
 
@@ -184,7 +184,7 @@ class CommunityCreateViewTest(TestCase):
             role=CommunityMember.Role.OWNER
         ).exists())
 
-    @patch('community.views.requests.post')
+    @patch('community.views.manage.requests.post')
     def test_community_create_creates_owner_membership(self, mock_discord_post):
         """集会作成時にオーナーとしてCommunityMemberが作成されることをテスト."""
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -246,7 +246,7 @@ class CommunityCreateViewTest(TestCase):
         # can_editメソッドがTrueを返すことを確認
         self.assertTrue(community.can_edit(self.user))
 
-    @patch('community.views.requests.post')
+    @patch('community.views.manage.requests.post')
     def test_user_with_existing_community_can_create_new_community(self, mock_discord_post):
         """既に集会を持っているユーザーが新しい集会を作成できることをテスト（複数集会対応）."""
         from django.core.files.uploadedfile import SimpleUploadedFile

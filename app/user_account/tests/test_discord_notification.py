@@ -13,7 +13,7 @@ class DiscordNotificationTest(TestCase):
         self.factory = RequestFactory()
 
     @override_settings(DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/test/test')
-    @patch('community.views.requests.post')
+    @patch('community.views.manage.requests.post')
     def test_discord_notification_sent_on_community_registration(self, mock_requests_post):
         """集会登録時にDiscord通知が送信されることをテスト"""
         mock_requests_post.return_value = MagicMock(status_code=204)
@@ -67,10 +67,10 @@ class DiscordNotificationTest(TestCase):
         self.assertFalse(bool(settings.DISCORD_WEBHOOK_URL))
 
     @override_settings(DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/test/test')
-    @patch('community.views.requests.post')
+    @patch('community.views.manage.requests.post')
     def test_discord_notification_error_handling(self, mock_requests_post):
         """Discord通知が失敗した場合のエラーハンドリングをテスト"""
-        from community.views import logger
+        from community.views.manage import logger
         import requests
 
         # Discord通知をエラーにする
@@ -96,8 +96,8 @@ class DiscordNotificationTest(TestCase):
         self.assertTrue(True)
 
     @override_settings(DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/test/test')
-    @patch('community.views.requests.post')
-    @patch('community.views.logger')
+    @patch('community.views.manage.requests.post')
+    @patch('community.views.manage.logger')
     def test_discord_notification_failure_logs_warning(self, mock_logger, mock_requests_post):
         """Discord通知が失敗した場合にwarningログが記録されることをテスト"""
         import requests as real_requests
