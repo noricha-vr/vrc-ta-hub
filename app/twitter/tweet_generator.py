@@ -142,8 +142,8 @@ def _format_weekdays(weekdays: list) -> str:
 
 def _build_hashtag_suffix(community) -> str:
     """ハッシュタグ部分を構築する。"""
-    hashtag = f"\n#{community.twitter_hashtag}" if community.twitter_hashtag else ""
-    return f"#VRChat技術学術{hashtag}"
+    hashtag = f"#{community.twitter_hashtag}\n" if community.twitter_hashtag else ""
+    return f"{hashtag}#VRChat技術学術"
 
 
 def generate_new_community_tweet(community, first_event=None, target_chars=140) -> str | None:
@@ -191,6 +191,7 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
   {hashtag_suffix}
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
+- 句点（。）を一切使わない（「〜です。」「〜ます。」も禁止。「〜です」「〜ます」で止める）
 - ツイート本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
@@ -240,6 +241,7 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
   {hashtag_suffix}
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
+- 句点（。）を一切使わない（「〜です。」「〜ます。」も禁止。「〜です」「〜ます」で止める）
 - ツイート本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
@@ -297,6 +299,7 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
   {hashtag_suffix}
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
+- 句点（。）を一切使わない（「〜です。」「〜ます。」も禁止。「〜です」「〜ます」で止める）
 - ツイート本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
@@ -397,6 +400,7 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
   {hashtag_suffix}
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
+- 句点（。）を一切使わない（「〜です。」「〜ます。」も禁止。「〜です」「〜ます」で止める）
 - ツイート本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
