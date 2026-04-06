@@ -1454,6 +1454,9 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
         return None
 
     def dispatch(self, request, *args, **kwargs):
+        # LoginRequiredMixin の認証チェックを先に実行
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
         # コミュニティの承認状態をチェック
         community = self._get_active_community()
         if not community or community.status != 'approved':
