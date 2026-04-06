@@ -52,4 +52,7 @@ jobs:
             website.tests.test_cloudbuild_config \
             community.tests \
             user_account.tests.test_discord_notification \
-            api_v1.tests
+            api_v1.tests \
+            news.tests \
+            sitemap.tests \
+            utils.tests

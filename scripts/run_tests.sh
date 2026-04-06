@@ -9,8 +9,11 @@ TEST_APPS=(
     "event.tests"
     "event_calendar.tests"
     "guide.tests"
+    "news.tests"
+    "sitemap.tests"
     "ta_hub.tests"
     "twitter.tests"
+    "utils.tests"
     "user_account.tests"
     "website.tests"
 )
