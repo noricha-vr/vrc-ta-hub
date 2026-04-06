@@ -283,7 +283,8 @@ class EventMyListDashboardTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'LT申請一覧')
         self.assertContains(response, reverse('account:lt_application_list'))
-        self.assertNotContains(response, 'イベント登録')
+        # イベント登録ボタン（calendar_createへのリンク）が表示されないこと
+        self.assertNotContains(response, reverse('event:calendar_create'))
 
     def test_pending_lt_shows_approve_reject_buttons(self):
         """承認待ちLT申請に承認・却下ボタンが表示される"""
