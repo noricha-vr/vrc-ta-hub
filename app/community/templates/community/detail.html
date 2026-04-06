@@ -25,7 +25,7 @@
                 <div class="row g-4">
                     <!-- 左側：ポスター画像 -->
                     <div class="col-lg-5">
-                        <div class="position-relative">
+                        <div>
                             {% if community.poster_image %}
                                 <img src="{{ community.poster_image.url|cf_resize:'800' }}" alt="{{ community.name }}"
                                      class="img-fluid rounded shadow-sm w-100">
@@ -33,7 +33,7 @@
                                 <img src="https://vrc-ta-hub.com/poster/no-image.png" alt="{{ community.name }}"
                                      class="img-fluid rounded shadow-sm w-100">
                             {% endif %}
-                            <div class="position-absolute bottom-0 start-0 m-2">
+                            <div class="mt-2">
                                 {% if community.allow_poster_repost %}
                                     <span class="badge bg-success text-white">
                                         <i class="bi bi-check-circle"></i> 集会を紹介するためのポスターの転載可
