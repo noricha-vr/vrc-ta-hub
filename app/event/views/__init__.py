@@ -2,7 +2,7 @@ import logging
 
 from event.libs import generate_blog
 
-# event.views 直下の alias は既存 import と patch("event.views.*") の互換維持に使う。
+# event.views 直下の alias は既存 import と patch("event.views.*") の互換維持に使う。参照: PR #206（package 化後も既存 import / patch を壊さないため）
 logger = logging.getLogger(__name__)
 _bigquery_client = None
 _bigquery_project = None
