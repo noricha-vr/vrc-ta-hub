@@ -71,7 +71,7 @@ class CommunityReportViewTest(TestCase):
     @override_settings(DISCORD_REPORT_WEBHOOK_URL='https://discord.com/api/webhooks/test')
     def test_webhook_sent_on_report(self):
         """通報時にDiscord Webhookが送信される"""
-        with patch('community.views.requests.post') as mock_post:
+        with patch('community.views.helpers.requests.post') as mock_post:
             mock_post.return_value = MagicMock(ok=True)
             self.client.post(self.url)
         mock_post.assert_called_once()
@@ -82,14 +82,14 @@ class CommunityReportViewTest(TestCase):
 
     def test_webhook_not_sent_when_url_empty(self):
         """Webhook URLが空の場合は送信しない"""
-        with patch('community.views.requests.post') as mock_post:
+        with patch('community.views.helpers.requests.post') as mock_post:
             self.client.post(self.url)
         mock_post.assert_not_called()
 
     @override_settings(DISCORD_REPORT_WEBHOOK_URL='https://discord.com/api/webhooks/test')
     def test_webhook_failure_does_not_block_report(self):
         """Webhook送信失敗でも通報は成功する"""
-        with patch('community.views.requests.post', side_effect=requests_lib.RequestException("timeout")):
+        with patch('community.views.helpers.requests.post', side_effect=requests_lib.RequestException("timeout")):
             response = self.client.post(self.url)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(CommunityReport.objects.count(), 1)
