@@ -18,9 +18,7 @@ jobs:
         uses: astral-sh/ruff-action@v3
         with:
           version: "0.15.9"
-          src: |
-            ./app
-            ./scripts
+          args: "check app scripts"
 
   test:
     runs-on: ubuntu-latest
