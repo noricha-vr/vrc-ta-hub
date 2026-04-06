@@ -58,13 +58,16 @@ class IndexView(TemplateView):
         logger.info(f"Vket notice visibility: {context['show_vket_notice']} (current: {current_datetime})")
 
         context['database_degraded'] = False
-        context['vket_achievements'] = []
+        # vket_achievements はDB障害時に備えて画像なしで初期化する
+        context['vket_achievements'] = self._build_vket_achievements(with_images=False)
         context['upcoming_events'] = []
         context['upcoming_event_details'] = []
         context['special_events'] = []
 
         try:
             context.update(self._build_database_context(today, cache_key))
+            # vket_achievements は request.build_absolute_uri() に依存するためキャッシュ外で毎回生成する
+            context['vket_achievements'] = self._build_vket_achievements(with_images=True)
         except OperationalError:
             # トップページはRDS瞬断でも静的導線を返し続ける。参照: PR #170（公開導線だけは維持する判断）
             logger.warning(
@@ -75,21 +78,31 @@ class IndexView(TemplateView):
 
         return context
 
+    def _build_vket_achievements(self, with_images):
+        """vket_achievements リストを生成する。
+
+        with_images=True のとき Post.objects.filter でサムネイルを取得して付加する。
+        with_images=False のとき image=None でフォールバックリストを返す（DB障害時用）。
+        request.build_absolute_uri() に依存するためキャッシュ外で毎回生成すること。
+        """
+        if with_images:
+            news_slugs = [a['news_slug'] for a in VKET_ACHIEVEMENTS]
+            news_posts = Post.objects.filter(slug__in=news_slugs).only('slug', 'thumbnail')
+            thumbnail_map = {post.slug: post.get_absolute_thumbnail_url(self.request) for post in news_posts}
+        else:
+            thumbnail_map = {}
+
+        result = []
+        for achievement in VKET_ACHIEVEMENTS:
+            achievement_copy = achievement.copy()
+            achievement_copy['image'] = thumbnail_map.get(achievement['news_slug'])
+            result.append(achievement_copy)
+        return result
+
     def _build_database_context(self, today, cache_key):
         cached_data = cache.get(cache_key)
         if cached_data is not None:
             return cached_data
-
-        # VKETコラボ実績をコンテキストに追加（ニュース記事のサムネイルを取得）
-        news_slugs = [a['news_slug'] for a in VKET_ACHIEVEMENTS]
-        news_posts = Post.objects.filter(slug__in=news_slugs).only('slug', 'thumbnail')
-        thumbnail_map = {post.slug: post.get_absolute_thumbnail_url(self.request) for post in news_posts}
-
-        vket_achievements_with_images = []
-        for achievement in VKET_ACHIEVEMENTS:
-            achievement_copy = achievement.copy()
-            achievement_copy['image'] = thumbnail_map.get(achievement['news_slug'])
-            vket_achievements_with_images.append(achievement_copy)
 
         # キャッシュがない場合はデータベースから取得
         end_date = today + timezone.timedelta(days=7)
@@ -187,8 +200,8 @@ class IndexView(TemplateView):
             special_events_data.append(special_dict)
 
         # データをキャッシュに保存（1時間）
+        # vket_achievements は request に依存するためキャッシュに含めない
         cache_data = {
-            'vket_achievements': vket_achievements_with_images,
             'upcoming_events': events_with_urls,
             'upcoming_event_details': details_with_urls,
             'special_events': special_events_data,
