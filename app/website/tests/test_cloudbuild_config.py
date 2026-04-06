@@ -18,4 +18,4 @@ class CloudBuildConfigTest(SimpleTestCase):
         self.assertNotIn("rev-$SHORT_SHA", self.cloudbuild)
 
     def test_production_deploy_does_not_assign_tag_during_deploy(self):
-        self.assertNotIn("- '--tag'\n", self.cloudbuild)
+        self.assertNotIn("'--tag'", self.cloudbuild)

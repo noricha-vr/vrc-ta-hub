@@ -41,7 +41,7 @@ steps:
             --project="${PROJECT_ID}" \
             --region='asia-northeast1' \
             --format='csv[no-heading](status.traffic[].tag)' \
-          | tr ',\n' '\n\n' \
+          | tr ',' '\n' \
           | sed '/^$/d' \
           | grep '^rev-' \
           | paste -sd, -
