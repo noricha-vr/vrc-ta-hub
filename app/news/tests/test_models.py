@@ -15,9 +15,9 @@ class CategoryModelTestCase(TestCase):
     def test_ordering_by_order_then_name(self):
         """order -> name の順でソートされる"""
         # マイグレーションで初期カテゴリが存在するため、テスト用スラッグでフィルタ
-        cat_b = Category.objects.create(name="B更新情報", slug="test-updates", order=20)
-        cat_a = Category.objects.create(name="Aお知らせ", slug="test-announcement", order=10)
-        cat_c = Category.objects.create(name="Cリリース", slug="test-release", order=10)
+        Category.objects.create(name="B更新情報", slug="test-updates", order=20)
+        Category.objects.create(name="Aお知らせ", slug="test-announcement", order=10)
+        Category.objects.create(name="Cリリース", slug="test-release", order=10)
 
         test_slugs = {"test-updates", "test-announcement", "test-release"}
         categories = list(

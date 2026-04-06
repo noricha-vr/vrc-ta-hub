@@ -53,7 +53,6 @@ class SitemapViewTestCase(TestCase):
     def test_sitemap_contains_approved_community(self):
         """承認済みコミュニティがサイトマップに含まれる"""
         response = self.client.get(reverse("sitemap:sitemap"))
-        content = response.content.decode("utf-8")
         # コンテキストで確認
         communities = response.context["communities"]
         community_names = [c.name for c in communities]
