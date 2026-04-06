@@ -116,7 +116,6 @@ class CommunityApprovalSignalTest(AutoTweetTestBase):
         self.community.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
 
-
 class EventDetailSignalTest(AutoTweetTestBase):
     """EventDetail 作成/承認時のシグナルテスト"""
 
@@ -431,7 +430,6 @@ class EventDetailSignalTest(AutoTweetTestBase):
             start_time=datetime.time(22, 15),
         )
         self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
-
 
 class GenerateTweetAsyncTest(AutoTweetTestBase):
     """_generate_tweet_async 関数のテスト"""
@@ -2103,7 +2101,6 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.count(), 1)
         queue = TweetQueue.objects.first()
         self.assertEqual(queue.tweet_type, "slide_share")
-
 
 class SignalErrorHandlingTest(AutoTweetTestBase):
     """シグナルハンドラの例外がメインの保存処理を妨げないことをテスト。

@@ -99,9 +99,18 @@ def track_event_detail_status_change(sender, instance, **kwargs):
     post_save で旧値を参照できるよう _old_status, _old_slide_url,
     _old_youtube_url を instance に保持する。
     """
+    # デフォルト値を先に設定し、取得成功時のみ上書き
+    instance._old_status = None
+    instance._old_slide_url = ""
+    instance._old_youtube_url = ""
+    instance._old_slide_file = ""
+    instance._old_speaker = ""
+    instance._old_theme = ""
     if instance.pk:
         try:
-            old = EventDetail.objects.get(pk=instance.pk)
+            old = EventDetail.objects.only(
+                'status', 'slide_url', 'youtube_url', 'slide_file', 'speaker', 'theme',
+            ).get(pk=instance.pk)
             instance._old_status = old.status
             instance._old_slide_url = old.slide_url or ""
             instance._old_youtube_url = old.youtube_url or ""
@@ -109,19 +118,7 @@ def track_event_detail_status_change(sender, instance, **kwargs):
             instance._old_speaker = old.speaker or ""
             instance._old_theme = old.theme or ""
         except EventDetail.DoesNotExist:
-            instance._old_status = None
-            instance._old_slide_url = ""
-            instance._old_youtube_url = ""
-            instance._old_slide_file = ""
-            instance._old_speaker = ""
-            instance._old_theme = ""
-    else:
-        instance._old_status = None
-        instance._old_slide_url = ""
-        instance._old_youtube_url = ""
-        instance._old_slide_file = ""
-        instance._old_speaker = ""
-        instance._old_theme = ""
+            pass
 
 
 @receiver(post_save, sender=Community)
@@ -270,7 +267,7 @@ def _queue_event_detail_tweet(instance, created):
     detail_type が 'LT' or 'SPECIAL' の場合のみ。
     イベント日が過去の場合はスキップ（終了イベントの告知を防止）。
     """
-    from django.utils import timezone as tz
+    from django.utils import timezone
 
     from twitter.models import TweetQueue
 
@@ -281,7 +278,7 @@ def _queue_event_detail_tweet(instance, created):
         return
 
     # 過去のイベントには告知ツイートを作成しない
-    if instance.event.date < tz.localdate():
+    if instance.event.date < timezone.now().date():
         return
 
     old_status = getattr(instance, "_old_status", None)
