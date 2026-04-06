@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db.utils import OperationalError
 from django.utils import timezone
 from django.views.generic import TemplateView
 from django.views.static import serve
@@ -53,29 +54,55 @@ class IndexView(TemplateView):
         context['show_vket_notice'] = current_datetime < vket_end_datetime
         context['vket_start_date'] = vket_start_datetime.date()
         context['vket_end_date'] = vket_end_datetime.date()
+        context['google_calendar_id'] = settings.GOOGLE_CALENDAR_ID
         logger.info(f"Vket notice visibility: {context['show_vket_notice']} (current: {current_datetime})")
 
-        # VKETコラボ実績をコンテキストに追加（ニュース記事のサムネイルを取得）
-        news_slugs = [a['news_slug'] for a in VKET_ACHIEVEMENTS]
-        news_posts = Post.objects.filter(slug__in=news_slugs).only('slug', 'thumbnail')
-        thumbnail_map = {post.slug: post.get_absolute_thumbnail_url(self.request) for post in news_posts}
+        context['database_degraded'] = False
+        # vket_achievements はDB障害時に備えて画像なしで初期化する
+        context['vket_achievements'] = self._build_vket_achievements(with_images=False)
+        context['upcoming_events'] = []
+        context['upcoming_event_details'] = []
+        context['special_events'] = []
 
-        vket_achievements_with_images = []
+        try:
+            context.update(self._build_database_context(today, cache_key))
+            # vket_achievements は request.build_absolute_uri() に依存するためキャッシュ外で毎回生成する
+            context['vket_achievements'] = self._build_vket_achievements(with_images=True)
+        except OperationalError:
+            # トップページはRDS瞬断でも静的導線を返し続ける。参照: PR #170（公開導線だけは維持する判断）
+            logger.warning(
+                "IndexView degraded gracefully because the database was unavailable",
+                exc_info=True,
+            )
+            context['database_degraded'] = True
+
+        return context
+
+    def _build_vket_achievements(self, with_images):
+        """vket_achievements リストを生成する。
+
+        with_images=True のとき Post.objects.filter でサムネイルを取得して付加する。
+        with_images=False のとき image=None でフォールバックリストを返す（DB障害時用）。
+        request.build_absolute_uri() に依存するためキャッシュ外で毎回生成すること。
+        """
+        if with_images:
+            news_slugs = [a['news_slug'] for a in VKET_ACHIEVEMENTS]
+            news_posts = Post.objects.filter(slug__in=news_slugs).only('slug', 'thumbnail')
+            thumbnail_map = {post.slug: post.get_absolute_thumbnail_url(self.request) for post in news_posts}
+        else:
+            thumbnail_map = {}
+
+        result = []
         for achievement in VKET_ACHIEVEMENTS:
             achievement_copy = achievement.copy()
             achievement_copy['image'] = thumbnail_map.get(achievement['news_slug'])
-            vket_achievements_with_images.append(achievement_copy)
+            result.append(achievement_copy)
+        return result
 
-        context['vket_achievements'] = vket_achievements_with_images
-
-        # Googleカレンダー連携用のカレンダーIDを追加
-        context['google_calendar_id'] = settings.GOOGLE_CALENDAR_ID
-
-        # キャッシュからデータを取得
+    def _build_database_context(self, today, cache_key):
         cached_data = cache.get(cache_key)
         if cached_data is not None:
-            context.update(cached_data)
-            return context
+            return cached_data
 
         # キャッシュがない場合はデータベースから取得
         end_date = today + timezone.timedelta(days=7)
@@ -173,6 +200,7 @@ class IndexView(TemplateView):
             special_events_data.append(special_dict)
 
         # データをキャッシュに保存（1時間）
+        # vket_achievements は request に依存するためキャッシュに含めない
         cache_data = {
             'upcoming_events': events_with_urls,
             'upcoming_event_details': details_with_urls,
@@ -180,9 +208,8 @@ class IndexView(TemplateView):
         }
         cache.set(cache_key, cache_data, 60 * 60)  # 60分 * 60秒
 
-        context.update(cache_data)
         logger.info(f"Cache miss for {cache_key}")
-        return context
+        return cache_data
 
 
 def favicon_view(request):
