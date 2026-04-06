@@ -311,7 +311,7 @@ class ManagePublishView(LoginRequiredMixin, UserPassesTestMixin, View):
 
                 # Event を作成または更新
                 # published_event_id がある場合はそのEventを更新し、
-                # 無関係のEventを誤って上書きするリスクを回避する（参照: PR実装時の設計）
+                # 無関係のEventを誤って上書きするリスクを回避する。参照: PR #205（views package 化後も既存公開Eventだけを更新対象に限定するため）
                 if participation.published_event_id:
                     event = participation.published_event
                     Event.objects.filter(pk=event.pk).update(
