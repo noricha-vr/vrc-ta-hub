@@ -319,7 +319,6 @@ def generate_daily_reminder_tweet(event, target_chars=140) -> str | None:
 
     community = event.community
     hashtag_suffix = _build_hashtag_suffix(community)
-    weekday = WEEKDAY_NAMES.get(event.date.strftime("%a"), "")
 
     highlights = []
     for detail in approved_details[:3]:

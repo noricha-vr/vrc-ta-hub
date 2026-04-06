@@ -1,5 +1,5 @@
 from django.test import SimpleTestCase, override_settings
-from django.core.mail import send_mail, get_connection
+from django.core.mail import send_mail
 from django.conf import settings
 import logging
 import sys

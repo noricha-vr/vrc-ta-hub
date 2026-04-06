@@ -417,11 +417,6 @@ LOGGING = {
             'level': 'INFO',
             'propagate': True,
         },
-        'allauth': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
         'user_account': {
             'handlers': ['console'],
             'level': 'DEBUG',

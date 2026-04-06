@@ -2,10 +2,9 @@ import json
 from datetime import date, time
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from django.urls import reverse
 from rest_framework.test import APIClient
 from community.models import Community
-from event.models import Event, RecurrenceRule
+from event.models import Event
 
 User = get_user_model()
 

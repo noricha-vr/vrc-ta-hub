@@ -1,5 +1,5 @@
 """generate_recurring_eventsコマンドのテスト"""
-from datetime import datetime, time, timedelta
+from datetime import time, timedelta
 from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone

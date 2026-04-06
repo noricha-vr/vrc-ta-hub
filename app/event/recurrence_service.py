@@ -2,11 +2,9 @@
 import json
 from datetime import datetime, timedelta, date
 from typing import List, Optional, Dict
-import re
 import traceback
 
 from django.conf import settings
-from django.utils import timezone
 from django.db import models
 import os
 from openai import OpenAI

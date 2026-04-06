@@ -271,7 +271,7 @@ class EventMyListDashboardTest(TestCase):
 
     def test_lt_application_link_displayed_without_community(self):
         """集会未所属ユーザーでもLT申請一覧リンクに到達できる"""
-        participant = User.objects.create_user(
+        User.objects.create_user(
             user_name='Participant User',
             email='participant@example.com',
             password='participantpass123',

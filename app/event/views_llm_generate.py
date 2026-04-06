@@ -40,7 +40,7 @@ def generate_llm_events(request):
         call_command('generate_recurring_events', months=months_ahead)
         
         logger.info('=' * 80)
-        logger.info(f'LLMイベント自動生成処理完了')
+        logger.info('LLMイベント自動生成処理完了')
         logger.info(f'生成期間: {months_ahead}ヶ月先まで')
         logger.info(f'実行終了時刻: {timezone.now()}')
         logger.info('=' * 80)

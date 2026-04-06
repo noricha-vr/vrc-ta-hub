@@ -1,4 +1,3 @@
-import datetime
 import logging
 import re
 from datetime import datetime, timedelta, date
@@ -30,7 +29,7 @@ from event.models import EventDetail, Event
 from event_calendar.calendar_utils import create_calendar_entry_url, generate_google_calendar_url
 from url_filters import get_filtered_url
 from utils.vrchat_time import get_vrchat_today
-from website.settings import DEBUG, GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, REQUEST_TOKEN, \
+from website.settings import GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, REQUEST_TOKEN, \
     GEMINI_MODEL
 from .google_calendar import GoogleCalendarService
 from .sync_to_google import DatabaseToGoogleSync
@@ -705,7 +704,7 @@ def register_calendar_events(calendar_events: List[Dict]) -> None:
 
                 logger.info(f"Event updated: {event_str}")
         else:
-            new_event = Event.objects.create(
+            Event.objects.create(
                 community=community,
                 date=start_local.date(),
                 start_time=start_local.time(),
@@ -765,7 +764,7 @@ class EventDetailCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
                 else:
                     logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
                     messages.warning(self.request, "記事の自動生成に失敗しました。")
-            except Exception as e:
+            except Exception:
                 logger.exception("記事の自動生成中にエラーが発生しました")
                 messages.error(self.request, "記事の自動生成中にエラーが発生しました")
 
@@ -796,11 +795,6 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
             return redirect('event:detail', pk=self.get_object().pk)
         return super().handle_no_permission()
 
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['request'] = self.request
-        return kwargs
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['event'] = self.object.event
@@ -830,7 +824,7 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
                 else:
                     logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
                     messages.warning(self.request, "記事の自動生成に失敗しました。")
-            except Exception as e:
+            except Exception:
                 logger.exception("記事の自動生成中にエラーが発生しました")
                 messages.error(self.request, "記事の自動生成中にエラーが発生しました")
 
@@ -878,7 +872,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
             
             return redirect('event:detail', pk=event_detail.id)
 
-        except Exception as e:
+        except Exception:
             logger.exception("ブログ記事の生成中にエラーが発生しました")
             messages.error(request, "エラーが発生しました。しばらくしてから再度お試しください。")
             return redirect('event:detail', pk=pk)
@@ -1531,7 +1525,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
 
             return super().form_valid(form)
 
-        except Exception as e:
+        except Exception:
             logger.exception("イベントの登録に失敗しました")
             messages.error(self.request, 'イベントの登録に失敗しました')
             return self.form_invalid(form)
@@ -1583,7 +1577,7 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
 
         messages.success(
             self.request,
-            f'LT発表を申請しました。主催者の承認をお待ちください。'
+            'LT発表を申請しました。主催者の承認をお待ちください。'
         )
         logger.info(
             f'LT申請作成: Community={self.community.name}, Event={event.date}, '

@@ -1,0 +1,15 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+# 段階的に有効化。まずはデフォルトルールセット (E, F) から始める。
+select = ["E", "F"]
+ignore = [
+    "E402",  # module-import-not-at-top-of-file（Django の settings / signals で頻出）
+    "E501",  # line-too-long（既存コードが多数違反、段階的に対応）
+]
+
+[tool.ruff.lint.per-file-ignores]
+"app/*/migrations/*.py" = ["E", "F"]  # Django マイグレーションは自動生成のため除外
+"app/website/settings.py" = ["F401"]  # settings.py の条件付き import を許容

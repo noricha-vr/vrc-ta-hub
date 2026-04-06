@@ -11,7 +11,6 @@ from django.core.cache import cache
 
 from .forms import CalendarEntryForm
 from .models import Community, CalendarEntry
-from .calendar_utils import create_calendar_entry_url
 
 
 class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):

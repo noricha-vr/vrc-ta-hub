@@ -1,6 +1,6 @@
 """optimize_poster_images コマンドのテスト"""
 from io import BytesIO, StringIO
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile

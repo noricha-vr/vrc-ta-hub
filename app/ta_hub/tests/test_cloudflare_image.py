@@ -1,4 +1,3 @@
-from unittest.mock import patch
 
 from django.template import Context, Template
 from django.test import TestCase, override_settings

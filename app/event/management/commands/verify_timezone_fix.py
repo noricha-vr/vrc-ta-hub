@@ -72,11 +72,11 @@ class Command(BaseCommand):
             )
             
             if matching_events.exists():
-                self.stdout.write(self.style.SUCCESS(f'  ✓ Matching event found in database'))
+                self.stdout.write(self.style.SUCCESS('  ✓ Matching event found in database'))
                 for match in matching_events:
                     self.stdout.write(f'    - DB Event ID: {match.id}')
             else:
-                self.stdout.write(self.style.ERROR(f'  ✗ No matching event found in database'))
+                self.stdout.write(self.style.ERROR('  ✗ No matching event found in database'))
                 
                 # イベントをデータベースに登録してみる
                 from event.views import register_calendar_events

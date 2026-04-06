@@ -1,7 +1,6 @@
-from django.views.generic import ListView, TemplateView, RedirectView
+from django.views.generic import TemplateView
 from event.models import EventDetail
 from community.models import Community
-from django.views.static import serve
 
 
 class SitemapView(TemplateView):

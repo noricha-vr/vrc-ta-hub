@@ -1,6 +1,5 @@
 """ツイート文字数カウントとリトライ機能のテスト"""
 
-from unittest.mock import patch
 
 from django.test import TestCase
 

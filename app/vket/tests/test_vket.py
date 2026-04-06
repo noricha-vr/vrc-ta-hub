@@ -330,8 +330,8 @@ class VketApplyFlowTests(TestCase):
         self.client.login(username='owner_user', password='testpass123')
         self._set_active_community()
 
-        # 先に参加を作成
-        participation = VketParticipation.objects.create(
+        # 先に参加を作成（副作用でDBレコードを作成）
+        VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=self.community,
             organizer_note='カスタム備考',
@@ -550,7 +550,7 @@ class VketApplyFlowTests(TestCase):
 
     def test_presentation_delete_forbidden_for_non_member(self):
         """コミュニティに所属しないユーザーはLTを削除できない"""
-        non_member = User.objects.create_user(
+        User.objects.create_user(
             user_name='non_member_user',
             email='nonmember@example.com',
             password='testpass123',
@@ -1879,7 +1879,7 @@ class VketPublishViewTests(TestCase):
     def test_lt_start_time_flows_to_event_detail(self):
         """requested_start_time が EventDetail.start_time に反映される"""
         # プレゼンテーションに requested_start_time を設定（CONFIRMED で公開対象にする）
-        pres = VketPresentation.objects.create(
+        VketPresentation.objects.create(
             participation=self.participation,
             order=0,
             speaker='テスト登壇者',
