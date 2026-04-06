@@ -14,6 +14,7 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import RedirectView
@@ -31,12 +32,16 @@ urlpatterns = [
     path('twitter/', include('twitter.urls')),
     path('api/v1/', include('api_v1.urls')),
     path('api-auth/', include('rest_framework.urls')),
-    # API Documentation
+    # API Documentation: schema endpoint is always available; UI is DEBUG-only
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     path('', include('ta_hub.urls')),
     path('', include('sitemap.urls')),
     path('news/', include('news.urls')),
     path('guide/', include('guide.urls')),
 ]
+
+if settings.DEBUG:
+    urlpatterns += [
+        path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+        path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    ]
