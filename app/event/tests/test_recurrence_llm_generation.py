@@ -8,6 +8,14 @@ from event.models import Event, RecurrenceRule
 from event.recurrence_service import RecurrenceService
 
 User = get_user_model()
+RUN_EXTERNAL_API_TESTS = os.environ.get("RUN_EXTERNAL_API_TESTS") == "1"
+
+
+def _has_non_dummy_env(name: str) -> bool:
+    value = (os.environ.get(name) or "").strip()
+    if not value:
+        return False
+    return value.lower() not in {"dummy", "changeme", "test"}
 
 
 class TestRecurrenceLLMGeneration(TestCase):
@@ -45,9 +53,10 @@ class TestRecurrenceLLMGeneration(TestCase):
     
     def test_real_llm_generation_for_monthly_pattern(self):
         """実際のLLMを使用して月次パターンの定期ルールを生成"""
-        # APIキーが設定されていない場合はスキップ
-        if not os.environ.get('GOOGLE_API_KEY'):
-            self.skipTest("GOOGLE_API_KEY not set")
+        if not (RUN_EXTERNAL_API_TESTS and _has_non_dummy_env("OPENROUTER_API_KEY")):
+            self.skipTest(
+                "外部APIテストのため RUN_EXTERNAL_API_TESTS=1 と OPENROUTER_API_KEY が必要です"
+            )
         
         # RecurrenceRuleを作成
         rule = RecurrenceRule.objects.create(

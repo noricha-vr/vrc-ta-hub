@@ -12,6 +12,7 @@ TEST_APPS=(
     "ta_hub.tests"
     "twitter.tests"
     "user_account.tests"
+    "vket.tests"
     "website.tests"
 )
 

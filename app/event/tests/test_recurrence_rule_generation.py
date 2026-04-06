@@ -65,7 +65,10 @@ class TestRecurrenceRuleGeneration(TestCase):
         mock_completion.choices = [MagicMock()]
         mock_completion.choices[0].message.content = mock_response.text
         
-        with patch.object(self.service.client.chat.completions, 'create', return_value=mock_completion):
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_completion
+
+        with patch.object(self.service, '_get_client', return_value=mock_client):
             # 日付を生成
             dates = self.service.generate_dates(
                 rule=rule,
@@ -113,7 +116,10 @@ class TestRecurrenceRuleGeneration(TestCase):
             mock_completion.choices[0].message.content = '[\"2024-12-23\"]'
             return mock_completion
         
-        with patch.object(self.service.client.chat.completions, 'create', side_effect=capture_prompt):
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = capture_prompt
+
+        with patch.object(self.service, '_get_client', return_value=mock_client):
             self.service.generate_dates(
                 rule=rule,
                 base_date=date(2024, 12, 1),
@@ -182,17 +188,27 @@ class TestRecurrenceRuleGeneration(TestCase):
         client.force_authenticate(user=self.user)
         
         # プレビューリクエスト
-        response = client.post(
-            '/api/v1/recurrence-preview/',
-            {
-                'frequency': 'OTHER',
-                'custom_rule': '毎月第4月曜',
-                'base_date': '2024-12-01',
-                'base_time': '22:00',
-                'months': 3
-            },
-            format='json'
-        )
+        mocked_result = {
+            'success': True,
+            'dates': ['2024-12-23', '2025-01-27', '2025-02-24'],
+            'count': 3,
+        }
+
+        with patch(
+            'api_v1.recurrence_preview.RecurrenceService.preview_dates',
+            return_value=mocked_result,
+        ):
+            response = client.post(
+                '/api/v1/recurrence-preview/',
+                {
+                    'frequency': 'OTHER',
+                    'custom_rule': '毎月第4月曜',
+                    'base_date': '2024-12-01',
+                    'base_time': '22:00',
+                    'months': 3
+                },
+                format='json'
+            )
         
         self.assertEqual(response.status_code, 200)
         

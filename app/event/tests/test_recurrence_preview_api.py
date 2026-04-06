@@ -1,5 +1,6 @@
 import json
 from datetime import date, time
+from unittest.mock import patch
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -44,17 +45,29 @@ class TestRecurrencePreviewAPI(TestCase):
     
     def test_recurrence_preview_with_custom_rule(self):
         """カスタムルールでのプレビューAPI"""
-        response = self.client.post(
-            '/api/v1/recurrence-preview/',
-            {
-                'frequency': 'OTHER',
-                'custom_rule': '毎月第4月曜',
-                'base_date': '2024-12-01',
-                'base_time': '22:00',
-                'months': 3
-            },
-            format='json'
-        )
+        mocked_result = {
+            'success': True,
+            'dates': ['2024-12-23', '2025-01-27', '2025-02-24'],
+            'count': 3,
+        }
+
+        with patch(
+            'api_v1.recurrence_preview.RecurrenceService.preview_dates',
+            return_value=mocked_result,
+        ) as mock_preview_dates:
+            response = self.client.post(
+                '/api/v1/recurrence-preview/',
+                {
+                    'frequency': 'OTHER',
+                    'custom_rule': '毎月第4月曜',
+                    'base_date': '2024-12-01',
+                    'base_time': '22:00',
+                    'months': 3
+                },
+                format='json'
+            )
+
+        mock_preview_dates.assert_called_once()
         
         self.assertEqual(response.status_code, 200)
         

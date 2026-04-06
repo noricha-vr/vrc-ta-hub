@@ -18,19 +18,20 @@ class RecurrenceService:
     """定期イベントの日付を生成するサービス"""
     
     def __init__(self):
-        # OpenRouter用の設定
         self.api_key = os.environ.get("OPENROUTER_API_KEY")
-        if not self.api_key:
-            raise ValueError("OPENROUTER_API_KEY is required")
-        
-        # モデル名を環境変数から取得
         self.model_name = getattr(settings, 'GEMINI_MODEL', 'google/gemini-2.0-flash-exp')
-        
-        # OpenAI SDKを使用してOpenRouterクライアントを初期化
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=self.api_key
-        )
+        self.client = None
+
+    def _get_client(self):
+        """LLM利用時のみ OpenRouter クライアントを初期化する。"""
+        if self.client is None:
+            if not self.api_key:
+                raise ValueError("OPENROUTER_API_KEY is required")
+            self.client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=self.api_key
+            )
+        return self.client
     
     def generate_dates(self, rule: RecurrenceRule, base_date: date, base_time: datetime.time, months: int = 1, community=None) -> List[date]:
         """定期ルールに基づいて日付リストを生成"""
@@ -303,8 +304,9 @@ class RecurrenceService:
 """
         
         try:
+            client = self._get_client()
             # OpenRouterにリクエスト
-            completion = self.client.chat.completions.create(
+            completion = client.chat.completions.create(
                 extra_headers={
                     "HTTP-Referer": "https://vrc-ta-hub.com/",
                     "X-Title": "VRC TA Hub"
