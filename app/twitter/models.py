@@ -27,6 +27,7 @@ class TweetQueue(models.Model):
         ('new_community', '新規集会'),
         ('lt', 'LT告知'),
         ('special', '特別回告知'),
+        ('daily_reminder', '当日リマインド'),
         ('slide_share', 'スライド/記事共有'),
     ]
     STATUS_CHOICES = [
@@ -64,6 +65,13 @@ class TweetQueue(models.Model):
         verbose_name = 'ツイートキュー'
         verbose_name_plural = 'ツイートキュー'
         db_table = 'tweet_queue'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['event', 'tweet_type'],
+                condition=models.Q(tweet_type='daily_reminder'),
+                name='unique_daily_reminder_per_event',
+            ),
+        ]
 
     def __str__(self):
         return f"[{self.get_tweet_type_display()}] {self.community.name} - {self.get_status_display()}"
