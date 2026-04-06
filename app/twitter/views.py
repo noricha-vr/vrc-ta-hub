@@ -236,7 +236,7 @@ def _create_daily_reminder_queues(today=None) -> int:
         if not created:
             continue
 
-        # 当日リマインドは同じ scheduler 実行で投稿対象に含めたいので、その場で生成まで進める。
+        # 当日リマインドは同じ scheduler 実行で投稿対象に含めたいので、その場で生成まで進める。参照: PR #190（当日作成したキューを同じ実行で投稿対象に含めるため）
         _retry_generation(queue_item)
         created_count += 1
         logger.info("Queued daily reminder tweet for event %d", event.pk)
