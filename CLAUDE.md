@@ -84,14 +84,27 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 ログインが必要な動作確認時は `.env.local` の `TEST_USER_NAME` と `TEST_USER_PASSWORD` を参照。
 
 ## 環境変数（.env.local）
-- `OPENROUTER_API_KEY`: OpenRouter APIキー
-- `GOOGLE_API_KEY`: Google APIキー
-- `GEMINI_MODEL`: 使用するGeminiモデル（例: google/gemini-2.0-flash-001）
-- `DEBUG`: デバッグモード設定
 - `SECRET_KEY`: Djangoシークレットキー
-- `REQUEST_TOKEN`: カレンダー更新用トークン
-- `DISCORD_CLIENT_ID`: Discord OAuth用クライアントID
-- `DISCORD_CLIENT_SECRET`: Discord OAuth用シークレット
+- `DEBUG`: デバッグモード設定
+- `GOOGLE_API_KEY`: Google Calendar API キー
+- `GOOGLE_CALENDAR_ID`: 同期先の Google Calendar ID
+- `GEMINI_API_KEY`: Gemini API キー（コンテンツ自動生成）
+- `GEMINI_MODEL`: 使用するGeminiモデル（デフォルト: google/gemini-2.5-flash-lite-preview-06-17）
+- `OPENROUTER_API_KEY`: OpenRouter API キー（AI バックアップ）
+- `REQUEST_TOKEN`: バッチ処理認証用トークン
+- `DISCORD_CLIENT_ID`: Discord OAuth 用クライアント ID
+- `DISCORD_CLIENT_SECRET`: Discord OAuth 用シークレット
+
+### 外部サービスの初期設定
+
+各 API キーの取得手順は [docs/setup.md](docs/setup.md) を参照。
+
+| サービス | 設定する環境変数 | 取得先 |
+|----------|-----------------|--------|
+| Google Calendar API | `GOOGLE_API_KEY`, `GOOGLE_CALENDAR_ID` | [GCP Console](https://console.cloud.google.com/) |
+| Gemini API | `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) |
+| OpenRouter API | `OPENROUTER_API_KEY` | [OpenRouter](https://openrouter.ai/) |
+| Discord OAuth | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | [Discord Developer Portal](https://discord.com/developers/applications) |
 
 ### Discord OAuth設定
 - 環境変数で設定するため、DBのSocialAppは使用しない
