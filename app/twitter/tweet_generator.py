@@ -320,20 +320,19 @@ def generate_daily_reminder_tweet(event, target_chars=140) -> str | None:
     community = event.community
     hashtag_suffix = _build_hashtag_suffix(community)
 
-    highlights = []
+    presentations = []
     for detail in approved_details[:3]:
         label = "LT" if detail.detail_type == "LT" else "特別回"
-        start_time = detail.start_time.strftime("%H:%M")
         speaker = _sanitize_for_prompt(detail.speaker)
         theme = _sanitize_for_prompt(detail.theme)
-        highlights.append(f"- {start_time} {label}: {speaker}さん「{theme}」")
+        presentations.append(f"- {label}: {speaker}さん「{theme}」")
 
-    more_count = len(approved_details) - len(highlights)
-    extra_line = f"\n- ほか {more_count} 件の発表あり" if more_count > 0 else ""
+    more_count = len(approved_details) - len(presentations)
+    extra_line = f"\n- ほか {more_count} 件" if more_count > 0 else ""
 
     system_prompt = (
         "あなたはVRChat集会の当日リマインダーツイートを書くライターです。"
-        "今夜の開催を思い出してもらい、参加したくなる告知を書いてください。"
+        "集会名・開催時刻・各登壇者のテーマが一目で分かる構造化された告知を書いてください。"
     )
 
     name = _sanitize_for_prompt(community.name)
@@ -342,28 +341,38 @@ def generate_daily_reminder_tweet(event, target_chars=140) -> str | None:
 集会名: {name}
 開催: 今夜 {event.start_time.strftime('%H:%M')}~
 登録発表数: {len(approved_details)}件
-注目発表:
-{chr(10).join(highlights)}{extra_line}
+発表一覧:
+{chr(10).join(presentations)}{extra_line}
 
-## 必須要素（必ず本文に含めること）
-1. 集会名（「{name}」）
-2. 「今夜は」「今夜の」など、今日これから開催されることが直感的に伝わる表現（日付表記は使わない）
-3. 開催時刻（「{event.start_time.strftime('%H:%M')}~」の形式）
-4. 発表が{len(approved_details)}件あること
-5. 注目発表の見どころを自然に触れること
-6. 今から参加・詳細確認したくなる一文
+## 出力フォーマット（この構造に厳密に従うこと）
 
-## スタイル
+今夜 {{時刻}}〜 {{集会名}}
+
+{{登壇者1}}さん「{{テーマ1}}」
+{{登壇者2}}さん「{{テーマ2}}」
+（4件以上なら「ほかN件」）
+
+{{参加を促す一文}}
+
+詳細はこちら {{URL}}
+{{ハッシュタグ}}
+
+## ルール
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
-- 「今夜は」「今夜の」など当日感が一目で伝わる書き出しにする（「4/6(日)」のような日付表記は禁止。読み手は「今夜」で十分わかる）
-- 「〜が開催されます」「〜系集会が開催」のような硬い説明文は禁止。集会が今夜あることを前提に、発表内容の魅力を伝える文にする（例: 「今夜は{name}！」「今夜の{name}は〜」）
-- 箇条書きをそのまま並べず、読みやすい自然な告知文にする
+- 1行目は「今夜 {event.start_time.strftime('%H:%M')}〜 {name}」の形式で、今日の開催であることと時刻が一目で伝わるようにする（日付表記は禁止）
+- 各発表は「○○さん「テーマ名」」の形式で1行ずつ記載する
+  - テーマ名は発表一覧のものをそのまま使う（言い換え・要約・省略禁止）
+  - 登壇者名には「さん」を付ける
+- 発表が4件以上ある場合は上位3件を記載し、残りは「ほかN件」とまとめる
+- 発表一覧の後に、参加・視聴したくなるアクション誘導の一文を入れる
+  - 毎回異なる自然な表現にする（定型文の繰り返し禁止）
+- 散文や自然文で発表内容をまとめない（一覧形式を崩さない）
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
   {hashtag_suffix}
-- 意味のまとまり（開催案内・見どころ・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
+- 意味のまとまり（開催案内・発表一覧・誘導文・リンク・ハッシュタグ）ごとに空行を入れる
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
-- 句点（。）を一切使わない（「〜です。」「〜ます。」も禁止。「〜です」「〜ます」で止める）
+- 句点（。）を一切使わない
 - ツイート本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
