@@ -1,6 +1,3 @@
-import sys
-import django
-from django.conf import settings
 from datetime import date
 
 # Django setup if run standalone (though usually run via manage.py shell)

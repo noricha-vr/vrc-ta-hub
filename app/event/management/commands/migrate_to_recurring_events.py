@@ -1,12 +1,9 @@
 """既存のGoogleカレンダーイベントを定期イベントに移行するコマンド"""
-from datetime import datetime, timedelta
 from collections import defaultdict
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django.utils import timezone
 
 from event.models import Event, RecurrenceRule
-from event.google_calendar import GoogleCalendarService
 from community.models import Community
 
 

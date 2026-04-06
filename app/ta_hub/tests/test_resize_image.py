@@ -411,7 +411,6 @@ class ResizeAndConvertImageTestCase(TestCase):
         """カスタムPNG→JPEG閾値が反映されることを確認"""
         # 50KB以上のPNG画像を作成
         buffer = self._create_large_png_image(min_size_kb=50)
-        file_size = len(buffer.getvalue())
         buffer.seek(0)
 
         mock_image_field = MagicMock()

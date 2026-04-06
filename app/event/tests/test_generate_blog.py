@@ -156,7 +156,7 @@ class TestGenerateBlog(TestCase):
                     logger.error(f"  エラータイプ: {e.__class__.__name__}")
 
         # 結果のサマリー
-        logger.info(f"\n=== テスト結果サマリー ===")
+        logger.info("\n=== テスト結果サマリー ===")
         logger.info(f"成功: {success_count}/5")
         logger.info(f"失敗: {5 - success_count}/5")
 

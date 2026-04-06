@@ -1,15 +1,17 @@
 # app/event_calendar/calendar_utils.py
 
 from datetime import datetime, timedelta
-from urllib.parse import urlencode, quote, quote_plus
+from urllib.parse import urlencode, quote
 from django.utils import timezone
 from django.urls import reverse
 from django.core.cache import cache
-from django.utils.decorators import method_decorator
 from functools import lru_cache
-from typing import Dict, Any
+from typing import TYPE_CHECKING, Dict, Any
 
 from .models import CalendarEntry
+
+if TYPE_CHECKING:
+    from event.models import Event
 
 FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfJlabb7niRTf4rX2Q0wRc3ua9MuOEIKveo7NirR6zuOo6D9A/viewform'
 

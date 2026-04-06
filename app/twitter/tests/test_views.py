@@ -214,7 +214,6 @@ class TweetEventWithTemplateViewTest(TestCase):
     """TweetEventWithTemplateViewのテスト"""
 
     def setUp(self):
-        from unittest.mock import patch
         self.client = Client()
 
         # ユーザーを作成

@@ -7,7 +7,7 @@ DEBUG環境でも本番環境でもメディアファイルはR2を使用し、
 import os
 import unittest
 
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.conf import settings
 
 

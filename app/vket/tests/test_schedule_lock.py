@@ -185,7 +185,7 @@ class VketScheduleLockViewTests(TestCase):
         """ロック中にPOSTしても日時フィールドは元の値が維持される"""
         self._login_as_owner()
         url = reverse('event:detail_update', kwargs={'pk': self.detail.pk})
-        response = self.client.post(url, {
+        self.client.post(url, {
             'detail_type': 'LT',
             'theme': 'テストテーマ更新',
             'speaker': 'テスト発表者更新',
@@ -203,7 +203,7 @@ class VketScheduleLockViewTests(TestCase):
         """superuserはロック中でも日時を変更できる"""
         self._login_as_superuser()
         url = reverse('event:detail_update', kwargs={'pk': self.detail.pk})
-        response = self.client.post(url, {
+        self.client.post(url, {
             'detail_type': 'LT',
             'theme': 'テストテーマ',
             'speaker': 'テスト発表者',
@@ -218,7 +218,7 @@ class VketScheduleLockViewTests(TestCase):
         """集会管理者はVket期間中のイベントを削除できない"""
         self._login_as_owner()
         url = reverse('event:delete', kwargs={'pk': self.event.pk})
-        response = self.client.post(url)
+        self.client.post(url)
         # イベントがまだ存在することを確認
         self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
 
@@ -226,14 +226,14 @@ class VketScheduleLockViewTests(TestCase):
         """superuserはVket期間中でもイベントを削除できる"""
         self._login_as_superuser()
         url = reverse('event:delete', kwargs={'pk': self.event.pk})
-        response = self.client.post(url)
+        self.client.post(url)
         self.assertFalse(Event.objects.filter(pk=self.event.pk).exists())
 
     def test_event_detail_delete_blocked_during_vket(self):
         """集会管理者はVket期間中のEventDetailを削除できない"""
         self._login_as_owner()
         url = reverse('event:detail_delete', kwargs={'pk': self.detail.pk})
-        response = self.client.post(url)
+        self.client.post(url)
         # EventDetailがまだ存在することを確認
         self.assertTrue(EventDetail.objects.filter(pk=self.detail.pk).exists())
 
@@ -241,7 +241,7 @@ class VketScheduleLockViewTests(TestCase):
         """superuserはVket期間中でもEventDetailを削除できる"""
         self._login_as_superuser()
         url = reverse('event:detail_delete', kwargs={'pk': self.detail.pk})
-        response = self.client.post(url)
+        self.client.post(url)
         self.assertFalse(EventDetail.objects.filter(pk=self.detail.pk).exists())
 
     def test_bulk_delete_skips_locked_events(self):
@@ -256,7 +256,7 @@ class VketScheduleLockViewTests(TestCase):
         )
         self._login_as_owner()
         url = reverse('event:delete', kwargs={'pk': event_outside.pk})
-        response = self.client.post(url, {'delete_subsequent': 'on'})
+        self.client.post(url, {'delete_subsequent': 'on'})
         # 期間外のイベントは削除される
         self.assertFalse(Event.objects.filter(pk=event_outside.pk).exists())
         # Vket期間内のイベントは削除されずに残る

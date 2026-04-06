@@ -2,7 +2,6 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core import mail
-from django.utils import timezone
 from datetime import date, timedelta, time
 
 from community.models import Community, CommunityMember

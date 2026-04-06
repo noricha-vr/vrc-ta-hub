@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 """データベースからGoogleカレンダーへの同期処理"""
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 import logging
 
 from django.conf import settings
-from django.db import transaction
 from django.utils import timezone
 
-from event.models import Event, RecurrenceRule
+from event.models import Event
 from event.google_calendar import GoogleCalendarService
 from community.models import Community
 
@@ -187,26 +186,26 @@ class DatabaseToGoogleSync:
                 event.save(update_fields=['google_calendar_event_id'])
                 
                 # IDを更新したので、イベント内容も更新
-                logger.info(f"[SYNC DEBUG]   Updating Google event after ID change")
+                logger.info("[SYNC DEBUG]   Updating Google event after ID change")
                 self._update_google_event(event)
                 return {'action': 'updated', 'google_id': google_event['id']}
             else:
                 # IDが一致している場合は更新不要
-                logger.info(f"[SYNC DEBUG]   Google event already in sync, skipping update")
+                logger.info("[SYNC DEBUG]   Google event already in sync, skipping update")
                 return {'action': 'skipped', 'google_id': google_event['id']}
         
         # 2. 日時で見つからない場合、Google Calendar IDで確認
         elif event.google_calendar_event_id and event.google_calendar_event_id in google_events_by_id:
             logger.info(f"[SYNC DEBUG]   Found Google event by ID: {event.google_calendar_event_id}")
-            logger.info(f"[SYNC DEBUG]   Event time may have changed, updating...")
+            logger.info("[SYNC DEBUG]   Event time may have changed, updating...")
             # IDは存在するが日時が異なる（イベントの時間が変更された可能性）
             self._update_google_event(event)
             return {'action': 'updated', 'google_id': event.google_calendar_event_id}
         
         # 3. どちらでも見つからない場合は新規作成
         else:
-            logger.info(f"[SYNC DEBUG]   No matching Google event found")
-            logger.info(f"[SYNC DEBUG]   Keys checked in google_events_by_datetime_summary:")
+            logger.info("[SYNC DEBUG]   No matching Google event found")
+            logger.info("[SYNC DEBUG]   Keys checked in google_events_by_datetime_summary:")
             # デバッグ用：同じ日付のキーをログ出力
             for key in google_events_by_datetime_summary.keys():
                 if event.date.isoformat() in key:
@@ -218,7 +217,7 @@ class DatabaseToGoogleSync:
                 event.google_calendar_event_id = None
                 event.save(update_fields=['google_calendar_event_id'])
             
-            logger.info(f"[SYNC DEBUG]   Creating new Google event")
+            logger.info("[SYNC DEBUG]   Creating new Google event")
             result = self._create_google_event(event)
             
             # 重複防止が機能した場合
@@ -284,9 +283,6 @@ class DatabaseToGoogleSync:
     def _create_google_event(self, event: Event):
         """Googleカレンダーにイベントを作成"""
         # 重複チェック: 作成前に再度確認
-        dt_key = self._create_datetime_key(event.date, event.start_time)
-        combined_key = f"{dt_key}|{event.community.name}"
-        
         # 最新のGoogle Calendarイベントを取得して再確認
         start_datetime = datetime.combine(event.date, event.start_time)
         end_datetime = start_datetime + timedelta(hours=1)  # 1時間の範囲で検索

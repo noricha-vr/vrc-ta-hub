@@ -1,6 +1,5 @@
 """fix_poster_pathsマネジメントコマンドのテスト。"""
 from io import StringIO
-from unittest.mock import MagicMock, patch
 
 from django.core.management import call_command
 from django.test import TestCase

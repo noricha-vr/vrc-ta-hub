@@ -1006,7 +1006,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
             url = reverse("twitter:post_scheduled_tweets")
-            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+            self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
 
         queue = TweetQueue.objects.first()
         self.assertEqual(queue.status, "failed")
@@ -1033,7 +1033,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
             url = reverse("twitter:post_scheduled_tweets")
-            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+            self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
 
         queue = TweetQueue.objects.first()
         self.assertEqual(queue.status, "posted")

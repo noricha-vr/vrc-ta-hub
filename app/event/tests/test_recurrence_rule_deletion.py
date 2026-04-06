@@ -1,7 +1,6 @@
 """RecurrenceRuleの削除機能に関するテスト"""
 from datetime import date, time, timedelta
 from django.test import TestCase, Client
-from django.urls import reverse
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 

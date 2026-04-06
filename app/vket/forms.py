@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 
 from django import forms
 from django.forms import formset_factory
-from django.utils import timezone
 
 from community.models import Community
 from event.models import Event

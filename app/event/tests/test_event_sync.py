@@ -1,9 +1,8 @@
 from django.test import TestCase
 from django.utils import timezone
 from datetime import datetime, timedelta
-import json
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from community.models import Community
 from event.models import Event
@@ -199,9 +198,9 @@ class EventSyncTest(TestCase):
         ]
         
         # 同期処理を実行
-        with patch('event.views.logger') as mock_logger:
+        with patch('event.views.logger'):
             delete_outdated_events(calendar_events, today)
-        
+
         # すべてのイベントが削除されずに残っていることを確認（秒が異なっても時・分が一致していれば削除されない）
         self.assertEqual(Event.objects.count(), 3)
         self.assertTrue(Event.objects.filter(id=self.event1.id).exists())
@@ -272,7 +271,6 @@ class EventSyncTest(TestCase):
         """
         # テスト用のカレンダーイベントを作成
         today = timezone.now().date()
-        future_date = today + timedelta(days=30)
         new_future_date = today + timedelta(days=31)
         
         # 既存のイベントとは異なる日付のイベント

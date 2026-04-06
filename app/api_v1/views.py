@@ -5,7 +5,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import serializers, viewsets, status
+from rest_framework import viewsets, status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError

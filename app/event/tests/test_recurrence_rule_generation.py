@@ -1,4 +1,3 @@
-import json
 from datetime import date, time
 from django.test import TestCase
 from django.contrib.auth import get_user_model
@@ -175,7 +174,6 @@ class TestRecurrenceRuleGeneration(TestCase):
     
     def test_recurrence_preview_api_for_custom_rule(self):
         """RecurrencePreviewAPIでカスタムルールのプレビューをテスト"""
-        from django.urls import reverse
         from rest_framework.test import APIClient
         
         client = APIClient()
