@@ -6,7 +6,9 @@
 
 import logging
 import threading
+from functools import lru_cache
 
+from django.db import connection
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
@@ -14,6 +16,12 @@ from community.models import Community
 from event.models import EventDetail
 
 logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=None)
+def _tweet_queue_table_exists() -> bool:
+    """TweetQueue テーブルが利用可能かを返す。結果はプロセス生存中にキャッシュする。"""
+    return "tweet_queue" in connection.introspection.table_names()
 
 
 def _generate_tweet_async(queue_id: int) -> None:
@@ -148,6 +156,10 @@ def _queue_new_community_tweet(instance, created):
     if instance.status != "approved" or old_status == "approved":
         return
 
+    # マイグレーション中はテーブルが存在しない場合があるためスキップ
+    if not _tweet_queue_table_exists():
+        return
+
     # 重複チェック
     if TweetQueue.objects.filter(community=instance, tweet_type="new_community").exists():
         return
@@ -226,6 +238,10 @@ def _queue_slide_share_tweet(instance, created):
     if not slide_newly_set and not youtube_newly_set and not slide_file_newly_set:
         return
 
+    # マイグレーション中はテーブルが存在しない場合があるためスキップ
+    if not _tweet_queue_table_exists():
+        return
+
     # 重複チェック
     if TweetQueue.objects.filter(
         event_detail=instance, tweet_type="slide_share",
@@ -282,6 +298,10 @@ def _queue_event_detail_tweet(instance, created):
 
     # 過去のイベントには告知ツイートを作成しない
     if instance.event.date < tz.localdate():
+        return
+
+    # マイグレーション中はテーブルが存在しない場合があるためスキップ
+    if not _tweet_queue_table_exists():
         return
 
     old_status = getattr(instance, "_old_status", None)

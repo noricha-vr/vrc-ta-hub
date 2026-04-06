@@ -116,6 +116,14 @@ class CommunityApprovalSignalTest(AutoTweetTestBase):
         self.community.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
 
+    @patch("twitter.signals._tweet_queue_table_exists", return_value=False)
+    def test_missing_tweet_queue_table_skips_queue_creation(self, mock_table_exists):
+        """TweetQueue テーブルが存在しない場合（マイグレーション中）はキューを作成しない"""
+        self.community.status = "approved"
+        self.community.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 0)
+
 
 class EventDetailSignalTest(AutoTweetTestBase):
     """EventDetail 作成/承認時のシグナルテスト"""
@@ -431,6 +439,20 @@ class EventDetailSignalTest(AutoTweetTestBase):
             start_time=datetime.time(22, 15),
         )
         self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
+
+    @patch("twitter.signals._tweet_queue_table_exists", return_value=False)
+    def test_missing_tweet_queue_table_skips_event_detail_queue_creation(self, mock_table_exists):
+        """TweetQueue テーブルが存在しない場合（マイグレーション中）はキューを作成しない"""
+        EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VRChatで学ぶPython",
+            start_time=datetime.time(22, 15),
+        )
+
+        self.assertEqual(TweetQueue.objects.count(), 0)
 
 
 class GenerateTweetAsyncTest(AutoTweetTestBase):
@@ -2103,6 +2125,14 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.count(), 1)
         queue = TweetQueue.objects.first()
         self.assertEqual(queue.tweet_type, "slide_share")
+
+    @patch("twitter.signals._tweet_queue_table_exists", return_value=False)
+    def test_missing_tweet_queue_table_skips_slide_share_queue_creation(self, mock_table_exists):
+        """TweetQueue テーブルが存在しない場合（マイグレーション中）はキューを作成しない"""
+        self.detail.slide_url = "https://example.com/slides"
+        self.detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 0)
 
 
 class SignalErrorHandlingTest(AutoTweetTestBase):
