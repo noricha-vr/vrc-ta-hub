@@ -44,7 +44,7 @@ def _get_approved_detail_summaries(event: 'Event') -> list[tuple[str, str]]:
             if detail.status == 'approved'
         ]
 
-    # 承認済み発表の有無確認と本文生成を1クエリにまとめ、必要最小列だけ読む。
+    # 承認済み発表の有無確認と本文生成を1クエリにまとめ、必要最小列だけ読む。参照: PR #221
     return list(
         event.details.filter(status='approved').values_list('speaker', 'theme')
     )
