@@ -44,23 +44,26 @@ jobs:
           EMAIL_FILE_PATH: "/tmp/emails"
         run: |
           # Run tests for all apps.
-          # Excluded modules (external API / file dependencies):
+          # Excluded modules (external API / environment dependencies):
           #   - event.tests.test_generate_blog (OpenRouter/YouTube APIs)
           #   - event.tests.test_google_calendar (Google Calendar API + credentials file)
           #   - event.tests.test_recurrence_llm_generation (Google Gemini API)
           #   - event.tests.test_recurrence_preview_api (LLM API via RecurrenceService)
+          #   - event.tests.test_generate_recurring_events_command (RecurrenceService LLM dependency)
+          #   - event.tests.test_recurrence_rule_generation (LLM mock issues in CI)
           #   - ta_hub.tests.test_resize_image (requires test image files)
+          #   - twitter.tests.test_auto_tweet (X API OAuth env vars not mockable at module level)
+          #   - user_account.tests.test_adapters (Discord SocialApp required in DB)
           #   - user_account.tests.test_views (Discord OAuth SocialApp required)
+          #   - user_account.tests.test_middleware (Discord SocialApp required for template rendering)
+          #   - user_account.tests.test_mail (email backend configuration required)
           python manage.py test \
             website.tests \
             community.tests \
             user_account.tests.test_discord_notification \
-            user_account.tests.test_adapters \
             user_account.tests.test_api_key_views \
             user_account.tests.test_forms \
             user_account.tests.test_lt_application_views \
-            user_account.tests.test_mail \
-            user_account.tests.test_middleware \
             user_account.tests.test_templatetags \
             api_v1.tests \
             event.tests.test_bigquery_lazy_init \
@@ -75,12 +78,10 @@ jobs:
             event.tests.test_event_sync \
             event.tests.test_event_visibility_and_purge_command \
             event.tests.test_extract_video_info \
-            event.tests.test_generate_recurring_events_command \
             event.tests.test_google_calendar_list_pagination \
             event.tests.test_lt_application \
             event.tests.test_pdf_validation \
             event.tests.test_recurrence_rule_deletion \
-            event.tests.test_recurrence_rule_generation \
             event.tests.test_rejected_lt_visibility \
             event.tests.test_sanitize_event_detail_security_command \
             event_calendar.tests \
@@ -93,5 +94,10 @@ jobs:
             ta_hub.tests.test_user_tags \
             ta_hub.tests.test_utils \
             ta_hub.tests.test_vket_achievements \
-            twitter.tests \
+            twitter.tests.test_delete_permissions \
+            twitter.tests.test_generate_x_token \
+            twitter.tests.test_tweet_length \
+            twitter.tests.test_tweet_queue_views \
+            twitter.tests.test_views \
+            twitter.tests.test_x_api_guard \
             vket.tests
