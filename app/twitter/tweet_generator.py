@@ -291,7 +291,7 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
 - 日付は不要（過去のイベントなので）
 - テーマ名をそのまま書いた上で、「読むと何がわかるか」を1文で補足する
 - 末尾に以下を必ず含める:
-  詳細はこちら https://vrc-ta-hub.com/event/{event.pk}/
+  詳細はこちら https://vrc-ta-hub.com/event/detail/{event_detail.pk}/
   {hashtag_suffix}
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
