@@ -10,102 +10,111 @@
     {% include 'ta_hub/messages.html' %}
     <h1 class="fw-bold mb-4">ツイートキュー #{{ object.pk }}</h1>
 
-    {# 情報カード #}
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <strong>種別:</strong> {{ object.get_tweet_type_display }}
-                </div>
-                <div class="col-md-6">
-                    <strong>ステータス:</strong>
-                    <span class="badge bg-{{ object.status|status_badge_color }}">{{ object.get_status_display }}</span>
-                </div>
-            </div>
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <strong>集会:</strong>
-                    <a href="{% url 'community:detail' object.community.pk %}">{{ object.community.name }}</a>
-                </div>
-                <div class="col-md-6">
-                    <strong>作成日時:</strong> {{ object.created_at|date:"Y/m/d H:i" }}
-                </div>
-            </div>
-            {% if object.event %}
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <strong>イベント:</strong> {{ object.event.date|date:"Y/m/d" }}
-                </div>
-            </div>
-            {% endif %}
-            {% if object.tweet_id %}
-            <div class="row mb-3">
-                <div class="col-md-12">
-                    <strong>ツイートID:</strong>
-                    <a href="https://x.com/vrc_ta_hub/status/{{ object.tweet_id }}" target="_blank" rel="noopener">
-                        {{ object.tweet_id }} <i class="fas fa-external-link-alt fa-sm"></i>
-                    </a>
-                </div>
-            </div>
-            {% endif %}
-            {% if object.posted_at %}
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <strong>投稿日時:</strong> {{ object.posted_at|date:"Y/m/d H:i" }}
-                </div>
-            </div>
-            {% endif %}
-            {% if object.error_message %}
-            <div class="alert alert-danger mt-3 mb-0">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                <strong>エラー:</strong> {{ object.error_message }}
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    {# 編集フォーム #}
+    {# メインレイアウト: 左（情報+テキスト） / 右（画像） #}
     <form method="post">
         {% csrf_token %}
         <input type="hidden" name="action" value="update">
 
-        <div class="mb-3">
-            <label for="id_generated_text" class="form-label fw-bold">生成テキスト</label>
-            <textarea name="generated_text" id="id_generated_text" class="form-control" rows="8">{{ object.generated_text }}</textarea>
-            <div class="form-text">{{ object.generated_text|length }}/280文字</div>
-        </div>
+        <div class="row mb-4">
+            {# 左カラム: 情報 + 生成テキスト #}
+            <div class="{% if object.image_url %}col-md-7{% else %}col-12{% endif %}">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="row mb-2">
+                            <div class="col-sm-6">
+                                <strong>種別:</strong> {{ object.get_tweet_type_display }}
+                            </div>
+                            <div class="col-sm-6">
+                                <strong>ステータス:</strong>
+                                <span class="badge bg-{{ object.status|status_badge_color }}">{{ object.get_status_display }}</span>
+                            </div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-sm-6">
+                                <strong>集会:</strong>
+                                <a href="{% url 'community:detail' object.community.pk %}">{{ object.community.name }}</a>
+                            </div>
+                            <div class="col-sm-6">
+                                <strong>作成日時:</strong> {{ object.created_at|date:"Y/m/d H:i" }}
+                            </div>
+                        </div>
+                        {% if object.event %}
+                        <div class="row mb-2">
+                            <div class="col-sm-6">
+                                <strong>イベント:</strong> {{ object.event.date|date:"Y/m/d" }}
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if object.tweet_id %}
+                        <div class="mb-2">
+                            <strong>ツイートID:</strong>
+                            <a href="https://x.com/vrc_ta_hub/status/{{ object.tweet_id }}" target="_blank" rel="noopener">
+                                {{ object.tweet_id }} <i class="fas fa-external-link-alt fa-sm"></i>
+                            </a>
+                        </div>
+                        {% endif %}
+                        {% if object.posted_at %}
+                        <div class="mb-2">
+                            <strong>投稿日時:</strong> {{ object.posted_at|date:"Y/m/d H:i" }}
+                        </div>
+                        {% endif %}
+                        {% if object.error_message %}
+                        <div class="alert alert-danger mt-2 mb-0">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>エラー:</strong> {{ object.error_message }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
 
-        {% if object.image_url %}
-        <div class="mb-3">
-            <label class="form-label fw-bold">添付画像</label>
-            <div>
-                <img src="{{ object.image_url }}" alt="添付画像" style="max-width:300px; max-height:200px" class="rounded border">
+                <div class="mb-3">
+                    <label for="id_generated_text" class="form-label fw-bold">生成テキスト</label>
+                    <textarea name="generated_text" id="id_generated_text" class="form-control" rows="12">{{ object.generated_text }}</textarea>
+                    <div class="form-text">{{ object.generated_text|length }}/280文字</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="id_image_url" class="form-label fw-bold">画像URL</label>
+                    <input type="url" name="image_url" id="id_image_url" class="form-control" value="{{ object.image_url }}" placeholder="https://...">
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="{% url 'twitter:tweet_queue_list' %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>一覧に戻る
+                    </a>
+
+                    {% if object.status == 'generation_failed' or object.status == 'generating' %}
+                    <button type="submit" name="action" value="retry" class="btn btn-warning">
+                        <i class="fas fa-redo me-1"></i>リトライ生成
+                    </button>
+                    {% endif %}
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>保存
+                    </button>
+
+                    {% if object.status == 'ready' %}
+                    <button type="submit" name="action" value="post_now" class="btn btn-outline-success"
+                            onclick="return confirm('このツイートを今すぐ投稿しますか？')">
+                        <i class="fab fa-x-twitter me-1"></i>今すぐ投稿
+                    </button>
+                    {% endif %}
+
+                    <button type="submit" name="action" value="delete" class="btn btn-outline-danger ms-auto"
+                            onclick="return confirm('このキューを削除しますか？')">
+                        <i class="fas fa-trash me-1"></i>削除
+                    </button>
+                </div>
             </div>
-            <div class="form-text mt-1">{{ object.image_url }}</div>
-        </div>
-        {% endif %}
 
-        <div class="d-flex flex-wrap gap-2">
-            <button type="submit" class="btn btn-primary">
-                <i class="fas fa-save me-1"></i>保存
-            </button>
-
-            {% if object.status == 'generation_failed' or object.status == 'generating' %}
-            <button type="submit" name="action" value="retry" class="btn btn-warning">
-                <i class="fas fa-redo me-1"></i>リトライ生成
-            </button>
+            {# 右カラム: 添付画像プレビュー #}
+            {% if object.image_url %}
+            <div class="col-md-5">
+                <div>
+                    <img src="{{ object.image_url }}" alt="添付画像" class="rounded border w-100">
+                </div>
+            </div>
             {% endif %}
-
-            {% if object.status == 'ready' %}
-            <button type="submit" name="action" value="post_now" class="btn btn-success"
-                    onclick="return confirm('このツイートを今すぐ投稿しますか？')">
-                <i class="fab fa-x-twitter me-1"></i>今すぐ投稿
-            </button>
-            {% endif %}
-
-            <a href="{% url 'twitter:tweet_queue_list' %}" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>一覧に戻る
-            </a>
         </div>
     </form>
 </div>

@@ -164,7 +164,7 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
     event_info = ""
     if first_event:
         event_info = (
-            f"\n初回開催日: {first_event.date.strftime('%m/%d')}({WEEKDAY_NAMES.get(first_event.date.strftime('%a'), '')})"
+            f"\n初回開催日: {first_event.date.strftime('%-m/%-d')}({WEEKDAY_NAMES.get(first_event.date.strftime('%a'), '')})"
             f" {first_event.start_time.strftime('%H:%M')}~"
         )
 
@@ -220,20 +220,21 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
     user_prompt = f"""以下のLT（ライトニングトーク）の告知ツイートを作成してください。
 
 集会名: {name}
-日時: {event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~
+日時: {event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~
 発表者: {speaker}
 テーマ: {theme}
 
 ## 必須要素（必ず本文に含めること）
 1. 集会名（「{name}」）
-2. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
+2. 開催日時（「{event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
 3. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
 4. 発表者名（敬称は「さん」を付ける）
-5. 「このテーマが気になる人は聞きに来て」という呼びかけ
+5. テーマの補足説明から自然につながる形で、次のアクション（聞きに来る・詳細を見る等）に誘導する一文
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
 - テーマ名をそのまま書いた上で、何が聞けるかを1文で補足する
+- 誘導の一文は毎回異なる自然な表現にする（「このテーマが気になる人は聞きに来て」のような定型文の繰り返し禁止）
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
   {hashtag_suffix}
@@ -284,12 +285,13 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
 2. 発表者名（敬称は「さん」を付ける）
 3. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
 4. {resources_text}が公開されたこと
-5. 「こういう人はチェックして」という呼びかけ
+5. 内容の補足から自然につながる形で、次のアクション（資料を見る・チェックする等）に誘導する一文
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
 - 日付は不要（過去のイベントなので）
 - テーマ名をそのまま書いた上で、「読むと何がわかるか」を1文で補足する
+- 誘導の一文は毎回異なる自然な表現にする（「〜な方はチェック」のような定型文の繰り返し禁止）
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/event/detail/{event_detail.pk}/
   {hashtag_suffix}
@@ -374,21 +376,22 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
     user_prompt = f"""以下の特別イベントの告知ツイートを作成してください。
 
 集会名: {name}
-日時: {event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~
+日時: {event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~
 発表者/ゲスト: {speaker}
 テーマ: {theme}
 
 ## 必須要素（必ず本文に含めること）
 1. 集会名（「{name}」）
 2. 「特別回」であること
-3. 開催日時（「{event.date.strftime('%m/%d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
+3. 開催日時（「{event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
 4. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
 5. 発表者/ゲスト名（敬称は「さん」を付ける）
-6. 「このテーマに興味ある人は来て」という呼びかけ
+6. テーマの補足説明から自然につながる形で、次のアクション（聞きに来る・詳細を見る等）に誘導する一文
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
 - テーマ名をそのまま書いた上で、特別回ならではの見どころを1文で補足する
+- 誘導の一文は毎回異なる自然な表現にする（「このテーマに興味ある人は来て」のような定型文の繰り返し禁止）
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
   {hashtag_suffix}
