@@ -342,15 +342,25 @@ class TweetQueueDetailView(SuperuserRequiredMixin, DetailView):
             return self._handle_retry()
         elif action == 'post_now':
             return self._handle_post_now()
+        elif action == 'delete':
+            return self._handle_delete()
         else:
             return self._handle_update(request)
 
     def _handle_update(self, request):
-        """generated_text を更新する。"""
+        """generated_text と image_url を更新する。"""
         self.object.generated_text = request.POST.get('generated_text', '')
-        self.object.save(update_fields=['generated_text'])
-        messages.success(request, 'テキストを保存しました。')
+        self.object.image_url = request.POST.get('image_url', '')
+        self.object.save(update_fields=['generated_text', 'image_url'])
+        messages.success(request, '保存しました。')
         return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
+
+    def _handle_delete(self):
+        """キューを削除する。"""
+        pk = self.object.pk
+        self.object.delete()
+        messages.success(self.request, f'キュー #{pk} を削除しました。')
+        return redirect(reverse('twitter:tweet_queue_list'))
 
     def _handle_retry(self):
         """generating に戻してバックグラウンドでテキスト再生成を開始する。"""
