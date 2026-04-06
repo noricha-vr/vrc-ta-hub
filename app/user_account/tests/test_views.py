@@ -271,6 +271,8 @@ class SettingsViewTests(TestCase):
         self.assertContains(response, 'パスワードを変更')
         # Discord連携が表示されていること
         self.assertContains(response, 'Discord連携')
+        # LT申請一覧はマイリストへ移動済み
+        self.assertNotContains(response, 'LT申請一覧')
         # ログアウトが表示されていること
         self.assertContains(response, 'ログアウト')
 
