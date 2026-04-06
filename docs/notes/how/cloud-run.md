@@ -18,6 +18,11 @@
 - 解決: デプロイ時の SHA 固定 tag をやめ、`gcloud run services update-traffic --update-tags=preview=LATEST` で stable な preview URL 1本へ集約する。あわせて `--remove-tags` で既存の `rev-*` tag を掃除し、設定をテストで固定する。
 - 教訓: アプリ側の host 対応だけでは「昔の revision URL がまだ外に残る」問題は止まらない。Cloud Run の tag 運用もセットで閉じないと、古いリビジョンがエラー源として居残る。
 
+## preview host は nginx 前段でも正規化する
+- 問題: Django middleware で preview host を正規化していても、nginx が raw `Host` を upstream にそのまま流すと、middleware より前で host を参照する経路や設定差分に対して `DisallowedHost` の再発余地が残る。
+- 解決: nginx の `map` で `vrc-ta-hub` / `vrc-ta-hub-dev` 向け Cloud Run preview host を `vrc-ta-hub.com` に写像し、`proxy_set_header Host` で upstream へは正規ホストを渡す。Django 側 middleware は後段の防御として残す。
+- 教訓: Cloud Run preview URL 対応は Django だけで完結させず、proxy 前段でも raw host を止める二段構えにすると運用差分に強い。service 名を片系に固定すると dev 環境だけ再発するので、デプロイ先一覧とセットで見直す。
+
 ## toGithubPagesJson 再生成
 - 問題: VRChat ワールド表示用 JSON は `noricha-vr/toGithubPagesJson` 側の GitHub Actions が生成しており、`vrc-ta-hub` 本番反映だけでは更新されない
 - 解決:
