@@ -9,7 +9,6 @@ services:
       - ./app:/app
       - ./docs:/docs
     env_file:
-      # - .env
       - .env.local
     environment:
       - DEBUG=True
@@ -18,8 +17,32 @@ services:
       - '8015:8080'
     networks:
       - my_network
+    depends_on:
+      db:
+        condition: service_healthy
     # 開発環境: コード変更時に自動リロード
     command: python manage.py runserver 0.0.0.0:8080
+
+  db:
+    container_name: 'vrc-ta-hub-db'
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: local_vrc_ta_hub
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - '3315:3306'
+    networks:
+      - my_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  db_data:
 
 networks:
   my_network:
