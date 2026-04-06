@@ -8,6 +8,7 @@ services:
     volumes:
       - ./app:/app
       - ./docs:/docs
+      - ./cloudbuild.yaml:/cloudbuild.yaml:ro
     env_file:
       # - .env
       - .env.local
