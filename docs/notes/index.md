@@ -6,6 +6,7 @@
 |----------|------|
 | cloud-run.md | Cloud Run 運用パターン |
 | db-sync.md | 本番DB↔ローカルDB同期 手順 |
+| django-view-package.md | Django views package 化パターン |
 | drf-spectacular.md | DRF Spectacular パターン |
 | django-pagination.md | Djangoページネーション入力検証パターン |
 | discord-auth.md | Discord OAuth 競合解消パターン |
@@ -18,6 +19,7 @@
 
 | ファイル | 日付 | 概要 |
 |----------|------|------|
+| django-view-package-01.md | 04-06 | community.views package 化で patch 互換を維持 |
 | db-sync-01.md | 04-06 | 本番DBからローカルへの初回同期 |
 | cloud-run-02.md | 04-06 | Cloud Run preview host を nginx 前段でも正規化 |
 | cloud-run-01.md | 04-05 | Cloud Run の古い tagged revision URL cleanup |
