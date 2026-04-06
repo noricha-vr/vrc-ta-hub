@@ -5,6 +5,7 @@
 | ファイル | 概要 |
 |----------|------|
 | cloud-run.md | Cloud Run 運用パターン |
+| ci-testing.md | CI テスト安定化パターン |
 | db-sync.md | 本番DB↔ローカルDB同期 手順 |
 | drf-spectacular.md | DRF Spectacular パターン |
 | django-pagination.md | Djangoページネーション入力検証パターン |
@@ -19,6 +20,7 @@
 | ファイル | 日付 | 概要 |
 |----------|------|------|
 | db-sync-01.md | 04-06 | 本番DBからローカルへの初回同期 |
+| ci-testing-01.md | 04-06 | CI テスト対象拡大時の外部API安定化 |
 | cloud-run-02.md | 04-06 | Cloud Run preview host を nginx 前段でも正規化 |
 | cloud-run-01.md | 04-05 | Cloud Run の古い tagged revision URL cleanup |
 | drf-spectacular-01.md | 04-01 | GatheringListSerializer の schema 生成エラー修正 |
