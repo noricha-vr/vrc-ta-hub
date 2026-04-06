@@ -84,6 +84,7 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 ログインが必要な動作確認時は `.env.local` の `TEST_USER_NAME` と `TEST_USER_PASSWORD` を参照。
 
 ## 環境変数（.env.local）
+- 外部サービスの認証情報取得手順は [docs/setup.md](docs/setup.md) を参照。
 - `OPENROUTER_API_KEY`: OpenRouter APIキー
 - `GOOGLE_API_KEY`: Google APIキー
 - `GEMINI_MODEL`: 使用するGeminiモデル（例: google/gemini-2.0-flash-001）
