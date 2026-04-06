@@ -138,7 +138,7 @@ class EventSyncTest(TestCase):
         ]
         
         # 同期処理を実行
-        with patch('event.views.logger') as mock_logger:
+        with patch('event.views.sync.logger') as mock_logger:
             delete_outdated_events(calendar_events, today)
             
             # ログ出力を確認
@@ -198,7 +198,7 @@ class EventSyncTest(TestCase):
         ]
         
         # 同期処理を実行
-        with patch('event.views.logger'):
+        with patch('event.views.sync.logger'):
             delete_outdated_events(calendar_events, today)
 
         # すべてのイベントが削除されずに残っていることを確認（秒が異なっても時・分が一致していれば削除されない）
@@ -245,7 +245,7 @@ class EventSyncTest(TestCase):
         ]
         
         # 同期処理を実行
-        with patch('event.views.logger') as mock_logger:
+        with patch('event.views.sync.logger') as mock_logger:
             delete_outdated_events(calendar_events, today)
             
             # ログ出力を確認
@@ -288,7 +288,7 @@ class EventSyncTest(TestCase):
         ]
         
         # 同期処理を実行
-        with patch('event.views.logger') as mock_logger:
+        with patch('event.views.sync.logger') as mock_logger:
             register_calendar_events(calendar_events)
             
             # ログ出力を確認
