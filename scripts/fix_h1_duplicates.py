@@ -53,7 +53,7 @@ def fix_h1_duplicates():
     
     print(f"\nEventDetail: {event_fixed}件修正")
     
-    print(f"\n=== 修正完了 ===")
+    print("\n=== 修正完了 ===")
     print(f"合計: {news_fixed + event_fixed}件のH1重複を修正しました")
 
 

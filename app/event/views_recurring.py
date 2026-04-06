@@ -2,18 +2,17 @@
 import logging
 
 from django.contrib import messages
-
-logger = logging.getLogger(__name__)
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import render, redirect, get_object_or_404
-from django.urls import reverse
 from django.utils import timezone
 
 from community.models import Community
 from .forms import RecurringEventForm
 from .models import RecurrenceRule
 from .recurrence_service import RecurrenceService
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
@@ -59,7 +58,7 @@ def create_recurring_event(request, community_id):
                     else:
                         messages.error(request, 'イベントの作成に失敗しました。')
             
-            except Exception as e:
+            except Exception:
                 logger.exception("定期イベント処理中にエラーが発生")
                 messages.error(request, 'エラーが発生しました')
     else:

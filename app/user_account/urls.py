@@ -1,6 +1,4 @@
-from django.contrib.auth.views import PasswordChangeDoneView
 from django.urls import path
-from django.views.generic import TemplateView
 
 from .views import CustomLoginView, CustomLogoutView, RegisterView, CustomPasswordChangeView, \
     UserNameChangeView, UserUpdateView, SettingsView, APIKeyListView, APIKeyCreateView, APIKeyDeleteView, \

@@ -23,7 +23,7 @@ class CommunityAdmin(admin.ModelAdmin):
     get_weekdays.short_description = '曜日'
 
     def get_tags(self, obj):
-        if type(obj.tags) == str:
+        if isinstance(obj.tags, str):
             return obj.tags
         return ", ".join(obj.tags)
 

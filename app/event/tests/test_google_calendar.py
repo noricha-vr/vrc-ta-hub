@@ -3,7 +3,6 @@ import os
 import unittest
 from unittest import TestCase
 
-import pytz
 from django.utils import timezone
 
 from event.google_calendar import GoogleCalendarService

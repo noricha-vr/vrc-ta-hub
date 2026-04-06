@@ -1,15 +1,17 @@
 # app/event_calendar/calendar_utils.py
-
 from datetime import datetime, timedelta
-from urllib.parse import urlencode, quote, quote_plus
-from django.utils import timezone
-from django.urls import reverse
-from django.core.cache import cache
-from django.utils.decorators import method_decorator
 from functools import lru_cache
-from typing import Dict, Any
+from typing import TYPE_CHECKING, Any, Dict
+from urllib.parse import urlencode, quote
+
+from django.core.cache import cache
+from django.urls import reverse
+from django.utils import timezone
 
 from .models import CalendarEntry
+
+if TYPE_CHECKING:
+    from event.models import Event
 
 FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfJlabb7niRTf4rX2Q0wRc3ua9MuOEIKveo7NirR6zuOo6D9A/viewform'
 
@@ -33,7 +35,7 @@ PLATFORM_MAP = {
 }
 
 
-def create_calendar_entry_url(event: 'Event') -> str:
+def create_calendar_entry_url(event: "Event") -> str:
     """
     EventオブジェクトからGoogleフォームのURLを生成する
     キャッシュ有効時間: 1時間

@@ -4,7 +4,7 @@ from datetime import date, time
 from django.test import TestCase, Client
 from django.urls import reverse
 
-from community.models import Community, CommunityMember
+from community.models import Community
 from event.models import Event, EventDetail
 from user_account.tests.utils import create_discord_linked_user
 

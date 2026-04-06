@@ -4,7 +4,6 @@ from django.contrib.messages import get_messages
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from allauth.socialaccount.models import SocialAccount
 from community.models import Community, CommunityMember
 from user_account.tests.utils import create_discord_linked_user
 

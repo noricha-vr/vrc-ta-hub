@@ -11,14 +11,12 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import IntegrityError, models, transaction
 from django.http import Http404, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views import View
 from django.views.decorators.http import require_http_methods
 from django.views.generic import CreateView, UpdateView, ListView, DeleteView, DetailView, TemplateView
-
-logger = logging.getLogger(__name__)
 
 from community.models import Community
 from event.models import Event
@@ -27,6 +25,8 @@ from .models import TwitterTemplate, TweetQueue
 from .tweet_generator import get_generator, get_poster_image_url
 from .utils import format_event_info, generate_tweet, generate_tweet_url
 from .x_api import post_tweet, upload_media
+
+logger = logging.getLogger(__name__)
 
 TWEET_QUEUE_PAGINATE_BY = 20
 REMINDER_DETAIL_TYPES = ("LT", "SPECIAL")
@@ -111,7 +111,6 @@ class TwitterTemplateDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteV
         return self.request.user.is_superuser or template.community.is_manager(self.request.user)
 
     def form_valid(self, form):
-        success_url = self.get_success_url()
         self.object.delete()
         messages.success(self.request, 'テンプレートが削除されました。')
         return JsonResponse({'success': True})

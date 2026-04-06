@@ -53,7 +53,7 @@ def fix_inner_h1_tags():
     
     print(f"\nEventDetail: {fixed_count}件の本文内H1をH2に変換")
     
-    print(f"\n=== 修正完了 ===")
+    print("\n=== 修正完了 ===")
 
 
 if __name__ == '__main__':

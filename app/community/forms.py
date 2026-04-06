@@ -1,7 +1,6 @@
 from django import forms
 from django.forms.widgets import CheckboxSelectMultiple
 
-from ta_hub.libs import DEFAULT_MAX_SIZE
 
 from .libs import resolve_vrc_group_url
 from .models import Community, WEEKDAY_CHOICES, TAGS, FORM_TAGS

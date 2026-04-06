@@ -10,7 +10,6 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ta_hub.settings')
 django.setup()
 
 from news.models import Post, Category
-from django.utils.text import slugify
 
 def create_activity_posts():
     """3つの活動記事を作成"""

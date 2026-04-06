@@ -1,5 +1,4 @@
 import logging
-import requests
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -7,25 +6,19 @@ from django.contrib.auth.views import LoginView, LogoutView
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth.views import PasswordChangeView
-from django.core.mail import send_mail
-from django.http import JsonResponse
 from django.shortcuts import redirect
-from django.template.loader import render_to_string
 from django.urls import reverse, reverse_lazy
-from django.utils.html import strip_tags
 from django.utils.safestring import mark_safe
 from django.views import View
-from django.views.generic import CreateView, TemplateView, ListView
+from django.views.generic import TemplateView, ListView
 from django.views.generic import UpdateView
 from django.conf import settings
-from django.utils import timezone
 
-logger = logging.getLogger(__name__)
-
-from community.models import Community
 from .forms import CustomUserChangeForm
 from .forms import BootstrapAuthenticationForm, BootstrapPasswordChangeForm
 from .models import APIKey
+
+logger = logging.getLogger(__name__)
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')

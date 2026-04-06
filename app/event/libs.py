@@ -251,7 +251,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
                 # 直接Pydanticモデルに変換を試みる
                 try:
                     blog_output = BlogOutput.model_validate_json(blog_output_json)
-                    logger.info(f"Successfully parsed BlogOutput from function call response")
+                    logger.info("Successfully parsed BlogOutput from function call response")
                     return blog_output
                 except Exception as validate_error:
                     logger.warning(f"Failed to validate BlogOutput from function call: {str(validate_error)}")
@@ -259,7 +259,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
                     try:
                         output_data = json.loads(blog_output_json)
                         blog_output = BlogOutput(**output_data)
-                        logger.info(f"Created BlogOutput manually from function call data")
+                        logger.info("Created BlogOutput manually from function call data")
                         return blog_output
                     except Exception as e:
                         logger.error(f"Failed to parse function call response: {str(e)}")
@@ -406,7 +406,7 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
         # 日本語字幕を優先的に取得し、なければ英語字幕を取得して翻訳
         try:
             transcript = transcript_list.find_transcript(['ja'])
-        except:
+        except Exception:
             transcript = transcript_list.find_transcript(
                 ['en']).translate('ja')
 
@@ -538,7 +538,7 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
                             normalized_lines.append(
                                 sentences[i] + (sentences[i + 1] if i + 1 < len(sentences) else ''))
                             normalized_lines.append('')  # 空行を追加
-                    if sentences[-1].strip() and not sentences[-1][-1] in '。！？':
+                    if sentences[-1].strip() and sentences[-1][-1] not in '。！？':
                         normalized_lines.append(sentences[-1])
 
         markdown_text = '\n'.join(normalized_lines)

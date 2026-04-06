@@ -2,7 +2,7 @@
 import os
 import sys
 import django
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 # Djangoのセットアップ
 sys.path.append('/app')
@@ -10,7 +10,6 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ta_hub.settings')
 django.setup()
 
 from news.models import Post, Category
-from django.utils.text import slugify
 
 def create_vket_posts():
     """Vket関連の記事を作成"""

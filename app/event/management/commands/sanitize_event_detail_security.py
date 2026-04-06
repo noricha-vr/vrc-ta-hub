@@ -1,7 +1,7 @@
 import logging
 import re
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Optional
 from urllib.parse import urlparse
 
 from django.core.management.base import BaseCommand

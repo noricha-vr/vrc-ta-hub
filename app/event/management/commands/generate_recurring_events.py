@@ -1,10 +1,10 @@
 """定期イベントのインスタンスを生成するコマンド"""
-from datetime import datetime, timedelta
+from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from event.models import Event, RecurrenceRule
+from event.models import Event
 from event.recurrence_service import RecurrenceService
 
 

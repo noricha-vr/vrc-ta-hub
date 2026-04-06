@@ -1,9 +1,6 @@
 """既存イベントの定期パターンを分析するコマンド（マイグレーション不要）"""
-from datetime import datetime, timedelta
 from collections import defaultdict
 from django.core.management.base import BaseCommand
-from django.db import transaction
-from django.utils import timezone
 
 from event.models import Event
 from community.models import Community

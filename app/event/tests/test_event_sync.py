@@ -1,9 +1,8 @@
 from django.test import TestCase
 from django.utils import timezone
 from datetime import datetime, timedelta
-import json
 import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from community.models import Community
 from event.models import Event

@@ -1,4 +1,3 @@
-import json
 import os
 from datetime import date, time
 from django.test import TestCase

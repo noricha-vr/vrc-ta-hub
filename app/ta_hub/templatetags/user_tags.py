@@ -3,7 +3,6 @@ import logging
 from django import template
 from django.contrib.auth.models import AnonymousUser
 
-from community.models import Community
 
 register = template.Library()
 logger = logging.getLogger(__name__)

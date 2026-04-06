@@ -3,7 +3,6 @@ from unittest.mock import patch, MagicMock
 from django.test import TestCase, RequestFactory, override_settings
 from django.urls import reverse
 
-from user_account.models import CustomUser
 from community.views import CommunityCreateView
 
 

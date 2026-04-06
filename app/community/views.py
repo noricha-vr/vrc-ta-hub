@@ -7,7 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.core.paginator import InvalidPage
 from django.db import DataError
-from django.db.models import Min, Q, F, Count
+from django.db.models import Min, Q, F
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.urls import reverse_lazy
@@ -28,13 +28,12 @@ from event.models import Event, EventDetail
 from event.community_cleanup import cleanup_community_future_data
 from url_filters import get_filtered_url
 from django.views.generic import TemplateView
-from user_account.models import CustomUser
 
 from .forms import CommunitySearchForm
 from .forms import CommunityUpdateForm
 from .forms import CommunityCreateForm
 from .libs import get_join_type
-from .models import Community, CommunityMember, CommunityInvitation, CommunityReport
+from .models import Community, CommunityMember, CommunityInvitation, CommunityReport, WEEKDAY_CHOICES, TAGS
 
 logger = logging.getLogger(__name__)
 
@@ -141,10 +140,6 @@ class CommunityListView(ListView):
         # 検索結果の件数をコンテキストに追加
         context['search_count'] = self.get_queryset().count()
         return context
-
-
-from .models import Community, WEEKDAY_CHOICES, TAGS
-
 
 class CommunityDetailView(DetailView):
     model = Community
@@ -271,7 +266,7 @@ class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
                 cache.delete(cache_key)
             messages.success(self.request, '集会情報を更新しました。')
             return response
-        except DataError as e:
+        except DataError:
             logger.exception("データの保存中にエラーが発生")
             messages.error(self.request, 'データの保存中にエラーが発生しました')
             return self.form_invalid(form)
@@ -728,7 +723,7 @@ class CreateInvitationView(LoginRequiredMixin, View):
             messages.error(request, '権限がありません')
             return redirect('community:member_manage', pk=pk)
 
-        invitation = CommunityInvitation.create_invitation(community, request.user)
+        CommunityInvitation.create_invitation(community, request.user)
         messages.success(request, '招待リンクを生成しました')
 
         return redirect('community:member_manage', pk=pk)

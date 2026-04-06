@@ -3,7 +3,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from community.models import WEEKDAY_CHOICES, TAGS, Community
+from community.models import WEEKDAY_CHOICES, TAGS
 from .datetime_lock import (
     EVENT_DETAIL_DATETIME_LOCK_MESSAGE,
     has_event_detail_duration_changed,
@@ -50,12 +50,6 @@ class EventSearchForm(forms.Form):
         required=False,
         widget=forms.CheckboxSelectMultiple()
     )
-
-
-from django import forms
-from django.utils import timezone
-from .models import Event
-
 
 class EventCreateForm(forms.ModelForm):
     class Meta:
