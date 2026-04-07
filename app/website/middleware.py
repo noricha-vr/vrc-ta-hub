@@ -4,10 +4,36 @@ import os
 import re
 
 
+DEFAULT_CLOUD_RUN_SERVICE_NAMES = (
+    'vrc-ta-hub',
+    'vrc-ta-hub-dev',
+)
+
+
+def _build_cloud_run_service_names() -> tuple[str, ...]:
+    configured_names = [
+        service_name.strip()
+        for service_name in os.environ.get('CLOUD_RUN_SERVICE_NAMES', '').split(',')
+        if service_name.strip()
+    ]
+    service_names = [*configured_names, *DEFAULT_CLOUD_RUN_SERVICE_NAMES]
+    return tuple(dict.fromkeys(service_names))
+
+
+def _build_cloud_run_preview_host_pattern_source() -> str:
+    service_names = '|'.join(
+        re.escape(service_name)
+        for service_name in _build_cloud_run_service_names()
+    )
+    return (
+        rf'^(?:[a-z0-9-]+---)?(?:{service_names})-[a-z0-9]+-[a-z0-9]+'
+        rf'\.a\.run\.app(?::\d+)?$'
+    )
+
+
 def _build_cloud_run_preview_host_pattern() -> re.Pattern[str]:
-    service_name = re.escape(os.environ.get('K_SERVICE', 'vrc-ta-hub'))
     return re.compile(
-        rf'^(?:[a-z0-9-]+---)?{service_name}-[a-z0-9]+-[a-z0-9]+\.a\.run\.app(?::\d+)?$',
+        _build_cloud_run_preview_host_pattern_source(),
         re.IGNORECASE,
     )
 
