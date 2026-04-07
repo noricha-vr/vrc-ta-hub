@@ -36,13 +36,13 @@ steps:
     args:
       - '-ceu'
       - |
-        LEGACY_TAGS="$(
+        LEGACY_TAGS="$$(
           gcloud run services describe "${_SERVICE_NAME}" \
             --project="${PROJECT_ID}" \
             --region='asia-northeast1' \
             --format='csv[no-heading](status.traffic[].tag)' \
           | tr ',' '\n' \
-          | sed '/^$/d' \
+          | sed '/^$$/d' \
           | grep '^rev-' \
           | paste -sd, -
         )"
@@ -54,11 +54,11 @@ steps:
           --update-tags='preview=LATEST'
         )
 
-        if [ -n "${LEGACY_TAGS}" ]; then
-          UPDATE_ARGS+=(--remove-tags="${LEGACY_TAGS}")
+        if [ -n "$${LEGACY_TAGS}" ]; then
+          UPDATE_ARGS+=(--remove-tags="$${LEGACY_TAGS}")
         fi
 
-        gcloud "${UPDATE_ARGS[@]}"
+        gcloud "$${UPDATE_ARGS[@]}"
 
 substitutions:
   _SERVICE_NAME: 'vrc-ta-hub'
