@@ -20,6 +20,7 @@
 |----------|------|------|
 | db-sync-01.md | 04-06 | 本番DBからローカルへの初回同期 |
 | cloud-run-02.md | 04-06 | Cloud Run preview host を nginx 前段でも正規化 |
+| cloud-run-03.md | 04-07 | Cloud Run preview host 判定を明示 service 名に寄せた |
 | cloud-run-01.md | 04-05 | Cloud Run の古い tagged revision URL cleanup |
 | drf-spectacular-01.md | 04-01 | GatheringListSerializer の schema 生成エラー修正 |
 
