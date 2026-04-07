@@ -10,7 +10,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import IntegrityError, models, transaction
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -20,7 +20,7 @@ from django.views.generic import CreateView, UpdateView, ListView, DeleteView, D
 
 logger = logging.getLogger(__name__)
 
-from community.models import Community
+from community.models import Community, CommunityMember
 from event.models import Event
 from .forms import TwitterTemplateForm
 from .models import TwitterTemplate, TweetQueue
@@ -346,8 +346,35 @@ class SuperuserRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
         return self.request.user.is_superuser
 
 
-class TweetQueueListView(SuperuserRequiredMixin, ListView):
-    """TweetQueue 一覧ページ。ステータスフィルタとページネーション付き。"""
+class TweetQueueViewerMixin(LoginRequiredMixin, UserPassesTestMixin):
+    """TweetQueue 閲覧の権限制御 Mixin。
+
+    superuser、または CommunityMember として何らかの集会に所属しているユーザー
+    （主催者・スタッフ）のみアクセス可能。
+    """
+
+    def test_func(self):
+        user = self.request.user
+        if user.is_superuser:
+            return True
+        return CommunityMember.objects.filter(user=user).exists()
+
+
+def _scope_tweet_queue_to_user(qs, user):
+    """superuser 以外には、所属コミュニティの TweetQueue のみを返すよう絞り込む。"""
+    if user.is_superuser:
+        return qs
+    user_community_ids = CommunityMember.objects.filter(
+        user=user,
+    ).values_list('community_id', flat=True)
+    return qs.filter(community_id__in=list(user_community_ids))
+
+
+class TweetQueueListView(TweetQueueViewerMixin, ListView):
+    """TweetQueue 一覧ページ。ステータスフィルタとページネーション付き。
+
+    superuser は全件、主催者・スタッフは自分が所属する集会の分のみ閲覧可能。
+    """
 
     model = TweetQueue
     template_name = 'twitter/tweet_queue_list.html'
@@ -356,6 +383,7 @@ class TweetQueueListView(SuperuserRequiredMixin, ListView):
 
     def get_queryset(self):
         qs = TweetQueue.objects.select_related('community', 'event').order_by('-created_at')
+        qs = _scope_tweet_queue_to_user(qs, self.request.user)
         status = self.request.GET.get('status', '')
         valid_statuses = {choice[0] for choice in TweetQueue.STATUS_CHOICES}
         if status in valid_statuses:
@@ -375,10 +403,11 @@ class TweetQueueListView(SuperuserRequiredMixin, ListView):
         return context
 
 
-class TweetQueueDetailView(SuperuserRequiredMixin, DetailView):
+class TweetQueueDetailView(TweetQueueViewerMixin, DetailView):
     """TweetQueue 詳細・編集ページ。
 
-    POST アクションに応じて update / retry / post_now を処理する。
+    閲覧（GET）は superuser または所属コミュニティを持つスタッフ以上が可能。
+    編集系の POST アクション（update / retry / post_now / delete）は superuser のみ。
     """
 
     model = TweetQueue
@@ -386,9 +415,14 @@ class TweetQueueDetailView(SuperuserRequiredMixin, DetailView):
     context_object_name = 'object'
 
     def get_queryset(self):
-        return TweetQueue.objects.select_related('community', 'event', 'event_detail')
+        qs = TweetQueue.objects.select_related('community', 'event', 'event_detail')
+        return _scope_tweet_queue_to_user(qs, self.request.user)
 
     def post(self, request, *args, **kwargs):
+        # 編集系アクションは superuser のみ許可（スタッフは閲覧のみ）
+        if not request.user.is_superuser:
+            return HttpResponseForbidden('編集はスーパーユーザーのみ可能です')
+
         self.object = self.get_object()
         action = request.POST.get('action', 'update')
 
