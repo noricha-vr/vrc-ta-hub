@@ -24,6 +24,8 @@
                     </div>
                     <div class="card-body">
                         {% include 'ta_hub/messages.html' %}
+                        {% get_providers as socialaccount_providers %}
+                        {% if socialaccount_providers %}
                         <div class="text-center my-5">
                             <a href="{% provider_login_url 'discord' %}" class="btn btn-lg" style="background-color: #5865F2; color: white;">
                                 <i class="fab fa-discord me-2"></i>Discordでログイン
@@ -34,6 +36,7 @@
                             <span class="px-3 text-muted">または</span>
                             <hr class="flex-grow-1">
                         </div>
+                        {% endif %}
                         <form method="post">
                             {% csrf_token %}
                             {% for field in form %}

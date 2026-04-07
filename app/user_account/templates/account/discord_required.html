@@ -19,9 +19,14 @@
                             このサービスを利用するにはDiscordアカウントとの連携が必要です。
                         </p>
                         <div class="text-center my-4">
+                            {% get_providers as socialaccount_providers %}
+                            {% if socialaccount_providers %}
                             <a href="{% provider_login_url 'discord' process='connect' %}" class="btn btn-lg" style="background-color: #5865F2; color: white;">
                                 <i class="fab fa-discord me-2"></i>Discordで連携する
                             </a>
+                            {% else %}
+                            <p class="text-muted">Discord連携が設定されていません。</p>
+                            {% endif %}
                         </div>
                         <hr>
                         <div class="text-center mt-4">
