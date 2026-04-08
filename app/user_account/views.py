@@ -136,7 +136,7 @@ class SettingsView(LoginRequiredMixin, TemplateView):
         # 承認されていない場合はメッセージを追加
         if context['community'] and not context['community'].is_accepted:
             message = mark_safe(
-                'この集会は現在承認待ちです。既に公開されている技術・学術系集会に承認されると公開されるようになります。'
+                'この集会は現在承認待ちです。Hub運営スタッフに承認されると公開されるようになります。'
                 'Discord <a href="https://discord.gg/6jCkUUb9VN" target="_blank" rel="noopener noreferrer" class="alert-link">技術・学術系Hub</a>にご参加ください。'
             )
             messages.warning(self.request, message)

@@ -214,6 +214,8 @@ class SettingsViewTests(TestCase):
 
         # 承認待ちメッセージが含まれていること
         self.assertIn('承認待ち', message_text)
+        self.assertIn('Hub運営スタッフに承認されると公開されるようになります。', message_text)
+        self.assertNotIn('既に公開されている技術・学術系集会に承認されると', message_text)
         # Discordリンクが含まれていること
         self.assertIn('https://discord.gg/6jCkUUb9VN', message_text)
         self.assertIn('技術・学術系Hub', message_text)
