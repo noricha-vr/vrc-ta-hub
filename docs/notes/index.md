@@ -20,6 +20,7 @@
 | ファイル | 日付 | 概要 |
 |----------|------|------|
 | gemma-4-01.md | 04-08 | Gemma 4 の常駐モデル候補を整理した |
+| vket-collab-01.md | 04-07 | 公開イベント一覧の Google カレンダー URL 生成をスキーマ不整合に強化 |
 | db-sync-01.md | 04-06 | 本番DBからローカルへの初回同期 |
 | cloud-run-02.md | 04-06 | Cloud Run preview host を nginx 前段でも正規化 |
 | cloud-run-01.md | 04-05 | Cloud Run の古い tagged revision URL cleanup |

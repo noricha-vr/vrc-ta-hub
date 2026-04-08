@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db.models import Prefetch
 from django.db.utils import OperationalError
 from django.utils import timezone
 from django.views.generic import TemplateView
@@ -115,7 +116,14 @@ class IndexView(TemplateView):
             community__poster_image__isnull=False
         ).exclude(
             community__poster_image=''
-        ).select_related('community').order_by('date', 'start_time')
+        ).select_related('community').prefetch_related(
+            Prefetch(
+                'details',
+                queryset=EventDetail.objects.filter(status='approved').only(
+                    'event_id', 'speaker', 'theme', 'status'
+                ),
+            )
+        ).order_by('date', 'start_time')
 
         upcoming_event_details = EventDetail.objects.filter(
             event__date__gte=today,
