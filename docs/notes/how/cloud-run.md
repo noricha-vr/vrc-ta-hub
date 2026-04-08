@@ -23,6 +23,11 @@
 - 解決: nginx の `map` で `vrc-ta-hub` / `vrc-ta-hub-dev` 向け Cloud Run preview host を `vrc-ta-hub.com` に写像し、`proxy_set_header Host` で upstream へは正規ホストを渡す。Django 側 middleware は後段の防御として残す。
 - 教訓: Cloud Run preview URL 対応は Django だけで完結させず、proxy 前段でも raw host を止める二段構えにすると運用差分に強い。service 名を片系に固定すると dev 環境だけ再発するので、デプロイ先一覧とセットで見直す。
 
+## preview host の service 名は明示リストで固定する
+- 問題: Cloud Run preview host の判定を `K_SERVICE` のような実行環境依存に寄せると、nginx 側の正規化ルールと前提がズレたときに `DisallowedHost` が再発しやすい。
+- 解決: Django middleware 側も `vrc-ta-hub` / `vrc-ta-hub-dev` を既定値に持つ service 名リストで preview host を判定し、nginx テストも同じ正規表現ソースを参照して整合を固定する。
+- 教訓: Host 正規化の条件は proxy とアプリで別々に推測させず、同じ service 群を前提にテストで縛るほうが追跡しやすい。
+
 ## toGithubPagesJson 再生成
 - 問題: VRChat ワールド表示用 JSON は `noricha-vr/toGithubPagesJson` 側の GitHub Actions が生成しており、`vrc-ta-hub` 本番反映だけでは更新されない
 - 解決:

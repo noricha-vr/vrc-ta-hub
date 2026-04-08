@@ -2,11 +2,17 @@
 
 import os
 
+from django.core.exceptions import DisallowedHost
 from django.http import HttpResponse
-from django.test import SimpleTestCase, override_settings
+from django.test import RequestFactory, SimpleTestCase, override_settings
 from django.urls import path
 
-from website.middleware import _build_cloud_run_preview_host_pattern
+from website.middleware import (
+    CanonicalCloudRunHostMiddleware,
+    DEFAULT_CLOUD_RUN_SERVICE_NAMES,
+    _build_cloud_run_preview_host_pattern,
+    _build_cloud_run_service_names,
+)
 from website import settings as website_settings
 
 
@@ -20,6 +26,25 @@ urlpatterns = [
 
 
 class AllowedHostsSettingsTest(SimpleTestCase):
+    def setUp(self):
+        self.request_factory = RequestFactory()
+
+    def test_build_cloud_run_service_names_includes_default_services(self):
+        original_service_names = os.environ.get('CLOUD_RUN_SERVICE_NAMES')
+
+        try:
+            os.environ['CLOUD_RUN_SERVICE_NAMES'] = 'preview-service, vrc-ta-hub'
+
+            self.assertEqual(
+                _build_cloud_run_service_names(),
+                ('preview-service', *DEFAULT_CLOUD_RUN_SERVICE_NAMES),
+            )
+        finally:
+            if original_service_names is None:
+                os.environ.pop('CLOUD_RUN_SERVICE_NAMES', None)
+            else:
+                os.environ['CLOUD_RUN_SERVICE_NAMES'] = original_service_names
+
     def test_build_allowed_hosts_includes_env_hosts_without_run_app_wildcard(self):
         original_allowed_hosts = os.environ.get('ALLOWED_HOSTS')
         original_http_host = os.environ.get('HTTP_HOST')
@@ -45,7 +70,7 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             else:
                 os.environ['HTTP_HOST'] = original_http_host
 
-    def test_cloud_run_preview_host_pattern_matches_only_current_service(self):
+    def test_cloud_run_preview_host_pattern_matches_supported_services_only(self):
         pattern = _build_cloud_run_preview_host_pattern()
 
         self.assertRegex(
@@ -56,12 +81,12 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             'vrc-ta-hub-mhbhtr6sha-an.a.run.app',
             pattern,
         )
-        self.assertNotRegex(
-            'rev-24d1224---other-service-mhbhtr6sha-an.a.run.app',
+        self.assertRegex(
+            'rev-24d1224---vrc-ta-hub-dev-mhbhtr6sha-an.a.run.app',
             pattern,
         )
         self.assertNotRegex(
-            'rev-24d1224---vrc-ta-hub-dev-mhbhtr6sha-an.a.run.app',
+            'rev-24d1224---other-service-mhbhtr6sha-an.a.run.app',
             pattern,
         )
 
@@ -83,20 +108,30 @@ class AllowedHostsSettingsTest(SimpleTestCase):
         self.assertEqual(response.content.decode(), 'vrc-ta-hub.com')
 
     @override_settings(
-        ROOT_URLCONF=__name__,
         ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
-        MIDDLEWARE=[
-            'website.middleware.CanonicalCloudRunHostMiddleware',
-            'django.middleware.common.CommonMiddleware',
-        ],
     )
     def test_other_service_cloud_run_host_is_rejected(self):
-        response = self.client.get(
+        request = self.request_factory.get(
             '/healthz/',
             HTTP_HOST='rev-24d1224---other-service-mhbhtr6sha-an.a.run.app',
         )
+        CanonicalCloudRunHostMiddleware(lambda _: HttpResponse('ok'))(request)
 
-        self.assertEqual(response.status_code, 400)
+        with self.assertRaises(DisallowedHost):
+            request.get_host()
+
+    @override_settings(
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
+    )
+    def test_similar_prefix_service_cloud_run_host_is_rejected(self):
+        request = self.request_factory.get(
+            '/healthz/',
+            HTTP_HOST='rev-24d1224---other-vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+        )
+        CanonicalCloudRunHostMiddleware(lambda _: HttpResponse('ok'))(request)
+
+        with self.assertRaises(DisallowedHost):
+            request.get_host()
 
     @override_settings(
         ROOT_URLCONF=__name__,
@@ -106,10 +141,11 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             'django.middleware.common.CommonMiddleware',
         ],
     )
-    def test_similar_prefix_service_cloud_run_host_is_rejected(self):
+    def test_dev_service_cloud_run_host_is_canonicalized(self):
         response = self.client.get(
             '/healthz/',
             HTTP_HOST='rev-24d1224---vrc-ta-hub-dev-mhbhtr6sha-an.a.run.app',
         )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content.decode(), 'vrc-ta-hub.com')
