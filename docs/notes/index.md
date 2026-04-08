@@ -9,6 +9,7 @@
 | drf-spectacular.md | DRF Spectacular パターン |
 | event-webhook.md | Event Webhook パターン |
 | event-recurrence.md | 定期イベント生成パターン |
+| github-templates.md | GitHub テンプレート運用 |
 | gemma-4.md | Gemma 4 運用パターン |
 | django-pagination.md | Djangoページネーション入力検証パターン |
 | discord-auth.md | Discord OAuth 競合解消パターン |
@@ -24,6 +25,7 @@
 |----------|------|------|
 | event-webhook-01.md | 04-08 | 資料公開Webhookを slide_share シグナルに統合した |
 | event-recurrence-01.md | 04-08 | UIUXデザイン集会の future event ドリフトを固定日ルールで自己回復させた |
+| github-templates-01.md | 04-09 | GitHub PR / Issue テンプレートを標準化 |
 | gemma-4-01.md | 04-08 | Gemma 4 の常駐モデル候補を整理した |
 | ui-feedback-01.md | 04-08 | 記事生成つき保存に待機アニメーションを追加した |
 | vket-collab-01.md | 04-07 | 公開イベント一覧の Google カレンダー URL 生成をスキーマ不整合に強化 |
