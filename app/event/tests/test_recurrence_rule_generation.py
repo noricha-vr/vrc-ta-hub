@@ -171,6 +171,32 @@ class TestRecurrenceRuleGeneration(TestCase):
             # 第4週であることを確認
             week_of_month = (d.day - 1) // 7 + 1
             self.assertIn(week_of_month, [4, 5], f"{d} is week {week_of_month}, not 4th week")
+
+    def test_generate_monthly_fixed_day_without_llm(self):
+        """単純な毎月固定日はLLMを使わず決定論的に生成する"""
+        rule = RecurrenceRule.objects.create(
+            community=self.community,
+            frequency='OTHER',
+            custom_rule='毎月11日',
+            start_date=date(2024, 12, 11)
+        )
+
+        with patch.object(self.service, '_generate_dates_by_llm', side_effect=AssertionError("LLM should not be called")):
+            dates = self.service.generate_dates(
+                rule=rule,
+                base_date=date(2026, 3, 12),
+                base_time=time(22, 0),
+                months=3,
+                community=self.community
+            )
+
+        self.assertEqual(
+            dates,
+            [
+                date(2026, 4, 11),
+                date(2026, 5, 11),
+            ]
+        )
     
     def test_recurrence_preview_api_for_custom_rule(self):
         """RecurrencePreviewAPIでカスタムルールのプレビューをテスト"""

@@ -1,5 +1,6 @@
 """generate_recurring_eventsコマンドのテスト"""
-from datetime import time, timedelta
+from calendar import monthrange
+from datetime import date, time, timedelta
 from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
@@ -46,6 +47,13 @@ class GenerateRecurringEventsCommandTest(TestCase):
             is_recurring_master=True,
             recurrence_rule=self.weekly_rule
         )
+
+    def _shift_month(self, base_date: date, months: int) -> date:
+        month_index = base_date.month - 1 + months
+        year = base_date.year + month_index // 12
+        month = month_index % 12 + 1
+        day = min(base_date.day, monthrange(year, month)[1])
+        return date(year, month, day)
         
     def test_generate_recurring_events_basic(self):
         """基本的なイベント生成のテスト"""
@@ -325,3 +333,68 @@ class GenerateRecurringEventsCommandTest(TestCase):
                 event.duration, 90,
                 f"イベント {event.date} のdurationが90ではなく{event.duration}"
             )
+
+    def test_deterministic_custom_rule_cleans_invalid_future_instances(self):
+        """毎月固定日のカスタムルールでは未来のルール外イベントを掃除して正しい日付を補完する"""
+        custom_community = Community.objects.create(
+            name='固定日テストコミュニティ',
+            description='毎月固定日テスト用',
+            weekdays=['Tue'],
+            start_time=time(22, 0),
+            duration=60,
+            status='approved'
+        )
+        custom_rule = RecurrenceRule.objects.create(
+            community=custom_community,
+            frequency='OTHER',
+            custom_rule='毎月11日'
+        )
+
+        today = timezone.now().date()
+        if today.day >= 11:
+            next_valid_date = self._shift_month(today.replace(day=11), 1)
+        else:
+            next_valid_date = today.replace(day=11)
+        later_valid_date = self._shift_month(next_valid_date, 1)
+        later_invalid_date = later_valid_date + timedelta(days=1)
+
+        master_event = Event.objects.create(
+            community=custom_community,
+            date=self._shift_month(next_valid_date, -1),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='TUE',
+            is_recurring_master=True,
+            recurrence_rule=custom_rule
+        )
+        Event.objects.create(
+            community=custom_community,
+            date=next_valid_date,
+            start_time=time(22, 0),
+            duration=60,
+            weekday=next_valid_date.strftime('%a').upper()[:3],
+            recurring_master=master_event
+        )
+        invalid_future_event = Event.objects.create(
+            community=custom_community,
+            date=later_invalid_date,
+            start_time=time(22, 0),
+            duration=60,
+            weekday=later_invalid_date.strftime('%a').upper()[:3],
+            recurring_master=master_event
+        )
+
+        out = StringIO()
+        call_command('generate_recurring_events', '--months=4', stdout=out)
+
+        self.assertFalse(
+            Event.objects.filter(id=invalid_future_event.id).exists(),
+            "固定日ルールに合わない未来イベントが削除されていません"
+        )
+        self.assertTrue(
+            Event.objects.filter(
+                recurring_master=master_event,
+                date=later_valid_date,
+            ).exists(),
+            "固定日ルールの欠損イベントが補完されていません"
+        )

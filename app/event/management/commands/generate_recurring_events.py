@@ -88,11 +88,40 @@ class Command(BaseCommand):
                     )
                 )
                 continue
+
+            if service.has_deterministic_custom_rule(rule):
+                invalid_future_instance_ids = [
+                    event.id
+                    for event in Event.objects.filter(
+                        recurring_master=master,
+                        date__gte=today,
+                    )
+                    if not service.matches_custom_rule_date(rule, event.date)
+                ]
+                if invalid_future_instance_ids and not dry_run:
+                    deleted_invalid_count = Event.objects.filter(
+                        id__in=invalid_future_instance_ids
+                    ).delete()[0]
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f'{community.name}: ルール外の未来イベントを{deleted_invalid_count}件削除'
+                        )
+                    )
             
             # 最後に生成されたイベントの日付を取得
-            last_instance = Event.objects.filter(
+            recurring_instances = Event.objects.filter(
                 recurring_master=master
-            ).order_by('-date').first()
+            ).order_by('-date')
+            if service.has_deterministic_custom_rule(rule):
+                last_instance = next(
+                    (
+                        event for event in recurring_instances
+                        if service.matches_custom_rule_date(rule, event.date)
+                    ),
+                    None,
+                )
+            else:
+                last_instance = recurring_instances.first()
             
             # 基準日を決定（最後のインスタンスの次の日、またはマスターイベントの日付の次の発生日）
             if last_instance:

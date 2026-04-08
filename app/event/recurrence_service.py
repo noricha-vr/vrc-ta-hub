@@ -1,5 +1,7 @@
 """定期イベントの日付生成サービス"""
 import json
+import re
+from calendar import monthrange
 from datetime import datetime, timedelta, date
 from typing import List, Optional, Dict
 import traceback
@@ -36,9 +38,75 @@ class RecurrenceService:
             # ルールベースで生成
             return self._generate_dates_by_rule(rule, base_date, months)
         elif rule.frequency == 'OTHER':
+            fixed_day = self._extract_monthly_fixed_day(rule.custom_rule)
+            if fixed_day is not None:
+                return self._generate_dates_by_fixed_monthly_day(
+                    fixed_day=fixed_day,
+                    base_date=base_date,
+                    months=months,
+                    end_date=rule.end_date,
+                )
             # LLMで生成
             return self._generate_dates_by_llm(rule, base_date, base_time, months, community)
         return []
+
+    def has_deterministic_custom_rule(self, rule: RecurrenceRule) -> bool:
+        """サーバー側で安全に解釈できるカスタムルールかどうかを返す"""
+        return self._extract_monthly_fixed_day(rule.custom_rule) is not None
+
+    def matches_custom_rule_date(self, rule: RecurrenceRule, check_date: date) -> bool:
+        """カスタムルールに一致する日付かを返す"""
+        fixed_day = self._extract_monthly_fixed_day(rule.custom_rule)
+        if fixed_day is None:
+            return True
+        return check_date.day == min(fixed_day, monthrange(check_date.year, check_date.month)[1])
+
+    def _extract_monthly_fixed_day(self, custom_rule: Optional[str]) -> Optional[int]:
+        """「毎月11日」のような固定日ルールから日付を取り出す"""
+        if not custom_rule:
+            return None
+
+        normalized_rule = custom_rule.translate(str.maketrans('０１２３４５６７８９', '0123456789'))
+        normalized_rule = re.sub(r'\s+', '', normalized_rule)
+        match = re.fullmatch(r'毎月(\d{1,2})日(?:開催)?', normalized_rule)
+        if not match:
+            return None
+
+        fixed_day = int(match.group(1))
+        if 1 <= fixed_day <= 31:
+            return fixed_day
+        return None
+
+    def _generate_dates_by_fixed_monthly_day(
+        self,
+        fixed_day: int,
+        base_date: date,
+        months: int,
+        end_date: Optional[date] = None,
+    ) -> List[date]:
+        """毎月固定日開催の日付を決定論的に生成する"""
+        generated_dates = []
+        generation_end = base_date + timedelta(days=months * 30)
+        if end_date and end_date < generation_end:
+            generation_end = end_date
+
+        year = base_date.year
+        month = base_date.month
+        while True:
+            last_day = monthrange(year, month)[1]
+            current_date = date(year, month, min(fixed_day, last_day))
+
+            if current_date > generation_end:
+                break
+            if current_date >= base_date:
+                generated_dates.append(current_date)
+
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+
+        return generated_dates
     
     def _generate_dates_by_rule(self, rule: RecurrenceRule, base_date: date, months: int) -> List[date]:
         """ルールベースで日付リストを生成"""
