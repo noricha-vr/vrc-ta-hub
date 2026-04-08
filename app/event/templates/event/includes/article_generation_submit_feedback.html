@@ -176,11 +176,13 @@
         const checkbox = form.querySelector('#id_generate_blog_article');
         const detailTypeChecked = () => form.querySelector('input[name="detail_type"]:checked')?.value || 'LT';
 
-        const hasExistingSource = (
-            form.dataset.hasExistingSlideUrl === 'true'
-            || form.dataset.hasExistingSlideFile === 'true'
-            || form.dataset.hasExistingYoutubeUrl === 'true'
-        );
+        function hasExistingGenerationSource() {
+            const slideFileCleared = form.querySelector('#id_slide_file-clear')?.checked;
+            return (
+                (!slideFileCleared && form.dataset.hasExistingSlideFile === 'true')
+                || form.dataset.hasExistingYoutubeUrl === 'true'
+            );
+        }
 
         const messages = [
             'スライドの要点を拾っています…',
@@ -191,11 +193,10 @@
         let messageTimer = null;
 
         function hasGenerationSource() {
-            const slideUrl = form.querySelector('#id_slide_url')?.value.trim();
             const youtubeUrl = form.querySelector('#id_youtube_url')?.value.trim();
             const slideFile = form.querySelector('#id_slide_file');
             const hasSelectedFile = Boolean(slideFile?.files?.length);
-            return Boolean(slideUrl || youtubeUrl || hasSelectedFile || hasExistingSource);
+            return Boolean(youtubeUrl || hasSelectedFile || hasExistingGenerationSource());
         }
 
         function shouldShowGenerationState() {
