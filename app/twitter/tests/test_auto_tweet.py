@@ -1975,6 +1975,53 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.status, "generating")
         mock_thread_cls.assert_called_once()
 
+    @patch("event.notifications.requests.post")
+    @patch("twitter.signals.threading.Thread")
+    def test_slide_share_sends_community_webhook(self, mock_thread_cls, mock_post):
+        """資料公開時は集会に設定したWebhookへ通知を送る"""
+        mock_thread_cls.return_value = MagicMock()
+        mock_post.return_value = MagicMock(ok=True)
+        self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
+        self.community.save(update_fields=["notification_webhook_url"])
+
+        self.detail.slide_url = "https://example.com/slides"
+        self.detail.save()
+
+        mock_post.assert_called_once()
+        self.assertEqual(mock_post.call_args[0][0], self.community.notification_webhook_url)
+        payload = mock_post.call_args[1]["json"]
+        self.assertEqual(payload["content"], "📚 **資料公開のお知らせ**")
+        self.assertEqual(payload["embeds"][0]["title"], "登壇資料が公開されました")
+        self.assertEqual(payload["embeds"][0]["description"], f"**{self.detail.theme}**")
+        self.assertIn("event/detail", payload["embeds"][0]["fields"][2]["value"])
+
+    @patch("event.notifications.requests.post")
+    @patch("twitter.signals.threading.Thread")
+    def test_slide_share_without_webhook_does_not_send_notification(self, mock_thread_cls, mock_post):
+        """Webhook未設定なら資料公開通知は送らない"""
+        mock_thread_cls.return_value = MagicMock()
+
+        self.detail.slide_url = "https://example.com/slides"
+        self.detail.save()
+
+        mock_post.assert_not_called()
+
+    @patch("event.notifications.requests.post", side_effect=Exception("timeout"))
+    @patch("twitter.signals.threading.Thread")
+    def test_slide_share_webhook_failure_does_not_block_queue_creation(
+        self, mock_thread_cls, mock_post,
+    ):
+        """Webhook送信失敗でもslide_shareキュー作成は継続する"""
+        mock_thread_cls.return_value = MagicMock()
+        self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
+        self.community.save(update_fields=["notification_webhook_url"])
+
+        self.detail.slide_url = "https://example.com/slides"
+        self.detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        mock_post.assert_called_once()
+
     @patch("twitter.signals.threading.Thread")
     def test_youtube_url_first_set_creates_queue(self, mock_thread_cls):
         """youtube_url が初めて設定され、発表日が過去ならキューが作成される"""
@@ -1986,6 +2033,22 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.count(), 1)
         queue = TweetQueue.objects.first()
         self.assertEqual(queue.tweet_type, "slide_share")
+
+    @patch("event.notifications.requests.post")
+    @patch("twitter.signals.threading.Thread")
+    def test_youtube_only_does_not_send_slide_webhook(self, mock_thread_cls, mock_post):
+        """YouTubeのみ追加した場合はスライドWebhook通知を送らない"""
+        mock_thread_cls.return_value = MagicMock()
+        self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
+        self.community.save(update_fields=["notification_webhook_url"])
+
+        self.detail.youtube_url = "https://youtube.com/watch?v=test123"
+        self.detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        queue = TweetQueue.objects.first()
+        self.assertEqual(queue.tweet_type, "slide_share")
+        mock_post.assert_not_called()
 
     @patch("twitter.signals.threading.Thread")
     def test_future_event_does_not_create_queue(self, mock_thread_cls):
@@ -2029,6 +2092,28 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.detail.youtube_url = "https://youtube.com/watch?v=test123"
         self.detail.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
+
+    @patch("event.notifications.requests.post")
+    @patch("twitter.signals.threading.Thread")
+    def test_slide_webhook_still_sent_when_youtube_queue_already_exists(
+        self, mock_thread_cls, mock_post,
+    ):
+        """YouTube先行でキュー済みでも、後からスライド追加したらWebhookは送る"""
+        mock_thread_cls.return_value = MagicMock()
+        mock_post.return_value = MagicMock(ok=True)
+        self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
+        self.community.save(update_fields=["notification_webhook_url"])
+
+        self.detail.youtube_url = "https://youtube.com/watch?v=test123"
+        self.detail.save()
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        mock_post.assert_not_called()
+
+        self.detail.slide_url = "https://example.com/slides"
+        self.detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        mock_post.assert_called_once()
 
     @patch("twitter.signals.threading.Thread")
     def test_slide_url_update_does_not_create_queue(self, mock_thread_cls):

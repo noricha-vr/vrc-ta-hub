@@ -288,3 +288,83 @@ def _send_discord_notification_for_result(event_detail: EventDetail) -> None:
             )
     except Exception as e:
         logger.error(f"Discord Webhook通知エラー（申請結果）: {e}")
+
+
+def notify_slide_material_published(event_detail: EventDetail) -> None:
+    """資料公開時のDiscord Webhook通知を送信する."""
+    community = event_detail.event.community
+    webhook_url = community.notification_webhook_url
+
+    if not webhook_url:
+        return
+
+    detail_url = f"https://vrc-ta-hub.com{reverse('event:detail', kwargs={'pk': event_detail.pk})}"
+    slide_file_url = ""
+    if event_detail.slide_file:
+        raw_slide_file_url = event_detail.slide_file.url
+        slide_file_url = (
+            f"https://vrc-ta-hub.com{raw_slide_file_url}"
+            if raw_slide_file_url.startswith("/")
+            else raw_slide_file_url
+        )
+
+    fields = [
+        {"name": "👤 発表者", "value": event_detail.speaker, "inline": True},
+        {"name": "📅 開催日", "value": str(event_detail.event.date), "inline": True},
+        {"name": "🔗 イベント詳細", "value": detail_url, "inline": False},
+    ]
+
+    if event_detail.slide_url:
+        fields.append({
+            "name": "📄 スライドURL",
+            "value": event_detail.slide_url,
+            "inline": False,
+        })
+
+    if slide_file_url:
+        fields.append({
+            "name": "📎 アップロード済みPDF",
+            "value": slide_file_url,
+            "inline": False,
+        })
+
+    if event_detail.youtube_url:
+        fields.append({
+            "name": "🎥 YouTube",
+            "value": event_detail.youtube_url,
+            "inline": False,
+        })
+
+    message = {
+        "content": "📚 **資料公開のお知らせ**",
+        "embeds": [{
+            "title": "登壇資料が公開されました",
+            "description": f"**{event_detail.theme}**",
+            "color": 3447003,
+            "fields": fields,
+            "footer": {"text": community.name},
+        }],
+    }
+
+    try:
+        response = requests.post(
+            webhook_url, json=message, timeout=DISCORD_TIMEOUT_SECONDS,
+        )
+        if response.ok:
+            logger.info(
+                "Discord Webhook通知成功（資料公開）: Community=%s, EventDetail=%s",
+                community.name,
+                event_detail.pk,
+            )
+        else:
+            logger.warning(
+                "Discord Webhook通知失敗（資料公開）: status=%s, EventDetail=%s",
+                response.status_code,
+                event_detail.pk,
+            )
+    except Exception as e:
+        logger.error(
+            "Discord Webhook通知エラー（資料公開）: EventDetail=%s, error=%s",
+            event_detail.pk,
+            e,
+        )

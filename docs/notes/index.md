@@ -7,6 +7,7 @@
 | cloud-run.md | Cloud Run 運用パターン |
 | db-sync.md | 本番DB↔ローカルDB同期 手順 |
 | drf-spectacular.md | DRF Spectacular パターン |
+| event-webhook.md | Event Webhook パターン |
 | event-recurrence.md | 定期イベント生成パターン |
 | gemma-4.md | Gemma 4 運用パターン |
 | django-pagination.md | Djangoページネーション入力検証パターン |
@@ -20,6 +21,7 @@
 
 | ファイル | 日付 | 概要 |
 |----------|------|------|
+| event-webhook-01.md | 04-08 | 資料公開Webhookを slide_share シグナルに統合した |
 | event-recurrence-01.md | 04-08 | UIUXデザイン集会の future event ドリフトを固定日ルールで自己回復させた |
 | gemma-4-01.md | 04-08 | Gemma 4 の常駐モデル候補を整理した |
 | vket-collab-01.md | 04-07 | 公開イベント一覧の Google カレンダー URL 生成をスキーマ不整合に強化 |

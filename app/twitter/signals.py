@@ -223,6 +223,12 @@ def _queue_slide_share_tweet(instance, created):
     if not slide_newly_set and not youtube_newly_set and not slide_file_newly_set:
         return
 
+    should_notify_slide_webhook = slide_newly_set or slide_file_newly_set
+    if should_notify_slide_webhook:
+        from event.notifications import notify_slide_material_published
+
+        notify_slide_material_published(instance)
+
     # 重複チェック
     if TweetQueue.objects.filter(
         event_detail=instance, tweet_type="slide_share",
