@@ -54,7 +54,12 @@
                                 <i class="fas fa-lock me-1"></i>{{ form.datetime_lock_message }}
                             </div>
                         {% endif %}
-                        <form method="post" enctype="multipart/form-data">
+                        <form method="post"
+                              enctype="multipart/form-data"
+                              data-article-generation-form
+                              data-has-existing-slide-url="{% if form.instance.slide_url %}true{% else %}false{% endif %}"
+                              data-has-existing-slide-file="{% if form.instance.slide_file %}true{% else %}false{% endif %}"
+                              data-has-existing-youtube-url="{% if form.instance.youtube_url %}true{% else %}false{% endif %}">
                             {% csrf_token %}
                             {% if form.datetime_locked %}
                                 <div class="alert alert-warning" role="alert">
@@ -127,9 +132,19 @@
                                     <small class="text-muted ms-2">スライドやYouTube URLなど</small>
                                 </div>
                                 <div class="ms-auto">
-                                    <button type="submit" class="btn btn-primary">保存</button>
+                                    <button type="submit" class="btn btn-primary article-submit-button" data-article-submit-button>
+                                        <span class="article-submit-button__content" data-submit-default>
+                                            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+                                            保存
+                                        </span>
+                                        <span class="article-submit-button__loading" data-submit-loading hidden>
+                                            <span class="article-submit-button__spinner" aria-hidden="true"></span>
+                                            生成しながら保存中…
+                                        </span>
+                                    </button>
                                 </div>
                             </div>
+                            {% include 'event/includes/article_generation_submit_feedback.html' %}
                         </form>
                         <div class="p-2">
                         </div>

@@ -165,6 +165,19 @@ class EventDetailPermissionTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-article-generation-form')
+        self.assertContains(response, '生成しながら保存中…')
+
+    def test_owner_can_access_event_detail_create_view_with_generation_feedback(self):
+        """主催者の作成画面には記事生成待機UIが含まれる."""
+        self.client.login(username="owner_user", password="testpass123")
+
+        url = reverse("event:detail_create", kwargs={"event_pk": self.event.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-article-generation-form')
+        self.assertContains(response, '生成しながら保存中…')
 
     def test_applicant_cannot_access_pending_event_detail_update_view(self):
         """発表者本人でも承認待ちLTの更新画面にはアクセスできない."""
