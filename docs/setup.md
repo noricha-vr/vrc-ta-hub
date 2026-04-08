@@ -100,12 +100,11 @@ X_ACCESS_TOKEN_SECRET=生成されたアクセストークンシークレット
 
 ## 最低限必要な環境変数
 
-以下が設定されていれば基本的な開発が可能:
+`SECRET_KEY` のみ設定すれば基本的な開発が可能です。DB・ストレージの接続情報は `.env.example` にデフォルト値が入っています。
 
 | 環境変数 | 必須度 | 用途 |
 |----------|--------|------|
 | `SECRET_KEY` | 必須 | Django セッション・CSRF |
-| `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST` | 必須 | MySQL 接続 |
 | `GOOGLE_API_KEY` | 推奨 | カレンダー同期 |
 | `GOOGLE_CALENDAR_ID` | 推奨 | 同期先カレンダー |
 | `GEMINI_API_KEY` | 推奨 | AI コンテンツ生成 |
