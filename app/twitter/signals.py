@@ -224,6 +224,10 @@ def _queue_slide_share_tweet(instance, created):
         return
 
     should_notify_slide_webhook = slide_newly_set or slide_file_newly_set
+    if should_notify_slide_webhook:
+        from event.notifications import notify_slide_material_published
+
+        notify_slide_material_published(instance)
 
     # 重複チェック
     if TweetQueue.objects.filter(
@@ -237,10 +241,6 @@ def _queue_slide_share_tweet(instance, created):
         event=instance.event,
         event_detail=instance,
     )
-    from event.notifications import notify_slide_material_published
-
-    if should_notify_slide_webhook:
-        notify_slide_material_published(instance)
     logger.info(
         "Queued slide share tweet: %s - %s", instance.speaker, instance.theme,
     )

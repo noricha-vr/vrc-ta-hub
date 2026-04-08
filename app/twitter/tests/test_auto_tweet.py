@@ -2093,6 +2093,28 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.detail.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
 
+    @patch("event.notifications.requests.post")
+    @patch("twitter.signals.threading.Thread")
+    def test_slide_webhook_still_sent_when_youtube_queue_already_exists(
+        self, mock_thread_cls, mock_post,
+    ):
+        """YouTube先行でキュー済みでも、後からスライド追加したらWebhookは送る"""
+        mock_thread_cls.return_value = MagicMock()
+        mock_post.return_value = MagicMock(ok=True)
+        self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
+        self.community.save(update_fields=["notification_webhook_url"])
+
+        self.detail.youtube_url = "https://youtube.com/watch?v=test123"
+        self.detail.save()
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        mock_post.assert_not_called()
+
+        self.detail.slide_url = "https://example.com/slides"
+        self.detail.save()
+
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        mock_post.assert_called_once()
+
     @patch("twitter.signals.threading.Thread")
     def test_slide_url_update_does_not_create_queue(self, mock_thread_cls):
         """既に slide_url があるものを更新してもキューは作成されない"""
