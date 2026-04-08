@@ -1,7 +1,7 @@
 """認証ビューのテスト."""
 from django.contrib.auth import get_user_model
 from django.contrib.messages import get_messages
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from community.models import Community, CommunityMember
@@ -9,7 +9,27 @@ from user_account.tests.utils import create_discord_linked_user
 
 User = get_user_model()
 
+TEST_SOCIALACCOUNT_PROVIDERS = {
+    'discord': {
+        'SCOPE': ['identify', 'email'],
+    }
+}
 
+TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS = {
+    'discord': {
+        'SCOPE': ['identify', 'email'],
+        'APPS': [
+            {
+                'client_id': 'test-client-id',
+                'secret': 'test-secret',
+                'key': '',
+            }
+        ],
+    }
+}
+
+
+@override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
 class CustomLoginViewTests(TestCase):
     """CustomLoginViewのテストクラス."""
 
@@ -42,6 +62,12 @@ class CustomLoginViewTests(TestCase):
         response = self.client.get(self.login_url)
         self.assertContains(response, 'Discordでログイン')
         self.assertContains(response, 'fab fa-discord')
+
+    @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
+    def test_login_page_hides_discord_button_without_oauth_configuration(self):
+        """Discord OAuth 未設定時はログインボタンを出さないこと."""
+        response = self.client.get(self.login_url)
+        self.assertNotContains(response, 'Discordでログイン')
 
     def test_login_page_contains_remember_checkbox(self):
         """ログインページに「ログインしたままにする」チェックボックスが含まれていること."""
@@ -413,6 +439,7 @@ class UserUpdateViewTests(TestCase):
         self.assertContains(response, 'form-text')
 
 
+@override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
 class RegisterViewTests(TestCase):
     """RegisterViewのテストクラス."""
 
@@ -475,6 +502,30 @@ class RegisterViewTests(TestCase):
         self.assertIn('rel="noopener noreferrer"', content)
         self.assertIn('>利用規約</a>', content)
         self.assertIn('>プライバシーポリシー</a>', content)
+
+    @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
+    def test_register_page_shows_local_signup_form_without_discord_oauth(self):
+        """Discord OAuth 未設定時はローカル登録フォームを表示すること."""
+        response = self.client.get(self.register_url)
+        self.assertContains(response, 'ローカルアカウントを作成')
+        self.assertContains(response, 'name="user_name"')
+        self.assertContains(response, 'name="email"')
+        self.assertContains(response, 'name="password1"')
+        self.assertContains(response, 'name="password2"')
+
+    @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
+    def test_register_page_creates_local_user_without_discord_oauth(self):
+        """Discord OAuth 未設定時はローカルユーザーを作成できること."""
+        response = self.client.post(self.register_url, {
+            'user_name': 'local_signup_user',
+            'email': 'local-signup@example.com',
+            'password1': 'testpass12345',
+            'password2': 'testpass12345',
+        }, follow=True)
+
+        self.assertRedirects(response, reverse('account:login'))
+        self.assertTrue(User.objects.filter(user_name='local_signup_user').exists())
+        self.assertContains(response, 'アカウントを作成しました。ログインしてください。')
 
 
 class AllauthSignupRedirectTests(TestCase):

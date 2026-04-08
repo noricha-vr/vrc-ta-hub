@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load socialaccount %}
+{% load socialaccount account_tags %}
 {% block meta %}
     <title>新規登録 - VRChat 技術・学術系イベントHub</title>
     <meta name="twitter:title" content="新規登録 - VRChat 技術・学術系イベントHub">
@@ -23,8 +23,8 @@
                         <h4 class="mb-0">新規登録</h4>
                     </div>
                     <div class="card-body">
-                        {% get_providers as socialaccount_providers %}
-                        {% if socialaccount_providers %}
+                        {% discord_oauth_available as discord_oauth_enabled %}
+                        {% if discord_oauth_enabled %}
                         <div class="text-center my-5">
                             <a href="{% provider_login_url 'discord' %}" class="btn btn-lg" style="background-color: #5865F2; color: white;">
                                 <i class="fab fa-discord me-2"></i>Discordで登録
@@ -34,9 +34,39 @@
                             </p>
                         </div>
                         {% else %}
-                        <div class="alert alert-info text-center my-5">
-                            Discord連携が設定されていません。<a href="{% url 'account:login' %}">ログイン</a>してください。
+                        <div class="alert alert-info">
+                            Discord連携が未設定のため、ローカル開発用のユーザー登録フォームを表示しています。
                         </div>
+                        <form method="post">
+                            {% csrf_token %}
+                            {% for field in form %}
+                                <div class="mb-3">
+                                    <label for="{{ field.id_for_label }}" class="form-label">
+                                        {{ field.label }}
+                                        {% if field.field.required %}
+                                            <span class="text-danger">*</span>
+                                        {% endif %}
+                                    </label>
+                                    {{ field|add_class:"form-control" }}
+                                    {% if field.help_text %}
+                                        <small class="form-text text-muted">{{ field.help_text }}</small>
+                                    {% endif %}
+                                    {% if field.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {% for error in field.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                            <p class="text-muted small">
+                                登録することで、<a href="{% url 'ta_hub:terms' %}" target="_blank" rel="noopener noreferrer" class="text-decoration-underline">利用規約</a>および<a href="{% url 'ta_hub:privacy' %}" target="_blank" rel="noopener noreferrer" class="text-decoration-underline">プライバシーポリシー</a>に同意したものとみなされます。
+                            </p>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-user-plus me-2"></i>ローカルアカウントを作成
+                            </button>
+                        </form>
                         {% endif %}
                         <div class="text-center mt-4">
                             <p class="text-muted">既にアカウントをお持ちの方は<a href="{% url 'account:login' %}">こちら</a></p>

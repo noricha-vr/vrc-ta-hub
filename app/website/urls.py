@@ -26,7 +26,7 @@ urlpatterns = [
     path('event/', include('event.urls')),
     path('account/', include('user_account.urls')),
     path('vket/', include('vket.urls')),
-    # Redirect allauth default signup to custom register page (Discord OAuth required)
+    # Redirect allauth default signup to custom register page
     path('accounts/signup/', RedirectView.as_view(url='/account/register/', permanent=False, query_string=True)),
     path('accounts/', include('allauth.urls')),
     path('twitter/', include('twitter.urls')),

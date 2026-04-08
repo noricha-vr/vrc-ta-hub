@@ -1,7 +1,7 @@
 services:
 
   vrc-ta-hub:
-    container_name: 'vrc-ta-hub'
+    container_name: '${COMPOSE_PROJECT_NAME:-vrc-ta-hub}-app'
     build:
       context: .
       dockerfile: Dockerfile
@@ -16,17 +16,17 @@ services:
       - DEBUG=True
       - PYTHONPATH=/app
     ports:
-      - '8015:8080'
+      - '${APP_PORT:-8015}:8080'
     networks:
       - my_network
     depends_on:
       db:
         condition: service_healthy
     # 開発環境: コード変更時に自動リロード
-    command: python manage.py runserver 0.0.0.0:8080
+    command: /bin/sh -c "python manage.py wait_for_db --timeout 90 && python manage.py runserver 0.0.0.0:8080"
 
   db:
-    container_name: 'vrc-ta-hub-db'
+    container_name: '${COMPOSE_PROJECT_NAME:-vrc-ta-hub}-db'
     image: mysql:8.0
     environment:
       MYSQL_DATABASE: vrc_ta_hub
@@ -34,7 +34,7 @@ services:
       MYSQL_PASSWORD: dev_password
       MYSQL_ROOT_PASSWORD: root_password
     ports:
-      - '3306:3306'
+      - '${DB_PORT:-3306}:3306'
     volumes:
       - db_data:/var/lib/mysql
     networks:
@@ -46,14 +46,14 @@ services:
       retries: 10
 
   storage:
-    container_name: 'vrc-ta-hub-storage'
+    container_name: '${COMPOSE_PROJECT_NAME:-vrc-ta-hub}-storage'
     image: rustfs/rustfs
     environment:
       RUSTFS_ROOT_USER: minioadmin
       RUSTFS_ROOT_PASSWORD: minioadmin
     ports:
-      - '9000:9000'
-      - '9001:9001'
+      - '${STORAGE_PORT:-9000}:9000'
+      - '${STORAGE_CONSOLE_PORT:-9001}:9001'
     volumes:
       - storage_data:/data
     networks:
@@ -66,8 +66,8 @@ services:
       retries: 5
 
   storage-init:
-    container_name: 'vrc-ta-hub-storage-init'
-    image: curlimages/curl
+    container_name: '${COMPOSE_PROJECT_NAME:-vrc-ta-hub}-storage-init'
+    image: minio/mc
     depends_on:
       storage:
         condition: service_healthy
@@ -75,9 +75,9 @@ services:
       - my_network
     entrypoint: >
       /bin/sh -c "
-      curl -sf -o /dev/null -X PUT http://minioadmin:minioadmin@storage:9000/vrc-ta-hub || true;
-      curl -sf -o /dev/null -X PUT http://minioadmin:minioadmin@storage:9000/vrc-ta-hub/?policy -d '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"AWS\":[\"*\"]},\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::vrc-ta-hub/*\"]}]}' || true;
-      exit 0;
+      mc alias set local http://storage:9000 minioadmin minioadmin &&
+      mc mb --ignore-existing local/vrc-ta-hub &&
+      mc anonymous set download local/vrc-ta-hub
       "
 
 volumes:
