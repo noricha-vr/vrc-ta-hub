@@ -14,6 +14,8 @@ import os
 import sys
 from pathlib import Path
 
+from website.hosts import get_canonical_host, normalize_host
+
 _settings_logger = logging.getLogger('django.settings')
 
 
@@ -30,15 +32,22 @@ def _split_csv_env(env_name: str) -> list[str]:
     return [item.strip() for item in value.split(',') if item.strip()]
 
 
+def _get_canonical_host() -> str:
+    return get_canonical_host()
+
+
+APP_CANONICAL_HOST = _get_canonical_host()
+
+
 def _build_allowed_hosts() -> list[str]:
     hosts = [
-        'vrc-ta-hub.com',
+        _get_canonical_host(),
         'localhost',
         '127.0.0.1',
         *_split_csv_env('ALLOWED_HOSTS'),
     ]
 
-    http_host = os.environ.get('HTTP_HOST')
+    http_host = normalize_host(os.environ.get('HTTP_HOST'))
     if http_host:
         hosts.append(http_host)
 
@@ -145,8 +154,9 @@ CORS_URLS_REGEX = r'^/api/.*$'
 AUTH_USER_MODEL = 'user_account.CustomUser'
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
+    # Cloud Run preview host は raw Host のまま下流へ流さない。参照: PR #TODO
     'website.middleware.CanonicalCloudRunHostMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

@@ -45,17 +45,20 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             else:
                 os.environ['CLOUD_RUN_SERVICE_NAMES'] = original_service_names
 
-    def test_build_allowed_hosts_includes_env_hosts_without_run_app_wildcard(self):
+    def test_build_allowed_hosts_includes_canonical_and_env_hosts_without_run_app_wildcard(self):
         original_allowed_hosts = os.environ.get('ALLOWED_HOSTS')
+        original_app_canonical_host = os.environ.get('APP_CANONICAL_HOST')
         original_http_host = os.environ.get('HTTP_HOST')
 
         try:
             os.environ['ALLOWED_HOSTS'] = 'example.com, api.example.com'
-            os.environ['HTTP_HOST'] = 'preview.example.com'
+            os.environ['APP_CANONICAL_HOST'] = 'https://preview.vrc-ta-hub.com:8443/'
+            os.environ['HTTP_HOST'] = 'https://preview.example.com:9443/'
 
             allowed_hosts = website_settings._build_allowed_hosts()
 
             self.assertNotIn('.a.run.app', website_settings.ALLOWED_HOSTS)
+            self.assertIn('preview.vrc-ta-hub.com', allowed_hosts)
             self.assertIn('example.com', allowed_hosts)
             self.assertIn('api.example.com', allowed_hosts)
             self.assertIn('preview.example.com', allowed_hosts)
@@ -64,6 +67,11 @@ class AllowedHostsSettingsTest(SimpleTestCase):
                 os.environ.pop('ALLOWED_HOSTS', None)
             else:
                 os.environ['ALLOWED_HOSTS'] = original_allowed_hosts
+
+            if original_app_canonical_host is None:
+                os.environ.pop('APP_CANONICAL_HOST', None)
+            else:
+                os.environ['APP_CANONICAL_HOST'] = original_app_canonical_host
 
             if original_http_host is None:
                 os.environ.pop('HTTP_HOST', None)
@@ -149,3 +157,47 @@ class AllowedHostsSettingsTest(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content.decode(), 'vrc-ta-hub.com')
+
+    @override_settings(
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
+    )
+    def test_server_name_is_canonicalized_when_http_host_is_absent(self):
+        request = self.request_factory.get('/healthz/')
+        request.META.pop('HTTP_HOST', None)
+        request.META['SERVER_NAME'] = 'rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app'
+
+        CanonicalCloudRunHostMiddleware(lambda req: HttpResponse(req.get_host()))(request)
+
+        self.assertEqual(request.get_host(), 'vrc-ta-hub.com')
+
+    @override_settings(
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'preview.vrc-ta-hub.com'],
+    )
+    def test_cloud_run_revision_host_uses_normalized_canonical_host(self):
+        original_app_canonical_host = os.environ.get('APP_CANONICAL_HOST')
+
+        try:
+            os.environ['APP_CANONICAL_HOST'] = 'https://preview.vrc-ta-hub.com/'
+            request = self.request_factory.get(
+                '/healthz/',
+                HTTP_HOST='rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+            )
+
+            response = CanonicalCloudRunHostMiddleware(
+                lambda req: HttpResponse(req.get_host())
+            )(request)
+
+            self.assertEqual(response.content.decode(), 'preview.vrc-ta-hub.com')
+        finally:
+            if original_app_canonical_host is None:
+                os.environ.pop('APP_CANONICAL_HOST', None)
+            else:
+                os.environ['APP_CANONICAL_HOST'] = original_app_canonical_host
+
+    def test_host_canonicalization_middleware_runs_before_cors(self):
+        middleware = website_settings.MIDDLEWARE
+
+        self.assertLess(
+            middleware.index('website.middleware.CanonicalCloudRunHostMiddleware'),
+            middleware.index('corsheaders.middleware.CorsMiddleware'),
+        )
