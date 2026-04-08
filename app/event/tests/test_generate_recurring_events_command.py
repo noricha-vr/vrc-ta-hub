@@ -398,3 +398,55 @@ class GenerateRecurringEventsCommandTest(TestCase):
             ).exists(),
             "固定日ルールの欠損イベントが補完されていません"
         )
+
+    def test_deterministic_custom_rule_backfills_gaps_before_existing_future_match(self):
+        """deterministicルールでは未来に正しいイベントが一部残っていても手前の欠損月を補完する"""
+        custom_community = Community.objects.create(
+            name='固定日ギャップテストコミュニティ',
+            description='毎月固定日のギャップ補完テスト用',
+            weekdays=['Tue'],
+            start_time=time(22, 0),
+            duration=60,
+            status='approved'
+        )
+        custom_rule = RecurrenceRule.objects.create(
+            community=custom_community,
+            frequency='OTHER',
+            custom_rule='毎月11日'
+        )
+
+        today = timezone.now().date()
+        if today.day >= 11:
+            first_expected_date = self._shift_month(today.replace(day=11), 1)
+        else:
+            first_expected_date = today.replace(day=11)
+        second_expected_date = self._shift_month(first_expected_date, 1)
+
+        master_event = Event.objects.create(
+            community=custom_community,
+            date=self._shift_month(first_expected_date, -1),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='TUE',
+            is_recurring_master=True,
+            recurrence_rule=custom_rule
+        )
+        Event.objects.create(
+            community=custom_community,
+            date=second_expected_date,
+            start_time=time(22, 0),
+            duration=60,
+            weekday=second_expected_date.strftime('%a').upper()[:3],
+            recurring_master=master_event
+        )
+
+        out = StringIO()
+        call_command('generate_recurring_events', '--months=4', stdout=out)
+
+        self.assertTrue(
+            Event.objects.filter(
+                recurring_master=master_event,
+                date=first_expected_date,
+            ).exists(),
+            "未来に正しいイベントが残っている場合でも手前の欠損月を補完できていません"
+        )

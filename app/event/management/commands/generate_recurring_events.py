@@ -108,33 +108,27 @@ class Command(BaseCommand):
                         )
                     )
             
-            # 最後に生成されたイベントの日付を取得
-            recurring_instances = Event.objects.filter(
-                recurring_master=master
-            ).order_by('-date')
-            if service.has_deterministic_custom_rule(rule):
-                last_instance = next(
-                    (
-                        event for event in recurring_instances
-                        if service.matches_custom_rule_date(rule, event.date)
-                    ),
-                    None,
-                )
-            else:
-                last_instance = recurring_instances.first()
-            
-            # 基準日を決定（最後のインスタンスの次の日、またはマスターイベントの日付の次の発生日）
-            if last_instance:
-                base_date = last_instance.date + timedelta(days=1)
-            else:
-                # マスターイベントの日付から次の発生日を計算
-                # マスターイベント自体は最初の開催日として扱うため、次の発生日から生成
-                base_date = master.date + timedelta(days=1)
-            
-            # 今日より前の日付なら今日に設定
             today = timezone.now().date()
-            if base_date < today:
+            if service.has_deterministic_custom_rule(rule):
+                # deterministic なルールは「今日以降の期待される全開催日」を毎回計算し、
+                # 既存イベントとの差分だけを補完する。これで未来の欠損月も自己回復できる。
                 base_date = today
+            else:
+                # 最後に生成されたイベントの日付を取得
+                recurring_instances = Event.objects.filter(
+                    recurring_master=master
+                ).order_by('-date')
+                last_instance = recurring_instances.first()
+
+                # 基準日を決定（最後のインスタンスの次の日、またはマスターイベントの日付の次の発生日）
+                if last_instance:
+                    base_date = last_instance.date + timedelta(days=1)
+                else:
+                    # マスターイベント自体は最初の開催日として扱うため、次の発生日から生成
+                    base_date = master.date + timedelta(days=1)
+
+                if base_date < today:
+                    base_date = today
             
             # 終了日を計算
             end_date = today + timedelta(days=months * 30)
