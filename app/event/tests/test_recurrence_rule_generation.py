@@ -197,6 +197,90 @@ class TestRecurrenceRuleGeneration(TestCase):
                 date(2026, 5, 11),
             ]
         )
+
+    def test_generate_last_saturday_without_llm(self):
+        """最終土曜日ルールを決定論的に生成する"""
+        rule = RecurrenceRule.objects.create(
+            community=self.community,
+            frequency='OTHER',
+            custom_rule='最終土曜日',
+            start_date=date(2025, 6, 28)
+        )
+
+        with patch.object(self.service, '_generate_dates_by_llm', side_effect=AssertionError("LLM should not be called")):
+            dates = self.service.generate_dates(
+                rule=rule,
+                base_date=date(2026, 4, 1),
+                base_time=time(22, 0),
+                months=3,
+                community=self.community
+            )
+
+        self.assertEqual(
+            dates,
+            [
+                date(2026, 4, 25),
+                date(2026, 5, 30),
+                date(2026, 6, 27),
+            ]
+        )
+
+    def test_generate_multi_date_without_llm(self):
+        """複数日付指定ルールを決定論的に生成する"""
+        rule = RecurrenceRule.objects.create(
+            community=self.community,
+            frequency='OTHER',
+            custom_rule='毎月8のつく日（8日、18日、28日）',
+            start_date=date(2025, 6, 28)
+        )
+
+        with patch.object(self.service, '_generate_dates_by_llm', side_effect=AssertionError("LLM should not be called")):
+            dates = self.service.generate_dates(
+                rule=rule,
+                base_date=date(2026, 4, 1),
+                base_time=time(22, 0),
+                months=2,
+                community=self.community
+            )
+
+        self.assertEqual(
+            dates,
+            [
+                date(2026, 4, 8),
+                date(2026, 4, 18),
+                date(2026, 4, 28),
+                date(2026, 5, 8),
+                date(2026, 5, 18),
+                date(2026, 5, 28),
+            ]
+        )
+
+    def test_generate_generic_monthly_uses_start_date_anchor(self):
+        """曖昧な月1ルールは start_date の第N曜日をアンカーにする"""
+        rule = RecurrenceRule.objects.create(
+            community=self.community,
+            frequency='OTHER',
+            custom_rule='月1',
+            start_date=date(2025, 7, 20)  # 第3日曜日
+        )
+
+        with patch.object(self.service, '_generate_dates_by_llm', side_effect=AssertionError("LLM should not be called")):
+            dates = self.service.generate_dates(
+                rule=rule,
+                base_date=date(2026, 4, 1),
+                base_time=time(22, 0),
+                months=3,
+                community=self.community
+            )
+
+        self.assertEqual(
+            dates,
+            [
+                date(2026, 4, 19),
+                date(2026, 5, 17),
+                date(2026, 6, 21),
+            ]
+        )
     
     def test_recurrence_preview_api_for_custom_rule(self):
         """RecurrencePreviewAPIでカスタムルールのプレビューをテスト"""

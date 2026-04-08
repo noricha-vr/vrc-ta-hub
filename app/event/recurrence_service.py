@@ -13,6 +13,30 @@ from openai import OpenAI
 
 from event.models import Event, RecurrenceRule
 
+WEEKDAY_TOKEN_MAP = {
+    '月': 0,
+    '火': 1,
+    '水': 2,
+    '木': 3,
+    '金': 4,
+    '土': 5,
+    '日': 6,
+}
+
+WEEK_TOKEN_MAP = {
+    '1': 1,
+    '2': 2,
+    '3': 3,
+    '4': 4,
+    '5': 5,
+    '一': 1,
+    '二': 2,
+    '三': 3,
+    '四': 4,
+    '五': 5,
+    '最終': -1,
+}
+
 
 class RecurrenceService:
     """定期イベントの日付を生成するサービス"""
@@ -38,10 +62,10 @@ class RecurrenceService:
             # ルールベースで生成
             return self._generate_dates_by_rule(rule, base_date, months)
         elif rule.frequency == 'OTHER':
-            fixed_day = self._extract_monthly_fixed_day(rule.custom_rule)
-            if fixed_day is not None:
-                return self._generate_dates_by_fixed_monthly_day(
-                    fixed_day=fixed_day,
+            deterministic_spec = self._parse_deterministic_custom_rule(rule)
+            if deterministic_spec is not None:
+                return self._generate_dates_by_deterministic_spec(
+                    deterministic_spec=deterministic_spec,
                     base_date=base_date,
                     months=months,
                     end_date=rule.end_date,
@@ -52,39 +76,100 @@ class RecurrenceService:
 
     def has_deterministic_custom_rule(self, rule: RecurrenceRule) -> bool:
         """サーバー側で安全に解釈できるカスタムルールかどうかを返す"""
-        return self._extract_monthly_fixed_day(rule.custom_rule) is not None
+        return self._parse_deterministic_custom_rule(rule) is not None
 
     def matches_custom_rule_date(self, rule: RecurrenceRule, check_date: date) -> bool:
         """カスタムルールに一致する日付かを返す"""
-        fixed_day = self._extract_monthly_fixed_day(rule.custom_rule)
-        if fixed_day is None:
+        deterministic_spec = self._parse_deterministic_custom_rule(rule)
+        if deterministic_spec is None:
             return True
-        return check_date.day == min(fixed_day, monthrange(check_date.year, check_date.month)[1])
+        return self._matches_deterministic_spec(deterministic_spec, check_date)
 
-    def _extract_monthly_fixed_day(self, custom_rule: Optional[str]) -> Optional[int]:
-        """「毎月11日」のような固定日ルールから日付を取り出す"""
+    def _normalize_custom_rule(self, custom_rule: Optional[str]) -> str:
         if not custom_rule:
-            return None
+            return ''
 
         normalized_rule = custom_rule.translate(str.maketrans('０１２３４５６７８９', '0123456789'))
-        normalized_rule = re.sub(r'\s+', '', normalized_rule)
-        match = re.fullmatch(r'毎月(\d{1,2})日(?:開催)?', normalized_rule)
-        if not match:
+        return re.sub(r'\s+', '', normalized_rule)
+
+    def _parse_deterministic_custom_rule(self, rule: RecurrenceRule) -> Optional[Dict]:
+        """既知の自由記述ルールを deterministic に解釈する"""
+        normalized_rule = self._normalize_custom_rule(rule.custom_rule)
+        if not normalized_rule:
             return None
 
-        fixed_day = int(match.group(1))
-        if 1 <= fixed_day <= 31:
-            return fixed_day
+        monthly_dates = self._extract_monthly_dates(normalized_rule)
+        if monthly_dates:
+            return {
+                'kind': 'monthly_dates',
+                'days': monthly_dates,
+            }
+
+        monthly_weekdays = self._extract_monthly_weekday_rules(normalized_rule)
+        if monthly_weekdays:
+            return {
+                'kind': 'monthly_weekdays',
+                'pairs': monthly_weekdays,
+            }
+
+        if normalized_rule in {'毎月', '月1'} and rule.start_date:
+            return {
+                'kind': 'monthly_weekdays',
+                'pairs': [(self._get_week_of_month(rule.start_date), rule.start_date.weekday())],
+            }
+
         return None
 
-    def _generate_dates_by_fixed_monthly_day(
+    def _extract_monthly_dates(self, normalized_rule: str) -> List[int]:
+        """日付指定の自由記述ルールを抽出する"""
+        single_day_match = re.fullmatch(r'毎月(\d{1,2})日(?:開催)?', normalized_rule)
+        if single_day_match:
+            return [int(single_day_match.group(1))]
+
+        date_tokens = [
+            int(token)
+            for token in re.findall(r'(?<!第)(\d{1,2})日', normalized_rule)
+        ]
+        valid_dates = sorted({token for token in date_tokens if 1 <= token <= 31})
+        if len(valid_dates) >= 2:
+            return valid_dates
+        return []
+
+    def _extract_monthly_weekday_rules(self, normalized_rule: str) -> List[tuple[int, int]]:
+        """第N曜日系の自由記述ルールを抽出する"""
+        pairs: list[tuple[int, int]] = []
+
+        for segment in re.split(r'[、,]', normalized_rule):
+            cleaned_segment = segment.split('：')[-1]
+            cleaned_segment = cleaned_segment.strip('（）()')
+
+            last_match = re.search(r'最終([月火水木金土日])曜日', cleaned_segment)
+            if last_match:
+                pairs.append((-1, WEEKDAY_TOKEN_MAP[last_match.group(1)]))
+                continue
+
+            week_day_match = re.search(
+                r'(第?(?:[1-5一二三四五]|最終)(?:・第?(?:[1-5一二三四五]|最終))*)([月火水木金土日])曜日',
+                cleaned_segment,
+            )
+            if week_day_match:
+                weekday = WEEKDAY_TOKEN_MAP[week_day_match.group(2)]
+                for week_token in week_day_match.group(1).split('・'):
+                    normalized_week = week_token.replace('第', '')
+                    week = WEEK_TOKEN_MAP.get(normalized_week)
+                    if week is not None:
+                        pairs.append((week, weekday))
+
+        return sorted(set(pairs))
+
+    def _generate_dates_by_deterministic_spec(
         self,
-        fixed_day: int,
+        deterministic_spec: Dict,
         base_date: date,
         months: int,
         end_date: Optional[date] = None,
     ) -> List[date]:
-        """毎月固定日開催の日付を決定論的に生成する"""
+        """deterministic に解釈できる自由記述ルールの日付を生成する"""
         generated_dates = []
         generation_end = base_date + timedelta(days=months * 30)
         if end_date and end_date < generation_end:
@@ -93,20 +178,56 @@ class RecurrenceService:
         year = base_date.year
         month = base_date.month
         while True:
-            last_day = monthrange(year, month)[1]
-            current_date = date(year, month, min(fixed_day, last_day))
+            current_month_dates = self._resolve_month_dates(
+                deterministic_spec=deterministic_spec,
+                year=year,
+                month=month,
+            )
 
-            if current_date > generation_end:
+            if current_month_dates and min(current_month_dates) > generation_end:
                 break
-            if current_date >= base_date:
-                generated_dates.append(current_date)
+
+            for current_date in current_month_dates:
+                if base_date <= current_date <= generation_end:
+                    generated_dates.append(current_date)
 
             month += 1
             if month > 12:
                 month = 1
                 year += 1
 
-        return generated_dates
+            if date(year, month, 1) > generation_end:
+                break
+
+        return sorted(set(generated_dates))
+
+    def _resolve_month_dates(self, deterministic_spec: Dict, year: int, month: int) -> List[date]:
+        """指定月の開催日一覧を返す"""
+        if deterministic_spec['kind'] == 'monthly_dates':
+            last_day = monthrange(year, month)[1]
+            days = deterministic_spec['days']
+            if len(days) == 1:
+                return [date(year, month, min(days[0], last_day))]
+            return [date(year, month, day) for day in days if day <= last_day]
+
+        if deterministic_spec['kind'] == 'monthly_weekdays':
+            month_start = date(year, month, 1)
+            resolved_dates = []
+            for week, weekday in deterministic_spec['pairs']:
+                resolved_date = self._get_nth_weekday_of_month(month_start, weekday, week)
+                if resolved_date:
+                    resolved_dates.append(resolved_date)
+            return sorted(set(resolved_dates))
+
+        return []
+
+    def _matches_deterministic_spec(self, deterministic_spec: Dict, check_date: date) -> bool:
+        """deterministic spec に一致するか判定する"""
+        return check_date in self._resolve_month_dates(
+            deterministic_spec=deterministic_spec,
+            year=check_date.year,
+            month=check_date.month,
+        )
     
     def _generate_dates_by_rule(self, rule: RecurrenceRule, base_date: date, months: int) -> List[date]:
         """ルールベースで日付リストを生成"""
@@ -212,6 +333,11 @@ class RecurrenceService:
     
     def _get_nth_weekday_of_month(self, target_date: date, weekday: int, n: int) -> Optional[date]:
         """指定月の第N曜日を取得"""
+        if n == -1:
+            last_day = target_date.replace(day=monthrange(target_date.year, target_date.month)[1])
+            days_back = (last_day.weekday() - weekday) % 7
+            return last_day - timedelta(days=days_back)
+
         # 月初の日付を取得
         first_day = target_date.replace(day=1)
         

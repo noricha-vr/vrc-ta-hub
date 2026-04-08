@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 from datetime import datetime, timedelta
 import os
@@ -7,6 +8,7 @@ from unittest.mock import patch
 from community.models import Community
 from event.models import Event
 from event.views import delete_outdated_events, register_calendar_events
+from website.settings import REQUEST_TOKEN
 
 
 class EventSyncTest(TestCase):
@@ -150,6 +152,38 @@ class EventSyncTest(TestCase):
         self.assertTrue(Event.objects.filter(id=self.event1.id).exists())
         self.assertTrue(Event.objects.filter(id=self.event2.id).exists())
         self.assertTrue(Event.objects.filter(id=self.event3.id).exists())
+
+    @patch("event.views.sync.DatabaseToGoogleSync")
+    def test_sync_calendar_events_respects_months_query(self, mock_sync_cls):
+        """syncエンドポイントが months クエリを同期範囲へ渡すことを確認"""
+        mock_sync = mock_sync_cls.return_value
+        mock_sync.sync_all_communities.return_value = {
+            "created": 0,
+            "updated": 0,
+            "deleted": 0,
+            "errors": 0,
+            "skipped": 0,
+            "duplicate_prevented": 0,
+        }
+
+        response = self.client.get(
+            reverse("event:sync_calendar_events") + "?months=6",
+            HTTP_REQUEST_TOKEN=REQUEST_TOKEN,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_sync.sync_all_communities.assert_called_once_with(months_ahead=6)
+
+    @patch("event.views.sync.DatabaseToGoogleSync")
+    def test_sync_calendar_events_rejects_invalid_months_query(self, mock_sync_cls):
+        """syncエンドポイントが不正な months を拒否することを確認"""
+        response = self.client.get(
+            reverse("event:sync_calendar_events") + "?months=0",
+            HTTP_REQUEST_TOKEN=REQUEST_TOKEN,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        mock_sync_cls.assert_not_called()
 
     def test_delete_outdated_events_with_timezone_difference(self):
         """
@@ -301,5 +335,3 @@ class EventSyncTest(TestCase):
             date=new_future_date,
             start_time="20:00:00"
         ).exists())
-
-
