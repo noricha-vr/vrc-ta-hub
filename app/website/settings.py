@@ -154,7 +154,7 @@ CORS_URLS_REGEX = r'^/api/.*$'
 AUTH_USER_MODEL = 'user_account.CustomUser'
 
 MIDDLEWARE = [
-    # Cloud Run preview host は raw Host のまま下流へ流さない。参照: PR #TODO
+    # Cloud Run preview host は raw Host のまま下流へ流さない。参照: PR #237
     'website.middleware.CanonicalCloudRunHostMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
