@@ -1,0 +1,260 @@
+<style>
+    .article-submit-button {
+        position: relative;
+        overflow: hidden;
+        min-width: 13rem;
+    }
+    .article-submit-button::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.28) 45%, transparent 75%);
+        transform: translateX(-130%);
+        opacity: 0;
+    }
+    .article-submit-button[data-submit-state="generating"] {
+        background: linear-gradient(135deg, #0d6efd 0%, #4f8dfd 100%);
+        border-color: #0d6efd;
+        box-shadow: 0 12px 30px rgba(13, 110, 253, 0.25);
+        cursor: progress;
+    }
+    .article-submit-button[data-submit-state="generating"]::after {
+        opacity: 1;
+        animation: article-submit-shimmer 1.6s linear infinite;
+    }
+    .article-submit-button__content,
+    .article-submit-button__loading {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .article-submit-button__loading[hidden],
+    .article-submit-button__content[hidden] {
+        display: none !important;
+    }
+    .article-submit-button__spinner {
+        width: 1rem;
+        height: 1rem;
+        border-radius: 999px;
+        border: 2px solid rgba(255, 255, 255, 0.32);
+        border-top-color: #fff;
+        animation: article-submit-spin 0.8s linear infinite;
+    }
+    .article-submit-feedback {
+        position: relative;
+        margin-top: 1rem;
+        padding: 1rem 1.1rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(13, 110, 253, 0.14);
+        background:
+            radial-gradient(circle at top left, rgba(13, 110, 253, 0.16), transparent 42%),
+            linear-gradient(135deg, rgba(248, 250, 255, 0.96), rgba(232, 241, 255, 0.96));
+        box-shadow: 0 18px 38px rgba(13, 110, 253, 0.12);
+        overflow: hidden;
+    }
+    .article-submit-feedback[hidden] {
+        display: none !important;
+    }
+    .article-submit-feedback__glow {
+        position: absolute;
+        top: -2rem;
+        right: -2rem;
+        width: 7rem;
+        height: 7rem;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(79, 141, 253, 0.28), transparent 68%);
+        animation: article-submit-pulse 2.2s ease-in-out infinite;
+        pointer-events: none;
+    }
+    .article-submit-feedback__content {
+        position: relative;
+        z-index: 1;
+    }
+    .article-submit-feedback__badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.28rem 0.65rem;
+        border-radius: 999px;
+        background: rgba(13, 110, 253, 0.1);
+        color: #0b57d0;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+    .article-submit-feedback__title {
+        margin-top: 0.7rem;
+        color: #16325c;
+        font-size: 1rem;
+        font-weight: 700;
+    }
+    .article-submit-feedback__detail {
+        margin-top: 0.35rem;
+        color: #48617f;
+        font-size: 0.92rem;
+        line-height: 1.6;
+    }
+    .article-submit-feedback__rail {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.45rem;
+        margin-top: 0.95rem;
+    }
+    .article-submit-feedback__rail span {
+        display: block;
+        height: 0.38rem;
+        border-radius: 999px;
+        background: rgba(13, 110, 253, 0.16);
+        transform-origin: left center;
+        animation: article-submit-rail 1.15s ease-in-out infinite;
+    }
+    .article-submit-feedback__rail span:nth-child(2) {
+        animation-delay: 0.15s;
+    }
+    .article-submit-feedback__rail span:nth-child(3) {
+        animation-delay: 0.3s;
+    }
+    .article-submit-feedback__rail span:nth-child(4) {
+        animation-delay: 0.45s;
+    }
+    @keyframes article-submit-spin {
+        to { transform: rotate(360deg); }
+    }
+    @keyframes article-submit-shimmer {
+        to { transform: translateX(130%); }
+    }
+    @keyframes article-submit-pulse {
+        0%, 100% { transform: scale(0.92); opacity: 0.55; }
+        50% { transform: scale(1.08); opacity: 1; }
+    }
+    @keyframes article-submit-rail {
+        0%, 100% { transform: scaleX(0.45); opacity: 0.5; }
+        50% { transform: scaleX(1); opacity: 1; }
+    }
+</style>
+
+<div class="article-submit-feedback"
+     data-article-submit-feedback
+     hidden
+     aria-live="polite"
+     aria-atomic="true">
+    <div class="article-submit-feedback__glow"></div>
+    <div class="article-submit-feedback__content">
+        <div class="article-submit-feedback__badge">
+            <i class="fa-solid fa-sparkles" aria-hidden="true"></i>
+            AI 記事生成中
+        </div>
+        <div class="article-submit-feedback__title" data-article-submit-title>
+            記事を組み立てています…
+        </div>
+        <div class="article-submit-feedback__detail" data-article-submit-detail>
+            スライドと入力内容から、読みやすい記事に整えています。このまま待てばOKです。
+        </div>
+        <div class="article-submit-feedback__rail" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const form = document.querySelector('[data-article-generation-form]');
+        if (!form) {
+            return;
+        }
+
+        const submitButton = form.querySelector('[data-article-submit-button]');
+        const defaultLabel = submitButton?.querySelector('[data-submit-default]');
+        const loadingLabel = submitButton?.querySelector('[data-submit-loading]');
+        const feedback = form.querySelector('[data-article-submit-feedback]');
+        const feedbackTitle = form.querySelector('[data-article-submit-title]');
+        const feedbackDetail = form.querySelector('[data-article-submit-detail]');
+        const checkbox = form.querySelector('#id_generate_blog_article');
+        const detailTypeChecked = () => form.querySelector('input[name="detail_type"]:checked')?.value || 'LT';
+
+        function hasExistingGenerationSource() {
+            const slideFileCleared = form.querySelector('#id_slide_file-clear')?.checked;
+            return (
+                (!slideFileCleared && form.dataset.hasExistingSlideFile === 'true')
+                || form.dataset.hasExistingYoutubeUrl === 'true'
+            );
+        }
+
+        const messages = [
+            'スライドの要点を拾っています…',
+            '読みやすい構成に並べ替えています…',
+            'タイトルと本文を整えています…',
+        ];
+
+        let messageTimer = null;
+
+        function hasGenerationSource() {
+            const youtubeUrl = form.querySelector('#id_youtube_url')?.value.trim();
+            const slideFile = form.querySelector('#id_slide_file');
+            const hasSelectedFile = Boolean(slideFile?.files?.length);
+            return Boolean(youtubeUrl || hasSelectedFile || hasExistingGenerationSource());
+        }
+
+        function shouldShowGenerationState() {
+            if (!checkbox || !checkbox.checked) {
+                return false;
+            }
+            if (detailTypeChecked() !== 'LT') {
+                return false;
+            }
+            return hasGenerationSource();
+        }
+
+        function startMessageLoop() {
+            let index = 0;
+            if (!feedbackTitle) {
+                return;
+            }
+            feedbackTitle.textContent = messages[index];
+            messageTimer = window.setInterval(() => {
+                index = (index + 1) % messages.length;
+                feedbackTitle.textContent = messages[index];
+            }, 1600);
+        }
+
+        function stopMessageLoop() {
+            if (messageTimer) {
+                window.clearInterval(messageTimer);
+                messageTimer = null;
+            }
+        }
+
+        function activatePendingState() {
+            if (!submitButton || !feedback) {
+                return;
+            }
+            submitButton.dataset.submitState = 'generating';
+            submitButton.disabled = true;
+            if (defaultLabel) {
+                defaultLabel.hidden = true;
+            }
+            if (loadingLabel) {
+                loadingLabel.hidden = false;
+            }
+            feedback.hidden = false;
+            form.setAttribute('aria-busy', 'true');
+            if (feedbackDetail) {
+                feedbackDetail.textContent = 'この画面はそのままで大丈夫。生成が終わると自動で次の画面に進みます。';
+            }
+            startMessageLoop();
+        }
+
+        window.addEventListener('pageshow', stopMessageLoop);
+
+        form.addEventListener('submit', function() {
+            if (!shouldShowGenerationState()) {
+                return;
+            }
+            activatePendingState();
+        });
+    })();
+</script>

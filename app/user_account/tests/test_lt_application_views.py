@@ -152,6 +152,8 @@ class LTApplicationEditViewTests(LTApplicationViewTestBase):
         response = self.client.get(self.edit_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'My LT Theme')
+        self.assertContains(response, 'data-article-generation-form')
+        self.assertContains(response, '生成しながら保存中…')
 
     def test_cannot_edit_other_user_application(self):
         self.client.login(username='applicant', password='testpass123')
