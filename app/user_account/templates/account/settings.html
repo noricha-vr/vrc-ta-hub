@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load socialaccount %}
+{% load socialaccount account_tags %}
 
 {% block main %}
     <div class="container my-4">
@@ -108,6 +108,8 @@
                                     </span>
                                 </div>
                             {% else %}
+                                {% discord_oauth_available as discord_oauth_enabled %}
+                                {% if discord_oauth_enabled %}
                                 <a href="{% provider_login_url 'discord' process='connect' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                     <span>
                                         <i class="fa-brands fa-discord me-2" style="color: #5865F2;"></i>Discord連携
@@ -117,6 +119,14 @@
                                         <i class="fa-solid fa-chevron-right text-muted"></i>
                                     </span>
                                 </a>
+                                {% else %}
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>
+                                        <i class="fa-brands fa-discord me-2" style="color: #5865F2;"></i>Discord連携
+                                    </span>
+                                    <span class="text-muted">未設定</span>
+                                </div>
+                                {% endif %}
                             {% endif %}
                         </div>
 

@@ -35,6 +35,21 @@ PLATFORM_MAP = {
 }
 
 
+def _get_approved_detail_summaries(event: 'Event') -> list[tuple[str, str]]:
+    prefetched_details = getattr(event, "_prefetched_objects_cache", {}).get("details")
+    if prefetched_details is not None:
+        return [
+            (detail.speaker, detail.theme)
+            for detail in prefetched_details
+            if detail.status == 'approved'
+        ]
+
+    # 承認済み発表の有無確認と本文生成を1クエリにまとめ、必要最小列だけ読む。参照: PR #221
+    return list(
+        event.details.filter(status='approved').values_list('speaker', 'theme')
+    )
+
+
 def create_calendar_entry_url(event: 'Event') -> str:
     """
     EventオブジェクトからGoogleフォームのURLを生成する
@@ -157,9 +172,11 @@ def generate_google_calendar_url(request, event):
     description = [f"参加方法: {community_url}"]
     
     # 発表情報を追加（存在する場合）
-    approved_details = event.details.filter(status='approved')
-    if approved_details.exists():
-        description.extend([f"発表者: {detail.speaker}\nテーマ: {detail.theme}" for detail in approved_details])
+    approved_details = _get_approved_detail_summaries(event)
+    if approved_details:
+        description.extend(
+            [f"発表者: {speaker}\nテーマ: {theme}" for speaker, theme in approved_details]
+        )
     
     # URLパラメータを作成
     params = {

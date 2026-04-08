@@ -1,6 +1,7 @@
 """TweetQueue 管理ビュー（一覧・詳細/編集）のテスト
 
-スーパーユーザーのみアクセス可能な管理画面のテスト。
+閲覧（GET）は superuser または所属コミュニティのスタッフ以上が可能。
+編集系（POST）は superuser のみが実行できる。
 """
 
 import datetime
@@ -10,7 +11,7 @@ from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from community.models import Community
+from community.models import Community, CommunityMember
 from twitter.models import TweetQueue
 
 CustomUser = get_user_model()
@@ -278,3 +279,132 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
 
         self.queue_item.refresh_from_db()
         self.assertEqual(self.queue_item.status, 'posted')
+
+
+class TweetQueueStaffAccessTest(TweetQueueViewTestBase):
+    """スタッフ・主催者の閲覧権限と他コミュニティへの隔離を確認するテスト。"""
+
+    def setUp(self):
+        super().setUp()
+        # スタッフ・主催者ユーザーを作成
+        self.staff_user = CustomUser.objects.create_user(
+            user_name="staff_user",
+            email="staff@example.com",
+            password="testpassword",
+        )
+        self.owner_user = CustomUser.objects.create_user(
+            user_name="owner_user",
+            email="owner@example.com",
+            password="testpassword",
+        )
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.staff_user,
+            role=CommunityMember.Role.STAFF,
+        )
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.owner_user,
+            role=CommunityMember.Role.OWNER,
+        )
+
+        # 他人のコミュニティと、それに紐づく TweetQueue
+        self.other_community = Community.objects.create(
+            name="Other Community",
+            start_time=datetime.time(20, 0),
+            duration=60,
+            weekdays=["Tue"],
+            frequency="Weekly",
+            organizers="Other Organizer",
+            description="Other Description",
+            platform="All",
+            status="pending",
+        )
+        self.own_queue = TweetQueue.objects.create(
+            tweet_type='new_community',
+            community=self.community,
+            generated_text='Own community tweet',
+            status='ready',
+        )
+        self.other_queue = TweetQueue.objects.create(
+            tweet_type='new_community',
+            community=self.other_community,
+            generated_text='Other community tweet',
+            status='ready',
+        )
+
+    def test_staff_can_access_list(self):
+        """スタッフは一覧にアクセスできる"""
+        self.client.login(username='staff_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_owner_can_access_list(self):
+        """主催者は一覧にアクセスできる"""
+        self.client.login(username='owner_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_staff_list_only_shows_own_community(self):
+        """スタッフの一覧には自分の集会の TweetQueue だけが表示される"""
+        self.client.login(username='staff_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        queues = list(response.context['page_obj'])
+        self.assertIn(self.own_queue, queues)
+        self.assertNotIn(self.other_queue, queues)
+
+    def test_superuser_list_shows_all_communities(self):
+        """superuser の一覧には全集会の TweetQueue が表示される"""
+        self.client.login(username='admin_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        queues = list(response.context['page_obj'])
+        self.assertIn(self.own_queue, queues)
+        self.assertIn(self.other_queue, queues)
+
+    def test_staff_can_view_own_detail(self):
+        """スタッフは自分の集会の TweetQueue 詳細を閲覧できる"""
+        self.client.login(username='staff_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.own_queue.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Own community tweet')
+
+    def test_staff_cannot_view_other_detail(self):
+        """スタッフは他の集会の TweetQueue 詳細にアクセスできない（404）"""
+        self.client.login(username='staff_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.other_queue.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+
+    def test_staff_cannot_post_update(self):
+        """スタッフは編集系の POST を実行できない（403）"""
+        self.client.login(username='staff_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.own_queue.pk})
+        response = self.client.post(url, {
+            'action': 'update',
+            'generated_text': 'Hijacked text',
+        })
+        self.assertEqual(response.status_code, 403)
+        self.own_queue.refresh_from_db()
+        self.assertEqual(self.own_queue.generated_text, 'Own community tweet')
+
+    def test_staff_cannot_post_delete(self):
+        """スタッフは削除系 POST を実行できない（403）"""
+        self.client.login(username='staff_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.own_queue.pk})
+        response = self.client.post(url, {'action': 'delete'})
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(TweetQueue.objects.filter(pk=self.own_queue.pk).exists())
+
+    def test_user_without_membership_forbidden(self):
+        """CommunityMember を持たない一般ユーザーは 403"""
+        self.client.login(username='normal_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 403)

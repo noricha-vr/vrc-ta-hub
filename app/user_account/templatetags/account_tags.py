@@ -1,4 +1,5 @@
 from django import template
+from user_account.discord_oauth import is_discord_oauth_available
 
 register = template.Library()
 
@@ -59,3 +60,9 @@ def get_other_errors(form):
                 if EMAIL_DUPLICATE_ERROR_KEYWORD not in str(error):
                     other_errors.append(str(error))
     return other_errors
+
+
+@register.simple_tag(takes_context=True)
+def discord_oauth_available(context):
+    """Discord OAuth が利用可能かを返す."""
+    return is_discord_oauth_available(context.get('request'))

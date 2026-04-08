@@ -75,3 +75,8 @@ NOT_APPLIED → APPLIED → STAGE_REGISTERED → LT_REGISTERED
 - 問題: Vket 開催期間中に集会側が `EventDetail.start_time` / `duration` を変えると、運営が調整した日程が崩れる
 - 解決: `VketParticipation.lifecycle=active` かつ `collaboration.period_start <= Event.date <= period_end` の期間は、superuser 以外の日時変更を Web/UI と API の両方でブロックする
 - 教訓: 運営が確定したスケジュールは、表示の readonly だけで済ませず、フォーム/API まで共通ルールで守る
+
+## 公開導線のスキーマ耐性（参照: PR #221）
+- 問題: 公開イベント一覧のような read path で `event.details.filter(...).exists()` のような余計な ORM 評価をすると、Vket 側の列追加直後に古い DB スキーマを踏んだ環境で 500 に巻き込まれうる
+- 解決: prefetch 済みデータを優先利用し、fallback が必要でも `.values_list()` で必要最小列だけを 1 クエリで読む
+- 教訓: 公開ページは「正しいこと」だけでなく「スキーマ不整合に巻き込まれにくいこと」も重視して、不要な追加クエリを避ける

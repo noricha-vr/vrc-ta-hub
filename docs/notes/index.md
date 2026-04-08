@@ -7,6 +7,7 @@
 | cloud-run.md | Cloud Run 運用パターン |
 | db-sync.md | 本番DB↔ローカルDB同期 手順 |
 | drf-spectacular.md | DRF Spectacular パターン |
+| gemma-4.md | Gemma 4 運用パターン |
 | django-pagination.md | Djangoページネーション入力検証パターン |
 | discord-auth.md | Discord OAuth 競合解消パターン |
 | github-pages-json.md | VRChatワールド向けJSON配信（toGithubPagesJson） |
@@ -18,6 +19,8 @@
 
 | ファイル | 日付 | 概要 |
 |----------|------|------|
+| gemma-4-01.md | 04-08 | Gemma 4 の常駐モデル候補を整理した |
+| vket-collab-01.md | 04-07 | 公開イベント一覧の Google カレンダー URL 生成をスキーマ不整合に強化 |
 | db-sync-01.md | 04-06 | 本番DBからローカルへの初回同期 |
 | cloud-run-02.md | 04-06 | Cloud Run preview host を nginx 前段でも正規化 |
 | cloud-run-03.md | 04-07 | Cloud Run preview host 判定を明示 service 名に寄せた |

@@ -10,7 +10,10 @@ from urllib.parse import unquote
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
+from django.db.models import Prefetch
 from django.test import TestCase, Client, RequestFactory
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from community.models import Community, CommunityMember
@@ -254,6 +257,8 @@ class CalendarUtilsFilterTest(TestCase):
     """calendar_utils.py の generate_google_calendar_url で承認済みのみ含むテスト"""
 
     def setUp(self):
+        from event_calendar.calendar_utils import generate_google_calendar_url
+
         self.community = Community.objects.create(
             name='Calendar Test Community',
             start_time=time(22, 0),
@@ -292,6 +297,8 @@ class CalendarUtilsFilterTest(TestCase):
             duration=15,
             start_time=time(22, 30),
         )
+        cache.clear()
+        generate_google_calendar_url.cache_clear()
 
     def test_google_calendar_url_only_includes_approved_details(self):
         """GoogleカレンダーURL生成時に承認済みの発表情報のみ含まれる"""
@@ -309,6 +316,52 @@ class CalendarUtilsFilterTest(TestCase):
         self.assertIn('Approved Calendar Theme', decoded_url)
         self.assertNotIn('Rejected Calendar Speaker', decoded_url)
         self.assertNotIn('Rejected Calendar Theme', decoded_url)
+
+    def test_google_calendar_url_uses_prefetched_details_without_extra_queries(self):
+        """一覧でprefetch済みの承認済み詳細があれば追加クエリせずURLを組み立てる"""
+        from event_calendar.calendar_utils import generate_google_calendar_url
+
+        event = Event.objects.select_related('community').prefetch_related(
+            Prefetch('details', queryset=EventDetail.objects.filter(status='approved'))
+        ).get(pk=self.event.pk)
+
+        factory = RequestFactory()
+        request = factory.get('/')
+        request.META['SERVER_NAME'] = 'testserver'
+        request.META['SERVER_PORT'] = '80'
+
+        with CaptureQueriesContext(connection) as queries:
+            url = generate_google_calendar_url(request, event)
+
+        self.assertEqual(len(queries), 0)
+        decoded_url = unquote(url)
+        self.assertIn('Approved Calendar Speaker', decoded_url)
+        self.assertNotIn('Rejected Calendar Speaker', decoded_url)
+
+    def test_google_calendar_url_fallback_query_reads_only_needed_columns(self):
+        """prefetchがなくても発表者名とテーマだけを1クエリで読む"""
+        from event_calendar.calendar_utils import generate_google_calendar_url
+
+        event = Event.objects.select_related('community').get(pk=self.event.pk)
+
+        factory = RequestFactory()
+        request = factory.get('/')
+        request.META['SERVER_NAME'] = 'testserver'
+        request.META['SERVER_PORT'] = '80'
+
+        with CaptureQueriesContext(connection) as queries:
+            url = generate_google_calendar_url(request, event)
+
+        self.assertEqual(len(queries), 1)
+        executed_sql = "\n".join(query["sql"] for query in queries.captured_queries)
+        self.assertIn("speaker", executed_sql)
+        self.assertIn("theme", executed_sql)
+        self.assertNotIn("contents", executed_sql)
+        self.assertNotIn("youtube_url", executed_sql)
+
+        decoded_url = unquote(url)
+        self.assertIn('Approved Calendar Speaker', decoded_url)
+        self.assertNotIn('Rejected Calendar Speaker', decoded_url)
 
 
 def _create_test_image():

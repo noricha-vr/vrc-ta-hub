@@ -199,6 +199,41 @@ class BootstrapPasswordChangeForm(PasswordChangeForm):
             field.widget.attrs.update({'class': 'form-control'})
 
 
+class LocalSignupForm(UserCreationForm):
+    """Discord 未設定時に使うローカルサインアップフォーム."""
+
+    email = forms.EmailField(
+        label='メールアドレス',
+        required=True,
+        widget=forms.EmailInput(attrs={'class': 'form-control'}),
+        help_text='メールアドレスは公開されません。連絡用として使用します。',
+    )
+
+    class Meta(UserCreationForm.Meta):
+        model = CustomUser
+        fields = ('user_name', 'email', 'password1', 'password2')
+        widgets = {
+            'user_name': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+        help_texts = {
+            'user_name': 'このサイトでの表示名です。後から変更できます。',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['user_name'].label = 'ユーザー名'
+        self.fields['password1'].label = 'パスワード'
+        self.fields['password2'].label = 'パスワード（確認）'
+        for field in self.fields.values():
+            field.widget.attrs.update({'class': 'form-control'})
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email and CustomUser.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('このメールアドレスは既に登録されています。')
+        return email
+
+
 class CustomUserChangeForm(forms.ModelForm):
     class Meta:
         model = CustomUser

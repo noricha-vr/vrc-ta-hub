@@ -3,6 +3,7 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView
+from django.views.generic.edit import FormView
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.contrib.auth.views import PasswordChangeView
@@ -16,8 +17,9 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+from .discord_oauth import is_discord_oauth_available
 from .forms import CustomUserChangeForm
-from .forms import BootstrapAuthenticationForm, BootstrapPasswordChangeForm
+from .forms import BootstrapAuthenticationForm, BootstrapPasswordChangeForm, LocalSignupForm
 from .models import APIKey
 
 
@@ -46,6 +48,11 @@ class CustomLoginView(LoginView):
             return redirect_url
         return settings.LOGIN_REDIRECT_URL
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['discord_oauth_enabled'] = is_discord_oauth_available(self.request)
+        return context
+
 
 class CustomLogoutView(LogoutView):
     next_page = reverse_lazy('account:login')  # ログアウト後のリダイレクト先
@@ -55,9 +62,28 @@ class CustomLogoutView(LogoutView):
         return super().dispatch(request, *args, **kwargs)
 
 
-class RegisterView(TemplateView):
-    """新規登録ページ（Discordログインのみ）"""
+class RegisterView(FormView):
+    """新規登録ページ."""
     template_name = 'account/register.html'
+    form_class = LocalSignupForm
+    success_url = reverse_lazy('account:login')
+
+    def dispatch(self, request, *args, **kwargs):
+        self.discord_oauth_enabled = is_discord_oauth_available(request)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['discord_oauth_enabled'] = self.discord_oauth_enabled
+        return context
+
+    def form_valid(self, form):
+        if self.discord_oauth_enabled:
+            return redirect('account:register')
+
+        form.save()
+        messages.success(self.request, 'アカウントを作成しました。ログインしてください。')
+        return super().form_valid(form)
 
 
 class UserNameChangeView(LoginRequiredMixin, UpdateView):
@@ -110,7 +136,7 @@ class SettingsView(LoginRequiredMixin, TemplateView):
         # 承認されていない場合はメッセージを追加
         if context['community'] and not context['community'].is_accepted:
             message = mark_safe(
-                'この集会は現在承認待ちです。既に公開されている技術・学術系集会に承認されると公開されるようになります。'
+                'この集会は現在承認待ちです。Hub運営スタッフに承認されると公開されるようになります。'
                 'Discord <a href="https://discord.gg/6jCkUUb9VN" target="_blank" rel="noopener noreferrer" class="alert-link">技術・学術系Hub</a>にご参加ください。'
             )
             messages.warning(self.request, message)
@@ -229,6 +255,11 @@ class DiscordRequiredView(LoginRequiredMixin, TemplateView):
     """Discord連携必須ページ."""
 
     template_name = 'account/discord_required.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['discord_oauth_enabled'] = is_discord_oauth_available(self.request)
+        return context
 
 # for user in CustomUser.objects.all():
 #     password = secrets.token_hex(12)  # ランダムな16文字のパスワードを生成
