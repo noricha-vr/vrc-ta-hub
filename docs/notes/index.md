@@ -23,6 +23,7 @@
 | ファイル | 日付 | 概要 |
 |----------|------|------|
 | event-webhook-01.md | 04-08 | 資料公開Webhookを slide_share シグナルに統合した |
+| event-recurrence-02.md | 04-08 | VR研究Cafe の開催時間を 21:00 に統一して Google カレンダーを同期した |
 | event-recurrence-01.md | 04-08 | UIUXデザイン集会の future event ドリフトを固定日ルールで自己回復させた |
 | gemma-4-01.md | 04-08 | Gemma 4 の常駐モデル候補を整理した |
 | ui-feedback-01.md | 04-08 | 記事生成つき保存に待機アニメーションを追加した |
