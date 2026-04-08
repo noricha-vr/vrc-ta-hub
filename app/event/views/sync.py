@@ -32,9 +32,18 @@ def sync_calendar_events(request):
         logger.info(f'同期開始時刻: {timezone.now()}')
         logger.info('=' * 80)
 
+        try:
+            months_ahead = int(request.GET.get('months', 3))
+        except (TypeError, ValueError):
+            return HttpResponse("Invalid months parameter.", status=400)
+
+        if months_ahead < 1 or months_ahead > 12:
+            return HttpResponse("months must be between 1 and 12.", status=400)
+        logger.info(f'同期対象期間: {months_ahead}ヶ月先まで')
+
         # 重複防止機能付きの同期処理を実行
         sync = DatabaseToGoogleSync()
-        stats = sync.sync_all_communities(months_ahead=3)
+        stats = sync.sync_all_communities(months_ahead=months_ahead)
 
         # 同期結果のサマリー
         logger.info('=' * 80)
