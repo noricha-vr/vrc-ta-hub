@@ -281,6 +281,8 @@ AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
 AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL')
 AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN')
+AWS_S3_URL_PROTOCOL = os.getenv('AWS_S3_URL_PROTOCOL', 'https:')
+AWS_S3_SECURE_URLS = AWS_S3_URL_PROTOCOL == 'https:'
 
 # ファイルストレージ（メディア）
 if AWS_STORAGE_BUCKET_NAME:
@@ -321,7 +323,10 @@ REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN')
 assert REQUEST_TOKEN is not None, 'Please set REQUEST_TOKEN'
 
 # メール設定 (Amazon SES)
-EMAIL_BACKEND = 'django_ses.SESBackend'
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django_ses.SESBackend'
 AWS_SES_REGION_NAME = os.environ.get('AWS_SES_REGION_NAME', 'ap-northeast-1')
 AWS_SES_REGION_ENDPOINT = os.environ.get('AWS_SES_REGION_ENDPOINT', 'email.ap-northeast-1.amazonaws.com')
 AWS_SES_ACCESS_KEY_ID = os.environ.get('AWS_SES_ACCESS_KEY_ID')  # SES専用のアクセスキー
