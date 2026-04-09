@@ -31,6 +31,26 @@
                                     <div class="text-danger small">{{ form.email.errors }}</div>
                                 {% endif %}
                             </div>
+                            <div class="mb-3">
+                                <label for="{{ form.x_id.id_for_label }}" class="form-label">{{ form.x_id.label }}:</label>
+                                {{ form.x_id }}
+                                {% if form.x_id.help_text %}
+                                    <div class="form-text">{{ form.x_id.help_text }}</div>
+                                {% endif %}
+                                {% if form.x_id.errors %}
+                                    <div class="text-danger small">{{ form.x_id.errors }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <label for="{{ form.vrchat_user_id.id_for_label }}" class="form-label">{{ form.vrchat_user_id.label }}:</label>
+                                {{ form.vrchat_user_id }}
+                                {% if form.vrchat_user_id.help_text %}
+                                    <div class="form-text">{{ form.vrchat_user_id.help_text }}</div>
+                                {% endif %}
+                                {% if form.vrchat_user_id.errors %}
+                                    <div class="text-danger small">{{ form.vrchat_user_id.errors }}</div>
+                                {% endif %}
+                            </div>
                             <button type="submit" class="btn btn-primary">更新</button>
                         </form>
                     </div>

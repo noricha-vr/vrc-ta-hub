@@ -46,6 +46,20 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         null=False,
         help_text='必須。有効なメールアドレスを入力してください。',
     )
+    x_id = models.CharField(
+        'X（Twitter）ID',
+        max_length=15,
+        blank=True,
+        default='',
+        help_text='プロフィールURLまたはIDを入力できます。保存時にIDへ正規化されます。',
+    )
+    vrchat_user_id = models.CharField(
+        'VRChatユーザーID',
+        max_length=64,
+        blank=True,
+        default='',
+        help_text='プロフィールURLまたはユーザーIDを入力できます。保存時にIDへ正規化されます。',
+    )
     is_staff = models.BooleanField(
         'スタッフ権限',
         default=False,

@@ -411,12 +411,16 @@ class UserUpdateViewTests(TestCase):
         """テスト用のデータを準備."""
         self.client = Client()
         self.update_url = reverse('account:user_update')
+        self.settings_url = reverse('account:settings')
         # Discord連携済みユーザーを作成（ミドルウェアでリダイレクトされないため）
         self.test_user = create_discord_linked_user(
             user_name='test_update_user',
             email='test_update@example.com',
             password='testpass123',
         )
+        self.test_user.x_id = 'saved_screen_name'
+        self.test_user.vrchat_user_id = 'usr_saved-user-id'
+        self.test_user.save(update_fields=['x_id', 'vrchat_user_id'])
 
     def test_user_update_view_requires_login(self):
         """ユーザー情報更新ページはログインが必要であること."""
@@ -439,6 +443,61 @@ class UserUpdateViewTests(TestCase):
         self.assertContains(response, 'メールアドレスは公開されません')
         self.assertContains(response, 'fa-lock')
         self.assertContains(response, 'form-text')
+
+    def test_user_update_view_contains_profile_id_fields_and_help_text(self):
+        """ユーザー情報更新ページに追加項目とヘルプ文が表示されること."""
+        self.client.login(username='test_update_user', password='testpass123')
+        response = self.client.get(self.update_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'X（Twitter）ID')
+        self.assertContains(response, 'VRChatユーザーID')
+        self.assertContains(response, 'プロフィールURLを入力するだけでOK。保存時にIDへ自動変換されます。')
+
+    def test_user_update_view_shows_saved_ids(self):
+        """保存済みのIDがそのまま入力欄に表示されること."""
+        self.client.login(username='test_update_user', password='testpass123')
+        response = self.client.get(self.update_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value="saved_screen_name"')
+        self.assertContains(response, 'value="usr_saved-user-id"')
+
+    def test_user_update_view_normalizes_profile_urls_on_submit(self):
+        """プロフィールURL送信時にIDだけ保存されること."""
+        self.client.login(username='test_update_user', password='testpass123')
+        response = self.client.post(
+            self.update_url,
+            data={
+                'user_name': 'test_update_user',
+                'email': 'updated@example.com',
+                'x_id': 'https://x.com/updated_name',
+                'vrchat_user_id': 'https://vrchat.com/home/user/usr_12345678-1234-1234-1234-123456789abc',
+            },
+        )
+        self.assertRedirects(response, self.settings_url)
+        self.test_user.refresh_from_db()
+        self.assertEqual(self.test_user.email, 'updated@example.com')
+        self.assertEqual(self.test_user.x_id, 'updated_name')
+        self.assertEqual(self.test_user.vrchat_user_id, 'usr_12345678-1234-1234-1234-123456789abc')
+
+    def test_user_update_view_rejects_invalid_profile_urls(self):
+        """不正なURLでは保存されず、フォームエラーが表示されること."""
+        self.client.login(username='test_update_user', password='testpass123')
+        response = self.client.post(
+            self.update_url,
+            data={
+                'user_name': 'test_update_user',
+                'email': 'updated@example.com',
+                'x_id': 'https://example.com/invalid_user',
+                'vrchat_user_id': 'https://vrchat.com/home/world/wrld_invalid',
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'XのプロフィールURL（x.com または twitter.com）を入力してください。')
+        self.assertContains(response, 'VRChatユーザーのプロフィールURL（vrchat.com/home/user/...）を入力してください。')
+        self.test_user.refresh_from_db()
+        self.assertEqual(self.test_user.email, 'test_update@example.com')
+        self.assertEqual(self.test_user.x_id, 'saved_screen_name')
+        self.assertEqual(self.test_user.vrchat_user_id, 'usr_saved-user-id')
 
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)

@@ -1,3 +1,6 @@
+import re
+from urllib.parse import urlparse
+
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
@@ -8,6 +11,78 @@ from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 from community.models import Community
 from community.models import TAGS, PLATFORM_CHOICES, WEEKDAY_CHOICES
 from .models import CustomUser
+
+PROFILE_URL_HELP_TEXT = 'プロフィールURLを入力するだけでOK。保存時にIDへ自動変換されます。'
+X_ALLOWED_HOSTS = {'x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'}
+X_RESERVED_PATHS = {
+    'explore', 'home', 'i', 'intent', 'messages', 'notifications', 'search', 'settings', 'share',
+}
+VRCHAT_ALLOWED_HOSTS = {'vrchat.com', 'www.vrchat.com'}
+X_ID_PATTERN = re.compile(r'^[A-Za-z0-9_]{1,15}$')
+VRCHAT_USER_ID_PATTERN = re.compile(r'^usr_[A-Za-z0-9-]+$')
+
+
+def _normalize_profile_input(value: str) -> str:
+    return (value or '').strip()
+
+
+def _parse_profile_url(value: str):
+    if '://' in value:
+        return urlparse(value)
+    if '/' in value and '.' in value.split('/', 1)[0]:
+        return urlparse(f'https://{value}')
+    return None
+
+
+def normalize_x_profile(value: str) -> str:
+    """XプロフィールURLまたは screen name を screen name に正規化する。"""
+    normalized = _normalize_profile_input(value)
+    if not normalized:
+        return ''
+
+    parsed = _parse_profile_url(normalized)
+    if parsed is None:
+        candidate = normalized.lstrip('@')
+        if candidate.lower() in X_RESERVED_PATHS or not X_ID_PATTERN.fullmatch(candidate):
+            raise forms.ValidationError('XのIDは英数字とアンダースコアのみ、15文字以内で入力してください。')
+        return candidate
+
+    hostname = (parsed.hostname or '').lower()
+    path_parts = [part for part in parsed.path.split('/') if part]
+    if hostname not in X_ALLOWED_HOSTS or len(path_parts) != 1:
+        raise forms.ValidationError('XのプロフィールURL（x.com または twitter.com）を入力してください。')
+    if parsed.query or parsed.fragment:
+        raise forms.ValidationError('XのプロフィールURLはプロフィールURLを入力してください。')
+
+    candidate = path_parts[0].lstrip('@')
+    if candidate.lower() in X_RESERVED_PATHS or not X_ID_PATTERN.fullmatch(candidate):
+        raise forms.ValidationError('XのプロフィールURLは有効なプロフィールURLを入力してください。')
+    return candidate
+
+
+def normalize_vrchat_user(value: str) -> str:
+    """VRChatプロフィールURLまたは user ID を user ID に正規化する。"""
+    normalized = _normalize_profile_input(value)
+    if not normalized:
+        return ''
+
+    parsed = _parse_profile_url(normalized)
+    if parsed is None:
+        if not VRCHAT_USER_ID_PATTERN.fullmatch(normalized):
+            raise forms.ValidationError('VRChatユーザーIDは `usr_` で始まるIDを入力してください。')
+        return normalized
+
+    hostname = (parsed.hostname or '').lower()
+    path_parts = [part for part in parsed.path.split('/') if part]
+    if hostname not in VRCHAT_ALLOWED_HOSTS or path_parts[:2] != ['home', 'user'] or len(path_parts) != 3:
+        raise forms.ValidationError('VRChatユーザーのプロフィールURL（vrchat.com/home/user/...）を入力してください。')
+    if parsed.query or parsed.fragment:
+        raise forms.ValidationError('VRChatユーザーのプロフィールURLはプロフィール画面のURLを入力してください。')
+
+    candidate = path_parts[2]
+    if not VRCHAT_USER_ID_PATTERN.fullmatch(candidate):
+        raise forms.ValidationError('VRChatユーザーのプロフィールURLは有効なプロフィールURLを入力してください。')
+    return candidate
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -235,9 +310,32 @@ class LocalSignupForm(UserCreationForm):
 
 
 class CustomUserChangeForm(forms.ModelForm):
+    x_id = forms.CharField(
+        label='X（Twitter）ID',
+        required=False,
+        help_text=PROFILE_URL_HELP_TEXT,
+        widget=forms.TextInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'https://x.com/your_screen_name',
+            }
+        ),
+    )
+    vrchat_user_id = forms.CharField(
+        label='VRChatユーザーID',
+        required=False,
+        help_text=PROFILE_URL_HELP_TEXT,
+        widget=forms.TextInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'https://vrchat.com/home/user/usr_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+            }
+        ),
+    )
+
     class Meta:
         model = CustomUser
-        fields = ('user_name', 'email')
+        fields = ('user_name', 'email', 'x_id', 'vrchat_user_id')
         widgets = {
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.TextInput(attrs={'class': 'form-control'}),
@@ -245,6 +343,12 @@ class CustomUserChangeForm(forms.ModelForm):
         labels = {
             'user_name': 'ユーザー名',
         }
+
+    def clean_x_id(self):
+        return normalize_x_profile(self.cleaned_data.get('x_id', ''))
+
+    def clean_vrchat_user_id(self):
+        return normalize_vrchat_user(self.cleaned_data.get('vrchat_user_id', ''))
 
 
 class CustomSocialSignupForm(SocialSignupForm):
