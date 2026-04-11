@@ -28,7 +28,7 @@
       path: event/create
     - title: イベントを削除する
       path: event/delete
-    - title: 公式Xから自動でツイートされる仕組み
+    - title: Hub公式Xアカウントでの自動告知
       path: event/auto-tweet
 
 - title: LT・発表情報を管理する
