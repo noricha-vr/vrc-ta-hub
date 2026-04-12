@@ -1602,7 +1602,12 @@ class TweetGeneratorTest(TestCase):
 
         # プロンプトに集会名が含まれていることを確認
         call_args = mock_llm.call_args
+        system_prompt, user_prompt = call_args[0]
+        self.assertIn("ポスト", system_prompt)
+        self.assertNotIn("ツイート", system_prompt)
         self.assertIn("Generator Test Community", call_args[0][1])
+        self.assertIn("告知ポスト", user_prompt)
+        self.assertNotIn("告知ツイート", user_prompt)
 
     @patch("twitter.signals.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
@@ -1624,8 +1629,13 @@ class TweetGeneratorTest(TestCase):
 
         self.assertEqual(result, "LT告知テスト")
         call_args = mock_llm.call_args
-        self.assertIn("テスト太郎", call_args[0][1])
-        self.assertIn("Pythonのテスト技法", call_args[0][1])
+        system_prompt, user_prompt = call_args[0]
+        self.assertIn("告知ポスト", system_prompt)
+        self.assertNotIn("告知ツイート", system_prompt)
+        self.assertIn("テスト太郎", user_prompt)
+        self.assertIn("Pythonのテスト技法", user_prompt)
+        self.assertIn("告知ポスト", user_prompt)
+        self.assertNotIn("告知ツイート", user_prompt)
 
     @patch("twitter.signals.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
@@ -1647,7 +1657,12 @@ class TweetGeneratorTest(TestCase):
 
         self.assertEqual(result, "特別回告知テスト")
         call_args = mock_llm.call_args
-        self.assertIn("ゲスト講師", call_args[0][1])
+        system_prompt, user_prompt = call_args[0]
+        self.assertIn("告知ポスト", system_prompt)
+        self.assertNotIn("告知ツイート", system_prompt)
+        self.assertIn("ゲスト講師", user_prompt)
+        self.assertIn("告知ポスト", user_prompt)
+        self.assertNotIn("告知ツイート", user_prompt)
 
     @patch("twitter.signals.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
@@ -1674,11 +1689,15 @@ class TweetGeneratorTest(TestCase):
         result = generate_daily_reminder_tweet(today_event)
 
         self.assertEqual(result, "今日開催のリマインド")
-        user_prompt = mock_llm.call_args[0][1]
+        system_prompt, user_prompt = mock_llm.call_args[0]
+        self.assertIn("リマインダーポスト", system_prompt)
+        self.assertNotIn("リマインダーツイート", system_prompt)
         self.assertIn("今日", user_prompt)
         self.assertIn("登録発表数: 1件", user_prompt)
         self.assertIn("リマインド太郎", user_prompt)
         self.assertIn("今日の見どころ", user_prompt)
+        self.assertIn("リマインダーポスト", user_prompt)
+        self.assertNotIn("リマインダーツイート", user_prompt)
 
     @patch("twitter.signals.threading.Thread")
     def test_generate_daily_reminder_tweet_returns_none_without_approved_details(self, _mock_thread):
@@ -1724,7 +1743,11 @@ class TweetGeneratorTest(TestCase):
 
         self.assertEqual(result, "スライド公開しました！")
         call_args = mock_llm.call_args
-        user_prompt = call_args[0][1]
+        system_prompt, user_prompt = call_args[0]
+        self.assertIn("ポスト", system_prompt)
+        self.assertNotIn("ツイート", system_prompt)
+        self.assertIn("ポスト", user_prompt)
+        self.assertNotIn("ツイート", user_prompt)
         self.assertIn("テスト太郎", user_prompt)
         self.assertIn("Pythonのテスト技法", user_prompt)
         # URLはプロンプトに含めない（プロンプトインジェクション防止）
@@ -1753,7 +1776,11 @@ class TweetGeneratorTest(TestCase):
 
         self.assertEqual(result, "動画公開しました！")
         call_args = mock_llm.call_args
-        user_prompt = call_args[0][1]
+        system_prompt, user_prompt = call_args[0]
+        self.assertIn("ポスト", system_prompt)
+        self.assertNotIn("ツイート", system_prompt)
+        self.assertIn("ポスト", user_prompt)
+        self.assertNotIn("ツイート", user_prompt)
         self.assertNotIn("https://youtube.com", user_prompt)
         self.assertIn("動画", user_prompt)
         self.assertNotIn("スライド", user_prompt)
@@ -1780,8 +1807,33 @@ class TweetGeneratorTest(TestCase):
 
         self.assertEqual(result, "スライドと動画公開！")
         call_args = mock_llm.call_args
-        user_prompt = call_args[0][1]
+        system_prompt, user_prompt = call_args[0]
+        self.assertIn("ポスト", system_prompt)
+        self.assertNotIn("ツイート", system_prompt)
+        self.assertIn("ポスト", user_prompt)
+        self.assertNotIn("ツイート", user_prompt)
         self.assertIn("スライド・動画", user_prompt)
+
+    @patch("twitter.utils._call_llm")
+    def test_generate_tweet_uses_post_terminology_in_prompt(self, mock_llm):
+        """テンプレートベース生成のプロンプトがX/ポスト表記に統一されている"""
+        mock_llm.return_value = "テンプレートベースのポスト"
+
+        from twitter.utils import generate_tweet
+        result = generate_tweet("過去の投稿サンプル", {
+            "event_name": "Generator Test Community",
+            "date": "2026年4月13日(月)",
+            "time": "22:00",
+            "details": "22:00 - テストテーマ (テスト太郎)",
+        })
+
+        self.assertEqual(result, "テンプレートベースのポスト")
+        system_prompt, user_prompt = mock_llm.call_args[0]
+        self.assertIn("ポスト", system_prompt)
+        self.assertNotIn("ツイート", system_prompt)
+        self.assertIn("過去のポスト", user_prompt)
+        self.assertIn("告知ポスト", user_prompt)
+        self.assertNotIn("告知ツイート", user_prompt)
 
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_tweet_llm_failure(self, mock_llm):

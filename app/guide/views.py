@@ -11,6 +11,7 @@ from typing import Optional
 import yaml
 from django.conf import settings
 from django.http import Http404
+from django.shortcuts import redirect
 from django.views.generic import TemplateView
 
 from event.libs import convert_markdown
@@ -20,6 +21,14 @@ logger = logging.getLogger(__name__)
 # ガイドのルートディレクトリ
 # Docker環境では /docs/guide、ローカルではsettings.BASE_DIR.parent / 'docs' / 'guide'
 GUIDE_ROOT = Path('/docs/guide') if Path('/docs/guide').exists() else settings.BASE_DIR.parent / 'docs' / 'guide'
+
+GUIDE_REDIRECTS = {
+    'event/auto-tweet': 'event/auto-post',
+}
+
+GUIDE_CONTENT_ALIASES = {
+    'event/auto-post': 'event/auto-tweet',
+}
 
 class NavItem:
     """ナビゲーションアイテムを表すクラス"""
@@ -188,14 +197,26 @@ def load_markdown_content(path: str) -> tuple[str, dict]:
     """
     # パスの正規化とパストラバーサル対策
     safe_path = path.strip('/')
-    md_file = (GUIDE_ROOT / f'{safe_path}.md').resolve()
+    candidate_paths = [safe_path]
+    alias_path = GUIDE_CONTENT_ALIASES.get(safe_path)
+    if alias_path:
+        candidate_paths.append(alias_path)
 
-    # GUIDE_ROOT外へのアクセスを防止
-    if not md_file.is_relative_to(GUIDE_ROOT.resolve()):
-        logger.warning(f"パストラバーサル攻撃を検出: {path}")
-        raise Http404(f"ガイドページが見つかりません: {path}")
+    md_file = None
+    for candidate in candidate_paths:
+        candidate_file = (GUIDE_ROOT / f'{candidate}.md').resolve()
 
-    if not md_file.exists():
+        # GUIDE_ROOT外へのアクセスを防止
+        if not candidate_file.is_relative_to(GUIDE_ROOT.resolve()):
+            logger.warning(f"パストラバーサル攻撃を検出: {path}")
+            raise Http404(f"ガイドページが見つかりません: {path}")
+
+        if candidate_file.exists():
+            md_file = candidate_file
+            break
+
+    if md_file is None:
+        md_file = (GUIDE_ROOT / f'{safe_path}.md').resolve()
         logger.warning(f"マークダウンファイルが見つかりません: {md_file}")
         raise Http404(f"ガイドページが見つかりません: {path}")
 
@@ -248,6 +269,13 @@ class GuidePageView(TemplateView):
     """個別のガイドページを表示するビュー"""
 
     template_name = 'guide/page.html'
+
+    def get(self, request, *args, **kwargs):
+        path = kwargs.get('path', 'index').strip('/')
+        redirect_path = GUIDE_REDIRECTS.get(path)
+        if redirect_path:
+            return redirect('guide:page', path=redirect_path)
+        return super().get(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

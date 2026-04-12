@@ -10,14 +10,14 @@ class TwitterTemplate(models.Model):
                                 help_text="利用可能な変数: {event_name}, {date}, {time}, {speaker}, {theme}")
 
     def __str__(self):
-        return f"Twitter Template for {self.community.name}"
+        return f"X Template for {self.community.name}"
 
     class Meta:
         db_table = 'twitter_template'
 
 
 class TweetQueue(models.Model):
-    """X (Twitter) 自動投稿キュー
+    """X 自動投稿キュー
 
     集会承認・LT/特別回承認時にシグナルでキューに追加され、
     Cloud Scheduler (毎日19:00 JST) からのリクエストで一括投稿される。
@@ -55,15 +55,15 @@ class TweetQueue(models.Model):
     status = models.CharField(
         '状態', max_length=20, choices=STATUS_CHOICES, default='generating',
     )
-    tweet_id = models.CharField('ツイートID', max_length=50, blank=True)
+    tweet_id = models.CharField('ポストID', max_length=50, blank=True)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     posted_at = models.DateTimeField('投稿日時', null=True, blank=True)
     error_message = models.TextField('エラーメッセージ', blank=True)
 
     class Meta:
         ordering = ['-created_at']
-        verbose_name = 'ツイートキュー'
-        verbose_name_plural = 'ツイートキュー'
+        verbose_name = 'ポストキュー'
+        verbose_name_plural = 'ポストキュー'
         db_table = 'tweet_queue'
         constraints = [
             models.UniqueConstraint(

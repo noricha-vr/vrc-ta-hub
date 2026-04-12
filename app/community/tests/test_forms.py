@@ -65,6 +65,15 @@ class CommunityUpdateFormTest(TestCase):
         for field in expected_fields:
             self.assertIn(field, form.fields, f'{field} should be in form fields')
 
+    def test_x_labels_and_placeholders_are_updated(self):
+        """X向けのラベルとプレースホルダーが表示される"""
+        form = CommunityUpdateForm(instance=self.community)
+
+        self.assertEqual(form.fields['sns_url'].label, 'XアカウントURL')
+        self.assertEqual(form.fields['twitter_hashtag'].label, 'Xハッシュタグ')
+        self.assertEqual(form.fields['sns_url'].widget.attrs.get('placeholder'), 'https://x.com/XXXXX')
+        self.assertEqual(form.fields['twitter_hashtag'].widget.attrs.get('placeholder'), '#VRChat')
+
     def test_accepts_lt_application_not_in_form(self):
         """accepts_lt_applicationフィールドがフォームに含まれていない(settings.htmlで管理)"""
         form = CommunityUpdateForm(instance=self.community)

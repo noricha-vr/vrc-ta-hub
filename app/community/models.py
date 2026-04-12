@@ -63,7 +63,7 @@ class Community(models.Model):
     organizers = models.CharField('主催・副主催', max_length=200)
     group_url = models.URLField('VRChatグループURL', blank=True)
     organizer_url = models.URLField('主催プロフィールURL', blank=True)
-    sns_url = models.URLField('X（旧Twitter）', blank=True)
+    sns_url = models.URLField('XアカウントURL', blank=True)
     discord = models.URLField('Discordサーバー', blank=True)
     twitter_hashtag = models.CharField('Xハッシュタグ', max_length=100, blank=True)
     poster_image = models.ImageField('ポスター', upload_to=poster_upload_path, blank=True)

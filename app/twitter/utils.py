@@ -26,16 +26,16 @@ def format_event_info(event):
 
 
 def generate_tweet(template, event_info):
-    """OpenRouter API経由でツイートを生成する。
+    """OpenRouter API経由でポスト文を生成する。
 
     _call_llm に委譲して LLM 呼び出しコードの重複を排除する。
     """
-    system_prompt = "あなたはイベント告知ツイートを作成する専門家です。"
+    system_prompt = "あなたはイベント告知ポストを作成する専門家です。"
 
-    user_prompt = f"""過去のツイートのフォーマットに合わせて、イベントの告知ツイートを作成してください。
+    user_prompt = f"""過去のポストのフォーマットに合わせて、イベントの告知ポストを作成してください。
 テンプレートのスタイルを模倣しつつ、与えられたイベント情報を自然に組み込んでください。
 
-過去のツイート:
+過去のポスト:
 {template}
 
 イベント情報:
@@ -45,14 +45,14 @@ def generate_tweet(template, event_info):
 詳細:
 {event_info['details']}
 
-生成するツイートは280文字以内にしてください。
-ツイートのみを出力し、追加の説明は不要です。"""
+生成するポストは280文字以内にしてください。
+ポスト本文のみを出力し、追加の説明は不要です。"""
 
     return _call_llm(system_prompt, user_prompt)
 
 
 def generate_tweet_url(event: Event, template: TwitterTemplate) -> Optional[str]:
-    """ツイート URL を生成する"""
+    """ポスト用の Web Intent URL を生成する"""
     try:
         template = template.template
         event_info = format_event_info(event)

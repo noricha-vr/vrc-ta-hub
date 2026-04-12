@@ -27,7 +27,7 @@ description: 集会の各種設定項目について説明します。
 
 外部サービスへのリンクを設定できます。
 
-- Twitter/X
+- X
 - Discord
 - VRChatグループ
 - Webサイト

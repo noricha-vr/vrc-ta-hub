@@ -29,7 +29,7 @@
     - title: イベントを削除する
       path: event/delete
     - title: Hub公式Xアカウントでの自動告知
-      path: event/auto-tweet
+      path: event/auto-post
 
 - title: LT・発表情報を管理する
   children:

@@ -305,7 +305,7 @@ class TweetEventWithTemplateViewTest(TestCase):
             self.assertEqual(response.status_code, 200)
             # 新しいUI要素が含まれることを確認
             self.assertContains(response, 'ポストプレビュー')
-            self.assertContains(response, 'X (旧Twitter)')
+            self.assertContains(response, 'Xで投稿する')
             self.assertContains(response, '予約投稿')
             self.assertContains(response, 'fa-x-twitter')
 

@@ -1,6 +1,6 @@
-"""X (Twitter) 自動告知ツイートの生成
+"""X 自動告知ポストの生成
 
-OpenRouter API 経由で LLM を呼び出し、各種告知ツイートを生成する。
+OpenRouter API 経由で LLM を呼び出し、各種告知ポストを生成する。
 既存の twitter/utils.py (テンプレートベース生成) とは独立したモジュール。
 """
 
@@ -30,7 +30,7 @@ WEEKDAY_NAMES = {
 
 
 def count_tweet_length(text: str) -> int:
-    """Twitter/X の重み付きカウント方式で文字数を返す。
+    """X の重み付きカウント方式で文字数を返す。
 
     - URL (https?://\S+): 常に23としてカウント
     - U+0000〜U+10FF の文字: 重み1
@@ -147,7 +147,7 @@ def _build_hashtag_suffix(community) -> str:
 
 
 def generate_new_community_tweet(community, first_event=None, target_chars=140) -> str | None:
-    """新規集会の告知ツイートを生成する。
+    """新規集会の告知ポストを生成する。
 
     Args:
         community: Community モデルインスタンス
@@ -155,7 +155,7 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
         target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
-        "あなたはVRChat技術学術系集会の告知ツイートを作成するライターです。"
+        "あなたはVRChat技術学術系集会の告知ポストを作成するライターです。"
         "「参加したい」と思わせる告知を書いてください。"
     )
 
@@ -172,7 +172,7 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
     name = _sanitize_for_prompt(community.name)
     description = _sanitize_for_prompt(community.description) or "(なし)"
 
-    user_prompt = f"""以下の新しいVRChat集会の告知ツイートを作成してください。
+    user_prompt = f"""以下の新しいVRChat集会の告知ポストを作成してください。
 
 集会名: {name}
 開催: {community.frequency} {weekdays_str}曜日 {community.start_time.strftime('%H:%M')}~
@@ -192,20 +192,20 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
 - 句点（。）を一切使わない（「〜です。」「〜ます。」も禁止。「〜です」「〜ます」で止める）
-- ツイート本文のみ出力（説明不要）
+    - ポスト本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
 
 
 def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
-    """LT 告知ツイートを生成する。
+    """LT 告知ポストを生成する。
 
     Args:
         event_detail: EventDetail モデルインスタンス (detail_type='LT')
         target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
-        "あなたはVRChat集会のLT告知ツイートを書くライターです。"
+        "あなたはVRChat集会のLT告知ポストを書くライターです。"
         "読んだ人が「聞きたい」「行きたい」と思う告知を書いてください。"
     )
 
@@ -218,7 +218,7 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
     speaker = _sanitize_for_prompt(event_detail.speaker)
     theme = _sanitize_for_prompt(event_detail.theme)
 
-    user_prompt = f"""以下のLT（ライトニングトーク）の告知ツイートを作成してください。
+    user_prompt = f"""以下のLT（ライトニングトーク）の告知ポストを作成してください。
 
 集会名: {name}
 日時: {event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~
@@ -242,13 +242,13 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
 - 句点（。）を一切使わない（「〜です。」「〜ます。」も禁止。「〜です」「〜ます」で止める）
-- ツイート本文のみ出力（説明不要）
+    - ポスト本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
 
 
 def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
-    """スライド/記事共有ツイートを生成する。
+    """スライド/記事共有ポストを生成する。
 
     Args:
         event_detail: EventDetail モデルインスタンス（slide_url または youtube_url が設定済み）
@@ -256,7 +256,7 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
     """
     system_prompt = (
         "あなたはVRChat集会の発表資料を紹介するライターです。"
-        "「この資料、読んでみたい」と思わせるツイートを書いてください。"
+        "「この資料、読んでみたい」と思わせるポストを書いてください。"
     )
 
     event = event_detail.event
@@ -275,7 +275,7 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
         resources.append("動画")
     resources_text = "・".join(resources)
 
-    user_prompt = f"""以下の発表の{resources_text}が公開されたことを伝えるツイートを作成してください。
+    user_prompt = f"""以下の発表の{resources_text}が公開されたことを伝えるポストを作成してください。
 
 集会名: {name}
 発表者: {speaker}
@@ -300,13 +300,13 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
 - 句点（。）を一切使わない（「〜です。」「〜ます。」も禁止。「〜です」「〜ます」で止める）
-- ツイート本文のみ出力（説明不要）
+    - ポスト本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
 
 
 def generate_daily_reminder_tweet(event, target_chars=140) -> str | None:
-    """当日開催イベントのリマインダーツイートを生成する。"""
+    """当日開催イベントのリマインダーポストを生成する。"""
     approved_details = list(
         event.details.filter(
             status="approved",
@@ -331,13 +331,13 @@ def generate_daily_reminder_tweet(event, target_chars=140) -> str | None:
     extra_line = f"\n- ほか {more_count} 件" if more_count > 0 else ""
 
     system_prompt = (
-        "あなたはVRChat集会の当日リマインダーツイートを書くライターです。"
+        "あなたはVRChat集会の当日リマインダーポストを書くライターです。"
         "「誰が」「どんなテーマで」話すのかを主役にして、読んだ人が「聞きたい」と思える告知を書いてください。"
     )
 
     name = _sanitize_for_prompt(community.name)
     presentation_count = len(approved_details)
-    user_prompt = f"""以下のイベント当日リマインダーツイートを作成してください。
+    user_prompt = f"""以下のイベント当日リマインダーポストを作成してください。
 
 集会名: {name}
 開催: 今夜 {event.start_time.strftime('%H:%M')}~
@@ -380,7 +380,7 @@ def generate_daily_reminder_tweet(event, target_chars=140) -> str | None:
 - 意味のまとまり（開催案内・発表ブロック・誘導文・リンク・ハッシュタグ）ごとに空行を入れる
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
 - 句点（。）を一切使わない
-- ツイート本文のみ出力（説明不要）
+    - ポスト本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)
 
@@ -417,7 +417,7 @@ TWITTER_IMAGE_WIDTH = 960
 def get_poster_image_url(community) -> str:
     """Community のポスター画像の URL を返す。
 
-    Cloudflare Image Resizing で Twitter 推奨サイズ（幅960px）に変換する。
+    Cloudflare Image Resizing で X 向けサイズ（幅960px）に変換する。
     既存の小さい画像（1000px以下）は拡大されず、そのまま通過する。
 
     Returns:
@@ -439,14 +439,14 @@ def get_poster_image_url(community) -> str:
 
 
 def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
-    """特別回告知ツイートを生成する。
+    """特別回告知ポストを生成する。
 
     Args:
         event_detail: EventDetail モデルインスタンス (detail_type='SPECIAL')
         target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
-        "あなたはVRChat集会の特別イベント告知ツイートを書くライターです。"
+        "あなたはVRChat集会の特別イベント告知ポストを書くライターです。"
         "通常回とは違う特別な回であることを伝え、「行きたい」と思わせてください。"
     )
 
@@ -459,7 +459,7 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
     speaker = _sanitize_for_prompt(event_detail.speaker)
     theme = _sanitize_for_prompt(event_detail.theme)
 
-    user_prompt = f"""以下の特別イベントの告知ツイートを作成してください。
+    user_prompt = f"""以下の特別イベントの告知ポストを作成してください。
 
 集会名: {name}
 日時: {event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~
@@ -484,6 +484,6 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
 - 句点（。）を一切使わない（「〜です。」「〜ます。」も禁止。「〜です」「〜ます」で止める）
-- ツイート本文のみ出力（説明不要）
+    - ポスト本文のみ出力（説明不要）
 """
     return _call_llm(system_prompt, user_prompt)

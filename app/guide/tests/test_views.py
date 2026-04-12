@@ -244,6 +244,25 @@ class GuideViewsTest(TestCase):
         self.assertContains(response, "A4比率")
         self.assertContains(response, "A4比率・縦4096px")
 
+    def test_guide_page_view_renamed_path(self):
+        """新しいガイドパスが表示されること"""
+        response = self.client.get(
+            reverse("guide:page", kwargs={"path": "event/auto-post"})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Hub公式Xアカウントでの自動告知")
+        self.assertContains(response, "Xハッシュタグ")
+
+    def test_guide_page_view_redirects_legacy_path(self):
+        """旧ガイドパスが新パスにリダイレクトされること"""
+        response = self.client.get(
+            reverse("guide:page", kwargs={"path": "event/auto-tweet"})
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("guide:page", kwargs={"path": "event/auto-post"}))
+
     def test_guide_page_view_not_found(self):
         """存在しないページは404を返すこと"""
         response = self.client.get(

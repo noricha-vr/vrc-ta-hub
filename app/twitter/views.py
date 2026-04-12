@@ -129,7 +129,7 @@ class TwitterTemplateDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteV
 
 
 class TweetEventWithTemplateView(TemplateView):
-    """ツイートプレビュー画面を表示するビュー"""
+    """ポストプレビュー画面を表示するビュー"""
     template_name = 'twitter/tweet_preview.html'
 
     TWITTER_INTENT_BASE_URL = "https://twitter.com/intent/tweet?text="
@@ -491,7 +491,7 @@ class TweetQueueDetailView(TweetQueueViewerMixin, DetailView):
             self.object.tweet_id = response_data.get('id', '')
             self.object.posted_at = timezone.now()
             self.object.save()
-            messages.success(self.request, 'ツイートを投稿しました。')
+            messages.success(self.request, 'ポストを投稿しました。')
             logger.info("Manual tweet posted for queue %d: %s", self.object.pk, self.object.tweet_id)
         else:
             self.object.status = 'failed'
