@@ -28,6 +28,11 @@
 - 解決: Django middleware 側も `vrc-ta-hub` / `vrc-ta-hub-dev` を既定値に持つ service 名リストで preview host を判定し、nginx テストも同じ正規表現ソースを参照して整合を固定する。
 - 教訓: Host 正規化の条件は proxy とアプリで別々に推測させず、同じ service 群を前提にテストで縛るほうが追跡しやすい。
 
+## canonical host は helper で正規化して複数ヘッダ経路をまとめて潰す
+- 問題: `APP_CANONICAL_HOST` や `HTTP_HOST` が URL / host:port 形式で入ると、`ALLOWED_HOSTS` と middleware の正規化先がズレやすく、`HTTP_HOST` 以外の `SERVER_NAME` / `X-Forwarded-Host` に raw host が残る経路も取りこぼしやすい。
+- 解決: host 正規化 helper を settings / middleware で共通化し、Cloud Run preview host を検知したら `HTTP_HOST` / `HTTP_X_FORWARDED_HOST` / `SERVER_NAME` をまとめて canonical host へ寄せる。あわせて middleware を最上流に置き、下流 middleware より先に raw host を潰す。
+- 教訓: Host 正規化は「どの値を canonical とみなすか」と「どのヘッダ経路を潰すか」を別実装にしないほうが再発しにくい。
+
 ## toGithubPagesJson 再生成
 - 問題: VRChat ワールド表示用 JSON は `noricha-vr/toGithubPagesJson` 側の GitHub Actions が生成しており、`vrc-ta-hub` 本番反映だけでは更新されない
 - 解決:

@@ -3,6 +3,8 @@
 import os
 import re
 
+from website.hosts import get_canonical_host
+
 
 DEFAULT_CLOUD_RUN_SERVICE_NAMES = (
     'vrc-ta-hub',
@@ -43,13 +45,16 @@ class CanonicalCloudRunHostMiddleware:
 
     def __init__(self, get_response):
         self.get_response = get_response
-        self.canonical_host = os.environ.get('APP_CANONICAL_HOST', 'vrc-ta-hub.com')
+        self.canonical_host = get_canonical_host()
         self.cloud_run_preview_host_pattern = _build_cloud_run_preview_host_pattern()
 
     def __call__(self, request):
-        raw_host = request.META.get('HTTP_HOST', '')
-        if self.cloud_run_preview_host_pattern.match(raw_host):
-            request.META['HTTP_HOST'] = self.canonical_host
+        host_meta_keys = ('HTTP_HOST', 'HTTP_X_FORWARDED_HOST', 'SERVER_NAME')
+        raw_hosts = [request.META.get(meta_key, '') for meta_key in host_meta_keys]
+        if any(self.cloud_run_preview_host_pattern.match(raw_host) for raw_host in raw_hosts):
+            for meta_key in host_meta_keys:
+                if request.META.get(meta_key):
+                    request.META[meta_key] = self.canonical_host
             request.META['SERVER_NAME'] = self.canonical_host
 
         return self.get_response(request)
