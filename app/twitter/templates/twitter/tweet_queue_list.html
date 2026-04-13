@@ -2,13 +2,13 @@
 {% load twitter_tags %}
 
 {% block meta %}
-    <title>ツイートキュー - VRC技術学術Hub</title>
+    <title>ポストキュー - VRC技術学術Hub</title>
 {% endblock %}
 
 {% block main %}
 <div class="container my-5">
     {% include 'ta_hub/messages.html' %}
-    <h1 class="text-center mb-4 fw-bold">ツイートキュー</h1>
+    <h1 class="text-center mb-4 fw-bold">ポストキュー</h1>
 
     {# ステータスフィルタ #}
     <div class="mb-3 d-flex flex-wrap gap-2">
@@ -47,7 +47,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center text-muted py-4">キューがありません</td>
+                    <td colspan="7" class="text-center text-muted py-4">ポストキューがありません</td>
                 </tr>
                 {% endfor %}
             </tbody>

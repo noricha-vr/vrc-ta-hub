@@ -152,13 +152,13 @@
                                                         {% for template in templates %}
                                                             <a href="{% url 'twitter:tweet_event_with_template' event.pk template.pk %}"
                                                                class="btn btn-outline-primary mb-1">
-                                                                <i class="bi bi-twitter"></i> {{ template.name }}
+                                                                <i class="bi bi-twitter-x"></i> {{ template.name }}
                                                             </a>
                                                         {% endfor %}
                                                     {% else %}
                                                         <a href="{% url 'twitter:template_create' %}"
                                                            class="btn btn-outline-primary">
-                                                            <i class="bi bi-twitter"></i> 告知テンプレートを作成
+                                                            <i class="bi bi-twitter-x"></i> 告知テンプレートを作成
                                                         </a>
                                                     {% endif %}
                                                 {% endwith %}

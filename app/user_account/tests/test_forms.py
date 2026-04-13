@@ -7,6 +7,7 @@ from django.test import RequestFactory, TestCase
 from user_account.forms import (
     BootstrapAuthenticationForm,
     CustomSocialSignupForm,
+    CustomUserCreationForm,
     CustomUserChangeForm,
 )
 
@@ -279,3 +280,17 @@ class CustomUserChangeFormTests(TestCase):
         form = CustomUserChangeForm(instance=self.test_user)
         self.assertIn('user_name', form.fields)
         self.assertIn('email', form.fields)
+
+
+class CustomUserCreationFormTests(TestCase):
+    """CustomUserCreationFormのX表記テスト."""
+
+    def test_x_labels_placeholders_and_help_text(self):
+        """X関連フィールドの表記が更新されていること."""
+        form = CustomUserCreationForm()
+
+        self.assertEqual(form.fields['sns_url'].label, 'XアカウントURL')
+        self.assertEqual(form.fields['twitter_hashtag'].label, 'Xハッシュタグ')
+        self.assertEqual(form.fields['sns_url'].widget.attrs.get('placeholder'), 'https://x.com/XXXXX')
+        self.assertEqual(form.fields['twitter_hashtag'].widget.attrs.get('placeholder'), '#VRChat')
+        self.assertEqual(form.fields['sns_url'].help_text, 'X以外のSNSのURLも可')

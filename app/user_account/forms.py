@@ -31,10 +31,10 @@ class CustomUserCreationForm(UserCreationForm):
     organizer_url = forms.URLField(label='主催プロフィールURL', required=False,
                                    widget=forms.URLInput(attrs={'class': 'form-control',
                                                                 'placeholder': 'https://vrchat.com/home/user/XXXXX'}))
-    sns_url = forms.URLField(label='TwitterURL', required=False, widget=forms.URLInput(attrs={'class': 'form-control'
-        , 'placeholder': 'https://twitter.com/XXXXX'}),
-                             help_text='Twitter以外のSNSのURLも可')
-    twitter_hashtag = forms.CharField(max_length=100, label='Twitterハッシュタグ', required=False,
+    sns_url = forms.URLField(label='XアカウントURL', required=False, widget=forms.URLInput(attrs={'class': 'form-control'
+        , 'placeholder': 'https://x.com/XXXXX'}),
+                             help_text='X以外のSNSのURLも可')
+    twitter_hashtag = forms.CharField(max_length=100, label='Xハッシュタグ', required=False,
                                       widget=forms.TextInput(
                                           attrs={'class': 'form-control', 'placeholder': '#VRChat'}), )
     discord = forms.URLField(label='Discordサーバー', required=False,

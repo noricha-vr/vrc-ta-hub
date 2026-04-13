@@ -148,7 +148,7 @@
                            class="btn btn-secondary me-2">{{ event_detail.event.community.name }}</a>
                     </div>
 
-                    {# Twitter告知ボタン（ログインユーザーがコミュニティオーナーかつイベント日から1週間以内の場合） #}
+                    {# X告知ボタン（ログインユーザーがコミュニティオーナーかつイベント日から1週間以内の場合） #}
                     {% if is_community_owner and twitter_button_active %}
                         <div class="mt-2">
                             {% with templates=twitter_templates %}
@@ -156,13 +156,13 @@
                                     {% for template in templates %}
                                         <a href="{% url 'twitter:tweet_event_with_template' event_detail.event.pk template.pk %}"
                                            class="btn btn-outline-primary mb-1">
-                                            <i class="bi bi-twitter"></i> {{ template.name }}
+                                            <i class="bi bi-twitter-x"></i> {{ template.name }}
                                         </a>
                                     {% endfor %}
                                 {% else %}
                                     <a href="{% url 'twitter:template_create' %}"
                                        class="btn btn-outline-primary">
-                                        <i class="bi bi-twitter"></i> 告知テンプレートを作成
+                                        <i class="bi bi-twitter-x"></i> 告知テンプレートを作成
                                     </a>
                                 {% endif %}
                             {% endwith %}

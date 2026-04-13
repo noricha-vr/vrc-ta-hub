@@ -5,11 +5,11 @@
     <meta name="twitter:title" content="VRC 技術学術系集会一覧 - VRChat 技術・学術系イベントHub">
     <meta property="og:title" content="VRC 技術学術系集会一覧 - VRChat 技術・学術系イベントHub">
     <meta name="description"
-          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、Twitter、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
+          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、X、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
     <meta name="twitter:description"
-          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、Twitter、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
+          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、X、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
     <meta property="og:description"
-          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、Twitter、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
+          content="VRChat技術学術系のイベント情報を掲載しています。イベントの開催日程や、主催者、グループ、X、Discordなどの情報をまとめているので気になる集会を見つけてすぐに参加できます。">
     <meta property="og:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
     <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
 {% endblock %}
@@ -82,15 +82,15 @@
                                                                     target="_blank">{{ community.discord }}</a></p>
                                 {% endif %}
                                 {% if community.sns_url %}
-                                    <p><strong>Twitter:</strong> <a href="{{ community.sns_url }}"
+                                    <p><strong>X:</strong> <a href="{{ community.sns_url }}"
                                                                     target="_blank">{{ community.get_sns_display }}</a>
                                     </p>
                                 {% endif %}
                                 {% if community.hashtag_names %}
                                     <p>
-                                        <strong>Twitterハッシュタグ:</strong>
+                                        <strong>Xハッシュタグ:</strong>
                                         {% for name in community.hashtag_names %}
-                                            <a href="https://twitter.com/hashtag/{{ name }}?f=live"
+                                            <a href="https://x.com/hashtag/{{ name }}"
                                                target="_blank">#{{ name }}</a>{% if not forloop.last %}, {% endif %}
                                         {% endfor %}
                                     </p>

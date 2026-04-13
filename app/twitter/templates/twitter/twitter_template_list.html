@@ -12,7 +12,7 @@
                 </div>
             </div>
         {% endif %}
-        <h1 class="text-center mb-5 fw-bold">X (旧Twitter) 告知テンプレート</h1>
+        <h1 class="text-center mb-5 fw-bold">X告知テンプレート</h1>
         <div class="d-flex justify-content-end mb-4">
             <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary me-2">
                 <i class="bi bi-calendar-event me-2"></i>イベント管理
@@ -27,7 +27,7 @@
                     <div class="card h-100 shadow-sm">
                         <div class="card-body">
                             <h5 class="card-title">
-                                <i class="bi bi-twitter text-primary me-2"></i>
+                                <i class="bi bi-twitter-x me-2"></i>
                                 {{ template.name }}
                             </h5>
                             <p class="card-text">{{ template.template|truncatechars:100 }}</p>
@@ -48,7 +48,7 @@
             {% endfor %}
         </div>
         <div class="mt-3">
-            ※ 投稿のタイミングを調整したい場合はX (旧Twitter) の予約投稿機能をご利用ください
+            ※ 投稿のタイミングを調整したい場合はXの予約投稿機能をご利用ください
         </div>
     </div>
 

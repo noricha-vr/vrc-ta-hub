@@ -116,6 +116,10 @@ class CommunityUpdateForm(VrcGroupUrlMixin, forms.ModelForm):
             'poster_image', 'allow_poster_repost',
             'description', 'platform', 'tags',
         ]
+        labels = {
+            'sns_url': 'XアカウントURL',
+            'twitter_hashtag': 'Xハッシュタグ',
+        }
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'start_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
@@ -124,9 +128,9 @@ class CommunityUpdateForm(VrcGroupUrlMixin, forms.ModelForm):
             'organizers': forms.TextInput(attrs={'class': 'form-control'}),
             'group_url': forms.URLInput(attrs={'class': 'form-control'}),
             'organizer_url': forms.URLInput(attrs={'class': 'form-control'}),
-            'sns_url': forms.URLInput(attrs={'class': 'form-control'}),
+            'sns_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://x.com/XXXXX'}),
             'discord': forms.URLInput(attrs={'class': 'form-control'}),
-            'twitter_hashtag': forms.TextInput(attrs={'class': 'form-control'}),
+            'twitter_hashtag': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '#VRChat'}),
             'poster_image': forms.FileInput(attrs={'class': 'form-control-file'}),
             'allow_poster_repost': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
             'description': forms.Textarea(attrs={'class': 'form-control'}),
@@ -168,6 +172,10 @@ class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
             'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags'
         ]
+        labels = {
+            'sns_url': 'XアカウントURL',
+            'twitter_hashtag': 'Xハッシュタグ',
+        }
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'start_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),

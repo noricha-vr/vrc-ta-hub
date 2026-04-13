@@ -2,13 +2,13 @@
 {% load twitter_tags %}
 
 {% block meta %}
-    <title>ツイートキュー #{{ object.pk }} - VRC技術学術Hub</title>
+    <title>ポストキュー #{{ object.pk }} - VRC技術学術Hub</title>
 {% endblock %}
 
 {% block main %}
 <div class="container my-5">
     {% include 'ta_hub/messages.html' %}
-    <h1 class="fw-bold mb-4">ツイートキュー #{{ object.pk }}</h1>
+    <h1 class="fw-bold mb-4">ポストキュー #{{ object.pk }}</h1>
 
     {# メインレイアウト: 左（情報+テキスト） / 右（画像） #}
     <form method="post">
@@ -47,7 +47,7 @@
                         {% endif %}
                         {% if object.tweet_id %}
                         <div class="mb-2">
-                            <strong>ツイートID:</strong>
+                            <strong>ポストID:</strong>
                             <a href="https://x.com/vrc_ta_hub/status/{{ object.tweet_id }}" target="_blank" rel="noopener">
                                 {{ object.tweet_id }} <i class="fas fa-external-link-alt fa-sm"></i>
                             </a>
@@ -95,7 +95,7 @@
 
                     {% if object.status == 'ready' %}
                     <button type="submit" name="action" value="post_now" class="btn btn-outline-success"
-                            onclick="return confirm('このツイートを今すぐ投稿しますか？')">
+                            onclick="return confirm('このポストを今すぐ投稿しますか？')">
                         <i class="fab fa-x-twitter me-1"></i>今すぐ投稿
                     </button>
                     {% endif %}

@@ -65,6 +65,15 @@ class CommunityCreateFormTest(TestCase):
         form = CommunityUpdateForm()
         self.assertIn('A4比率・縦4096px', form.fields['poster_image'].help_text)
 
+    def test_create_form_x_labels_and_placeholders(self):
+        """作成フォームのX向け表記が更新されていることをテスト."""
+        form = CommunityCreateForm()
+
+        self.assertEqual(form.fields['sns_url'].label, 'XアカウントURL')
+        self.assertEqual(form.fields['twitter_hashtag'].label, 'Xハッシュタグ')
+        self.assertEqual(form.fields['sns_url'].widget.attrs.get('placeholder'), 'https://x.com/XXXXX')
+        self.assertEqual(form.fields['twitter_hashtag'].widget.attrs.get('placeholder'), '#VRChat')
+
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 class CommunityCreateViewTest(TestCase):

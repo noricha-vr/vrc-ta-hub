@@ -80,7 +80,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Queue Test Community')
-        self.assertContains(response, 'Test tweet' if False else 'ツイートキュー')
+        self.assertContains(response, 'Test tweet' if False else 'ポストキュー')
 
     def test_status_filter(self):
         """ステータスフィルタが正しく動作する"""
