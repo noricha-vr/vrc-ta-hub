@@ -23,6 +23,16 @@ ALLOWED_IMAGE_DOMAINS = frozenset({"data.vrc-ta-hub.com"})
 IMAGE_DOWNLOAD_CHUNK_SIZE = 8192
 
 
+def _should_block_x_api_in_tests() -> bool:
+    """テスト環境では明示的に許可した場合だけ X API 呼び出しを通す。"""
+    from django.conf import settings
+
+    return (
+        getattr(settings, 'TESTING', False)
+        and os.environ.get("X_API_ALLOW_TEST_CALLS") != "1"
+    )
+
+
 def _get_oauth1() -> OAuth1 | None:
     """OAuth1 認証オブジェクトを生成する共通関数。
 
@@ -59,8 +69,7 @@ def upload_media(image_url: str) -> str | None:
         成功時: media_id 文字列
         失敗時: None
     """
-    from django.conf import settings
-    if getattr(settings, 'TESTING', False):
+    if _should_block_x_api_in_tests():
         logger.warning("Blocked X API media upload in test environment")
         return None
 
@@ -117,8 +126,7 @@ def post_tweet(text: str, media_ids: list[str] | None = None) -> dict | None:
         成功時: {"id": "...", "text": "..."} の dict
         失敗時: None
     """
-    from django.conf import settings
-    if getattr(settings, 'TESTING', False):
+    if _should_block_x_api_in_tests():
         logger.warning("Blocked X API tweet post in test environment")
         return None
 
