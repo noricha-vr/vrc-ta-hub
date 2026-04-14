@@ -1349,6 +1349,7 @@ class PostTweetFunctionTest(TestCase):
         "X_API_SECRET": "test-api-secret",
         "X_ACCESS_TOKEN": "test-access-token",
         "X_ACCESS_TOKEN_SECRET": "test-access-token-secret",
+        "X_API_ALLOW_TEST_CALLS": "1",
     }
 
     @patch("twitter.x_api.requests.post")
@@ -1451,6 +1452,7 @@ class UploadMediaFunctionTest(TestCase):
         "X_API_SECRET": "test-api-secret",
         "X_ACCESS_TOKEN": "test-access-token",
         "X_ACCESS_TOKEN_SECRET": "test-access-token-secret",
+        "X_API_ALLOW_TEST_CALLS": "1",
     }
     ALLOWED_IMAGE_URL = "https://data.vrc-ta-hub.com/community/1/poster.webp"
 
