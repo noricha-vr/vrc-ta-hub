@@ -59,9 +59,9 @@
                         </div>
                         {% endif %}
                         {% if object.error_message %}
-                        <div class="alert alert-danger mt-2 mb-0">
+                        <div class="alert {% if object.status == 'skipped' %}alert-secondary{% else %}alert-danger{% endif %} mt-2 mb-0">
                             <i class="fas fa-exclamation-triangle me-2"></i>
-                            <strong>エラー:</strong> {{ object.error_message }}
+                            <strong>{% if object.status == 'skipped' %}理由{% else %}エラー{% endif %}:</strong> {{ object.error_message }}
                         </div>
                         {% endif %}
                     </div>

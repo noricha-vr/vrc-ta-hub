@@ -105,6 +105,23 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
         self.assertEqual(response.context['page_obj'].paginator.count, 1)
         self.assertEqual(response.context['current_status'], 'ready')
 
+    def test_skipped_status_filter(self):
+        """skipped ステータスでも絞り込みできる"""
+        self.client.login(username='admin_user', password='testpassword')
+        TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            generated_text='',
+            status='skipped',
+            error_message='当日リマインドに統合',
+        )
+
+        url = reverse('twitter:tweet_queue_list')
+        response = self.client.get(url, {'status': 'skipped'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['page_obj'].paginator.count, 1)
+        self.assertEqual(response.context['current_status'], 'skipped')
+
     def test_invalid_status_filter_shows_all(self):
         """無効なステータス値ではフィルタされず全件表示される"""
         self.client.login(username='admin_user', password='testpassword')

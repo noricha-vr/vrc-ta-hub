@@ -7,6 +7,7 @@ STATUS_BADGE_COLORS = {
     'generation_failed': 'warning',
     'ready': 'primary',
     'posted': 'success',
+    'skipped': 'secondary',
     'failed': 'danger',
 }
 

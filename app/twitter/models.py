@@ -35,6 +35,7 @@ class TweetQueue(models.Model):
         ('generation_failed', '生成失敗'),
         ('ready', '投稿待ち'),
         ('posted', '投稿済み'),
+        ('skipped', 'スキップ'),
         ('failed', '投稿失敗'),
     ]
 

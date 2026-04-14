@@ -9,7 +9,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
-from django.db import IntegrityError, models, transaction
+from django.db import models
 from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -29,7 +29,7 @@ from .utils import format_event_info, generate_tweet, generate_tweet_url
 from .x_api import post_tweet, upload_media
 
 TWEET_QUEUE_PAGINATE_BY = 20
-REMINDER_DETAIL_TYPES = ("LT", "SPECIAL")
+SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個別告知は投稿しません'
 
 
 class TwitterTemplateBaseView(LoginRequiredMixin, UserPassesTestMixin):
@@ -204,50 +204,10 @@ def _retry_generation(queue_item) -> None:
         logger.error("Retry generation failed for queue %d", queue_item.pk)
 
 
-def _create_daily_reminder_queues(today=None) -> int:
-    """当日開催イベント向けのリマインドキューを作成する。"""
-    today = today or timezone.localdate()
-    today_events = (
-        Event.objects.filter(
-            date=today,
-            details__status='approved',
-            details__detail_type__in=REMINDER_DETAIL_TYPES,
-        )
-        .select_related('community')
-        .distinct()
-    )
-
-    created_count = 0
-    for event in today_events:
-        try:
-            with transaction.atomic():
-                queue_item, created = TweetQueue.objects.get_or_create(
-                    event=event,
-                    tweet_type='daily_reminder',
-                    defaults={
-                        'community': event.community,
-                    },
-                )
-        except IntegrityError:
-            logger.info("Skipped concurrent daily reminder tweet for event %d", event.pk)
-            continue
-
-        if not created:
-            continue
-
-        # 当日リマインドは同じ scheduler 実行で投稿対象に含めたいので、その場で生成まで進める。参照: PR #190（当日作成したキューを同じ実行で投稿対象に含めるため）
-        _retry_generation(queue_item)
-        created_count += 1
-        logger.info("Queued daily reminder tweet for event %d", event.pk)
-
-    return created_count
-
-
 @require_http_methods(["GET"])
 def post_scheduled_tweets(request):
     """Cloud Scheduler から毎日 19:00 JST に呼ばれるエンドポイント。
 
-    Phase 0: 当日イベントのリマインドキュー作成
     Phase 1: 生成失敗/停滞キューのリトライ
     Phase 2: ready キューの投稿
     """
@@ -255,7 +215,7 @@ def post_scheduled_tweets(request):
     if request_token != os.environ.get("REQUEST_TOKEN", ""):
         return HttpResponse("Unauthorized", status=401)
 
-    created_count = _create_daily_reminder_queues()
+    created_count = 0
 
     # Phase 1: 生成リトライ（generation_failed + 1時間以上前の generating）
     retry_threshold = timezone.now() - timedelta(hours=RETRY_THRESHOLD_HOURS)
@@ -279,6 +239,16 @@ def post_scheduled_tweets(request):
     for queue_item in ready_items:
         # LT/特別回告知は、イベント日が過去ならスキップ（期限切れ防止）
         if queue_item.tweet_type in ('lt', 'special') and queue_item.event:
+            if queue_item.event.date == timezone.localdate():
+                queue_item.status = 'skipped'
+                queue_item.error_message = SAME_DAY_INDIVIDUAL_SKIP_REASON
+                queue_item.generated_text = ''
+                queue_item.save(update_fields=['status', 'error_message', 'generated_text'])
+                results.append({
+                    "id": queue_item.pk, "status": "skipped", "reason": "same_day_integrated",
+                })
+                logger.info("Skipped same-day %s tweet for queue %d", queue_item.tweet_type, queue_item.pk)
+                continue
             if queue_item.event.date < timezone.localdate():
                 queue_item.status = 'failed'
                 queue_item.error_message = 'イベント日が過去のため投稿スキップ'

@@ -1,28 +1,27 @@
-"""Django シグナル: 集会承認・LT/特別回承認時に TweetQueue へ自動追加
+"""Django シグナル: 集会承認・LT/特別回承認時に TweetQueue へ自動追加。
 
-シグナル発火時に TweetQueue を generating 状態で作成し、
-バックグラウンドスレッドでテキスト生成を非同期実行する。
+当日開催の発表は個別告知をスキップ扱いにし、同時に daily_reminder を同期する。
 """
 
 import logging
 import threading
 
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from community.models import Community
 from event.models import EventDetail
 
 logger = logging.getLogger(__name__)
 
+PRESENTATION_DETAIL_TYPES = ("LT", "SPECIAL")
+SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個別告知は投稿しません'
+NO_APPROVED_PRESENTATIONS_SKIP_REASON = '承認済みの当日発表がないため投稿対象外'
+
 
 def _generate_tweet_async(queue_id: int) -> None:
-    """バックグラウンドスレッドでツイートテキストを生成する。
-
-    生成成功時は status を ready に、失敗時は generation_failed に更新する。
-    別スレッドで実行されるため、全例外をキャッチしてテストを妨げないようにし、
-    終了時に DB 接続を確実にクローズする。
-    """
+    """バックグラウンドスレッドでツイートテキストを生成する。"""
     from django.db import connection
 
     try:
@@ -48,7 +47,6 @@ def _generate_tweet_async(queue_id: int) -> None:
 
         queue_item.generated_text = text
 
-        # 画像URL取得（ポスター画像がある場合）
         image_url = get_poster_image_url(queue_item.community)
         if image_url:
             queue_item.image_url = image_url
@@ -62,7 +60,6 @@ def _generate_tweet_async(queue_id: int) -> None:
         logger.warning(
             "Async tweet generation failed for queue %d: %s", queue_id, e,
         )
-        # ステータス更新を試みるが、DBロック時は静かに失敗する
         try:
             from twitter.models import TweetQueue
 
@@ -78,10 +75,7 @@ def _generate_tweet_async(queue_id: int) -> None:
 
 @receiver(pre_save, sender=Community)
 def track_community_status_change(sender, instance, **kwargs):
-    """Community のステータス変更を追跡する。
-
-    post_save で旧値を参照できるよう _old_status を instance に保持する。
-    """
+    """Community の旧ステータスを保持する。"""
     if instance.pk:
         try:
             old = Community.objects.get(pk=instance.pk)
@@ -94,22 +88,23 @@ def track_community_status_change(sender, instance, **kwargs):
 
 @receiver(pre_save, sender=EventDetail)
 def track_event_detail_status_change(sender, instance, **kwargs):
-    """EventDetail のステータス変更を追跡する。
-
-    post_save で旧値を参照できるよう _old_status, _old_slide_url,
-    _old_youtube_url を instance に保持する。
-    """
-    # デフォルト値を先に設定し、取得成功時のみ上書き
+    """EventDetail の旧値を保持する。"""
     instance._old_status = None
     instance._old_slide_url = ""
     instance._old_youtube_url = ""
     instance._old_slide_file = ""
     instance._old_speaker = ""
     instance._old_theme = ""
+    instance._old_start_time = None
+    instance._old_detail_type = None
+    instance._old_event_id = None
+    instance._old_event_date = None
+
     if instance.pk:
         try:
-            old = EventDetail.objects.only(
+            old = EventDetail.objects.select_related('event').only(
                 'status', 'slide_url', 'youtube_url', 'slide_file', 'speaker', 'theme',
+                'start_time', 'detail_type', 'event_id', 'event__date',
             ).get(pk=instance.pk)
             instance._old_status = old.status
             instance._old_slide_url = old.slide_url or ""
@@ -117,18 +112,159 @@ def track_event_detail_status_change(sender, instance, **kwargs):
             instance._old_slide_file = str(old.slide_file) if old.slide_file else ""
             instance._old_speaker = old.speaker or ""
             instance._old_theme = old.theme or ""
+            instance._old_start_time = old.start_time
+            instance._old_detail_type = old.detail_type
+            instance._old_event_id = old.event_id
+            instance._old_event_date = old.event.date
         except EventDetail.DoesNotExist:
             pass
 
 
+def _is_today_presentation(detail_type, event_date) -> bool:
+    return detail_type in PRESENTATION_DETAIL_TYPES and event_date == timezone.localdate()
+
+
+def _should_refresh_today_daily_reminder(instance, created: bool) -> bool:
+    if created:
+        return True
+
+    return any((
+        getattr(instance, "_old_status", None) != instance.status,
+        getattr(instance, "_old_speaker", "") != (instance.speaker or ""),
+        getattr(instance, "_old_theme", "") != (instance.theme or ""),
+        getattr(instance, "_old_start_time", None) != instance.start_time,
+        getattr(instance, "_old_detail_type", None) != instance.detail_type,
+        getattr(instance, "_old_event_id", None) != instance.event_id,
+    ))
+
+
+def _iter_today_event_ids_to_sync(instance):
+    event_ids = set()
+
+    if _is_today_presentation(instance.detail_type, instance.event.date):
+        event_ids.add(instance.event_id)
+
+    old_detail_type = getattr(instance, "_old_detail_type", None)
+    old_event_id = getattr(instance, "_old_event_id", None)
+    old_event_date = getattr(instance, "_old_event_date", None)
+    if old_event_id and _is_today_presentation(old_detail_type, old_event_date):
+        event_ids.add(old_event_id)
+
+    return sorted(event_ids)
+
+
+def _ensure_same_day_individual_queue_skipped(instance, tweet_type: str) -> None:
+    from twitter.models import TweetQueue
+
+    existing_qs = TweetQueue.objects.filter(
+        event_detail=instance, tweet_type=tweet_type,
+    ).order_by('created_at', 'pk')
+    primary = existing_qs.first()
+
+    if primary is None:
+        TweetQueue.objects.create(
+            tweet_type=tweet_type,
+            community=instance.event.community,
+            event=instance.event,
+            event_detail=instance,
+            status='skipped',
+            error_message=SAME_DAY_INDIVIDUAL_SKIP_REASON,
+        )
+        logger.info(
+            "Queued skipped same-day %s tweet: %s - %s",
+            tweet_type,
+            instance.speaker,
+            instance.theme,
+        )
+        return
+
+    update_fields = []
+    if primary.community_id != instance.event.community_id:
+        primary.community = instance.event.community
+        update_fields.append('community')
+    if primary.event_id != instance.event_id:
+        primary.event = instance.event
+        update_fields.append('event')
+    if primary.status != 'posted' and primary.status != 'skipped':
+        primary.status = 'skipped'
+        update_fields.append('status')
+    if primary.error_message != SAME_DAY_INDIVIDUAL_SKIP_REASON:
+        primary.error_message = SAME_DAY_INDIVIDUAL_SKIP_REASON
+        update_fields.append('error_message')
+    if primary.generated_text:
+        primary.generated_text = ''
+        update_fields.append('generated_text')
+
+    if update_fields:
+        primary.save(update_fields=update_fields)
+
+    existing_qs.exclude(pk=primary.pk).exclude(status='posted').delete()
+
+
+def _sync_daily_reminder_for_event(event_id: int) -> None:
+    from event.models import Event
+    from twitter.models import TweetQueue
+    from twitter.views import _retry_generation
+
+    try:
+        event = Event.objects.select_related('community').get(pk=event_id)
+    except Event.DoesNotExist:
+        return
+
+    if event.date != timezone.localdate():
+        return
+
+    queue = TweetQueue.objects.filter(
+        event=event, tweet_type='daily_reminder',
+    ).first()
+    has_presentations = event.details.filter(
+        status='approved', detail_type__in=PRESENTATION_DETAIL_TYPES,
+    ).exists()
+
+    if not has_presentations:
+        if queue and queue.status != 'posted':
+            queue.status = 'skipped'
+            queue.error_message = NO_APPROVED_PRESENTATIONS_SKIP_REASON
+            queue.generated_text = ''
+            queue.save(update_fields=['status', 'error_message', 'generated_text'])
+            logger.info(
+                "Skipped daily reminder tweet for event %d because no approved presentations remain",
+                event.pk,
+            )
+        return
+
+    if queue and queue.status == 'posted':
+        return
+
+    if queue is None:
+        queue = TweetQueue.objects.create(
+            tweet_type='daily_reminder',
+            community=event.community,
+            event=event,
+            status='generating',
+        )
+    else:
+        queue.community = event.community
+        queue.status = 'generating'
+        queue.error_message = ''
+        queue.generated_text = ''
+        queue.save(update_fields=['community', 'status', 'error_message', 'generated_text'])
+
+    _retry_generation(queue)
+    logger.info("Synced daily reminder tweet for event %d", event.pk)
+
+
+def _sync_today_daily_reminders_for_instance(instance, created: bool) -> None:
+    if not _should_refresh_today_daily_reminder(instance, created):
+        return
+
+    for event_id in _iter_today_event_ids_to_sync(instance):
+        _sync_daily_reminder_for_event(event_id)
+
+
 @receiver(post_save, sender=Community)
 def queue_new_community_tweet(sender, instance, created, **kwargs):
-    """Community が承認された時にツイートキューに追加する。
-
-    pending -> approved への遷移時のみトリガーされる。
-    同一 community の重複キューは作成しない。
-    ツイートキューは補助機能のため、失敗しても本体の保存処理に影響させない。
-    """
+    """Community が承認された時にツイートキューに追加する。"""
     try:
         _queue_new_community_tweet(instance, created)
     except Exception:
@@ -136,25 +272,18 @@ def queue_new_community_tweet(sender, instance, created, **kwargs):
 
 
 def _queue_new_community_tweet(instance, created):
-    # 遅延インポートで循環インポートを回避
     from twitter.models import TweetQueue
+    from event.models import Event
 
     old_status = getattr(instance, "_old_status", None)
-
-    # approved 以外、または既に approved だった場合はスキップ
     if instance.status != "approved" or old_status == "approved":
         return
 
-    # 重複チェック
     if TweetQueue.objects.filter(community=instance, tweet_type="new_community").exists():
         return
 
-    # 初回イベントを取得
-    from django.utils import timezone
-    from event.models import Event
-
     first_event = (
-        Event.objects.filter(community=instance, date__gte=timezone.now().date())
+        Event.objects.filter(community=instance, date__gte=timezone.localdate())
         .order_by("date", "start_time")
         .first()
     )
@@ -174,10 +303,7 @@ def _queue_new_community_tweet(instance, created):
 
 @receiver(post_save, sender=EventDetail)
 def queue_slide_share_tweet(sender, instance, created, **kwargs):
-    """スライド/記事が初めてアップロードされた時にツイートキューに追加する。
-
-    ツイートキューは補助機能のため、失敗しても本体の保存処理に影響させない。
-    """
+    """スライド/記事が初めてアップロードされた時にツイートキューに追加する。"""
     try:
         _queue_slide_share_tweet(instance, created)
     except Exception:
@@ -185,30 +311,17 @@ def queue_slide_share_tweet(sender, instance, created, **kwargs):
 
 
 def _queue_slide_share_tweet(instance, created):
-    """以下の条件をすべて満たす場合にキューを追加する:
-
-    - slide_url, youtube_url, slide_file のいずれかが初めて設定された
-    - status が approved（承認済み）
-    - event.date が過去（発表日が終わっている）
-    - 同じ event_detail に対して slide_share キューが未登録
-    """
-    from django.utils import timezone
-
     from twitter.models import TweetQueue
 
-    # detail_type チェック（LT/SPECIAL のみ対象）
-    if instance.detail_type not in ("LT", "SPECIAL"):
+    if instance.detail_type not in PRESENTATION_DETAIL_TYPES:
         return
 
-    # 承認済みのみ対象
     if instance.status != "approved":
         return
 
-    # 発表日が過去かチェック
-    if instance.event.date >= timezone.now().date():
+    if instance.event.date >= timezone.localdate():
         return
 
-    # slide_url, youtube_url, slide_file が初めて設定されたかチェック
     old_slide_url = getattr(instance, "_old_slide_url", "")
     old_youtube_url = getattr(instance, "_old_youtube_url", "")
     old_slide_file = getattr(instance, "_old_slide_file", "")
@@ -229,7 +342,6 @@ def _queue_slide_share_tweet(instance, created):
 
         notify_slide_material_published(instance)
 
-    # 重複チェック
     if TweetQueue.objects.filter(
         event_detail=instance, tweet_type="slide_share",
     ).exists():
@@ -253,10 +365,7 @@ def _queue_slide_share_tweet(instance, created):
 
 @receiver(post_save, sender=EventDetail)
 def queue_event_detail_tweet(sender, instance, created, **kwargs):
-    """LT/特別回の EventDetail が承認された時にツイートキューに追加する。
-
-    ツイートキューは補助機能のため、失敗しても本体の保存処理に影響させない。
-    """
+    """LT/特別回の EventDetail に応じてキューを更新する。"""
     try:
         _queue_event_detail_tweet(instance, created)
     except Exception:
@@ -264,33 +373,28 @@ def queue_event_detail_tweet(sender, instance, created, **kwargs):
 
 
 def _queue_event_detail_tweet(instance, created):
-    """以下の場合にキューを追加する:
-
-    - 新規作成 (created=True) かつ status='approved'
-    - 既存更新で _old_status != 'approved' から status='approved' に遷移
-    - 既に approved 状態で speaker/theme が変更された場合（未投稿ツイートを再生成）
-
-    detail_type が 'LT' or 'SPECIAL' の場合のみ。
-    イベント日が過去の場合はスキップ（終了イベントの告知を防止）。
-    """
-    from django.utils import timezone
-
     from twitter.models import TweetQueue
 
-    if instance.detail_type not in ("LT", "SPECIAL"):
+    if instance.detail_type not in PRESENTATION_DETAIL_TYPES:
+        _sync_today_daily_reminders_for_instance(instance, created)
         return
 
     if instance.status != "approved":
+        _sync_today_daily_reminders_for_instance(instance, created)
         return
 
-    # 過去のイベントには告知ツイートを作成しない
-    if instance.event.date < timezone.now().date():
+    if instance.event.date < timezone.localdate():
+        _sync_today_daily_reminders_for_instance(instance, created)
         return
 
     old_status = getattr(instance, "_old_status", None)
     tweet_type = "lt" if instance.detail_type == "LT" else "special"
 
-    # 既に approved → approved の更新（コンテンツ変更チェック）
+    if instance.event.date == timezone.localdate():
+        _ensure_same_day_individual_queue_skipped(instance, tweet_type)
+        _sync_today_daily_reminders_for_instance(instance, created)
+        return
+
     if not created and old_status == "approved":
         old_speaker = getattr(instance, "_old_speaker", "")
         old_theme = getattr(instance, "_old_theme", "")
@@ -300,7 +404,6 @@ def _queue_event_detail_tweet(instance, created):
         if old_speaker == new_speaker and old_theme == new_theme:
             return
 
-        # コンテンツ変更あり → 未投稿のツイートを削除して再生成
         deleted, _ = TweetQueue.objects.filter(
             event_detail=instance,
             tweet_type=tweet_type,
@@ -310,7 +413,6 @@ def _queue_event_detail_tweet(instance, created):
             logger.info("Deleted %d unposted %s tweet(s) for regeneration", deleted, tweet_type)
 
     else:
-        # 初回承認: 重複チェック
         if TweetQueue.objects.filter(event_detail=instance, tweet_type=tweet_type).exists():
             return
 
@@ -326,3 +428,13 @@ def _queue_event_detail_tweet(instance, created):
         target=_generate_tweet_async, args=(queue_item.pk,), daemon=True,
     )
     thread.start()
+
+
+@receiver(post_delete, sender=EventDetail)
+def sync_daily_reminder_on_event_detail_delete(sender, instance, **kwargs):
+    """当日発表の削除後に daily_reminder を同期する。"""
+    try:
+        if _is_today_presentation(instance.detail_type, instance.event.date):
+            _sync_daily_reminder_for_event(instance.event_id)
+    except Exception:
+        logger.exception("Failed to sync daily reminder after EventDetail delete %s", instance.pk)
