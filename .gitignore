@@ -137,3 +137,4 @@ test-results/
 /r2_bkp/
 backup/
 dumps/
+.playwright-cli/
