@@ -40,6 +40,14 @@ def _build_cloud_run_preview_host_pattern() -> re.Pattern[str]:
     )
 
 
+def _normalize_preview_host_candidate(value: str) -> str:
+    try:
+        return normalize_host(value)
+    except ValueError:
+        # 外部入力が壊れていても 500 にはせず、preview host 不一致として弾く。参照: PR #247
+        return ''
+
+
 class CanonicalCloudRunHostMiddleware:
     """Cloud Run のプレビューURLを正規ホストへ寄せる。"""
 
@@ -52,7 +60,7 @@ class CanonicalCloudRunHostMiddleware:
         host_meta_keys = ('HTTP_HOST', 'HTTP_X_FORWARDED_HOST', 'SERVER_NAME')
         # proxy 差分で absolute URL や host:port が混ざるので、判定前に host へ正規化する。参照: PR #247
         normalized_hosts = [
-            normalize_host(request.META.get(meta_key, ''))
+            _normalize_preview_host_candidate(request.META.get(meta_key, ''))
             for meta_key in host_meta_keys
         ]
         if any(

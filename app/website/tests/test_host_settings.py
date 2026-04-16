@@ -188,6 +188,22 @@ class AllowedHostsSettingsTest(SimpleTestCase):
         self.assertEqual(response.content.decode(), 'vrc-ta-hub.com')
 
     @override_settings(
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
+    )
+    def test_invalid_forwarded_host_does_not_crash_preview_host_detection(self):
+        request = self.request_factory.get(
+            '/healthz/',
+            HTTP_X_FORWARDED_HOST='[::1',
+        )
+        request.META.pop('HTTP_HOST', None)
+        request.META['SERVER_NAME'] = '[::1'
+
+        CanonicalCloudRunHostMiddleware(lambda req: HttpResponse('ok'))(request)
+
+        with self.assertRaises(DisallowedHost):
+            request.get_host()
+
+    @override_settings(
         ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'preview.vrc-ta-hub.com'],
     )
     def test_cloud_run_revision_host_uses_normalized_canonical_host(self):
