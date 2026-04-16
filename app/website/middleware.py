@@ -3,7 +3,7 @@
 import os
 import re
 
-from website.hosts import get_canonical_host
+from website.hosts import get_canonical_host, normalize_host
 
 
 DEFAULT_CLOUD_RUN_SERVICE_NAMES = (
@@ -50,8 +50,14 @@ class CanonicalCloudRunHostMiddleware:
 
     def __call__(self, request):
         host_meta_keys = ('HTTP_HOST', 'HTTP_X_FORWARDED_HOST', 'SERVER_NAME')
-        raw_hosts = [request.META.get(meta_key, '') for meta_key in host_meta_keys]
-        if any(self.cloud_run_preview_host_pattern.match(raw_host) for raw_host in raw_hosts):
+        normalized_hosts = [
+            normalize_host(request.META.get(meta_key, ''))
+            for meta_key in host_meta_keys
+        ]
+        if any(
+            self.cloud_run_preview_host_pattern.match(raw_host)
+            for raw_host in normalized_hosts
+        ):
             for meta_key in host_meta_keys:
                 if request.META.get(meta_key):
                     request.META[meta_key] = self.canonical_host
