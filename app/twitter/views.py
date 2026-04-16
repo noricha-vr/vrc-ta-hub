@@ -9,7 +9,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
-from django.db import models
+from django.db import IntegrityError, models, transaction
 from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -29,6 +29,7 @@ from .utils import format_event_info, generate_tweet, generate_tweet_url
 from .x_api import post_tweet, upload_media
 
 TWEET_QUEUE_PAGINATE_BY = 20
+REMINDER_DETAIL_TYPES = ("LT", "SPECIAL")
 SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個別告知は投稿しません'
 
 
@@ -204,10 +205,50 @@ def _retry_generation(queue_item) -> None:
         logger.error("Retry generation failed for queue %d", queue_item.pk)
 
 
+def _create_daily_reminder_queues(today=None) -> int:
+    """当日開催イベント向けの missing なリマインドキューを補完作成する。"""
+    today = today or timezone.localdate()
+    today_events = (
+        Event.objects.filter(
+            date=today,
+            details__status='approved',
+            details__detail_type__in=REMINDER_DETAIL_TYPES,
+        )
+        .select_related('community')
+        .distinct()
+    )
+
+    created_count = 0
+    for event in today_events:
+        try:
+            with transaction.atomic():
+                queue_item, created = TweetQueue.objects.get_or_create(
+                    event=event,
+                    tweet_type='daily_reminder',
+                    defaults={
+                        'community': event.community,
+                    },
+                )
+        except IntegrityError:
+            logger.info("Skipped concurrent daily reminder tweet for event %d", event.pk)
+            continue
+
+        if not created:
+            continue
+
+        # 同じ 19:00 実行で投稿対象に含めるため、作成後すぐ生成まで進める。
+        _retry_generation(queue_item)
+        created_count += 1
+        logger.info("Queued daily reminder tweet for event %d", event.pk)
+
+    return created_count
+
+
 @require_http_methods(["GET"])
 def post_scheduled_tweets(request):
     """Cloud Scheduler から毎日 19:00 JST に呼ばれるエンドポイント。
 
+    Phase 0: 当日イベントの missing なリマインドキュー作成
     Phase 1: 生成失敗/停滞キューのリトライ
     Phase 2: ready キューの投稿
     """
@@ -215,7 +256,7 @@ def post_scheduled_tweets(request):
     if request_token != os.environ.get("REQUEST_TOKEN", ""):
         return HttpResponse("Unauthorized", status=401)
 
-    created_count = 0
+    created_count = _create_daily_reminder_queues()
 
     # Phase 1: 生成リトライ（generation_failed + 1時間以上前の generating）
     retry_threshold = timezone.now() - timedelta(hours=RETRY_THRESHOLD_HOURS)

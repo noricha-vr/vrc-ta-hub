@@ -794,10 +794,11 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertFalse(TweetQueue.objects.filter(tweet_type="daily_reminder").exists())
 
     @patch("twitter.views.post_tweet")
-    @patch("twitter.signals.threading.Thread")
-    def test_post_scheduled_tweets_does_not_create_missing_daily_reminder(self, mock_thread_cls, mock_post):
-        """daily_reminder が未作成ならスケジューラは補完作成しない"""
-        mock_thread_cls.return_value = MagicMock()
+    @patch("twitter.tweet_generator.generate_daily_reminder_tweet")
+    def test_post_scheduled_tweets_creates_missing_daily_reminder(self, mock_generate, mock_post):
+        """daily_reminder が未作成ならスケジューラが補完作成して同じ実行で投稿する"""
+        mock_generate.return_value = "今日の発表リマインド"
+        mock_post.return_value = {"id": "dr-missing-1", "text": "今日の発表リマインド"}
 
         today_event = Event.objects.create(
             community=self.community,
@@ -821,9 +822,13 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["created"], 0)
-        self.assertFalse(TweetQueue.objects.filter(tweet_type="daily_reminder").exists())
-        mock_post.assert_not_called()
+        self.assertEqual(data["created"], 1)
+        self.assertEqual(data["processed"], 1)
+        reminder_queue = TweetQueue.objects.get(tweet_type="daily_reminder")
+        self.assertEqual(reminder_queue.event, today_event)
+        self.assertEqual(reminder_queue.status, "posted")
+        self.assertEqual(reminder_queue.generated_text, "今日の発表リマインド")
+        mock_post.assert_called_once_with("今日の発表リマインド", media_ids=None)
 
     @patch("twitter.views.post_tweet")
     def test_post_scheduled_tweets_with_pregenerated_text(self, mock_post):
