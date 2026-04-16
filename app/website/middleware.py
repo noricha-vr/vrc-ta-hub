@@ -50,6 +50,7 @@ class CanonicalCloudRunHostMiddleware:
 
     def __call__(self, request):
         host_meta_keys = ('HTTP_HOST', 'HTTP_X_FORWARDED_HOST', 'SERVER_NAME')
+        # proxy 差分で absolute URL や host:port が混ざるので、判定前に host へ正規化する。参照: PR #247
         normalized_hosts = [
             normalize_host(request.META.get(meta_key, ''))
             for meta_key in host_meta_keys
