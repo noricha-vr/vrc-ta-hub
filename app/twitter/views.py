@@ -21,6 +21,7 @@ from django.views.generic import CreateView, UpdateView, ListView, DeleteView, D
 logger = logging.getLogger(__name__)
 
 from community.models import Community, CommunityMember
+from event.models import Event
 from .forms import TwitterTemplateForm
 from .models import TwitterTemplate, TweetQueue
 from .tweet_generator import get_generator, get_poster_image_url
