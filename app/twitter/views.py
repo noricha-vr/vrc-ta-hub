@@ -4,7 +4,7 @@ import logging
 import os
 import threading
 import urllib.parse
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -13,6 +13,7 @@ from django.db import models
 from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
+from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from django.views import View
 from django.views.decorators.http import require_http_methods
@@ -24,12 +25,15 @@ from community.models import Community, CommunityMember
 from event.models import Event
 from .forms import TwitterTemplateForm
 from .models import TwitterTemplate, TweetQueue
+from .scheduling import default_scheduled_at
 from .tweet_generator import get_generator, get_poster_image_url
 from .utils import format_event_info, generate_tweet, generate_tweet_url
 from .x_api import post_tweet, upload_media
 
 TWEET_QUEUE_PAGINATE_BY = 20
 SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個別告知は投稿しません'
+SCHEDULED_MINUTE_CHOICES = {0, 30}
+SCHEDULED_AT_MINUTE_ERROR = '予約日時は00分または30分で指定してください。'
 
 
 class TwitterTemplateBaseView(LoginRequiredMixin, UserPassesTestMixin):
@@ -166,6 +170,8 @@ class TweetEventWithTemplateView(TemplateView):
 
 
 RETRY_THRESHOLD_HOURS = 1
+SCHEDULE_EXPIRY_HOURS = 24
+SCHEDULE_EXPIRED_SKIP_REASON = '予約日時から24時間以上経過したため投稿をスキップ'
 
 
 def _retry_generation(queue_item) -> None:
@@ -206,7 +212,7 @@ def _retry_generation(queue_item) -> None:
 
 @require_http_methods(["GET"])
 def post_scheduled_tweets(request):
-    """Cloud Scheduler から毎日 19:00 JST に呼ばれるエンドポイント。
+    """Cloud Scheduler から 30 分ごとに呼ばれるエンドポイント。
 
     Phase 1: 生成失敗/停滞キューのリトライ
     Phase 2: ready キューの投稿
@@ -216,13 +222,34 @@ def post_scheduled_tweets(request):
         return HttpResponse("Unauthorized", status=401)
 
     created_count = 0
+    now = timezone.now()
+    expiry_threshold = now - timedelta(hours=SCHEDULE_EXPIRY_HOURS)
+
+    overdue_items = list(
+        TweetQueue.objects.filter(
+            status__in=('generating', 'generation_failed', 'ready'),
+            scheduled_at__lt=expiry_threshold,
+        ).select_related('community', 'event', 'event_detail')
+    )
+
+    results = []
+    for item in overdue_items:
+        item.status = 'skipped'
+        item.error_message = SCHEDULE_EXPIRED_SKIP_REASON
+        item.save(update_fields=['status', 'error_message'])
+        results.append({
+            "id": item.pk, "status": "skipped", "reason": "schedule_expired",
+        })
+        logger.info("Skipped expired scheduled tweet for queue %d", item.pk)
 
     # Phase 1: 生成リトライ（generation_failed + 1時間以上前の generating）
-    retry_threshold = timezone.now() - timedelta(hours=RETRY_THRESHOLD_HOURS)
+    retry_threshold = now - timedelta(hours=RETRY_THRESHOLD_HOURS)
     retry_items = list(
         TweetQueue.objects.filter(
-            models.Q(status='generation_failed')
-            | models.Q(status='generating', created_at__lt=retry_threshold),
+            (
+                models.Q(status='generation_failed')
+                | models.Q(status='generating', created_at__lt=retry_threshold)
+            ),
         ).select_related('community', 'event', 'event_detail')
     )
     retried_count = len(retry_items)
@@ -231,11 +258,12 @@ def post_scheduled_tweets(request):
         _retry_generation(item)
 
     # Phase 2: ready キューの投稿
-    ready_items = TweetQueue.objects.filter(status='ready').select_related(
+    ready_items = TweetQueue.objects.filter(
+        status='ready',
+        scheduled_at__lte=now,
+    ).select_related(
         'community', 'event', 'event_detail',
     )
-
-    results = []
     for queue_item in ready_items:
         # LT/特別回告知は、イベント日が過去ならスキップ（期限切れ防止）
         if queue_item.tweet_type in ('lt', 'special') and queue_item.event:
@@ -350,9 +378,36 @@ class TweetQueueListView(TweetQueueViewerMixin, ListView):
     template_name = 'twitter/tweet_queue_list.html'
     context_object_name = 'tweet_queues'
     paginate_by = TWEET_QUEUE_PAGINATE_BY
+    SORT_FIELDS = {
+        'created_at': 'created_at',
+        'scheduled_at': 'scheduled_at',
+        'posted_at': 'posted_at',
+    }
+    DEFAULT_SORT_FIELD = 'scheduled_at'
+    DEFAULT_SORT_ORDER = 'desc'
+
+    def _get_sort_field(self):
+        sort = self.request.GET.get('sort', self.DEFAULT_SORT_FIELD)
+        if sort in self.SORT_FIELDS:
+            return sort
+        return self.DEFAULT_SORT_FIELD
+
+    def _get_sort_order(self):
+        order = self.request.GET.get('order', self.DEFAULT_SORT_ORDER)
+        if order in {'asc', 'desc'}:
+            return order
+        return self.DEFAULT_SORT_ORDER
+
+    def _get_ordering(self):
+        sort_field = self._get_sort_field()
+        sort_order = self._get_sort_order()
+        field_name = self.SORT_FIELDS[sort_field]
+        direction = 'asc' if sort_order == 'asc' else 'desc'
+        primary_order = getattr(models.F(field_name), direction)(nulls_last=True)
+        return [primary_order, models.F('created_at').desc(), models.F('pk').desc()]
 
     def get_queryset(self):
-        qs = TweetQueue.objects.select_related('community', 'event').order_by('-created_at')
+        qs = TweetQueue.objects.select_related('community', 'event').order_by(*self._get_ordering())
         qs = _scope_tweet_queue_to_user(qs, self.request.user)
         status = self.request.GET.get('status', '')
         valid_statuses = {choice[0] for choice in TweetQueue.STATUS_CHOICES}
@@ -363,13 +418,28 @@ class TweetQueueListView(TweetQueueViewerMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         status = self.request.GET.get('status', '')
+        current_sort = self._get_sort_field()
+        current_order = self._get_sort_order()
         context['current_status'] = status
         context['status_choices'] = TweetQueue.STATUS_CHOICES
-        # ページネーション用にステータスフィルタをクエリパラメータとして保持
-        if status:
-            context['current_query_params'] = f'status={status}'
-        else:
-            context['current_query_params'] = ''
+        context['current_sort'] = current_sort
+        context['current_order'] = current_order
+
+        pagination_params = self.request.GET.copy()
+        pagination_params.pop('page', None)
+        context['current_query_params'] = pagination_params.urlencode()
+
+        header_links = {}
+        for sort_key in self.SORT_FIELDS:
+            query_params = self.request.GET.copy()
+            query_params.pop('page', None)
+            query_params['sort'] = sort_key
+            if current_sort == sort_key and current_order == 'asc':
+                query_params['order'] = 'desc'
+            else:
+                query_params['order'] = 'asc'
+            header_links[sort_key] = query_params.urlencode()
+        context['sort_links'] = header_links
         return context
 
 
@@ -406,10 +476,36 @@ class TweetQueueDetailView(TweetQueueViewerMixin, DetailView):
             return self._handle_update(request)
 
     def _handle_update(self, request):
-        """generated_text と image_url を更新する。"""
-        self.object.generated_text = request.POST.get('generated_text', '')
-        self.object.image_url = request.POST.get('image_url', '')
-        self.object.save(update_fields=['generated_text', 'image_url'])
+        """generated_text と image_url と scheduled_at を更新する。"""
+        generated_text = request.POST.get('generated_text', '')
+        image_url = request.POST.get('image_url', '')
+        scheduled_at_raw = request.POST.get('scheduled_at', '').strip()
+
+        if scheduled_at_raw:
+            parsed = parse_datetime(scheduled_at_raw)
+            if parsed is None:
+                try:
+                    parsed = datetime.fromisoformat(scheduled_at_raw)
+                except ValueError:
+                    messages.error(request, SCHEDULED_AT_MINUTE_ERROR)
+                    return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
+            if timezone.is_naive(parsed):
+                parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+            parsed = parsed.replace(second=0, microsecond=0)
+            if parsed.minute not in SCHEDULED_MINUTE_CHOICES:
+                messages.error(request, SCHEDULED_AT_MINUTE_ERROR)
+                return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
+            scheduled_at = parsed
+        else:
+            scheduled_at = default_scheduled_at(
+                tweet_type=self.object.tweet_type,
+                event=self.object.event,
+            )
+
+        self.object.generated_text = generated_text
+        self.object.image_url = image_url
+        self.object.scheduled_at = scheduled_at
+        self.object.save(update_fields=['generated_text', 'image_url', 'scheduled_at'])
         messages.success(request, '保存しました。')
         return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
 

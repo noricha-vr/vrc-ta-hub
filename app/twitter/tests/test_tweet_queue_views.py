@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from community.models import Community, CommunityMember
 from twitter.models import TweetQueue
@@ -53,6 +54,15 @@ class TweetQueueViewTestBase(TestCase):
 class TweetQueueListViewTest(TweetQueueViewTestBase):
     """TweetQueueListView のテスト"""
 
+    def _create_queue(self, **kwargs):
+        defaults = {
+            'tweet_type': 'new_community',
+            'community': self.community,
+            'status': 'ready',
+        }
+        defaults.update(kwargs)
+        return TweetQueue.objects.create(**defaults)
+
     def test_anonymous_user_redirected(self):
         """未ログインユーザーはログインページにリダイレクトされる"""
         url = reverse('twitter:tweet_queue_list')
@@ -70,12 +80,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
     def test_superuser_can_access_list(self):
         """スーパーユーザーは一覧にアクセスできる"""
         self.client.login(username='admin_user', password='testpassword')
-        TweetQueue.objects.create(
-            tweet_type='new_community',
-            community=self.community,
-            generated_text='Test tweet',
-            status='ready',
-        )
+        self._create_queue(generated_text='Test tweet')
         url = reverse('twitter:tweet_queue_list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -85,18 +90,8 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
     def test_status_filter(self):
         """ステータスフィルタが正しく動作する"""
         self.client.login(username='admin_user', password='testpassword')
-        TweetQueue.objects.create(
-            tweet_type='new_community',
-            community=self.community,
-            generated_text='Ready tweet',
-            status='ready',
-        )
-        TweetQueue.objects.create(
-            tweet_type='lt',
-            community=self.community,
-            generated_text='Posted tweet',
-            status='posted',
-        )
+        self._create_queue(generated_text='Ready tweet')
+        self._create_queue(tweet_type='lt', generated_text='Posted tweet', status='posted')
 
         # ready でフィルタ
         url = reverse('twitter:tweet_queue_list')
@@ -104,11 +99,12 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['page_obj'].paginator.count, 1)
         self.assertEqual(response.context['current_status'], 'ready')
+        self.assertEqual(response.context['current_query_params'], 'status=ready')
 
     def test_skipped_status_filter(self):
         """skipped ステータスでも絞り込みできる"""
         self.client.login(username='admin_user', password='testpassword')
-        TweetQueue.objects.create(
+        self._create_queue(
             tweet_type='lt',
             community=self.community,
             generated_text='',
@@ -125,16 +121,8 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
     def test_invalid_status_filter_shows_all(self):
         """無効なステータス値ではフィルタされず全件表示される"""
         self.client.login(username='admin_user', password='testpassword')
-        TweetQueue.objects.create(
-            tweet_type='new_community',
-            community=self.community,
-            status='ready',
-        )
-        TweetQueue.objects.create(
-            tweet_type='lt',
-            community=self.community,
-            status='posted',
-        )
+        self._create_queue(status='ready')
+        self._create_queue(tweet_type='lt', status='posted')
         url = reverse('twitter:tweet_queue_list')
         response = self.client.get(url, {'status': 'invalid_status'})
         self.assertEqual(response.status_code, 200)
@@ -147,6 +135,73 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'キューがありません')
+
+    def test_default_sort_is_scheduled_at_desc(self):
+        """デフォルトは予約日時の降順で表示される"""
+        self.client.login(username='admin_user', password='testpassword')
+        early = self._create_queue(generated_text='early')
+        late = self._create_queue(generated_text='late')
+        base = timezone.now()
+        TweetQueue.objects.filter(pk=early.pk).update(scheduled_at=base + datetime.timedelta(days=1))
+        TweetQueue.objects.filter(pk=late.pk).update(scheduled_at=base + datetime.timedelta(days=2))
+
+        response = self.client.get(reverse('twitter:tweet_queue_list'))
+
+        self.assertEqual(response.status_code, 200)
+        page_items = list(response.context['page_obj'].object_list)
+        self.assertEqual([item.pk for item in page_items[:2]], [late.pk, early.pk])
+        self.assertEqual(response.context['current_sort'], 'scheduled_at')
+        self.assertEqual(response.context['current_order'], 'desc')
+
+    def test_sort_by_scheduled_at_asc(self):
+        """予約日時の昇順ソートができる"""
+        self.client.login(username='admin_user', password='testpassword')
+        late = self._create_queue(generated_text='late')
+        early = self._create_queue(generated_text='early')
+        middle = self._create_queue(generated_text='middle')
+        base = timezone.now()
+        TweetQueue.objects.filter(pk=late.pk).update(scheduled_at=base + datetime.timedelta(days=3))
+        TweetQueue.objects.filter(pk=early.pk).update(scheduled_at=base + datetime.timedelta(days=1))
+        TweetQueue.objects.filter(pk=middle.pk).update(scheduled_at=base + datetime.timedelta(days=2))
+
+        response = self.client.get(reverse('twitter:tweet_queue_list'), {
+            'sort': 'scheduled_at',
+            'order': 'asc',
+            'status': 'ready',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        page_items = list(response.context['page_obj'].object_list)
+        self.assertEqual([item.pk for item in page_items[:3]], [early.pk, middle.pk, late.pk])
+        self.assertEqual(response.context['current_sort'], 'scheduled_at')
+        self.assertEqual(response.context['current_order'], 'asc')
+        self.assertEqual(
+            response.context['current_query_params'],
+            'sort=scheduled_at&order=asc&status=ready',
+        )
+        self.assertIn('sort=scheduled_at', response.context['sort_links']['scheduled_at'])
+
+    def test_sort_by_posted_at_desc_nulls_last(self):
+        """投稿日時の降順ソートでは未投稿キューが後ろに回る"""
+        self.client.login(username='admin_user', password='testpassword')
+        unposted = self._create_queue(generated_text='unposted', status='ready')
+        older_posted = self._create_queue(generated_text='older posted', status='posted')
+        newer_posted = self._create_queue(generated_text='newer posted', status='posted')
+        base = timezone.now()
+        TweetQueue.objects.filter(pk=older_posted.pk).update(posted_at=base - datetime.timedelta(hours=1))
+        TweetQueue.objects.filter(pk=newer_posted.pk).update(posted_at=base)
+
+        response = self.client.get(reverse('twitter:tweet_queue_list'), {
+            'sort': 'posted_at',
+            'order': 'desc',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        page_items = list(response.context['page_obj'].object_list)
+        self.assertEqual(
+            [item.pk for item in page_items[:3]],
+            [newer_posted.pk, older_posted.pk, unposted.pk],
+        )
 
 
 class TweetQueueDetailViewTest(TweetQueueViewTestBase):
@@ -182,6 +237,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Original tweet text')
         self.assertContains(response, 'Queue Test Community')
+        self.assertContains(response, '予約日時')
 
     def test_update_generated_text(self):
         """テキストの編集保存ができる"""
@@ -190,10 +246,50 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         response = self.client.post(url, {
             'action': 'update',
             'generated_text': 'Updated tweet text',
+            'scheduled_at': '2026-04-17T19:00',
         })
         self.assertEqual(response.status_code, 302)
         self.queue_item.refresh_from_db()
         self.assertEqual(self.queue_item.generated_text, 'Updated tweet text')
+        self.assertEqual(
+            timezone.localtime(self.queue_item.scheduled_at).strftime('%Y-%m-%dT%H:%M'),
+            '2026-04-17T19:00',
+        )
+
+    def test_update_rejects_non_30_minute_schedule(self):
+        """予約日時が30分刻みでなければ保存しない"""
+        self.client.login(username='admin_user', password='testpassword')
+        original_scheduled_at = self.queue_item.scheduled_at
+        url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
+        response = self.client.post(url, {
+            'action': 'update',
+            'generated_text': 'Should not save',
+            'scheduled_at': '2026-04-17T19:10',
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.queue_item.refresh_from_db()
+        self.assertEqual(self.queue_item.generated_text, 'Original tweet text')
+        self.assertEqual(self.queue_item.scheduled_at, original_scheduled_at)
+        self.assertContains(response, '予約日時は00分または30分で指定してください。')
+
+    def test_update_allows_half_hour_schedule(self):
+        """予約日時は30分刻みなら保存できる"""
+        self.client.login(username='admin_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
+        response = self.client.post(url, {
+            'action': 'update',
+            'generated_text': 'Half-hour schedule',
+            'scheduled_at': '2026-04-17T19:30',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.queue_item.refresh_from_db()
+        self.assertEqual(self.queue_item.generated_text, 'Half-hour schedule')
+        self.assertEqual(
+            timezone.localtime(self.queue_item.scheduled_at).strftime('%Y-%m-%dT%H:%M'),
+            '2026-04-17T19:30',
+        )
 
     @patch('twitter.views.threading.Thread')
     def test_retry_generation(self, mock_thread_cls):

@@ -16,6 +16,7 @@ from django.utils import timezone
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 from twitter.models import TweetQueue
+from twitter.scheduling import default_scheduled_at, scheduled_at_for_date
 
 CustomUser = get_user_model()
 
@@ -54,6 +55,15 @@ class AutoTweetTestBase(TestCase):
             start_time=datetime.time(22, 0),
             duration=60,
         )
+
+    def due_scheduled_at(self):
+        return timezone.now() - datetime.timedelta(minutes=5)
+
+    def future_scheduled_at(self):
+        return timezone.now() + datetime.timedelta(hours=1)
+
+    def overdue_scheduled_at(self):
+        return timezone.now() - datetime.timedelta(hours=25)
 
 
 class CommunityApprovalSignalTest(AutoTweetTestBase):
@@ -143,12 +153,16 @@ class EventDetailSignalTest(AutoTweetTestBase):
             start_time=datetime.time(22, 15),
         )
 
-        self.assertEqual(TweetQueue.objects.count(), 1)
-        queue = TweetQueue.objects.first()
+        self.assertEqual(TweetQueue.objects.count(), 2)
+        queue = TweetQueue.objects.get(tweet_type="lt")
+        reminder = TweetQueue.objects.get(tweet_type="daily_reminder")
         self.assertEqual(queue.tweet_type, "lt")
         self.assertEqual(queue.event_detail, detail)
         self.assertEqual(queue.event, self.event)
         self.assertEqual(queue.status, "generating")
+        self.assertEqual(queue.scheduled_at, default_scheduled_at("lt", self.event))
+        self.assertEqual(reminder.event, self.event)
+        self.assertEqual(reminder.scheduled_at, scheduled_at_for_date(self.event.date))
 
     @patch("twitter.signals.threading.Thread")
     def test_special_event_creates_queue(self, mock_thread_cls):
@@ -164,10 +178,12 @@ class EventDetailSignalTest(AutoTweetTestBase):
             start_time=datetime.time(22, 0),
         )
 
-        self.assertEqual(TweetQueue.objects.count(), 1)
-        queue = TweetQueue.objects.first()
+        self.assertEqual(TweetQueue.objects.count(), 2)
+        queue = TweetQueue.objects.get(tweet_type="special")
+        reminder = TweetQueue.objects.get(tweet_type="daily_reminder")
         self.assertEqual(queue.tweet_type, "special")
         self.assertEqual(queue.event_detail, detail)
+        self.assertEqual(reminder.scheduled_at, scheduled_at_for_date(self.event.date))
 
     @patch("twitter.signals.threading.Thread")
     def test_blog_type_does_not_create_queue(self, mock_thread_cls):
@@ -223,7 +239,8 @@ class EventDetailSignalTest(AutoTweetTestBase):
         # pending -> approved でも既にキューがあるので増えない
         detail.status = "approved"
         detail.save()
-        self.assertEqual(TweetQueue.objects.count(), 1)
+        self.assertEqual(TweetQueue.objects.count(), 2)
+        self.assertTrue(TweetQueue.objects.filter(tweet_type="daily_reminder", event=self.event).exists())
 
     @patch("twitter.signals.threading.Thread")
     def test_pending_to_approved_creates_queue(self, mock_thread_cls):
@@ -244,8 +261,8 @@ class EventDetailSignalTest(AutoTweetTestBase):
         detail.status = "approved"
         detail.save()
 
-        self.assertEqual(TweetQueue.objects.count(), 1)
-        queue = TweetQueue.objects.first()
+        self.assertEqual(TweetQueue.objects.count(), 2)
+        queue = TweetQueue.objects.get(tweet_type="lt")
         self.assertEqual(queue.tweet_type, "lt")
         self.assertEqual(queue.event_detail, detail)
 
@@ -262,11 +279,13 @@ class EventDetailSignalTest(AutoTweetTestBase):
             theme="VRChatで学ぶPython",
             start_time=datetime.time(22, 15),
         )
-        self.assertEqual(TweetQueue.objects.count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder").count(), 1)
 
         # 内容変更なしで再保存
         detail.save()
-        self.assertEqual(TweetQueue.objects.count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder").count(), 1)
 
     @patch("twitter.signals.threading.Thread")
     def test_approved_detail_content_change_regenerates_tweet(self, mock_thread_cls):
@@ -281,16 +300,17 @@ class EventDetailSignalTest(AutoTweetTestBase):
             theme="VRChatで学ぶPython",
             start_time=datetime.time(22, 15),
         )
-        self.assertEqual(TweetQueue.objects.count(), 1)
-        old_queue_id = TweetQueue.objects.first().pk
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
+        old_queue_id = TweetQueue.objects.get(tweet_type="lt").pk
 
         # speaker を変更
         detail.speaker = "更新太郎"
         detail.save()
 
         # 古いキューが削除され、新しいキューが作成される
-        self.assertEqual(TweetQueue.objects.count(), 1)
-        new_queue = TweetQueue.objects.first()
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder").count(), 1)
+        new_queue = TweetQueue.objects.get(tweet_type="lt")
         self.assertNotEqual(new_queue.pk, old_queue_id)
         self.assertEqual(new_queue.status, "generating")
 
@@ -307,13 +327,15 @@ class EventDetailSignalTest(AutoTweetTestBase):
             theme="VRChatで学ぶPython",
             start_time=datetime.time(22, 15),
         )
-        self.assertEqual(TweetQueue.objects.count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder").count(), 1)
 
         detail.theme = "VRChatで学ぶRust"
         detail.save()
 
-        self.assertEqual(TweetQueue.objects.count(), 1)
-        queue = TweetQueue.objects.first()
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder").count(), 1)
+        queue = TweetQueue.objects.get(tweet_type="lt")
         self.assertEqual(queue.status, "generating")
 
     @patch("twitter.signals.threading.Thread")
@@ -330,15 +352,16 @@ class EventDetailSignalTest(AutoTweetTestBase):
             start_time=datetime.time(22, 15),
         )
         # 投稿済みにする
-        queue = TweetQueue.objects.first()
+        queue = TweetQueue.objects.get(tweet_type="lt")
         queue.status = "posted"
         queue.save()
 
         detail.speaker = "更新太郎"
         detail.save()
 
-        # 投稿済み + 新規 = 2件
-        self.assertEqual(TweetQueue.objects.count(), 2)
+        # 投稿済みLT + 新規LT + daily_reminder = 3件
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 2)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder").count(), 1)
         self.assertEqual(TweetQueue.objects.filter(status="posted").count(), 1)
         self.assertEqual(TweetQueue.objects.filter(status="generating").count(), 1)
 
@@ -361,7 +384,8 @@ class EventDetailSignalTest(AutoTweetTestBase):
         # コンテンツ変更で再保存 → 新規作成
         detail.theme = "VRChatで学ぶRust"
         detail.save()
-        self.assertEqual(TweetQueue.objects.count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder").count(), 1)
 
     @patch("twitter.signals.threading.Thread")
     def test_past_event_does_not_create_lt_queue(self, mock_thread_cls):
@@ -442,6 +466,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertIn("当日リマインド", lt_queue.error_message)
         self.assertEqual(reminder_queue.status, "ready")
         self.assertEqual(reminder_queue.generated_text, "今日開催のリマインド")
+        self.assertEqual(reminder_queue.scheduled_at, scheduled_at_for_date(today_event.date))
 
     @patch("twitter.views._retry_generation")
     def test_today_event_theme_change_regenerates_same_daily_reminder_queue(self, mock_retry):
@@ -482,6 +507,39 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(reminder_queue.generated_text, "今日開催のリマインド v2")
         self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder", event=today_event).count(), 1)
         self.assertEqual(TweetQueue.objects.get(tweet_type="daily_reminder", event=today_event).pk, reminder_queue.pk)
+
+    @patch("twitter.views._retry_generation")
+    def test_future_event_start_time_change_regenerates_daily_reminder_queue(self, mock_retry):
+        """future イベントの開始時刻変更でも daily_reminder を同じキューIDのまま再生成する"""
+        generated = []
+
+        def mark_ready(queue):
+            text = f"future reminder v{len(generated) + 1}"
+            generated.append(text)
+            queue.generated_text = text
+            queue.status = "ready"
+            queue.error_message = ""
+            queue.save(update_fields=["generated_text", "status", "error_message"])
+
+        mock_retry.side_effect = mark_ready
+
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="VRChatで学ぶPython",
+            start_time=datetime.time(22, 15),
+        )
+        reminder_queue = TweetQueue.objects.get(tweet_type="daily_reminder", event=self.event)
+
+        detail.start_time = datetime.time(22, 30)
+        detail.save()
+
+        reminder_queue.refresh_from_db()
+        self.assertEqual(reminder_queue.status, "ready")
+        self.assertEqual(reminder_queue.generated_text, "future reminder v2")
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder", event=self.event).count(), 1)
 
     @patch("twitter.views._retry_generation")
     def test_today_event_unapprove_skips_daily_reminder(self, mock_retry):
@@ -627,6 +685,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             event=self.event,
             status="ready",
             generated_text="新しい集会の告知テスト",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -657,6 +716,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             event=self.event,
             status="ready",
             generated_text="テストツイート",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -703,6 +763,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             event=today_event,
             status="ready",
             generated_text="今日開催のリマインド",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -734,6 +795,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             event=today_event,
             status="ready",
             generated_text="今日の個別LT告知",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -836,6 +898,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             event=self.event,
             status="ready",
             generated_text="事前生成テキスト",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -861,6 +924,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             event=self.event,
             status="generation_failed",
             error_message="前回の失敗",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -890,11 +954,12 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             community=self.community,
             event=self.event,
             status="generating",
+            scheduled_at=self.due_scheduled_at(),
         )
         # created_at を1時間以上前に更新
         from datetime import timedelta
         TweetQueue.objects.filter(pk=queue.pk).update(
-            created_at=timezone.now() - timedelta(hours=2),
+            created_at=timezone.now() - datetime.timedelta(hours=2),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -917,6 +982,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             community=self.community,
             event=self.event,
             status="generating",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -933,6 +999,100 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         queue = TweetQueue.objects.first()
         self.assertEqual(queue.status, "generating")
 
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_retry_generation_failed_items_before_scheduled_at(self, mock_generate):
+        """future の generation_failed キューも前倒しで再生成される"""
+        mock_generate.return_value = "未来キューの回復テキスト"
+
+        queue = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="generation_failed",
+            scheduled_at=self.future_scheduled_at(),
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["retried"], 1)
+        queue.refresh_from_db()
+        self.assertEqual(queue.status, "ready")
+        self.assertEqual(queue.generated_text, "未来キューの回復テキスト")
+
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_retry_stale_generating_before_scheduled_at(self, mock_generate):
+        """future の stale generating キューも前倒しで再生成される"""
+        mock_generate.return_value = "未来generating回復テキスト"
+
+        queue = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="generating",
+            scheduled_at=self.future_scheduled_at(),
+        )
+        TweetQueue.objects.filter(pk=queue.pk).update(
+            created_at=timezone.now() - datetime.timedelta(hours=2),
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["retried"], 1)
+        queue.refresh_from_db()
+        self.assertEqual(queue.status, "ready")
+        self.assertEqual(queue.generated_text, "未来generating回復テキスト")
+
+    @patch("twitter.views.post_tweet")
+    def test_ready_queue_waits_until_scheduled_at(self, mock_post):
+        """予約日時前の ready キューは投稿しない"""
+        queue = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="ready",
+            generated_text="未来の予約投稿",
+            scheduled_at=self.future_scheduled_at(),
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        self.assertEqual(response.status_code, 200)
+        queue.refresh_from_db()
+        self.assertEqual(queue.status, "ready")
+        mock_post.assert_not_called()
+
+    @patch("twitter.views.post_tweet")
+    def test_overdue_ready_queue_is_skipped(self, mock_post):
+        """予約日時から24時間以上経過した未投稿キューは skipped になる"""
+        queue = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="ready",
+            generated_text="期限切れ投稿",
+            scheduled_at=self.overdue_scheduled_at(),
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        self.assertEqual(response.status_code, 200)
+        queue.refresh_from_db()
+        self.assertEqual(queue.status, "skipped")
+        self.assertIn("24時間以上", queue.error_message)
+        mock_post.assert_not_called()
+
     @patch("twitter.views.upload_media")
     @patch("twitter.views.post_tweet")
     def test_post_with_image(self, mock_post, mock_upload):
@@ -947,6 +1107,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             status="ready",
             generated_text="画像付きツイート",
             image_url="https://data.vrc-ta-hub.com/community/1/poster.webp",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -978,6 +1139,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             status="ready",
             generated_text="テキストのみ",
             image_url="https://data.vrc-ta-hub.com/community/1/poster.webp",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -1019,6 +1181,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
             event=past_event,
             status="ready",
             generated_text="過去のLT告知",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -1042,6 +1205,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
             event=self.event,  # 2026-05-01（未来）
             status="ready",
             generated_text="未来のLT告知",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -1067,6 +1231,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
             event=past_event,
             status="ready",
             generated_text="過去の特別回告知",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -1094,6 +1259,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
             event=past_event,
             status="ready",
             generated_text="スライド共有",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
@@ -1118,6 +1284,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
             event=past_event,
             status="ready",
             generated_text="昨日開催のリマインド",
+            scheduled_at=self.due_scheduled_at(),
         )
 
         with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):

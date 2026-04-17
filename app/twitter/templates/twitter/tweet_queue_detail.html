@@ -38,6 +38,16 @@
                                 <strong>作成日時:</strong> {{ object.created_at|date:"Y/m/d H:i" }}
                             </div>
                         </div>
+                        <div class="row mb-2">
+                            <div class="col-sm-6">
+                                <strong>予約日時:</strong> {{ object.scheduled_at|date:"Y/m/d H:i" }}
+                            </div>
+                            <div class="col-sm-6">
+                                {% if object.posted_at %}
+                                <strong>投稿日時:</strong> {{ object.posted_at|date:"Y/m/d H:i" }}
+                                {% endif %}
+                            </div>
+                        </div>
                         {% if object.event %}
                         <div class="row mb-2">
                             <div class="col-sm-6">
@@ -53,11 +63,6 @@
                             </a>
                         </div>
                         {% endif %}
-                        {% if object.posted_at %}
-                        <div class="mb-2">
-                            <strong>投稿日時:</strong> {{ object.posted_at|date:"Y/m/d H:i" }}
-                        </div>
-                        {% endif %}
                         {% if object.error_message %}
                         <div class="alert {% if object.status == 'skipped' %}alert-secondary{% else %}alert-danger{% endif %} mt-2 mb-0">
                             <i class="fas fa-exclamation-triangle me-2"></i>
@@ -71,6 +76,12 @@
                     <label for="id_generated_text" class="form-label fw-bold">生成テキスト</label>
                     <textarea name="generated_text" id="id_generated_text" class="form-control" rows="12">{{ object.generated_text }}</textarea>
                     <div class="form-text">{{ object.generated_text|length }}/280文字</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="id_scheduled_at" class="form-label fw-bold">予約日時</label>
+                    <input type="datetime-local" name="scheduled_at" id="id_scheduled_at" class="form-control" value="{{ object.scheduled_at|date:'Y-m-d\\TH:i' }}">
+                    <div class="form-text">30分刻みで指定できます（00分 / 30分）。</div>
                 </div>
 
                 <div class="mb-3">

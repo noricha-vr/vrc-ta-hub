@@ -1,6 +1,8 @@
 from django.db import models
+from django.utils import timezone
 
 from community.models import Community
+from twitter.scheduling import default_scheduled_at
 
 
 class TwitterTemplate(models.Model):
@@ -20,7 +22,7 @@ class TweetQueue(models.Model):
     """X 自動投稿キュー
 
     集会承認・LT/特別回承認時にシグナルでキューに追加され、
-    Cloud Scheduler (毎日19:00 JST) からのリクエストで一括投稿される。
+    Cloud Scheduler (30分ごと) からのリクエストで投稿対象だけが処理される。
     """
 
     TWEET_TYPE_CHOICES = [
@@ -58,6 +60,7 @@ class TweetQueue(models.Model):
     )
     tweet_id = models.CharField('ポストID', max_length=50, blank=True)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    scheduled_at = models.DateTimeField('予約日時')
     posted_at = models.DateTimeField('投稿日時', null=True, blank=True)
     error_message = models.TextField('エラーメッセージ', blank=True)
 
@@ -76,3 +79,12 @@ class TweetQueue(models.Model):
 
     def __str__(self):
         return f"[{self.get_tweet_type_display()}] {self.community.name} - {self.get_status_display()}"
+
+    def save(self, *args, **kwargs):
+        if self.scheduled_at is None:
+            self.scheduled_at = default_scheduled_at(
+                tweet_type=self.tweet_type,
+                event=self.event,
+                base_datetime=self.created_at or timezone.now(),
+            )
+        super().save(*args, **kwargs)

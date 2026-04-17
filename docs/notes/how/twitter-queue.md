@@ -8,8 +8,9 @@
 | --- | --- |
 | 正本 | `tweet_queue` を正本として扱う |
 | キュー作成責務 | 保存時の signal が作る |
-| 19:00 バッチの責務 | 既存キューの再生成・投稿だけを行う |
-| `daily_reminder` の補完作成 | 19:00 バッチではしない |
+| スケジューラの責務 | 既存キューの再生成・投稿だけを行う |
+| スケジューラ実行間隔 | 30分ごと |
+| `daily_reminder` の補完作成 | スケジューラではしない |
 | 当日重複防止 | 当日の `lt` / `special` は `skipped` にして `daily_reminder` に統合する |
 
 ## キュー種別
@@ -49,12 +50,13 @@
 | `event_id` | はい |
 | それ以外の項目 | いいえ |
 
-## 19:00 バッチの挙動
+## スケジューラの挙動
 
 | フェーズ | 対象 | 動作 |
 | --- | --- | --- |
-| Phase 1 | `generation_failed` / 1時間以上停滞した `generating` | 同期で再生成する |
-| Phase 2 | `ready` | X API に投稿する |
+| Phase 0 | `scheduled_at + 24h` を過ぎた未投稿キュー | `skipped` にする |
+| Phase 1 | `generation_failed` / 1時間以上停滞した `generating` | 予約時刻に関係なく同期で再生成する |
+| Phase 2 | `ready` かつ `scheduled_at <= now` | X API に投稿する |
 | 例外 | 当日の `lt` / `special` | 投稿せず `skipped` にする |
 | 例外 | 過去日の `lt` / `special` | 投稿せず `failed` にする |
 | 例外 | 当日以外の `daily_reminder` | 投稿せず `failed` にする |
@@ -88,6 +90,9 @@
 | `daily_reminder` 対象 | `approved` な `LT` / `SPECIAL` のみ |
 | `daily_reminder` の本文 | approved 発表を `start_time` 順で最大3件まで載せる |
 | `daily_reminder` の発表数0件 | 生成せず `skipped` に落とす |
+| `scheduled_at` 入力 | 詳細画面では 30 分刻み（00 / 30）だけ許可 |
+| デフォルト予約 | 通常は 19:00 JST |
+| 一覧の初期ソート | `scheduled_at desc` |
 | 画像 | 生成成功時、`community.poster_image` 由来の URL を補完 |
 | 手動投稿 | キュー詳細画面から個別実行可能 |
 
