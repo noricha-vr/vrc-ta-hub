@@ -957,7 +957,6 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
             scheduled_at=self.due_scheduled_at(),
         )
         # created_at を1時間以上前に更新
-        from datetime import timedelta
         TweetQueue.objects.filter(pk=queue.pk).update(
             created_at=timezone.now() - datetime.timedelta(hours=2),
         )
