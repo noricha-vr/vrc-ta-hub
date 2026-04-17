@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from community.models import Community
 from event.models import EventDetail
+from twitter.scheduling import default_scheduled_at
 
 logger = logging.getLogger(__name__)
 
@@ -120,11 +121,11 @@ def track_event_detail_status_change(sender, instance, **kwargs):
             pass
 
 
-def _is_today_presentation(detail_type, event_date) -> bool:
-    return detail_type in PRESENTATION_DETAIL_TYPES and event_date == timezone.localdate()
+def _is_active_presentation(detail_type, event_date) -> bool:
+    return detail_type in PRESENTATION_DETAIL_TYPES and event_date >= timezone.localdate()
 
 
-def _should_refresh_today_daily_reminder(instance, created: bool) -> bool:
+def _should_refresh_daily_reminder(instance, created: bool) -> bool:
     if created:
         return True
 
@@ -138,16 +139,16 @@ def _should_refresh_today_daily_reminder(instance, created: bool) -> bool:
     ))
 
 
-def _iter_today_event_ids_to_sync(instance):
+def _iter_event_ids_to_sync(instance):
     event_ids = set()
 
-    if _is_today_presentation(instance.detail_type, instance.event.date):
+    if _is_active_presentation(instance.detail_type, instance.event.date):
         event_ids.add(instance.event_id)
 
     old_detail_type = getattr(instance, "_old_detail_type", None)
     old_event_id = getattr(instance, "_old_event_id", None)
     old_event_date = getattr(instance, "_old_event_date", None)
-    if old_event_id and _is_today_presentation(old_detail_type, old_event_date):
+    if old_event_id and _is_active_presentation(old_detail_type, old_event_date):
         event_ids.add(old_event_id)
 
     return sorted(event_ids)
@@ -167,6 +168,7 @@ def _ensure_same_day_individual_queue_skipped(instance, tweet_type: str) -> None
             community=instance.event.community,
             event=instance.event,
             event_detail=instance,
+            scheduled_at=default_scheduled_at(tweet_type=tweet_type, event=instance.event),
             status='skipped',
             error_message=SAME_DAY_INDIVIDUAL_SKIP_REASON,
         )
@@ -185,6 +187,10 @@ def _ensure_same_day_individual_queue_skipped(instance, tweet_type: str) -> None
     if primary.event_id != instance.event_id:
         primary.event = instance.event
         update_fields.append('event')
+    scheduled_at = default_scheduled_at(tweet_type=tweet_type, event=instance.event)
+    if primary.scheduled_at != scheduled_at:
+        primary.scheduled_at = scheduled_at
+        update_fields.append('scheduled_at')
     if primary.status != 'posted' and primary.status != 'skipped':
         primary.status = 'skipped'
         update_fields.append('status')
@@ -211,7 +217,7 @@ def _sync_daily_reminder_for_event(event_id: int) -> None:
     except Event.DoesNotExist:
         return
 
-    if event.date != timezone.localdate():
+    if event.date < timezone.localdate():
         return
 
     queue = TweetQueue.objects.filter(
@@ -241,24 +247,26 @@ def _sync_daily_reminder_for_event(event_id: int) -> None:
             tweet_type='daily_reminder',
             community=event.community,
             event=event,
+            scheduled_at=default_scheduled_at(tweet_type='daily_reminder', event=event),
             status='generating',
         )
     else:
         queue.community = event.community
+        queue.scheduled_at = default_scheduled_at(tweet_type='daily_reminder', event=event)
         queue.status = 'generating'
         queue.error_message = ''
         queue.generated_text = ''
-        queue.save(update_fields=['community', 'status', 'error_message', 'generated_text'])
+        queue.save(update_fields=['community', 'scheduled_at', 'status', 'error_message', 'generated_text'])
 
     _retry_generation(queue)
     logger.info("Synced daily reminder tweet for event %d", event.pk)
 
 
-def _sync_today_daily_reminders_for_instance(instance, created: bool) -> None:
-    if not _should_refresh_today_daily_reminder(instance, created):
+def _sync_daily_reminders_for_instance(instance, created: bool) -> None:
+    if not _should_refresh_daily_reminder(instance, created):
         return
 
-    for event_id in _iter_today_event_ids_to_sync(instance):
+    for event_id in _iter_event_ids_to_sync(instance):
         _sync_daily_reminder_for_event(event_id)
 
 
@@ -292,6 +300,7 @@ def _queue_new_community_tweet(instance, created):
         tweet_type="new_community",
         community=instance,
         event=first_event,
+        scheduled_at=default_scheduled_at(tweet_type='new_community', event=first_event),
     )
     logger.info("Queued new community tweet: %s", instance.name)
 
@@ -352,6 +361,7 @@ def _queue_slide_share_tweet(instance, created):
         community=instance.event.community,
         event=instance.event,
         event_detail=instance,
+        scheduled_at=default_scheduled_at(tweet_type='slide_share', event=instance.event),
     )
     logger.info(
         "Queued slide share tweet: %s - %s", instance.speaker, instance.theme,
@@ -376,15 +386,15 @@ def _queue_event_detail_tweet(instance, created):
     from twitter.models import TweetQueue
 
     if instance.detail_type not in PRESENTATION_DETAIL_TYPES:
-        _sync_today_daily_reminders_for_instance(instance, created)
+        _sync_daily_reminders_for_instance(instance, created)
         return
 
     if instance.status != "approved":
-        _sync_today_daily_reminders_for_instance(instance, created)
+        _sync_daily_reminders_for_instance(instance, created)
         return
 
     if instance.event.date < timezone.localdate():
-        _sync_today_daily_reminders_for_instance(instance, created)
+        _sync_daily_reminders_for_instance(instance, created)
         return
 
     old_status = getattr(instance, "_old_status", None)
@@ -392,7 +402,7 @@ def _queue_event_detail_tweet(instance, created):
 
     if instance.event.date == timezone.localdate():
         _ensure_same_day_individual_queue_skipped(instance, tweet_type)
-        _sync_today_daily_reminders_for_instance(instance, created)
+        _sync_daily_reminders_for_instance(instance, created)
         return
 
     if not created and old_status == "approved":
@@ -402,6 +412,7 @@ def _queue_event_detail_tweet(instance, created):
         new_theme = instance.theme or ""
 
         if old_speaker == new_speaker and old_theme == new_theme:
+            _sync_daily_reminders_for_instance(instance, created)
             return
 
         deleted, _ = TweetQueue.objects.filter(
@@ -414,6 +425,7 @@ def _queue_event_detail_tweet(instance, created):
 
     else:
         if TweetQueue.objects.filter(event_detail=instance, tweet_type=tweet_type).exists():
+            _sync_daily_reminders_for_instance(instance, created)
             return
 
     queue_item = TweetQueue.objects.create(
@@ -421,8 +433,11 @@ def _queue_event_detail_tweet(instance, created):
         community=instance.event.community,
         event=instance.event,
         event_detail=instance,
+        scheduled_at=default_scheduled_at(tweet_type=tweet_type, event=instance.event),
     )
     logger.info("Queued %s tweet: %s - %s", tweet_type, instance.speaker, instance.theme)
+
+    _sync_daily_reminders_for_instance(instance, created)
 
     thread = threading.Thread(
         target=_generate_tweet_async, args=(queue_item.pk,), daemon=True,
@@ -434,7 +449,7 @@ def _queue_event_detail_tweet(instance, created):
 def sync_daily_reminder_on_event_detail_delete(sender, instance, **kwargs):
     """当日発表の削除後に daily_reminder を同期する。"""
     try:
-        if _is_today_presentation(instance.detail_type, instance.event.date):
+        if _is_active_presentation(instance.detail_type, instance.event.date):
             _sync_daily_reminder_for_event(instance.event_id)
     except Exception:
         logger.exception("Failed to sync daily reminder after EventDetail delete %s", instance.pk)

@@ -30,8 +30,30 @@
                     <th>集会</th>
                     <th>ステータス</th>
                     <th>画像</th>
-                    <th>作成日時</th>
-                    <th>投稿日時</th>
+                    <th>
+                        <a href="?{{ sort_links.created_at }}" class="link-dark text-decoration-none">
+                            作成日時
+                            {% if current_sort == 'created_at' %}
+                                {% if current_order == 'asc' %}▲{% else %}▼{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th>
+                        <a href="?{{ sort_links.scheduled_at }}" class="link-dark text-decoration-none">
+                            予約日時
+                            {% if current_sort == 'scheduled_at' %}
+                                {% if current_order == 'asc' %}▲{% else %}▼{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
+                    <th>
+                        <a href="?{{ sort_links.posted_at }}" class="link-dark text-decoration-none">
+                            投稿日時
+                            {% if current_sort == 'posted_at' %}
+                                {% if current_order == 'asc' %}▲{% else %}▼{% endif %}
+                            {% endif %}
+                        </a>
+                    </th>
                 </tr>
             </thead>
             <tbody>
@@ -43,11 +65,12 @@
                     <td><span class="badge bg-{{ item.status|status_badge_color }}">{{ item.get_status_display }}</span></td>
                     <td>{% if item.image_url %}<i class="fas fa-image text-muted"></i>{% else %}-{% endif %}</td>
                     <td>{{ item.created_at|date:"m/d H:i" }}</td>
+                    <td>{{ item.scheduled_at|date:"m/d H:i" }}</td>
                     <td>{% if item.posted_at %}{{ item.posted_at|date:"m/d H:i" }}{% else %}-{% endif %}</td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center text-muted py-4">ポストキューがありません</td>
+                    <td colspan="8" class="text-center text-muted py-4">ポストキューがありません</td>
                 </tr>
                 {% endfor %}
             </tbody>
