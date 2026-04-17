@@ -3,7 +3,7 @@
 import os
 import re
 
-from website.hosts import get_canonical_host
+from website.hosts import get_canonical_host, normalize_host
 
 
 DEFAULT_CLOUD_RUN_SERVICE_NAMES = (
@@ -40,6 +40,14 @@ def _build_cloud_run_preview_host_pattern() -> re.Pattern[str]:
     )
 
 
+def _normalize_preview_host_candidate(value: str) -> str:
+    try:
+        return normalize_host(value)
+    except ValueError:
+        # 外部入力が壊れていても 500 にはせず、preview host 不一致として弾く。参照: PR #247
+        return ''
+
+
 class CanonicalCloudRunHostMiddleware:
     """Cloud Run のプレビューURLを正規ホストへ寄せる。"""
 
@@ -50,8 +58,15 @@ class CanonicalCloudRunHostMiddleware:
 
     def __call__(self, request):
         host_meta_keys = ('HTTP_HOST', 'HTTP_X_FORWARDED_HOST', 'SERVER_NAME')
-        raw_hosts = [request.META.get(meta_key, '') for meta_key in host_meta_keys]
-        if any(self.cloud_run_preview_host_pattern.match(raw_host) for raw_host in raw_hosts):
+        # proxy 差分で absolute URL や host:port が混ざるので、判定前に host へ正規化する。参照: PR #247
+        normalized_hosts = [
+            _normalize_preview_host_candidate(request.META.get(meta_key, ''))
+            for meta_key in host_meta_keys
+        ]
+        if any(
+            self.cloud_run_preview_host_pattern.match(raw_host)
+            for raw_host in normalized_hosts
+        ):
             for meta_key in host_meta_keys:
                 if request.META.get(meta_key):
                     request.META[meta_key] = self.canonical_host
