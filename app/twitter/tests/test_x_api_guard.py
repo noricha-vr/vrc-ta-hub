@@ -1,7 +1,7 @@
 """X API テスト環境ガードのテスト
 
 settings.TESTING=True の場合、post_tweet / upload_media が
-実際の X API を呼ばずに None を返すことを確認する。
+実際の X API を呼ばずに失敗結果を返すことを確認する。
 """
 
 from django.test import TestCase, override_settings
@@ -14,9 +14,10 @@ class XApiTestGuardTest(TestCase):
     """テスト環境での X API ガードテスト"""
 
     def test_post_tweet_blocked_in_test_environment(self):
-        """TESTING=True の場合、post_tweet は None を返す"""
+        """TESTING=True の場合、post_tweet は ok=False を返す"""
         result = post_tweet("テスト投稿")
-        self.assertIsNone(result)
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["data"])
 
     def test_upload_media_blocked_in_test_environment(self):
         """TESTING=True の場合、upload_media は None を返す"""
