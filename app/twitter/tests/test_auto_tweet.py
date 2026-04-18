@@ -1584,18 +1584,23 @@ class PostTweetFunctionTest(TestCase):
 
     @patch("twitter.x_api.requests.post")
     def test_post_tweet_api_error_with_response(self, mock_post):
-        """API エラー時にレスポンスがある場合もステータスコードをログ出力する"""
+        """API エラー時にレスポンスがある場合はステータスコードとボディをログ出力する"""
         import requests
         mock_response = MagicMock()
         mock_response.status_code = 403
+        mock_response.text = '{"detail": "You are not permitted to perform this action."}'
         error = requests.RequestException("Forbidden")
         error.response = mock_response
         mock_post.side_effect = error
 
         with patch.dict("os.environ", self.OAUTH1_ENV):
             from twitter.x_api import post_tweet
-            result = post_tweet("テスト")
+            with self.assertLogs("twitter.x_api", level="ERROR") as log_ctx:
+                result = post_tweet("テスト")
         self.assertIsNone(result)
+        combined = "\n".join(log_ctx.output)
+        self.assertIn("403", combined)
+        self.assertIn("not permitted", combined)
 
     def test_post_tweet_missing_partial_credentials(self):
         """一部の認証情報だけ設定されている場合は None を返す"""
@@ -1686,6 +1691,30 @@ class UploadMediaFunctionTest(TestCase):
             result = upload_media(self.ALLOWED_IMAGE_URL)
 
         self.assertIsNone(result)
+
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_upload_media_upload_failure_with_response(self, mock_get, mock_post):
+        """X API アップロード失敗時にレスポンスがある場合はステータスとボディをログ出力する"""
+        import requests
+
+        mock_get.return_value = self._make_stream_response(content_type="image/png")
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+        mock_response.text = '{"errors": [{"message": "media type not allowed"}]}'
+        error = requests.RequestException("Forbidden")
+        error.response = mock_response
+        mock_post.side_effect = error
+
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import upload_media
+            with self.assertLogs("twitter.x_api", level="ERROR") as log_ctx:
+                result = upload_media(self.ALLOWED_IMAGE_URL)
+
+        self.assertIsNone(result)
+        combined = "\n".join(log_ctx.output)
+        self.assertIn("403", combined)
+        self.assertIn("media type not allowed", combined)
 
     # --- SSRF防止テスト ---
     def test_upload_media_blocks_untrusted_domain(self):
