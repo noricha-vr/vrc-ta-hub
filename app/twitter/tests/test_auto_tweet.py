@@ -677,7 +677,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
     @patch("twitter.views.post_tweet")
     def test_post_scheduled_tweets_success(self, mock_post):
         """ready 状態のキューが正常に投稿される"""
-        mock_post.return_value = {"id": "12345", "text": "新しい集会の告知テスト"}
+        mock_post.return_value = {"ok": True, "data": {"id": "12345", "text": "新しい集会の告知テスト"}, "status_code": None, "error_body": None}
 
         TweetQueue.objects.create(
             tweet_type="new_community",
@@ -708,7 +708,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
     @patch("twitter.views.post_tweet")
     def test_post_scheduled_tweets_post_failure(self, mock_post):
         """X API 投稿失敗時の処理"""
-        mock_post.return_value = None
+        mock_post.return_value = {"ok": False, "data": None, "status_code": 403, "error_body": "You are not permitted to perform this action."}
 
         TweetQueue.objects.create(
             tweet_type="new_community",
@@ -749,7 +749,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
     @patch("twitter.views.post_tweet")
     def test_post_scheduled_tweets_posts_existing_daily_reminder_for_today_event(self, mock_post):
         """当日リマインドは事前作成済みキューをそのまま投稿する"""
-        mock_post.return_value = {"id": "dr-123", "text": "今日開催のリマインド"}
+        mock_post.return_value = {"ok": True, "data": {"id": "dr-123", "text": "今日開催のリマインド"}, "status_code": None, "error_body": None}
 
         today_event = Event.objects.create(
             community=self.community,
@@ -890,7 +890,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
     @patch("twitter.views.post_tweet")
     def test_post_scheduled_tweets_with_pregenerated_text(self, mock_post):
         """ready 状態で事前テキストがある場合はそのまま投稿"""
-        mock_post.return_value = {"id": "99999", "text": "事前生成テキスト"}
+        mock_post.return_value = {"ok": True, "data": {"id": "99999", "text": "事前生成テキスト"}, "status_code": None, "error_body": None}
 
         TweetQueue.objects.create(
             tweet_type="new_community",
@@ -916,7 +916,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
     def test_retry_generation_failed_items(self, mock_generate, mock_post):
         """generation_failed のキューがリトライされて投稿される"""
         mock_generate.return_value = "リトライ成功テキスト"
-        mock_post.return_value = {"id": "77777", "text": "リトライ成功テキスト"}
+        mock_post.return_value = {"ok": True, "data": {"id": "77777", "text": "リトライ成功テキスト"}, "status_code": None, "error_body": None}
 
         TweetQueue.objects.create(
             tweet_type="new_community",
@@ -947,7 +947,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
     def test_retry_stale_generating_items(self, mock_generate, mock_post):
         """1時間以上前の generating キューがリトライされて投稿される"""
         mock_generate.return_value = "リトライ成功テキスト"
-        mock_post.return_value = {"id": "88888", "text": "リトライ成功テキスト"}
+        mock_post.return_value = {"ok": True, "data": {"id": "88888", "text": "リトライ成功テキスト"}, "status_code": None, "error_body": None}
 
         queue = TweetQueue.objects.create(
             tweet_type="new_community",
@@ -1097,7 +1097,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
     def test_post_with_image(self, mock_post, mock_upload):
         """画像URL付きキューが画像をアップロードして投稿される"""
         mock_upload.return_value = "media_123"
-        mock_post.return_value = {"id": "55555", "text": "画像付きツイート"}
+        mock_post.return_value = {"ok": True, "data": {"id": "55555", "text": "画像付きツイート"}, "status_code": None, "error_body": None}
 
         TweetQueue.objects.create(
             tweet_type="new_community",
@@ -1129,7 +1129,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
     def test_post_with_image_upload_failure(self, mock_post, mock_upload):
         """画像アップロード失敗時でもテキストだけで投稿される"""
         mock_upload.return_value = None
-        mock_post.return_value = {"id": "66666", "text": "テキストのみ"}
+        mock_post.return_value = {"ok": True, "data": {"id": "66666", "text": "テキストのみ"}, "status_code": None, "error_body": None}
 
         TweetQueue.objects.create(
             tweet_type="new_community",
@@ -1196,7 +1196,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
     @patch("twitter.views.post_tweet")
     def test_future_lt_tweet_is_posted(self, mock_post):
         """未来のイベントのLTツイートは通常通り投稿される"""
-        mock_post.return_value = {"id": "99999", "text": "未来のLT告知"}
+        mock_post.return_value = {"ok": True, "data": {"id": "99999", "text": "未来のLT告知"}, "status_code": None, "error_body": None}
 
         TweetQueue.objects.create(
             tweet_type="lt",
@@ -1244,7 +1244,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
     @patch("twitter.views.post_tweet")
     def test_slide_share_is_not_affected_by_date_check(self, mock_post):
         """スライド共有は過去イベントでも投稿される（資料共有は事後）"""
-        mock_post.return_value = {"id": "88888", "text": "スライド共有"}
+        mock_post.return_value = {"ok": True, "data": {"id": "88888", "text": "スライド共有"}, "status_code": None, "error_body": None}
 
         past_event = Event.objects.create(
             community=self.community,
@@ -1532,8 +1532,8 @@ class PostTweetFunctionTest(TestCase):
             from twitter.x_api import post_tweet
             result = post_tweet("テストツイート")
 
-        self.assertIsNotNone(result)
-        self.assertEqual(result["id"], "12345")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["data"]["id"], "12345")
 
         # OAuth1 認証が使われていることを確認
         call_kwargs = mock_post.call_args
@@ -1553,14 +1553,14 @@ class PostTweetFunctionTest(TestCase):
             from twitter.x_api import post_tweet
             result = post_tweet("画像付き", media_ids=["media_111"])
 
-        self.assertIsNotNone(result)
+        self.assertTrue(result["ok"])
         # payload に media フィールドが含まれている
         call_kwargs = mock_post.call_args
         payload = call_kwargs.kwargs.get("json")
         self.assertEqual(payload["media"], {"media_ids": ["media_111"]})
 
     def test_post_tweet_no_credentials(self):
-        """環境変数が未設定の場合は None を返す"""
+        """環境変数が未設定の場合は ok=False を返す"""
         with patch.dict("os.environ", {
             "X_API_KEY": "",
             "X_API_SECRET": "",
@@ -1569,22 +1569,23 @@ class PostTweetFunctionTest(TestCase):
         }):
             from twitter.x_api import post_tweet
             result = post_tweet("テスト")
-        self.assertIsNone(result)
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["data"])
 
     @patch("twitter.x_api.requests.post")
     def test_post_tweet_api_error(self, mock_post):
-        """API エラー時は None を返す"""
+        """API エラー時は ok=False を返す"""
         import requests
         mock_post.side_effect = requests.RequestException("API Error")
 
         with patch.dict("os.environ", self.OAUTH1_ENV):
             from twitter.x_api import post_tweet
             result = post_tweet("テスト")
-        self.assertIsNone(result)
+        self.assertFalse(result["ok"])
 
     @patch("twitter.x_api.requests.post")
     def test_post_tweet_api_error_with_response(self, mock_post):
-        """API エラー時にレスポンスがある場合はステータスコードとボディをログ出力する"""
+        """API エラー時にレスポンスがある場合は status_code/error_body を返す"""
         import requests
         mock_response = MagicMock()
         mock_response.status_code = 403
@@ -1597,13 +1598,15 @@ class PostTweetFunctionTest(TestCase):
             from twitter.x_api import post_tweet
             with self.assertLogs("twitter.x_api", level="ERROR") as log_ctx:
                 result = post_tweet("テスト")
-        self.assertIsNone(result)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["status_code"], 403)
+        self.assertIn("not permitted", result["error_body"])
         combined = "\n".join(log_ctx.output)
         self.assertIn("403", combined)
         self.assertIn("not permitted", combined)
 
     def test_post_tweet_missing_partial_credentials(self):
-        """一部の認証情報だけ設定されている場合は None を返す"""
+        """一部の認証情報だけ設定されている場合は ok=False を返す"""
         with patch.dict("os.environ", {
             "X_API_KEY": "key",
             "X_API_SECRET": "secret",
@@ -1612,7 +1615,7 @@ class PostTweetFunctionTest(TestCase):
         }):
             from twitter.x_api import post_tweet
             result = post_tweet("テスト")
-        self.assertIsNone(result)
+        self.assertFalse(result["ok"])
 
 
 class UploadMediaFunctionTest(TestCase):
@@ -2207,27 +2210,28 @@ class SanitizeForPromptTest(TestCase):
 class PostTweetValidationTest(TestCase):
     """post_tweet 関数の入力バリデーションテスト"""
 
-    def test_empty_text_returns_none(self):
-        """空文字列で None を返す"""
+    def test_empty_text_returns_failure(self):
+        """空文字列で ok=False を返す"""
         from twitter.x_api import post_tweet
         result = post_tweet("")
-        self.assertIsNone(result)
+        self.assertFalse(result["ok"])
+        self.assertIsNone(result["data"])
 
-    def test_none_text_returns_none(self):
-        """None で None を返す"""
+    def test_none_text_returns_failure(self):
+        """None で ok=False を返す"""
         from twitter.x_api import post_tweet
         result = post_tweet(None)
-        self.assertIsNone(result)
+        self.assertFalse(result["ok"])
 
-    def test_exceeds_280_chars_returns_none(self):
-        """280文字超で None を返す"""
+    def test_exceeds_280_chars_returns_failure(self):
+        """280文字超で ok=False を返す"""
         from twitter.x_api import post_tweet
         long_text = "a" * 281
         result = post_tweet(long_text)
-        self.assertIsNone(result)
+        self.assertFalse(result["ok"])
 
     def test_exactly_280_chars_does_not_reject(self):
-        """280文字ちょうどはバリデーションを通過する（認証情報なしで None になる）"""
+        """280文字ちょうどはバリデーションを通過する（認証情報なしで ok=False になる）"""
         from twitter.x_api import post_tweet
         with patch.dict("os.environ", {
             "X_API_KEY": "",
@@ -2236,8 +2240,10 @@ class PostTweetValidationTest(TestCase):
             "X_ACCESS_TOKEN_SECRET": "",
         }):
             result = post_tweet("a" * 280)
-        # 認証情報がないので None だが、文字数バリデーションは通過している
-        self.assertIsNone(result)
+        # 認証情報がないので ok=False だが、文字数バリデーションは通過している
+        self.assertFalse(result["ok"])
+        # 文字数超過のエラーメッセージではないことを確認
+        self.assertNotIn("too long", result["error_body"] or "")
 
 
 class SlideShareSignalTest(AutoTweetTestBase):

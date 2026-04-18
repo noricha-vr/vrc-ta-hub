@@ -327,7 +327,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
     @patch('twitter.views.upload_media')
     def test_post_now_success(self, mock_upload, mock_post):
         """手動投稿が成功する"""
-        mock_post.return_value = {'id': '12345678'}
+        mock_post.return_value = {'ok': True, 'data': {'id': '12345678'}, 'status_code': None, 'error_body': None}
         mock_upload.return_value = None
 
         self.client.login(username='admin_user', password='testpassword')
@@ -344,7 +344,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
     @patch('twitter.views.upload_media')
     def test_post_now_failure(self, mock_upload, mock_post):
         """手動投稿が失敗した場合に failed になる"""
-        mock_post.return_value = None
+        mock_post.return_value = {'ok': False, 'data': None, 'status_code': 403, 'error_body': 'Forbidden'}
         mock_upload.return_value = None
 
         self.client.login(username='admin_user', password='testpassword')
@@ -364,7 +364,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         self.queue_item.save()
 
         mock_upload.return_value = 'media_id_123'
-        mock_post.return_value = {'id': '99999'}
+        mock_post.return_value = {'ok': True, 'data': {'id': '99999'}, 'status_code': None, 'error_body': None}
 
         self.client.login(username='admin_user', password='testpassword')
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
