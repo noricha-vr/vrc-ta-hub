@@ -179,8 +179,18 @@ def post_tweet(text: str, media_ids: list[str] | None = None) -> PostTweetResult
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
-        data = response.json().get("data", {})
-        logger.info("Tweet posted successfully: %s", data.get("id"))
+        data = response.json().get("data", {}) or {}
+        tweet_id = data.get("id")
+        if not tweet_id:
+            logger.error(
+                "Tweet post returned 2xx but response has no tweet id: %s",
+                response.text[:1000],
+            )
+            return _failure_result(
+                status_code=response.status_code,
+                error_body=f"Missing tweet id in response: {response.text[:1000]}",
+            )
+        logger.info("Tweet posted successfully: %s", tweet_id)
         return _success_result(data)
     except requests.RequestException as e:
         logger.error("Failed to post tweet: %s", e)
