@@ -22,6 +22,7 @@ SANITIZE_MAX_LENGTH = 200
 TWEET_MAX_WEIGHTED_LENGTH = 280
 URL_WEIGHTED_LENGTH = 23
 RETRY_TARGET_CHARS_STEP = 20
+MAX_BODY_LINES = 3
 
 WEEKDAY_NAMES = {
     "Sun": "日", "Mon": "月", "Tue": "火", "Wed": "水",
@@ -48,13 +49,33 @@ def count_tweet_length(text: str) -> int:
     return weight
 
 
+def count_body_lines(text: str) -> int:
+    """URL行・ハッシュタグ行・空行を除いた本文行数を返す。
+
+    X API は「本文4行以上 + URL」の組み合わせをスパムフィルタで弾くため、
+    本文行を MAX_BODY_LINES 以下に保つバリデーションに用いる。
+    """
+    count = 0
+    for line in text.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("#"):
+            continue
+        if "https://" in stripped or "http://" in stripped:
+            continue
+        count += 1
+    return count
+
+
 def _generate_with_retry(generate_fn, *args, max_retries=3, **kwargs) -> str | None:
     """生成関数をリトライラッパーで実行する。
 
     1. target_chars=140 で生成
-    2. count_tweet_length() でバリデーション（上限 TWEET_MAX_WEIGHTED_LENGTH）
-    3. 超過していたら target_chars を RETRY_TARGET_CHARS_STEP ずつ減らしてリトライ
-    4. max_retries 回リトライ後も超過している場合は最後の結果を返す
+    2. count_tweet_length() と count_body_lines() でバリデーション
+       （文字数 <= TWEET_MAX_WEIGHTED_LENGTH かつ 本文行数 <= MAX_BODY_LINES）
+    3. どちらか違反していたら target_chars を RETRY_TARGET_CHARS_STEP ずつ減らしてリトライ
+    4. max_retries 回リトライ後も違反している場合は最後の結果を返す
     """
     target_chars = 140
     result = None
@@ -65,20 +86,29 @@ def _generate_with_retry(generate_fn, *args, max_retries=3, **kwargs) -> str | N
             return None
 
         length = count_tweet_length(result)
-        if length <= TWEET_MAX_WEIGHTED_LENGTH:
+        body_lines = count_body_lines(result)
+        length_ok = length <= TWEET_MAX_WEIGHTED_LENGTH
+        lines_ok = body_lines <= MAX_BODY_LINES
+
+        if length_ok and lines_ok:
             if attempt > 0:
                 logger.info(
-                    "Tweet length OK after %d retries (weighted=%d, target_chars=%d)",
+                    "Tweet validation OK after %d retries (weighted=%d, body_lines=%d, target_chars=%d)",
                     attempt,
                     length,
+                    body_lines,
                     target_chars,
                 )
             return result
 
+        reasons = []
+        if not length_ok:
+            reasons.append(f"length={length}>{TWEET_MAX_WEIGHTED_LENGTH}")
+        if not lines_ok:
+            reasons.append(f"body_lines={body_lines}>{MAX_BODY_LINES}")
         logger.warning(
-            "Tweet length exceeded (weighted=%d > %d, attempt=%d/%d, target_chars=%d). Retrying.",
-            length,
-            TWEET_MAX_WEIGHTED_LENGTH,
+            "Tweet validation failed (%s, attempt=%d/%d, target_chars=%d). Retrying.",
+            ", ".join(reasons),
             attempt + 1,
             max_retries + 1,
             target_chars,
@@ -146,6 +176,14 @@ def _build_hashtag_suffix(community) -> str:
     return f"{hashtag}#VRChat技術学術"
 
 
+BODY_LINE_CONSTRAINT = (
+    "- **本文は3行以内に収める（X のスパムフィルタ回避のため必須）**\n"
+    "  - 「本文」= URL行・ハッシュタグ行・空行を除いた実質的な告知テキスト行\n"
+    "  - 本文4行以上 + URL の組み合わせは X API が 403 で拒否する\n"
+    "  - 補足説明と誘導文は別行に分けず1行に統合する"
+)
+
+
 def generate_new_community_tweet(community, first_event=None, target_chars=140) -> str | None:
     """新規集会の告知ポストを生成する。
 
@@ -183,8 +221,19 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
 2. 開催スケジュール（曜日・時刻）
 3. どんな人向けか / 何が得られるか（紹介文から1行で）
 
+## 出力フォーマット（本文は3行以内）
+
+新しい集会「{{集会名}}」がはじまります
+
+{{開催スケジュール}}
+{{対象者 + 何が得られるかを1行に統合}}
+
+詳細はこちら {{URL}}
+{{ハッシュタグ}}
+
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
+{BODY_LINE_CONSTRAINT}
 - 「こんな集会が始まりました」ではなく「こういう人は来て」というトーン
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
@@ -230,10 +279,21 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
 2. 開催日時（「{event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
 3. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
 4. 発表者名（敬称は「さん」を付ける）
-5. テーマの補足説明から自然につながる形で、次のアクション（聞きに来る・詳細を見る等）に誘導する一文
+5. テーマの補足説明と次のアクション（聞きに来る・詳細を見る等）への誘導を**1行にまとめる**（本文3行制約のため別行にしない）
+
+## 出力フォーマット（本文は3行以内）
+
+{{日時}} {{集会名}}
+
+{{発表者}}さん「{{テーマ}}」
+{{テーマ補足 + 参加誘導を1行に統合}}
+
+詳細はこちら {{URL}}
+{{ハッシュタグ}}
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
+{BODY_LINE_CONSTRAINT}
 - テーマ名をそのまま書いた上で、何が聞けるかを1文で補足する
 - 誘導の一文は毎回異なる自然な表現にする（「このテーマが気になる人は聞きに来て」のような定型文の繰り返し禁止）
 - 末尾に以下を必ず含める:
@@ -287,10 +347,21 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
 2. 発表者名（敬称は「さん」を付ける）
 3. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
 4. {resources_text}が公開されたこと
-5. 内容の補足から自然につながる形で、次のアクション（資料を見る・チェックする等）に誘導する一文
+5. 内容の補足と次のアクション（資料を見る・チェックする等）への誘導を**1行にまとめる**（本文3行制約のため別行にしない）
+
+## 出力フォーマット（本文は3行以内）
+
+{{集会名}} {{発表者}}さん「{{テーマ}}」
+
+{{resources_text}}が公開されました
+{{内容補足 + 閲覧誘導を1行に統合}}
+
+詳細はこちら {{URL}}
+{{ハッシュタグ}}
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
+{BODY_LINE_CONSTRAINT}
 - 日付は不要（過去のイベントなので）
 - テーマ名をそのまま書いた上で、「読むと何がわかるか」を1文で補足する
 - 誘導の一文は毎回異なる自然な表現にする（「〜な方はチェック」のような定型文の繰り返し禁止）
@@ -345,39 +416,54 @@ def generate_daily_reminder_tweet(event, target_chars=140) -> str | None:
 発表一覧:
 {chr(10).join(presentations)}{extra_line}
 
-## 出力フォーマット（この構造に厳密に従うこと）
+## 出力フォーマット（本文は3行以内、この構造に厳密に従うこと）
 
+### 発表が1件の場合
 今夜 {{時刻}}〜 {{集会名}}
 
 {{登壇者1}}さん「{{テーマ1}}」
-{{テーマ1の補足: 何が聞けるか1文}}
+{{テーマ1の補足 + 参加誘導を1行に統合}}
 
-（2人目以降がいれば同じパターンで続ける／4件以上なら3件まで＋「ほかN件」）
+詳細はこちら {{URL}}
+{{ハッシュタグ}}
 
-{{参加を促す一文}}
+### 発表が2件の場合
+今夜 {{時刻}}〜 {{集会名}}
+
+{{登壇者1}}さん「{{テーマ1}}」
+{{登壇者2}}さん「{{テーマ2}}」
+
+詳細はこちら {{URL}}
+{{ハッシュタグ}}
+
+### 発表が3件以上の場合（4件以上なら上位3件＋「ほかN件」）
+今夜 {{時刻}}〜 {{集会名}}
+{{登壇者1}}さん「{{テーマ1}}」
+{{登壇者2}}さん「{{テーマ2}}」／{{登壇者3}}さん「{{テーマ3}}」
 
 詳細はこちら {{URL}}
 {{ハッシュタグ}}
 
 ## ルール
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
+{BODY_LINE_CONSTRAINT}
 - 1行目は「今夜 {event.start_time.strftime('%H:%M')}〜 {name}」の形式で、今日の開催であることと時刻が一目で伝わるようにする（日付表記は禁止）
-- 各発表は「○○さん「テーマ名」」の形式で1行ずつ記載する
+- 各発表は「○○さん「テーマ名」」の形式で記載する
   - テーマ名は発表一覧のものをそのまま使う（言い換え・要約・省略禁止）
   - 登壇者名には「さん」を付ける
 - **発表数の言及禁止**: 「発表は1件」「全○件」「○本立て」「N件のLT」など、発表の本数を伝える表現は本文に一切書かない（通常1件なので情報価値がない）
-- 発表が1〜2件の場合は、各発表の直後に「テーマの補足説明（何が聞けるか・どんな話か）」を1文入れる
+- 発表が1件の場合は、発表行の直後に「テーマの補足 + 参加誘導」を**1行に統合**して入れる
+  - 補足と誘導は別行に分けず、1文にまとめる（本文3行制約のため必須）
   - 補足は発表一覧に含まれるキーワードや背景知識から自然に膨らませる（事実の捏造は禁止）
-  - 発表行と補足行の間は改行のみで空行を空けない（同じ発表の塊として見せる）
-- 発表が3件以上ある場合は補足を省略し、発表一覧のみをコンパクトに並べる
-- 発表が4件以上の場合は上位3件を記載し、残りは「ほかN件」とまとめる
-- 発表一覧の後に、参加・視聴したくなるアクション誘導の一文を入れる
-  - 毎回異なる自然な表現にする（「ぜひ遊びに来てください」のような定型文の繰り返し禁止）
+- 発表が2件以上の場合は補足・誘導を省略し、発表行のみ並べる（本文3行に収めるため）
+- 発表が4件以上の場合は上位3件を記載し、残りは「ほかN件」としてテーマ3の行末にまとめる
 - 散文や自然文で発表内容をまとめない（一覧形式を崩さない）
 - 末尾に以下を必ず含める:
   詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
   {hashtag_suffix}
-- 意味のまとまり（開催案内・発表ブロック・誘導文・リンク・ハッシュタグ）ごとに空行を入れる
+- 空行の入れ方は**本文3行制約を最優先**に決める
+  - 発表1件: 集会名の後・発表ブロックの後に空行（出力例の「### 発表が1件の場合」参照）
+  - 発表2件以上: 本文行を詰めて配置（出力例の対応ブロック参照）。URL/ハッシュタグとの間にのみ空行を入れる
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
 - 句点（。）を一切使わない
     - ポスト本文のみ出力（説明不要）
@@ -472,10 +558,21 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
 3. 開催日時（「{event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
 4. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
 5. 発表者/ゲスト名（敬称は「さん」を付ける）
-6. テーマの補足説明から自然につながる形で、次のアクション（聞きに来る・詳細を見る等）に誘導する一文
+6. テーマの補足説明と次のアクション（聞きに来る・詳細を見る等）への誘導を**1行にまとめる**（本文3行制約のため別行にしない）
+
+## 出力フォーマット（本文は3行以内）
+
+{{日時}} {{集会名}} 特別回
+
+{{発表者}}さん「{{テーマ}}」
+{{テーマ補足 + 参加誘導を1行に統合}}
+
+詳細はこちら {{URL}}
+{{ハッシュタグ}}
 
 ## スタイル
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
+{BODY_LINE_CONSTRAINT}
 - テーマ名をそのまま書いた上で、特別回ならではの見どころを1文で補足する
 - 誘導の一文は毎回異なる自然な表現にする（「このテーマに興味ある人は来て」のような定型文の繰り返し禁止）
 - 末尾に以下を必ず含める:
