@@ -112,6 +112,12 @@ def upload_media(image_url: str) -> str | None:
         return media_id
     except requests.RequestException as e:
         logger.error("Failed to upload media: %s", e)
+        if hasattr(e, "response") and e.response is not None:
+            logger.error(
+                "Response status: %s body: %s",
+                e.response.status_code,
+                e.response.text[:1000],
+            )
         return None
 
 
@@ -160,5 +166,9 @@ def post_tweet(text: str, media_ids: list[str] | None = None) -> dict | None:
     except requests.RequestException as e:
         logger.error("Failed to post tweet: %s", e)
         if hasattr(e, "response") and e.response is not None:
-            logger.error("Response status: %s", e.response.status_code)
+            logger.error(
+                "Response status: %s body: %s",
+                e.response.status_code,
+                e.response.text[:1000],
+            )
         return None
