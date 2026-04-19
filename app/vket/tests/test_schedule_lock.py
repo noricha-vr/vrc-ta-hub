@@ -1,5 +1,6 @@
 """Vketコラボ期間中の日時変更・削除ロックのテスト（参照: PR #138）"""
 
+from importlib import import_module
 from datetime import time, timedelta
 
 from django.contrib.auth import get_user_model
@@ -15,6 +16,86 @@ from vket.models import VketCollaboration, VketParticipation
 from vket.services import get_vket_lock_info, is_event_locked_by_vket, get_vket_lock_message
 
 User = get_user_model()
+
+
+class _MigrationColumn:
+    def __init__(self, name: str):
+        self.name = name
+
+
+class _MigrationCursor:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+
+class _MigrationIntrospection:
+    def __init__(self, column_names):
+        self.column_names = column_names
+        self.inspected_table = None
+
+    def get_table_description(self, cursor, table_name):
+        self.inspected_table = table_name
+        return [_MigrationColumn(name) for name in self.column_names]
+
+
+class _MigrationConnection:
+    def __init__(self, column_names):
+        self.introspection = _MigrationIntrospection(column_names)
+
+    def cursor(self):
+        return _MigrationCursor()
+
+
+class _MigrationSchemaEditor:
+    def __init__(self, column_names):
+        self.connection = _MigrationConnection(column_names)
+        self.added_fields = []
+
+    def add_field(self, model, field):
+        self.added_fields.append((model, field))
+
+
+class _MigrationApps:
+    @staticmethod
+    def get_model(app_label, model_name):
+        assert app_label == "vket"
+        assert model_name == "VketParticipation"
+
+        class HistoricalVketParticipation:
+            class _meta:
+                db_table = "vket_participation"
+
+        return HistoricalVketParticipation
+
+
+class VketStageRegisteredAtMigrationTests(TestCase):
+    def setUp(self):
+        module = import_module("vket.migrations.0008_recheck_stage_registered_at_column")
+        self.migration_func = module.recheck_stage_registered_at_column
+
+    def test_recheck_migration_adds_stage_registered_at_when_missing(self):
+        schema_editor = _MigrationSchemaEditor(["id", "progress", "updated_at"])
+
+        self.migration_func(_MigrationApps(), schema_editor)
+
+        self.assertEqual(schema_editor.connection.introspection.inspected_table, "vket_participation")
+        self.assertEqual(len(schema_editor.added_fields), 1)
+        model, field = schema_editor.added_fields[0]
+        self.assertEqual(model._meta.db_table, "vket_participation")
+        self.assertEqual(field.name, "stage_registered_at")
+        self.assertEqual(field.verbose_name, "ステージ登録日時")
+        self.assertTrue(field.null)
+        self.assertTrue(field.blank)
+
+    def test_recheck_migration_skips_existing_stage_registered_at(self):
+        schema_editor = _MigrationSchemaEditor(["id", "stage_registered_at", "updated_at"])
+
+        self.migration_func(_MigrationApps(), schema_editor)
+
+        self.assertEqual(schema_editor.added_fields, [])
 
 
 class VketScheduleLockServiceTests(TestCase):
