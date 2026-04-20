@@ -1,11 +1,17 @@
-from django.test import TestCase, Client
+from unittest.mock import patch
+
+from django.db.models.query import QuerySet
+from django.http import QueryDict
+from django.test import TestCase, Client, RequestFactory
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core import mail
 from datetime import date, timedelta, time
 
 from community.models import Community, CommunityMember
+from community.views.public import CommunityListView
 from event.models import Event, EventDetail
+from url_filters import get_filtered_url
 
 CustomUser = get_user_model()
 
@@ -42,6 +48,48 @@ class TestCommunityListViewPagination(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.community.name)
+
+    def test_get_queryset_does_not_count_for_logging(self):
+        request = RequestFactory().get(reverse('community:list'), {'weekdays': 'Sat'})
+        view = CommunityListView()
+        view.setup(request)
+
+        with patch.object(QuerySet, 'count', side_effect=AssertionError('count should not run in get_queryset')):
+            queryset = view.get_queryset()
+
+        self.assertEqual(queryset.model, Community)
+
+    def test_malformed_amp_params_are_not_propagated(self):
+        response = self.client.get(
+            reverse('community:list'),
+            {
+                'page': '1',
+                'amp;weekdays': 'Fri',
+                'amp;amp;tags': 'academic',
+                'query': '一覧',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['selected_weekdays'], [])
+        self.assertEqual(response.context['selected_tags'], [])
+        self.assertNotIn('amp', response.context['current_query_params'])
+
+    def test_get_filtered_url_removes_existing_value(self):
+        params = QueryDict('', mutable=True)
+        params.setlist('weekdays', ['Sat', 'Fri'])
+
+        url = get_filtered_url('/community/list/', params, 'weekdays', 'Sat')
+
+        self.assertEqual(url, '/community/list/?weekdays=Fri')
+
+    def test_get_filtered_url_returns_base_url_when_last_value_removed(self):
+        params = QueryDict('', mutable=True)
+        params.setlist('weekdays', ['Sat'])
+
+        url = get_filtered_url('/community/list/', params, 'weekdays', 'Sat')
+
+        self.assertEqual(url, '/community/list/')
 
 
 class AcceptViewTest(TestCase):
