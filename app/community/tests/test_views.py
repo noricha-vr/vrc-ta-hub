@@ -3,8 +3,10 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core import mail
 from datetime import date, timedelta, time
+from unittest.mock import patch
 
 from community.models import Community, CommunityMember
+from community.views.public import CommunityListView
 from event.models import Event, EventDetail
 
 CustomUser = get_user_model()
@@ -42,6 +44,44 @@ class TestCommunityListViewPagination(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.community.name)
+
+    def test_filtered_page_builds_queryset_once(self):
+        for index in range(20):
+            Community.objects.create(
+                name=f'土曜集会{index}',
+                status='approved',
+                frequency='毎週',
+                organizers='テスト主催者',
+                poster_image=f'poster/sat-{index}.jpg',
+                weekdays=['Sat'],
+            )
+
+        original_get_queryset = CommunityListView.get_queryset
+        call_count = 0
+
+        def counting_get_queryset(view):
+            nonlocal call_count
+            call_count += 1
+            return original_get_queryset(view)
+
+        url = (
+            f"{reverse('community:list')}"
+            "?page=2"
+            "&query=土曜"
+            "&amp;amp%3Bamp%3Btags=academic"
+            "&amp%3Bweekdays=Other"
+        )
+        with patch.object(
+            CommunityListView,
+            'get_queryset',
+            autospec=True,
+            side_effect=counting_get_queryset,
+        ):
+            response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '件数：20')
+        self.assertEqual(call_count, 1)
 
 
 class AcceptViewTest(TestCase):

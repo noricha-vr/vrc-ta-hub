@@ -1,8 +1,8 @@
 """公開ページ: 集会一覧、集会詳細、アーカイブ一覧."""
 import logging
 
-from django.core.paginator import InvalidPage
 from django.db.models import Min, Q, F
+from django.http import Http404
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -25,23 +25,19 @@ class CommunityListView(ListView):
     paginate_by = 18
 
     def get(self, request, *args, **kwargs):
-        # 通常のget処理の前にページ番号をチェック
-        page = request.GET.get(self.page_kwarg) or 1
         self.object_list = self.get_queryset()
-
-        paginator = self.get_paginator(self.object_list, self.paginate_by)
-        if page == 'last':
-            return super().get(request, *args, **kwargs)
-
         try:
-            paginator.validate_number(page)
-        except InvalidPage:
+            context = self.get_context_data()
+        except Http404:
+            page = request.GET.get(self.page_kwarg) or 1
+            if page == 'last':
+                raise
             # クエリパラメータを維持したまま1ページ目にリダイレクト
             params = request.GET.copy()
             params[self.page_kwarg] = 1
             return redirect(f"{request.path}?{params.urlencode()}")
 
-        return super().get(request, *args, **kwargs)
+        return self.render_to_response(context)
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -82,9 +78,6 @@ class CommunityListView(ListView):
             F('latest_event_date').asc(nulls_last=True),
             '-updated_at'
         )
-        logger.info(f'検索結果: {queryset.count()}件')
-        if queryset.count() == 0:
-            logger.info('現在開催中の集会はありません。')
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -116,7 +109,10 @@ class CommunityListView(ListView):
         # タグの選択肢をコンテキストに追加
         context['tag_choices'] = dict(TAGS)
         # 検索結果の件数をコンテキストに追加
-        context['search_count'] = self.get_queryset().count()
+        context['search_count'] = context['paginator'].count
+        logger.info('検索結果: %s件', context['search_count'])
+        if context['search_count'] == 0:
+            logger.info('現在開催中の集会はありません。')
         return context
 
 
