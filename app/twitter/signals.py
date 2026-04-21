@@ -23,7 +23,7 @@ NO_APPROVED_PRESENTATIONS_SKIP_REASON = '承認済みの当日発表がないた
 
 def _generate_tweet_async(queue_id: int) -> None:
     """バックグラウンドスレッドでツイートテキストを生成する。"""
-    from django.db import connection
+    from django.db import connections
 
     try:
         from twitter.models import TweetQueue
@@ -71,7 +71,7 @@ def _generate_tweet_async(queue_id: int) -> None:
         except Exception:
             pass
     finally:
-        connection.close()
+        connections.close_all()
 
 
 @receiver(pre_save, sender=Community)
