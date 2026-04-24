@@ -1,11 +1,15 @@
+import shutil
+import tempfile
+from datetime import date, timedelta, time
+from pathlib import Path
+
 from django.http import QueryDict
 from django.db import connection
-from django.test import TestCase, Client, RequestFactory
+from django.test import TestCase, Client, RequestFactory, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core import mail
-from datetime import date, timedelta, time
 
 from community.views.public import CommunityListView
 from community.models import Community, CommunityMember
@@ -327,6 +331,80 @@ class CommunityDetailViewEventThemeDisplayTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # h1が空の場合はフォールバックとしてBlogが表示される
         self.assertContains(response, 'Blog')
+
+
+class PosterDownloadViewTest(TestCase):
+    """ポスター画像ダウンロードのテスト"""
+
+    poster_bytes = b'original poster bytes'
+
+    def setUp(self):
+        self.client = Client()
+        self.media_root = tempfile.mkdtemp()
+        self.override = override_settings(
+            MEDIA_ROOT=self.media_root,
+            DEFAULT_FILE_STORAGE='django.core.files.storage.FileSystemStorage',
+        )
+        self.override.enable()
+        self.addCleanup(self.override.disable)
+        self.addCleanup(shutil.rmtree, self.media_root)
+
+        poster_path = Path(self.media_root) / 'poster' / 'test-poster.gif'
+        poster_path.parent.mkdir(parents=True, exist_ok=True)
+        poster_path.write_bytes(self.poster_bytes)
+
+        self.community = Community.objects.create(
+            name='ポスターダウンロード集会',
+            status='approved',
+            frequency='毎週',
+            organizers='テスト主催者',
+            poster_image='poster/test-poster.gif',
+            allow_poster_repost=True,
+        )
+
+    def test_detail_shows_poster_download_link_when_repost_allowed(self):
+        response = self.client.get(
+            reverse('community:detail', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            reverse('community:poster_download', kwargs={'pk': self.community.pk}),
+        )
+        self.assertContains(response, 'bi-download')
+        self.assertContains(response, 'mw-100 text-wrap text-start')
+
+    def test_download_returns_original_poster_as_attachment(self):
+        response = self.client.get(
+            reverse('community:poster_download', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b''.join(response.streaming_content), self.poster_bytes)
+        self.assertEqual(response['Content-Type'], 'image/gif')
+        self.assertIn('attachment;', response['Content-Disposition'])
+        self.assertIn('test-poster.gif', response['Content-Disposition'])
+
+    def test_download_404_when_repost_not_allowed(self):
+        self.community.allow_poster_repost = False
+        self.community.save(update_fields=['allow_poster_repost'])
+
+        response = self.client.get(
+            reverse('community:poster_download', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_download_404_when_community_is_not_approved(self):
+        self.community.status = 'pending'
+        self.community.save(update_fields=['status'])
+
+        response = self.client.get(
+            reverse('community:poster_download', kwargs={'pk': self.community.pk})
+        )
+
+        self.assertEqual(response.status_code, 404)
 
 
 class CommunityDetailViewBlogSpecialSectionTest(TestCase):

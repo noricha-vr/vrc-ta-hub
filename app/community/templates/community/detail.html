@@ -35,11 +35,11 @@
                             {% endif %}
                             <div class="mt-2">
                                 {% if community.allow_poster_repost %}
-                                    <span class="badge bg-success text-white">
-                                        <i class="bi bi-check-circle"></i> 集会を紹介するためのポスターの転載可
-                                    </span>
+                                    <a href="{% url 'community:poster_download' community.pk %}" class="badge bg-success text-white text-decoration-none fs-6 mw-100 text-wrap text-start">
+                                        <i class="bi bi-download"></i> 集会を紹介するためのポスターの転載可
+                                    </a>
                                 {% else %}
-                                    <span class="badge bg-white text-dark border">
+                                    <span class="badge bg-white text-dark border fs-6">
                                         <i class="bi bi-x-circle text-danger"></i> ポスターの転載はお問い合わせください
                                     </span>
                                 {% endif %}

@@ -28,6 +28,7 @@ from .views import (
     UpdateLTSettingsView,
     AdminCommunityCleanupView,
     CommunityReportView,
+    PosterDownloadView,
 )
 
 app_name = 'community'
@@ -64,4 +65,6 @@ urlpatterns = [
     path('<int:pk>/lt-settings/update/', UpdateLTSettingsView.as_view(), name='update_lt_settings'),
     # 活動停止通報
     path('<int:pk>/report/', CommunityReportView.as_view(), name='report'),
+    # ポスターダウンロード
+    path('<int:pk>/poster/download/', PosterDownloadView.as_view(), name='poster_download'),
 ]
