@@ -9,6 +9,7 @@ import os
 import re
 
 from django.conf import settings
+from django.db import connections
 from openai import OpenAI
 
 from ta_hub.libs import cloudflare_image_url
@@ -145,6 +146,8 @@ def _call_llm(system_prompt: str, user_prompt: str) -> str | None:
         model = model.split(":")[0]
 
     try:
+        if not any(connection.in_atomic_block for connection in connections.all()):
+            connections.close_all()
         client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
         response = client.chat.completions.create(
             extra_headers={

@@ -310,7 +310,12 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         self.assertEqual(self.queue_item.status, 'generating')
         self.assertEqual(self.queue_item.error_message, '')
 
-        mock_thread_cls.assert_called_once()
+        from twitter.views import _retry_generation_async
+        mock_thread_cls.assert_called_once_with(
+            target=_retry_generation_async,
+            args=(self.queue_item.pk,),
+            daemon=True,
+        )
         mock_thread.start.assert_called_once()
 
     def test_retry_not_allowed_for_ready(self):

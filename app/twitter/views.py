@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
-from django.db import models
+from django.db import connections, models
 from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -209,6 +209,24 @@ def _retry_generation(queue_item) -> None:
         queue_item.error_message = 'リトライ生成にも失敗'
         queue_item.save()
         logger.error("Retry generation failed for queue %d", queue_item.pk)
+
+
+def _retry_generation_async(queue_id: int) -> None:
+    """バックグラウンドスレッドで再生成し、終了時にDB接続を確実に解放する。"""
+    try:
+        try:
+            queue_item = TweetQueue.objects.select_related(
+                'community', 'event', 'event_detail',
+            ).get(pk=queue_id)
+        except TweetQueue.DoesNotExist:
+            logger.error("TweetQueue %d not found for retry generation", queue_id)
+            return
+
+        _retry_generation(queue_item)
+    except Exception:
+        logger.exception("Async retry generation failed for queue %d", queue_id)
+    finally:
+        connections.close_all()
 
 
 @require_http_methods(["GET"])
@@ -532,8 +550,8 @@ class TweetQueueDetailView(TweetQueueViewerMixin, DetailView):
         self.object.save(update_fields=['status', 'error_message'])
 
         thread = threading.Thread(
-            target=_retry_generation,
-            args=(self.object,),
+            target=_retry_generation_async,
+            args=(self.object.pk,),
             daemon=True,
         )
         thread.start()
