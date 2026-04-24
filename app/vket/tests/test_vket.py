@@ -3,6 +3,7 @@
 from datetime import time, timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -10,6 +11,7 @@ from django.utils import timezone
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from ta_hub.index_cache import get_index_view_cache_key
 from vket.models import (
     VketCollaboration,
     VketNotice,
@@ -580,6 +582,7 @@ class VketApplyFlowTests(TestCase):
 class VketManageViewsTests(TestCase):
     def setUp(self):
         self.client = Client()
+        cache.clear()
         self.superuser = User.objects.create_superuser(
             user_name='admin_user',
             email='admin@example.com',
@@ -646,6 +649,9 @@ class VketManageViewsTests(TestCase):
             confirmed_start_time='21:30',
             confirmed_duration=60,
         )
+
+    def tearDown(self):
+        cache.clear()
 
     def test_manage_page_requires_staff(self):
         """管理画面はstaff権限が必要"""
@@ -767,6 +773,8 @@ class VketManageViewsTests(TestCase):
             duration=30,
             status='approved',
         )
+        cache_key = get_index_view_cache_key()
+        cache.set(cache_key, {'upcoming_event_details': ['stale']}, 60)
         new_date = self.collaboration.period_start
         response = self.client.post(
             reverse(
@@ -789,6 +797,7 @@ class VketManageViewsTests(TestCase):
 
         detail.refresh_from_db()
         self.assertEqual(detail.start_time.strftime('%H:%M'), '22:15')
+        self.assertIsNone(cache.get(cache_key))
 
     def test_manage_participation_update_rejects_foreign_event_detail(self):
         """別のイベントのEventDetailは更新できない"""
@@ -886,6 +895,8 @@ class VketManageViewsTests(TestCase):
             requested_start_time='21:45',
             status=VketPresentation.Status.DRAFT,
         )
+        cache_key = get_index_view_cache_key()
+        cache.set(cache_key, {'upcoming_event_details': ['stale']}, 60)
         new_date = self.collaboration.period_start + timedelta(days=1)
         self.client.post(
             reverse(
@@ -906,6 +917,7 @@ class VketManageViewsTests(TestCase):
         self.assertIsNotNone(pres.published_event_detail)
         self.assertEqual(pres.published_event_detail.speaker, '新規登壇者')
         self.assertEqual(pres.published_event_detail.event_id, self.event1.id)
+        self.assertIsNone(cache.get(cache_key))
 
     def test_manage_page_shows_draft_badge(self):
         """管理画面でDRAFTのLTに「申請中」バッジが表示される"""
@@ -1797,6 +1809,7 @@ class VketPublishViewTests(TestCase):
 
     def setUp(self):
         self.client = Client()
+        cache.clear()
         self.superuser = User.objects.create_superuser(
             user_name='admin_pub',
             email='admin_pub@example.com',
@@ -1825,6 +1838,9 @@ class VketPublishViewTests(TestCase):
             confirmed_start_time='21:00',
             confirmed_duration=60,
         )
+
+    def tearDown(self):
+        cache.clear()
 
     def test_publish_creates_event_and_updates_participation(self):
         """公開処理でEventが作成されpublished_eventが紐づく"""
@@ -1902,3 +1918,46 @@ class VketPublishViewTests(TestCase):
         # EventDetail が作成され、start_time に requested_start_time が使われていること
         detail = EventDetail.objects.get(event=event)
         self.assertEqual(detail.start_time.strftime('%H:%M'), '21:30')
+
+    def test_publish_clears_index_cache_when_updating_existing_event_detail(self):
+        """公開処理で既存EventDetailをbulk updateした場合もトップページキャッシュを削除する"""
+        event = Event.objects.create(
+            community=self.community,
+            date=self.collaboration.period_start,
+            start_time='21:00',
+            duration=60,
+            weekday='Fri',
+        )
+        self.participation.published_event = event
+        self.participation.save(update_fields=['published_event', 'updated_at'])
+        detail = EventDetail.objects.create(
+            event=event,
+            detail_type='LT',
+            speaker='更新前登壇者',
+            theme='更新前テーマ',
+            start_time='21:00',
+            status='approved',
+        )
+        VketPresentation.objects.create(
+            participation=self.participation,
+            order=0,
+            speaker='更新後登壇者',
+            theme='更新後テーマ',
+            requested_start_time=time(21, 30),
+            status=VketPresentation.Status.CONFIRMED,
+            published_event_detail=detail,
+        )
+        cache_key = get_index_view_cache_key()
+        cache.set(cache_key, {'upcoming_event_details': ['stale']}, 60)
+
+        self.client.login(username='admin_pub', password='adminpass123')
+        response = self.client.post(
+            reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        detail.refresh_from_db()
+        self.assertEqual(detail.speaker, '更新後登壇者')
+        self.assertEqual(detail.start_time.strftime('%H:%M'), '21:30')
+        self.assertIsNone(cache.get(cache_key))
