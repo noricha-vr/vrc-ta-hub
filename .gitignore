@@ -138,3 +138,4 @@ test-results/
 backup/
 dumps/
 .playwright-cli/
+.prrepo/
