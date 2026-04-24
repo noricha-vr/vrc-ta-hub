@@ -1,9 +1,12 @@
-from django.test import TestCase, Client
+from django.test import TestCase, Client, RequestFactory
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core import mail
 from datetime import date, timedelta, time
 
+from community.views.public import CommunityListView
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 
@@ -42,6 +45,27 @@ class TestCommunityListViewPagination(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.community.name)
+
+    def test_count_query_does_not_group_by_events(self):
+        Event.objects.create(
+            community=self.community,
+            date=date.today() + timedelta(days=7),
+            start_time=time(21, 0),
+            duration=60,
+        )
+        request = RequestFactory().get(reverse('community:list'))
+        view = CommunityListView()
+        view.setup(request)
+
+        with CaptureQueriesContext(connection) as captured:
+            self.assertEqual(view.get_queryset().count(), 1)
+
+        count_sql = ' '.join(
+            query['sql'] for query in captured.captured_queries
+            if 'COUNT' in query['sql'].upper()
+        ).upper()
+        self.assertIn('COUNT', count_sql)
+        self.assertNotIn('GROUP BY', count_sql)
 
 
 class AcceptViewTest(TestCase):

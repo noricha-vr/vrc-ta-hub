@@ -2,7 +2,7 @@
 import logging
 
 from django.core.paginator import InvalidPage
-from django.db.models import Min, Q, F
+from django.db.models import Q, F, OuterRef, Subquery
 from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
@@ -43,23 +43,17 @@ class CommunityListView(ListView):
 
         return super().get(request, *args, **kwargs)
 
-    def get_queryset(self):
+    def get_filtered_queryset(self):
+        if hasattr(self, '_filtered_queryset'):
+            return self._filtered_queryset
+
         queryset = super().get_queryset()
-        now = timezone.now()
         # 承認済みでアクティブな集会（終了日がない）、かつポスター画像がある
         queryset = queryset.filter(
             status='approved',
             end_at__isnull=True,
             poster_image__isnull=False
         ).exclude(poster_image='')
-
-        # 最新のイベント日を取得
-        queryset = queryset.annotate(
-            latest_event_date=Min(
-                'events__date',
-                filter=Q(events__date__gte=now.date())
-            )
-        )
 
         form = CommunitySearchForm(self.request.GET)
         if form.is_valid():
@@ -77,14 +71,40 @@ class CommunityListView(ListView):
                     tag_filters |= Q(tags__contains=[tag])
                 queryset = queryset.filter(tag_filters)
 
+        self._filtered_queryset = queryset
+        return queryset
+
+    def get_search_count(self):
+        if not hasattr(self, '_search_count'):
+            self._search_count = self.get_filtered_queryset().count()
+        return self._search_count
+
+    def get_queryset(self):
+        if hasattr(self, '_ordered_queryset'):
+            return self._ordered_queryset
+
+        queryset = self.get_filtered_queryset()
+        now = timezone.now()
+
+        latest_event_date = Event.objects.filter(
+            community=OuterRef('pk'),
+            date__gte=now.date(),
+        ).order_by('date').values('date')[:1]
+
+        queryset = queryset.annotate(
+            latest_event_date=Subquery(latest_event_date)
+        )
+
         # 最新のイベント日でソート（NULL値は最後に）
         queryset = queryset.order_by(
             F('latest_event_date').asc(nulls_last=True),
             '-updated_at'
         )
-        logger.info(f'検索結果: {queryset.count()}件')
-        if queryset.count() == 0:
+        search_count = self.get_search_count()
+        logger.info(f'検索結果: {search_count}件')
+        if search_count == 0:
             logger.info('現在開催中の集会はありません。')
+        self._ordered_queryset = queryset
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -116,7 +136,7 @@ class CommunityListView(ListView):
         # タグの選択肢をコンテキストに追加
         context['tag_choices'] = dict(TAGS)
         # 検索結果の件数をコンテキストに追加
-        context['search_count'] = self.get_queryset().count()
+        context['search_count'] = self.get_search_count()
         return context
 
 
