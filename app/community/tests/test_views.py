@@ -441,6 +441,47 @@ class CommunityDetailViewLtApplicationSectionTest(TestCase):
         self.assertNotContains(response, 'LT発表を申し込む')
 
 
+class CommunityDetailArchiveNoticeTest(TestCase):
+    """コミュニティ詳細ページのアーカイブ表示テスト"""
+
+    def setUp(self):
+        self.client = Client()
+        self.community = Community.objects.create(
+            name='アーカイブ表示テスト集会',
+            status='approved',
+            frequency='毎週',
+            organizers='テスト主催者',
+        )
+        self.future_event = Event.objects.create(
+            community=self.community,
+            date=date.today() + timedelta(days=7),
+            start_time=time(21, 0),
+            duration=60,
+        )
+        self.url = reverse('community:detail', kwargs={'pk': self.community.pk})
+
+    def test_active_community_shows_report_button_without_archive_notice(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'この集会は終了しています')
+        self.assertContains(response, 'この集会が開催されていないかもしれない')
+        self.assertContains(response, 'reportModal')
+        self.assertContains(response, 'アーカイブ表示テスト集会の開催日程')
+
+    def test_archived_community_shows_notice_and_hides_report_button(self):
+        self.community.end_at = date.today() - timedelta(days=1)
+        self.community.save(update_fields=['end_at'])
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'この集会は終了しています')
+        self.assertNotContains(response, 'この集会が開催されていないかもしれない')
+        self.assertNotContains(response, 'reportModal')
+        self.assertNotContains(response, 'アーカイブ表示テスト集会の開催日程')
+
+
 class CommunityUpdateViewPromotionBannerTest(TestCase):
     """CommunityUpdateViewのプロモーションバナー表示テスト"""
 
