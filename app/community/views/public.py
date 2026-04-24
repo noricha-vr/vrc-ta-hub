@@ -17,6 +17,51 @@ from ..models import Community, WEEKDAY_CHOICES, TAGS
 
 logger = logging.getLogger(__name__)
 
+COMMUNITY_LIST_QUERY_KEYS = frozenset({'query', 'weekdays', 'tags'})
+
+
+def get_clean_community_list_params(request, *, include_page=False, page_kwarg='page'):
+    params = request.GET.copy()
+    allowed_keys = set(COMMUNITY_LIST_QUERY_KEYS)
+    if include_page:
+        allowed_keys.add(page_kwarg)
+
+    for key in list(params.keys()):
+        if key not in allowed_keys:
+            del params[key]
+
+    return params
+
+
+def filter_communities(queryset, params):
+    form = CommunitySearchForm(params)
+    if form.is_valid():
+        if query := form.cleaned_data['query']:
+            queryset = queryset.filter(Q(name__icontains=query) | Q(description__icontains=query))
+        if weekdays := form.cleaned_data['weekdays']:
+            weekday_filters = Q()
+            for weekday in weekdays:
+                weekday_filters |= Q(weekdays__contains=weekday)
+            queryset = queryset.filter(weekday_filters)
+        if tags := form.cleaned_data['tags']:
+            tag_filters = Q()
+            for tag in tags:
+                tag_filters |= Q(tags__contains=[tag])
+            queryset = queryset.filter(tag_filters)
+
+    return queryset
+
+
+def get_search_count(context):
+    paginator = context.get('paginator')
+    if paginator is not None:
+        return paginator.count
+
+    object_list = context.get('object_list', [])
+    if hasattr(object_list, 'count'):
+        return object_list.count()
+    return len(object_list)
+
 
 class CommunityListView(ListView):
     model = Community
@@ -30,18 +75,16 @@ class CommunityListView(ListView):
         self.object_list = self.get_queryset()
 
         paginator = self.get_paginator(self.object_list, self.paginate_by)
-        if page == 'last':
-            return super().get(request, *args, **kwargs)
+        if page != 'last':
+            try:
+                paginator.validate_number(page)
+            except InvalidPage:
+                # クエリパラメータを維持したまま1ページ目にリダイレクト
+                params = get_clean_community_list_params(request, include_page=True, page_kwarg=self.page_kwarg)
+                params[self.page_kwarg] = 1
+                return redirect(f"{request.path}?{params.urlencode()}")
 
-        try:
-            paginator.validate_number(page)
-        except InvalidPage:
-            # クエリパラメータを維持したまま1ページ目にリダイレクト
-            params = request.GET.copy()
-            params[self.page_kwarg] = 1
-            return redirect(f"{request.path}?{params.urlencode()}")
-
-        return super().get(request, *args, **kwargs)
+        return self.render_to_response(self.get_context_data())
 
     def get_filtered_queryset(self):
         if hasattr(self, '_filtered_queryset'):
@@ -55,21 +98,8 @@ class CommunityListView(ListView):
             poster_image__isnull=False
         ).exclude(poster_image='')
 
-        form = CommunitySearchForm(self.request.GET)
-        if form.is_valid():
-            if query := form.cleaned_data['query']:
-                queryset = queryset.filter(Q(name__icontains=query) | Q(description__icontains=query))
-            if weekdays := form.cleaned_data['weekdays']:
-                weekday_filters = Q()
-                for weekday in weekdays:
-                    weekday_filters |= Q(weekdays__contains=weekday)
-                queryset = queryset.filter(weekday_filters)
-            if tags := form.cleaned_data['tags']:
-                # タグフィルタリングの修正
-                tag_filters = Q()
-                for tag in tags:
-                    tag_filters |= Q(tags__contains=[tag])
-                queryset = queryset.filter(tag_filters)
+        params = get_clean_community_list_params(self.request)
+        queryset = filter_communities(queryset, params)
 
         self._filtered_queryset = queryset
         return queryset
@@ -109,12 +139,12 @@ class CommunityListView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['form'] = CommunitySearchForm(self.request.GET or None)
-        context['selected_weekdays'] = self.request.GET.getlist('weekdays')
-        context['selected_tags'] = self.request.GET.getlist('tags')
+        current_params = get_clean_community_list_params(self.request)
+        context['form'] = CommunitySearchForm(current_params or None)
+        context['selected_weekdays'] = current_params.getlist('weekdays')
+        context['selected_tags'] = current_params.getlist('tags')
 
         base_url = reverse('community:list')
-        current_params = self.request.GET.copy()
 
         # ページネーションリンク用に既存の 'page' パラメータを削除
         query_params_for_pagination = current_params.copy()
@@ -240,31 +270,19 @@ class ArchivedCommunityListView(ListView):
             end_at__isnull=False
         ).order_by('-end_at')
 
-        form = CommunitySearchForm(self.request.GET)
-        if form.is_valid():
-            if query := form.cleaned_data['query']:
-                queryset = queryset.filter(Q(name__icontains=query) | Q(description__icontains=query))
-            if weekdays := form.cleaned_data['weekdays']:
-                weekday_filters = Q()
-                for weekday in weekdays:
-                    weekday_filters |= Q(weekdays__contains=weekday)
-                queryset = queryset.filter(weekday_filters)
-            if tags := form.cleaned_data['tags']:
-                tag_filters = Q()
-                for tag in tags:
-                    tag_filters |= Q(tags__contains=[tag])
-                queryset = queryset.filter(tag_filters)
+        params = get_clean_community_list_params(self.request)
+        queryset = filter_communities(queryset, params)
 
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['form'] = CommunitySearchForm(self.request.GET or None)
-        context['selected_weekdays'] = self.request.GET.getlist('weekdays')
-        context['selected_tags'] = self.request.GET.getlist('tags')
+        current_params = get_clean_community_list_params(self.request)
+        context['form'] = CommunitySearchForm(current_params or None)
+        context['selected_weekdays'] = current_params.getlist('weekdays')
+        context['selected_tags'] = current_params.getlist('tags')
 
         base_url = reverse('community:archive_list')
-        current_params = self.request.GET.copy()
 
         # ページネーションリンク用に既存の 'page' パラメータを削除
         query_params_for_pagination = current_params.copy()
@@ -283,5 +301,5 @@ class ArchivedCommunityListView(ListView):
 
         context['weekday_choices'] = dict(WEEKDAY_CHOICES)
         context['tag_choices'] = dict(TAGS)
-        context['search_count'] = self.get_queryset().count()
+        context['search_count'] = get_search_count(context)
         return context
