@@ -3,6 +3,8 @@
 import os
 import re
 
+from django.core.exceptions import DisallowedHost
+
 from website.hosts import get_canonical_host, normalize_host
 
 
@@ -48,6 +50,14 @@ def _normalize_preview_host_candidate(value: str) -> str:
         return ''
 
 
+def _extract_disallowed_host(error: DisallowedHost) -> str:
+    match = re.search(r"Invalid HTTP_HOST header: '([^']+)'", str(error))
+    if match:
+        return match.group(1)
+
+    return ''
+
+
 class CanonicalCloudRunHostMiddleware:
     """Cloud Run のプレビューURLを正規ホストへ寄せる。"""
 
@@ -56,20 +66,41 @@ class CanonicalCloudRunHostMiddleware:
         self.canonical_host = get_canonical_host()
         self.cloud_run_preview_host_pattern = _build_cloud_run_preview_host_pattern()
 
-    def __call__(self, request):
+    def _is_supported_preview_host(self, value: str) -> bool:
+        normalized_host = _normalize_preview_host_candidate(value)
+        return bool(self.cloud_run_preview_host_pattern.match(normalized_host))
+
+    def _canonicalize_request_host(self, request) -> bool:
         host_meta_keys = ('HTTP_HOST', 'HTTP_X_FORWARDED_HOST', 'SERVER_NAME')
         # proxy 差分で absolute URL や host:port が混ざるので、判定前に host へ正規化する。参照: PR #247
-        normalized_hosts = [
-            _normalize_preview_host_candidate(request.META.get(meta_key, ''))
-            for meta_key in host_meta_keys
-        ]
         if any(
-            self.cloud_run_preview_host_pattern.match(raw_host)
-            for raw_host in normalized_hosts
+            self._is_supported_preview_host(request.META.get(meta_key, ''))
+            for meta_key in host_meta_keys
         ):
             for meta_key in host_meta_keys:
                 if request.META.get(meta_key):
                     request.META[meta_key] = self.canonical_host
             request.META['SERVER_NAME'] = self.canonical_host
+            return True
 
-        return self.get_response(request)
+        return False
+
+    def __call__(self, request):
+        self._canonicalize_request_host(request)
+
+        try:
+            return self.get_response(request)
+        except DisallowedHost as error:
+            if getattr(request, 'resolver_match', None) is not None:
+                raise
+
+            disallowed_host = _extract_disallowed_host(error)
+            # 観測ログと同じ Django get_host() 経由の拒否だけを、同じ service 名ホワイトリストで救済する。参照: PR #247
+            if not self._is_supported_preview_host(disallowed_host):
+                raise
+
+            request.META['HTTP_HOST'] = self.canonical_host
+            request.META['SERVER_NAME'] = self.canonical_host
+            if request.META.get('HTTP_X_FORWARDED_HOST'):
+                request.META['HTTP_X_FORWARDED_HOST'] = self.canonical_host
+            return self.get_response(request)
