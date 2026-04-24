@@ -82,27 +82,36 @@
                 <h6 class="fw-medium mb-2">
                     <i class="fa-brands fa-discord me-2"></i>Discord通知
                 </h6>
-                <p class="text-muted small mb-3">
-                    発表（LT）申請があった時にDiscordに通知を送信します。
-                </p>
-                <form method="post" action="{% url 'community:update_webhook' community.pk %}">
-                    {% csrf_token %}
-                    <div class="d-flex gap-2">
+                <div class="d-flex gap-2 align-items-stretch">
+                    <form method="post" action="{% url 'community:update_webhook' community.pk %}"
+                          class="d-flex flex-grow-1 gap-2">
+                        {% csrf_token %}
                         <input type="url" name="notification_webhook_url"
                                value="{{ community.notification_webhook_url }}"
                                class="form-control flex-grow-1"
                                placeholder="https://discord.com/api/webhooks/...">
                         <button type="submit" class="btn btn-primary flex-shrink-0">保存</button>
-                    </div>
-                </form>
-                {% if community.notification_webhook_url %}
-                <form method="post" action="{% url 'community:test_webhook' community.pk %}" class="mt-2">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-secondary btn-sm">
-                        <i class="fa-solid fa-paper-plane me-1"></i>テスト送信
-                    </button>
-                </form>
-                {% endif %}
+                    </form>
+                    {% if community.notification_webhook_url %}
+                    <form method="post" action="{% url 'community:test_webhook' community.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-secondary flex-shrink-0">
+                            <i class="fa-solid fa-paper-plane me-1"></i>テスト送信
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                <p class="text-muted small mb-1 mt-3">
+                    以下のタイミングでDiscordに通知を送信します。
+                </p>
+                <ul class="text-muted small mb-2 ps-3">
+                    <li>発表（LT）申請があった時</li>
+                    <li>申請が承認／却下された時</li>
+                    <li>過去イベントの発表資料（スライドURL／PDF）が初めて公開された時</li>
+                </ul>
+                <p class="text-muted small mb-0">
+                    ※同じ資料を再アップロード（更新）した場合は、重複通知は送信されません。
+                </p>
             </div>
         </div>
     </div>
