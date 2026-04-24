@@ -1,11 +1,15 @@
 """公開ページ: 集会一覧、集会詳細、アーカイブ一覧."""
 import logging
+import mimetypes
+import os
 
 from django.core.paginator import InvalidPage
 from django.db.models import Q, F, OuterRef, Subquery
-from django.shortcuts import redirect
+from django.http import FileResponse, Http404
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
+from django.views import View
 from django.views.generic import ListView, DetailView
 
 from event.models import Event, EventDetail
@@ -254,6 +258,30 @@ class CommunityDetailView(DetailView):
             })
             last_event = event
         return event_details_list
+
+
+class PosterDownloadView(View):
+    """ポスター画像の原本をダウンロードするビュー。"""
+
+    def get(self, request, pk):
+        community = get_object_or_404(Community, pk=pk, status='approved')
+        if not community.allow_poster_repost or not community.poster_image:
+            raise Http404
+
+        filename = os.path.basename(community.poster_image.name)
+        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+        try:
+            community.poster_image.open('rb')
+        except FileNotFoundError as exc:
+            raise Http404 from exc
+
+        return FileResponse(
+            community.poster_image,
+            as_attachment=True,
+            filename=filename,
+            content_type=content_type,
+        )
 
 
 class ArchivedCommunityListView(ListView):

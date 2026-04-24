@@ -6,6 +6,7 @@ urls.py や他モジュールからの `from community.views import XxxView` を
 from .public import (  # noqa: F401
     CommunityListView,
     CommunityDetailView,
+    PosterDownloadView,
     ArchivedCommunityListView,
 )
 from .manage import (  # noqa: F401
