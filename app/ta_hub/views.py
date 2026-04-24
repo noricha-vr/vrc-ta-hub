@@ -12,6 +12,7 @@ from event.models import Event, EventDetail
 from event.views import EventListView
 from event_calendar.calendar_utils import generate_google_calendar_url
 from news.models import Post
+from ta_hub.index_cache import get_index_view_cache_key
 from utils.vrchat_time import get_vrchat_today
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ class IndexView(TemplateView):
         # キャッシュキーの生成（日付ベース）
         # VRChatterの生活リズムに合わせて朝4時を日付の境界とする
         today = get_vrchat_today()
-        cache_key = f'index_view_data_{today}'
+        cache_key = get_index_view_cache_key(today)
 
         # Vketコラボ告知の表示判定
         current_datetime = timezone.now()

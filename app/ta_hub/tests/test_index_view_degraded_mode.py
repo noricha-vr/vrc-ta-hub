@@ -1,10 +1,15 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.core.cache import cache
 from django.db.utils import OperationalError
 from django.test import Client, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
+from community.models import Community
+from event.models import Event, EventDetail
+from ta_hub.index_cache import get_index_view_cache_key
 from ta_hub.views import VKET_ACHIEVEMENTS
 
 
@@ -73,3 +78,89 @@ class IndexViewDegradedModeTest(TestCase):
         self.assertEqual(response.context["upcoming_event_details"], [])
         self.assertEqual(response.context["special_events"], [])
         mock_post_filter.assert_called_once()
+
+
+class IndexViewEventDetailCacheInvalidationTest(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.cache_key = get_index_view_cache_key()
+        self.community = Community.objects.create(
+            name='キャッシュ検証集会',
+            status='approved',
+            frequency='毎週',
+        )
+        self.event = Event.objects.create(
+            community=self.community,
+            date=timezone.localdate() - timedelta(days=1),
+            start_time='22:00',
+            duration=60,
+            weekday='Mon',
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    def _set_stale_index_cache(self):
+        cache.set(self.cache_key, {'upcoming_event_details': ['stale']}, 60)
+        self.assertIsNotNone(cache.get(self.cache_key))
+
+    def test_lt_creation_clears_index_cache(self):
+        self._set_stale_index_cache()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            EventDetail.objects.create(
+                event=self.event,
+                detail_type='LT',
+                speaker='新規登壇者',
+                theme='新規LT',
+                status='approved',
+            )
+
+        self.assertIsNone(cache.get(self.cache_key))
+
+    def test_lt_update_clears_index_cache(self):
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type='LT',
+            speaker='更新前',
+            theme='更新前LT',
+            status='approved',
+        )
+        self._set_stale_index_cache()
+
+        detail.theme = '更新後LT'
+        with self.captureOnCommitCallbacks(execute=True):
+            detail.save(update_fields=['theme'])
+
+        self.assertIsNone(cache.get(self.cache_key))
+
+    def test_lt_delete_clears_index_cache(self):
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type='LT',
+            speaker='削除対象',
+            theme='削除対象LT',
+            status='approved',
+        )
+        self._set_stale_index_cache()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            detail.delete()
+
+        self.assertIsNone(cache.get(self.cache_key))
+
+    def test_blog_update_keeps_index_cache(self):
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type='BLOG',
+            speaker='ブログ登壇者',
+            theme='ブログ記事',
+            status='approved',
+        )
+        self._set_stale_index_cache()
+
+        detail.theme = 'ブログ記事更新'
+        with self.captureOnCommitCallbacks(execute=True):
+            detail.save(update_fields=['theme'])
+
+        self.assertIsNotNone(cache.get(self.cache_key))

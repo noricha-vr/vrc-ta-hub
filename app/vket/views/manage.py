@@ -16,6 +16,7 @@ from allauth.socialaccount.models import SocialAccount
 
 from community.models import Community
 from event.models import EventDetail
+from ta_hub.index_cache import clear_index_view_cache
 
 from ..forms import VketManageParticipationForm
 from ..models import (
@@ -193,6 +194,7 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
         ).update(status=VketPresentation.Status.CONFIRMED)
 
         # published_event がある場合、EventDetail 未作成の CONFIRMED LT に EventDetail を作成
+        changed_index_detail = False
         if participation.published_event_id:
             for pres in participation.presentations.filter(
                 status=VketPresentation.Status.CONFIRMED,
@@ -209,6 +211,7 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
                 )
                 pres.published_event_detail = detail
                 pres.save(update_fields=['published_event_detail', 'updated_at'])
+                changed_index_detail = True
 
         # EventDetailのLT開始時刻を更新
         detail_pattern = re.compile(r'^detail_(\d+)_start_time$')
@@ -230,9 +233,13 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
                     continue
                 try:
                     new_time = datetime.strptime(time_str, '%H:%M').time()
-                    EventDetail.objects.filter(pk=detail_id).update(start_time=new_time)
+                    updated_count = EventDetail.objects.filter(pk=detail_id).update(start_time=new_time)
+                    changed_index_detail = changed_index_detail or updated_count > 0
                 except (ValueError, KeyError):
                     logger.warning('EventDetail #%d の start_time パース失敗: %s', detail_id, time_str)
+
+        if changed_index_detail:
+            clear_index_view_cache()
 
         messages.success(
             request,

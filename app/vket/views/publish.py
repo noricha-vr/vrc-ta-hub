@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.views import View
 
 from event.models import Event, EventDetail
+from ta_hub.index_cache import clear_index_view_cache
 
 from ..models import (
     VketCollaboration,
@@ -119,6 +120,9 @@ class ManagePublishView(LoginRequiredMixin, UserPassesTestMixin, View):
                         'event_id': event.id,
                     },
                 )
+
+        if published_count:
+            clear_index_view_cache()
 
         messages.success(
             request,
