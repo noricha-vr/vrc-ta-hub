@@ -1,15 +1,14 @@
-from unittest.mock import patch
-
-from django.db.models.query import QuerySet
 from django.http import QueryDict
+from django.db import connection
 from django.test import TestCase, Client, RequestFactory
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core import mail
 from datetime import date, timedelta, time
 
-from community.models import Community, CommunityMember
 from community.views.public import CommunityListView
+from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 from url_filters import get_filtered_url
 
@@ -49,16 +48,6 @@ class TestCommunityListViewPagination(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.community.name)
 
-    def test_get_queryset_does_not_count_for_logging(self):
-        request = RequestFactory().get(reverse('community:list'), {'weekdays': 'Sat'})
-        view = CommunityListView()
-        view.setup(request)
-
-        with patch.object(QuerySet, 'count', side_effect=AssertionError('count should not run in get_queryset')):
-            queryset = view.get_queryset()
-
-        self.assertEqual(queryset.model, Community)
-
     def test_malformed_amp_params_are_not_propagated(self):
         response = self.client.get(
             reverse('community:list'),
@@ -90,6 +79,27 @@ class TestCommunityListViewPagination(TestCase):
         url = get_filtered_url('/community/list/', params, 'weekdays', 'Sat')
 
         self.assertEqual(url, '/community/list/')
+
+    def test_count_query_does_not_group_by_events(self):
+        Event.objects.create(
+            community=self.community,
+            date=date.today() + timedelta(days=7),
+            start_time=time(21, 0),
+            duration=60,
+        )
+        request = RequestFactory().get(reverse('community:list'))
+        view = CommunityListView()
+        view.setup(request)
+
+        with CaptureQueriesContext(connection) as captured:
+            self.assertEqual(view.get_queryset().count(), 1)
+
+        count_sql = ' '.join(
+            query['sql'] for query in captured.captured_queries
+            if 'COUNT' in query['sql'].upper()
+        ).upper()
+        self.assertIn('COUNT', count_sql)
+        self.assertNotIn('GROUP BY', count_sql)
 
 
 class AcceptViewTest(TestCase):
@@ -487,6 +497,47 @@ class CommunityDetailViewLtApplicationSectionTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'LT発表を申し込む')
+
+
+class CommunityDetailArchiveNoticeTest(TestCase):
+    """コミュニティ詳細ページのアーカイブ表示テスト"""
+
+    def setUp(self):
+        self.client = Client()
+        self.community = Community.objects.create(
+            name='アーカイブ表示テスト集会',
+            status='approved',
+            frequency='毎週',
+            organizers='テスト主催者',
+        )
+        self.future_event = Event.objects.create(
+            community=self.community,
+            date=date.today() + timedelta(days=7),
+            start_time=time(21, 0),
+            duration=60,
+        )
+        self.url = reverse('community:detail', kwargs={'pk': self.community.pk})
+
+    def test_active_community_shows_report_button_without_archive_notice(self):
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'この集会は終了しています')
+        self.assertContains(response, 'この集会が開催されていないかもしれない')
+        self.assertContains(response, 'reportModal')
+        self.assertContains(response, 'アーカイブ表示テスト集会の開催日程')
+
+    def test_archived_community_shows_notice_and_hides_report_button(self):
+        self.community.end_at = date.today() - timedelta(days=1)
+        self.community.save(update_fields=['end_at'])
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'この集会は終了しています')
+        self.assertNotContains(response, 'この集会が開催されていないかもしれない')
+        self.assertNotContains(response, 'reportModal')
+        self.assertNotContains(response, 'アーカイブ表示テスト集会の開催日程')
 
 
 class CommunityUpdateViewPromotionBannerTest(TestCase):
