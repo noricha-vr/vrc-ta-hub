@@ -47,7 +47,7 @@ def cleanup_community_future_data(
             calendar_id=settings.GOOGLE_CALENDAR_ID,
             credentials_path=settings.GOOGLE_CALENDAR_CREDENTIALS,
         )
-        # まずDBに残っていたGoogle Calendar IDを優先して削除する
+        # まずDBに残っていたGoogle Calendar IDを優先して削除する。参照: PR #269（理由・背景の追跡）
         existing_google_ids = {
             event.google_calendar_event_id for event in target_events if event.google_calendar_event_id
         }
@@ -140,7 +140,7 @@ def _is_google_event_already_deleted(error: HttpError) -> bool:
     status_code = getattr(error, "status_code", None)
     if status_code is None and hasattr(error, "resp"):
         status_code = getattr(error.resp, "status", None)
-    # 410はCalendar APIが削除済みイベントに返すため、404と同じ冪等ケースとして扱う。
+    # 410はCalendar APIが削除済みイベントに返すため、404と同じ冪等ケースとして扱う。。参照: PR #269（理由・背景の追跡）
     return status_code in {404, 410}
 
 
