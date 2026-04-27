@@ -70,23 +70,24 @@ class CanonicalCloudRunHostMiddleware:
         normalized_host = _normalize_preview_host_candidate(value)
         return bool(self.cloud_run_preview_host_pattern.match(normalized_host))
 
-    def _canonicalize_request_host(self, request) -> bool:
+    def canonicalize_host_mapping(self, host_mapping: dict[str, str]) -> bool:
+        """正規化対象の Cloud Run preview host を canonical host へ寄せる。"""
         host_meta_keys = ('HTTP_HOST', 'HTTP_X_FORWARDED_HOST', 'SERVER_NAME')
         # proxy 差分で absolute URL や host:port が混ざるので、判定前に host へ正規化する。参照: PR #247
         if any(
-            self._is_supported_preview_host(request.META.get(meta_key, ''))
+            self._is_supported_preview_host(host_mapping.get(meta_key, ''))
             for meta_key in host_meta_keys
         ):
             for meta_key in host_meta_keys:
-                if request.META.get(meta_key):
-                    request.META[meta_key] = self.canonical_host
-            request.META['SERVER_NAME'] = self.canonical_host
+                if host_mapping.get(meta_key):
+                    host_mapping[meta_key] = self.canonical_host
+            host_mapping['SERVER_NAME'] = self.canonical_host
             return True
 
         return False
 
     def __call__(self, request):
-        self._canonicalize_request_host(request)
+        self.canonicalize_host_mapping(request.META)
 
         try:
             return self.get_response(request)
