@@ -84,8 +84,7 @@ def _delete_google_events_by_ids(
             service.delete_event(event_id)
             deleted += 1
         except HttpError as e:
-            # 既に削除済み(404)は再実行時の正常ケースとして扱う
-            if getattr(e, "status_code", None) == 404 or (hasattr(e, "resp") and getattr(e.resp, "status", None) == 404):
+            if _is_google_event_already_deleted(e):
                 continue
             raise
     return deleted
@@ -130,10 +129,19 @@ def _delete_google_events_by_summary(
             service.delete_event(event_id)
             deleted += 1
         except HttpError as e:
-            if getattr(e, "status_code", None) == 404 or (hasattr(e, "resp") and getattr(e.resp, "status", None) == 404):
+            if _is_google_event_already_deleted(e):
                 continue
             raise
     return deleted
+
+
+def _is_google_event_already_deleted(error: HttpError) -> bool:
+    """Google Calendar上でイベントが既に存在しないか判定する。"""
+    status_code = getattr(error, "status_code", None)
+    if status_code is None and hasattr(error, "resp"):
+        status_code = getattr(error.resp, "status", None)
+    # 410はCalendar APIが削除済みイベントに返すため、404と同じ冪等ケースとして扱う。
+    return status_code in {404, 410}
 
 
 def _extract_event_date(event) -> date | None:
