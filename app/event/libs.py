@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import tempfile
+from io import BytesIO
 from datetime import datetime
 from typing import Optional
 from urllib.parse import urlparse
@@ -11,6 +12,7 @@ import bleach
 from bleach.css_sanitizer import CSSSanitizer
 import markdown
 from bs4 import BeautifulSoup
+from django.core.files.base import ContentFile
 from googleapiclient.discovery import build
 from openai import OpenAI
 from pydantic import BaseModel, Field
@@ -79,6 +81,64 @@ class BlogOutput(BaseModel):
     meta_description: str = Field(
         description="ブログ記事のメタディスクリプション。120文字以内でコンテンツの要約を記述。")
     text: str = Field(description="ブログ記事の本文。マークダウン形式で記述された1000〜1800文字の記事。")
+
+
+def ensure_event_detail_thumbnail_from_pdf(event_detail: EventDetail) -> bool:
+    """PDFの1ページ目からEventDetailのサムネイルを生成する。
+
+    既にサムネイルが設定されている場合は上書きしない。呼び出し側で
+    EventDetailを保存できるように、生成した画像はフィールドにだけ設定する。
+    """
+    if event_detail.thumbnail or not event_detail.slide_file:
+        return False
+
+    try:
+        import pypdfium2 as pdfium
+    except ImportError:
+        logger.warning("pypdfium2 is not installed; skipped thumbnail generation")
+        return False
+
+    temp_file_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            event_detail.slide_file.seek(0)
+            temp_file.write(event_detail.slide_file.read())
+            temp_file_path = temp_file.name
+
+        pdf = pdfium.PdfDocument(temp_file_path)
+        try:
+            if len(pdf) == 0:
+                logger.warning(f"PDF has no pages for EventDetail {event_detail.pk}")
+                return False
+
+            page = pdf[0]
+            try:
+                bitmap = page.render(scale=2)
+                image = bitmap.to_pil()
+            finally:
+                page.close()
+        finally:
+            pdf.close()
+
+        if image.mode not in ('RGB', 'L'):
+            image = image.convert('RGB')
+        elif image.mode == 'L':
+            image = image.convert('RGB')
+
+        buffer = BytesIO()
+        image.save(buffer, format='JPEG', quality=85, optimize=True)
+        buffer.seek(0)
+
+        file_name = f"event-detail-{event_detail.pk or 'new'}-thumbnail.jpg"
+        event_detail.thumbnail.save(file_name, ContentFile(buffer.read()), save=False)
+        logger.info(f"Generated thumbnail from PDF for EventDetail {event_detail.pk}")
+        return True
+    except Exception:
+        logger.exception(f"Failed to generate thumbnail from PDF for EventDetail {event_detail.pk}")
+        return False
+    finally:
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
 
 
 def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:

@@ -81,6 +81,14 @@ class EventDetailView(DetailView):
                 absolute_url = request.build_absolute_uri()
 
                 images: List[str] = []
+                # EventDetailのサムネイル画像
+                try:
+                    thumbnail = event_detail.thumbnail
+                    if thumbnail and getattr(thumbnail, 'url', None):
+                        images.append(request.build_absolute_uri(thumbnail.url))
+                except Exception:
+                    pass
+
                 # コミュニティのポスター画像
                 try:
                     poster = event_detail.event.community.poster_image

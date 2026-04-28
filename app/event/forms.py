@@ -244,13 +244,14 @@ class EventDetailForm(forms.ModelForm):
 
     class Meta:
         model = EventDetail
-        fields = ['detail_type', 'theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url', 'h1',
-                  'contents', 'generate_blog_article']
+        fields = ['detail_type', 'theme', 'speaker', 'start_time', 'duration', 'thumbnail', 'slide_url', 'slide_file',
+                  'youtube_url', 'h1', 'contents', 'generate_blog_article']
         widgets = {
             'detail_type': forms.RadioSelect(attrs={'class': 'form-check-input'}),
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': '.pdf'}),
+            'thumbnail': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': 'image/*'}),
             'speaker': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'VRChat表示名を入力'
@@ -269,6 +270,7 @@ class EventDetailForm(forms.ModelForm):
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
             'slide_url': '外部のスライドシステムのURLや、参考ページのURLを入力してください。',
             'slide_file': '※ PDFファイルのみアップロード可能です（最大30MB）。',
+            'thumbnail': '記事ページの詳細情報の上に表示されます。未設定の場合、記事生成時にPDFの1枚目から自動作成します。',
         }
 
     # start_time と duration の初期値はEventCreateFormと同じにする
@@ -355,13 +357,15 @@ class LTApplicationEditForm(forms.ModelForm):
 
     class Meta:
         model = EventDetail
-        fields = ['theme', 'speaker', 'slide_url', 'slide_file', 'youtube_url', 'h1', 'contents', 'generate_blog_article']
+        fields = ['theme', 'speaker', 'thumbnail', 'slide_url', 'slide_file', 'youtube_url', 'h1', 'contents',
+                  'generate_blog_article']
         widgets = {
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
             'speaker': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'VRChat表示名を入力'
             }),
+            'thumbnail': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': 'image/*'}),
             'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': '.pdf'}),
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
@@ -373,6 +377,7 @@ class LTApplicationEditForm(forms.ModelForm):
             'h1': '※ 空のときはテーマが使われます。',
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
             'slide_url': '外部のスライドシステムのURLや、参考ページのURLを入力してください。',
+            'thumbnail': '記事ページの詳細情報の上に表示されます。未設定の場合、記事生成時にPDFの1枚目から自動作成します。',
             'slide_file': '※ PDFファイルのみアップロード可能です（最大30MB）。',
         }
 

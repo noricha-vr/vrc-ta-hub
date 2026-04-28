@@ -10,7 +10,10 @@
           content="{{ event_detail }} {{ event_detail.meta_description }}">
     <meta property="og:description"
           content="{{ event_detail }} {{ event_detail.meta_description }}">
-    {% if event_detail.event.community.poster_image %}
+    {% if event_detail.thumbnail %}
+        <meta property="og:image" content="{{ event_detail.thumbnail.url }}">
+        <meta name="twitter:image" content="{{ event_detail.thumbnail.url }}">
+    {% elif event_detail.event.community.poster_image %}
         <meta property="og:image" content="{{ event_detail.event.community.poster_image.url }}">
         <meta name="twitter:image" content="{{ event_detail.event.community.poster_image.url }}">
     {% endif %}
@@ -103,6 +106,13 @@
             border-color: #3187de;
             box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
         }
+
+        .event-detail-thumbnail {
+            width: 100%;
+            max-height: 520px;
+            object-fit: contain;
+            background-color: #f8f9fa;
+        }
     </style>
     <div class="container mt-5">
         <div class="row post mb-5">
@@ -181,6 +191,13 @@
                 {% endif %}
 
                 {# detail_typeによって詳細情報の表示を切り替え #}
+                {% if event_detail.thumbnail %}
+                    <div class="mb-4">
+                        <img src="{{ event_detail.thumbnail.url|cf_resize:'1200' }}"
+                             class="event-detail-thumbnail rounded"
+                             alt="{{ event_detail.title }}のサムネイル">
+                    </div>
+                {% endif %}
                 {% if event_detail.detail_type == 'LT' %}
                     {% include 'event/detail_info_lt.html' %}
                 {% elif event_detail.detail_type == 'SPECIAL' %}

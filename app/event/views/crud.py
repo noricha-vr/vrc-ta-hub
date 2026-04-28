@@ -7,7 +7,7 @@ from django.urls import reverse_lazy
 from django.views.generic import CreateView, UpdateView, DeleteView
 
 from event.forms import EventDetailForm
-from event.libs import generate_blog
+from event.libs import ensure_event_detail_thumbnail_from_pdf, generate_blog
 from event.models import Event, EventDetail
 from event.views.helpers import can_manage_event_detail
 from website.settings import GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, GEMINI_MODEL
@@ -158,6 +158,7 @@ class EventDetailCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
             try:
                 from event.libs import generate_blog as generate_blog_func
                 blog_output = generate_blog_func(form.instance, model=GEMINI_MODEL)
+                thumbnail_generated = ensure_event_detail_thumbnail_from_pdf(form.instance)
                 # 空でないことを確認
                 if blog_output.title:
                     form.instance.h1 = blog_output.title
@@ -167,6 +168,8 @@ class EventDetailCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
                     messages.success(self.request, "記事を自動生成しました。")
                     logger.info(f"記事を自動生成しました: {form.instance.id}")
                 else:
+                    if thumbnail_generated:
+                        form.instance.save(update_fields=['thumbnail', 'updated_at'])
                     logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
                     messages.warning(self.request, "記事の自動生成に失敗しました。")
             except Exception:
@@ -218,6 +221,7 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
                 (form.instance.slide_file or form.instance.youtube_url)):
             try:
                 blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
+                thumbnail_generated = ensure_event_detail_thumbnail_from_pdf(form.instance)
                 # 空でないことを確認
                 if blog_output.title:
                     form.instance.h1 = blog_output.title
@@ -227,6 +231,8 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
                     messages.success(self.request, "記事を自動生成しました。")
                     logger.info(f"記事を自動生成しました: {form.instance.id}")
                 else:
+                    if thumbnail_generated:
+                        form.instance.save(update_fields=['thumbnail', 'updated_at'])
                     logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
                     messages.warning(self.request, "記事の自動生成に失敗しました。")
             except Exception:
@@ -264,5 +270,3 @@ class EventDetailDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView)
 
     def get_success_url(self):
         return reverse_lazy('event:my_list')
-
-
