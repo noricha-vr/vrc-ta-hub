@@ -5,6 +5,7 @@ from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
 from website.middleware import CanonicalCloudRunHostMiddleware
+from website.wsgi import CloudRunHostCanonicalizingWSGIApplication
 
 
 class CanonicalCloudRunHostMiddlewareTest(SimpleTestCase):
@@ -77,3 +78,56 @@ class CanonicalCloudRunHostMiddlewareTest(SimpleTestCase):
             CanonicalCloudRunHostMiddleware(get_response)(request)
 
         self.assertEqual(calls, ['called'])
+
+
+class CloudRunHostCanonicalizingWSGIApplicationTest(SimpleTestCase):
+    def test_cloud_run_revision_host_is_canonicalized_before_django_request(self):
+        captured_environ = {}
+
+        def django_application(environ, start_response):
+            captured_environ.update(environ)
+            start_response('200 OK', [])
+            return [b'ok']
+
+        environ = {
+            'HTTP_HOST': 'rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+            'HTTP_X_FORWARDED_HOST': 'rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+            'SERVER_NAME': 'rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+        }
+
+        response = CloudRunHostCanonicalizingWSGIApplication(django_application)(
+            environ,
+            lambda _status, _headers: None,
+        )
+
+        self.assertEqual(list(response), [b'ok'])
+        self.assertEqual(captured_environ['HTTP_HOST'], 'vrc-ta-hub.com')
+        self.assertEqual(captured_environ['HTTP_X_FORWARDED_HOST'], 'vrc-ta-hub.com')
+        self.assertEqual(captured_environ['SERVER_NAME'], 'vrc-ta-hub.com')
+
+    def test_other_cloud_run_service_host_is_left_for_django_to_reject(self):
+        captured_environ = {}
+
+        def django_application(environ, start_response):
+            captured_environ.update(environ)
+            start_response('200 OK', [])
+            return [b'ok']
+
+        environ = {
+            'HTTP_HOST': 'rev-24d1224---other-service-mhbhtr6sha-an.a.run.app',
+            'SERVER_NAME': 'rev-24d1224---other-service-mhbhtr6sha-an.a.run.app',
+        }
+
+        CloudRunHostCanonicalizingWSGIApplication(django_application)(
+            environ,
+            lambda _status, _headers: None,
+        )
+
+        self.assertEqual(
+            captured_environ['HTTP_HOST'],
+            'rev-24d1224---other-service-mhbhtr6sha-an.a.run.app',
+        )
+        self.assertEqual(
+            captured_environ['SERVER_NAME'],
+            'rev-24d1224---other-service-mhbhtr6sha-an.a.run.app',
+        )
