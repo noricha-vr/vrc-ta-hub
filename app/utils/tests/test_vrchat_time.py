@@ -1,5 +1,5 @@
 """utils.vrchat_time のテスト"""
-from datetime import datetime
+from datetime import datetime, timezone as datetime_timezone
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
@@ -54,6 +54,37 @@ class GetVrchatTodayTestCase(SimpleTestCase):
         )
         result = get_vrchat_today()
         self.assertEqual(result.day, 6)
+
+    @patch("utils.vrchat_time.timezone.now")
+    def test_jst_morning_after_boundary_returns_current_date_from_utc(self, mock_now):
+        """UTC 1:30 は日本時間 10:30 として当日扱いする"""
+        mock_now.return_value = datetime(
+            2026, 4, 28, 1, 30, 0, tzinfo=datetime_timezone.utc
+        )
+        result = get_vrchat_today()
+        self.assertEqual(result.day, 28)
+        self.assertEqual(result.month, 4)
+        self.assertEqual(result.year, 2026)
+
+    @patch("utils.vrchat_time.timezone.now")
+    def test_jst_before_boundary_returns_previous_date_from_utc(self, mock_now):
+        """UTC 18:59 は日本時間 3:59 として前日扱いする"""
+        mock_now.return_value = datetime(
+            2026, 4, 27, 18, 59, 0, tzinfo=datetime_timezone.utc
+        )
+        result = get_vrchat_today()
+        self.assertEqual(result.day, 27)
+        self.assertEqual(result.month, 4)
+
+    @patch("utils.vrchat_time.timezone.now")
+    def test_jst_at_boundary_returns_current_date_from_utc(self, mock_now):
+        """UTC 19:00 は日本時間 4:00 として当日扱いする"""
+        mock_now.return_value = datetime(
+            2026, 4, 27, 19, 0, 0, tzinfo=datetime_timezone.utc
+        )
+        result = get_vrchat_today()
+        self.assertEqual(result.day, 28)
+        self.assertEqual(result.month, 4)
 
     @patch("utils.vrchat_time.timezone.now")
     def test_late_night_returns_previous_date(self, mock_now):
