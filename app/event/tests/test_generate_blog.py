@@ -3,14 +3,18 @@ import logging
 import os
 import tempfile
 import unittest
+from io import BytesIO
 from datetime import datetime
+from unittest.mock import patch
 
+from django.core.files.base import ContentFile
 from django.core.files import File
 from django.test import TestCase
+from PIL import Image
 
 from user_account.models import CustomUser
 from community.models import Community
-from event.libs import generate_blog, get_transcript, BlogOutput
+from event.libs import apply_blog_output_to_event_detail, ensure_pdf_thumbnail, generate_blog, get_transcript, BlogOutput
 from event.models import Event, EventDetail
 
 logger = logging.getLogger(__name__)
@@ -276,6 +280,55 @@ class TestGenerateBlog(TestCase):
         self.assertTrue(valid_output.title)
         self.assertTrue(valid_output.meta_description)
         self.assertTrue(valid_output.text)
+
+    @patch("event.libs.pdfium.PdfDocument")
+    def test_ensure_pdf_thumbnail_creates_image_from_pdf(self, mock_pdf_document):
+        """PDFの先頭ページからサムネイル画像を作成する."""
+        event_detail = self.create_event_detail(slide_file=True)
+        image = Image.new("RGB", (120, 80), color="white")
+        mock_bitmap = mock_pdf_document.return_value.__getitem__.return_value.render.return_value
+        mock_bitmap.to_pil.return_value = image
+
+        result = ensure_pdf_thumbnail(event_detail)
+
+        self.assertTrue(result)
+        self.assertTrue(event_detail.thumbnail_image.name.endswith(".jpg"))
+        mock_pdf_document.assert_called_once()
+
+    @patch("event.libs.pdfium.PdfDocument")
+    def test_ensure_pdf_thumbnail_skips_when_already_set(self, mock_pdf_document):
+        """既存サムネイルがある場合はPDFレンダリングしない."""
+        event_detail = self.create_event_detail(slide_file=True)
+        image_buffer = BytesIO()
+        Image.new("RGB", (10, 10), color="white").save(image_buffer, format="JPEG")
+        event_detail.thumbnail_image.save(
+            "existing.jpg",
+            ContentFile(image_buffer.getvalue()),
+            save=False,
+        )
+
+        result = ensure_pdf_thumbnail(event_detail)
+
+        self.assertFalse(result)
+        mock_pdf_document.assert_not_called()
+
+    @patch("event.libs.ensure_pdf_thumbnail")
+    def test_apply_blog_output_sets_article_and_thumbnail(self, mock_ensure_pdf_thumbnail):
+        """記事生成結果を反映するときに未設定サムネイルも補完する."""
+        event_detail = self.create_event_detail(slide_file=True)
+        blog_output = BlogOutput(
+            title="生成タイトル",
+            meta_description="生成ディスクリプション",
+            text="生成本文",
+        )
+
+        result = apply_blog_output_to_event_detail(event_detail, blog_output)
+
+        self.assertTrue(result)
+        self.assertEqual(event_detail.h1, "生成タイトル")
+        self.assertEqual(event_detail.contents, "生成本文")
+        self.assertEqual(event_detail.meta_description, "生成ディスクリプション")
+        mock_ensure_pdf_thumbnail.assert_called_once_with(event_detail)
 
     @unittest.skipUnless(
         RUN_EXTERNAL_API_TESTS and HAS_GOOGLE_API_KEY,

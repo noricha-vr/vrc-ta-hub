@@ -218,8 +218,9 @@ class EventDetailPermissionTests(TestCase):
         self.assertEqual(self.applicant_detail.theme, "Updated Theme")
         self.assertTrue(bool(self.applicant_detail.slide_file))
 
+    @patch("event.libs.ensure_pdf_thumbnail")
     @patch("event.views.blog.generate_blog")
-    def test_applicant_can_generate_blog_for_approved_event_detail(self, mock_generate_blog):
+    def test_applicant_can_generate_blog_for_approved_event_detail(self, mock_generate_blog, mock_ensure_pdf_thumbnail):
         """発表者本人は自分の承認済みLTで記事生成できる."""
         self.client.login(username="applicant_user", password="testpass123")
         self.applicant_detail.slide_file = SimpleUploadedFile(
@@ -242,6 +243,7 @@ class EventDetailPermissionTests(TestCase):
         self.assertEqual(self.applicant_detail.h1, "生成タイトル")
         self.assertEqual(self.applicant_detail.meta_description, "生成ディスクリプション")
         self.assertEqual(self.applicant_detail.contents, "生成本文")
+        mock_ensure_pdf_thumbnail.assert_called_once()
 
     @patch("event.views.blog.generate_blog")
     def test_applicant_cannot_generate_blog_for_pending_event_detail(self, mock_generate_blog):

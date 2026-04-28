@@ -1,6 +1,10 @@
+from io import BytesIO
+
 from django.test import TestCase
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from PIL import Image
+
 from event.forms import EventDetailForm
 from event.models import validate_pdf_file
 
@@ -77,6 +81,30 @@ class PDFValidationTest(TestCase):
         with self.assertRaises(ValidationError) as cm:
             form.clean_slide_file()
         self.assertEqual(str(cm.exception.message), 'ファイルサイズが30MBを超えています。')
+
+    def test_form_clean_thumbnail_image_with_image(self):
+        """フォームで画像ファイルを受け付ける"""
+        image_buffer = BytesIO()
+        Image.new("RGB", (16, 16), color="white").save(image_buffer, format="PNG")
+        file = SimpleUploadedFile("thumbnail.png", image_buffer.getvalue(), content_type="image/png")
+        form = EventDetailForm(data={})
+        form.cleaned_data = {'thumbnail_image': file}
+
+        cleaned_file = form.clean_thumbnail_image()
+
+        self.assertEqual(cleaned_file, file)
+        self.assertEqual(file.tell(), 0)
+
+    def test_form_clean_thumbnail_image_with_invalid_image(self):
+        """画像ではないファイルはサムネイル画像として拒否する"""
+        file = SimpleUploadedFile("thumbnail.png", b"not an image", content_type="image/png")
+        form = EventDetailForm(data={})
+        form.cleaned_data = {'thumbnail_image': file}
+
+        with self.assertRaises(ValidationError) as cm:
+            form.clean_thumbnail_image()
+
+        self.assertEqual(str(cm.exception.message), '有効な画像ファイルをアップロードしてください。')
 
 
 class PDFMagicByteValidationTest(TestCase):

@@ -188,7 +188,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
         model = EventDetail
         fields = [
             'id', 'event', 'start_time', 'duration', 'youtube_url', 'slide_url',
-            'speaker', 'theme', 'additional_info'
+            'thumbnail_image', 'speaker', 'theme', 'additional_info'
         ]
 
 
@@ -200,7 +200,7 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
         model = EventDetail
         fields = [
             'id', 'event', 'detail_type', 'start_time', 'duration', 'youtube_url',
-            'slide_url', 'slide_file', 'speaker', 'theme', 'h1', 'contents',
+            'slide_url', 'slide_file', 'thumbnail_image', 'speaker', 'theme', 'h1', 'contents',
             'meta_description', 'additional_info', 'generate_from_pdf'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
