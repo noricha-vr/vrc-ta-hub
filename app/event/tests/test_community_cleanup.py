@@ -128,3 +128,25 @@ class CommunityCleanupServiceTest(TestCase):
         )
 
         self.assertEqual(stats['google_events'], 0)
+
+    @patch('event.community_cleanup.GoogleCalendarService')
+    def test_cleanup_ignores_410_on_google_delete(self, mock_service_cls):
+        self.after_event.google_calendar_event_id = 'deleted-event-id'
+        self.after_event.save(update_fields=['google_calendar_event_id'])
+
+        mock_service = mock_service_cls.return_value
+        mock_service.list_events.return_value = []
+        mock_resp = MagicMock()
+        mock_resp.status = 410
+        mock_service.delete_event.side_effect = HttpError(mock_resp, b'Resource has been deleted')
+
+        stats = cleanup_community_future_data(
+            community=self.community,
+            from_date=self.from_date,
+            delete_rules=False,
+            delete_google_events=True,
+            google_window_days=365,
+            google_years=1,
+        )
+
+        self.assertEqual(stats['google_events'], 0)
