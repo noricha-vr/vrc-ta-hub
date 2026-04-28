@@ -33,7 +33,7 @@ class CustomLoginView(LoginView):
         """ログイン成功時の処理。rememberフィールドでセッション有効期限を設定。"""
         remember = form.cleaned_data.get('remember')
         response = super().form_valid(form)
-        # super().form_valid()の後にセッション設定（login()でセッションが再生成されるため）
+        # super().form_valid()の後にセッション設定（login()でセッションが再生成されるため）。参照: PR #275（理由・背景の追跡）
         if not remember:
             # チェックが入っていない場合、ブラウザを閉じるとセッションが切れる
             self.request.session.set_expiry(0)
@@ -41,7 +41,7 @@ class CustomLoginView(LoginView):
 
     def get_success_url(self):
         messages.info(self.request, 'ログインしました。')
-        # 親クラスのget_redirect_url()はnextパラメータの安全性を検証する
+        # 親クラスのget_redirect_url()はnextパラメータの安全性を検証する。参照: PR #275（理由・背景の追跡）
         # （外部URLへのリダイレクトを防止）
         redirect_url = self.get_redirect_url()
         if redirect_url:
