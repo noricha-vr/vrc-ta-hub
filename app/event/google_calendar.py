@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone as datetime_timezone
 from typing import Optional, List, Dict, Any
 
 from django.utils import timezone
@@ -207,8 +207,8 @@ class GoogleCalendarService:
                 time_max = timezone.make_aware(time_max)
 
             # ISO形式に変換して'Z'を付加（UTCで送信）
-            time_min_str = time_min.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ') if time_min else None
-            time_max_str = time_max.astimezone(timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ') if time_max else None
+            time_min_str = time_min.astimezone(datetime_timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ') if time_min else None
+            time_max_str = time_max.astimezone(datetime_timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ') if time_max else None
 
             all_items = []
             page_token = None

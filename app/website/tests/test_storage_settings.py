@@ -21,7 +21,7 @@ class StorageSettingsTest(TestCase):
     def test_media_storage_uses_s3_backend(self):
         """メディアストレージはS3バックエンド(R2)を使用する"""
         self.assertEqual(
-            settings.DEFAULT_FILE_STORAGE,
+            settings.STORAGES['default']['BACKEND'],
             'storages.backends.s3boto3.S3Boto3Storage'
         )
 
@@ -42,6 +42,6 @@ class StorageSettingsTest(TestCase):
         """DEBUG=Trueの場合、静的ファイルはローカルストレージを使用"""
         if settings.DEBUG:
             self.assertEqual(
-                settings.STATICFILES_STORAGE,
+                settings.STORAGES['staticfiles']['BACKEND'],
                 'django.contrib.staticfiles.storage.StaticFilesStorage'
             )

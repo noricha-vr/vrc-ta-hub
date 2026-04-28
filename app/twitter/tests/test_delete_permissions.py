@@ -60,3 +60,12 @@ class TwitterTemplateDeletePermissionTest(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertTrue(TwitterTemplate.objects.filter(pk=self.template.pk).exists())
 
+    def test_owner_can_delete_template(self):
+        self.client.login(username="owner_user_del", password="testpassword")
+
+        url = reverse("twitter:template_delete", kwargs={"pk": self.template.pk})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(response.content, {"success": True})
+        self.assertFalse(TwitterTemplate.objects.filter(pk=self.template.pk).exists())

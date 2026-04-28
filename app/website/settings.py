@@ -298,21 +298,50 @@ AWS_S3_SECURE_URLS = AWS_S3_URL_PROTOCOL == 'https:'
 if AWS_STORAGE_BUCKET_NAME:
     # R2を使用（本番・開発環境）
     MEDIA_URL = f'{AWS_S3_ENDPOINT_URL}/{AWS_STORAGE_BUCKET_NAME}/'
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
     AWS_S3_FILE_OVERWRITE = False
     AWS_QUERYSTRING_AUTH = False  # 認証付きのURLを生成しない
+    default_storage = {
+        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+        'OPTIONS': {
+            'access_key': AWS_ACCESS_KEY_ID,
+            'secret_key': AWS_SECRET_ACCESS_KEY,
+            'bucket_name': AWS_STORAGE_BUCKET_NAME,
+            'endpoint_url': AWS_S3_ENDPOINT_URL,
+            'custom_domain': AWS_S3_CUSTOM_DOMAIN,
+            'file_overwrite': AWS_S3_FILE_OVERWRITE,
+            'querystring_auth': AWS_QUERYSTRING_AUTH,
+        },
+    }
 else:
     # ローカルファイルストレージを使用（テスト環境）
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
-    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
+    default_storage = {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    }
 
 if DEBUG:
     # 静的ファイルはローカル配信（開発時の利便性）
-    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+    staticfiles_storage = {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    }
 else:
     # 本番は静的ファイルもR2
-    STATICFILES_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    staticfiles_storage = {
+        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+        'OPTIONS': {
+            'access_key': AWS_ACCESS_KEY_ID,
+            'secret_key': AWS_SECRET_ACCESS_KEY,
+            'bucket_name': AWS_STORAGE_BUCKET_NAME,
+            'endpoint_url': AWS_S3_ENDPOINT_URL,
+            'custom_domain': AWS_S3_CUSTOM_DOMAIN,
+        },
+    }
+
+STORAGES = {
+    'default': default_storage,
+    'staticfiles': staticfiles_storage,
+}
 
 # Google API
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
