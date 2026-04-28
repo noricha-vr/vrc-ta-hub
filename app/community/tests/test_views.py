@@ -343,7 +343,14 @@ class PosterDownloadViewTest(TestCase):
         self.media_root = tempfile.mkdtemp()
         self.override = override_settings(
             MEDIA_ROOT=self.media_root,
-            DEFAULT_FILE_STORAGE='django.core.files.storage.FileSystemStorage',
+            STORAGES={
+                'default': {
+                    'BACKEND': 'django.core.files.storage.FileSystemStorage',
+                },
+                'staticfiles': {
+                    'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+                },
+            },
         )
         self.override.enable()
         self.addCleanup(self.override.disable)

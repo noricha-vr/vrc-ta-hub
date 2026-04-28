@@ -120,18 +120,6 @@ class TwitterTemplateDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteV
         messages.success(self.request, 'テンプレートが削除されました。')
         return JsonResponse({'success': True})
 
-    def delete(self, request, *args, **kwargs):
-        """
-        FormMixinを使用するため、deleteメソッドをオーバーライドして
-        form_validメソッドを呼び出します。
-        """
-        self.object = self.get_object()
-        form = self.get_form()
-        if form.is_valid():
-            return self.form_valid(form)
-        else:
-            return self.form_invalid(form)
-
 
 class TweetEventWithTemplateView(TemplateView):
     """ポストプレビュー画面を表示するビュー"""
