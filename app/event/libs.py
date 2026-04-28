@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import tempfile
+from io import BytesIO
 from datetime import datetime
 from typing import Optional
 from urllib.parse import urlparse
@@ -11,9 +12,11 @@ import bleach
 from bleach.css_sanitizer import CSSSanitizer
 import markdown
 from bs4 import BeautifulSoup
+from django.core.files.base import ContentFile
 from googleapiclient.discovery import build
 from openai import OpenAI
 from pydantic import BaseModel, Field
+import pypdfium2 as pdfium
 from pypdf import PdfReader
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -79,6 +82,79 @@ class BlogOutput(BaseModel):
     meta_description: str = Field(
         description="ブログ記事のメタディスクリプション。120文字以内でコンテンツの要約を記述。")
     text: str = Field(description="ブログ記事の本文。マークダウン形式で記述された1000〜1800文字の記事。")
+
+
+def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False) -> bool:
+    """PDFの先頭ページから未設定のサムネイル画像を作成する.
+
+    Args:
+        event_detail: サムネイルを設定するイベント詳細
+        save: Trueの場合はthumbnail_imageだけを保存する
+
+    Returns:
+        サムネイルを新規作成した場合はTrue
+    """
+    if event_detail.thumbnail_image or not event_detail.slide_file:
+        return False
+
+    temp_file_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            event_detail.slide_file.open('rb')
+            for chunk in event_detail.slide_file.chunks():
+                temp_file.write(chunk)
+            temp_file_path = temp_file.name
+
+        pdf = pdfium.PdfDocument(temp_file_path)
+        try:
+            page = pdf[0]
+            try:
+                bitmap = page.render(scale=2.0)
+                try:
+                    image = bitmap.to_pil().convert('RGB')
+                finally:
+                    if hasattr(bitmap, 'close'):
+                        bitmap.close()
+            finally:
+                if hasattr(page, 'close'):
+                    page.close()
+        finally:
+            if hasattr(pdf, 'close'):
+                pdf.close()
+
+        image_buffer = BytesIO()
+        image.save(image_buffer, format='JPEG', quality=85, optimize=True)
+        filename = f"event_detail_{event_detail.pk or 'new'}_thumbnail.jpg"
+        event_detail.thumbnail_image.save(filename, ContentFile(image_buffer.getvalue()), save=False)
+        if save:
+            event_detail.save(update_fields=['thumbnail_image'])
+        return True
+    except Exception:
+        logger.exception("PDFサムネイルの生成に失敗しました: EventDetail ID=%s", event_detail.pk)
+        return False
+    finally:
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+
+
+def apply_blog_output_to_event_detail(event_detail: EventDetail, blog_output: BlogOutput) -> bool:
+    """記事生成結果とPDFサムネイルをEventDetailに反映する.
+
+    Args:
+        event_detail: 更新対象のイベント詳細
+        blog_output: 記事生成結果
+
+    Returns:
+        記事タイトルがあり、反映した場合はTrue
+    """
+    if not blog_output.title:
+        return False
+
+    event_detail.h1 = blog_output.title
+    event_detail.contents = blog_output.text
+    event_detail.meta_description = blog_output.meta_description
+    ensure_pdf_thumbnail(event_detail)
+    return True
 
 
 def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:

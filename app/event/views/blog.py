@@ -6,7 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
 from django.views.generic import View
 
-from event.libs import generate_blog
+from event.libs import apply_blog_output_to_event_detail, generate_blog
 from event.models import EventDetail
 from event.views.helpers import can_manage_event_detail
 from website.settings import GEMINI_MODEL
@@ -63,11 +63,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
             blog_output = generate_blog(event_detail, model=GEMINI_MODEL)
 
             # 空でないことを確認
-            if blog_output.title:
-                # BlogOutputの各フィールドを保存
-                event_detail.h1 = blog_output.title
-                event_detail.contents = blog_output.text
-                event_detail.meta_description = blog_output.meta_description
+            if apply_blog_output_to_event_detail(event_detail, blog_output):
                 event_detail.save()
 
                 logger.info(f"ブログ記事が生成されました。: {event_detail.id}")

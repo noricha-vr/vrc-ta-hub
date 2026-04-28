@@ -226,13 +226,10 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
         if (generate_blog_flag and
                 (form.instance.slide_file or form.instance.youtube_url)):
             try:
-                from event.libs import generate_blog
+                from event.libs import apply_blog_output_to_event_detail, generate_blog
                 from django.conf import settings as django_settings
                 blog_output = generate_blog(form.instance, model=django_settings.GEMINI_MODEL)
-                if blog_output.title:
-                    form.instance.h1 = blog_output.title
-                    form.instance.contents = blog_output.text
-                    form.instance.meta_description = blog_output.meta_description
+                if apply_blog_output_to_event_detail(form.instance, blog_output):
                     form.instance.save()
                     messages.success(self.request, "LT申請情報を更新し、記事を自動生成しました。")
                     logger.info(f"記事を自動生成しました: {form.instance.id}")

@@ -7,7 +7,7 @@ from django.urls import reverse_lazy
 from django.views.generic import CreateView, UpdateView, DeleteView
 
 from event.forms import EventDetailForm
-from event.libs import generate_blog
+from event.libs import apply_blog_output_to_event_detail, generate_blog
 from event.models import Event, EventDetail
 from event.views.helpers import can_manage_event_detail
 from website.settings import GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, GEMINI_MODEL
@@ -159,10 +159,7 @@ class EventDetailCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
                 from event.libs import generate_blog as generate_blog_func
                 blog_output = generate_blog_func(form.instance, model=GEMINI_MODEL)
                 # 空でないことを確認
-                if blog_output.title:
-                    form.instance.h1 = blog_output.title
-                    form.instance.contents = blog_output.text
-                    form.instance.meta_description = blog_output.meta_description
+                if apply_blog_output_to_event_detail(form.instance, blog_output):
                     form.instance.save()
                     messages.success(self.request, "記事を自動生成しました。")
                     logger.info(f"記事を自動生成しました: {form.instance.id}")
@@ -219,10 +216,7 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
             try:
                 blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
                 # 空でないことを確認
-                if blog_output.title:
-                    form.instance.h1 = blog_output.title
-                    form.instance.contents = blog_output.text
-                    form.instance.meta_description = blog_output.meta_description
+                if apply_blog_output_to_event_detail(form.instance, blog_output):
                     form.instance.save()
                     messages.success(self.request, "記事を自動生成しました。")
                     logger.info(f"記事を自動生成しました: {form.instance.id}")
@@ -264,5 +258,4 @@ class EventDetailDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView)
 
     def get_success_url(self):
         return reverse_lazy('event:my_list')
-
 

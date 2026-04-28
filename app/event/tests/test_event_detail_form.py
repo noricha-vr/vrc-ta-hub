@@ -5,7 +5,7 @@ from django.test import TestCase, RequestFactory
 from django.contrib.auth import get_user_model
 
 from community.models import Community
-from event.forms import EventDetailForm
+from event.forms import EventDetailForm, LTApplicationEditForm
 from event.models import Event, EventDetail
 from vket.models import VketCollaboration, VketParticipation
 
@@ -91,6 +91,20 @@ class EventDetailFormCleanTest(TestCase):
         request = self.factory.get('/')
         request.user = self.user
         return request
+
+    def test_thumbnail_image_field_accepts_images(self):
+        """イベント詳細フォームでサムネイル画像をアップロードできる."""
+        form = EventDetailForm(instance=self.existing_detail)
+
+        self.assertIn('thumbnail_image', form.fields)
+        self.assertEqual(form.fields['thumbnail_image'].widget.attrs['accept'], 'image/*')
+
+    def test_lt_application_edit_form_accepts_thumbnail_image(self):
+        """LT申請者編集フォームでもサムネイル画像をアップロードできる."""
+        form = LTApplicationEditForm(instance=self.existing_detail)
+
+        self.assertIn('thumbnail_image', form.fields)
+        self.assertEqual(form.fields['thumbnail_image'].widget.attrs['accept'], 'image/*')
 
     def test_blog_type_copies_h1_to_theme(self):
         """BLOGタイプでh1が設定されている場合、themeにh1がコピーされる"""

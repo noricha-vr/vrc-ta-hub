@@ -15,3 +15,13 @@ class EventDetailTemplateTest(SimpleTestCase):
         self.assertIn("const generateButton = document.getElementById('generate-button');", template)
         self.assertIn("if (generateButton) {", template)
         self.assertNotIn("document.getElementById('generate-button').addEventListener", template)
+
+    def test_thumbnail_image_is_used_on_detail_page(self):
+        """サムネイル画像がOGPと本文上部に表示される."""
+        template = (
+            Path(__file__).resolve().parents[1] / "templates" / "event" / "detail.html"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("{% if event_detail.thumbnail_image %}", template)
+        self.assertIn('content="{{ event_detail.thumbnail_image.url }}"', template)
+        self.assertIn("event_detail.thumbnail_image.url|cf_resize:'1200'", template)

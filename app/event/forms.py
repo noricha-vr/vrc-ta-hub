@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from PIL import Image, UnidentifiedImageError
 
 from community.models import WEEKDAY_CHOICES, TAGS
 from .datetime_lock import (
@@ -11,6 +12,27 @@ from .datetime_lock import (
     is_event_detail_datetime_locked,
 )
 from .models import EventDetail, RecurrenceRule, Event, validate_pdf_file
+
+
+def _validate_thumbnail_image(thumbnail_image):
+    """サムネイル画像を検証し、ファイルポインタを先頭に戻す."""
+    if not thumbnail_image or not hasattr(thumbnail_image, 'read'):
+        return thumbnail_image
+    if getattr(thumbnail_image, 'size', 0) > 10 * 1024 * 1024:
+        raise ValidationError('画像ファイルサイズが10MBを超えています。')
+
+    try:
+        with Image.open(thumbnail_image) as image:
+            image.verify()
+    except (UnidentifiedImageError, OSError):
+        raise ValidationError('有効な画像ファイルをアップロードしてください。')
+    finally:
+        try:
+            thumbnail_image.seek(0)
+        except Exception:
+            pass
+
+    return thumbnail_image
 
 
 def _validate_and_sanitize_pdf(slide_file):
@@ -244,13 +266,14 @@ class EventDetailForm(forms.ModelForm):
 
     class Meta:
         model = EventDetail
-        fields = ['detail_type', 'theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url', 'h1',
-                  'contents', 'generate_blog_article']
+        fields = ['detail_type', 'theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file',
+                  'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article']
         widgets = {
             'detail_type': forms.RadioSelect(attrs={'class': 'form-check-input'}),
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': '.pdf'}),
+            'thumbnail_image': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': 'image/*'}),
             'speaker': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'VRChat表示名を入力'
@@ -269,6 +292,7 @@ class EventDetailForm(forms.ModelForm):
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
             'slide_url': '外部のスライドシステムのURLや、参考ページのURLを入力してください。',
             'slide_file': '※ PDFファイルのみアップロード可能です（最大30MB）。',
+            'thumbnail_image': '※ 記事ページの上部に表示される画像です。未設定でPDFがある場合は記事生成時に自動設定されます。',
         }
 
     # start_time と duration の初期値はEventCreateFormと同じにする
@@ -341,6 +365,9 @@ class EventDetailForm(forms.ModelForm):
     def clean_slide_file(self):
         return _validate_and_sanitize_pdf(self.cleaned_data.get('slide_file'))
 
+    def clean_thumbnail_image(self):
+        return _validate_thumbnail_image(self.cleaned_data.get('thumbnail_image'))
+
 
 class LTApplicationEditForm(forms.ModelForm):
     """LT申請者が自分の申請内容を編集するフォーム"""
@@ -355,7 +382,8 @@ class LTApplicationEditForm(forms.ModelForm):
 
     class Meta:
         model = EventDetail
-        fields = ['theme', 'speaker', 'slide_url', 'slide_file', 'youtube_url', 'h1', 'contents', 'generate_blog_article']
+        fields = ['theme', 'speaker', 'slide_url', 'slide_file', 'thumbnail_image', 'youtube_url', 'h1', 'contents',
+                  'generate_blog_article']
         widgets = {
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
             'speaker': forms.TextInput(attrs={
@@ -364,6 +392,7 @@ class LTApplicationEditForm(forms.ModelForm):
             }),
             'slide_url': forms.URLInput(attrs={'class': 'form-control'}),
             'slide_file': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': '.pdf'}),
+            'thumbnail_image': forms.ClearableFileInput(attrs={'class': 'form-control-file', 'accept': 'image/*'}),
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
             'h1': forms.TextInput(attrs={'class': 'form-control'}),
             'contents': forms.Textarea(attrs={'class': 'form-control', 'rows': '8'}),
@@ -374,6 +403,7 @@ class LTApplicationEditForm(forms.ModelForm):
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
             'slide_url': '外部のスライドシステムのURLや、参考ページのURLを入力してください。',
             'slide_file': '※ PDFファイルのみアップロード可能です（最大30MB）。',
+            'thumbnail_image': '※ 記事ページの上部に表示される画像です。未設定でPDFがある場合は記事生成時に自動設定されます。',
         }
 
     def __init__(self, *args, **kwargs):
@@ -384,6 +414,9 @@ class LTApplicationEditForm(forms.ModelForm):
 
     def clean_slide_file(self):
         return _validate_and_sanitize_pdf(self.cleaned_data.get('slide_file'))
+
+    def clean_thumbnail_image(self):
+        return _validate_thumbnail_image(self.cleaned_data.get('thumbnail_image'))
 
 
 RECURRENCE_CHOICES = [

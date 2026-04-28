@@ -169,7 +169,7 @@
         function toggleDetailSettings() {
             detailSettingsExpanded = !detailSettingsExpanded;
             const button = document.querySelector('#detail-settings-toggle button');
-            const optionalFields = ['slide_url', 'slide_file', 'youtube_url', 'h1', 'contents'];
+            const optionalFields = ['slide_url', 'slide_file', 'thumbnail_image', 'youtube_url', 'h1', 'contents'];
             
             optionalFields.forEach(fieldName => {
                 const wrapper = document.querySelector(`.field-wrapper[data-field="${fieldName}"]`);
@@ -198,17 +198,17 @@
             // フィールドの表示設定
             const fieldVisibility = {
                 'LT': {
-                    show: ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url', 'h1', 'contents', 'generate_blog_article'],
+                    show: ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'],
                     hide: [],
-                    optional: ['slide_url', 'slide_file', 'youtube_url', 'h1', 'contents', 'generate_blog_article'] // 開催前は折りたたみ対象
+                    optional: ['slide_url', 'slide_file', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'] // 開催前は折りたたみ対象
                 },
                 'SPECIAL': {
-                    show: ['h1', 'contents', 'start_time'],
+                    show: ['h1', 'thumbnail_image', 'contents', 'start_time'],
                     hide: ['theme', 'speaker', 'duration', 'slide_url', 'slide_file', 'youtube_url'],
                     optional: []
                 },
                 'BLOG': {
-                    show: ['h1', 'contents'],
+                    show: ['h1', 'thumbnail_image', 'contents'],
                     hide: ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url'],
                     optional: []
                 }

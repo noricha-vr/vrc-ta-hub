@@ -188,4 +188,7 @@ class EventDetailAdmin(admin.ModelAdmin):
         if db_field.name == 'slide_file':
             field.help_text = 'PDFファイルのみアップロード可能です（最大30MB）'
             field.widget.attrs['accept'] = '.pdf'
+        if db_field.name == 'thumbnail_image':
+            field.help_text = '記事ページの上部に表示する画像です'
+            field.widget.attrs['accept'] = 'image/*'
         return field

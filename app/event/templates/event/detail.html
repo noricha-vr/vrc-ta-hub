@@ -10,7 +10,10 @@
           content="{{ event_detail }} {{ event_detail.meta_description }}">
     <meta property="og:description"
           content="{{ event_detail }} {{ event_detail.meta_description }}">
-    {% if event_detail.event.community.poster_image %}
+    {% if event_detail.thumbnail_image %}
+        <meta property="og:image" content="{{ event_detail.thumbnail_image.url }}">
+        <meta name="twitter:image" content="{{ event_detail.thumbnail_image.url }}">
+    {% elif event_detail.event.community.poster_image %}
         <meta property="og:image" content="{{ event_detail.event.community.poster_image.url }}">
         <meta name="twitter:image" content="{{ event_detail.event.community.poster_image.url }}">
     {% endif %}
@@ -181,6 +184,14 @@
                 {% endif %}
 
                 {# detail_typeによって詳細情報の表示を切り替え #}
+                {% if event_detail.thumbnail_image %}
+                    <div class="mb-4">
+                        <img src="{{ event_detail.thumbnail_image.url|cf_resize:'1200' }}"
+                             class="img-fluid rounded shadow-sm"
+                             alt="{{ event_detail.title }}のサムネイル"
+                             loading="lazy">
+                    </div>
+                {% endif %}
                 {% if event_detail.detail_type == 'LT' %}
                     {% include 'event/detail_info_lt.html' %}
                 {% elif event_detail.detail_type == 'SPECIAL' %}
