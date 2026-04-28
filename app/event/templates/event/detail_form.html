@@ -213,6 +213,13 @@
                     optional: []
                 }
             };
+
+            function hasOptionalFieldErrors(config) {
+                return config.optional.some(fieldName => {
+                    const wrapper = document.querySelector(`.field-wrapper[data-field="${fieldName}"]`);
+                    return wrapper && wrapper.querySelector('.text-danger');
+                });
+            }
             
             function updateFieldVisibility(detailType) {
                 const config = fieldVisibility[detailType];
@@ -247,6 +254,14 @@
             // 初期表示の設定
             const checkedRadio = document.querySelector('input[name="detail_type"]:checked');
             if (checkedRadio) {
+                const config = fieldVisibility[checkedRadio.value];
+                if (checkedRadio.value === 'LT' && isBeforeEvent && config && hasOptionalFieldErrors(config)) {
+                    detailSettingsExpanded = true;
+                    const button = document.querySelector('#detail-settings-toggle button');
+                    if (button) {
+                        button.innerHTML = '<i class="bi bi-gear-fill"></i> 詳細設定を隠す';
+                    }
+                }
                 updateFieldVisibility(checkedRadio.value);
             }
             

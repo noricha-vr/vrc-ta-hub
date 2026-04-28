@@ -83,17 +83,18 @@ class PDFValidationTest(TestCase):
         self.assertEqual(str(cm.exception.message), 'ファイルサイズが30MBを超えています。')
 
     def test_form_clean_thumbnail_image_with_image(self):
-        """フォームで画像ファイルを受け付ける"""
+        """フォームで画像ファイルを16:9のJPEGに変換する"""
         image_buffer = BytesIO()
-        Image.new("RGB", (16, 16), color="white").save(image_buffer, format="PNG")
+        Image.new("RGB", (160, 90), color="white").save(image_buffer, format="PNG")
         file = SimpleUploadedFile("thumbnail.png", image_buffer.getvalue(), content_type="image/png")
         form = EventDetailForm(data={})
         form.cleaned_data = {'thumbnail_image': file}
 
         cleaned_file = form.clean_thumbnail_image()
 
-        self.assertEqual(cleaned_file, file)
-        self.assertEqual(file.tell(), 0)
+        self.assertEqual(cleaned_file.name, "thumbnail.jpg")
+        with Image.open(cleaned_file) as cleaned_image:
+            self.assertEqual(cleaned_image.size, (160, 90))
 
     def test_form_clean_thumbnail_image_with_invalid_image(self):
         """画像ではないファイルはサムネイル画像として拒否する"""
@@ -105,6 +106,20 @@ class PDFValidationTest(TestCase):
             form.clean_thumbnail_image()
 
         self.assertEqual(str(cm.exception.message), '有効な画像ファイルをアップロードしてください。')
+
+    def test_form_clean_thumbnail_image_crops_portrait_image(self):
+        """縦長画像は16:9に中央クロップする"""
+        image_buffer = BytesIO()
+        Image.new("RGB", (90, 160), color="white").save(image_buffer, format="PNG")
+        file = SimpleUploadedFile("thumbnail.png", image_buffer.getvalue(), content_type="image/png")
+        form = EventDetailForm(data={})
+        form.cleaned_data = {'thumbnail_image': file}
+
+        cleaned_file = form.clean_thumbnail_image()
+
+        self.assertEqual(cleaned_file.name, "thumbnail.jpg")
+        with Image.open(cleaned_file) as cleaned_image:
+            self.assertEqual(cleaned_image.size, (90, 50))
 
 
 class PDFMagicByteValidationTest(TestCase):

@@ -98,6 +98,8 @@ class EventDetailFormCleanTest(TestCase):
 
         self.assertIn('thumbnail_image', form.fields)
         self.assertEqual(form.fields['thumbnail_image'].widget.attrs['accept'], 'image/*')
+        self.assertIn('自動トリミング', form.fields['thumbnail_image'].help_text)
+        self.assertIn('はみ出した部分', form.fields['thumbnail_image'].help_text)
 
     def test_lt_application_edit_form_accepts_thumbnail_image(self):
         """LT申請者編集フォームでもサムネイル画像をアップロードできる."""

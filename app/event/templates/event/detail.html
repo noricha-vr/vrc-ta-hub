@@ -106,6 +106,12 @@
             border-color: #3187de;
             box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
         }
+
+        .event-detail-thumbnail {
+            aspect-ratio: 16 / 9;
+            width: 100%;
+            object-fit: cover;
+        }
     </style>
     <div class="container mt-5">
         <div class="row post mb-5">
@@ -187,7 +193,7 @@
                 {% if event_detail.thumbnail_image %}
                     <div class="mb-4">
                         <img src="{{ event_detail.thumbnail_image.url|cf_resize:'1200' }}"
-                             class="img-fluid rounded shadow-sm"
+                             class="event-detail-thumbnail img-fluid rounded shadow-sm"
                              alt="{{ event_detail.title }}のサムネイル"
                              loading="lazy">
                     </div>

@@ -25,3 +25,14 @@ class EventDetailTemplateTest(SimpleTestCase):
         self.assertIn("{% if event_detail.thumbnail_image %}", template)
         self.assertIn('content="{{ event_detail.thumbnail_image.url }}"', template)
         self.assertIn("event_detail.thumbnail_image.url|cf_resize:'1200'", template)
+        self.assertIn("aspect-ratio: 16 / 9;", template)
+        self.assertIn("event-detail-thumbnail", template)
+
+    def test_detail_form_expands_optional_fields_when_errors_exist(self):
+        """折りたたみ対象フィールドにエラーがある場合は詳細設定を開く."""
+        template = (
+            Path(__file__).resolve().parents[1] / "templates" / "event" / "detail_form.html"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("function hasOptionalFieldErrors(config)", template)
+        self.assertIn("hasOptionalFieldErrors(config)", template)

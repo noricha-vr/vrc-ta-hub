@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta
+from io import BytesIO
+from pathlib import Path
+
 from django import forms
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 from django.utils import timezone
 from PIL import Image, UnidentifiedImageError
 
@@ -12,10 +16,11 @@ from .datetime_lock import (
     is_event_detail_datetime_locked,
 )
 from .models import EventDetail, RecurrenceRule, Event, validate_pdf_file
+from .thumbnail import SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT, crop_to_slide_thumbnail_aspect_ratio
 
 
 def _validate_thumbnail_image(thumbnail_image):
-    """サムネイル画像を検証し、ファイルポインタを先頭に戻す."""
+    """サムネイル画像を検証し、スライド比率に中央クロップする."""
     if not thumbnail_image or not hasattr(thumbnail_image, 'read'):
         return thumbnail_image
     if getattr(thumbnail_image, 'size', 0) > 10 * 1024 * 1024:
@@ -23,7 +28,9 @@ def _validate_thumbnail_image(thumbnail_image):
 
     try:
         with Image.open(thumbnail_image) as image:
-            image.verify()
+            cropped_image = crop_to_slide_thumbnail_aspect_ratio(image.convert('RGB'))
+            image_buffer = BytesIO()
+            cropped_image.save(image_buffer, format='JPEG', quality=90, optimize=True)
     except (UnidentifiedImageError, OSError):
         raise ValidationError('有効な画像ファイルをアップロードしてください。')
     finally:
@@ -32,7 +39,8 @@ def _validate_thumbnail_image(thumbnail_image):
         except Exception:
             pass
 
-    return thumbnail_image
+    filename = f"{Path(thumbnail_image.name).stem}.jpg"
+    return ContentFile(image_buffer.getvalue(), name=filename)
 
 
 def _validate_and_sanitize_pdf(slide_file):
@@ -292,7 +300,12 @@ class EventDetailForm(forms.ModelForm):
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
             'slide_url': '外部のスライドシステムのURLや、参考ページのURLを入力してください。',
             'slide_file': '※ PDFファイルのみアップロード可能です（最大30MB）。',
-            'thumbnail_image': '※ 記事ページの上部に表示される画像です。未設定でPDFがある場合は記事生成時に自動設定されます。',
+            'thumbnail_image': (
+                f'※ 記事ページの上部に表示される画像です。'
+                f'アップロード時にスライドと同じ横長の比率（{SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT}）へ自動トリミングします。'
+                'はみ出した部分は中央基準で切り取られます。'
+                '未設定でPDFがある場合は記事生成時に自動設定されます。'
+            ),
         }
 
     # start_time と duration の初期値はEventCreateFormと同じにする
@@ -403,7 +416,12 @@ class LTApplicationEditForm(forms.ModelForm):
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
             'slide_url': '外部のスライドシステムのURLや、参考ページのURLを入力してください。',
             'slide_file': '※ PDFファイルのみアップロード可能です（最大30MB）。',
-            'thumbnail_image': '※ 記事ページの上部に表示される画像です。未設定でPDFがある場合は記事生成時に自動設定されます。',
+            'thumbnail_image': (
+                f'※ 記事ページの上部に表示される画像です。'
+                f'アップロード時にスライドと同じ横長の比率（{SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT}）へ自動トリミングします。'
+                'はみ出した部分は中央基準で切り取られます。'
+                '未設定でPDFがある場合は記事生成時に自動設定されます。'
+            ),
         }
 
     def __init__(self, *args, **kwargs):
