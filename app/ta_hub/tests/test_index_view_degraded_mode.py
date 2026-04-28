@@ -1,7 +1,8 @@
-from datetime import timedelta
+from datetime import date, datetime, time, timedelta, timezone as datetime_timezone
 from unittest.mock import patch
 
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.utils import OperationalError
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -11,6 +12,23 @@ from community.models import Community
 from event.models import Event, EventDetail
 from ta_hub.index_cache import get_index_view_cache_key
 from ta_hub.views import VKET_ACHIEVEMENTS
+
+
+def _create_test_image():
+    """テスト用の最小PNGバイナリを返す。"""
+    import struct
+    import zlib
+
+    def _chunk(chunk_type, data):
+        chunk = chunk_type + data
+        crc = struct.pack(">I", zlib.crc32(chunk) & 0xFFFFFFFF)
+        return struct.pack(">I", len(data)) + chunk + crc
+
+    signature = b"\x89PNG\r\n\x1a\n"
+    ihdr_data = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+    raw_data = b"\x00\xff\x00\x00"
+    idat_data = zlib.compress(raw_data)
+    return signature + _chunk(b"IHDR", ihdr_data) + _chunk(b"IDAT", idat_data) + _chunk(b"IEND", b"")
 
 
 def _expected_vket_achievements_no_images():
@@ -164,3 +182,79 @@ class IndexViewEventDetailCacheInvalidationTest(TestCase):
             detail.save(update_fields=['theme'])
 
         self.assertIsNotNone(cache.get(self.cache_key))
+
+
+class IndexViewVrchatBoundaryTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        cache.clear()
+        image_content = _create_test_image()
+        self.community = Community.objects.create(
+            name='JST Boundary Community',
+            start_time=time(22, 0),
+            duration=60,
+            weekdays=['Mon'],
+            frequency='Every week',
+            organizers='Boundary Organizer',
+            status='approved',
+            poster_image=SimpleUploadedFile('boundary.png', image_content, content_type='image/png'),
+        )
+        self.previous_event = Event.objects.create(
+            community=self.community,
+            date=date(2026, 4, 27),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Mon',
+        )
+        self.current_event = Event.objects.create(
+            community=self.community,
+            date=date(2026, 4, 28),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Tue',
+        )
+        self.previous_lt = EventDetail.objects.create(
+            event=self.previous_event,
+            detail_type='LT',
+            speaker='Previous Speaker',
+            theme='Previous LT',
+            status='approved',
+            start_time=time(22, 0),
+        )
+        self.previous_special = EventDetail.objects.create(
+            event=self.previous_event,
+            detail_type='SPECIAL',
+            theme='Previous Special',
+            status='approved',
+            start_time=time(22, 30),
+        )
+        self.current_lt = EventDetail.objects.create(
+            event=self.current_event,
+            detail_type='LT',
+            speaker='Current Speaker',
+            theme='Current LT',
+            status='approved',
+            start_time=time(22, 0),
+        )
+
+    def tearDown(self):
+        cache.clear()
+
+    @patch('utils.vrchat_time.timezone.now')
+    def test_index_excludes_previous_day_after_jst_4am(self, mock_now):
+        """日本時間4時以降は前日の開催情報・LT・特別企画を非表示にする"""
+        mock_now.return_value = datetime(
+            2026, 4, 28, 1, 30, 0, tzinfo=datetime_timezone.utc
+        )
+
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        event_ids = [event['id'] for event in response.context['upcoming_events']]
+        lt_ids = [detail['id'] for detail in response.context['upcoming_event_details']]
+        special_ids = [special['id'] for special in response.context['special_events']]
+        self.assertNotIn(self.previous_event.id, event_ids)
+        self.assertNotIn(self.previous_lt.id, lt_ids)
+        self.assertNotIn(self.previous_special.id, special_ids)
+        self.assertIn(self.current_event.id, event_ids)
+        self.assertIn(self.current_lt.id, lt_ids)

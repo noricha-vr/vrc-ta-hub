@@ -9,7 +9,7 @@ def get_vrchat_today():
     Returns:
         date: VRChat時間での「今日」の日付
     """
-    current_time = timezone.now()
+    current_time = timezone.localtime(timezone.now())
     if current_time.hour < 4:
         # 朝4時前の場合は前日として扱う
         return (current_time - timezone.timedelta(days=1)).date()
