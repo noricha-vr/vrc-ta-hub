@@ -22,6 +22,7 @@ from youtube_transcript_api import YouTubeTranscriptApi
 
 from event.models import EventDetail
 from event.prompts import BLOG_GENERATION_TEMPLATE
+from event.thumbnail import crop_to_slide_thumbnail_aspect_ratio
 from website.settings import GOOGLE_API_KEY
 
 logger = logging.getLogger(__name__)
@@ -111,7 +112,7 @@ def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False) -> bo
             try:
                 bitmap = page.render(scale=2.0)
                 try:
-                    image = bitmap.to_pil().convert('RGB')
+                    image = crop_to_slide_thumbnail_aspect_ratio(bitmap.to_pil().convert('RGB'))
                 finally:
                     if hasattr(bitmap, 'close'):
                         bitmap.close()

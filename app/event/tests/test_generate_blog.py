@@ -283,9 +283,9 @@ class TestGenerateBlog(TestCase):
 
     @patch("event.libs.pdfium.PdfDocument")
     def test_ensure_pdf_thumbnail_creates_image_from_pdf(self, mock_pdf_document):
-        """PDFの先頭ページからサムネイル画像を作成する."""
+        """PDFの先頭ページから16:9のサムネイル画像を作成する."""
         event_detail = self.create_event_detail(slide_file=True)
-        image = Image.new("RGB", (120, 80), color="white")
+        image = Image.new("RGB", (120, 200), color="white")
         mock_bitmap = mock_pdf_document.return_value.__getitem__.return_value.render.return_value
         mock_bitmap.to_pil.return_value = image
 
@@ -293,6 +293,9 @@ class TestGenerateBlog(TestCase):
 
         self.assertTrue(result)
         self.assertTrue(event_detail.thumbnail_image.name.endswith(".jpg"))
+        event_detail.thumbnail_image.open("rb")
+        with Image.open(event_detail.thumbnail_image) as thumbnail:
+            self.assertEqual(thumbnail.size, (120, 67))
         mock_pdf_document.assert_called_once()
 
     @patch("event.libs.pdfium.PdfDocument")
