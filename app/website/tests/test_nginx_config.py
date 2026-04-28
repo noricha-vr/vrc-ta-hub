@@ -7,12 +7,24 @@ from django.test import SimpleTestCase
 from website.middleware import _build_cloud_run_preview_host_pattern_source
 
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+def _find_repo_file(filename: str) -> Path:
+    current_file = Path(__file__).resolve()
+    for parent in current_file.parents:
+        candidate = parent / filename
+        if candidate.exists():
+            return candidate
+    docker_image_candidate = Path('/etc/nginx/sites-available/default')
+    if docker_image_candidate.exists():
+        return docker_image_candidate
+    raise FileNotFoundError(f'{filename} was not found from {current_file}')
+
+
+NGINX_CONFIG_PATH = _find_repo_file('nginx-app.conf')
 
 
 class NginxConfigTest(SimpleTestCase):
     def setUp(self):
-        self.nginx_config = (REPO_ROOT / 'nginx-app.conf').read_text()
+        self.nginx_config = NGINX_CONFIG_PATH.read_text()
 
     def test_cloud_run_preview_host_is_rewritten_before_proxy(self):
         expected_pattern = _build_cloud_run_preview_host_pattern_source()
