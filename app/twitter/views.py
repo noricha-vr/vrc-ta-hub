@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 from community.models import Community, CommunityMember
 from event.models import Event
+from .db import run_with_db_reconnect
 from .forms import TwitterTemplateForm
 from .models import TwitterTemplate, TweetQueue
 from .notifications import notify_tweet_post_failure
@@ -176,7 +177,10 @@ def _retry_generation(queue_item) -> None:
         logger.exception("Retry generation raised exception for queue %d", queue_item.pk)
         queue_item.status = 'generation_failed'
         queue_item.error_message = 'リトライ中に例外が発生'
-        queue_item.save()
+        run_with_db_reconnect(
+            queue_item.save,
+            context=f"retry_generation_exception queue={queue_item.pk}",
+        )
         return
 
     if text:
@@ -190,12 +194,18 @@ def _retry_generation(queue_item) -> None:
             if image_url:
                 queue_item.image_url = image_url
 
-        queue_item.save()
+        run_with_db_reconnect(
+            queue_item.save,
+            context=f"retry_generation_success queue={queue_item.pk}",
+        )
         logger.info("Retry generation succeeded for queue %d", queue_item.pk)
     else:
         queue_item.status = 'generation_failed'
         queue_item.error_message = 'リトライ生成にも失敗'
-        queue_item.save()
+        run_with_db_reconnect(
+            queue_item.save,
+            context=f"retry_generation_failed queue={queue_item.pk}",
+        )
         logger.error("Retry generation failed for queue %d", queue_item.pk)
 
 
@@ -203,9 +213,12 @@ def _retry_generation_async(queue_id: int) -> None:
     """バックグラウンドスレッドで再生成し、終了時にDB接続を確実に解放する。"""
     try:
         try:
-            queue_item = TweetQueue.objects.select_related(
-                'community', 'event', 'event_detail',
-            ).get(pk=queue_id)
+            queue_item = run_with_db_reconnect(
+                lambda: TweetQueue.objects.select_related(
+                    'community', 'event', 'event_detail',
+                ).get(pk=queue_id),
+                context=f"retry_generation_fetch queue={queue_id}",
+            )
         except TweetQueue.DoesNotExist:
             logger.error("TweetQueue %d not found for retry generation", queue_id)
             return
@@ -232,18 +245,24 @@ def post_scheduled_tweets(request):
     now = timezone.now()
     expiry_threshold = now - timedelta(hours=SCHEDULE_EXPIRY_HOURS)
 
-    overdue_items = list(
-        TweetQueue.objects.filter(
-            status__in=('generating', 'generation_failed', 'ready'),
-            scheduled_at__lt=expiry_threshold,
-        ).select_related('community', 'event', 'event_detail')
+    overdue_items = run_with_db_reconnect(
+        lambda: list(
+            TweetQueue.objects.filter(
+                status__in=('generating', 'generation_failed', 'ready'),
+                scheduled_at__lt=expiry_threshold,
+            ).select_related('community', 'event', 'event_detail'),
+        ),
+        context="post_scheduled_tweets_fetch_overdue",
     )
 
     results = []
     for item in overdue_items:
         item.status = 'skipped'
         item.error_message = SCHEDULE_EXPIRED_SKIP_REASON
-        item.save(update_fields=['status', 'error_message'])
+        run_with_db_reconnect(
+            lambda: item.save(update_fields=['status', 'error_message']),
+            context=f"post_scheduled_tweets_skip_expired queue={item.pk}",
+        )
         results.append({
             "id": item.pk, "status": "skipped", "reason": "schedule_expired",
         })
@@ -251,13 +270,16 @@ def post_scheduled_tweets(request):
 
     # Phase 1: 生成リトライ（generation_failed + 1時間以上前の generating）
     retry_threshold = now - timedelta(hours=RETRY_THRESHOLD_HOURS)
-    retry_items = list(
-        TweetQueue.objects.filter(
-            (
-                models.Q(status='generation_failed')
-                | models.Q(status='generating', created_at__lt=retry_threshold)
-            ),
-        ).select_related('community', 'event', 'event_detail')
+    retry_items = run_with_db_reconnect(
+        lambda: list(
+            TweetQueue.objects.filter(
+                (
+                    models.Q(status='generation_failed')
+                    | models.Q(status='generating', created_at__lt=retry_threshold)
+                ),
+            ).select_related('community', 'event', 'event_detail'),
+        ),
+        context="post_scheduled_tweets_fetch_retry",
     )
     retried_count = len(retry_items)
 
@@ -265,11 +287,16 @@ def post_scheduled_tweets(request):
         _retry_generation(item)
 
     # Phase 2: ready キューの投稿
-    ready_items = TweetQueue.objects.filter(
-        status='ready',
-        scheduled_at__lte=now,
-    ).select_related(
-        'community', 'event', 'event_detail',
+    ready_items = run_with_db_reconnect(
+        lambda: list(
+            TweetQueue.objects.filter(
+                status='ready',
+                scheduled_at__lte=now,
+            ).select_related(
+                'community', 'event', 'event_detail',
+            ),
+        ),
+        context="post_scheduled_tweets_fetch_ready",
     )
     for queue_item in ready_items:
         # LT/特別回告知は、イベント日が過去ならスキップ（期限切れ防止）
@@ -278,7 +305,12 @@ def post_scheduled_tweets(request):
                 queue_item.status = 'skipped'
                 queue_item.error_message = SAME_DAY_INDIVIDUAL_SKIP_REASON
                 queue_item.generated_text = ''
-                queue_item.save(update_fields=['status', 'error_message', 'generated_text'])
+                run_with_db_reconnect(
+                    lambda: queue_item.save(
+                        update_fields=['status', 'error_message', 'generated_text'],
+                    ),
+                    context=f"post_scheduled_tweets_skip_same_day queue={queue_item.pk}",
+                )
                 results.append({
                     "id": queue_item.pk, "status": "skipped", "reason": "same_day_integrated",
                 })
@@ -287,7 +319,10 @@ def post_scheduled_tweets(request):
             if queue_item.event.date < timezone.localdate():
                 queue_item.status = 'failed'
                 queue_item.error_message = 'イベント日が過去のため投稿スキップ'
-                queue_item.save()
+                run_with_db_reconnect(
+                    queue_item.save,
+                    context=f"post_scheduled_tweets_skip_past_event queue={queue_item.pk}",
+                )
                 results.append({
                     "id": queue_item.pk, "status": "skipped", "reason": "event_date_passed",
                 })
@@ -298,7 +333,10 @@ def post_scheduled_tweets(request):
             if queue_item.event.date != timezone.localdate():
                 queue_item.status = 'failed'
                 queue_item.error_message = '当日イベントではないため投稿スキップ'
-                queue_item.save()
+                run_with_db_reconnect(
+                    queue_item.save,
+                    context=f"post_scheduled_tweets_skip_stale_daily queue={queue_item.pk}",
+                )
                 results.append({
                     "id": queue_item.pk, "status": "skipped", "reason": "not_event_day",
                 })
@@ -335,7 +373,10 @@ def post_scheduled_tweets(request):
             logger.warning("Tweet post failed for queue %d", queue_item.pk)
             notify_tweet_post_failure(queue_item, result)
 
-        queue_item.save()
+        run_with_db_reconnect(
+            queue_item.save,
+            context=f"post_scheduled_tweets_save_result queue={queue_item.pk}",
+        )
 
     return JsonResponse({
         "created": created_count,
