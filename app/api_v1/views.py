@@ -1,5 +1,9 @@
 # Create your views here.
 # from corsheaders.middleware import CorsMiddleware  # No longer needed
+import logging
+
+from django.db import close_old_connections
+from django.db.utils import OperationalError
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -32,7 +36,36 @@ from .serializers import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 # CORSMixin is no longer needed as CORS is handled by Django middleware
+
+
+class DatabaseReconnectListMixin:
+    """MySQL の切断系エラー時に読み取り list API を一度だけ再試行する。"""
+
+    MYSQL_DISCONNECT_ERROR_CODES = {2006, 2013}
+
+    def list(self, request, *args, **kwargs):
+        try:
+            return super().list(request, *args, **kwargs)
+        except OperationalError as exc:
+            if not self._should_retry_after_disconnect(exc):
+                raise
+
+            logger.warning(
+                "Retrying %s.list after a transient database disconnect",
+                self.__class__.__name__,
+                exc_info=True,
+            )
+            close_old_connections()
+            return super().list(request, *args, **kwargs)
+
+    def _should_retry_after_disconnect(self, exc):
+        if not exc.args:
+            return False
+        return exc.args[0] in self.MYSQL_DISCONNECT_ERROR_CODES
 
 
 class CommunityFilter(filters.FilterSet):
@@ -60,7 +93,7 @@ class CommunityFilter(filters.FilterSet):
     )
 )
 @method_decorator(csrf_exempt, name='dispatch')
-class CommunityViewSet(viewsets.ReadOnlyModelViewSet):
+class CommunityViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Community.objects.filter(
         end_at__isnull=True,
         status='approved',
@@ -135,7 +168,7 @@ class EventFilter(filters.FilterSet):
     )
 )
 @method_decorator(csrf_exempt, name='dispatch')
-class EventViewSet(viewsets.ReadOnlyModelViewSet):
+class EventViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Event.objects.filter(
         date__gte=timezone.now().date(),
         community__status='approved',
@@ -172,7 +205,7 @@ class EventDetailFilter(filters.FilterSet):
     )
 )
 @method_decorator(csrf_exempt, name='dispatch')
-class EventDetailViewSet(viewsets.ReadOnlyModelViewSet):
+class EventDetailViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet):
     queryset = EventDetail.objects.filter(
         event__community__status='approved',
         event__community__end_at__isnull=True,
@@ -246,7 +279,7 @@ class EventDetailViewSet(viewsets.ReadOnlyModelViewSet):
         tags=["EventDetail API"]
     )
 )
-class EventDetailAPIViewSet(viewsets.ModelViewSet):
+class EventDetailAPIViewSet(DatabaseReconnectListMixin, viewsets.ModelViewSet):
     """
     EventDetailのCRUD API
     認証: APIキーまたはセッション認証
@@ -361,7 +394,7 @@ class EventDetailAPIViewSet(viewsets.ModelViewSet):
         responses={200: OpenApiTypes.OBJECT}
     )
 )
-class RecurrenceRuleViewSet(viewsets.ReadOnlyModelViewSet):
+class RecurrenceRuleViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet):
     """
     RecurrenceRuleのAPI
     認証: APIキーまたはセッション認証
