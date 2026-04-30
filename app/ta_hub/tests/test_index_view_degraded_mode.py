@@ -3,8 +3,10 @@ from unittest.mock import patch
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.db.utils import OperationalError
 from django.test import Client, TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -258,3 +260,17 @@ class IndexViewVrchatBoundaryTest(TestCase):
         self.assertNotIn(self.previous_special.id, special_ids)
         self.assertIn(self.current_event.id, event_ids)
         self.assertIn(self.current_lt.id, lt_ids)
+
+    @patch('utils.vrchat_time.timezone.now')
+    def test_index_view_does_not_select_unused_event_detail_thumbnail_column(self, mock_now):
+        """トップページは未使用の EventDetail 追加列をSELECTしない"""
+        mock_now.return_value = datetime(
+            2026, 4, 28, 1, 30, 0, tzinfo=datetime_timezone.utc
+        )
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        executed_sql = "\n".join(query["sql"] for query in queries.captured_queries)
+        self.assertNotIn("thumbnail_image", executed_sql)

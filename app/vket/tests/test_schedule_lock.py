@@ -14,6 +14,7 @@ from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 from vket.models import VketCollaboration, VketParticipation
 from vket.services import get_vket_lock_info, is_event_locked_by_vket, get_vket_lock_message
+from vket.views.helpers import _build_schedule_context
 
 User = get_user_model()
 
@@ -182,6 +183,28 @@ class VketScheduleLockServiceTests(TestCase):
 
         self.assertTrue(locked)
         self.assertIn('Vket Lock Test', msg)
+        executed_sql = "\n".join(query["sql"] for query in queries.captured_queries)
+        self.assertNotIn("stage_registered_at", executed_sql)
+
+    def test_build_schedule_context_does_not_select_stage_registered_at(self):
+        """日程表は表示に不要な追加列をSELECTしない"""
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            confirmed_date=self.event_in_period.date,
+            confirmed_start_time=self.event_in_period.start_time,
+            confirmed_duration=self.event_in_period.duration,
+            published_event=self.event_in_period,
+        )
+
+        with CaptureQueriesContext(connection) as queries:
+            schedule_context = _build_schedule_context(
+                self.collaboration,
+                include_requested=False,
+            )
+
+        self.assertEqual(len(schedule_context["rows"]), 1)
         executed_sql = "\n".join(query["sql"] for query in queries.captured_queries)
         self.assertNotIn("stage_registered_at", executed_sql)
 

@@ -117,7 +117,11 @@ class IndexView(TemplateView):
             community__poster_image__isnull=False
         ).exclude(
             community__poster_image=''
-        ).select_related('community').prefetch_related(
+        ).select_related('community').only(
+            'id', 'date', 'start_time', 'duration', 'weekday', 'community_id',
+            'community__id', 'community__name', 'community__poster_image',
+            'community__description',
+        ).prefetch_related(
             Prefetch(
                 'details',
                 queryset=EventDetail.objects.filter(status='approved').only(
@@ -136,7 +140,12 @@ class IndexView(TemplateView):
             event__community__poster_image__isnull=False
         ).exclude(
             event__community__poster_image=''
-        ).select_related('event', 'event__community').order_by('event__date', 'start_time')
+        ).select_related('event', 'event__community').only(
+            'id', 'event_id', 'start_time', 'duration', 'speaker', 'theme',
+            'event__id', 'event__date', 'event__start_time', 'event__duration',
+            'event__community_id', 'event__community__id', 'event__community__name',
+            'event__community__poster_image', 'event__community__description',
+        ).order_by('event__date', 'start_time')
 
         # 特別企画を取得（今日からイベント終了日の24時まで表示）
         special_events = EventDetail.objects.filter(
@@ -149,7 +158,13 @@ class IndexView(TemplateView):
             event__community__poster_image__isnull=False
         ).exclude(
             event__community__poster_image=''
-        ).select_related('event', 'event__community').order_by('-event__date', '-start_time')[:10]
+        ).select_related('event', 'event__community').only(
+            'id', 'event_id', 'start_time', 'duration', 'h1', 'theme',
+            'meta_description', 'contents',
+            'event__id', 'event__date', 'event__start_time', 'event__duration',
+            'event__community_id', 'event__community__id', 'event__community__name',
+            'event__community__poster_image', 'event__community__description',
+        ).order_by('-event__date', '-start_time')[:10]
 
         # Google Calendar URLを生成
         event_list_view = EventListView()

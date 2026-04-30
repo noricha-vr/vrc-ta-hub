@@ -138,6 +138,13 @@ def _build_schedule_context(
         )
         .filter(date_filter)
         .select_related('community', 'published_event')
+        .only(
+            'id', 'collaboration_id', 'community_id', 'published_event_id',
+            'requested_date', 'requested_start_time', 'requested_duration',
+            'confirmed_date', 'confirmed_start_time', 'confirmed_duration',
+            'community__id', 'community__name',
+            'published_event__id',
+        )
         .prefetch_related(
             Prefetch(
                 'published_event__details',
