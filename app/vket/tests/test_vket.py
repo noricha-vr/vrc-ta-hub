@@ -451,6 +451,144 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(len(presentations), 1)
         self.assertEqual(presentations[0].speaker, '残す登壇者')
 
+    def test_confirmed_participation_post_keeps_schedule_and_lt_start_time(self):
+        """日程確定後の主催者POSTでは日程と既存LT開始時刻が変わらない"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time=time(21, 0),
+            requested_duration=60,
+            confirmed_date=self.collaboration.period_start,
+            confirmed_start_time=time(21, 0),
+            confirmed_duration=60,
+            schedule_confirmed_at=timezone.now(),
+            progress=VketParticipation.Progress.REHEARSAL,
+            applied_by=self.owner,
+        )
+        presentation = VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='確定前登壇者',
+            theme='確定前テーマ',
+            requested_start_time=time(21, 30),
+            status=VketPresentation.Status.CONFIRMED,
+        )
+
+        post_data = {
+            'requested_date': (self.collaboration.period_start + timedelta(days=1)).isoformat(),
+            'requested_start_time': '23:00',
+            'requested_duration': '90',
+            'organizer_note': '確定後も備考は更新',
+        }
+        post_data.update(
+            self._make_formset_data(
+                [
+                    {
+                        'speaker': '更新後登壇者',
+                        'theme': '更新後テーマ',
+                        'lt_start_time': '23:30',
+                    }
+                ],
+                initial_forms=1,
+            )
+        )
+
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}),
+            data=post_data,
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        participation.refresh_from_db()
+        presentation.refresh_from_db()
+        self.assertEqual(participation.requested_date, self.collaboration.period_start)
+        self.assertEqual(participation.requested_start_time, time(21, 0))
+        self.assertEqual(participation.requested_duration, 60)
+        self.assertEqual(participation.organizer_note, '確定後も備考は更新')
+        self.assertEqual(presentation.speaker, '更新後登壇者')
+        self.assertEqual(presentation.theme, '更新後テーマ')
+        self.assertEqual(presentation.requested_start_time, time(21, 30))
+
+    def test_confirmed_participation_post_does_not_delete_existing_lt(self):
+        """日程確定後はformset DELETEでも既存LTを削除しない"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time=time(21, 0),
+            requested_duration=60,
+            confirmed_date=self.collaboration.period_start,
+            confirmed_start_time=time(21, 0),
+            confirmed_duration=60,
+            schedule_confirmed_at=timezone.now(),
+            progress=VketParticipation.Progress.REHEARSAL,
+        )
+        presentation = VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='削除されない登壇者',
+            theme='削除されないテーマ',
+            requested_start_time=time(21, 30),
+        )
+
+        post_data = {
+            'requested_date': self.collaboration.period_start.isoformat(),
+            'requested_start_time': '21:00',
+            'requested_duration': '60',
+            'organizer_note': '',
+        }
+        post_data.update(
+            self._make_formset_data(
+                [
+                    {
+                        'speaker': '削除されない登壇者',
+                        'theme': '削除されないテーマ',
+                        'DELETE': True,
+                    }
+                ],
+                initial_forms=1,
+            )
+        )
+
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}),
+            data=post_data,
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(VketPresentation.objects.filter(pk=presentation.pk).exists())
+
+    def test_confirmed_participation_apply_get_shows_locked_message(self):
+        """日程確定後の参加フォームに編集不可の文言が出る"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time=time(21, 0),
+            requested_duration=60,
+            confirmed_date=self.collaboration.period_start,
+            confirmed_start_time=time(21, 0),
+            confirmed_duration=60,
+            schedule_confirmed_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '参加日程（Step 1）は運営が確定済みのため編集できません。')
+        self.assertContains(response, 'LT開始時刻は日程確定済みのため編集できません。')
+
     def test_apply_get_prefills_multiple_presentations(self):
         """既存の複数LTがGETでformsetにプリフィルされる"""
         self.client.login(username='owner_user', password='testpass123')
@@ -549,6 +687,73 @@ class VketApplyFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertFalse(VketPresentation.objects.filter(pk=pres.pk).exists())
+
+    def test_confirmed_presentation_delete_forbidden_for_organizer(self):
+        """確定済みLTは主催者側の個別削除を拒否する"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            confirmed_date=self.collaboration.period_start,
+            confirmed_start_time=time(21, 0),
+            confirmed_duration=60,
+            schedule_confirmed_at=timezone.now(),
+            progress=VketParticipation.Progress.REHEARSAL,
+        )
+        pres = VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='確定済みLT',
+            theme='テーマ',
+            status=VketPresentation.Status.CONFIRMED,
+        )
+
+        response = self.client.post(
+            reverse(
+                'vket:presentation_delete',
+                kwargs={'pk': self.collaboration.pk, 'presentation_id': pres.pk},
+            ),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(VketPresentation.objects.filter(pk=pres.pk).exists())
+
+    def test_published_presentation_delete_forbidden_for_organizer(self):
+        """公開済みLTは主催者側の個別削除を拒否する"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+        event = Event.objects.filter(community=self.community).first()
+        detail = EventDetail.objects.create(
+            event=event,
+            detail_type='LT',
+            start_time='21:30',
+            duration=30,
+            status='approved',
+        )
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            progress=VketParticipation.Progress.APPLIED,
+        )
+        pres = VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='公開済みLT',
+            theme='テーマ',
+            published_event_detail=detail,
+        )
+
+        response = self.client.post(
+            reverse(
+                'vket:presentation_delete',
+                kwargs={'pk': self.collaboration.pk, 'presentation_id': pres.pk},
+            ),
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(VketPresentation.objects.filter(pk=pres.pk).exists())
+        self.assertTrue(EventDetail.objects.filter(pk=detail.pk).exists())
 
     def test_presentation_delete_forbidden_for_non_member(self):
         """コミュニティに所属しないユーザーはLTを削除できない"""

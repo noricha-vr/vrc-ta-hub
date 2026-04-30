@@ -42,6 +42,8 @@ class PresentationDeleteView(LoginRequiredMixin, View):
             return HttpResponseForbidden('この操作を行う権限がありません。')
         if not (request.user.is_superuser or membership):
             return HttpResponseForbidden('集会メンバーのみLTを削除できます。')
+        if presentation.is_organizer_delete_locked and not (request.user.is_superuser or request.user.is_staff):
+            return HttpResponseForbidden('確定済みまたは公開済みのLTは主催者側から削除できません。')
 
         speaker_name = _delete_presentation(presentation)
         messages.success(request, f'{speaker_name} を削除しました。')

@@ -81,6 +81,11 @@ class VketPresentationForm(forms.Form):
         widget=forms.TimeInput(attrs={'type': 'time', 'step': 300, 'class': 'form-control'}),
     )
 
+    def __init__(self, *args, lock_lt_start_time: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        if lock_lt_start_time:
+            self.fields['lt_start_time'].disabled = True
+
 
 VketPresentationFormSet = formset_factory(
     VketPresentationForm, extra=1, max_num=20, can_delete=True,

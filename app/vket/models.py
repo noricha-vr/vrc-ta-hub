@@ -180,6 +180,16 @@ class VketParticipation(models.Model):
         """確定開催時間があればそれを、なければ希望開催時間を返す"""
         return self.confirmed_duration or self.requested_duration
 
+    @property
+    def is_schedule_confirmed(self) -> bool:
+        """運営による日程確定後なら True を返す"""
+        has_confirmed_schedule = (
+            self.confirmed_date is not None
+            and self.confirmed_start_time is not None
+            and self.confirmed_duration is not None
+        )
+        return has_confirmed_schedule or self.schedule_confirmed_at is not None
+
 
 class VketPresentation(models.Model):
     class Status(models.TextChoices):
@@ -225,6 +235,15 @@ class VketPresentation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.participation} - {self.speaker or '（未入力）'}"
+
+    @property
+    def is_organizer_delete_locked(self) -> bool:
+        """主催者側から削除できない確定済み/公開済み LT なら True を返す"""
+        return (
+            self.participation.is_schedule_confirmed
+            or self.status == self.Status.CONFIRMED
+            or self.published_event_detail_id is not None
+        )
 
 
 class VketNotice(models.Model):
