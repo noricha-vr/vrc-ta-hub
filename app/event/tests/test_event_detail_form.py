@@ -108,6 +108,24 @@ class EventDetailFormCleanTest(TestCase):
         self.assertIn('thumbnail_image', form.fields)
         self.assertEqual(form.fields['thumbnail_image'].widget.attrs['accept'], 'image/*')
 
+    def test_slide_file_is_shown_before_slide_url(self):
+        """スライドPDFアップロードをURL入力より先に表示する."""
+        form = EventDetailForm(instance=self.existing_detail)
+        field_names = list(form.fields)
+
+        self.assertLess(field_names.index('slide_file'), field_names.index('slide_url'))
+        self.assertIn('まずここにスライドPDFをアップロード', form.fields['slide_file'].help_text)
+        self.assertIn('URL入力のみでは記事は生成されません', form.fields['slide_url'].help_text)
+
+    def test_lt_application_edit_form_shows_slide_file_before_slide_url(self):
+        """LT申請者編集フォームでもスライドPDFアップロードをURL入力より先に表示する."""
+        form = LTApplicationEditForm(instance=self.existing_detail)
+        field_names = list(form.fields)
+
+        self.assertLess(field_names.index('slide_file'), field_names.index('slide_url'))
+        self.assertIn('まずここにスライドPDFをアップロード', form.fields['slide_file'].help_text)
+        self.assertIn('URL入力のみでは記事は生成されません', form.fields['slide_url'].help_text)
+
     def test_blog_type_copies_h1_to_theme(self):
         """BLOGタイプでh1が設定されている場合、themeにh1がコピーされる"""
         request = self._create_request()

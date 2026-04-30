@@ -154,6 +154,8 @@ class LTApplicationEditViewTests(LTApplicationViewTestBase):
         self.assertContains(response, 'My LT Theme')
         self.assertContains(response, 'data-article-generation-form')
         self.assertContains(response, '生成しながら保存中…')
+        self.assertContains(response, '最初にスライドPDFをアップロード')
+        self.assertContains(response, 'URL入力のみでは記事は生成されません')
 
     def test_cannot_edit_other_user_application(self):
         self.client.login(username='applicant', password='testpass123')

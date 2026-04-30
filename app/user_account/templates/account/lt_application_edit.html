@@ -84,6 +84,16 @@
                               data-has-existing-youtube-url="{% if object.youtube_url %}true{% else %}false{% endif %}">
                             {% csrf_token %}
 
+                            <div class="alert alert-info" role="note">
+                                <strong>記事生成の流れ:</strong>
+                                <ol class="mb-1 ps-3">
+                                    <li>最初にスライドPDFをアップロードします。</li>
+                                    <li>次に記事を生成します。</li>
+                                    <li>その後、公開用のスライドURLがある場合は貼り付けます。</li>
+                                </ol>
+                                スライドURLは任意です。URL入力のみでは記事は生成されません。
+                            </div>
+
                             {% for field in form %}
                                 <div class="mb-3 field-wrapper" data-field="{{ field.name }}">
                                     {% if field.name == 'generate_blog_article' %}

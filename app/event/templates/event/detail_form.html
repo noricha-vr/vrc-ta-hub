@@ -66,6 +66,15 @@
                                     {{ form.datetime_lock_message }}
                                 </div>
                             {% endif %}
+                            <div class="alert alert-info" role="note">
+                                <strong>記事生成の流れ:</strong>
+                                <ol class="mb-1 ps-3">
+                                    <li>最初にスライドPDFをアップロードします。</li>
+                                    <li>次に記事を生成します。</li>
+                                    <li>その後、公開用のスライドURLがある場合は貼り付けます。</li>
+                                </ol>
+                                スライドURLは任意です。URL入力のみでは記事は生成されません。
+                            </div>
                             <!-- detail_type フィールドを特別に表示 -->
                             <div class="mb-4">
                                 <label class="form-label fw-bold">{{ form.detail_type.label }}</label>
@@ -153,8 +162,6 @@
             </div>
 
             <div class="col-md-10 mx-auto mt-2">
-                ※ スライドが非公開で、記事作成はOKの場合、スライドを登録して、記事を作成してからスライドを削除すれば記事だけを作成できます。<br>
-                ※ リンクには外部のスライドシステムのリンクを張ります。リンクから記事を作成できないので一度PDFで登録して記事を作成して削除をおすすめします。<br>
                 ※ 利用可能な<a href="{% url 'event:markdown' %}">markdownの一覧と書き方</a><br>
             </div>
 
@@ -169,7 +176,7 @@
         function toggleDetailSettings() {
             detailSettingsExpanded = !detailSettingsExpanded;
             const button = document.querySelector('#detail-settings-toggle button');
-            const optionalFields = ['slide_url', 'slide_file', 'thumbnail_image', 'youtube_url', 'h1', 'contents'];
+            const optionalFields = ['slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents'];
             
             optionalFields.forEach(fieldName => {
                 const wrapper = document.querySelector(`.field-wrapper[data-field="${fieldName}"]`);
@@ -198,9 +205,9 @@
             // フィールドの表示設定
             const fieldVisibility = {
                 'LT': {
-                    show: ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'],
+                    show: ['theme', 'speaker', 'start_time', 'duration', 'slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'],
                     hide: [],
-                    optional: ['slide_url', 'slide_file', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'] // 開催前は折りたたみ対象
+                    optional: ['slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'] // 開催前は折りたたみ対象
                 },
                 'SPECIAL': {
                     show: ['h1', 'thumbnail_image', 'contents', 'start_time'],

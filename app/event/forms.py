@@ -274,7 +274,7 @@ class EventDetailForm(forms.ModelForm):
 
     class Meta:
         model = EventDetail
-        fields = ['detail_type', 'theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file',
+        fields = ['detail_type', 'theme', 'speaker', 'start_time', 'duration', 'slide_file', 'slide_url',
                   'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article']
         widgets = {
             'detail_type': forms.RadioSelect(attrs={'class': 'form-check-input'}),
@@ -298,8 +298,8 @@ class EventDetailForm(forms.ModelForm):
             'h1': '※ 空のときはテーマが使われます。',
             'duration': '単位は分',
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
-            'slide_url': '外部のスライドシステムのURLや、参考ページのURLを入力してください。',
-            'slide_file': '※ PDFファイルのみアップロード可能です（最大30MB）。',
+            'slide_file': '※ 記事生成に使うPDFです。まずここにスライドPDFをアップロードしてください（最大30MB）。',
+            'slide_url': '※ 任意。記事生成後、公開用の外部スライドURLがある場合に貼り付けてください。URL入力のみでは記事は生成されません。',
             'thumbnail_image': (
                 f'※ 記事ページの上部に表示される画像です。'
                 f'アップロード時にスライドと同じ横長の比率（{SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT}）へ自動トリミングします。'
@@ -395,7 +395,7 @@ class LTApplicationEditForm(forms.ModelForm):
 
     class Meta:
         model = EventDetail
-        fields = ['theme', 'speaker', 'slide_url', 'slide_file', 'thumbnail_image', 'youtube_url', 'h1', 'contents',
+        fields = ['theme', 'speaker', 'slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents',
                   'generate_blog_article']
         widgets = {
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
@@ -414,8 +414,8 @@ class LTApplicationEditForm(forms.ModelForm):
             'contents': '※ Markdown形式で記述してください。',
             'h1': '※ 空のときはテーマが使われます。',
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
-            'slide_url': '外部のスライドシステムのURLや、参考ページのURLを入力してください。',
-            'slide_file': '※ PDFファイルのみアップロード可能です（最大30MB）。',
+            'slide_file': '※ 記事生成に使うPDFです。まずここにスライドPDFをアップロードしてください（最大30MB）。',
+            'slide_url': '※ 任意。記事生成後、公開用の外部スライドURLがある場合に貼り付けてください。URL入力のみでは記事は生成されません。',
             'thumbnail_image': (
                 f'※ 記事ページの上部に表示される画像です。'
                 f'アップロード時にスライドと同じ横長の比率（{SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT}）へ自動トリミングします。'
