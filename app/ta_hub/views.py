@@ -68,7 +68,7 @@ class IndexView(TemplateView):
 
         try:
             context.update(self._build_database_context(today, cache_key))
-            # vket_achievements は request.build_absolute_uri() に依存するためキャッシュ外で毎回生成する
+            # vket_achievements は request.build_absolute_uri() に依存するためキャッシュ外で毎回生成する。参照: PR #284（理由・背景の追跡）
             context['vket_achievements'] = self._build_vket_achievements(with_images=True)
         except OperationalError:
             # トップページはRDS瞬断でも静的導線を返し続ける。参照: PR #170（公開導線だけは維持する判断）
@@ -224,7 +224,7 @@ class IndexView(TemplateView):
             special_events_data.append(special_dict)
 
         # データをキャッシュに保存（1時間）
-        # vket_achievements は request に依存するためキャッシュに含めない
+        # vket_achievements は request に依存するためキャッシュに含めない。参照: PR #284（理由・背景の追跡）
         cache_data = {
             'upcoming_events': events_with_urls,
             'upcoming_event_details': details_with_urls,

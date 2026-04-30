@@ -161,7 +161,7 @@ def _build_schedule_context(
     if not participations:
         return empty
 
-    # 各参加の「表示用」日程を決定（confirmed 優先、なければ requested）
+    # 各参加の「表示用」日程を決定（confirmed 優先、なければ requested）。参照: PR #284（理由・背景の追跡）
     effective_data: dict[int, dict] = {}
     for p in participations:
         is_confirmed = p.confirmed_date is not None and p.confirmed_start_time is not None
