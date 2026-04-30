@@ -229,6 +229,17 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
         self.assertNotIn(tomorrow.pk, response.context['today_tweet_queue_ids'])
         self.assertContains(response, 'class="table-warning"', count=1)
 
+    def test_list_shows_post_now_button_only_for_unposted_queue(self):
+        """一覧では未投稿キューだけに今すぐポストボタンを表示する"""
+        self.client.login(username='admin_user', password='testpassword')
+        self._create_queue(generated_text='Ready tweet', status='ready')
+        self._create_queue(tweet_type='lt', generated_text='Posted tweet', status='posted')
+
+        response = self.client.get(reverse('twitter:tweet_queue_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '今すぐポスト', count=1)
+
 
 class TweetQueueDetailViewTest(TweetQueueViewTestBase):
     """TweetQueueDetailView のテスト"""
@@ -374,7 +385,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
     @patch('twitter.views.post_tweet')
     @patch('twitter.views.upload_media')
     def test_post_now_failure(self, mock_upload, mock_post):
-        """手動投稿が失敗した場合に failed になる"""
+        """手動投稿が失敗した場合は元ステータスを維持する"""
         mock_post.return_value = {'ok': False, 'data': None, 'status_code': 403, 'error_body': 'Forbidden'}
         mock_upload.return_value = None
 
@@ -384,8 +395,28 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         self.assertEqual(response.status_code, 302)
 
         self.queue_item.refresh_from_db()
-        self.assertEqual(self.queue_item.status, 'failed')
+        self.assertEqual(self.queue_item.status, 'ready')
         self.assertIn('X API', self.queue_item.error_message)
+
+    @patch('twitter.views.post_tweet')
+    @patch('twitter.views.upload_media')
+    def test_post_now_allows_failed_queue(self, mock_upload, mock_post):
+        """投稿済み以外のキューは手動投稿できる"""
+        self.queue_item.status = 'failed'
+        self.queue_item.error_message = 'Previous failure'
+        self.queue_item.save()
+        mock_post.return_value = {'ok': True, 'data': {'id': 'failed-retry'}, 'status_code': None, 'error_body': None}
+        mock_upload.return_value = None
+
+        self.client.login(username='admin_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
+        response = self.client.post(url, {'action': 'post_now'})
+        self.assertEqual(response.status_code, 302)
+
+        self.queue_item.refresh_from_db()
+        self.assertEqual(self.queue_item.status, 'posted')
+        self.assertEqual(self.queue_item.tweet_id, 'failed-retry')
+        self.assertEqual(self.queue_item.error_message, '')
 
     @patch('twitter.views.post_tweet')
     @patch('twitter.views.upload_media')
@@ -423,6 +454,18 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
 
         self.queue_item.refresh_from_db()
         self.assertEqual(self.queue_item.status, 'posted')
+
+    def test_detail_hides_post_now_button_for_posted_queue(self):
+        """投稿済みキューには今すぐポストボタンを表示しない"""
+        self.queue_item.status = 'posted'
+        self.queue_item.save()
+
+        self.client.login(username='admin_user', password='testpassword')
+        url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '今すぐポスト')
 
 
 class TweetQueueStaffAccessTest(TweetQueueViewTestBase):

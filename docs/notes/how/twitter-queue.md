@@ -9,7 +9,7 @@
 | 正本 | `tweet_queue` を正本として扱う |
 | キュー作成責務 | 保存時の signal が作る |
 | スケジューラの責務 | 既存キューの再生成・投稿だけを行う |
-| スケジューラ実行間隔 | 30分ごと |
+| スケジューラ実行間隔 | 1分ごと |
 | `daily_reminder` の補完作成 | スケジューラではしない |
 | 当日重複防止 | 当日の `lt` / `special` は `skipped` にして `daily_reminder` に統合する |
 
@@ -56,7 +56,7 @@
 | --- | --- | --- |
 | Phase 0 | `scheduled_at + 24h` を過ぎた未投稿キュー | `skipped` にする |
 | Phase 1 | `generation_failed` / 1時間以上停滞した `generating` | 予約時刻に関係なく同期で再生成する |
-| Phase 2 | `ready` かつ `scheduled_at <= now` | X API に投稿する |
+| Phase 2 | `ready` かつ `scheduled_at <= now` | X API に最大1件だけ投稿する |
 | 例外 | 当日の `lt` / `special` | 投稿せず `skipped` にする |
 | 例外 | 過去日の `lt` / `special` | 投稿せず `failed` にする |
 | 例外 | 当日以外の `daily_reminder` | 投稿せず `failed` にする |
