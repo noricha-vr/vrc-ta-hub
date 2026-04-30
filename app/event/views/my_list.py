@@ -256,6 +256,10 @@ class EventMyList(LoginRequiredMixin, ListView):
             return None
 
         today = timezone.localdate()
+        is_vket_admin = (
+            self.request.user.is_authenticated
+            and (self.request.user.is_superuser or self.request.user.is_staff)
+        )
 
         has_participation = False
         if community:
@@ -290,15 +294,21 @@ class EventMyList(LoginRequiredMixin, ListView):
         else:
             return None
 
-        if (
+        if is_vket_admin:
+            url_name = 'vket:manage'
+            button_text = '管理画面を開く'
+            button_icon = 'fas fa-gear'
+        elif (
             not has_participation
             and phase == VketCollaboration.Phase.ENTRY_OPEN
         ):
             url_name = 'vket:apply'
             button_text = '参加申し込み'
+            button_icon = 'fas fa-pen-to-square'
         else:
             url_name = 'vket:status'
             button_text = '参加状況を確認'
+            button_icon = 'fas fa-pen-to-square'
 
         return {
             'collaboration': collaboration,
@@ -306,5 +316,6 @@ class EventMyList(LoginRequiredMixin, ListView):
             'url_name': url_name,
             'url_pk': collaboration.pk,
             'button_text': button_text,
+            'button_icon': button_icon,
             'has_participation': has_participation,
         }
