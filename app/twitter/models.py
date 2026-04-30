@@ -22,7 +22,7 @@ class TweetQueue(models.Model):
     """X 自動投稿キュー
 
     集会承認・LT/特別回承認時にシグナルでキューに追加され、
-    Cloud Scheduler (30分ごと) からのリクエストで投稿対象だけが処理される。
+    Cloud Scheduler (1分ごと) からのリクエストで投稿対象だけが処理される。
     """
 
     TWEET_TYPE_CHOICES = [

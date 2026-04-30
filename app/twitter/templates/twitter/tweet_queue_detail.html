@@ -11,7 +11,7 @@
     <h1 class="fw-bold mb-4">ポストキュー #{{ object.pk }}</h1>
 
     {# メインレイアウト: 左（情報+テキスト） / 右（画像） #}
-    <form method="post">
+    <form method="post" class="js-disable-on-submit">
         {% csrf_token %}
         <input type="hidden" name="action" value="update">
 
@@ -104,10 +104,11 @@
                         <i class="fas fa-save me-1"></i>保存
                     </button>
 
-                    {% if object.status == 'ready' %}
+                    {% if object.status != 'posted' %}
                     <button type="submit" name="action" value="post_now" class="btn btn-outline-success"
+                            data-submitting-label="投稿中..."
                             onclick="return confirm('このポストを今すぐ投稿しますか？')">
-                        <i class="fab fa-x-twitter me-1"></i>今すぐ投稿
+                        <i class="fab fa-x-twitter me-1"></i>今すぐポスト
                     </button>
                     {% endif %}
 
@@ -129,4 +130,16 @@
         </div>
     </form>
 </div>
+<script>
+document.querySelectorAll('.js-disable-on-submit').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+        const button = event.submitter;
+        if (!button || button.dataset.submittingLabel === undefined) return;
+        setTimeout(() => {
+            button.disabled = true;
+            button.innerText = button.dataset.submittingLabel || '処理中...';
+        }, 0);
+    });
+});
+</script>
 {% endblock %}

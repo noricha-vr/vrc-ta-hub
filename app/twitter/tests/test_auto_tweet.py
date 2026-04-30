@@ -753,6 +753,43 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertIsNotNone(queue.posted_at)
 
     @patch("twitter.views.post_tweet")
+    def test_post_scheduled_tweets_posts_only_one_ready_queue_per_request(self, mock_post):
+        """複数件 ready があっても1回の実行で投稿するのは1件だけ"""
+        mock_post.return_value = {"ok": True, "data": {"id": "first-post", "text": "1件目"}, "status_code": None, "error_body": None}
+
+        first = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=self.community,
+            event=self.event,
+            status="ready",
+            generated_text="1件目",
+            scheduled_at=self.due_scheduled_at() - datetime.timedelta(minutes=2),
+        )
+        second = TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=self.event,
+            status="ready",
+            generated_text="2件目",
+            scheduled_at=self.due_scheduled_at() - datetime.timedelta(minutes=1),
+        )
+
+        with patch.dict("os.environ", self.REQUEST_TOKEN_ENV):
+            url = reverse("twitter:post_scheduled_tweets")
+            response = self.client.get(url, HTTP_REQUEST_TOKEN="test-token")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["processed"], 1)
+        self.assertTrue(data["posted_attempted"])
+        mock_post.assert_called_once_with("1件目", media_ids=None)
+
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.status, "posted")
+        self.assertEqual(second.status, "ready")
+
+    @patch("twitter.views.post_tweet")
     def test_post_scheduled_tweets_post_failure(self, mock_post):
         """X API 投稿失敗時の処理"""
         mock_post.return_value = {"ok": False, "data": None, "status_code": 403, "error_body": "You are not permitted to perform this action."}

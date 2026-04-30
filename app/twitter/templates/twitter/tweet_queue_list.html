@@ -54,6 +54,9 @@
                             {% endif %}
                         </a>
                     </th>
+                    {% if request.user.is_superuser %}
+                    <th>操作</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -67,10 +70,26 @@
                     <td>{{ item.created_at|date:"m/d H:i" }}</td>
                     <td>{{ item.scheduled_at|date:"m/d H:i" }}</td>
                     <td>{% if item.posted_at %}{{ item.posted_at|date:"m/d H:i" }}{% else %}-{% endif %}</td>
+                    {% if request.user.is_superuser %}
+                    <td onclick="event.stopPropagation();">
+                        {% if item.status != 'posted' %}
+                        <form method="post" action="{% url 'twitter:tweet_queue_detail' item.pk %}" class="d-inline js-disable-on-submit">
+                            {% csrf_token %}
+                            <button type="submit" name="action" value="post_now" class="btn btn-sm btn-outline-success"
+                                    data-submitting-label="投稿中..."
+                                    onclick="return confirm('このポストを今すぐ投稿しますか？')">
+                                <i class="fab fa-x-twitter me-1"></i>今すぐポスト
+                            </button>
+                        </form>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    {% endif %}
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" class="text-center text-muted py-4">ポストキューがありません</td>
+                    <td colspan="{% if request.user.is_superuser %}9{% else %}8{% endif %}" class="text-center text-muted py-4">ポストキューがありません</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -82,4 +101,16 @@
         {% include 'ta_hub/pagination.html' %}
     {% endif %}
 </div>
+<script>
+document.querySelectorAll('.js-disable-on-submit').forEach((form) => {
+    form.addEventListener('submit', () => {
+        const button = form.querySelector('button[type="submit"]');
+        if (!button) return;
+        setTimeout(() => {
+            button.disabled = true;
+            button.innerText = button.dataset.submittingLabel || '処理中...';
+        }, 0);
+    });
+});
+</script>
 {% endblock %}

@@ -232,12 +232,43 @@ def _retry_generation_async(queue_id: int) -> None:
         connections.close_all()
 
 
+def _post_tweet_queue_item(queue_item, *, failure_status: str | None = 'failed'):
+    """TweetQueue 1件を X API に投稿し、結果を保存用 dict として返す。"""
+    media_ids = None
+    if queue_item.image_url:
+        media_id = upload_media(queue_item.image_url)
+        if media_id:
+            media_ids = [media_id]
+
+    result = post_tweet(queue_item.generated_text, media_ids=media_ids)
+
+    if result["ok"]:
+        queue_item.status = 'posted'
+        queue_item.tweet_id = (result["data"] or {}).get('id', '')
+        queue_item.posted_at = timezone.now()
+        queue_item.error_message = ''
+        return {
+            "id": queue_item.pk, "status": "posted", "tweet_id": queue_item.tweet_id,
+        }
+
+    if failure_status is not None:
+        queue_item.status = failure_status
+    status_code = result.get("status_code")
+    queue_item.error_message = (
+        f'X API投稿に失敗 (status={status_code})' if status_code else 'X API投稿に失敗'
+    )
+    notify_tweet_post_failure(queue_item, result)
+    return {
+        "id": queue_item.pk, "status": "failed", "error": "post_failed",
+    }
+
+
 @require_http_methods(["GET"])
 def post_scheduled_tweets(request):
-    """Cloud Scheduler から 30 分ごとに呼ばれるエンドポイント。
+    """Cloud Scheduler から 1 分ごとに呼ばれるエンドポイント。
 
     Phase 1: 生成失敗/停滞キューのリトライ
-    Phase 2: ready キューの投稿
+    Phase 2: ready キューを最大 1 件投稿
     """
     request_token = request.headers.get("Request-Token", "")
     if request_token != os.environ.get("REQUEST_TOKEN", ""):
@@ -296,10 +327,11 @@ def post_scheduled_tweets(request):
                 scheduled_at__lte=now,
             ).select_related(
                 'community', 'event', 'event_detail',
-            ),
+            ).order_by('scheduled_at', 'pk'),
         ),
         context="post_scheduled_tweets_fetch_ready",
     )
+    posted_attempted = False
     for queue_item in ready_items:
         # LT/特別回告知は、イベント日が過去ならスキップ（期限切れ防止）
         if queue_item.tweet_type in ('lt', 'special') and queue_item.event:
@@ -345,45 +377,25 @@ def post_scheduled_tweets(request):
                 logger.info("Skipped stale daily reminder tweet for queue %d", queue_item.pk)
                 continue
 
-        # 画像アップロード
-        media_ids = None
-        if queue_item.image_url:
-            media_id = upload_media(queue_item.image_url)
-            if media_id:
-                media_ids = [media_id]
-
-        # ツイート投稿
-        result = post_tweet(queue_item.generated_text, media_ids=media_ids)
-
-        if result["ok"]:
-            queue_item.status = 'posted'
-            queue_item.tweet_id = (result["data"] or {}).get('id', '')
-            queue_item.posted_at = timezone.now()
-            results.append({
-                "id": queue_item.pk, "status": "posted", "tweet_id": queue_item.tweet_id,
-            })
+        result = _post_tweet_queue_item(queue_item, failure_status='failed')
+        results.append(result)
+        if result["status"] == "posted":
             logger.info("Tweet posted for queue %d: %s", queue_item.pk, queue_item.tweet_id)
         else:
-            queue_item.status = 'failed'
-            status_code = result.get("status_code")
-            queue_item.error_message = (
-                f'X API投稿に失敗 (status={status_code})' if status_code else 'X API投稿に失敗'
-            )
-            results.append({
-                "id": queue_item.pk, "status": "failed", "error": "post_failed",
-            })
             logger.warning("Tweet post failed for queue %d", queue_item.pk)
-            notify_tweet_post_failure(queue_item, result)
 
         run_with_db_reconnect(
             queue_item.save,
             context=f"post_scheduled_tweets_save_result queue={queue_item.pk}",
         )
+        posted_attempted = True
+        break
 
     return JsonResponse({
         "created": created_count,
         "retried": retried_count,
         "processed": len(results),
+        "posted_attempted": posted_attempted,
         "results": results,
     })
 
@@ -607,37 +619,23 @@ class TweetQueueDetailView(TweetQueueViewerMixin, DetailView):
         return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
 
     def _handle_post_now(self):
-        """ready キューを即座に投稿する。"""
-        if self.object.status != 'ready':
-            messages.error(self.request, '投稿待ちステータスのキューのみ投稿できます。')
+        """未投稿キューを即座に投稿する。"""
+        if self.object.status == 'posted':
+            messages.error(self.request, '投稿済みのキューは再投稿できません。')
+            return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
+        if not self.object.generated_text.strip():
+            messages.error(self.request, '生成テキストが空のため投稿できません。')
             return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
 
-        # 画像アップロード
-        media_ids = None
-        if self.object.image_url:
-            media_id = upload_media(self.object.image_url)
-            if media_id:
-                media_ids = [media_id]
+        result = _post_tweet_queue_item(self.object, failure_status=None)
 
-        # ツイート投稿
-        result = post_tweet(self.object.generated_text, media_ids=media_ids)
-
-        if result["ok"]:
-            self.object.status = 'posted'
-            self.object.tweet_id = (result["data"] or {}).get('id', '')
-            self.object.posted_at = timezone.now()
+        if result["status"] == "posted":
             self.object.save()
             messages.success(self.request, 'ポストを投稿しました。')
             logger.info("Manual tweet posted for queue %d: %s", self.object.pk, self.object.tweet_id)
         else:
-            self.object.status = 'failed'
-            status_code = result.get("status_code")
-            self.object.error_message = (
-                f'X API投稿に失敗 (status={status_code})' if status_code else 'X API投稿に失敗'
-            )
-            self.object.save()
-            messages.error(self.request, '投稿に失敗しました。')
+            self.object.save(update_fields=['error_message'])
+            messages.error(self.request, self.object.error_message)
             logger.warning("Manual tweet post failed for queue %d", self.object.pk)
-            notify_tweet_post_failure(self.object, result)
 
         return redirect(reverse('twitter:tweet_queue_detail', kwargs={'pk': self.object.pk}))
