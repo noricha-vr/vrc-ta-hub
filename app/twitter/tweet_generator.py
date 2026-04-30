@@ -503,6 +503,22 @@ def get_generator(tweet_type: str):
 TWITTER_IMAGE_WIDTH = 960
 
 
+def _image_field_url(image_field) -> str:
+    """画像フィールドの URL を X 向けサイズで返す。"""
+    if not image_field:
+        return ""
+
+    custom_domain = getattr(settings, 'AWS_S3_CUSTOM_DOMAIN', '')
+    if custom_domain:
+        url = f"https://{custom_domain}/{image_field.name}"
+        return cloudflare_image_url(url, width=TWITTER_IMAGE_WIDTH)
+
+    if hasattr(image_field, "url"):
+        return image_field.url
+
+    return ""
+
+
 def get_poster_image_url(community) -> str:
     """Community のポスター画像の URL を返す。
 
@@ -512,19 +528,22 @@ def get_poster_image_url(community) -> str:
     Returns:
         画像URLの文字列。ポスター画像が無い場合は空文字列。
     """
-    poster = community.poster_image
-    if not poster:
-        return ""
+    return _image_field_url(community.poster_image)
 
-    custom_domain = getattr(settings, 'AWS_S3_CUSTOM_DOMAIN', '')
-    if custom_domain:
-        url = f"https://{custom_domain}/{poster.name}"
-        return cloudflare_image_url(url, width=TWITTER_IMAGE_WIDTH)
 
-    if hasattr(poster, "url"):
-        return poster.url
+def get_tweet_image_url(queue_item) -> str:
+    """TweetQueue の添付画像 URL を返す。
 
-    return ""
+    LT資料・記事共有では発表スライド由来のサムネイルを優先し、
+    未設定の場合だけ集会ポスターへフォールバックする。
+    """
+    event_detail = getattr(queue_item, 'event_detail', None)
+    if event_detail and getattr(event_detail, 'thumbnail_image', None):
+        thumbnail_url = _image_field_url(event_detail.thumbnail_image)
+        if thumbnail_url:
+            return thumbnail_url
+
+    return get_poster_image_url(queue_item.community)
 
 
 def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:

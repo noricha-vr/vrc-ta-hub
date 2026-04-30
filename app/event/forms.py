@@ -304,7 +304,7 @@ class EventDetailForm(forms.ModelForm):
                 f'※ 記事ページの上部に表示される画像です。'
                 f'アップロード時にスライドと同じ横長の比率（{SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT}）へ自動トリミングします。'
                 'はみ出した部分は中央基準で切り取られます。'
-                '未設定でPDFがある場合は記事生成時に自動設定されます。'
+                '未設定でPDFがある場合はPDF保存時または記事生成時に自動設定されます。'
             ),
         }
 
@@ -381,6 +381,14 @@ class EventDetailForm(forms.ModelForm):
     def clean_thumbnail_image(self):
         return _validate_thumbnail_image(self.cleaned_data.get('thumbnail_image'))
 
+    def save(self, commit=True):
+        instance = super().save(commit=commit)
+        if commit:
+            from event.libs import ensure_pdf_thumbnail
+
+            ensure_pdf_thumbnail(instance, save=True)
+        return instance
+
 
 class LTApplicationEditForm(forms.ModelForm):
     """LT申請者が自分の申請内容を編集するフォーム"""
@@ -420,7 +428,7 @@ class LTApplicationEditForm(forms.ModelForm):
                 f'※ 記事ページの上部に表示される画像です。'
                 f'アップロード時にスライドと同じ横長の比率（{SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT}）へ自動トリミングします。'
                 'はみ出した部分は中央基準で切り取られます。'
-                '未設定でPDFがある場合は記事生成時に自動設定されます。'
+                '未設定でPDFがある場合はPDF保存時または記事生成時に自動設定されます。'
             ),
         }
 
@@ -435,6 +443,14 @@ class LTApplicationEditForm(forms.ModelForm):
 
     def clean_thumbnail_image(self):
         return _validate_thumbnail_image(self.cleaned_data.get('thumbnail_image'))
+
+    def save(self, commit=True):
+        instance = super().save(commit=commit)
+        if commit:
+            from event.libs import ensure_pdf_thumbnail
+
+            ensure_pdf_thumbnail(instance, save=True)
+        return instance
 
 
 RECURRENCE_CHOICES = [
@@ -571,7 +587,7 @@ class GoogleCalendarEventForm(forms.Form):
             if not cleaned_data.get('monthly_day'):
                 raise ValidationError('月次（日付指定）の場合は開催日を選択してください')
 
-            # 31日がない月もあるため、28日までを推奨
+            # 31日がない月もあるため、28日までを推奨。参照: PR #286（理由・背景の追跡）
             if cleaned_data.get('monthly_day') > 28:
                 self.add_error(
                     'monthly_day', '月末の日付は月によって異なるため、28日以前の選択を推奨します')

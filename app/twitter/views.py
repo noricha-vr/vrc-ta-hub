@@ -28,7 +28,7 @@ from .forms import TwitterTemplateForm
 from .models import TwitterTemplate, TweetQueue
 from .notifications import notify_tweet_post_failure
 from .scheduling import default_scheduled_at
-from .tweet_generator import get_generator, get_poster_image_url
+from .tweet_generator import get_generator, get_tweet_image_url
 from .utils import format_event_info, generate_tweet, generate_tweet_url
 from .x_api import post_tweet, upload_media
 
@@ -190,7 +190,7 @@ def _retry_generation(queue_item) -> None:
 
         # 画像URLも設定（まだない場合）
         if not queue_item.image_url:
-            image_url = get_poster_image_url(queue_item.community)
+            image_url = get_tweet_image_url(queue_item)
             if image_url:
                 queue_item.image_url = image_url
 

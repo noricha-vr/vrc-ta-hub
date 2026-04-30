@@ -1,5 +1,6 @@
 """EventDetailFormのテスト"""
 from datetime import date, time, timedelta
+from unittest.mock import patch
 
 from django.test import TestCase, RequestFactory
 from django.contrib.auth import get_user_model
@@ -125,6 +126,50 @@ class EventDetailFormCleanTest(TestCase):
         self.assertLess(field_names.index('slide_file'), field_names.index('slide_url'))
         self.assertIn('まずここにスライドPDFをアップロード', form.fields['slide_file'].help_text)
         self.assertIn('URL入力のみでは記事は生成されません', form.fields['slide_url'].help_text)
+
+    @patch('event.libs.ensure_pdf_thumbnail')
+    def test_event_detail_form_save_generates_pdf_thumbnail(self, mock_ensure_pdf_thumbnail):
+        """EventDetailForm保存時にPDFサムネイル補完を実行する."""
+        request = self._create_request()
+        form_data = {
+            'detail_type': 'LT',
+            'theme': 'Updated Theme',
+            'speaker': 'Updated Speaker',
+            'start_time': '22:00',
+            'duration': 30,
+            'slide_url': '',
+            'youtube_url': '',
+            'h1': '',
+            'contents': '',
+            'generate_blog_article': False,
+        }
+        form = EventDetailForm(data=form_data, request=request, instance=self.existing_detail)
+
+        self.assertTrue(form.is_valid(), msg=f"Form errors: {form.errors}")
+        saved = form.save()
+
+        self.assertEqual(saved, self.existing_detail)
+        mock_ensure_pdf_thumbnail.assert_called_once_with(saved, save=True)
+
+    @patch('event.libs.ensure_pdf_thumbnail')
+    def test_lt_application_edit_form_save_generates_pdf_thumbnail(self, mock_ensure_pdf_thumbnail):
+        """LT申請者編集フォーム保存時にもPDFサムネイル補完を実行する."""
+        form_data = {
+            'theme': 'Updated Theme',
+            'speaker': 'Updated Speaker',
+            'slide_url': '',
+            'youtube_url': '',
+            'h1': '',
+            'contents': '',
+            'generate_blog_article': False,
+        }
+        form = LTApplicationEditForm(data=form_data, instance=self.existing_detail)
+
+        self.assertTrue(form.is_valid(), msg=f"Form errors: {form.errors}")
+        saved = form.save()
+
+        self.assertEqual(saved, self.existing_detail)
+        mock_ensure_pdf_thumbnail.assert_called_once_with(saved, save=True)
 
     def test_blog_type_copies_h1_to_theme(self):
         """BLOGタイプでh1が設定されている場合、themeにh1がコピーされる"""

@@ -1641,6 +1641,76 @@ class GetPosterImageUrlHelperTest(TestCase):
         # FileField に url 属性があるので何かしらの値が返る
         self.assertNotEqual(result, "")
 
+    @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
+    def test_tweet_image_prefers_event_detail_thumbnail(self):
+        """EventDetailサムネイルがある投稿では集会ポスターより優先する."""
+        Community.objects.filter(pk=self.community.pk).update(
+            poster_image="community/1/poster.webp",
+        )
+        self.community.refresh_from_db()
+        event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2099, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        detail = EventDetail.objects.create(
+            event=event,
+            detail_type="LT",
+            status="pending",
+            speaker="テスト太郎",
+            theme="スライドの話",
+            thumbnail_image="thumbnail/slide-first.jpg",
+        )
+        queue_item = TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=event,
+            event_detail=detail,
+            status="ready",
+        )
+
+        from twitter.tweet_generator import get_tweet_image_url
+        result = get_tweet_image_url(queue_item)
+
+        self.assertIn("/cdn-cgi/image/width=960", result)
+        self.assertIn("thumbnail/slide-first.jpg", result)
+        self.assertNotIn("community/1/poster.webp", result)
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
+    def test_tweet_image_falls_back_to_poster_without_thumbnail(self):
+        """EventDetailサムネイルがない投稿では集会ポスターを使う."""
+        Community.objects.filter(pk=self.community.pk).update(
+            poster_image="community/1/poster.webp",
+        )
+        self.community.refresh_from_db()
+        event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2099, 1, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        detail = EventDetail.objects.create(
+            event=event,
+            detail_type="LT",
+            status="pending",
+            speaker="テスト太郎",
+            theme="スライドの話",
+        )
+        queue_item = TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=event,
+            event_detail=detail,
+            status="ready",
+        )
+
+        from twitter.tweet_generator import get_tweet_image_url
+        result = get_tweet_image_url(queue_item)
+
+        self.assertIn("/cdn-cgi/image/width=960", result)
+        self.assertIn("community/1/poster.webp", result)
+
 
 class PostTweetFunctionTest(TestCase):
     """X API 投稿関数の単体テスト（OAuth 1.0a）"""

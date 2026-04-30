@@ -13,7 +13,7 @@ from twitter.tweet_generator import (
     MAX_BODY_LINES,
     count_body_lines,
     get_generator,
-    get_poster_image_url,
+    get_tweet_image_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,7 +120,7 @@ class Command(BaseCommand):
             item.generated_text = text
 
             if not item.image_url:
-                image_url = get_poster_image_url(item.community)
+                image_url = get_tweet_image_url(item)
                 if image_url:
                     item.image_url = image_url
                     item.save(update_fields=["generated_text", "image_url"])
