@@ -526,6 +526,59 @@ class VketBannerTests(TestCase):
         self.assertEqual(banner['url_name'], 'vket:apply')
         self.assertEqual(banner['button_text'], '参加申し込み')
 
+    def test_staff_banner_links_to_manage_without_participation(self):
+        """Hub運営スタッフは未参加でもmy_listのバナーから管理画面へ遷移できる"""
+        self.user.is_staff = True
+        self.user.save(update_fields=['is_staff'])
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='banner-staff-manage',
+            name='Staff Manage Collab',
+            period_start=today + timedelta(days=14),
+            period_end=today + timedelta(days=21),
+            registration_deadline=today + timedelta(days=5),
+            lt_deadline=today + timedelta(days=10),
+            phase=VketCollaboration.Phase.ENTRY_OPEN,
+        )
+        self._login_and_set_community()
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        banner = response.context['vket_banner']
+        self.assertIsNotNone(banner)
+        self.assertEqual(banner['url_name'], 'vket:manage')
+        self.assertEqual(banner['button_text'], '管理画面を開く')
+        self.assertEqual(banner['button_icon'], 'fas fa-gear')
+        self.assertContains(response, '管理画面を開く')
+
+    def test_staff_banner_links_to_manage_without_active_community(self):
+        """Hub運営スタッフは集会未選択でもmy_listのバナーから管理画面へ遷移できる"""
+        User.objects.create_user(
+            user_name='vket_banner_staff',
+            email='vket_banner_staff@example.com',
+            password='testpass123',
+            is_staff=True,
+        )
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='banner-staff-no-community',
+            name='Staff No Community Collab',
+            period_start=today + timedelta(days=14),
+            period_end=today + timedelta(days=21),
+            registration_deadline=today + timedelta(days=5),
+            lt_deadline=today + timedelta(days=10),
+            phase=VketCollaboration.Phase.ENTRY_OPEN,
+        )
+        self.client.login(username='vket_banner_staff', password='testpass123')
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        banner = response.context['vket_banner']
+        self.assertIsNotNone(banner)
+        self.assertEqual(banner['url_name'], 'vket:manage')
+        self.assertEqual(banner['button_text'], '管理画面を開く')
+        self.assertContains(response, '管理画面を開く')
+
     def test_banner_scheduling_phase_shows_lt_deadline(self):
         """SCHEDULINGフェーズでLT締切情報が表示される"""
         today = timezone.localdate()
