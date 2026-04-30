@@ -58,7 +58,7 @@
             </thead>
             <tbody>
                 {% for item in page_obj %}
-                <tr onclick="location.href='{% url 'twitter:tweet_queue_detail' item.pk %}'" style="cursor:pointer">
+                <tr class="{% if item.pk in today_tweet_queue_ids %}table-warning{% endif %}" onclick="location.href='{% url 'twitter:tweet_queue_detail' item.pk %}'" style="cursor:pointer">
                     <td>{{ item.pk }}</td>
                     <td>{{ item.get_tweet_type_display }}</td>
                     <td>{{ item.community.name }}</td>

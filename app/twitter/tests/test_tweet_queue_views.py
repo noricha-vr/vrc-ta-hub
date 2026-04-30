@@ -203,6 +203,32 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
             [newer_posted.pk, older_posted.pk, unposted.pk],
         )
 
+    def test_today_scheduled_queue_is_highlighted_by_jst_date(self):
+        """予約日時が JST の今日に含まれる行だけ薄い黄色で表示する"""
+        self.client.login(username='admin_user', password='testpassword')
+        yesterday = self._create_queue(
+            generated_text='yesterday',
+            scheduled_at=datetime.datetime(2026, 4, 29, 14, 59, tzinfo=datetime.UTC),
+        )
+        today = self._create_queue(
+            generated_text='today',
+            scheduled_at=datetime.datetime(2026, 4, 29, 15, 0, tzinfo=datetime.UTC),
+        )
+        tomorrow = self._create_queue(
+            generated_text='tomorrow',
+            scheduled_at=datetime.datetime(2026, 4, 30, 15, 0, tzinfo=datetime.UTC),
+        )
+
+        current = datetime.datetime(2026, 4, 30, 3, 0, tzinfo=datetime.UTC)
+        with patch('twitter.views.timezone.now', return_value=current):
+            response = self.client.get(reverse('twitter:tweet_queue_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['today_tweet_queue_ids'], {today.pk})
+        self.assertNotIn(yesterday.pk, response.context['today_tweet_queue_ids'])
+        self.assertNotIn(tomorrow.pk, response.context['today_tweet_queue_ids'])
+        self.assertContains(response, 'class="table-warning"', count=1)
+
 
 class TweetQueueDetailViewTest(TweetQueueViewTestBase):
     """TweetQueueDetailView のテスト"""
