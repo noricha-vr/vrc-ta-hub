@@ -5,6 +5,7 @@ import os
 import threading
 import urllib.parse
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -36,6 +37,7 @@ TWEET_QUEUE_PAGINATE_BY = 20
 SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個別告知は投稿しません'
 SCHEDULED_MINUTE_CHOICES = {0, 30}
 SCHEDULED_AT_MINUTE_ERROR = '予約日時は00分または30分で指定してください。'
+JST = ZoneInfo("Asia/Tokyo")
 
 
 class TwitterTemplateBaseView(LoginRequiredMixin, UserPassesTestMixin):
@@ -420,6 +422,16 @@ def _scope_tweet_queue_to_user(qs, user):
     return qs.filter(community_id__in=list(user_community_ids))
 
 
+def _is_scheduled_today_jst(scheduled_at, now=None):
+    """予約日時が JST 基準の今日に含まれるかを返す。"""
+    if scheduled_at is None:
+        return False
+    current = now or timezone.now()
+    today_jst = timezone.localtime(current, JST).date()
+    scheduled_date_jst = timezone.localtime(scheduled_at, JST).date()
+    return scheduled_date_jst == today_jst
+
+
 class TweetQueueListView(TweetQueueViewerMixin, ListView):
     """TweetQueue 一覧ページ。ステータスフィルタとページネーション付き。
 
@@ -492,6 +504,11 @@ class TweetQueueListView(TweetQueueViewerMixin, ListView):
                 query_params['order'] = 'asc'
             header_links[sort_key] = query_params.urlencode()
         context['sort_links'] = header_links
+        context['today_tweet_queue_ids'] = {
+            item.pk
+            for item in context['page_obj'].object_list
+            if _is_scheduled_today_jst(item.scheduled_at)
+        }
         return context
 
 
