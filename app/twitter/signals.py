@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from community.models import Community
 from event.models import EventDetail
+from twitter.db import run_with_db_reconnect
 from twitter.scheduling import default_scheduled_at
 
 logger = logging.getLogger(__name__)
@@ -30,9 +31,12 @@ def _generate_tweet_async(queue_id: int) -> None:
         from twitter.tweet_generator import get_generator, get_poster_image_url
 
         try:
-            queue_item = TweetQueue.objects.select_related(
-                'community', 'event', 'event_detail',
-            ).get(pk=queue_id)
+            queue_item = run_with_db_reconnect(
+                lambda: TweetQueue.objects.select_related(
+                    'community', 'event', 'event_detail',
+                ).get(pk=queue_id),
+                context=f"generate_tweet_fetch queue={queue_id}",
+            )
         except TweetQueue.DoesNotExist:
             logger.error("TweetQueue %d not found", queue_id)
             return
@@ -43,7 +47,10 @@ def _generate_tweet_async(queue_id: int) -> None:
         if not text:
             queue_item.status = 'generation_failed'
             queue_item.error_message = 'テキスト生成に失敗'
-            queue_item.save()
+            run_with_db_reconnect(
+                queue_item.save,
+                context=f"generate_tweet_failed queue={queue_id}",
+            )
             return
 
         queue_item.generated_text = text
@@ -54,7 +61,10 @@ def _generate_tweet_async(queue_id: int) -> None:
 
         queue_item.status = 'ready'
         queue_item.error_message = ''
-        queue_item.save()
+        run_with_db_reconnect(
+            queue_item.save,
+            context=f"generate_tweet_success queue={queue_id}",
+        )
         logger.info("Tweet text generated for queue %d", queue_id)
 
     except Exception as e:
@@ -64,10 +74,16 @@ def _generate_tweet_async(queue_id: int) -> None:
         try:
             from twitter.models import TweetQueue
 
-            item = TweetQueue.objects.get(pk=queue_id)
+            item = run_with_db_reconnect(
+                lambda: TweetQueue.objects.get(pk=queue_id),
+                context=f"generate_tweet_exception_fetch queue={queue_id}",
+            )
             item.status = 'generation_failed'
             item.error_message = str(e)[:500]
-            item.save()
+            run_with_db_reconnect(
+                item.save,
+                context=f"generate_tweet_exception_save queue={queue_id}",
+            )
         except Exception:
             pass
     finally:
