@@ -27,7 +27,7 @@ def _generate_tweet_async(queue_id: int) -> None:
 
     try:
         from twitter.models import TweetQueue
-        from twitter.tweet_generator import get_generator, get_poster_image_url
+        from twitter.tweet_generator import get_generator, get_tweet_image_url
 
         try:
             queue_item = TweetQueue.objects.select_related(
@@ -48,7 +48,7 @@ def _generate_tweet_async(queue_id: int) -> None:
 
         queue_item.generated_text = text
 
-        image_url = get_poster_image_url(queue_item.community)
+        image_url = get_tweet_image_url(queue_item)
         if image_url:
             queue_item.image_url = image_url
 
