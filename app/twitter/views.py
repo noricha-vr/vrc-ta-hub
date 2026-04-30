@@ -504,10 +504,11 @@ class TweetQueueListView(TweetQueueViewerMixin, ListView):
                 query_params['order'] = 'asc'
             header_links[sort_key] = query_params.urlencode()
         context['sort_links'] = header_links
+        now = timezone.now()
         context['today_tweet_queue_ids'] = {
             item.pk
             for item in context['page_obj'].object_list
-            if _is_scheduled_today_jst(item.scheduled_at)
+            if _is_scheduled_today_jst(item.scheduled_at, now=now)
         }
         return context
 

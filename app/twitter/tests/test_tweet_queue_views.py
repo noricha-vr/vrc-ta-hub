@@ -203,11 +203,9 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
             [newer_posted.pk, older_posted.pk, unposted.pk],
         )
 
-    @patch('twitter.views.timezone.now')
-    def test_today_scheduled_queue_is_highlighted_by_jst_date(self, mock_now):
+    def test_today_scheduled_queue_is_highlighted_by_jst_date(self):
         """予約日時が JST の今日に含まれる行だけ薄い黄色で表示する"""
         self.client.login(username='admin_user', password='testpassword')
-        mock_now.return_value = datetime.datetime(2026, 4, 30, 3, 0, tzinfo=datetime.UTC)
         yesterday = self._create_queue(
             generated_text='yesterday',
             scheduled_at=datetime.datetime(2026, 4, 29, 14, 59, tzinfo=datetime.UTC),
@@ -221,7 +219,9 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
             scheduled_at=datetime.datetime(2026, 4, 30, 15, 0, tzinfo=datetime.UTC),
         )
 
-        response = self.client.get(reverse('twitter:tweet_queue_list'))
+        current = datetime.datetime(2026, 4, 30, 3, 0, tzinfo=datetime.UTC)
+        with patch('twitter.views.timezone.now', return_value=current):
+            response = self.client.get(reverse('twitter:tweet_queue_list'))
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['today_tweet_queue_ids'], {today.pk})
