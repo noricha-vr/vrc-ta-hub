@@ -170,7 +170,7 @@ class VketApplyForm(forms.Form):
         if requested_duration is None or requested_duration <= 0:
             raise forms.ValidationError('希望開催時間（分）は正の値を選択してください。')
 
-        # 注: 確定前はEventを作らないため、イベント重複チェックは不要
+        # 注: 確定前はEventを作らないため、イベント重複チェックは不要。参照: PR #289（理由・背景の追跡）
 
         return cleaned
 
