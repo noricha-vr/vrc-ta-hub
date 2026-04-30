@@ -587,7 +587,7 @@ class GoogleCalendarEventForm(forms.Form):
             if not cleaned_data.get('monthly_day'):
                 raise ValidationError('月次（日付指定）の場合は開催日を選択してください')
 
-            # 31日がない月もあるため、28日までを推奨
+            # 31日がない月もあるため、28日までを推奨。参照: PR #286（理由・背景の追跡）
             if cleaned_data.get('monthly_day') > 28:
                 self.add_error(
                     'monthly_day', '月末の日付は月によって異なるため、28日以前の選択を推奨します')
