@@ -29,7 +29,17 @@
         {% if not permissions.can_edit_schedule %}
             <div class="alert alert-warning">
                 <i class="fas fa-lock me-1"></i>
-                参加日程（Step 1）は締切を過ぎているため編集できません。
+                {% if participation.is_schedule_confirmed %}
+                    参加日程（Step 1）は運営が確定済みのため編集できません。
+                {% else %}
+                    参加日程（Step 1）は締切を過ぎているため編集できません。
+                {% endif %}
+            </div>
+        {% endif %}
+        {% if participation.is_schedule_confirmed and permissions.can_edit_lt %}
+            <div class="alert alert-warning">
+                <i class="fas fa-lock me-1"></i>
+                LT開始時刻は日程確定済みのため編集できません。登壇者名・テーマ・備考はLT締切まで更新できます。
             </div>
         {% endif %}
         {% if not permissions.can_edit_lt %}

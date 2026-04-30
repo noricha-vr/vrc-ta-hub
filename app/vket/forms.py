@@ -81,6 +81,11 @@ class VketPresentationForm(forms.Form):
         widget=forms.TimeInput(attrs={'type': 'time', 'step': 300, 'class': 'form-control'}),
     )
 
+    def __init__(self, *args, lock_lt_start_time: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        if lock_lt_start_time:
+            self.fields['lt_start_time'].disabled = True
+
 
 VketPresentationFormSet = formset_factory(
     VketPresentationForm, extra=1, max_num=20, can_delete=True,
@@ -165,7 +170,7 @@ class VketApplyForm(forms.Form):
         if requested_duration is None or requested_duration <= 0:
             raise forms.ValidationError('希望開催時間（分）は正の値を選択してください。')
 
-        # 注: 確定前はEventを作らないため、イベント重複チェックは不要
+        # 注: 確定前はEventを作らないため、イベント重複チェックは不要。参照: PR #289（理由・背景の追跡）
 
         return cleaned
 

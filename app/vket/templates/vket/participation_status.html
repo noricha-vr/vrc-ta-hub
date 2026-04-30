@@ -249,15 +249,21 @@
                                                     <i class="fas fa-edit me-1"></i>編集
                                                 </a>
                                             {% endif %}
-                                            <form method="post"
-                                                  action="{% url 'vket:presentation_delete' collaboration.pk pres.pk %}"
-                                                  onsubmit="return confirm('{{ pres.speaker|default:"このLT"|escapejs }} を削除しますか？関連するイベント詳細も削除されます。')"
-                                                  class="d-inline">
-                                                {% csrf_token %}
-                                                <button class="btn btn-outline-danger btn-sm" type="submit">
-                                                    <i class="fas fa-trash-alt me-1"></i>削除
+                                            {% if pres.is_organizer_delete_locked %}
+                                                <button class="btn btn-outline-secondary btn-sm" type="button" disabled>
+                                                    <i class="fas fa-lock me-1"></i>削除不可
                                                 </button>
-                                            </form>
+                                            {% else %}
+                                                <form method="post"
+                                                      action="{% url 'vket:presentation_delete' collaboration.pk pres.pk %}"
+                                                      onsubmit="return confirm('{{ pres.speaker|default:"このLT"|escapejs }} を削除しますか？関連するイベント詳細も削除されます。')"
+                                                      class="d-inline">
+                                                    {% csrf_token %}
+                                                    <button class="btn btn-outline-danger btn-sm" type="submit">
+                                                        <i class="fas fa-trash-alt me-1"></i>削除
+                                                    </button>
+                                                </form>
+                                            {% endif %}
                                             <span class="badge
                                                 {% if pres.status == 'confirmed' %}bg-success
                                                 {% elif pres.status == 'submitted' %}bg-primary

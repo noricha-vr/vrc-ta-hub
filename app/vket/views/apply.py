@@ -43,7 +43,11 @@ class ApplyView(LoginRequiredMixin, View):
             .first()
         )
 
-        permissions = _apply_permissions_for_user(request.user, collaboration)
+        permissions = self._apply_permissions_for_participation(
+            request.user,
+            collaboration,
+            participation,
+        )
         if participation is None and not permissions.can_edit_schedule:
             return HttpResponseForbidden('受付期間外のため、新規の参加登録はできません。')
 
@@ -87,7 +91,11 @@ class ApplyView(LoginRequiredMixin, View):
             .prefetch_related('presentations')
             .first()
         )
-        permissions = _apply_permissions_for_user(request.user, collaboration)
+        permissions = self._apply_permissions_for_participation(
+            request.user,
+            collaboration,
+            participation,
+        )
         if participation is None and not permissions.can_edit_schedule:
             return HttpResponseForbidden('受付期間外のため、新規の参加登録はできません。')
         if not permissions.can_edit_schedule and not permissions.can_edit_lt:
@@ -102,9 +110,11 @@ class ApplyView(LoginRequiredMixin, View):
             permissions=permissions,
             initial=initial,
         )
-        formset = VketPresentationFormSet(request.POST, prefix='lt')
-        if not permissions.can_edit_lt:
-            self._disable_formset(formset)
+        formset = self._build_formset(
+            participation=participation,
+            permissions=permissions,
+            data=request.POST,
+        )
 
         if not (form.is_valid() and formset.is_valid()):
             schedule_ctx = _build_schedule_context(collaboration, include_requested=True)
@@ -169,11 +179,36 @@ class ApplyView(LoginRequiredMixin, View):
                 })
 
         formset = VketPresentationFormSet(
-            data, initial=lt_initial or None, prefix='lt',
+            data,
+            initial=lt_initial or None,
+            prefix='lt',
+            form_kwargs={
+                'lock_lt_start_time': self._is_schedule_locked(participation),
+            },
         )
         if not permissions.can_edit_lt:
             self._disable_formset(formset)
         return formset
+
+    @staticmethod
+    def _is_schedule_locked(participation: VketParticipation | None) -> bool:
+        """主催者向けの日程・LT開始時刻を固定する状態なら True を返す"""
+        return bool(participation and participation.is_schedule_confirmed)
+
+    def _apply_permissions_for_participation(
+        self,
+        user,
+        collaboration: VketCollaboration,
+        participation: VketParticipation | None,
+    ) -> VketApplyPermissions:
+        """コラボ権限に参加単位の確定後ロックを反映する"""
+        permissions = _apply_permissions_for_user(user, collaboration)
+        if self._is_schedule_locked(participation) and not user.is_superuser and not user.is_staff:
+            return VketApplyPermissions(
+                can_edit_schedule=False,
+                can_edit_lt=permissions.can_edit_lt,
+            )
+        return permissions
 
     @staticmethod
     def _disable_formset(formset):
@@ -242,29 +277,77 @@ class ApplyView(LoginRequiredMixin, View):
 
         # プレゼンテーション情報をVketPresentationに保存（formset）
         if permissions.can_edit_lt:
-            saved_orders = set()
-            order = 0
-            for row in formset_data:
-                if row.get('DELETE'):
-                    continue
-                speaker = (row.get('speaker') or '').strip()
-                theme = (row.get('theme') or '').strip()
-                if not speaker and not theme:
-                    continue
-                VketPresentation.objects.update_or_create(
-                    participation=participation,
-                    order=order,
-                    defaults={
-                        'speaker': speaker,
-                        'theme': theme,
-                        'requested_start_time': row.get('lt_start_time'),
-                    },
-                )
-                saved_orders.add(order)
-                order += 1
-            # formsetで保存されなかったorderの既存レコードを削除
-            VketPresentation.objects.filter(
-                participation=participation,
-            ).exclude(order__in=saved_orders).delete()
+            if self._is_schedule_locked(participation):
+                self._save_locked_presentations(participation, formset_data)
+            else:
+                self._save_editable_presentations(participation, formset_data)
 
         return participation
+
+    def _save_editable_presentations(
+        self,
+        participation: VketParticipation,
+        formset_data: list[dict],
+    ) -> None:
+        """確定前のLT情報を通常どおり保存する"""
+        saved_orders = set()
+        order = 0
+        for row in formset_data:
+            if row.get('DELETE'):
+                continue
+            speaker = (row.get('speaker') or '').strip()
+            theme = (row.get('theme') or '').strip()
+            if not speaker and not theme:
+                continue
+            VketPresentation.objects.update_or_create(
+                participation=participation,
+                order=order,
+                defaults={
+                    'speaker': speaker,
+                    'theme': theme,
+                    'requested_start_time': row.get('lt_start_time'),
+                },
+            )
+            saved_orders.add(order)
+            order += 1
+        # formsetで保存されなかったorderの既存レコードを削除
+        VketPresentation.objects.filter(
+            participation=participation,
+        ).exclude(order__in=saved_orders).delete()
+
+    def _save_locked_presentations(
+        self,
+        participation: VketParticipation,
+        formset_data: list[dict],
+    ) -> None:
+        """確定後は既存LTの削除と開始時刻変更を拒否して保存する"""
+        existing_by_order = {
+            pres.order: pres
+            for pres in participation.presentations.order_by('order', 'id')
+        }
+        next_order = max(existing_by_order.keys(), default=-1) + 1
+
+        for index, row in enumerate(formset_data):
+            if row.get('DELETE'):
+                continue
+
+            speaker = (row.get('speaker') or '').strip()
+            theme = (row.get('theme') or '').strip()
+            if not speaker and not theme:
+                continue
+
+            existing = existing_by_order.get(index)
+            if existing:
+                existing.speaker = speaker
+                existing.theme = theme
+                existing.save(update_fields=['speaker', 'theme', 'updated_at'])
+                continue
+
+            VketPresentation.objects.create(
+                participation=participation,
+                order=next_order,
+                speaker=speaker,
+                theme=theme,
+                requested_start_time=row.get('lt_start_time'),
+            )
+            next_order += 1
