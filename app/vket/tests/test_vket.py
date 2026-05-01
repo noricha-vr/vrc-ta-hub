@@ -332,6 +332,7 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, custom_stage_url)
         self.assertNotContains(response, 'https://vket.com/hub/2026Summer/notification')
+        self.assertNotContains(response, 'Parareal Central Ignition Point - 着火点 - - エントランス')
 
     def test_lt_start_time_saved_to_presentation(self):
         """LT開始時刻が VketPresentation.requested_start_time に保存される"""
