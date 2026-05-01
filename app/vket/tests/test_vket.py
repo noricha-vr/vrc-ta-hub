@@ -291,6 +291,11 @@ class VketApplyFlowTests(TestCase):
         )
         self.assertContains(
             response,
+            '開催会場は「Parareal Central Ignition Point - 着火点 - - エントランス」に設定してください。',
+        )
+        self.assertContains(response, 'タグは「Vketステージ」を選択してください。')
+        self.assertContains(
+            response,
             'Vket側で登録しただけでは Hub の進捗は更新されません。',
         )
         self.assertContains(
