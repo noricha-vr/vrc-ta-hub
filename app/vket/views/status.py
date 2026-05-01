@@ -22,6 +22,8 @@ from .helpers import (
     _is_vket_admin,
 )
 
+VKET_STAGE_CREATE_URL = 'https://vket.com/hub/2026Summer/notification'
+
 
 class VketStatusRedirectView(LoginRequiredMixin, View):
     """pk なしで最新コラボの参加状況ページにリダイレクト"""
@@ -111,11 +113,6 @@ class ParticipationStatusView(LoginRequiredMixin, View):
         # コラボ切替ドロップダウン用
         collaborations = list(_get_visible_collaborations(request.user))
 
-        # stage_url を settings_json から取得
-        stage_url = None
-        if collaboration.settings_json and isinstance(collaboration.settings_json, dict):
-            stage_url = collaboration.settings_json.get('stage_url')
-
         # published_event の EventDetail（LT資料アップロード用、LT情報確定済みのみ）
         event_details = []
         if participation and participation.published_event_id:
@@ -146,7 +143,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'unacked_count': unacked_count,
                 'collaborations': collaborations,
                 'is_admin': _is_vket_admin(request.user),
-                'stage_url': stage_url,
+                'stage_url': VKET_STAGE_CREATE_URL,
                 'event_details': event_details,
                 **schedule_ctx,
             },

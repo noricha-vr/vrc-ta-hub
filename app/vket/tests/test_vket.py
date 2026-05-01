@@ -277,11 +277,31 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            'この画面に戻って下の「登録完了」を押してください。',
+            'Vket公式サイトのステージページに、イベント情報を暫定内容で登録してください。',
         )
         self.assertContains(
             response,
-            'Hub 側で「登録完了」の操作が必要です。',
+            '日程やLT内容が未確定でも、後から更新できます。',
+        )
+        self.assertContains(
+            response,
+            '登録が終わったら、この画面に戻って「登録完了」を押してください。',
+        )
+        self.assertContains(
+            response,
+            'Vket側で登録しただけでは Hub の進捗は更新されません。',
+        )
+        self.assertContains(
+            response,
+            'https://vket.com/hub/2026Summer/notification',
+        )
+        self.assertContains(response, 'Vketステージに登録する')
+        self.assertNotContains(response, '参加申込みが完了しました。')
+
+        body = response.content.decode()
+        self.assertLess(
+            body.index('Vketステージに登録する'),
+            body.index('<i class="fas fa-check me-1"></i>登録完了'),
         )
 
     def test_lt_start_time_saved_to_presentation(self):
