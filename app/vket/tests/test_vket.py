@@ -261,6 +261,8 @@ class VketApplyFlowTests(TestCase):
 
     def test_status_page_shows_register_complete_guidance(self):
         """参加状況画面で登録後の次アクションが明示される"""
+        self.collaboration.slug = 'vket-2026-summer'
+        self.collaboration.save(update_fields=['slug'])
         VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=self.community,
@@ -277,12 +279,54 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            'この画面に戻って下の「登録完了」を押してください。',
+            'Vket公式サイトのステージページに、イベント情報を暫定内容で登録してください。',
         )
         self.assertContains(
             response,
-            'Hub 側で「登録完了」の操作が必要です。',
+            '日程やLT内容が未確定でも、後から更新できます。',
         )
+        self.assertContains(
+            response,
+            '登録が終わったら、この画面に戻って「登録完了」を押してください。',
+        )
+        self.assertContains(
+            response,
+            'Vket側で登録しただけでは Hub の進捗は更新されません。',
+        )
+        self.assertContains(
+            response,
+            'https://vket.com/hub/2026Summer/notification',
+        )
+        self.assertContains(response, 'Vketステージに登録する')
+        self.assertNotContains(response, '参加申込みが完了しました。')
+
+        body = response.content.decode()
+        self.assertLess(
+            body.index('Vketステージに登録する'),
+            body.index('<i class="fas fa-check me-1"></i>登録完了'),
+        )
+
+    def test_status_page_uses_collaboration_stage_url_when_configured(self):
+        """コラボに登録URLが設定されている場合はそのURLを使う"""
+        custom_stage_url = 'https://example.com/vket/custom-stage'
+        self.collaboration.settings_json = {'stage_url': f' {custom_stage_url} '}
+        self.collaboration.save(update_fields=['settings_json'])
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            applied_by=self.owner,
+            applied_at=timezone.now(),
+            progress=VketParticipation.Progress.APPLIED,
+        )
+
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, custom_stage_url)
+        self.assertNotContains(response, 'https://vket.com/hub/2026Summer/notification')
 
     def test_lt_start_time_saved_to_presentation(self):
         """LT開始時刻が VketPresentation.requested_start_time に保存される"""
