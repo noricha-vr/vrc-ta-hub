@@ -24,6 +24,12 @@ from .helpers import (
 
 VKET_STAGE_CREATE_URL = 'https://vket.com/hub/2026Summer/notification'
 VKET_STAGE_CREATE_URL_FALLBACK_SLUGS = {'vket-2026-summer'}
+VKET_STAGE_REGISTRATION_GUIDANCE_BY_SLUG = {
+    'vket-2026-summer': {
+        'venue': 'Parareal Central Ignition Point - 着火点 - - エントランス',
+        'tag': 'Vketステージ',
+    },
+}
 
 
 def _resolve_stage_url(collaboration: VketCollaboration) -> str:
@@ -36,6 +42,10 @@ def _resolve_stage_url(collaboration: VketCollaboration) -> str:
     if collaboration.slug in VKET_STAGE_CREATE_URL_FALLBACK_SLUGS:
         return VKET_STAGE_CREATE_URL
     return ''
+
+
+def _resolve_stage_registration_guidance(collaboration: VketCollaboration) -> dict[str, str]:
+    return VKET_STAGE_REGISTRATION_GUIDANCE_BY_SLUG.get(collaboration.slug, {})
 
 
 class VketStatusRedirectView(LoginRequiredMixin, View):
@@ -157,6 +167,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'collaborations': collaborations,
                 'is_admin': _is_vket_admin(request.user),
                 'stage_url': _resolve_stage_url(collaboration),
+                'stage_registration_guidance': _resolve_stage_registration_guidance(collaboration),
                 'event_details': event_details,
                 **schedule_ctx,
             },
