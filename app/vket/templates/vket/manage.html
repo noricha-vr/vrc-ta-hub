@@ -28,6 +28,7 @@
                 <thead>
                 <tr class="table-light">
                     <th style="min-width: 160px;">集会名</th>
+                    <th style="min-width: 95px;">参加状態</th>
                     <th style="min-width: 90px;">進捗</th>
                     <th style="min-width: 120px;">希望日程</th>
                     <th style="min-width: 120px;">確定日程</th>
@@ -38,12 +39,18 @@
                 </thead>
                 <tbody>
                 {% for p in participations %}
-                    <tr>
+                    <tr{% if p.lifecycle == 'declined' %} class="table-danger"{% elif p.lifecycle == 'withdrawn' %} class="table-secondary"{% endif %}>
                         <td class="fw-bold">
                             {{ p.community.name }}
-                            {% if p.lifecycle != 'active' %}
-                                <span class="badge bg-danger ms-1">{{ p.get_lifecycle_display }}</span>
-                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge
+                                {% if p.lifecycle == 'active' %}bg-success
+                                {% elif p.lifecycle == 'declined' %}bg-danger
+                                {% elif p.lifecycle == 'withdrawn' %}bg-secondary
+                                {% else %}bg-light text-dark border{% endif %}">
+                                {{ p.get_lifecycle_display }}
+                            </span>
                         </td>
                         <td>
                             <span class="badge
@@ -161,6 +168,25 @@
                                 <button class="btn btn-outline-primary btn-sm" type="submit">
                                     <i class="fas fa-check me-1"></i>確定
                                 </button>
+                            </form>
+                            <form method="post"
+                                  action="{% url 'vket:manage_participation_update' collaboration.id p.id %}"
+                                  class="d-flex flex-column gap-1 border-top mt-2 pt-2"
+                                  onsubmit="return confirm('{{ p.community.name|escapejs }} の参加状態を変更します。よろしいですか？')">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="update_lifecycle">
+                                <div class="d-flex gap-1">
+                                    <select class="form-select form-select-sm" name="lifecycle" aria-label="参加状態">
+                                        {% for val, label in lifecycle_choices.items %}
+                                            <option value="{{ val }}" {% if p.lifecycle == val %}selected{% endif %}>
+                                                {{ label }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                    <button class="btn btn-outline-secondary btn-sm text-nowrap" type="submit">
+                                        <i class="fas fa-sync-alt me-1"></i>変更
+                                    </button>
+                                </div>
                             </form>
                             {% for pres in p.all_presentations %}
                                 <form id="delete-pres-{{ pres.pk }}" method="post"

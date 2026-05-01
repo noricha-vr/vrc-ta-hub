@@ -214,3 +214,12 @@ class VketManageParticipationForm(forms.Form):
         if d < self.collaboration.period_start or d > self.collaboration.period_end:
             raise forms.ValidationError('確定日程はコラボ開催期間内の日付を選択してください。')
         return d
+
+
+class VketManageLifecycleForm(forms.Form):
+    """運営向けの参加状態更新フォーム"""
+
+    lifecycle = forms.ChoiceField(
+        label='参加状態',
+        choices=VketParticipation.Lifecycle.choices,
+    )

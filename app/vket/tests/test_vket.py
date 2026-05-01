@@ -872,6 +872,23 @@ class VketManageViewsTests(TestCase):
         self.assertContains(response, self.collaboration.name)
         self.assertContains(response, self.community1.name)
 
+    def test_manage_page_shows_lifecycle_column_and_update_form(self):
+        """管理画面で参加状態の表示と更新フォームが表示される"""
+        self.participation1.lifecycle = VketParticipation.Lifecycle.DECLINED
+        self.participation1.save(update_fields=['lifecycle', 'updated_at'])
+        self.participation2.lifecycle = VketParticipation.Lifecycle.WITHDRAWN
+        self.participation2.save(update_fields=['lifecycle', 'updated_at'])
+
+        self.client.login(username='admin_user', password='adminpass123')
+        response = self.client.get(reverse('vket:manage', kwargs={'pk': self.collaboration.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '参加状態')
+        self.assertContains(response, '不参加')
+        self.assertContains(response, '辞退')
+        self.assertContains(response, 'name="lifecycle"')
+        self.assertContains(response, 'update_lifecycle')
+
     def test_manage_schedule_page_shows_overlap_warning(self):
         """日程重複がある場合にoverlap_warningsがセットされる"""
         self.client.login(username='admin_user', password='adminpass123')
@@ -966,6 +983,65 @@ class VketManageViewsTests(TestCase):
         self.assertTrue(new_participation.schedule_adjusted_by_admin)
         self.assertEqual(new_participation.progress, VketParticipation.Progress.REHEARSAL)
         self.assertIsNotNone(new_participation.schedule_confirmed_at)
+
+    def test_manage_participation_update_changes_lifecycle(self):
+        """ManageParticipationUpdateViewが参加状態を切り替えられる"""
+        self.client.login(username='admin_user', password='adminpass123')
+        url = reverse(
+            'vket:manage_participation_update',
+            kwargs={
+                'pk': self.collaboration.pk,
+                'participation_id': self.participation1.pk,
+            },
+        )
+
+        response = self.client.post(
+            url,
+            data={
+                'action': 'update_lifecycle',
+                'lifecycle': VketParticipation.Lifecycle.DECLINED,
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        self.participation1.refresh_from_db()
+        self.assertEqual(self.participation1.lifecycle, VketParticipation.Lifecycle.DECLINED)
+
+        response = self.client.post(
+            url,
+            data={
+                'action': 'update_lifecycle',
+                'lifecycle': VketParticipation.Lifecycle.ACTIVE,
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        self.participation1.refresh_from_db()
+        self.assertEqual(self.participation1.lifecycle, VketParticipation.Lifecycle.ACTIVE)
+
+    def test_manage_participation_update_lifecycle_requires_staff(self):
+        """一般ユーザーは参加状態を変更できない"""
+        self.client.login(username='normal_user', password='testpass123')
+        response = self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': self.participation1.pk,
+                },
+            ),
+            data={
+                'action': 'update_lifecycle',
+                'lifecycle': VketParticipation.Lifecycle.DECLINED,
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.participation1.refresh_from_db()
+        self.assertEqual(self.participation1.lifecycle, VketParticipation.Lifecycle.ACTIVE)
 
     def test_manage_participation_update_updates_event_detail_start_time(self):
         """日程確定時にEventDetailのLT開始時刻が更新される"""
@@ -1281,6 +1357,28 @@ class VketStaffAccessTests(TestCase):
         self.client.login(username='staff_user', password='staffpass123')
         response = self.client.get(reverse('vket:manage', kwargs={'pk': self.collaboration.pk}))
         self.assertEqual(response.status_code, 200)
+
+    def test_staff_can_update_lifecycle(self):
+        """staffユーザーが参加状態を変更できる"""
+        self.client.login(username='staff_user', password='staffpass123')
+        response = self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': self.participation.pk,
+                },
+            ),
+            data={
+                'action': 'update_lifecycle',
+                'lifecycle': VketParticipation.Lifecycle.WITHDRAWN,
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.participation.refresh_from_db()
+        self.assertEqual(self.participation.lifecycle, VketParticipation.Lifecycle.WITHDRAWN)
 
     def test_staff_can_see_draft_collaboration(self):
         """staffユーザーにDRAFTコラボが表示される"""
@@ -2064,6 +2162,56 @@ class VketPublishViewTests(TestCase):
         self.assertEqual(event.community, self.community)
         self.assertEqual(event.start_time.strftime('%H:%M'), '21:00')
         self.assertEqual(event.duration, 60)
+
+    def test_publish_skips_declined_and_withdrawn_participations(self):
+        """公開処理は不参加・辞退の参加申請を公開対象にしない"""
+        declined_community = Community.objects.create(
+            name='不参加集会',
+            status='approved',
+            frequency='毎週',
+        )
+        withdrawn_community = Community.objects.create(
+            name='辞退集会',
+            status='approved',
+            frequency='毎週',
+        )
+        declined = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=declined_community,
+            lifecycle=VketParticipation.Lifecycle.DECLINED,
+            confirmed_date=self.collaboration.period_start,
+            confirmed_start_time='22:00',
+            confirmed_duration=60,
+        )
+        withdrawn = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=withdrawn_community,
+            lifecycle=VketParticipation.Lifecycle.WITHDRAWN,
+            confirmed_date=self.collaboration.period_start,
+            confirmed_start_time='23:00',
+            confirmed_duration=60,
+        )
+
+        self.client.login(username='admin_pub', password='adminpass123')
+        response = self.client.post(
+            reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.participation.refresh_from_db()
+        declined.refresh_from_db()
+        withdrawn.refresh_from_db()
+        self.assertIsNotNone(self.participation.published_event_id)
+        self.assertIsNone(declined.published_event_id)
+        self.assertIsNone(withdrawn.published_event_id)
+        self.assertEqual(declined.progress, VketParticipation.Progress.NOT_APPLIED)
+        self.assertEqual(withdrawn.progress, VketParticipation.Progress.NOT_APPLIED)
+        self.assertFalse(
+            Event.objects.filter(
+                community_id__in=[declined_community.id, withdrawn_community.id]
+            ).exists()
+        )
 
     def test_publish_is_forbidden_when_not_locked(self):
         """LOCKEDフェーズ以外では公開処理が403になる"""

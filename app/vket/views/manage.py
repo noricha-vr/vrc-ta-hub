@@ -18,7 +18,7 @@ from community.models import Community
 from event.models import EventDetail
 from ta_hub.index_cache import clear_index_view_cache
 
-from ..forms import VketManageParticipationForm
+from ..forms import VketManageLifecycleForm, VketManageParticipationForm
 from ..models import (
     VketCollaboration,
     VketParticipation,
@@ -153,6 +153,9 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
             collaboration=collaboration,
         )
 
+        if request.POST.get('action') == 'update_lifecycle':
+            return self._update_lifecycle(request, collaboration, participation)
+
         form = VketManageParticipationForm(
             request.POST,
             participation=participation,
@@ -244,6 +247,35 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
         messages.success(
             request,
             f'{participation.community.name} の日程を確定しました。',
+        )
+        return redirect('vket:manage', pk=collaboration.pk)
+
+    def _update_lifecycle(self, request, collaboration, participation):
+        form = VketManageLifecycleForm(request.POST)
+        if not form.is_valid():
+            error_messages = []
+            for errs in form.errors.values():
+                error_messages.extend([str(e) for e in errs])
+            messages.error(request, '参加状態の更新に失敗しました: ' + ' / '.join(error_messages))
+            return redirect('vket:manage', pk=collaboration.pk)
+
+        previous_lifecycle = participation.lifecycle
+        participation.lifecycle = form.cleaned_data['lifecycle']
+        participation.save(update_fields=['lifecycle', 'updated_at'])
+
+        logger.info(
+            'Vket参加状態更新',
+            extra={
+                'collaboration_id': collaboration.id,
+                'participation_id': participation.id,
+                'community_name': participation.community.name,
+                'previous_lifecycle': previous_lifecycle,
+                'new_lifecycle': participation.lifecycle,
+            },
+        )
+        messages.success(
+            request,
+            f'{participation.community.name} の参加状態を「{participation.get_lifecycle_display()}」に更新しました。',
         )
         return redirect('vket:manage', pk=collaboration.pk)
 
