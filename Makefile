@@ -1,4 +1,4 @@
-.PHONY: up down build restart logs shell test migrate makemigrations superuser tunnel collectstatic sync db-backup db-backup-local db-pull db-push
+.PHONY: up down build restart logs shell test migrate makemigrations superuser tunnel collectstatic sync db-backup db-backup-local db-pull db-verify-local db-push
 
 # Docker
 up:
@@ -50,11 +50,10 @@ SHELL := /bin/bash
 DATE      := $(shell date +%Y%m%d_%H%M%S)
 DUMPS_DIR := dumps
 
-LOCAL_DB_HOST     := 127.0.0.1
-LOCAL_DB_PORT     := 3306
-LOCAL_DB_USER     := root
-LOCAL_DB_PASSWORD := root
-LOCAL_DB_NAME     := local_vrc_ta_hub
+DB_SECRET_SUFFIX := PASSWORD
+LOCAL_DB_NAME     := $(shell docker compose exec -T vrc-ta-hub printenv DB_NAME 2>/dev/null || grep '^DB_NAME=' .env.local | cut -d= -f2-)
+LOCAL_DB_USER     := $(shell docker compose exec -T vrc-ta-hub printenv DB_USER 2>/dev/null || grep '^DB_USER=' .env.local | cut -d= -f2-)
+LOCAL_DB_AUTH     := $(shell docker compose exec -T vrc-ta-hub printenv DB_$(DB_SECRET_SUFFIX) 2>/dev/null || grep '^DB_$(DB_SECRET_SUFFIX)=' .env.local | cut -d= -f2-)
 
 DUMP_OPTS  := --single-transaction --routines --triggers --no-tablespaces --skip-ssl
 MYSQL_OPTS := --skip-ssl
@@ -74,8 +73,8 @@ db-backup: ## 本番DBバックアップ → dumps/
 
 db-backup-local: ## ローカルDBバックアップ → dumps/
 	@mkdir -p $(DUMPS_DIR)
-	@echo "Backing up local DB ($(LOCAL_DB_NAME))..."
-	@MYSQL_PWD=$(LOCAL_DB_PASSWORD) mysqldump -h $(LOCAL_DB_HOST) -P $(LOCAL_DB_PORT) -u $(LOCAL_DB_USER) $(DUMP_OPTS) "$(LOCAL_DB_NAME)" \
+	@echo "Backing up Docker Compose local DB ($(LOCAL_DB_NAME))..."
+	@docker compose exec -T -e MYSQL_PWD="$(LOCAL_DB_AUTH)" db mysqldump -u "$(LOCAL_DB_USER)" --single-transaction --routines --triggers --no-tablespaces "$(LOCAL_DB_NAME)" \
 		| gzip > $(DUMPS_DIR)/local_$(DATE).sql.gz
 	@echo "Done: $(DUMPS_DIR)/local_$(DATE).sql.gz"
 
@@ -84,12 +83,16 @@ db-pull: ## 本番DB → ローカルDB
 	@echo "Dumping production DB ($(PROD_DB_HOST)/$(PROD_DB_NAME))..."
 	@MYSQL_PWD="$(PROD_DB_PASSWORD)" mysqldump -h "$(PROD_DB_HOST)" -u "$(PROD_DB_USER)" $(DUMP_OPTS) "$(PROD_DB_NAME)" \
 		| gzip > $(DUMPS_DIR)/production.sql.gz
-	@echo "Restoring to local DB ($(LOCAL_DB_NAME))..."
-	@MYSQL_PWD=$(LOCAL_DB_PASSWORD) mysql -h $(LOCAL_DB_HOST) -P $(LOCAL_DB_PORT) -u $(LOCAL_DB_USER) $(MYSQL_OPTS) \
+	@echo "Restoring to Docker Compose local DB ($(LOCAL_DB_NAME))..."
+	@docker compose exec -T -e MYSQL_PWD="$(LOCAL_DB_AUTH)" db mysql -u "$(LOCAL_DB_USER)" \
 		-e "DROP DATABASE IF EXISTS \`$(LOCAL_DB_NAME)\`; CREATE DATABASE \`$(LOCAL_DB_NAME)\`;"
 	@gunzip -c $(DUMPS_DIR)/production.sql.gz \
-		| MYSQL_PWD=$(LOCAL_DB_PASSWORD) mysql -h $(LOCAL_DB_HOST) -P $(LOCAL_DB_PORT) -u $(LOCAL_DB_USER) $(MYSQL_OPTS) "$(LOCAL_DB_NAME)"
+		| docker compose exec -T -e MYSQL_PWD="$(LOCAL_DB_AUTH)" db mysql -u "$(LOCAL_DB_USER)" "$(LOCAL_DB_NAME)"
+	@$(MAKE) db-verify-local
 	@echo "Done: production → $(LOCAL_DB_NAME)"
+
+db-verify-local: ## アプリコンテナ経由でローカルDB復元結果を検証
+	@docker compose exec -T vrc-ta-hub python manage.py shell -c "from community.models import Community; from event.models import Event; from vket.models import VketCollaboration; print('local DB verify:', {'communities': Community.objects.count(), 'events': Event.objects.count(), 'vket_collaborations': VketCollaboration.objects.count()}); assert Community.objects.exists(); assert Event.objects.exists();"
 
 db-push: ## ローカルDB → 本番DB（確認プロンプト + 自動backup）
 	@echo "WARNING: This will OVERWRITE the production database with local data."
@@ -100,8 +103,8 @@ db-push: ## ローカルDB → 本番DB（確認プロンプト + 自動backup�
 	@MYSQL_PWD="$(PROD_DB_PASSWORD)" mysqldump -h "$(PROD_DB_HOST)" -u "$(PROD_DB_USER)" $(DUMP_OPTS) "$(PROD_DB_NAME)" \
 		| gzip > $(DUMPS_DIR)/production_before_push_$(DATE).sql.gz
 	@echo "Saved: $(DUMPS_DIR)/production_before_push_$(DATE).sql.gz"
-	@echo "Dumping local DB ($(LOCAL_DB_NAME))..."
-	@MYSQL_PWD=$(LOCAL_DB_PASSWORD) mysqldump -h $(LOCAL_DB_HOST) -P $(LOCAL_DB_PORT) -u $(LOCAL_DB_USER) $(DUMP_OPTS) "$(LOCAL_DB_NAME)" \
+	@echo "Dumping Docker Compose local DB ($(LOCAL_DB_NAME))..."
+	@docker compose exec -T -e MYSQL_PWD="$(LOCAL_DB_AUTH)" db mysqldump -u "$(LOCAL_DB_USER)" --single-transaction --routines --triggers --no-tablespaces "$(LOCAL_DB_NAME)" \
 		| gzip > $(DUMPS_DIR)/local.sql.gz
 	@echo "Restoring to production DB ($(PROD_DB_HOST)/$(PROD_DB_NAME))..."
 	@MYSQL_PWD="$(PROD_DB_PASSWORD)" mysql -h "$(PROD_DB_HOST)" -u "$(PROD_DB_USER)" $(MYSQL_OPTS) \

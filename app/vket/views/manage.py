@@ -6,6 +6,7 @@ from datetime import datetime
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db import transaction
 from django.db.models import Case, IntegerField, Prefetch, When
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
@@ -166,17 +167,39 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
             messages.error(request, '保存に失敗しました: ' + ' / '.join(error_messages))
             return redirect('vket:manage', pk=collaboration.pk)
 
+        participation.lifecycle = form.cleaned_data['lifecycle']
+        participation.admin_note = form.cleaned_data.get('admin_note', '')
+
+        if participation.lifecycle != VketParticipation.Lifecycle.ACTIVE:
+            with transaction.atomic():
+                changed_publication = self._clear_published_event(participation)
+                participation.save(
+                    update_fields=[
+                        'lifecycle',
+                        'admin_note',
+                        'published_event',
+                        'updated_at',
+                    ]
+                )
+            if changed_publication:
+                clear_index_view_cache()
+            messages.success(
+                request,
+                f'{participation.community.name} の参加状態を更新しました。',
+            )
+            return redirect('vket:manage', pk=collaboration.pk)
+
         # 確定日程・運営備考の更新
         participation.confirmed_date = form.cleaned_data['confirmed_date']
         participation.confirmed_start_time = form.cleaned_data['confirmed_start_time']
         participation.confirmed_duration = form.cleaned_data['confirmed_duration']
-        participation.admin_note = form.cleaned_data.get('admin_note', '')
         participation.schedule_adjusted_by_admin = True
         participation.progress = VketParticipation.Progress.REHEARSAL
         participation.schedule_confirmed_at = timezone.now()
 
         participation.save(
             update_fields=[
+                'lifecycle',
                 'confirmed_date',
                 'confirmed_start_time',
                 'confirmed_duration',
@@ -246,6 +269,29 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
             f'{participation.community.name} の日程を確定しました。',
         )
         return redirect('vket:manage', pk=collaboration.pk)
+
+    @staticmethod
+    def _clear_published_event(participation: VketParticipation) -> bool:
+        if not participation.published_event_id:
+            return False
+
+        published_event = participation.published_event
+        detail_ids = list(
+            participation.presentations.filter(
+                published_event_detail__isnull=False,
+            ).values_list('published_event_detail_id', flat=True)
+        )
+        participation.presentations.filter(
+            published_event_detail__isnull=False,
+        ).update(published_event_detail=None)
+
+        if detail_ids:
+            EventDetail.objects.filter(pk__in=detail_ids).delete()
+
+        participation.published_event = None
+        if not published_event.vket_participations.exclude(pk=participation.pk).exists():
+            published_event.delete()
+        return True
 
 
 class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):

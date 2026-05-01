@@ -871,6 +871,9 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.collaboration.name)
         self.assertContains(response, self.community1.name)
+        self.assertContains(response, 'name="lifecycle"')
+        self.assertContains(response, '不参加')
+        self.assertContains(response, '辞退')
 
     def test_manage_schedule_page_shows_overlap_warning(self):
         """日程重複がある場合にoverlap_warningsがセットされる"""
@@ -966,6 +969,110 @@ class VketManageViewsTests(TestCase):
         self.assertTrue(new_participation.schedule_adjusted_by_admin)
         self.assertEqual(new_participation.progress, VketParticipation.Progress.REHEARSAL)
         self.assertIsNotNone(new_participation.schedule_confirmed_at)
+
+    def test_manage_participation_update_sets_lifecycle_without_schedule(self):
+        """管理画面から参加状態だけを不参加に変更できる"""
+        self.client.login(username='admin_user', password='adminpass123')
+        new_participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=Community.objects.create(name='集会C', status='approved', frequency='毎週'),
+            requested_date=self.collaboration.period_start,
+            requested_start_time='22:00',
+            requested_duration=60,
+        )
+        response = self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': new_participation.pk,
+                },
+            ),
+            data={
+                'lifecycle': VketParticipation.Lifecycle.DECLINED,
+                'admin_note': '今回は不参加',
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        new_participation.refresh_from_db()
+        self.assertEqual(new_participation.lifecycle, VketParticipation.Lifecycle.DECLINED)
+        self.assertEqual(new_participation.admin_note, '今回は不参加')
+        self.assertFalse(new_participation.schedule_adjusted_by_admin)
+        self.assertIsNone(new_participation.schedule_confirmed_at)
+
+    def test_manage_participation_update_declined_clears_published_event(self):
+        """公開済み参加を不参加にすると公開イベント連携を解除する"""
+        self.client.login(username='admin_user', password='adminpass123')
+        detail = EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            speaker='公開済み登壇者',
+            theme='公開済みテーマ',
+            start_time='21:30',
+            duration=30,
+            status='approved',
+        )
+        presentation = VketPresentation.objects.create(
+            participation=self.participation1,
+            order=0,
+            speaker='公開済み登壇者',
+            theme='公開済みテーマ',
+            status=VketPresentation.Status.CONFIRMED,
+            published_event_detail=detail,
+        )
+
+        response = self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': self.participation1.pk,
+                },
+            ),
+            data={
+                'lifecycle': VketParticipation.Lifecycle.DECLINED,
+                'admin_note': '公開後に不参加',
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        self.participation1.refresh_from_db()
+        presentation.refresh_from_db()
+        self.assertEqual(self.participation1.lifecycle, VketParticipation.Lifecycle.DECLINED)
+        self.assertIsNone(self.participation1.published_event_id)
+        self.assertIsNone(presentation.published_event_detail_id)
+        self.assertFalse(Event.objects.filter(pk=self.event1.pk).exists())
+        self.assertFalse(EventDetail.objects.filter(pk=detail.pk).exists())
+
+    def test_manage_participation_update_requires_schedule_for_active(self):
+        """参加中で保存する場合は確定日程が必須"""
+        self.client.login(username='admin_user', password='adminpass123')
+        new_participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=Community.objects.create(name='集会C', status='approved', frequency='毎週'),
+        )
+        response = self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': new_participation.pk,
+                },
+            ),
+            data={
+                'lifecycle': VketParticipation.Lifecycle.ACTIVE,
+                'admin_note': '日程なし',
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        new_participation.refresh_from_db()
+        self.assertIsNone(new_participation.confirmed_date)
+        self.assertFalse(new_participation.schedule_adjusted_by_admin)
 
     def test_manage_participation_update_updates_event_detail_start_time(self):
         """日程確定時にEventDetailのLT開始時刻が更新される"""
@@ -2064,6 +2171,42 @@ class VketPublishViewTests(TestCase):
         self.assertEqual(event.community, self.community)
         self.assertEqual(event.start_time.strftime('%H:%M'), '21:00')
         self.assertEqual(event.duration, 60)
+
+    def test_publish_skips_declined_participation(self):
+        """不参加の参加情報は公開同期の対象外になる"""
+        declined_community = Community.objects.create(
+            name='不参加テスト集会',
+            status='approved',
+            frequency='毎週',
+        )
+        declined_participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=declined_community,
+            lifecycle=VketParticipation.Lifecycle.DECLINED,
+            confirmed_date=self.collaboration.period_start,
+            confirmed_start_time='22:00',
+            confirmed_duration=60,
+        )
+        VketPresentation.objects.create(
+            participation=declined_participation,
+            order=0,
+            speaker='不参加登壇者',
+            theme='不参加テーマ',
+            requested_start_time=time(22, 30),
+            status=VketPresentation.Status.CONFIRMED,
+        )
+
+        self.client.login(username='admin_pub', password='adminpass123')
+        response = self.client.post(
+            reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        declined_participation.refresh_from_db()
+        self.assertIsNone(declined_participation.published_event_id)
+        self.assertFalse(Event.objects.filter(community=declined_community).exists())
+        self.assertFalse(EventDetail.objects.filter(speaker='不参加登壇者').exists())
 
     def test_publish_is_forbidden_when_not_locked(self):
         """LOCKEDフェーズ以外では公開処理が403になる"""

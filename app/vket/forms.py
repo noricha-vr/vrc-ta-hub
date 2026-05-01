@@ -178,17 +178,25 @@ class VketApplyForm(forms.Form):
 class VketManageParticipationForm(forms.Form):
     """運営向けの参加情報（日程確定・備考）更新フォーム"""
 
+    lifecycle = forms.ChoiceField(
+        label='参加状態',
+        choices=VketParticipation.Lifecycle.choices,
+        required=False,
+    )
     confirmed_date = forms.DateField(
         label='確定日程',
+        required=False,
         widget=forms.DateInput(attrs={'type': 'date'}),
     )
     confirmed_start_time = forms.TimeField(
         label='確定開始時刻',
+        required=False,
         widget=forms.TimeInput(attrs={'type': 'time', 'step': 300}),
     )
     confirmed_duration = forms.TypedChoiceField(
         label='確定開催時間（分）',
         coerce=int,
+        required=False,
         choices=CONFIRMED_DURATION_CHOICES,
     )
     admin_note = forms.CharField(
@@ -207,10 +215,29 @@ class VketManageParticipationForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.participation = participation
         self.collaboration = collaboration
+        self.fields['lifecycle'].initial = participation.lifecycle
 
     def clean_confirmed_date(self) -> date:
-        d = self.cleaned_data['confirmed_date']
+        d = self.cleaned_data.get('confirmed_date')
+        if d is None:
+            return d
         # 確定日がコラボ開催期間内かチェック
         if d < self.collaboration.period_start or d > self.collaboration.period_end:
             raise forms.ValidationError('確定日程はコラボ開催期間内の日付を選択してください。')
         return d
+
+    def clean(self):
+        cleaned = super().clean()
+        lifecycle = cleaned.get('lifecycle') or self.participation.lifecycle
+        cleaned['lifecycle'] = lifecycle
+
+        if lifecycle != VketParticipation.Lifecycle.ACTIVE:
+            return cleaned
+
+        if not cleaned.get('confirmed_date'):
+            self.add_error('confirmed_date', '確定日程を入力してください。')
+        if not cleaned.get('confirmed_start_time'):
+            self.add_error('confirmed_start_time', '確定開始時刻を入力してください。')
+        if not cleaned.get('confirmed_duration'):
+            self.add_error('confirmed_duration', '確定開催時間を選択してください。')
+        return cleaned
