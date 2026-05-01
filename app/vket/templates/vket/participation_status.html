@@ -128,9 +128,13 @@
                             登録が終わったら、この画面に戻って「登録完了」を押してください。
                         </p>
                         <div class="d-flex gap-2 align-items-center">
-                            <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary">
-                                <i class="fas fa-external-link-alt me-1"></i>Vketステージに登録する
-                            </a>
+                            {% if stage_url %}
+                                <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary">
+                                    <i class="fas fa-external-link-alt me-1"></i>Vketステージに登録する
+                                </a>
+                            {% else %}
+                                <span class="small text-muted">登録先URLは運営からのお知らせをご確認ください。</span>
+                            {% endif %}
                             <form method="post" action="{% url 'vket:stage_register' collaboration.pk %}"
                                   class="d-inline">
                                 {% csrf_token %}

@@ -23,6 +23,19 @@ from .helpers import (
 )
 
 VKET_STAGE_CREATE_URL = 'https://vket.com/hub/2026Summer/notification'
+VKET_STAGE_CREATE_URL_FALLBACK_SLUGS = {'vket-2026-summer'}
+
+
+def _resolve_stage_url(collaboration: VketCollaboration) -> str:
+    settings_json = collaboration.settings_json or {}
+    if isinstance(settings_json, dict):
+        stage_url = settings_json.get('stage_url')
+        if isinstance(stage_url, str) and stage_url.strip():
+            return stage_url.strip()
+
+    if collaboration.slug in VKET_STAGE_CREATE_URL_FALLBACK_SLUGS:
+        return VKET_STAGE_CREATE_URL
+    return ''
 
 
 class VketStatusRedirectView(LoginRequiredMixin, View):
@@ -143,7 +156,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'unacked_count': unacked_count,
                 'collaborations': collaborations,
                 'is_admin': _is_vket_admin(request.user),
-                'stage_url': VKET_STAGE_CREATE_URL,
+                'stage_url': _resolve_stage_url(collaboration),
                 'event_details': event_details,
                 **schedule_ctx,
             },
