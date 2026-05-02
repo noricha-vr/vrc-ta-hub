@@ -1,9 +1,11 @@
 """Cloud Run host 正規化 middleware の回帰テスト。"""
 
+from asgiref.sync import async_to_sync
 from django.core.exceptions import DisallowedHost
 from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
+from website.asgi import CloudRunHostCanonicalizingASGIApplication
 from website.middleware import CanonicalCloudRunHostMiddleware
 from website.wsgi import CloudRunHostCanonicalizingWSGIApplication
 
@@ -130,4 +132,68 @@ class CloudRunHostCanonicalizingWSGIApplicationTest(SimpleTestCase):
         self.assertEqual(
             captured_environ['SERVER_NAME'],
             'rev-24d1224---other-service-mhbhtr6sha-an.a.run.app',
+        )
+
+
+class CloudRunHostCanonicalizingASGIApplicationTest(SimpleTestCase):
+    def test_cloud_run_revision_host_is_canonicalized_before_django_request(self):
+        captured_scope = {}
+
+        async def django_application(scope, _receive, _send):
+            captured_scope.update(scope)
+
+        scope = {
+            'type': 'http',
+            'headers': [
+                (b'host', b'rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app'),
+                (
+                    b'x-forwarded-host',
+                    b'rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+                ),
+            ],
+            'server': ('rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app', 443),
+        }
+
+        async_to_sync(CloudRunHostCanonicalizingASGIApplication(django_application))(
+            scope,
+            lambda: None,
+            lambda _message: None,
+        )
+
+        self.assertEqual(
+            captured_scope['headers'],
+            [
+                (b'host', b'vrc-ta-hub.com'),
+                (b'x-forwarded-host', b'vrc-ta-hub.com'),
+            ],
+        )
+        self.assertEqual(captured_scope['server'], ('vrc-ta-hub.com', 443))
+
+    def test_other_cloud_run_service_host_is_left_for_django_to_reject(self):
+        captured_scope = {}
+
+        async def django_application(scope, _receive, _send):
+            captured_scope.update(scope)
+
+        scope = {
+            'type': 'http',
+            'headers': [
+                (b'host', b'rev-24d1224---other-service-mhbhtr6sha-an.a.run.app'),
+            ],
+            'server': ('rev-24d1224---other-service-mhbhtr6sha-an.a.run.app', 443),
+        }
+
+        async_to_sync(CloudRunHostCanonicalizingASGIApplication(django_application))(
+            scope,
+            lambda: None,
+            lambda _message: None,
+        )
+
+        self.assertEqual(
+            captured_scope['headers'],
+            [(b'host', b'rev-24d1224---other-service-mhbhtr6sha-an.a.run.app')],
+        )
+        self.assertEqual(
+            captured_scope['server'],
+            ('rev-24d1224---other-service-mhbhtr6sha-an.a.run.app', 443),
         )
