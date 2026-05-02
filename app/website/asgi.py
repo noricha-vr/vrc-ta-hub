@@ -11,9 +11,14 @@ import os
 
 from django.core.asgi import get_asgi_application
 
-from website.middleware import CanonicalCloudRunHostMiddleware
+from website.middleware import (
+    CanonicalCloudRunHostMiddleware,
+    install_cloud_run_preview_host_validator,
+)
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'website.settings')
+# 設定ファイルを触らず、Django の Host 検証まで raw revision host が残った経路だけ救済する。
+install_cloud_run_preview_host_validator()
 
 
 class CloudRunHostCanonicalizingASGIApplication:

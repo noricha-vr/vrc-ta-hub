@@ -58,6 +58,27 @@ def _extract_disallowed_host(error: DisallowedHost) -> str:
     return ''
 
 
+def install_cloud_run_preview_host_validator() -> None:
+    """Django の Host 検証に Cloud Run preview host の限定許可を追加する。"""
+    from django.http import request as request_module
+
+    original_validate_host = request_module.validate_host
+    if getattr(original_validate_host, '_cloud_run_preview_host_validator', False):
+        return
+
+    cloud_run_preview_host_pattern = _build_cloud_run_preview_host_pattern()
+
+    def validate_host(host: str, allowed_hosts: list[str]) -> bool:
+        if original_validate_host(host, allowed_hosts):
+            return True
+
+        normalized_host = _normalize_preview_host_candidate(host)
+        return bool(cloud_run_preview_host_pattern.match(normalized_host))
+
+    validate_host._cloud_run_preview_host_validator = True  # type: ignore[attr-defined]
+    request_module.validate_host = validate_host
+
+
 class CanonicalCloudRunHostMiddleware:
     """Cloud Run のプレビューURLを正規ホストへ寄せる。"""
 

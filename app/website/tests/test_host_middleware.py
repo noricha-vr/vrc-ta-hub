@@ -6,13 +6,44 @@ from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
 from website.asgi import CloudRunHostCanonicalizingASGIApplication
-from website.middleware import CanonicalCloudRunHostMiddleware
+from website.middleware import (
+    CanonicalCloudRunHostMiddleware,
+    install_cloud_run_preview_host_validator,
+)
 from website.wsgi import CloudRunHostCanonicalizingWSGIApplication
 
 
 class CanonicalCloudRunHostMiddlewareTest(SimpleTestCase):
     def setUp(self):
         self.request_factory = RequestFactory()
+
+    @override_settings(
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
+    )
+    def test_cloud_run_revision_host_validator_allows_supported_service(self):
+        install_cloud_run_preview_host_validator()
+        request = self.request_factory.get(
+            '/healthz/',
+            HTTP_HOST='rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+        )
+
+        self.assertEqual(
+            request.get_host(),
+            'rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+        )
+
+    @override_settings(
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
+    )
+    def test_cloud_run_revision_host_validator_rejects_other_service(self):
+        install_cloud_run_preview_host_validator()
+        request = self.request_factory.get(
+            '/healthz/',
+            HTTP_HOST='rev-24d1224---other-service-mhbhtr6sha-an.a.run.app',
+        )
+
+        with self.assertRaises(DisallowedHost):
+            request.get_host()
 
     @override_settings(
         ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
