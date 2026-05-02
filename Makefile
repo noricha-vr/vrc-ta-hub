@@ -55,14 +55,20 @@ LOCAL_DB_NAME     := $(shell docker compose exec -T vrc-ta-hub printenv DB_NAME 
 LOCAL_DB_USER     := $(shell docker compose exec -T vrc-ta-hub printenv DB_USER 2>/dev/null || grep '^DB_USER=' .env.local | cut -d= -f2-)
 LOCAL_DB_AUTH     := $(shell docker compose exec -T vrc-ta-hub printenv DB_$(DB_SECRET_SUFFIX) 2>/dev/null || grep '^DB_$(DB_SECRET_SUFFIX)=' .env.local | cut -d= -f2-)
 
+COMPOSE_APP_SERVICE      ?= vrc-ta-hub
+COMPOSE_DB_SERVICE       ?= db
+DB_PULL_VERIFY_TABLE     ?= vket_collaboration
+DB_PULL_VERIFY_MIN_ROWS  ?= 1
+
 DUMP_OPTS  := --single-transaction --routines --triggers --no-tablespaces --skip-ssl
 MYSQL_OPTS := --skip-ssl
+PROD_ENV_FILE ?= .env.production.local
 
 # .env.production.local から DB_ 変数を安全に読み込む
-PROD_DB_NAME := $(shell grep '^DB_NAME=' .env.production.local | cut -d= -f2-)
-PROD_DB_USER := $(shell grep '^DB_USER=' .env.production.local | cut -d= -f2-)
-PROD_DB_PASSWORD := $(shell grep '^DB_PASSWORD=' .env.production.local | cut -d= -f2-)
-PROD_DB_HOST := $(shell grep '^DB_HOST=' .env.production.local | cut -d= -f2-)
+PROD_DB_NAME := $(shell [ ! -f "$(PROD_ENV_FILE)" ] || grep '^DB_NAME=' "$(PROD_ENV_FILE)" | cut -d= -f2-)
+PROD_DB_USER := $(shell [ ! -f "$(PROD_ENV_FILE)" ] || grep '^DB_USER=' "$(PROD_ENV_FILE)" | cut -d= -f2-)
+PROD_DB_PASSWORD := $(shell [ ! -f "$(PROD_ENV_FILE)" ] || grep '^DB_PASSWORD=' "$(PROD_ENV_FILE)" | cut -d= -f2-)
+PROD_DB_HOST := $(shell [ ! -f "$(PROD_ENV_FILE)" ] || grep '^DB_HOST=' "$(PROD_ENV_FILE)" | cut -d= -f2-)
 
 db-backup: ## 本番DBバックアップ → dumps/
 	@mkdir -p $(DUMPS_DIR)
@@ -79,17 +85,19 @@ db-backup-local: ## ローカルDBバックアップ → dumps/
 	@echo "Done: $(DUMPS_DIR)/local_$(DATE).sql.gz"
 
 db-pull: ## 本番DB → ローカルDB
+	@test -n "$(PROD_DB_NAME)" -a -n "$(PROD_DB_USER)" -a -n "$(PROD_DB_PASSWORD)" -a -n "$(PROD_DB_HOST)" || \
+		(echo "ERROR: $(PROD_ENV_FILE) must define DB_NAME, DB_USER, DB_PASSWORD, and DB_HOST." >&2; exit 1)
 	@mkdir -p $(DUMPS_DIR)
 	@echo "Dumping production DB ($(PROD_DB_HOST)/$(PROD_DB_NAME))..."
 	@MYSQL_PWD="$(PROD_DB_PASSWORD)" mysqldump -h "$(PROD_DB_HOST)" -u "$(PROD_DB_USER)" $(DUMP_OPTS) "$(PROD_DB_NAME)" \
 		| gzip > $(DUMPS_DIR)/production.sql.gz
-	@echo "Restoring to Docker Compose local DB ($(LOCAL_DB_NAME))..."
-	@docker compose exec -T -e MYSQL_PWD="$(LOCAL_DB_AUTH)" db mysql -u "$(LOCAL_DB_USER)" \
-		-e "DROP DATABASE IF EXISTS \`$(LOCAL_DB_NAME)\`; CREATE DATABASE \`$(LOCAL_DB_NAME)\`;"
-	@gunzip -c $(DUMPS_DIR)/production.sql.gz \
-		| docker compose exec -T -e MYSQL_PWD="$(LOCAL_DB_AUTH)" db mysql -u "$(LOCAL_DB_USER)" "$(LOCAL_DB_NAME)"
-	@$(MAKE) db-verify-local
-	@echo "Done: production → $(LOCAL_DB_NAME)"
+	@echo "Restoring to Docker Compose DB service ($(COMPOSE_DB_SERVICE))..."
+	@APP_SERVICE="$(COMPOSE_APP_SERVICE)" \
+		DB_SERVICE="$(COMPOSE_DB_SERVICE)" \
+		DB_PULL_VERIFY_TABLE="$(DB_PULL_VERIFY_TABLE)" \
+		DB_PULL_VERIFY_MIN_ROWS="$(DB_PULL_VERIFY_MIN_ROWS)" \
+		scripts/db_pull_restore.sh "$(DUMPS_DIR)/production.sql.gz"
+	@echo "Done: production → Docker Compose DB"
 
 db-verify-local: ## アプリコンテナ経由でローカルDB復元結果を検証
 	@docker compose exec -T vrc-ta-hub python manage.py shell -c "from community.models import Community; from event.models import Event; from vket.models import VketCollaboration; print('local DB verify:', {'communities': Community.objects.count(), 'events': Event.objects.count(), 'vket_collaborations': VketCollaboration.objects.count()}); assert Community.objects.exists(); assert Event.objects.exists();"
