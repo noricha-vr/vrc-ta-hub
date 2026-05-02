@@ -22,6 +22,31 @@ from .helpers import (
     _is_vket_admin,
 )
 
+VKET_STAGE_CREATE_URL = 'https://vket.com/hub/2026Summer/notification'
+VKET_STAGE_CREATE_URL_FALLBACK_SLUGS = {'vket-2026-summer'}
+VKET_STAGE_REGISTRATION_GUIDANCE_BY_SLUG = {
+    'vket-2026-summer': {
+        'venue': 'Parareal Central Ignition Point - 着火点 - - エントランス',
+        'tag': 'Vketステージ',
+    },
+}
+
+
+def _resolve_stage_url(collaboration: VketCollaboration) -> str:
+    settings_json = collaboration.settings_json or {}
+    if isinstance(settings_json, dict):
+        stage_url = settings_json.get('stage_url')
+        if isinstance(stage_url, str) and stage_url.strip():
+            return stage_url.strip()
+
+    if collaboration.slug in VKET_STAGE_CREATE_URL_FALLBACK_SLUGS:
+        return VKET_STAGE_CREATE_URL
+    return ''
+
+
+def _resolve_stage_registration_guidance(collaboration: VketCollaboration) -> dict[str, str]:
+    return VKET_STAGE_REGISTRATION_GUIDANCE_BY_SLUG.get(collaboration.slug, {})
+
 
 class VketStatusRedirectView(LoginRequiredMixin, View):
     """pk なしで最新コラボの参加状況ページにリダイレクト"""
@@ -111,11 +136,6 @@ class ParticipationStatusView(LoginRequiredMixin, View):
         # コラボ切替ドロップダウン用
         collaborations = list(_get_visible_collaborations(request.user))
 
-        # stage_url を settings_json から取得
-        stage_url = None
-        if collaboration.settings_json and isinstance(collaboration.settings_json, dict):
-            stage_url = collaboration.settings_json.get('stage_url')
-
         # published_event の EventDetail（LT資料アップロード用、LT情報確定済みのみ）
         event_details = []
         if participation and participation.published_event_id:
@@ -146,7 +166,8 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'unacked_count': unacked_count,
                 'collaborations': collaborations,
                 'is_admin': _is_vket_admin(request.user),
-                'stage_url': stage_url,
+                'stage_url': _resolve_stage_url(collaboration),
+                'stage_registration_guidance': _resolve_stage_registration_guidance(collaboration),
                 'event_details': event_details,
                 **schedule_ctx,
             },

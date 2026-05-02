@@ -123,15 +123,24 @@
                             <i class="fas fa-external-link-alt me-2 text-warning"></i>Vketステージ登録
                         </h2>
                         <p class="mb-3">
-                            参加申込みが完了しました。Vket公式サイトのステージページでイベント情報を登録したあと、
-                            この画面に戻って下の「登録完了」を押してください。
-                            {% if not stage_url %}登録先URLは運営からのお知らせをご確認ください。{% endif %}
+                            Vket公式サイトのステージページに、イベント情報を暫定内容で登録してください。
+                            日程やLT内容が未確定でも、後から更新できます。
+                            登録が終わったら、この画面に戻って「登録完了」を押してください。
                         </p>
+                        {% if stage_registration_guidance %}
+                            <div class="alert alert-info py-2 mb-3">
+                                <div class="fw-bold mb-1">Vketステージ登録画面での設定</div>
+                                <div>開催会場は「{{ stage_registration_guidance.venue }}」に設定してください。</div>
+                                <div>タグは「{{ stage_registration_guidance.tag }}」を選択してください。</div>
+                            </div>
+                        {% endif %}
                         <div class="d-flex gap-2 align-items-center">
                             {% if stage_url %}
-                                <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-outline-primary">
-                                    <i class="fas fa-external-link-alt me-1"></i>ステージページを開く
+                                <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary">
+                                    <i class="fas fa-external-link-alt me-1"></i>Vketステージに登録する
                                 </a>
+                            {% else %}
+                                <span class="small text-muted">登録先URLは運営からのお知らせをご確認ください。</span>
                             {% endif %}
                             <form method="post" action="{% url 'vket:stage_register' collaboration.pk %}"
                                   class="d-inline">
@@ -143,7 +152,7 @@
                             </form>
                         </div>
                         <div class="small text-muted mt-2">
-                            外部サイトで登録した内容は自動では確定されないため、Hub 側で「登録完了」の操作が必要です。
+                            Vket側で登録しただけでは Hub の進捗は更新されません。登録後は Hub 側でも「登録完了」を押してください。
                         </div>
                     </div>
                 </div>
@@ -286,7 +295,7 @@
                         <i class="fas fa-headset me-2"></i>リハーサル
                     </h2>
                     <p class="mb-0">
-                        <span class="fw-bold">7/24（金）</span>を予定しています。詳細は追ってお知らせします。
+                        <span class="fw-bold">7月10日（金）</span>に実施します。ワールド、スライド、マイクの使い方などを確認します。Vket運営の方や他の技術学術系集会の方と交流できる機会です。ぜひご参加ください。
                     </p>
                 </div>
             </div>

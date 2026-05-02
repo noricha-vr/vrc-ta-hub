@@ -113,15 +113,22 @@
                         <td>
                             <form method="post"
                                   action="{% url 'vket:manage_participation_update' collaboration.id p.id %}"
-                                  class="d-flex flex-column gap-1">
+                                  class="d-flex flex-column gap-1"
+                                  onsubmit="return confirm('参加状態と日程を保存します。よろしいですか？')">
                                 {% csrf_token %}
+                                <select class="form-select form-select-sm" name="lifecycle">
+                                    {% for val, label in lifecycle_choices.items %}
+                                        <option value="{{ val }}"
+                                                {% if p.lifecycle == val %}selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
                                 <div class="d-flex gap-1">
                                     <input class="form-control form-control-sm" type="date" name="confirmed_date"
-                                           value="{% if p.confirmed_date %}{{ p.confirmed_date|date:"Y-m-d" }}{% elif p.requested_date %}{{ p.requested_date|date:"Y-m-d" }}{% endif %}"
-                                           required>
+                                           value="{% if p.confirmed_date %}{{ p.confirmed_date|date:"Y-m-d" }}{% elif p.requested_date %}{{ p.requested_date|date:"Y-m-d" }}{% endif %}">
                                     <input class="form-control form-control-sm" type="time" name="confirmed_start_time"
-                                           value="{% if p.confirmed_start_time %}{{ p.confirmed_start_time|date:"H:i" }}{% elif p.requested_start_time %}{{ p.requested_start_time|date:"H:i" }}{% endif %}"
-                                           required>
+                                           value="{% if p.confirmed_start_time %}{{ p.confirmed_start_time|date:"H:i" }}{% elif p.requested_start_time %}{{ p.requested_start_time|date:"H:i" }}{% endif %}">
                                 </div>
                                 <select class="form-select form-select-sm" name="confirmed_duration">
                                     {% for val, label in duration_choices %}
