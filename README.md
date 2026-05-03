@@ -4,7 +4,7 @@
 
 このプロジェクトはVRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくためのWeb制作プロジェクトです。
 
-![VRChat技術学術ハブ Webサイト](app/ta_hub/static/ta_hub/image/screenshot.png)
+![VRC 技術学術ハブ 概要](app/ta_hub/static/ta_hub/image/readme-overview.png)
 
 https://vrc-ta-hub.com
 
