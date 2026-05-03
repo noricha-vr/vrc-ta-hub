@@ -98,6 +98,28 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             pattern,
         )
 
+    def test_cloud_run_preview_host_pattern_allows_canary_tag(self):
+        """deploy-watch がカナリア検証時に付与する `canary` タグの URL もパターンに通る。
+
+        deploy-watch は `gcloud run services update-traffic --update-tags=canary=<REV>` で
+        新リビジョンに `canary` タグを付け、`https://canary---vrc-ta-hub-...run.app/` を直接叩く。
+        参照: ~/.claude/skills/deploy-watch/SKILL.md
+        """
+        pattern = _build_cloud_run_preview_host_pattern()
+
+        self.assertRegex(
+            'canary---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+            pattern,
+        )
+        self.assertRegex(
+            'canary---vrc-ta-hub-dev-mhbhtr6sha-an.a.run.app',
+            pattern,
+        )
+        self.assertNotRegex(
+            'canary---other-service-mhbhtr6sha-an.a.run.app',
+            pattern,
+        )
+
     @override_settings(
         ROOT_URLCONF=__name__,
         ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],

@@ -48,6 +48,25 @@ class CanonicalCloudRunHostMiddlewareTest(SimpleTestCase):
     @override_settings(
         ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
     )
+    def test_cloud_run_canary_host_validator_allows_supported_service(self):
+        """deploy-watch がカナリア検証で叩く `canary---` ホストも検証で許可される。
+
+        参照: ~/.claude/skills/deploy-watch/SKILL.md
+        """
+        install_cloud_run_preview_host_validator()
+        request = self.request_factory.get(
+            '/healthz/',
+            HTTP_HOST='canary---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+        )
+
+        self.assertEqual(
+            request.get_host(),
+            'canary---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+        )
+
+    @override_settings(
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
+    )
     def test_cloud_run_revision_host_reported_by_disallowed_host_is_canonicalized(self):
         calls = []
 
