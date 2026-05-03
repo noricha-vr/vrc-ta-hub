@@ -63,12 +63,12 @@ restore_dump_to_compose_db() {
   local db_password="$4"
 
   compose exec -T -e "MYSQL_PWD=$db_password" "$DB_SERVICE" \
-    mysql -u "$db_user" --skip-ssl \
+    mysql -u "$db_user" \
     -e "DROP DATABASE IF EXISTS \`$db_name\`; CREATE DATABASE \`$db_name\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
   gunzip -c "$dump_path" \
     | compose exec -T -e "MYSQL_PWD=$db_password" "$DB_SERVICE" \
-      mysql -u "$db_user" --skip-ssl "$db_name"
+      mysql -u "$db_user" "$db_name"
 }
 
 verify_app_table_count() {
