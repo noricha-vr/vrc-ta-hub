@@ -303,6 +303,6 @@ class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         collaboration = get_object_or_404(VketCollaboration, pk=kwargs['pk'])
-        schedule_ctx = _build_schedule_context(collaboration, include_requested=False)
+        schedule_ctx = _build_schedule_context(collaboration, include_requested=True)
         context.update({'collaboration': collaboration, **schedule_ctx})
         return context

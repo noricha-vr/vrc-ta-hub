@@ -956,6 +956,34 @@ class VketManageViewsTests(TestCase):
         communities = [r['participation'].community.name for r in rows]
         self.assertIn('集会C', communities)
 
+    def test_manage_schedule_shows_requested_without_confirmed_schedule(self):
+        """未確定でも希望日程があれば管理日程表に表示される"""
+        community3 = Community.objects.create(name='集会C', status='approved', frequency='毎週')
+        today = timezone.localdate()
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=community3,
+            requested_date=today,
+            requested_start_time='22:00',
+            requested_duration=60,
+        )
+
+        self.client.login(username='admin_user', password='adminpass123')
+        response = self.client.get(
+            reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+
+        rows = response.context['rows']
+        requested_row = next(
+            r for r in rows if r['participation'].community.name == '集会C'
+        )
+        self.assertFalse(requested_row['is_confirmed'])
+        self.assertEqual(requested_row['date'], today)
+        self.assertEqual(requested_row['start_time'], time(22, 0))
+        self.assertContains(response, '集会C')
+        self.assertContains(response, '申請中')
+
     def test_manage_schedule_page_marks_lt_slot(self):
         """LT詳細があるスロットにlt_timesが設定される"""
         EventDetail.objects.create(
