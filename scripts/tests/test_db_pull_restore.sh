@@ -81,6 +81,9 @@ run_with_mock_compose "$success_calls" "db" $'settings log\n3' main "$DUMP_PATH"
 assert_contains "$TMP_DIR/success.out" "Verified via app container: local_vrc_ta_hub.vket_collaboration has 3 rows."
 assert_contains "$success_calls" "exec -T -e MYSQL_PWD=root db mysql"
 assert_contains "$success_calls" "exec -T vrc-ta-hub python manage.py shell -c"
+if grep -Fq -- "--skip-ssl" "$success_calls"; then
+  fail "Compose MySQL restore should not pass --skip-ssl"
+fi
 
 host_mismatch_calls="$TMP_DIR/host-mismatch.calls"
 if ( run_with_mock_compose "$host_mismatch_calls" "127.0.0.1" "3" main "$DUMP_PATH" > "$TMP_DIR/host-mismatch.out" 2> "$TMP_DIR/host-mismatch.err" ); then

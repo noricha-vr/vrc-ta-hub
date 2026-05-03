@@ -1,4 +1,4 @@
-.PHONY: up down build restart logs shell test migrate makemigrations superuser tunnel collectstatic sync db-backup db-backup-local db-pull db-verify-local db-push
+.PHONY: up down build restart logs shell test migrate makemigrations superuser tunnel collectstatic sync db-backup db-backup-local db-pull db-restore-production-local db-verify-local db-push
 
 # Docker
 up:
@@ -98,6 +98,8 @@ db-pull: ## 本番DB → ローカルDB
 		DB_PULL_VERIFY_MIN_ROWS="$(DB_PULL_VERIFY_MIN_ROWS)" \
 		scripts/db_pull_restore.sh "$(DUMPS_DIR)/production.sql.gz"
 	@echo "Done: production → Docker Compose DB"
+
+db-restore-production-local: db-backup-local db-pull ## ローカルDBを退避してから本番DBをローカルDBへ完全復元
 
 db-verify-local: ## アプリコンテナ経由でローカルDB復元結果を検証
 	@docker compose exec -T vrc-ta-hub python manage.py shell -c "from community.models import Community; from event.models import Event; from vket.models import VketCollaboration; print('local DB verify:', {'communities': Community.objects.count(), 'events': Event.objects.count(), 'vket_collaborations': VketCollaboration.objects.count()}); assert Community.objects.exists(); assert Event.objects.exists();"
