@@ -258,3 +258,83 @@ class IndexViewVrchatBoundaryTest(TestCase):
         self.assertNotIn(self.previous_special.id, special_ids)
         self.assertIn(self.current_event.id, event_ids)
         self.assertIn(self.current_lt.id, lt_ids)
+
+
+class IndexViewTodayHighlightTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def _create_community(self, name):
+        return Community.objects.create(
+            name=name,
+            start_time=time(22, 0),
+            duration=60,
+            weekdays=['Sun'],
+            frequency='Every week',
+            organizers='Highlight Organizer',
+            status='approved',
+            poster_image=SimpleUploadedFile(
+                f'{name}.png',
+                _create_test_image(),
+                content_type='image/png',
+            ),
+        )
+
+    @patch('ta_hub.views.get_vrchat_today')
+    @patch('ta_hub.views.timezone.localdate')
+    def test_today_events_are_highlighted_on_index_cards(self, mock_localdate, mock_get_vrchat_today):
+        """日本時間の今日に一致するトップページカードだけ本日開催として強調する"""
+        today = date(2026, 5, 3)
+        mock_localdate.return_value = today
+        mock_get_vrchat_today.return_value = today
+
+        today_community = self._create_community('Today Highlight Community')
+        future_community = self._create_community('Future Highlight Community')
+        today_event = Event.objects.create(
+            community=today_community,
+            date=today,
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Sun',
+        )
+        future_event = Event.objects.create(
+            community=future_community,
+            date=today + timedelta(days=1),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Mon',
+        )
+        EventDetail.objects.create(
+            event=today_event,
+            detail_type='LT',
+            speaker='Today Speaker',
+            theme='Today LT',
+            status='approved',
+            start_time=time(22, 0),
+        )
+        EventDetail.objects.create(
+            event=future_event,
+            detail_type='LT',
+            speaker='Future Speaker',
+            theme='Future LT',
+            status='approved',
+            start_time=time(22, 0),
+        )
+
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'card shadow h-100 today-event-card')
+        self.assertContains(response, 'card event-card shadow today-event-card')
+        self.assertContains(response, '本日開催', count=2)
+
+        html = response.content.decode()
+        upcoming_events_section = html.split('毎日が技術学術祭', 1)[1]
+        future_event_card = upcoming_events_section.split(
+            'Future Highlight Community', 1
+        )[0].rsplit('<div class="card event-card', 1)[-1]
+        self.assertNotIn('today-event-card', future_event_card)

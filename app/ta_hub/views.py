@@ -56,6 +56,7 @@ class IndexView(TemplateView):
         context['show_vket_notice'] = current_datetime < vket_end_datetime
         context['vket_start_date'] = vket_start_datetime.date()
         context['vket_end_date'] = vket_end_datetime.date()
+        context['current_date'] = timezone.localdate()
         context['google_calendar_id'] = settings.GOOGLE_CALENDAR_ID
         logger.info(f"Vket notice visibility: {context['show_vket_notice']} (current: {current_datetime})")
 
