@@ -91,7 +91,7 @@
 | `daily_reminder` の本文 | approved 発表を `start_time` 順で最大3件まで載せる |
 | `daily_reminder` の発表数0件 | 生成せず `skipped` に落とす |
 | `scheduled_at` 入力 | 詳細画面では 30 分刻み（00 / 30）だけ許可 |
-| デフォルト予約 | 通常は 19:00 JST |
+| デフォルト予約 | `slide_share` は 10:00 JST、`new_community` / `lt` / `special` は 12:00 JST、`daily_reminder` は 19:00 JST |
 | 一覧の初期ソート | `scheduled_at desc` |
 | 画像 | 生成成功時、`community.poster_image` 由来の URL を補完 |
 | 手動投稿 | キュー詳細画面から個別実行可能 |
@@ -102,6 +102,7 @@
 | --- | --- |
 | キューモデル / 一意制約 | `app/twitter/models.py` |
 | 保存時 signal | `app/twitter/signals.py` |
-| 19:00 バッチ / 再生成 / 投稿 | `app/twitter/views.py` |
+| 再生成 / 投稿 | `app/twitter/views.py` |
+| デフォルト予約時刻 | `app/twitter/scheduling.py` |
 | `daily_reminder` 本文生成 | `app/twitter/tweet_generator.py` |
 | 回帰テスト | `app/twitter/tests/test_auto_tweet.py` |

@@ -86,7 +86,7 @@ class AutoTweetTestBase(TestCase):
         )
         self.event = Event.objects.create(
             community=self.community,
-            date=datetime.date(2026, 5, 1),
+            date=datetime.date(2099, 5, 1),
             start_time=datetime.time(22, 0),
             duration=60,
         )
@@ -99,6 +99,65 @@ class AutoTweetTestBase(TestCase):
 
     def overdue_scheduled_at(self):
         return timezone.now() - datetime.timedelta(hours=25)
+
+
+class TweetSchedulingTest(TestCase):
+    """tweet_type ごとのデフォルト予約時刻のテスト"""
+
+    def assert_scheduled_local(self, scheduled_at, expected_date, expected_hour):
+        local_scheduled_at = timezone.localtime(scheduled_at)
+        self.assertEqual(local_scheduled_at.date(), expected_date)
+        self.assertEqual(local_scheduled_at.hour, expected_hour)
+        self.assertEqual(local_scheduled_at.minute, 0)
+
+    def test_default_scheduled_at_uses_type_specific_hours(self):
+        """告知種別ごとに 10/12/19 時の予約枠を使う"""
+        with timezone.override("Asia/Tokyo"):
+            base = timezone.make_aware(datetime.datetime(2026, 4, 20, 9, 0))
+            expected_date = datetime.date(2026, 4, 20)
+
+            self.assert_scheduled_local(
+                default_scheduled_at("slide_share", base_datetime=base),
+                expected_date,
+                10,
+            )
+            self.assert_scheduled_local(
+                default_scheduled_at("new_community", base_datetime=base),
+                expected_date,
+                12,
+            )
+            self.assert_scheduled_local(
+                default_scheduled_at("lt", base_datetime=base),
+                expected_date,
+                12,
+            )
+            self.assert_scheduled_local(
+                default_scheduled_at("special", base_datetime=base),
+                expected_date,
+                12,
+            )
+
+    def test_default_scheduled_at_moves_to_next_day_after_slot(self):
+        """当日の予約枠を過ぎていたら翌日の同時刻にする"""
+        with timezone.override("Asia/Tokyo"):
+            base = timezone.make_aware(datetime.datetime(2026, 4, 20, 12, 1))
+            self.assert_scheduled_local(
+                default_scheduled_at("lt", base_datetime=base),
+                datetime.date(2026, 4, 21),
+                12,
+            )
+
+    def test_daily_reminder_uses_event_date_at_19(self):
+        """当日リマインドはイベント当日19時のままにする"""
+        event = MagicMock(date=datetime.date(2026, 4, 25))
+
+        with timezone.override("Asia/Tokyo"):
+            base = timezone.make_aware(datetime.datetime(2026, 4, 20, 23, 0))
+            self.assert_scheduled_local(
+                default_scheduled_at("daily_reminder", event=event, base_datetime=base),
+                datetime.date(2026, 4, 25),
+                19,
+            )
 
 
 class CommunityApprovalSignalTest(AutoTweetTestBase):
@@ -120,6 +179,7 @@ class CommunityApprovalSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.tweet_type, "new_community")
         self.assertEqual(queue.community, self.community)
         self.assertEqual(queue.status, "generating")
+        self.assertEqual(timezone.localtime(queue.scheduled_at).hour, 12)
 
         # スレッドが起動されたことを確認
         mock_thread_cls.assert_called_once()
@@ -196,8 +256,10 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.event, self.event)
         self.assertEqual(queue.status, "generating")
         self.assertEqual(queue.scheduled_at, default_scheduled_at("lt", self.event))
+        self.assertEqual(timezone.localtime(queue.scheduled_at).hour, 12)
         self.assertEqual(reminder.event, self.event)
         self.assertEqual(reminder.scheduled_at, scheduled_at_for_date(self.event.date))
+        self.assertEqual(timezone.localtime(reminder.scheduled_at).hour, 19)
 
     @patch("twitter.signals.threading.Thread")
     def test_special_event_creates_queue(self, mock_thread_cls):
@@ -218,6 +280,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         reminder = TweetQueue.objects.get(tweet_type="daily_reminder")
         self.assertEqual(queue.tweet_type, "special")
         self.assertEqual(queue.event_detail, detail)
+        self.assertEqual(timezone.localtime(queue.scheduled_at).hour, 12)
         self.assertEqual(reminder.scheduled_at, scheduled_at_for_date(self.event.date))
 
     @patch("twitter.signals.threading.Thread")
@@ -1285,7 +1348,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
         TweetQueue.objects.create(
             tweet_type="lt",
             community=self.community,
-            event=self.event,  # 2026-05-01（未来）
+            event=self.event,  # 2099-05-01（未来）
             status="ready",
             generated_text="未来のLT告知",
             scheduled_at=self.due_scheduled_at(),
@@ -2535,6 +2598,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.event_detail, self.detail)
         self.assertEqual(queue.event, self.past_event)
         self.assertEqual(queue.status, "generating")
+        self.assertEqual(timezone.localtime(queue.scheduled_at).hour, 10)
         mock_thread_cls.assert_called_once()
 
     @patch("event.notifications.requests.post")
