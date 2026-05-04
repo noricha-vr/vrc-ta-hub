@@ -19,7 +19,7 @@ from .helpers import (
 
 def _delete_presentation(presentation: VketPresentation) -> str:
     """プレゼンテーションと関連するEventDetailを削除し、表示名を返す"""
-    speaker_name = presentation.speaker or 'LT'
+    speaker_name = presentation.speaker or '発表'
     with transaction.atomic():
         if presentation.published_event_detail:
             presentation.published_event_detail.delete()
@@ -41,9 +41,9 @@ class PresentationDeleteView(LoginRequiredMixin, View):
         if not community or presentation.participation.community_id != community.id:
             return HttpResponseForbidden('この操作を行う権限がありません。')
         if not (request.user.is_superuser or membership):
-            return HttpResponseForbidden('集会メンバーのみLTを削除できます。')
+            return HttpResponseForbidden('集会メンバーのみ発表を削除できます。')
         if presentation.is_organizer_delete_locked and not (request.user.is_superuser or request.user.is_staff):
-            return HttpResponseForbidden('確定済みまたは公開済みのLTは主催者側から削除できません。')
+            return HttpResponseForbidden('確定済みまたは公開済みの発表は主催者側から削除できません。')
 
         speaker_name = _delete_presentation(presentation)
         messages.success(request, f'{speaker_name} を削除しました。')

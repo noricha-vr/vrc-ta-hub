@@ -76,7 +76,7 @@ class VketPresentationForm(forms.Form):
         widget=forms.TextInput(attrs={'class': 'form-control'}),
     )
     lt_start_time = forms.TimeField(
-        label='LT開始時刻',
+        label='発表開始時刻',
         required=False,
         widget=forms.TimeInput(attrs={'type': 'time', 'step': 300, 'class': 'form-control'}),
     )

@@ -123,9 +123,9 @@
 <body>
     <div class="header">
         {% if is_approved %}
-            <h1>LT発表の申請が承認されました</h1>
+            <h1>発表の申請が承認されました</h1>
         {% else %}
-            <h1>LT発表の申請が却下されました</h1>
+            <h1>発表の申請が却下されました</h1>
         {% endif %}
     </div>
 
@@ -133,9 +133,9 @@
         <p>{{ applicant.user_name }} 様</p>
 
         {% if is_approved %}
-            <p>{{ community.name }}へのLT発表の申請が<span class="status-badge status-approved">承認</span>されました。</p>
+            <p>{{ community.name }}への発表の申請が<span class="status-badge status-approved">承認</span>されました。</p>
         {% else %}
-            <p>{{ community.name }}へのLT発表の申請が<span class="status-badge status-rejected">却下</span>されました。</p>
+            <p>{{ community.name }}への発表の申請が<span class="status-badge status-rejected">却下</span>されました。</p>
         {% endif %}
 
         <div class="application-details">
@@ -198,7 +198,7 @@
                 </div>
             {% endif %}
             <p>ご不明な点がございましたら、集会の主催者にお問い合わせください。</p>
-            <p><a href="{{ list_url }}" class="button">LT申請一覧を確認する</a></p>
+            <p><a href="{{ list_url }}" class="button">発表申請一覧を確認する</a></p>
         {% endif %}
     </div>
 

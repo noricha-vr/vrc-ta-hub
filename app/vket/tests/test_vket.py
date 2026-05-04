@@ -283,7 +283,7 @@ class VketApplyFlowTests(TestCase):
         )
         self.assertContains(
             response,
-            '日程やLT内容が未確定でも、後から更新できます。',
+            '日程や発表内容が未確定でも、後から更新できます。',
         )
         self.assertContains(
             response,
@@ -637,7 +637,7 @@ class VketApplyFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '参加日程（Step 1）は運営が確定済みのため編集できません。')
-        self.assertContains(response, 'LT開始時刻は日程確定済みのため編集できません。')
+        self.assertContains(response, '発表開始時刻は日程確定済みのため編集できません。')
 
     def test_apply_get_prefills_multiple_presentations(self):
         """既存の複数LTがGETでformsetにプリフィルされる"""

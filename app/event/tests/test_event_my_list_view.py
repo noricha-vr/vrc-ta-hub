@@ -247,8 +247,8 @@ class EventMyListDashboardTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # クイックアクションボタンのテキストが含まれる
         self.assertContains(response, 'イベント登録')
-        self.assertContains(response, 'LT申請一覧')
-        self.assertContains(response, 'LT履歴')
+        self.assertContains(response, '発表申請一覧')
+        self.assertContains(response, '発表履歴')
         self.assertContains(response, '集会設定')
         self.assertContains(response, '公開ページ')
 
@@ -261,8 +261,8 @@ class EventMyListDashboardTest(TestCase):
         content = response.content.decode()
 
         create_button_pos = content.find('イベント登録')
-        lt_application_pos = content.find('LT申請一覧')
-        lt_history_pos = content.find('LT履歴')
+        lt_application_pos = content.find('発表申請一覧')
+        lt_history_pos = content.find('fa-history')
 
         self.assertGreater(create_button_pos, -1)
         self.assertGreater(lt_application_pos, create_button_pos)
@@ -281,7 +281,7 @@ class EventMyListDashboardTest(TestCase):
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'LT申請一覧')
+        self.assertContains(response, '発表申請一覧')
         self.assertContains(response, reverse('account:lt_application_list'))
         # イベント登録ボタン（calendar_createへのリンク）が表示されないこと
         self.assertNotContains(response, reverse('event:calendar_create'))

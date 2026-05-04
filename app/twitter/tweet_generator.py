@@ -250,14 +250,14 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
 
 
 def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
-    """LT 告知ポストを生成する。
+    """発表告知ポストを生成する。
 
     Args:
         event_detail: EventDetail モデルインスタンス (detail_type='LT')
         target_chars: LLM に指示する目標文字数
     """
     system_prompt = (
-        "あなたはVRChat集会のLT告知ポストを書くライターです。"
+        "あなたはVRChat集会の発表告知ポストを書くライターです。"
         "読んだ人が「聞きたい」「行きたい」と思う告知を書いてください。"
     )
 
@@ -270,7 +270,7 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
     speaker = _sanitize_for_prompt(event_detail.speaker)
     theme = _sanitize_for_prompt(event_detail.theme)
 
-    user_prompt = f"""以下のLT（ライトニングトーク）の告知ポストを作成してください。
+    user_prompt = f"""以下の発表の告知ポストを作成してください。
 
 集会名: {name}
 日時: {event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~
@@ -396,7 +396,7 @@ def generate_daily_reminder_tweet(event, target_chars=140) -> str | None:
 
     presentations = []
     for detail in approved_details[:3]:
-        label = "LT" if detail.detail_type == "LT" else "特別回"
+        label = "発表" if detail.detail_type == "LT" else "特別回"
         speaker = _sanitize_for_prompt(detail.speaker)
         theme = _sanitize_for_prompt(detail.theme)
         presentations.append(f"- {label}: {speaker}さん「{theme}」")
@@ -454,7 +454,7 @@ def generate_daily_reminder_tweet(event, target_chars=140) -> str | None:
 - 各発表は「○○さん「テーマ名」」の形式で記載する
   - テーマ名は発表一覧のものをそのまま使う（言い換え・要約・省略禁止）
   - 登壇者名には「さん」を付ける
-- **発表数の言及禁止**: 「発表は1件」「全○件」「○本立て」「N件のLT」など、発表の本数を伝える表現は本文に一切書かない（通常1件なので情報価値がない）
+- **発表数の言及禁止**: 「発表は1件」「全○件」「○本立て」「N件の発表」など、発表の本数を伝える表現は本文に一切書かない（通常1件なので情報価値がない）
 - 発表が1件の場合は、発表行の直後に「テーマの補足 + 参加誘導」を**1行に統合**して入れる
   - 補足と誘導は別行に分けず、1文にまとめる（本文3行制約のため必須）
   - 補足は発表一覧に含まれるキーワードや背景知識から自然に膨らませる（事実の捏造は禁止）
@@ -534,7 +534,7 @@ def get_poster_image_url(community) -> str:
 def get_tweet_image_url(queue_item) -> str:
     """TweetQueue の添付画像 URL を返す。
 
-    LT資料・記事共有では発表スライド由来のサムネイルを優先し、
+    発表資料・記事共有では発表スライド由来のサムネイルを優先し、
     未設定の場合だけ集会ポスターへフォールバックする。
     """
     event_detail = getattr(queue_item, 'event_detail', None)

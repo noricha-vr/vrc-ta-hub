@@ -110,20 +110,20 @@ class Community(models.Model):
         help_text='例: ["123456789012345678", "987654321098765432"]',
     )
     accepts_lt_application = models.BooleanField(
-        '発表（LT）申し込み受付',
+        '発表申し込み受付',
         default=True,
-        help_text='ONにすると、この集会で発表（LT）申請を受け付けます'
+        help_text='ONにすると、この集会で発表申請を受け付けます'
     )
     lt_application_template = models.TextField(
-        'LT申請テンプレート',
+        '発表申請テンプレート',
         blank=True,
         default='',
-        help_text='LT申請時に登壇者に入力してもらいたい項目のテンプレート。空の場合は追加情報欄を表示しません。'
+        help_text='発表申請時に登壇者に入力してもらいたい項目のテンプレート。空の場合は追加情報欄を表示しません。'
     )
     default_lt_duration = models.PositiveIntegerField(
         'デフォルトの発表時間',
         default=30,
-        help_text='LT申請フォームに表示されるデフォルトの発表時間（分）'
+        help_text='発表申請フォームに表示されるデフォルトの発表時間（分）'
     )
 
     class Meta:

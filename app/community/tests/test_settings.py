@@ -361,7 +361,7 @@ class WebhookSettingsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Discord通知')
         self.assertContains(response, '以下のタイミングでDiscordに通知を送信します')
-        self.assertContains(response, '発表（LT）申請があった時')
+        self.assertContains(response, '発表申請があった時')
         self.assertContains(response, '発表資料（スライドURL／PDF）が初めて公開された時')
         self.assertContains(response, '重複通知は送信されません')
         self.assertContains(response, 'notification_webhook_url')
@@ -581,7 +581,7 @@ class LTSettingsTest(TestCase):
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'LT申請設定')
+        self.assertContains(response, '発表申請設定')
         self.assertContains(response, '追加情報テンプレート')
 
     def test_update_lt_settings_success(self):
@@ -707,7 +707,7 @@ class LTSettingsTest(TestCase):
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'LT申請を受け付ける')
+        self.assertContains(response, '発表申請を受け付ける')
         self.assertContains(response, 'id="accepts_lt_application"')
 
     def test_lt_detail_hidden_when_toggle_off(self):
@@ -799,7 +799,7 @@ class LTSettingsUpdateFormTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         # accepts_lt_applicationのラベルがページに含まれていないことを確認
-        self.assertNotContains(response, 'LT申請を受け付ける')
+        self.assertNotContains(response, '発表申請を受け付ける')
         # フォームフィールドがないことを確認
         self.assertNotContains(response, 'id="id_accepts_lt_application"')
 

@@ -16,7 +16,7 @@
             <div class="mt-2 d-flex gap-3 flex-wrap align-items-center">
                 <span class="text-muted small">参加: <strong>{{ participation_count }}</strong>/{{ community_total }}集会</span>
                 <span class="text-muted small">日程確定: <strong>{{ scheduled_count }}</strong>/{{ participation_count }}</span>
-                <span class="text-muted small">LT登録済: <strong>{{ lt_registered_count }}</strong>/{{ scheduled_count }}</span>
+                <span class="text-muted small">発表登録済: <strong>{{ lt_registered_count }}</strong>/{{ scheduled_count }}</span>
                 <span class="badge bg-secondary">{{ collaboration.get_phase_display }}</span>
             </div>
         </div>
@@ -143,7 +143,7 @@
                                 {% for pres in p.all_presentations %}
                                     <div class="d-flex align-items-center justify-content-between">
                                         <span class="small text-muted text-nowrap" title="{{ pres.speaker|default:'（未入力）' }}">
-                                            {{ pres.speaker|default:"LT"|truncatechars:8 }}
+                                            {{ pres.speaker|default:"発表"|truncatechars:8 }}
                                         </span>
                                         <span class="d-flex gap-1 align-items-center">
                                             {% if pres.published_event_detail %}
@@ -157,7 +157,7 @@
                                             {% endif %}
                                             <button class="btn btn-outline-danger btn-sm py-0 px-1"
                                                     type="button"
-                                                    onclick="if(confirm('{{ pres.speaker|default:"このLT"|escapejs }} を削除しますか？')) document.getElementById('delete-pres-{{ pres.pk }}').submit()">
+                                                    onclick="if(confirm('{{ pres.speaker|default:"この発表"|escapejs }} を削除しますか？')) document.getElementById('delete-pres-{{ pres.pk }}').submit()">
                                                 <i class="fas fa-times"></i>
                                             </button>
                                         </span>
@@ -236,7 +236,7 @@
                     {% if discord_mentions.lt_not_registered %}
                         <div class="col-12 col-md-6">
                             <div class="d-flex align-items-center mb-1">
-                                <label class="form-label fw-bold mb-0">LT未登録</label>
+                                <label class="form-label fw-bold mb-0">発表未登録</label>
                                 <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button" data-target="mentionLtNotRegistered">
                                     <i class="fas fa-copy me-1"></i>コピー
                                 </button>

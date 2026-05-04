@@ -189,16 +189,16 @@
                             {% endif %}
                         </section>
 
-                        <!-- LT発表申請 -->
+                        <!-- 発表申請 -->
                         {% if request.user.is_authenticated and community.status == 'approved' and community.accepts_lt_application %}
                         <section class="mb-4">
                             <h2 class="fs-5 fw-bold mb-3">
-                                <i class="bi bi-mic me-2"></i>LT発表を申し込む
+                                <i class="bi bi-mic me-2"></i>発表を申し込む
                             </h2>
-                            <p class="text-muted mb-3">この集会でLT発表をしてみませんか？テーマを登録して申請できます。</p>
+                            <p class="text-muted mb-3">この集会で発表をしてみませんか？テーマを登録して申請できます。</p>
                             <a href="{% url 'event:lt_application_create' community.pk %}"
                                class="btn btn-success">
-                                <i class="bi bi-plus-circle me-2"></i>LTを申し込む
+                                <i class="bi bi-plus-circle me-2"></i>発表を申し込む
                             </a>
                         </section>
                         {% endif %}

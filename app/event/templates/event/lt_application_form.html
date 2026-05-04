@@ -1,7 +1,7 @@
 {% extends 'ta_hub/base.html' %}
 
 {% block meta %}
-    <title>LT発表を申請 - {{ community.name }} - VRChat 技術・学術系イベントHub</title>
+    <title>発表を申請 - {{ community.name }} - VRChat 技術・学術系イベントHub</title>
 {% endblock %}
 
 {% block main %}
@@ -12,20 +12,20 @@
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{% url 'community:list' %}">集会一覧</a></li>
                     <li class="breadcrumb-item"><a href="{% url 'community:detail' community.pk %}">{{ community.name }}</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">LT発表を申請</li>
+                    <li class="breadcrumb-item active" aria-current="page">発表を申請</li>
                 </ol>
             </nav>
 
             <div class="card shadow-sm">
                 <div class="card-header bg-primary text-white">
                     <h1 class="h4 mb-0">
-                        <i class="bi bi-mic me-2"></i>LT発表を申請
+                        <i class="bi bi-mic me-2"></i>発表を申請
                     </h1>
                 </div>
                 <div class="card-body">
                     <div class="alert alert-info mb-4">
                         <h5 class="alert-heading"><i class="bi bi-info-circle me-2"></i>申請について</h5>
-                        <p class="mb-2">LT発表の申請は、主催者の承認後に正式に登録されます。</p>
+                        <p class="mb-2">発表の申請は、主催者の承認後に正式に登録されます。</p>
                         <ul class="mb-0">
                             <li>申請後、主催者にメールで通知されます</li>
                             <li>承認または却下の結果はメールでお知らせします</li>
@@ -36,7 +36,7 @@
                     {% if not form.fields.event.queryset.exists %}
                         <div class="alert alert-warning">
                             <h5 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i>申請可能な日程がありません</h5>
-                            <p class="mb-0">現在、LT発表を申請できる今後の開催日がありません。</p>
+                            <p class="mb-0">現在、発表を申請できる今後の開催日がありません。</p>
                         </div>
                         <div class="text-center mt-4">
                             <a href="{% url 'community:detail' community.pk %}" class="btn btn-secondary">

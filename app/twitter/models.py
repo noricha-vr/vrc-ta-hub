@@ -27,7 +27,7 @@ class TweetQueue(models.Model):
 
     TWEET_TYPE_CHOICES = [
         ('new_community', '新規集会'),
-        ('lt', 'LT告知'),
+        ('lt', '発表告知'),
         ('special', '特別回告知'),
         ('daily_reminder', '当日リマインド'),
         ('slide_share', 'スライド/記事共有'),

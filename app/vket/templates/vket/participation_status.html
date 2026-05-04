@@ -124,7 +124,7 @@
                         </h2>
                         <p class="mb-3">
                             Vket公式サイトのステージページに、イベント情報を暫定内容で登録してください。
-                            日程やLT内容が未確定でも、後から更新できます。
+                            日程や発表内容が未確定でも、後から更新できます。
                             登録が終わったら、この画面に戻って「登録完了」を押してください。
                         </p>
                         {% if stage_registration_guidance %}
@@ -229,13 +229,13 @@
                 </div>
             </div>
 
-            {# LT情報 #}
+            {# 発表情報 #}
             {% with presentations=participation.presentations.all %}
                 {% if presentations or event_details %}
                     <div class="card shadow-sm mb-4">
                         <div class="card-body">
                             <h2 class="h5 fw-bold mb-3">
-                                <i class="fas fa-microphone me-2"></i>LT情報
+                                <i class="fas fa-microphone me-2"></i>発表情報
                             </h2>
                             {% if event_details %}
                                 <p class="text-muted small mb-2">
@@ -265,7 +265,7 @@
                                             {% else %}
                                                 <form method="post"
                                                       action="{% url 'vket:presentation_delete' collaboration.pk pres.pk %}"
-                                                      onsubmit="return confirm('{{ pres.speaker|default:"このLT"|escapejs }} を削除しますか？関連するイベント詳細も削除されます。')"
+                                                      onsubmit="return confirm('{{ pres.speaker|default:"この発表"|escapejs }} を削除しますか？関連するイベント詳細も削除されます。')"
                                                       class="d-inline">
                                                     {% csrf_token %}
                                                     <button class="btn btn-outline-danger btn-sm" type="submit">
