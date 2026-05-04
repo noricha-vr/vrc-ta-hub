@@ -302,7 +302,7 @@ class LTApplicationListView(LoginRequiredMixin, View):
 
     def get(self, request, pk):
         """旧URLへのアクセスをマイリストへリダイレクト"""
-        messages.info(request, 'LT申請一覧はマイリストに統合されました。')
+        messages.info(request, '発表申請一覧はマイリストに統合されました。')
         return redirect('event:my_list')
 
 
@@ -330,9 +330,9 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
         community.default_lt_duration = duration
         community.save(update_fields=['accepts_lt_application', 'lt_application_template', 'default_lt_duration'])
 
-        messages.success(request, 'LT申請設定を保存しました。')
+        messages.success(request, '発表申請設定を保存しました。')
         logger.info(
-            f'LT申請設定更新: 集会「{community.name}」、'
+            f'発表申請設定更新: 集会「{community.name}」、'
             f'テンプレート文字数={len(lt_template)}、デフォルト発表時間={duration}分'
         )
 

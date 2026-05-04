@@ -54,10 +54,10 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
 
         messages.success(
             self.request,
-            'LT発表を申請しました。主催者の承認をお待ちください。'
+            '発表を申請しました。主催者の承認をお待ちください。'
         )
         logger.info(
-            f'LT申請作成: Community={self.community.name}, Event={event.date}, '
+            f'発表申請作成: Community={self.community.name}, Event={event.date}, '
             f'Theme={event_detail.theme}, User={self.request.user.user_name}'
         )
 
@@ -65,7 +65,7 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
 
 
 class LTApplicationReviewView(LoginRequiredMixin, FormView):
-    """LT申請の承認/却下ビュー"""
+    """発表申請の承認/却下ビュー"""
     template_name = 'event/lt_application_review.html'
     form_class = LTApplicationReviewForm
 
@@ -115,7 +115,7 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
 
         messages.success(self.request, f'申請を{status_text}しました。')
         logger.info(
-            f'LT申請{status_text}: EventDetail ID={self.event_detail.pk}, '
+            f'発表申請{status_text}: EventDetail ID={self.event_detail.pk}, '
             f'Community={self.community.name}, Reviewer={self.request.user.user_name}'
         )
 
@@ -123,7 +123,7 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
 
 
 class LTApplicationApproveView(LoginRequiredMixin, View):
-    """LT申請の承認ビュー（AJAX対応）"""
+    """発表申請の承認ビュー（AJAX対応）"""
 
     def post(self, request, pk):
         event_detail = get_object_or_404(EventDetail, pk=pk)
@@ -152,7 +152,7 @@ class LTApplicationApproveView(LoginRequiredMixin, View):
         notify_applicant_of_result(event_detail, request=request)
 
         logger.info(
-            f'LT申請承認: EventDetail ID={event_detail.pk}, '
+            f'発表申請承認: EventDetail ID={event_detail.pk}, '
             f'Community={community.name}, Reviewer={request.user.user_name}'
         )
 
@@ -164,7 +164,7 @@ class LTApplicationApproveView(LoginRequiredMixin, View):
 
 
 class LTApplicationRejectView(LoginRequiredMixin, View):
-    """LT申請の却下ビュー（AJAX対応）"""
+    """発表申請の却下ビュー（AJAX対応）"""
 
     def post(self, request, pk):
         event_detail = get_object_or_404(EventDetail, pk=pk)
@@ -202,7 +202,7 @@ class LTApplicationRejectView(LoginRequiredMixin, View):
         notify_applicant_of_result(event_detail, request=request)
 
         logger.info(
-            f'LT申請却下: EventDetail ID={event_detail.pk}, '
+            f'発表申請却下: EventDetail ID={event_detail.pk}, '
             f'Community={community.name}, Reviewer={request.user.user_name}, '
             f'Reason={rejection_reason}'
         )

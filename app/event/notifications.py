@@ -1,4 +1,4 @@
-"""LT申請の通知サービス"""
+"""発表申請の通知サービス"""
 import logging
 
 import requests
@@ -17,7 +17,7 @@ DISCORD_TIMEOUT_SECONDS = 10
 
 def notify_owners_of_new_application(event_detail: EventDetail, request=None) -> None:
     """
-    新しいLT申請を主催者に通知する
+    新しい発表申請を主催者に通知する
 
     Args:
         event_detail: 申請されたEventDetailインスタンス
@@ -28,7 +28,7 @@ def notify_owners_of_new_application(event_detail: EventDetail, request=None) ->
 
     if not owners:
         logger.warning(
-            f"LT申請通知: 主催者が見つかりません。Community={community.name}"
+            f"発表申請通知: 主催者が見つかりません。Community={community.name}"
         )
         return
 
@@ -43,7 +43,7 @@ def notify_owners_of_new_application(event_detail: EventDetail, request=None) ->
     for owner in owners:
         if not owner.email:
             logger.warning(
-                f"LT申請通知: メールアドレスがありません。User={owner.user_name}"
+                f"発表申請通知: メールアドレスがありません。User={owner.user_name}"
             )
             continue
 
@@ -55,7 +55,7 @@ def notify_owners_of_new_application(event_detail: EventDetail, request=None) ->
             'review_url': review_url,
         }
 
-        subject = f"[{community.name}] 新しいLT申請があります"
+        subject = f"[{community.name}] 新しい発表申請があります"
         html_message = render_to_string(
             'event/email/lt_application_received.html', context
         )
@@ -70,15 +70,15 @@ def notify_owners_of_new_application(event_detail: EventDetail, request=None) ->
             )
             if sent:
                 logger.info(
-                    f"LT申請通知メール送信成功: {owner.email} (申請ID={event_detail.pk})"
+                    f"発表申請通知メール送信成功: {owner.email} (申請ID={event_detail.pk})"
                 )
             else:
                 logger.warning(
-                    f"LT申請通知メール送信失敗: {owner.email} (申請ID={event_detail.pk})"
+                    f"発表申請通知メール送信失敗: {owner.email} (申請ID={event_detail.pk})"
                 )
         except Exception as e:
             logger.error(
-                f"LT申請通知メール送信エラー: {owner.email} (申請ID={event_detail.pk}): {e}"
+                f"発表申請通知メール送信エラー: {owner.email} (申請ID={event_detail.pk}): {e}"
             )
 
     # Discord Webhook通知
@@ -102,7 +102,7 @@ def notify_applicant_of_result(event_detail: EventDetail, request=None) -> None:
 
     community = event_detail.event.community
 
-    # 承認時: LT申請編集ページ、却下時: LT申請一覧ページ
+    # 承認時: 発表申請編集ページ、却下時: 発表申請一覧ページ
     if event_detail.status == 'approved':
         detail_path = reverse('account:lt_application_edit', kwargs={'pk': event_detail.pk})
     else:
@@ -130,9 +130,9 @@ def notify_applicant_of_result(event_detail: EventDetail, request=None) -> None:
     }
 
     if event_detail.status == 'approved':
-        subject = f"[{community.name}] LT申請が承認されました"
+        subject = f"[{community.name}] 発表申請が承認されました"
     else:
-        subject = f"[{community.name}] LT申請が却下されました"
+        subject = f"[{community.name}] 発表申請が却下されました"
 
     html_message = render_to_string(
         'event/email/lt_application_result.html', context
@@ -208,7 +208,7 @@ def _send_discord_notification_for_new_application(
     message = {
         "content": f"⬇️ **承認/却下をお願いします**\n{review_url}",
         "embeds": [{
-            "title": "📢 新しいLT申請",
+            "title": "📢 新しい発表申請",
             "description": f"**{event_detail.theme}**",
             "color": 16750848,  # オレンジ色（注目を引く）
             "fields": fields,
@@ -245,10 +245,10 @@ def _send_discord_notification_for_result(event_detail: EventDetail) -> None:
     # 認知科学に基づくレイアウト:
     # 結果を一目で分かるように、絵文字と色で視覚的に区別
     if is_approved:
-        title = "✅ LT申請が承認されました"
+        title = "✅ 発表申請が承認されました"
         color = 5763719  # 緑
     else:
-        title = "❌ LT申請が却下されました"
+        title = "❌ 発表申請が却下されました"
         color = 15548997  # 赤
 
     fields = [
