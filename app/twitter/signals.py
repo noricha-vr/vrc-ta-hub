@@ -5,6 +5,7 @@
 
 import logging
 import threading
+import uuid
 
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
@@ -22,7 +23,34 @@ SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個
 NO_APPROVED_PRESENTATIONS_SKIP_REASON = '承認済みの当日発表がないため投稿対象外'
 
 
-def _generate_tweet_async(queue_id: int) -> None:
+def _save_generation_failure(queue_id: int, generation_token: str, error_message: str) -> None:
+    from twitter.models import TweetQueue
+
+    if generation_token:
+        updated = run_with_db_reconnect(
+            lambda: TweetQueue.objects.filter(
+                pk=queue_id,
+                generation_token=generation_token,
+            ).update(status='generation_failed', error_message=error_message),
+            context=f"generate_tweet_failed queue={queue_id}",
+        )
+        if not updated:
+            logger.info("Ignored stale failed tweet generation for queue %d", queue_id)
+        return
+
+    item = run_with_db_reconnect(
+        lambda: TweetQueue.objects.get(pk=queue_id),
+        context=f"generate_tweet_failed_fetch queue={queue_id}",
+    )
+    item.status = 'generation_failed'
+    item.error_message = error_message
+    run_with_db_reconnect(
+        item.save,
+        context=f"generate_tweet_failed queue={queue_id}",
+    )
+
+
+def _generate_tweet_async(queue_id: int, generation_token: str = "") -> None:
     """バックグラウンドスレッドでツイートテキストを生成する。"""
     from django.db import connections
 
@@ -45,26 +73,39 @@ def _generate_tweet_async(queue_id: int) -> None:
         text = generator(queue_item) if generator else None
 
         if not text:
-            queue_item.status = 'generation_failed'
-            queue_item.error_message = 'テキスト生成に失敗'
-            run_with_db_reconnect(
-                queue_item.save,
-                context=f"generate_tweet_failed queue={queue_id}",
-            )
+            _save_generation_failure(queue_id, generation_token, 'テキスト生成に失敗')
             return
 
-        queue_item.generated_text = text
-
         image_url = get_tweet_image_url(queue_item)
-        if image_url:
-            queue_item.image_url = image_url
 
-        queue_item.status = 'ready'
-        queue_item.error_message = ''
-        run_with_db_reconnect(
-            queue_item.save,
-            context=f"generate_tweet_success queue={queue_id}",
-        )
+        if generation_token:
+            update_values = {
+                'generated_text': text,
+                'status': 'ready',
+                'error_message': '',
+            }
+            if image_url:
+                update_values['image_url'] = image_url
+            updated = run_with_db_reconnect(
+                lambda: TweetQueue.objects.filter(
+                    pk=queue_id,
+                    generation_token=generation_token,
+                ).update(**update_values),
+                context=f"generate_tweet_success queue={queue_id}",
+            )
+            if not updated:
+                logger.info("Ignored stale tweet generation for queue %d", queue_id)
+                return
+        else:
+            queue_item.generated_text = text
+            if image_url:
+                queue_item.image_url = image_url
+            queue_item.status = 'ready'
+            queue_item.error_message = ''
+            run_with_db_reconnect(
+                queue_item.save,
+                context=f"generate_tweet_success queue={queue_id}",
+            )
         logger.info("Tweet text generated for queue %d", queue_id)
 
     except Exception as e:
@@ -72,22 +113,22 @@ def _generate_tweet_async(queue_id: int) -> None:
             "Async tweet generation failed for queue %d: %s", queue_id, e,
         )
         try:
-            from twitter.models import TweetQueue
-
-            item = run_with_db_reconnect(
-                lambda: TweetQueue.objects.get(pk=queue_id),
-                context=f"generate_tweet_exception_fetch queue={queue_id}",
-            )
-            item.status = 'generation_failed'
-            item.error_message = str(e)[:500]
-            run_with_db_reconnect(
-                item.save,
-                context=f"generate_tweet_exception_save queue={queue_id}",
-            )
+            _save_generation_failure(queue_id, generation_token, str(e)[:500])
         except Exception:
             pass
     finally:
         connections.close_all()
+
+
+def _start_tweet_generation(queue_item) -> None:
+    """TweetQueue の本文生成をバックグラウンドで開始する。"""
+    generation_token = uuid.uuid4().hex
+    queue_item.generation_token = generation_token
+    queue_item.save(update_fields=['generation_token'])
+    thread = threading.Thread(
+        target=_generate_tweet_async, args=(queue_item.pk, generation_token), daemon=True,
+    )
+    thread.start()
 
 
 @receiver(pre_save, sender=Community)
@@ -226,7 +267,6 @@ def _ensure_same_day_individual_queue_skipped(instance, tweet_type: str) -> None
 def _sync_daily_reminder_for_event(event_id: int) -> None:
     from event.models import Event
     from twitter.models import TweetQueue
-    from twitter.views import _retry_generation
 
     try:
         event = Event.objects.select_related('community').get(pk=event_id)
@@ -274,7 +314,7 @@ def _sync_daily_reminder_for_event(event_id: int) -> None:
         queue.generated_text = ''
         queue.save(update_fields=['community', 'scheduled_at', 'status', 'error_message', 'generated_text'])
 
-    _retry_generation(queue)
+    _start_tweet_generation(queue)
     logger.info("Synced daily reminder tweet for event %d", event.pk)
 
 
@@ -320,10 +360,7 @@ def _queue_new_community_tweet(instance, created):
     )
     logger.info("Queued new community tweet: %s", instance.name)
 
-    thread = threading.Thread(
-        target=_generate_tweet_async, args=(queue_item.pk,), daemon=True,
-    )
-    thread.start()
+    _start_tweet_generation(queue_item)
 
 
 @receiver(post_save, sender=EventDetail)
@@ -383,10 +420,7 @@ def _queue_slide_share_tweet(instance, created):
         "Queued slide share tweet: %s - %s", instance.speaker, instance.theme,
     )
 
-    thread = threading.Thread(
-        target=_generate_tweet_async, args=(queue_item.pk,), daemon=True,
-    )
-    thread.start()
+    _start_tweet_generation(queue_item)
 
 
 @receiver(post_save, sender=EventDetail)
@@ -455,10 +489,7 @@ def _queue_event_detail_tweet(instance, created):
 
     _sync_daily_reminders_for_instance(instance, created)
 
-    thread = threading.Thread(
-        target=_generate_tweet_async, args=(queue_item.pk,), daemon=True,
-    )
-    thread.start()
+    _start_tweet_generation(queue_item)
 
 
 @receiver(post_delete, sender=EventDetail)

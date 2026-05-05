@@ -63,6 +63,7 @@ class TweetQueue(models.Model):
     scheduled_at = models.DateTimeField('予約日時')
     posted_at = models.DateTimeField('投稿日時', null=True, blank=True)
     error_message = models.TextField('エラーメッセージ', blank=True)
+    generation_token = models.CharField('生成トークン', max_length=32, blank=True)
 
     class Meta:
         ordering = ['-created_at']
