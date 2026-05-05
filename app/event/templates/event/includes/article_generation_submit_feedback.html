@@ -170,6 +170,7 @@
         const submitButton = form.querySelector('[data-article-submit-button]');
         const defaultLabel = submitButton?.querySelector('[data-submit-default]');
         const loadingLabel = submitButton?.querySelector('[data-submit-loading]');
+        const loadingLabelDefaultHtml = loadingLabel?.innerHTML || '';
         const feedback = form.querySelector('[data-article-submit-feedback]');
         const feedbackTitle = form.querySelector('[data-article-submit-title]');
         const feedbackDetail = form.querySelector('[data-article-submit-detail]');
@@ -191,6 +192,7 @@
         ];
 
         let messageTimer = null;
+        let isSubmitting = false;
 
         function hasGenerationSource() {
             const youtubeUrl = form.querySelector('#id_youtube_url')?.value.trim();
@@ -238,6 +240,7 @@
                 defaultLabel.hidden = true;
             }
             if (loadingLabel) {
+                loadingLabel.innerHTML = loadingLabelDefaultHtml;
                 loadingLabel.hidden = false;
             }
             feedback.hidden = false;
@@ -248,13 +251,55 @@
             startMessageLoop();
         }
 
-        window.addEventListener('pageshow', stopMessageLoop);
-
-        form.addEventListener('submit', function() {
-            if (!shouldShowGenerationState()) {
+        function activateSavingState() {
+            if (!submitButton) {
                 return;
             }
-            activatePendingState();
+            submitButton.dataset.submitState = 'saving';
+            submitButton.disabled = true;
+            if (defaultLabel) {
+                defaultLabel.hidden = true;
+            }
+            if (loadingLabel) {
+                loadingLabel.innerHTML = '保存中…';
+                loadingLabel.hidden = false;
+            }
+            form.setAttribute('aria-busy', 'true');
+        }
+
+        function resetSubmitState() {
+            isSubmitting = false;
+            stopMessageLoop();
+            form.removeAttribute('aria-busy');
+            if (submitButton) {
+                submitButton.disabled = false;
+                delete submitButton.dataset.submitState;
+            }
+            if (defaultLabel) {
+                defaultLabel.hidden = false;
+            }
+            if (loadingLabel) {
+                loadingLabel.innerHTML = loadingLabelDefaultHtml;
+                loadingLabel.hidden = true;
+            }
+            if (feedback) {
+                feedback.hidden = true;
+            }
+        }
+
+        window.addEventListener('pageshow', resetSubmitState);
+
+        form.addEventListener('submit', function(event) {
+            if (isSubmitting) {
+                event.preventDefault();
+                return;
+            }
+            isSubmitting = true;
+            if (shouldShowGenerationState()) {
+                activatePendingState();
+                return;
+            }
+            activateSavingState();
         });
     })();
 </script>

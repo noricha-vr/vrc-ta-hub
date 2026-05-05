@@ -53,3 +53,29 @@ class EventDetailTemplateTest(SimpleTestCase):
             "show: ['theme', 'speaker', 'start_time', 'duration', 'slide_file', 'slide_url'",
             template,
         )
+
+    def test_article_submit_feedback_prevents_double_submit(self):
+        """保存ボタン連打による二重送信をフォーム側で止める."""
+        template = (
+            Path(__file__).resolve().parents[1] / "templates" / "event" / "includes"
+            / "article_generation_submit_feedback.html"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("let isSubmitting = false;", template)
+        self.assertIn("if (isSubmitting) {", template)
+        self.assertIn("event.preventDefault();", template)
+        self.assertIn("isSubmitting = true;", template)
+        self.assertIn("submitButton.disabled = true;", template)
+
+    def test_article_submit_feedback_shows_saving_state_without_generation(self):
+        """記事生成しない通常保存でも保存中表示に切り替える."""
+        template = (
+            Path(__file__).resolve().parents[1] / "templates" / "event" / "includes"
+            / "article_generation_submit_feedback.html"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("function activateSavingState()", template)
+        self.assertIn("submitButton.dataset.submitState = 'saving';", template)
+        self.assertIn("const loadingLabelDefaultHtml = loadingLabel?.innerHTML || '';", template)
+        self.assertIn("loadingLabel.innerHTML = '保存中…';", template)
+        self.assertIn("window.addEventListener('pageshow', resetSubmitState);", template)
