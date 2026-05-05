@@ -10,6 +10,7 @@ from django.views.generic import DetailView
 from community.models import WEEKDAY_CHOICES
 from event.libs import convert_markdown
 from event.models import EventDetail
+from event.recurrence_labels import get_community_recurrence_label
 from event.views.helpers import can_manage_event_detail, extract_video_info
 from utils.vrchat_time import get_vrchat_today
 
@@ -55,7 +56,7 @@ class EventDetailView(DetailView):
             'weekdays': [dict(WEEKDAY_CHOICES)[day] for day in community.weekdays],
             'start_time': community.start_time,
             'end_time': community.end_time,
-            'frequency': community.frequency
+            'frequency': get_community_recurrence_label(community)
         }
 
         # Twitterボタン表示用のフラグとテンプレートを追加

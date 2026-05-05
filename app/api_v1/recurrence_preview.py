@@ -35,7 +35,7 @@ class RecurrencePreviewAPIView(APIView):
         if frequency == 'OTHER' and not custom_rule:
             return Response({
                 'success': False,
-                'error': 'カスタムルールが指定されていません'
+                'error': '開催日程の説明が指定されていません'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         try:

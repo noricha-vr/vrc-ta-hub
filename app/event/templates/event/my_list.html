@@ -65,6 +65,9 @@
             <a href="{% url 'event:calendar_create' %}" class="btn btn-primary">
                 <i class="fas fa-plus"></i> イベント登録
             </a>
+            <a href="{% url 'event:create_recurring_event' community.pk %}" class="btn btn-outline-primary">
+                <i class="fas fa-repeat"></i> 定期開催イベントを登録
+            </a>
             {% endif %}
             <a href="{% url 'account:lt_application_list' %}" class="btn btn-outline-secondary">
                 <i class="fa-solid fa-microphone"></i> 発表申請一覧

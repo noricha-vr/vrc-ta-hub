@@ -1,0 +1,29 @@
+{% extends 'ta_hub/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block main %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-md-10 offset-md-1">
+            {% include 'ta_hub/messages.html' %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h1 class="h4 mb-0">定期開催イベントを登録: {{ community.name }}</h1>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        {% bootstrap_form form %}
+                        <div class="mt-4 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-plus-circle me-1"></i>登録する
+                            </button>
+                            <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">戻る</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -111,7 +111,7 @@ class CommunityUpdateForm(VrcGroupUrlMixin, forms.ModelForm):
     class Meta:
         model = Community
         fields = [
-            'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
+            'name', 'start_time', 'duration', 'weekdays', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
             'poster_image', 'allow_poster_repost',
             'description', 'platform', 'tags',
@@ -124,7 +124,6 @@ class CommunityUpdateForm(VrcGroupUrlMixin, forms.ModelForm):
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'start_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'duration': forms.NumberInput(attrs={'class': 'form-control'}),
-            'frequency': forms.TextInput(attrs={'class': 'form-control'}),
             'organizers': forms.TextInput(attrs={'class': 'form-control'}),
             'group_url': forms.URLInput(attrs={'class': 'form-control'}),
             'organizer_url': forms.URLInput(attrs={'class': 'form-control'}),
@@ -168,7 +167,7 @@ class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
     class Meta:
         model = Community
         fields = [
-            'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
+            'name', 'start_time', 'duration', 'weekdays', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
             'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags'
         ]
@@ -180,7 +179,6 @@ class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
             'name': forms.TextInput(attrs={'class': 'form-control'}),
             'start_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'duration': forms.NumberInput(attrs={'class': 'form-control'}),
-            'frequency': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '隔週'}),
             'organizers': forms.TextInput(attrs={'class': 'form-control'}),
             'group_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://vrc.group/XXXXX'}),
             'organizer_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://vrchat.com/home/user/XXXXX'}),
@@ -208,3 +206,11 @@ class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
             f"{POSTER_REQUIREMENTS_HELP_TEXT}"
         )
         self.fields['allow_poster_repost'].initial = True
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.frequency = ''
+        if commit:
+            instance.save()
+            self.save_m2m()
+        return instance

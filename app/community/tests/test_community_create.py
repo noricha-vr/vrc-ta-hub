@@ -27,12 +27,13 @@ class CommunityCreateFormTest(TestCase):
         """フォームに必須フィールドが含まれていることをテスト."""
         form = CommunityCreateForm()
         required_fields = [
-            'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
+            'name', 'start_time', 'duration', 'weekdays', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
             'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags'
         ]
         for field in required_fields:
             self.assertIn(field, form.fields)
+        self.assertNotIn('frequency', form.fields)
 
     def test_poster_image_is_required(self):
         """poster_imageが必須であることをテスト."""
@@ -159,7 +160,6 @@ class CommunityCreateViewTest(TestCase):
             'start_time': '20:00',
             'duration': 60,
             'weekdays': ['Sat'],
-            'frequency': '毎週',
             'organizers': 'テスト主催者',
             'group_url': '',
             'organizer_url': '',
@@ -185,6 +185,7 @@ class CommunityCreateViewTest(TestCase):
         # 集会のnameが送信した値になっていることを確認
         created_community = Community.objects.get(name='テスト集会名')
         self.assertEqual(created_community.name, 'テスト集会名')
+        self.assertEqual(created_community.frequency, '')
 
         # CommunityMemberが作成されていることを確認
         self.assertTrue(CommunityMember.objects.filter(
@@ -216,7 +217,6 @@ class CommunityCreateViewTest(TestCase):
             'start_time': '20:00',
             'duration': 60,
             'weekdays': ['Sat'],
-            'frequency': '毎週',
             'organizers': 'テスト主催者',
             'group_url': '',
             'organizer_url': '',
@@ -291,7 +291,6 @@ class CommunityCreateViewTest(TestCase):
             'start_time': '20:00',
             'duration': 60,
             'weekdays': ['Sat'],
-            'frequency': '毎週',
             'organizers': 'テスト主催者',
             'group_url': '',
             'organizer_url': '',

@@ -42,7 +42,6 @@ class CommunityUpdateFormTest(TestCase):
             'name': 'テスト集会',
             'start_time': '22:00',
             'duration': 60,
-            'frequency': '毎週',
             'organizers': 'テスト主催者',
             'weekdays': ['Mon'],
             'tags': ['tech'],
@@ -58,12 +57,13 @@ class CommunityUpdateFormTest(TestCase):
         """必須フィールドのテスト"""
         form = CommunityUpdateForm(instance=self.community)
         expected_fields = [
-            'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
+            'name', 'start_time', 'duration', 'weekdays', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
             'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags',
         ]
         for field in expected_fields:
             self.assertIn(field, form.fields, f'{field} should be in form fields')
+        self.assertNotIn('frequency', form.fields)
 
     def test_x_labels_and_placeholders_are_updated(self):
         """X向けのラベルとプレースホルダーが表示される"""
@@ -85,7 +85,6 @@ class CommunityUpdateFormTest(TestCase):
             'name': 'テスト集会',
             'start_time': '22:00',
             'duration': 60,
-            'frequency': '毎週',
             'organizers': 'テスト主催者',
             'weekdays': ['Mon'],
             'tags': ['tech'],
@@ -102,7 +101,6 @@ class CommunityUpdateFormTest(TestCase):
             'name': 'テスト集会',
             'start_time': '22:00',
             'duration': 60,
-            'frequency': '毎週',
             'organizers': 'テスト主催者',
             'weekdays': ['Mon'],
             'tags': ['tech'],
@@ -120,7 +118,6 @@ class CommunityUpdateFormTest(TestCase):
             'name': 'テスト集会',
             'start_time': '22:00',
             'duration': 60,
-            'frequency': '毎週',
             'organizers': 'テスト主催者',
             'weekdays': ['Mon'],
             'tags': ['tech'],

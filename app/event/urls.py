@@ -6,6 +6,7 @@ from .views import EventListView, EventDetailView, sync_calendar_events, EventDe
     EventDeleteView, GoogleCalendarEventCreateView, EventLogListView, LTApplicationCreateView, LTApplicationReviewView, \
     LTApplicationApproveView, LTApplicationRejectView
 from .views_llm_generate import generate_llm_events
+from .views_recurring import create_recurring_event, list_recurring_events
 
 app_name = 'event'
 urlpatterns = [
@@ -14,6 +15,8 @@ urlpatterns = [
     path('my_list/', EventMyList.as_view(), name='my_list'),
     path('sync/', sync_calendar_events, name='sync_calendar_events'),
     path('calendar/create/', GoogleCalendarEventCreateView.as_view(), name='calendar_create'),
+    path('recurring/', list_recurring_events, name='list_recurring_events'),
+    path('recurring/<int:community_id>/create/', create_recurring_event, name='create_recurring_event'),
     # detail
     path('<int:event_pk>/detail/create/', EventDetailCreateView.as_view(), name='detail_create'),
     path('detail/<int:pk>/', EventDetailView.as_view(), name='detail'),

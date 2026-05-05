@@ -23,7 +23,7 @@ def create_recurring_event(request, community_id):
     # 権限チェック
     if not community.is_owner(request.user):
         messages.error(request, 'このコミュニティのイベントを作成する権限がありません。')
-        return redirect('community:detail', community_id=community.id)
+        return redirect('community:detail', pk=community.id)
     
     if request.method == 'POST':
         form = RecurringEventForm(request.POST, community=community)
@@ -35,8 +35,9 @@ def create_recurring_event(request, community_id):
                         community=community,
                         frequency=form.cleaned_data['frequency'],
                         interval=form.cleaned_data['interval'],
-                        week_of_month=form.cleaned_data.get('week_of_month'),
+                        week_of_month=form.cleaned_data.get('week_of_month') or None,
                         custom_rule=form.cleaned_data.get('custom_rule', ''),
+                        start_date=form.cleaned_data['base_date'],
                         end_date=form.cleaned_data.get('end_date')
                     )
                     
@@ -54,7 +55,7 @@ def create_recurring_event(request, community_id):
                     if events:
                         messages.success(request, f'{len(events)}件の定期イベントを作成しました。')
                         # 最初のイベントの詳細ページへリダイレクト
-                        return redirect('event:detail', event_id=events[0].id)
+                        return redirect('event:detail', pk=events[0].id)
                     else:
                         messages.error(request, 'イベントの作成に失敗しました。')
             

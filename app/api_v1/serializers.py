@@ -6,6 +6,7 @@ from rest_framework import serializers
 
 from community.models import Community, WEEKDAY_CHOICES
 from event.models import Event, EventDetail, RecurrenceRule
+from event.recurrence_labels import get_community_recurrence_label
 
 
 def _extract_group_id(group_url):
@@ -30,6 +31,7 @@ def _extract_group_id(group_url):
 
 class CommunitySerializer(serializers.ModelSerializer):
     poster_image = serializers.SerializerMethodField()
+    frequency = serializers.SerializerMethodField()
     group_id = serializers.SerializerMethodField()
     start_time = serializers.TimeField(format='%H:%M')
 
@@ -46,6 +48,9 @@ class CommunitySerializer(serializers.ModelSerializer):
         if obj.poster_image:
             return obj.poster_image.url
         return None
+
+    def get_frequency(self, obj):
+        return get_community_recurrence_label(obj)
 
     def get_group_id(self, obj):
         return _extract_group_id(obj.group_url)
@@ -138,7 +143,7 @@ class GatheringListSerializer(GatheringListSchemaSerializer):
             '曜日': self.WEEKDAY_LABELS.get(primary_weekday, 'その他'),
             'イベント名': instance.name,
             '開始時刻': instance.start_time.strftime('%H:%M') if instance.start_time else '',
-            '開催周期': instance.frequency or '',
+            '開催周期': get_community_recurrence_label(instance),
             '主催・副主催': instance.organizers or '',
             'Join先': instance.group_url or instance.organizer_url or '',
             'グループID': _extract_group_id(instance.group_url),

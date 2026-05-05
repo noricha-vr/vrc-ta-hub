@@ -13,6 +13,7 @@ from django.views import View
 from django.views.generic import ListView, DetailView
 
 from event.models import Event, EventDetail
+from event.recurrence_labels import get_community_recurrence_label
 from url_filters import get_filtered_url
 
 from ..forms import CommunitySearchForm
@@ -219,6 +220,7 @@ class CommunityDetailView(DetailView):
 
         # タグの選択肢をコンテキストに追加
         context['tag_choices'] = dict(TAGS)
+        context['recurrence_schedule_label'] = get_community_recurrence_label(community)
 
         # 承認ボタンの表示
         if self.request.user.is_superuser and community.status == 'pending':

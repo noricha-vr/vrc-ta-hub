@@ -5,6 +5,7 @@ from rest_framework.test import APIClient
 from datetime import time
 
 from community.models import Community
+from event.models import Event, RecurrenceRule
 
 
 class CommunityAPITest(TestCase):
@@ -26,6 +27,21 @@ class CommunityAPITest(TestCase):
             tags=['tech'],
             status='approved',
             allow_poster_repost=True,
+        )
+        recurrence_rule = RecurrenceRule.objects.create(
+            community=self.approved_with_tags,
+            frequency='WEEKLY',
+            interval=1,
+            start_date='2026-05-04',
+        )
+        Event.objects.create(
+            community=self.approved_with_tags,
+            date='2026-05-04',
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Mon',
+            recurrence_rule=recurrence_rule,
+            is_recurring_master=True,
         )
 
         # tags空のコミュニティ（approved）→ 除外されるべき
@@ -125,6 +141,12 @@ class CommunityAPITest(TestCase):
         response = self.client.get(self.list_url)
         community = next(c for c in response.data if c['name'] == '技術集会A')
         self.assertTrue(community['allow_poster_repost'])
+
+    def test_frequency_uses_recurrence_rule_label(self):
+        """frequencyは旧Community.frequencyではなく定期ルールの表示値を返す"""
+        response = self.client.get(self.list_url)
+        community = next(c for c in response.data if c['name'] == '技術集会A')
+        self.assertEqual(community['frequency'], '毎週月曜日 22:00-23:00')
 
     def test_group_id_from_vrchat_long_url(self):
         """vrchat.com長URLからgrp_IDが抽出される"""

@@ -17,6 +17,7 @@ from django.views import View
 from django.views.generic import UpdateView, CreateView, ListView
 
 from event.community_cleanup import cleanup_community_future_data
+from event.recurrence_labels import get_community_recurrence_label
 
 from ..forms import CommunitySearchForm, CommunityUpdateForm, CommunityCreateForm
 from ..libs import get_join_type
@@ -125,6 +126,7 @@ class WaitingCommunityListView(LoginRequiredMixin, UserPassesTestMixin, ListView
         context['search_count'] = self.get_queryset().count()
         for community in context['communities']:
             community.join_type = get_join_type(community.organizer_url)
+            community.recurrence_schedule_label = get_community_recurrence_label(community)
 
         # 曜日の選択肢をコンテキストに追加
         context['weekday_choices'] = dict(WEEKDAY_CHOICES)
@@ -145,9 +147,13 @@ class AcceptView(LoginRequiredMixin, View):
         # 承認通知メールを送信
         subject = f'{community.name}が承認されました'
         my_list_url = request.build_absolute_uri(reverse('event:my_list'))
+        recurring_event_url = request.build_absolute_uri(
+            reverse('event:create_recurring_event', kwargs={'community_id': community.pk})
+        )
         context = {
             'community': community,
             'my_list_url': my_list_url,
+            'recurring_event_url': recurring_event_url,
             'owner_name': community.get_owner().user_name if community.get_owner() else None,
         }
 

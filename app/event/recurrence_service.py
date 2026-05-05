@@ -44,17 +44,9 @@ class RecurrenceService:
     def __init__(self):
         # OpenRouter用の設定
         self.api_key = os.environ.get("OPENROUTER_API_KEY")
-        if not self.api_key:
-            raise ValueError("OPENROUTER_API_KEY is required")
-        
         # モデル名を環境変数から取得
         self.model_name = getattr(settings, 'GEMINI_MODEL', 'google/gemini-2.0-flash-exp')
-        
-        # OpenAI SDKを使用してOpenRouterクライアントを初期化
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=self.api_key
-        )
+        self.client = None
     
     def generate_dates(self, rule: RecurrenceRule, base_date: date, base_time: datetime.time, months: int = 1, community=None) -> List[date]:
         """定期ルールに基づいて日付リストを生成"""
@@ -458,6 +450,13 @@ class RecurrenceService:
         """LLMを使用して日付リストを生成"""
         if not rule.custom_rule:
             return []
+        if not self.api_key:
+            raise ValueError("OPENROUTER_API_KEY is required")
+        if self.client is None:
+            self.client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=self.api_key
+            )
         
         end_date = base_date + timedelta(days=months * 30)
         if rule.end_date and rule.end_date < end_date:

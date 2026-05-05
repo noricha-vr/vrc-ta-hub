@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from community.models import Community
-from event.models import Event
+from event.models import Event, RecurrenceRule
 
 
 class GatheringListAPITest(TestCase):
@@ -31,12 +31,20 @@ class GatheringListAPITest(TestCase):
             tags=['tech', 'academic'],
             allow_poster_repost=True,
         )
+        sunday_rule = RecurrenceRule.objects.create(
+            community=self.sunday_community,
+            frequency='WEEKLY',
+            interval=2,
+            start_date=date(2026, 3, 29),
+        )
         Event.objects.create(
             community=self.sunday_community,
             date=date(2026, 3, 29),
             start_time=time(20, 30),
             duration=90,
             weekday='Sun',
+            recurrence_rule=sunday_rule,
+            is_recurring_master=True,
         )
 
         self.monday_community = Community.objects.create(
@@ -111,7 +119,7 @@ class GatheringListAPITest(TestCase):
         self.assertEqual(payload[0]['曜日'], '日曜日')
         self.assertEqual(payload[0]['イベント名'], '日曜技術学術集会')
         self.assertEqual(payload[0]['開始時刻'], '20:30')
-        self.assertEqual(payload[0]['開催周期'], '隔週')
+        self.assertEqual(payload[0]['開催周期'], '隔週日曜日 20:30-22:00')
         self.assertEqual(payload[0]['主催・副主催'], '主催A・副主催B')
         self.assertEqual(payload[0]['Join先'], 'https://vrc.group/SUN.0001')
         self.assertEqual(payload[0]['Discord'], 'https://discord.gg/sunday')
@@ -123,6 +131,7 @@ class GatheringListAPITest(TestCase):
         self.assertTrue(payload[0]['ポスター転載可'])
 
         self.assertEqual(payload[1]['曜日'], '月曜日')
+        self.assertEqual(payload[1]['開催周期'], '定期開催未設定')
         self.assertEqual(payload[1]['Join先'], 'https://vrchat.com/home/user/usr_monday')
         self.assertIsNone(payload[1]['グループID'])
         self.assertFalse(payload[1]['ポスター転載可'])

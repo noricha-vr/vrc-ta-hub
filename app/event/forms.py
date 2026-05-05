@@ -15,7 +15,7 @@ from .datetime_lock import (
     has_event_detail_start_time_changed,
     is_event_detail_datetime_locked,
 )
-from .models import EventDetail, RecurrenceRule, Event, validate_pdf_file
+from .models import EventDetail, Event, validate_pdf_file
 from .thumbnail import SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT, crop_to_slide_thumbnail_aspect_ratio
 
 
@@ -145,7 +145,12 @@ class RecurringEventForm(forms.Form):
     # 定期ルール
     frequency = forms.ChoiceField(
         label='開催パターン',
-        choices=RecurrenceRule.FREQUENCY_CHOICES,
+        choices=[
+            ('WEEKLY', '毎週'),
+            ('MONTHLY_BY_DATE', '毎月（日付指定）'),
+            ('MONTHLY_BY_WEEK', '毎月（第N曜日）'),
+            ('OTHER', '自由記述'),
+        ],
         initial='WEEKLY',
         widget=forms.Select(attrs={
             'class': 'form-control',
@@ -183,7 +188,7 @@ class RecurringEventForm(forms.Form):
     )
     
     custom_rule = forms.CharField(
-        label='カスタムルール',
+        label='開催日程の説明',
         required=False,
         widget=forms.Textarea(attrs={
             'class': 'form-control',
@@ -223,7 +228,7 @@ class RecurringEventForm(forms.Form):
             raise ValidationError('第N曜日を選択してください')
         
         if frequency == 'OTHER' and not cleaned_data.get('custom_rule'):
-            raise ValidationError('カスタムルールを入力してください')
+            raise ValidationError('開催日程の説明を入力してください')
         
         base_date = cleaned_data.get('base_date')
         end_date = cleaned_data.get('end_date')
