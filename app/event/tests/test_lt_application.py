@@ -86,7 +86,7 @@ class LTApplicationFormTest(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'LT発表を申請')
+        self.assertContains(response, '発表を申請')
         self.assertContains(response, 'Test Community')
 
     def test_lt_application_form_requires_login(self):

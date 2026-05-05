@@ -231,16 +231,16 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
                 blog_output = generate_blog(form.instance, model=django_settings.GEMINI_MODEL)
                 if apply_blog_output_to_event_detail(form.instance, blog_output):
                     form.instance.save()
-                    messages.success(self.request, "LT申請情報を更新し、記事を自動生成しました。")
+                    messages.success(self.request, "発表申請情報を更新し、記事を自動生成しました。")
                     logger.info(f"記事を自動生成しました: {form.instance.id}")
                 else:
                     logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
-                    messages.warning(self.request, "LT申請情報を更新しましたが、記事の自動生成に失敗しました。")
+                    messages.warning(self.request, "発表申請情報を更新しましたが、記事の自動生成に失敗しました。")
             except Exception as e:
                 logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
-                messages.error(self.request, "LT申請情報を更新しましたが、記事の自動生成中にエラーが発生しました。")
+                messages.error(self.request, "発表申請情報を更新しましたが、記事の自動生成中にエラーが発生しました。")
         else:
-            messages.success(self.request, 'LT申請情報を更新しました。')
+            messages.success(self.request, '発表申請情報を更新しました。')
 
         return response
 

@@ -278,7 +278,7 @@ def _build_schedule_context(
             idx = slot_index_for(lt_time)
             if idx is None:
                 warnings.append(
-                    f'{p_date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が表示範囲外です'
+                    f'{p_date.strftime("%Y/%m/%d")} {p.community.name} の発表開始時刻（{lt_time.strftime("%H:%M")}）が表示範囲外です'
                 )
                 continue
 
@@ -290,7 +290,7 @@ def _build_schedule_context(
             if not (event_start_dt <= lt_dt < event_end_dt):
                 end_time = event_start_dt + timedelta(minutes=p_duration)
                 warnings.append(
-                    f'{p_date.strftime("%Y/%m/%d")} {p.community.name} のLT開始時刻（{lt_time.strftime("%H:%M")}）が開催時間（{p_start.strftime("%H:%M")}〜{end_time.strftime("%H:%M")}）の範囲外です'
+                    f'{p_date.strftime("%Y/%m/%d")} {p.community.name} の発表開始時刻（{lt_time.strftime("%H:%M")}）が開催時間（{p_start.strftime("%H:%M")}〜{end_time.strftime("%H:%M")}）の範囲外です'
                 )
 
     # 同日に重複する参加のペアワーニング
@@ -313,7 +313,7 @@ def _build_schedule_context(
         if len(communities) <= 1:
             continue
         warnings.append(
-            f'{d.strftime("%Y/%m/%d")} {slots[idx].start.strftime("%H:%M")} LT開始が重複: {", ".join(sorted(communities))}'
+            f'{d.strftime("%Y/%m/%d")} {slots[idx].start.strftime("%H:%M")} 発表開始が重複: {", ".join(sorted(communities))}'
         )
 
     for p in participations:

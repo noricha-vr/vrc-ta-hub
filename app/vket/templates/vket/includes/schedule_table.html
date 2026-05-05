@@ -84,7 +84,7 @@
                                 <div class="vket-bar {% if cell.overlap %}overlap{% elif not row.is_confirmed %}requested{% endif %}"></div>
                             {% endif %}
                             {% if cell.lt_times %}
-                                <div class="vket-lt-dots" title="LT開始: {{ cell.lt_tooltip }}">
+                                <div class="vket-lt-dots" title="発表開始: {{ cell.lt_tooltip }}">
                                     {% for t in cell.lt_times %}
                                         <span class="vket-lt-dot {% if cell.lt_overlap %}overlap{% endif %}"></span>
                                     {% endfor %}
@@ -107,7 +107,7 @@
                 <span style="display:inline-block;width:20px;height:12px;background:rgba(13,110,253,0.15);background-image:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(13,110,253,0.15) 4px,rgba(13,110,253,0.15) 8px);border-radius:2px;border:1px dashed rgba(13,110,253,0.3);"></span> 申請中（未確定）
             </div>
             <div class="d-flex align-items-center gap-1">
-                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#212529;"></span> LT開始
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#212529;"></span> 発表開始
             </div>
         </div>
     {% endif %}

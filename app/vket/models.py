@@ -10,7 +10,7 @@ class VketCollaboration(models.Model):
         DRAFT = "draft", "下書き"
         ENTRY_OPEN = "entry_open", "参加受付中"
         SCHEDULING = "scheduling", "日程調整中"
-        LT_COLLECTION = "lt_collection", "LT情報回収中"
+        LT_COLLECTION = "lt_collection", "発表情報回収中"
         ANNOUNCEMENT = "announcement", "告知確認中"
         LOCKED = "locked", "確定"
         ARCHIVED = "archived", "アーカイブ"
@@ -27,7 +27,7 @@ class VketCollaboration(models.Model):
     period_start = models.DateField("開催期間 開始")
     period_end = models.DateField("開催期間 終了")
     registration_deadline = models.DateField("参加表明締切（Step 1）")
-    lt_deadline = models.DateField("LT情報締切（Step 2）")
+    lt_deadline = models.DateField("発表情報締切（Step 2）")
     hashtags = models.JSONField("ハッシュタグ", default=list, blank=True)
     description = models.TextField("案内文", blank=True)
     settings_json = models.JSONField("設定（JSON）", null=True, blank=True)
@@ -52,7 +52,7 @@ class VketCollaboration(models.Model):
             and self.lt_deadline
             and self.registration_deadline > self.lt_deadline
         ):
-            errors["lt_deadline"] = "LT情報締切は参加表明締切以降にしてください。"
+            errors["lt_deadline"] = "発表情報締切は参加表明締切以降にしてください。"
         if errors:
             raise ValidationError(errors)
 
@@ -67,10 +67,10 @@ class VketParticipation(models.Model):
         NOT_APPLIED = "not_applied", "未申請"
         APPLIED = "applied", "申請済み"
         STAGE_REGISTERED = "stage_registered", "ステージ登録済"
-        LT_REGISTERED = "lt_registered", "LT登録済み"
+        LT_REGISTERED = "lt_registered", "発表登録済み"
         REHEARSAL = "rehearsal", "リハーサル"
         EVENT_WEEK = "event_week", "技術学術WEEK"
-        LT_MATERIAL_UPLOADED = "lt_material_uploaded", "LT資料アップロード"
+        LT_MATERIAL_UPLOADED = "lt_material_uploaded", "発表資料アップロード"
         AFTER_PARTY = "after_party", "感想会"
         DONE = "done", "完了"
 
@@ -127,7 +127,7 @@ class VketParticipation(models.Model):
     applied_at = models.DateTimeField("申請日時", null=True, blank=True)
     schedule_confirmed_at = models.DateTimeField("日程確定日時", null=True, blank=True)
     stage_registered_at = models.DateTimeField("ステージ登録日時", null=True, blank=True)
-    lt_submitted_at = models.DateTimeField("LT提出日時", null=True, blank=True)
+    lt_submitted_at = models.DateTimeField("発表提出日時", null=True, blank=True)
     last_acknowledged_at = models.DateTimeField("最終確認日時", null=True, blank=True)
     last_acknowledged_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

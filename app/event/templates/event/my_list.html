@@ -67,11 +67,11 @@
             </a>
             {% endif %}
             <a href="{% url 'account:lt_application_list' %}" class="btn btn-outline-secondary">
-                <i class="fa-solid fa-microphone"></i> LT申請一覧
+                <i class="fa-solid fa-microphone"></i> 発表申請一覧
             </a>
             {% if community %}
             <a href="{% url 'event:detail_history' %}?community_name={{ community.name }}" class="btn btn-outline-secondary">
-                <i class="fas fa-history"></i> LT履歴
+                <i class="fas fa-history"></i> 発表履歴
             </a>
             <a href="{% url 'community:settings' %}" class="btn btn-outline-secondary">
                 <i class="fas fa-cog"></i> 集会設定
@@ -251,7 +251,7 @@
                                     {% endfor %}
                                     <div class="">
                                         <a href="{% url 'event:detail_create' event.pk %}"
-                                           class="btn btn-primary">発表(LT)を追加</a>
+                                           class="btn btn-primary">発表を追加</a>
                                     </div>
                                 </div>
                             </div>
@@ -279,11 +279,11 @@
                     <div class="modal-dialog">
                         <div class="modal-content">
                             <div class="modal-header">
-                                <h5 class="modal-title" id="approveModalLabel{{ detail.pk }}">LT申請を承認</h5>
+                                <h5 class="modal-title" id="approveModalLabel{{ detail.pk }}">発表申請を承認</h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
-                                <p>以下のLT申請を承認しますか？</p>
+                                <p>以下の発表申請を承認しますか？</p>
                                 <ul class="list-unstyled">
                                     <li><strong>テーマ:</strong> {{ detail.theme }}</li>
                                     <li><strong>発表者:</strong> {{ detail.speaker }}</li>
@@ -308,11 +308,11 @@
                             <form method="post" action="{% url 'event:lt_application_reject' detail.pk %}">
                                 {% csrf_token %}
                                 <div class="modal-header">
-                                    <h5 class="modal-title" id="rejectModalLabel{{ detail.pk }}">LT申請を却下</h5>
+                                    <h5 class="modal-title" id="rejectModalLabel{{ detail.pk }}">発表申請を却下</h5>
                                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                 </div>
                                 <div class="modal-body">
-                                    <p>以下のLT申請を却下しますか？</p>
+                                    <p>以下の発表申請を却下しますか？</p>
                                     <ul class="list-unstyled mb-3">
                                         <li><strong>テーマ:</strong> {{ detail.theme }}</li>
                                         <li><strong>発表者:</strong> {{ detail.speaker }}</li>

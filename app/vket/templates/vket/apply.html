@@ -12,7 +12,7 @@
             <div class="text-muted">
                 集会: <span class="fw-bold">{{ community.name }}</span><br>
                 締切1(参加表明): {{ collaboration.registration_deadline|date:"Y/m/d" }}
-                / 締切2(LT情報): {{ collaboration.lt_deadline|date:"Y/m/d" }}
+                / 締切2(発表情報): {{ collaboration.lt_deadline|date:"Y/m/d" }}
             </div>
         </div>
 
@@ -39,13 +39,13 @@
         {% if participation.is_schedule_confirmed and permissions.can_edit_lt %}
             <div class="alert alert-warning">
                 <i class="fas fa-lock me-1"></i>
-                LT開始時刻は日程確定済みのため編集できません。登壇者名・テーマ・備考はLT締切まで更新できます。
+                発表開始時刻は日程確定済みのため編集できません。登壇者名・テーマ・備考は発表締切まで更新できます。
             </div>
         {% endif %}
         {% if not permissions.can_edit_lt %}
             <div class="alert alert-warning">
                 <i class="fas fa-lock me-1"></i>
-                LT情報（Step 2）は締切を過ぎているため編集できません。
+                発表情報（Step 2）は締切を過ぎているため編集できません。
             </div>
         {% endif %}
 
@@ -87,7 +87,7 @@
 
                 <hr class="my-4">
 
-                <h2 class="h5 fw-bold mb-3">LT情報（{{ collaboration.lt_deadline|date:"n/j" }} 締切・今入力しなくてもOK）</h2>
+                <h2 class="h5 fw-bold mb-3">発表情報（{{ collaboration.lt_deadline|date:"n/j" }} 締切・今入力しなくてもOK）</h2>
 
                 {{ formset.management_form }}
                 <div id="lt-formset-container">
@@ -121,7 +121,7 @@
 
                 {% if permissions.can_edit_lt %}
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="add-lt-btn">
-                    <i class="fas fa-plus me-1"></i>LTを追加
+                    <i class="fas fa-plus me-1"></i>発表を追加
                 </button>
                 {% endif %}
 
