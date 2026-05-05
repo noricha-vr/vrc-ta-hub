@@ -211,28 +211,30 @@
         }
 
         footer a {
-            transition: color 0.3s ease, transform 0.3s ease;
+            transition: color 0.2s ease;
+        }
+
+        footer ul li a {
+            display: inline-block;
+            text-underline-offset: 3px;
         }
 
         footer a:hover {
-            color: rgba(255, 255, 255, 0.8) !important;
-            transform: translateX(3px);
+            color: #ffffff !important;
+        }
+
+        footer ul li a:hover {
+            text-decoration: underline;
         }
 
         footer .bi {
-            transition: transform 0.3s ease;
-        }
-
-        footer a:hover .bi {
-            transform: scale(1.2);
-        }
-
-        footer ul li {
+            display: inline-block;
+            transform-origin: center;
             transition: transform 0.2s ease;
         }
 
-        footer ul li:hover {
-            transform: translateX(5px);
+        footer a:hover .bi {
+            transform: scale(1.15);
         }
 
         @media (max-width: 768px) {
