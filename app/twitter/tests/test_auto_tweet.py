@@ -461,7 +461,8 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 2)
         self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder").count(), 1)
         self.assertEqual(TweetQueue.objects.filter(status="posted").count(), 1)
-        self.assertEqual(TweetQueue.objects.filter(status="generating").count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="lt", status="generating").count(), 1)
+        self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder", status="generating").count(), 1)
 
     @patch("twitter.signals.threading.Thread")
     def test_approved_detail_creates_tweet_if_none_exists_on_content_change(self, mock_thread_cls):
@@ -531,16 +532,10 @@ class EventDetailSignalTest(AutoTweetTestBase):
         detail.save()
         self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 0)
 
-    @patch("twitter.views._retry_generation")
-    def test_today_event_creates_skipped_lt_and_daily_reminder_queue(self, mock_retry):
-        """当日のイベントでは個別告知は skipped、daily_reminder が即時作成される"""
-        def mark_ready(queue):
-            queue.generated_text = "今日開催のリマインド"
-            queue.status = "ready"
-            queue.error_message = ""
-            queue.save(update_fields=["generated_text", "status", "error_message"])
-
-        mock_retry.side_effect = mark_ready
+    @patch("twitter.signals.threading.Thread")
+    def test_today_event_creates_skipped_lt_and_daily_reminder_queue(self, mock_thread_cls):
+        """当日のイベントでは個別告知は skipped、daily_reminder が非同期生成される"""
+        mock_thread_cls.return_value = MagicMock()
 
         today_event = Event.objects.create(
             community=self.community,
@@ -562,24 +557,18 @@ class EventDetailSignalTest(AutoTweetTestBase):
 
         self.assertEqual(lt_queue.status, "skipped")
         self.assertIn("当日リマインド", lt_queue.error_message)
-        self.assertEqual(reminder_queue.status, "ready")
-        self.assertEqual(reminder_queue.generated_text, "今日開催のリマインド")
+        self.assertEqual(reminder_queue.status, "generating")
+        self.assertEqual(reminder_queue.generated_text, "")
         self.assertEqual(reminder_queue.scheduled_at, scheduled_at_for_date(today_event.date))
+        self.assertTrue(reminder_queue.generation_token)
+        mock_thread_cls.assert_called_once()
+        self.assertEqual(mock_thread_cls.call_args.kwargs["args"], (reminder_queue.pk, reminder_queue.generation_token))
+        mock_thread_cls.return_value.start.assert_called_once()
 
-    @patch("twitter.views._retry_generation")
-    def test_today_event_theme_change_regenerates_same_daily_reminder_queue(self, mock_retry):
-        """当日の LT 内容変更では same-day daily_reminder を同じキューIDのまま再生成する"""
-        generated = []
-
-        def mark_ready(queue):
-            text = f"今日開催のリマインド v{len(generated) + 1}"
-            generated.append(text)
-            queue.generated_text = text
-            queue.status = "ready"
-            queue.error_message = ""
-            queue.save(update_fields=["generated_text", "status", "error_message"])
-
-        mock_retry.side_effect = mark_ready
+    @patch("twitter.signals.threading.Thread")
+    def test_today_event_theme_change_regenerates_same_daily_reminder_queue(self, mock_thread_cls):
+        """当日の LT 内容変更では same-day daily_reminder を同じキューIDのまま非同期再生成する"""
+        mock_thread_cls.return_value = MagicMock()
 
         today_event = Event.objects.create(
             community=self.community,
@@ -596,30 +585,25 @@ class EventDetailSignalTest(AutoTweetTestBase):
             start_time=datetime.time(22, 15),
         )
         reminder_queue = TweetQueue.objects.get(tweet_type="daily_reminder", event=today_event)
+        reminder_queue.generated_text = "今日開催のリマインド v1"
+        reminder_queue.status = "ready"
+        reminder_queue.save(update_fields=["generated_text", "status"])
 
         detail.theme = "更新後の当日LT"
         detail.save()
 
         reminder_queue.refresh_from_db()
-        self.assertEqual(reminder_queue.status, "ready")
-        self.assertEqual(reminder_queue.generated_text, "今日開催のリマインド v2")
+        self.assertEqual(reminder_queue.status, "generating")
+        self.assertEqual(reminder_queue.generated_text, "")
         self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder", event=today_event).count(), 1)
         self.assertEqual(TweetQueue.objects.get(tweet_type="daily_reminder", event=today_event).pk, reminder_queue.pk)
+        self.assertEqual(mock_thread_cls.call_count, 2)
+        self.assertEqual(mock_thread_cls.call_args.kwargs["args"], (reminder_queue.pk, reminder_queue.generation_token))
 
-    @patch("twitter.views._retry_generation")
-    def test_future_event_start_time_change_regenerates_daily_reminder_queue(self, mock_retry):
-        """future イベントの開始時刻変更でも daily_reminder を同じキューIDのまま再生成する"""
-        generated = []
-
-        def mark_ready(queue):
-            text = f"future reminder v{len(generated) + 1}"
-            generated.append(text)
-            queue.generated_text = text
-            queue.status = "ready"
-            queue.error_message = ""
-            queue.save(update_fields=["generated_text", "status", "error_message"])
-
-        mock_retry.side_effect = mark_ready
+    @patch("twitter.signals.threading.Thread")
+    def test_future_event_start_time_change_regenerates_daily_reminder_queue(self, mock_thread_cls):
+        """future イベントの開始時刻変更でも daily_reminder を同じキューIDのまま非同期再生成する"""
+        mock_thread_cls.return_value = MagicMock()
 
         detail = EventDetail.objects.create(
             event=self.event,
@@ -630,25 +614,24 @@ class EventDetailSignalTest(AutoTweetTestBase):
             start_time=datetime.time(22, 15),
         )
         reminder_queue = TweetQueue.objects.get(tweet_type="daily_reminder", event=self.event)
+        reminder_queue.generated_text = "future reminder v1"
+        reminder_queue.status = "ready"
+        reminder_queue.save(update_fields=["generated_text", "status"])
 
         detail.start_time = datetime.time(22, 30)
         detail.save()
 
         reminder_queue.refresh_from_db()
-        self.assertEqual(reminder_queue.status, "ready")
-        self.assertEqual(reminder_queue.generated_text, "future reminder v2")
+        self.assertEqual(reminder_queue.status, "generating")
+        self.assertEqual(reminder_queue.generated_text, "")
         self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder", event=self.event).count(), 1)
+        self.assertEqual(mock_thread_cls.call_count, 3)
+        self.assertEqual(mock_thread_cls.call_args.kwargs["args"], (reminder_queue.pk, reminder_queue.generation_token))
 
-    @patch("twitter.views._retry_generation")
-    def test_today_event_unapprove_skips_daily_reminder(self, mock_retry):
+    @patch("twitter.signals.threading.Thread")
+    def test_today_event_unapprove_skips_daily_reminder(self, mock_thread_cls):
         """当日の approved 発表がなくなったら daily_reminder は skipped になる"""
-        def mark_ready(queue):
-            queue.generated_text = "今日開催のリマインド"
-            queue.status = "ready"
-            queue.error_message = ""
-            queue.save(update_fields=["generated_text", "status", "error_message"])
-
-        mock_retry.side_effect = mark_ready
+        mock_thread_cls.return_value = MagicMock()
 
         today_event = Event.objects.create(
             community=self.community,
@@ -711,6 +694,24 @@ class GenerateTweetAsyncTest(AutoTweetTestBase):
         queue_item.refresh_from_db()
         self.assertEqual(queue_item.status, "generation_failed")
         self.assertIn("テキスト生成に失敗", queue_item.error_message)
+
+    @patch("twitter.tweet_generator.generate_new_community_tweet")
+    def test_generate_async_ignores_stale_generation_token(self, mock_generate):
+        """古い生成スレッドは現行キューの本文を上書きしない"""
+        mock_generate.return_value = "古い告知テキスト"
+        queue_item = self._create_queue()
+        queue_item.generated_text = "新しい告知テキスト"
+        queue_item.status = "ready"
+        queue_item.generation_token = "current-token"
+        queue_item.save(update_fields=["generated_text", "status", "generation_token"])
+
+        from twitter.signals import _generate_tweet_async
+        _generate_tweet_async(queue_item.pk, "stale-token")
+
+        queue_item.refresh_from_db()
+        self.assertEqual(queue_item.status, "ready")
+        self.assertEqual(queue_item.generated_text, "新しい告知テキスト")
+        self.assertEqual(queue_item.generation_token, "current-token")
 
     @patch("twitter.tweet_generator.generate_new_community_tweet")
     def test_generate_async_exception(self, mock_generate):
