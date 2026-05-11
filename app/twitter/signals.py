@@ -131,6 +131,25 @@ def _start_tweet_generation(queue_item) -> None:
     thread.start()
 
 
+def sync_slide_share_queue_image(event_detail) -> None:
+    """未投稿のスライド共有キュー画像を現在のサムネイル優先URLへ同期する。"""
+    from twitter.models import TweetQueue
+    from twitter.tweet_generator import get_tweet_image_url
+
+    existing_queue = TweetQueue.objects.select_related(
+        'community', 'event', 'event_detail',
+    ).filter(
+        event_detail=event_detail, tweet_type="slide_share",
+    ).order_by('created_at', 'pk').first()
+    if not existing_queue or existing_queue.status == 'posted':
+        return
+
+    image_url = get_tweet_image_url(existing_queue)
+    if image_url and existing_queue.image_url != image_url:
+        existing_queue.image_url = image_url
+        existing_queue.save(update_fields=['image_url'])
+
+
 @receiver(pre_save, sender=Community)
 def track_community_status_change(sender, instance, **kwargs):
     """Community の旧ステータスを保持する。"""
@@ -374,6 +393,7 @@ def queue_slide_share_tweet(sender, instance, created, **kwargs):
 
 def _queue_slide_share_tweet(instance, created):
     from twitter.models import TweetQueue
+    from twitter.tweet_generator import get_tweet_image_url
 
     if instance.detail_type not in PRESENTATION_DETAIL_TYPES:
         return
@@ -404,9 +424,11 @@ def _queue_slide_share_tweet(instance, created):
 
         notify_slide_material_published(instance)
 
-    if TweetQueue.objects.filter(
+    existing_queue = TweetQueue.objects.filter(
         event_detail=instance, tweet_type="slide_share",
-    ).exists():
+    ).order_by('created_at', 'pk').first()
+    if existing_queue:
+        sync_slide_share_queue_image(instance)
         return
 
     queue_item = TweetQueue.objects.create(
@@ -416,6 +438,10 @@ def _queue_slide_share_tweet(instance, created):
         event_detail=instance,
         scheduled_at=default_scheduled_at(tweet_type='slide_share', event=instance.event),
     )
+    image_url = get_tweet_image_url(queue_item)
+    if image_url:
+        queue_item.image_url = image_url
+        queue_item.save(update_fields=['image_url'])
     logger.info(
         "Queued slide share tweet: %s - %s", instance.speaker, instance.theme,
     )

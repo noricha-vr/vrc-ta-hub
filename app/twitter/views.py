@@ -190,8 +190,8 @@ def _retry_generation(queue_item) -> None:
         queue_item.status = 'ready'
         queue_item.error_message = ''
 
-        # 画像URLも設定（まだない場合）
-        if not queue_item.image_url:
+        # slide_share は記事サムネイルが後から作られることがあるため再同期する。
+        if queue_item.tweet_type == 'slide_share' or not queue_item.image_url:
             image_url = get_tweet_image_url(queue_item)
             if image_url:
                 queue_item.image_url = image_url

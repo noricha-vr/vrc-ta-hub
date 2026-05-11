@@ -2772,6 +2772,58 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.detail.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
 
+    @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
+    @patch("twitter.signals.threading.Thread")
+    def test_existing_unposted_slide_share_queue_syncs_thumbnail_image(self, mock_thread_cls):
+        """既存の未投稿slide_shareキューはサムネイルURLへ再同期される"""
+        mock_thread_cls.return_value = MagicMock()
+        self.community.poster_image = "poster/community.webp"
+        self.community.save(update_fields=["poster_image"])
+        queue = TweetQueue.objects.create(
+            tweet_type="slide_share",
+            community=self.community,
+            event=self.past_event,
+            event_detail=self.detail,
+            status="ready",
+            image_url="https://data.vrc-ta-hub.com/cdn-cgi/image/width=960,quality=80,format=auto/poster/community.webp",
+        )
+
+        self.detail.slide_file = "slide/test.pdf"
+        self.detail.thumbnail_image = "thumbnail/generated.jpg"
+        self.detail.save()
+
+        queue.refresh_from_db()
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        self.assertIn("thumbnail/generated.jpg", queue.image_url)
+        self.assertNotIn("poster/community.webp", queue.image_url)
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
+    @patch("twitter.signals.threading.Thread")
+    def test_posted_slide_share_queue_image_is_not_changed(self, mock_thread_cls):
+        """投稿済みslide_shareキューの画像URLは履歴として保持する"""
+        mock_thread_cls.return_value = MagicMock()
+        poster_url = (
+            "https://data.vrc-ta-hub.com/cdn-cgi/image/"
+            "width=960,quality=80,format=auto/poster/community.webp"
+        )
+        queue = TweetQueue.objects.create(
+            tweet_type="slide_share",
+            community=self.community,
+            event=self.past_event,
+            event_detail=self.detail,
+            status="posted",
+            image_url=poster_url,
+            tweet_id="1234567890",
+        )
+
+        self.detail.slide_file = "slide/test.pdf"
+        self.detail.thumbnail_image = "thumbnail/generated.jpg"
+        self.detail.save()
+
+        queue.refresh_from_db()
+        self.assertEqual(TweetQueue.objects.count(), 1)
+        self.assertEqual(queue.image_url, poster_url)
+
     @patch("event.notifications.requests.post")
     @patch("twitter.signals.threading.Thread")
     def test_slide_webhook_still_sent_when_youtube_queue_already_exists(
@@ -2854,8 +2906,9 @@ class SlideShareSignalTest(AutoTweetTestBase):
 
         self.assertEqual(TweetQueue.objects.count(), 0)
 
+    @patch("event.libs.ensure_pdf_thumbnail", return_value=False)
     @patch("twitter.signals.threading.Thread")
-    def test_slide_file_first_set_creates_queue(self, mock_thread_cls):
+    def test_slide_file_first_set_creates_queue(self, mock_thread_cls, _mock_ensure_pdf_thumbnail):
         """slide_file が初めて設定され、発表日が過去ならキューが作成される"""
         mock_thread_cls.return_value = MagicMock()
 
