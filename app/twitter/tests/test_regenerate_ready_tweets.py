@@ -9,9 +9,10 @@ from io import StringIO
 from unittest.mock import patch
 
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from community.models import Community
+from event.models import Event, EventDetail
 from twitter.models import TweetQueue
 
 
@@ -158,6 +159,43 @@ class RegenerateReadyTweetsCommandTest(TestCase):
 
         posted_item.refresh_from_db()
         self.assertEqual(posted_item.generated_text, over_limit)
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
+    def test_slide_share_image_is_synced_without_text_regeneration(self):
+        """本文が制約内でもslide_shareの画像URL差分は同期する"""
+        event = Event.objects.create(
+            community=self.community,
+            date=datetime.date(2026, 1, 1),
+            start_time=datetime.time(21, 0),
+            duration=60,
+        )
+        detail = EventDetail.objects.create(
+            event=event,
+            detail_type="LT",
+            status="approved",
+            speaker="発表者",
+            theme="資料の話",
+            start_time=datetime.time(21, 10),
+            thumbnail_image="thumbnail/generated.jpg",
+        )
+        item = TweetQueue.objects.create(
+            tweet_type="slide_share",
+            community=self.community,
+            event=event,
+            event_detail=detail,
+            status="ready",
+            generated_text="行1\n行2\nhttps://example.com",
+            image_url="https://data.vrc-ta-hub.com/cdn-cgi/image/width=960,quality=80,format=auto/poster/community.webp",
+        )
+
+        with patch("twitter.management.commands.regenerate_ready_tweets.get_generator") as mock_get:
+            output = self._call()
+
+        item.refresh_from_db()
+        self.assertIn("thumbnail/generated.jpg", item.image_url)
+        self.assertEqual(item.generated_text, "行1\n行2\nhttps://example.com")
+        mock_get.assert_not_called()
+        self.assertIn("画像URLを再同期", output)
 
     def test_status_remains_ready_after_regeneration(self):
         """再生成後も status は ready のまま"""

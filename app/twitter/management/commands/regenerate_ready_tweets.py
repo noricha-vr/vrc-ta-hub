@@ -74,9 +74,14 @@ class Command(BaseCommand):
         for item in candidates:
             body_lines = count_body_lines(item.generated_text)
             validation_errors = validate_tweet_text(item.generated_text)
-            needs_regen = regenerate_all or bool(validation_errors)
-            if needs_regen:
-                targets.append((item, body_lines, validation_errors))
+            image_url = get_tweet_image_url(item) if item.tweet_type == "slide_share" else ""
+            needs_image_sync = bool(image_url and item.image_url != image_url)
+            needs_text_regen = regenerate_all or bool(validation_errors)
+            if needs_text_regen or needs_image_sync:
+                targets.append((
+                    item, body_lines, validation_errors, image_url,
+                    needs_text_regen,
+                ))
 
         self.stdout.write(
             f"ready キュー: {len(candidates)} 件, 再生成対象: {len(targets)} 件 "
@@ -87,7 +92,7 @@ class Command(BaseCommand):
         failed = 0
         still_over_limit = 0
 
-        for item, old_lines, old_errors in targets:
+        for item, old_lines, old_errors, image_url, needs_text_regen in targets:
             old_weighted = count_tweet_length(item.generated_text)
             prefix = (
                 f"#{item.pk} [{item.tweet_type}] "
@@ -97,6 +102,13 @@ class Command(BaseCommand):
                 prefix = f"{prefix} ({', '.join(old_errors)})"
             if dry_run:
                 self.stdout.write(f"  {prefix} -> (dry-run skip)")
+                continue
+
+            if not needs_text_regen:
+                item.image_url = image_url
+                item.save(update_fields=["image_url"])
+                updated += 1
+                self.stdout.write(f"  {prefix} -> 画像URLを再同期 (OK)")
                 continue
 
             generator = get_generator(item.tweet_type)
@@ -129,8 +141,8 @@ class Command(BaseCommand):
             new_errors = validate_tweet_text(text)
             item.generated_text = text
 
-            if not item.image_url:
-                image_url = get_tweet_image_url(item)
+            if image_url or not item.image_url:
+                image_url = image_url or get_tweet_image_url(item)
                 if image_url:
                     item.image_url = image_url
                     item.save(update_fields=["generated_text", "image_url"])

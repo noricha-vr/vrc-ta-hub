@@ -2,12 +2,15 @@
 from datetime import date, time, timedelta
 from unittest.mock import patch
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, RequestFactory
+from django.test import override_settings
 from django.contrib.auth import get_user_model
 
 from community.models import Community
 from event.forms import EventDetailForm, LTApplicationEditForm
 from event.models import Event, EventDetail
+from twitter.models import TweetQueue
 from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
@@ -150,6 +153,68 @@ class EventDetailFormCleanTest(TestCase):
 
         self.assertEqual(saved, self.existing_detail)
         mock_ensure_pdf_thumbnail.assert_called_once_with(saved, save=True)
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
+    @patch('event.libs.ensure_pdf_thumbnail')
+    def test_event_detail_form_save_syncs_slide_share_thumbnail_image(self, mock_ensure_pdf_thumbnail):
+        """フォーム保存後に生成されたPDFサムネイルを未投稿slide_shareキューへ反映する."""
+        request = self._create_request()
+        past_event = Event.objects.create(
+            community=self.community,
+            date=date.today() - timedelta(days=1),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Mon',
+        )
+        detail = EventDetail.objects.create(
+            event=past_event,
+            detail_type='LT',
+            status='approved',
+            theme='Past Theme',
+            speaker='Past Speaker',
+            start_time=time(22, 0),
+            duration=30,
+        )
+        TweetQueue.objects.all().delete()
+
+        def set_thumbnail(instance, save=False):
+            instance.thumbnail_image = 'thumbnail/generated.jpg'
+            EventDetail.objects.filter(pk=instance.pk).update(
+                thumbnail_image='thumbnail/generated.jpg',
+            )
+            return True
+
+        mock_ensure_pdf_thumbnail.side_effect = set_thumbnail
+        form_data = {
+            'detail_type': 'LT',
+            'theme': 'Past Theme',
+            'speaker': 'Past Speaker',
+            'start_time': '22:00',
+            'duration': 30,
+            'slide_url': '',
+            'youtube_url': '',
+            'h1': '',
+            'contents': '',
+            'generate_blog_article': False,
+        }
+        pdf = SimpleUploadedFile(
+            'slides.pdf',
+            b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF',
+            content_type='application/pdf',
+        )
+        form = EventDetailForm(
+            data=form_data,
+            files={'slide_file': pdf},
+            request=request,
+            instance=detail,
+        )
+
+        self.assertTrue(form.is_valid(), msg=f"Form errors: {form.errors}")
+        form.save()
+
+        queue = TweetQueue.objects.get(tweet_type='slide_share', event_detail=detail)
+        self.assertIn('thumbnail/generated.jpg', queue.image_url)
+        mock_ensure_pdf_thumbnail.assert_called_once()
 
     @patch('event.libs.ensure_pdf_thumbnail')
     def test_lt_application_edit_form_save_generates_pdf_thumbnail(self, mock_ensure_pdf_thumbnail):
