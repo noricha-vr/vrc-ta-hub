@@ -10,10 +10,11 @@ from django.core.management.base import BaseCommand
 
 from twitter.models import TweetQueue
 from twitter.tweet_generator import (
-    MAX_BODY_LINES,
     count_body_lines,
+    count_tweet_length,
     get_generator,
     get_tweet_image_url,
+    validate_tweet_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,9 +73,10 @@ class Command(BaseCommand):
         targets = []
         for item in candidates:
             body_lines = count_body_lines(item.generated_text)
-            needs_regen = regenerate_all or body_lines > MAX_BODY_LINES
+            validation_errors = validate_tweet_text(item.generated_text)
+            needs_regen = regenerate_all or bool(validation_errors)
             if needs_regen:
-                targets.append((item, body_lines))
+                targets.append((item, body_lines, validation_errors))
 
         self.stdout.write(
             f"ready キュー: {len(candidates)} 件, 再生成対象: {len(targets)} 件 "
@@ -85,8 +87,14 @@ class Command(BaseCommand):
         failed = 0
         still_over_limit = 0
 
-        for item, old_lines in targets:
-            prefix = f"#{item.pk} [{item.tweet_type}] 旧行数={old_lines}"
+        for item, old_lines, old_errors in targets:
+            old_weighted = count_tweet_length(item.generated_text)
+            prefix = (
+                f"#{item.pk} [{item.tweet_type}] "
+                f"旧weighted={old_weighted} 旧行数={old_lines}"
+            )
+            if old_errors:
+                prefix = f"{prefix} ({', '.join(old_errors)})"
             if dry_run:
                 self.stdout.write(f"  {prefix} -> (dry-run skip)")
                 continue
@@ -117,6 +125,8 @@ class Command(BaseCommand):
                 continue
 
             new_lines = count_body_lines(text)
+            new_weighted = count_tweet_length(text)
+            new_errors = validate_tweet_text(text)
             item.generated_text = text
 
             if not item.image_url:
@@ -130,15 +140,16 @@ class Command(BaseCommand):
                 item.save(update_fields=["generated_text"])
 
             updated += 1
-            if new_lines > MAX_BODY_LINES:
+            if new_errors:
                 still_over_limit += 1
                 self.stdout.write(
                     self.style.WARNING(
-                        f"  {prefix} -> 新行数={new_lines} (依然として制約超過)"
+                        f"  {prefix} -> 新weighted={new_weighted} 新行数={new_lines} "
+                        f"({', '.join(new_errors)})"
                     )
                 )
             else:
-                self.stdout.write(f"  {prefix} -> 新行数={new_lines} (OK)")
+                self.stdout.write(f"  {prefix} -> 新weighted={new_weighted} 新行数={new_lines} (OK)")
 
         self.stdout.write("")
         self.stdout.write(

@@ -257,6 +257,8 @@ def _post_tweet_queue_item(queue_item, *, failure_status: str | None = 'failed')
     queue_item.error_message = (
         f'X API投稿に失敗 (status={status_code})' if status_code else 'X API投稿に失敗'
     )
+    if result.get("error_body"):
+        queue_item.error_message = f"{queue_item.error_message}: {result['error_body'][:300]}"
     notify_tweet_post_failure(queue_item, result)
     return {
         "id": queue_item.pk, "status": "failed", "error": "post_failed",
