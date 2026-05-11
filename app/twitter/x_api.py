@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 import requests
 from requests_oauthlib import OAuth1
 
+from twitter.tweet_generator import validate_tweet_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,7 +37,6 @@ X_API_TWEET_URL = "https://api.x.com/2/tweets"
 X_MEDIA_UPLOAD_URL = "https://upload.twitter.com/1.1/media/upload.json"
 REQUEST_TIMEOUT_SECONDS = 30
 MEDIA_UPLOAD_TIMEOUT_SECONDS = 60
-MAX_TWEET_LENGTH = 280
 MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB (X API の上限)
 ALLOWED_IMAGE_DOMAINS = frozenset({"data.vrc-ta-hub.com"})
 IMAGE_DOWNLOAD_CHUNK_SIZE = 8192
@@ -143,7 +144,7 @@ def post_tweet(text: str, media_ids: list[str] | None = None) -> PostTweetResult
     """X API v2 でツイートを投稿する（OAuth 1.0a User Context）。
 
     Args:
-        text: 投稿するテキスト (280文字以内)
+        text: 投稿するテキスト (X の重み付き280以内)
         media_ids: 添付するメディアIDのリスト (任意)
 
     Returns:
@@ -155,13 +156,15 @@ def post_tweet(text: str, media_ids: list[str] | None = None) -> PostTweetResult
         logger.warning("Blocked X API tweet post in test environment")
         return _failure_result(error_body="Blocked in test environment")
 
-    if not text or len(text) > MAX_TWEET_LENGTH:
-        logger.error(
-            "Tweet text is empty or exceeds %d characters: %d",
-            MAX_TWEET_LENGTH,
-            len(text) if text else 0,
-        )
-        return _failure_result(error_body="Tweet text is empty or too long")
+    if not text:
+        logger.error("Tweet text is empty")
+        return _failure_result(error_body="Tweet text is empty")
+
+    validation_errors = validate_tweet_text(text)
+    if validation_errors:
+        error_body = f"Tweet text violates local validation: {', '.join(validation_errors)}"
+        logger.error(error_body)
+        return _failure_result(error_body=error_body)
 
     auth = _get_oauth1()
     if not auth:

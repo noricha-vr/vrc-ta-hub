@@ -1923,6 +1923,17 @@ class PostTweetFunctionTest(TestCase):
             result = post_tweet("テスト")
         self.assertFalse(result["ok"])
 
+    @patch("twitter.x_api.requests.post")
+    def test_post_tweet_rejects_weighted_length_before_api_call(self, mock_post):
+        """Python の len が280以内でも重み付き超過なら X API を呼ばない"""
+        with patch.dict("os.environ", self.OAUTH1_ENV):
+            from twitter.x_api import post_tweet
+            result = post_tweet("あ" * 141)
+
+        self.assertFalse(result["ok"])
+        self.assertIn("weighted_length", result["error_body"])
+        mock_post.assert_not_called()
+
 
 class UploadMediaFunctionTest(TestCase):
     """upload_media 関数のテスト"""
@@ -2207,6 +2218,47 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("Pythonのテスト技法", user_prompt)
         self.assertIn("告知ポスト", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
+
+    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.tweet_generator._call_llm")
+    def test_lt_generator_fallback_fits_long_theme_under_weighted_limit(self, mock_llm, _mock_thread):
+        """LLM が長い本文を返し続けても LT 告知を決定的に280以内へ収める"""
+        mock_llm.return_value = (
+            "5/16(土) 22:00~ 「計算と自然」集会\n\n"
+            "nconcさん「続々 Claw Codeを参考にした、Mathematica-Claude Codeブリッジへの反復ループ型エージェント機能の追加について」\n"
+            "自律型エージェントの実装で計算体験がどう変わるかぜひ会場で確かめてください\n\n"
+            "詳細はこちら https://vrc-ta-hub.com/community/71/\n"
+            "#計算と自然\n"
+            "#VRChat技術学術"
+        )
+        self.community.name = "「計算と自然」集会"
+        self.community.twitter_hashtag = "計算と自然"
+        self.community.save(update_fields=["name", "twitter_hashtag"])
+        self.event.date = datetime.date(2026, 5, 16)
+        self.event.start_time = datetime.time(22, 0)
+        self.event.save(update_fields=["date", "start_time"])
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="nconc",
+            theme="続々 Claw Codeを参考にした、Mathematica-Claude Codeブリッジへの反復ループ型エージェント機能の追加について",
+            start_time=datetime.time(22, 15),
+        )
+        queue = TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=self.event,
+            event_detail=detail,
+            status="generating",
+        )
+
+        from twitter.tweet_generator import count_tweet_length, get_generator, is_tweet_text_valid
+        result = get_generator("lt")(queue)
+
+        self.assertTrue(is_tweet_text_valid(result))
+        self.assertLessEqual(count_tweet_length(result), 280)
+        self.assertNotIn("自律型エージェントの実装", result)
 
     @patch("twitter.signals.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")

@@ -9,6 +9,8 @@ from twitter.tweet_generator import (
     _generate_with_retry,
     count_body_lines,
     count_tweet_length,
+    is_tweet_text_valid,
+    validate_tweet_text,
 )
 
 
@@ -125,6 +127,25 @@ class CountBodyLinesTest(TestCase):
         self.assertEqual(count_body_lines(text), 1)
 
 
+class TweetValidationTest(TestCase):
+    """投稿前バリデーションのテスト"""
+
+    def test_detects_weighted_length_over_limit_even_if_python_len_is_short(self):
+        text = (
+            "5/16(土) 22:00~ 「計算と自然」集会\n\n"
+            "nconcさん「続々 Claw Codeを参考にした、Mathematica-Claude Codeブリッジへの反復ループ型エージェント機能の追加について」\n"
+            "自律型エージェントの実装で計算体験がどう変わるかぜひ会場で確かめてください\n\n"
+            "詳細はこちら https://vrc-ta-hub.com/community/71/\n"
+            "#計算と自然\n"
+            "#VRChat技術学術"
+        )
+
+        self.assertLessEqual(len(text), 280)
+        self.assertGreater(count_tweet_length(text), TWEET_MAX_WEIGHTED_LENGTH)
+        self.assertFalse(is_tweet_text_valid(text))
+        self.assertIn("weighted_length=", validate_tweet_text(text)[0])
+
+
 class GenerateWithRetryTest(TestCase):
     """_generate_with_retry のテスト"""
 
@@ -153,13 +174,26 @@ class GenerateWithRetryTest(TestCase):
         self.assertEqual(result, "OK" * 10)
         self.assertEqual(call_count, 3)
 
-    def test_returns_last_result_after_all_retries(self):
-        """全リトライ後も超過なら最後の結果を返す"""
+    def test_returns_none_after_all_retries_without_fallback(self):
+        """全リトライ後も超過し、fallback がなければ None を返す"""
         def fake_generator(target_chars=140):
             return "あ" * 200
 
         result = _generate_with_retry(fake_generator, max_retries=3)
-        self.assertEqual(result, "あ" * 200)
+        self.assertIsNone(result)
+
+    def test_uses_fallback_after_all_retries(self):
+        """LLM が長文を返し続けたら決定的フォールバックへ切り替える"""
+        def fake_generator(target_chars=140):
+            return "あ" * 200
+
+        result = _generate_with_retry(
+            fake_generator,
+            max_retries=1,
+            fallback_fn=lambda: "短い告知",
+        )
+
+        self.assertEqual(result, "短い告知")
 
     def test_returns_none_on_generation_failure(self):
         """生成失敗(None)時はリトライせずNoneを返す"""

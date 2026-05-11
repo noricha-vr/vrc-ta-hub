@@ -4,6 +4,7 @@ OpenRouter API 経由で LLM を呼び出し、各種告知ポストを生成す
 既存の twitter/utils.py (テンプレートベース生成) とは独立したモジュール。
 """
 
+import inspect
 import logging
 import os
 import re
@@ -24,6 +25,7 @@ TWEET_MAX_WEIGHTED_LENGTH = 280
 URL_WEIGHTED_LENGTH = 23
 RETRY_TARGET_CHARS_STEP = 20
 MAX_BODY_LINES = 3
+TRUNCATION_SUFFIX = "..."
 
 WEEKDAY_NAMES = {
     "Sun": "日", "Mon": "月", "Tue": "火", "Wed": "水",
@@ -69,54 +71,275 @@ def count_body_lines(text: str) -> int:
     return count
 
 
-def _generate_with_retry(generate_fn, *args, max_retries=3, **kwargs) -> str | None:
+def validate_tweet_text(text: str) -> list[str]:
+    """投稿前に満たすべき X 向け制約の違反理由を返す。"""
+    errors = []
+    length = count_tweet_length(text)
+    if length > TWEET_MAX_WEIGHTED_LENGTH:
+        errors.append(f"weighted_length={length}>{TWEET_MAX_WEIGHTED_LENGTH}")
+
+    body_lines = count_body_lines(text)
+    if body_lines > MAX_BODY_LINES:
+        errors.append(f"body_lines={body_lines}>{MAX_BODY_LINES}")
+
+    return errors
+
+
+def is_tweet_text_valid(text: str) -> bool:
+    """生成済み本文が X 投稿前制約を満たすか返す。"""
+    return not validate_tweet_text(text)
+
+
+def _build_tweet(body_lines: list[str], url: str, hashtag_suffix: str) -> str:
+    lines = [line.strip() for line in body_lines if line and line.strip()]
+    if url:
+        lines.extend(["", url.strip()])
+    hashtags = [line.strip() for line in hashtag_suffix.splitlines() if line.strip()]
+    lines.extend(hashtags)
+    return "\n".join(lines)
+
+
+def _trim_to_weight(text: str, max_weight: int) -> str:
+    if max_weight <= 0:
+        return ""
+    if count_tweet_length(text) <= max_weight:
+        return text
+
+    suffix = TRUNCATION_SUFFIX
+    suffix_weight = count_tweet_length(suffix)
+    if max_weight <= suffix_weight:
+        suffix = ""
+        suffix_weight = 0
+
+    chars = []
+    current = 0
+    for ch in text:
+        weight = 2 if ord(ch) >= 0x1100 else 1
+        if current + weight + suffix_weight > max_weight:
+            break
+        chars.append(ch)
+        current += weight
+
+    return "".join(chars).rstrip() + suffix
+
+
+def _fit_candidate(
+    body_lines: list[str],
+    url: str,
+    hashtag_suffix: str,
+    trim_indexes: list[int],
+) -> str | None:
+    candidate = _build_tweet(body_lines, url, hashtag_suffix)
+    if is_tweet_text_valid(candidate):
+        return candidate
+
+    fitted_lines = body_lines[:]
+    for index in trim_indexes:
+        if index >= len(fitted_lines):
+            continue
+
+        for _ in range(3):
+            candidate = _build_tweet(fitted_lines, url, hashtag_suffix)
+            overage = count_tweet_length(candidate) - TWEET_MAX_WEIGHTED_LENGTH
+            if overage <= 0:
+                break
+
+            current_line = fitted_lines[index]
+            current_weight = count_tweet_length(current_line)
+            fitted_lines[index] = _trim_to_weight(current_line, current_weight - overage)
+            if fitted_lines[index] == current_line:
+                break
+
+        candidate = _build_tweet(fitted_lines, url, hashtag_suffix)
+        if is_tweet_text_valid(candidate):
+            return candidate
+
+    return None
+
+
+def _fallback_new_community_tweet(community, first_event=None) -> str | None:
+    weekdays_str = _format_weekdays(community.weekdays)
+    name = _sanitize_for_prompt(community.name)
+    url = f"詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/"
+    hashtag_suffix = _build_hashtag_suffix(community)
+
+    if first_event:
+        weekday = WEEKDAY_NAMES.get(first_event.date.strftime("%a"), "")
+        schedule = f"{first_event.date.strftime('%-m/%-d')}({weekday}) {first_event.start_time.strftime('%H:%M')}~"
+    else:
+        schedule = f"{community.frequency} {weekdays_str}曜日 {community.start_time.strftime('%H:%M')}~"
+
+    body_lines = [
+        f"新しい集会「{name}」がはじまります",
+        schedule,
+    ]
+    return _fit_candidate(body_lines, url, hashtag_suffix, [0])
+
+
+def _fallback_presentation_tweet(event_detail, *, special: bool = False) -> str | None:
+    event = event_detail.event
+    community = event.community
+    weekday = WEEKDAY_NAMES.get(event.date.strftime("%a"), "")
+    label = " 特別回" if special else ""
+    body_lines = [
+        f"{event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~ {_sanitize_for_prompt(community.name)}{label}",
+        f"{_sanitize_for_prompt(event_detail.speaker)}さん「{_sanitize_for_prompt(event_detail.theme)}」",
+    ]
+    url = f"詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/"
+    return _fit_candidate(body_lines, url, _build_hashtag_suffix(community), [1, 0])
+
+
+def _fallback_slide_share_tweet(event_detail) -> str | None:
+    community = event_detail.event.community
+    resources = []
+    if event_detail.slide_url or event_detail.slide_file:
+        resources.append("スライド")
+    if event_detail.youtube_url:
+        resources.append("動画")
+    resources_text = "・".join(resources) or "資料"
+    body_lines = [
+        (
+            f"{_sanitize_for_prompt(community.name)} "
+            f"{_sanitize_for_prompt(event_detail.speaker)}さん"
+            f"「{_sanitize_for_prompt(event_detail.theme)}」"
+        ),
+        f"{resources_text}が公開されました",
+    ]
+    url = f"詳細はこちら https://vrc-ta-hub.com/event/detail/{event_detail.pk}/"
+    return _fit_candidate(body_lines, url, _build_hashtag_suffix(community), [0])
+
+
+def _fallback_daily_reminder_tweet(event) -> str | None:
+    details = list(
+        event.details.filter(
+            status="approved",
+            detail_type__in=("LT", "SPECIAL"),
+        ).order_by("start_time", "pk")
+    )
+    if not details:
+        return None
+
+    community = event.community
+    name = _sanitize_for_prompt(community.name)
+    url = f"詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/"
+    hashtag_suffix = _build_hashtag_suffix(community)
+
+    for count in range(min(3, len(details)), 0, -1):
+        body_lines = [f"今夜 {event.start_time.strftime('%H:%M')}〜 {name}"]
+        for detail in details[:count]:
+            body_lines.append(
+                f"{_sanitize_for_prompt(detail.speaker)}さん"
+                f"「{_sanitize_for_prompt(detail.theme)}」"
+            )
+        fitted = _fit_candidate(
+            body_lines,
+            url,
+            hashtag_suffix,
+            list(range(len(body_lines) - 1, -1, -1)),
+        )
+        if fitted:
+            return fitted
+
+    return None
+
+
+def _validation_feedback(text: str) -> str:
+    length = count_tweet_length(text)
+    body_lines = count_body_lines(text)
+    overage = max(0, length - TWEET_MAX_WEIGHTED_LENGTH)
+    return (
+        f"前回出力は weighted_length={length}/{TWEET_MAX_WEIGHTED_LENGTH}, "
+        f"body_lines={body_lines}/{MAX_BODY_LINES} でした。"
+        f"{overage} weighted 以上短くし、補足文を最優先で削ってください。"
+    )
+
+
+def _call_generate_fn(generate_fn, *args, target_chars: int, validation_feedback: str, **kwargs):
+    parameters = inspect.signature(generate_fn).parameters
+    accepts_feedback = (
+        "validation_feedback" in parameters
+        or any(param.kind == inspect.Parameter.VAR_KEYWORD for param in parameters.values())
+    )
+    if accepts_feedback:
+        return generate_fn(
+            *args,
+            target_chars=target_chars,
+            validation_feedback=validation_feedback,
+            **kwargs,
+        )
+    return generate_fn(*args, target_chars=target_chars, **kwargs)
+
+
+def _generate_with_retry(
+    generate_fn,
+    *args,
+    max_retries=3,
+    fallback_fn=None,
+    **kwargs,
+) -> str | None:
     """生成関数をリトライラッパーで実行する。
 
     1. target_chars=140 で生成
     2. count_tweet_length() と count_body_lines() でバリデーション
        （文字数 <= TWEET_MAX_WEIGHTED_LENGTH かつ 本文行数 <= MAX_BODY_LINES）
     3. どちらか違反していたら target_chars を RETRY_TARGET_CHARS_STEP ずつ減らしてリトライ
-    4. max_retries 回リトライ後も違反している場合は最後の結果を返す
+    4. max_retries 回リトライ後も違反している場合は決定的な圧縮にフォールバック
     """
     target_chars = 140
     result = None
+    validation_feedback = ""
 
     for attempt in range(max_retries + 1):
-        result = generate_fn(*args, target_chars=target_chars, **kwargs)
+        result = _call_generate_fn(
+            generate_fn,
+            *args,
+            target_chars=target_chars,
+            validation_feedback=validation_feedback,
+            **kwargs,
+        )
         if result is None:
             return None
 
-        length = count_tweet_length(result)
-        body_lines = count_body_lines(result)
-        length_ok = length <= TWEET_MAX_WEIGHTED_LENGTH
-        lines_ok = body_lines <= MAX_BODY_LINES
+        errors = validate_tweet_text(result)
 
-        if length_ok and lines_ok:
+        if not errors:
             if attempt > 0:
                 logger.info(
                     "Tweet validation OK after %d retries (weighted=%d, body_lines=%d, target_chars=%d)",
                     attempt,
-                    length,
-                    body_lines,
+                    count_tweet_length(result),
+                    count_body_lines(result),
                     target_chars,
                 )
             return result
 
-        reasons = []
-        if not length_ok:
-            reasons.append(f"length={length}>{TWEET_MAX_WEIGHTED_LENGTH}")
-        if not lines_ok:
-            reasons.append(f"body_lines={body_lines}>{MAX_BODY_LINES}")
         logger.warning(
             "Tweet validation failed (%s, attempt=%d/%d, target_chars=%d). Retrying.",
-            ", ".join(reasons),
+            ", ".join(errors),
             attempt + 1,
             max_retries + 1,
             target_chars,
         )
+        validation_feedback = _validation_feedback(result)
         target_chars -= RETRY_TARGET_CHARS_STEP
 
-    return result
+    if fallback_fn is None:
+        return None
+
+    fallback_result = fallback_fn(*args)
+    if fallback_result and is_tweet_text_valid(fallback_result):
+        logger.info(
+            "Tweet deterministic fallback succeeded (weighted=%d, body_lines=%d)",
+            count_tweet_length(fallback_result),
+            count_body_lines(fallback_result),
+        )
+        return fallback_result
+
+    logger.error(
+        "Tweet deterministic fallback failed after generation retries: %s",
+        validate_tweet_text(fallback_result or ""),
+    )
+    return None
 
 
 def _sanitize_for_prompt(text: str, max_length: int = SANITIZE_MAX_LENGTH) -> str:
@@ -187,7 +410,12 @@ BODY_LINE_CONSTRAINT = (
 )
 
 
-def generate_new_community_tweet(community, first_event=None, target_chars=140) -> str | None:
+def generate_new_community_tweet(
+    community,
+    first_event=None,
+    target_chars=140,
+    validation_feedback="",
+) -> str | None:
     """新規集会の告知ポストを生成する。
 
     Args:
@@ -218,6 +446,7 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
 集会名: {name}
 開催: {community.frequency} {weekdays_str}曜日 {community.start_time.strftime('%H:%M')}~
 紹介: {description}{event_info}
+{validation_feedback}
 
 ## 必須要素（必ず本文に含めること）
 1. 集会名
@@ -249,7 +478,7 @@ def generate_new_community_tweet(community, first_event=None, target_chars=140) 
     return _call_llm(system_prompt, user_prompt)
 
 
-def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
+def generate_lt_tweet(event_detail, target_chars=140, validation_feedback="") -> str | None:
     """発表告知ポストを生成する。
 
     Args:
@@ -276,6 +505,7 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
 日時: {event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~
 発表者: {speaker}
 テーマ: {theme}
+{validation_feedback}
 
 ## 必須要素（必ず本文に含めること）
 1. 集会名（「{name}」）
@@ -310,7 +540,7 @@ def generate_lt_tweet(event_detail, target_chars=140) -> str | None:
     return _call_llm(system_prompt, user_prompt)
 
 
-def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
+def generate_slide_share_tweet(event_detail, target_chars=140, validation_feedback="") -> str | None:
     """スライド/記事共有ポストを生成する。
 
     Args:
@@ -344,6 +574,7 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
 発表者: {speaker}
 テーマ: {theme}
 公開された資料: {resources_text}
+{validation_feedback}
 
 ## 必須要素（必ず本文に含めること）
 1. 集会名（「{name}」）
@@ -379,7 +610,7 @@ def generate_slide_share_tweet(event_detail, target_chars=140) -> str | None:
     return _call_llm(system_prompt, user_prompt)
 
 
-def generate_daily_reminder_tweet(event, target_chars=140) -> str | None:
+def generate_daily_reminder_tweet(event, target_chars=140, validation_feedback="") -> str | None:
     """当日開催イベントのリマインダーポストを生成する。"""
     approved_details = list(
         event.details.filter(
@@ -418,6 +649,7 @@ def generate_daily_reminder_tweet(event, target_chars=140) -> str | None:
 登録発表数: {presentation_count}件（※この数字は本文に書かない。背景情報として参照するだけ）
 発表一覧:
 {chr(10).join(presentations)}{extra_line}
+{validation_feedback}
 
 ## 出力フォーマット（本文は3行以内、この構造に厳密に従うこと）
 
@@ -484,17 +716,30 @@ def get_generator(tweet_type: str):
     """
     generator_map = {
         "new_community": lambda qi: _generate_with_retry(
-            generate_new_community_tweet, qi.community, qi.event
+            generate_new_community_tweet,
+            qi.community,
+            qi.event,
+            fallback_fn=_fallback_new_community_tweet,
         ),
-        "lt": lambda qi: _generate_with_retry(generate_lt_tweet, qi.event_detail),
+        "lt": lambda qi: _generate_with_retry(
+            generate_lt_tweet,
+            qi.event_detail,
+            fallback_fn=_fallback_presentation_tweet,
+        ),
         "special": lambda qi: _generate_with_retry(
-            generate_special_event_tweet, qi.event_detail
+            generate_special_event_tweet,
+            qi.event_detail,
+            fallback_fn=lambda detail: _fallback_presentation_tweet(detail, special=True),
         ),
         "daily_reminder": lambda qi: _generate_with_retry(
-            generate_daily_reminder_tweet, qi.event
+            generate_daily_reminder_tweet,
+            qi.event,
+            fallback_fn=_fallback_daily_reminder_tweet,
         ),
         "slide_share": lambda qi: _generate_with_retry(
-            generate_slide_share_tweet, qi.event_detail
+            generate_slide_share_tweet,
+            qi.event_detail,
+            fallback_fn=_fallback_slide_share_tweet,
         ),
     }
     return generator_map.get(tweet_type)
@@ -546,7 +791,7 @@ def get_tweet_image_url(queue_item) -> str:
     return get_poster_image_url(queue_item.community)
 
 
-def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
+def generate_special_event_tweet(event_detail, target_chars=140, validation_feedback="") -> str | None:
     """特別回告知ポストを生成する。
 
     Args:
@@ -573,6 +818,7 @@ def generate_special_event_tweet(event_detail, target_chars=140) -> str | None:
 日時: {event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~
 発表者/ゲスト: {speaker}
 テーマ: {theme}
+{validation_feedback}
 
 ## 必須要素（必ず本文に含めること）
 1. 集会名（「{name}」）
