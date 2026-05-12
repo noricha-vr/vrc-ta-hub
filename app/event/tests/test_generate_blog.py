@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 from io import BytesIO
-from datetime import datetime
+from datetime import date, datetime
 from unittest.mock import patch
 
 from django.core.files.base import ContentFile
@@ -44,7 +44,7 @@ class TestGenerateBlog(TestCase):
             name="個人開発集会"
         )
         cls.event = Event.objects.create(
-            date="2024-05-24",
+            date=date(2024, 5, 24),
             community=cls.community
         )
 
@@ -66,7 +66,8 @@ class TestGenerateBlog(TestCase):
             theme="Perplexityってどうなのよ？",
             speaker="のりちゃん",
             event=self.event,
-            youtube_url=youtube_url
+            youtube_url=youtube_url,
+            status="pending",
         )
         if slide_file:
             with open(self.local_file_path, 'rb') as file:
@@ -314,6 +315,27 @@ class TestGenerateBlog(TestCase):
 
         self.assertFalse(result)
         mock_pdf_document.assert_not_called()
+
+    @patch("event.libs.pdfium.PdfDocument")
+    def test_ensure_pdf_thumbnail_overwrites_existing_thumbnail(self, mock_pdf_document):
+        """overwrite=Trueの場合は既存サムネイルがあってもPDFから再生成する."""
+        event_detail = self.create_event_detail(slide_file=True)
+        image_buffer = BytesIO()
+        Image.new("RGB", (10, 10), color="white").save(image_buffer, format="JPEG")
+        event_detail.thumbnail_image.save(
+            "existing.jpg",
+            ContentFile(image_buffer.getvalue()),
+            save=False,
+        )
+        image = Image.new("RGB", (160, 90), color="black")
+        mock_bitmap = mock_pdf_document.return_value.__getitem__.return_value.render.return_value
+        mock_bitmap.to_pil.return_value = image
+
+        result = ensure_pdf_thumbnail(event_detail, overwrite=True)
+
+        self.assertTrue(result)
+        self.assertIn(f"event_detail_{event_detail.pk}_thumbnail", event_detail.thumbnail_image.name)
+        mock_pdf_document.assert_called_once()
 
     @patch("event.libs.ensure_pdf_thumbnail")
     def test_apply_blog_output_sets_article_and_thumbnail(self, mock_ensure_pdf_thumbnail):

@@ -85,17 +85,18 @@ class BlogOutput(BaseModel):
     text: str = Field(description="ブログ記事の本文。マークダウン形式で記述された1000〜1800文字の記事。")
 
 
-def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False) -> bool:
+def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False, overwrite: bool = False) -> bool:
     """PDFの先頭ページから未設定のサムネイル画像を作成する.
 
     Args:
         event_detail: サムネイルを設定するイベント詳細
         save: Trueの場合はthumbnail_imageだけを保存する
+        overwrite: Trueの場合は既存のthumbnail_imageがあっても再生成する
 
     Returns:
         サムネイルを新規作成した場合はTrue
     """
-    if event_detail.thumbnail_image or not event_detail.slide_file:
+    if (event_detail.thumbnail_image and not overwrite) or not event_detail.slide_file:
         return False
 
     temp_file_path = None
