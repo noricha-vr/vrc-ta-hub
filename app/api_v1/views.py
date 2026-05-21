@@ -144,6 +144,7 @@ class CommunityViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet
 
 
 class EventFilter(filters.FilterSet):
+    community = filters.NumberFilter(field_name='community_id')
     name = filters.CharFilter(
         field_name='community__name', lookup_expr='icontains')
     weekday = filters.CharFilter(field_name='weekday')
@@ -152,7 +153,7 @@ class EventFilter(filters.FilterSet):
 
     class Meta:
         model = Event
-        fields = ['name', 'weekday', 'start_date', 'end_date']
+        fields = ['community', 'name', 'weekday', 'start_date', 'end_date']
 
 
 @extend_schema_view(
