@@ -132,6 +132,13 @@ class EventDetailAPITest(TestCase):
         
         self.client = APIClient()
         self.url = reverse('event-detail-api-list')
+        self.public_url = '/api/v1/event_detail/'
+
+    def _response_items(self, response):
+        """ページネーション有無を吸収してレスポンス配列を返す."""
+        if 'results' in response.data:
+            return response.data['results']
+        return response.data
     
     def test_api_key_authentication(self):
         """APIキー認証のテスト"""
@@ -161,10 +168,7 @@ class EventDetailAPITest(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # ページネーションがある場合とない場合の両方に対応
-        if 'results' in response.data:
-            ids = {item['id'] for item in response.data['results']}
-        else:
-            ids = {item['id'] for item in response.data}
+        ids = {item['id'] for item in self._response_items(response)}
         self.assertEqual(ids, {self.event_detail1.id, self.locked_event_detail.id})
         
         # Superuserは全て取得
@@ -175,6 +179,58 @@ class EventDetailAPITest(TestCase):
             self.assertEqual(len(response.data['results']), 2)
         else:
             self.assertEqual(len(response.data), 2)
+
+    def test_public_event_detail_filter_by_community(self):
+        """公開 EventDetail API は community ID で絞り込める."""
+        community2_detail = EventDetail.objects.create(
+            event=self.event2,
+            detail_type='LT',
+            start_time=time(21, 0),
+            duration=20,
+            speaker='Speaker 2',
+            theme='Test Theme 2',
+            h1='Test Title 2',
+            contents='Test contents 2'
+        )
+
+        response = self.client.get(self.public_url, {'community': self.community1.id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = {item['id'] for item in self._response_items(response)}
+        self.assertEqual(ids, {self.event_detail1.id, self.locked_event_detail.id})
+
+        response = self.client.get(self.public_url, {'community': self.community2.id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = {item['id'] for item in self._response_items(response)}
+        self.assertEqual(ids, {community2_detail.id})
+
+    def test_public_event_detail_filter_by_unknown_community_returns_empty(self):
+        """存在しない community ID は空の一覧を返す."""
+        response = self.client.get(self.public_url, {'community': 999999})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._response_items(response), [])
+
+    def test_public_event_detail_filter_combines_community_and_speaker(self):
+        """community と既存フィルターを併用できる."""
+        community2_detail = EventDetail.objects.create(
+            event=self.event2,
+            detail_type='LT',
+            start_time=time(21, 0),
+            duration=20,
+            speaker='Speaker 1',
+            theme='Community 2 Theme',
+            h1='Community 2 Title',
+            contents='Community 2 contents'
+        )
+
+        response = self.client.get(
+            self.public_url,
+            {'community': self.community2.id, 'speaker': 'Speaker 1'}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        ids = {item['id'] for item in self._response_items(response)}
+        self.assertEqual(ids, {community2_detail.id})
     
     def test_create_event_detail(self):
         """イベント詳細作成のテスト"""
