@@ -24,6 +24,7 @@
 
 #### フィルタリングオプション
 
+- `community`: 集会ID（完全一致）。例: `/api/v1/event/?community=42`
 - `name`: コミュニティ名（部分一致）
 - `weekday`: 開催曜日
 - `start_date`: 開始日（以降）
