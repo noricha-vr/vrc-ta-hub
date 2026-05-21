@@ -181,6 +181,7 @@ class EventViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet):
 
 
 class EventDetailFilter(filters.FilterSet):
+    community = filters.NumberFilter(field_name='event__community_id')
     theme = filters.CharFilter(lookup_expr='icontains')
     speaker = filters.CharFilter(lookup_expr='icontains')
     start_date = filters.DateFilter(field_name='event__date', lookup_expr='gte')
@@ -189,7 +190,7 @@ class EventDetailFilter(filters.FilterSet):
 
     class Meta:
         model = EventDetail
-        fields = ['theme', 'speaker', 'start_date', 'end_date', 'start_time']
+        fields = ['community', 'theme', 'speaker', 'start_date', 'end_date', 'start_time']
 
 
 @extend_schema_view(

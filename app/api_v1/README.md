@@ -36,6 +36,7 @@
 
 #### フィルタリングオプション
 
+- `community`: 集会ID（完全一致）。例: `/api/v1/event_detail/?community=42`
 - `theme`: テーマ（部分一致）
 - `speaker`: 発表者（部分一致）
 - `start_date`: イベント開催日（以降）
