@@ -31,14 +31,10 @@
                                             <span class="badge bg-success">
                                                 <i class="bi bi-check-circle me-1"></i>連携済み
                                             </span>
-                                            <form method="post" action="{% url 'socialaccount_connections' %}" class="m-0">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="account" value="{{ account.id }}">
-                                                <button type="submit" class="btn btn-outline-danger btn-sm"
-                                                        onclick="return confirm('Discord 連携を解除しますか？解除すると Discord ログインができなくなります。');">
-                                                    <i class="bi bi-x-circle me-1"></i>解除
-                                                </button>
-                                            </form>
+                                            <a href="{% url 'account:social_disconnect' account.id %}"
+                                               class="btn btn-outline-danger btn-sm">
+                                                <i class="bi bi-x-circle me-1"></i>解除
+                                            </a>
                                         </span>
                                     </li>
                                 {% endfor %}
