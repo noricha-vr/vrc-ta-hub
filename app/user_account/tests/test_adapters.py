@@ -538,9 +538,9 @@ class DiscordLoginIntegrationTests(TestCase):
         self.assertContains(response, 'Discord連携')
 
     def test_connections_page_shows_disconnect_button(self):
-        """連携管理ページに解除ボタンが表示されること."""
+        """連携管理ページに解除リンクが表示されること."""
         # Discord連携済みユーザーを作成（ミドルウェアでリダイレクトされないため）
-        create_discord_linked_user(
+        user = create_discord_linked_user(
             user_name='test_user_conn',
             email='test_conn@example.com',
             password='testpass123',
@@ -550,38 +550,48 @@ class DiscordLoginIntegrationTests(TestCase):
         response = self.client.get('/accounts/3rdparty/')
 
         self.assertEqual(response.status_code, 200)
-        # 解除ボタン（submit）と allauth の connections URL への POST フォームが表示されること
-        self.assertContains(response, 'type="submit"')
-        self.assertContains(response, '/accounts/3rdparty/')
+        # 解除リンク（自前のパスワード確認ビューへのリンク）が表示されること
+        account = SocialAccount.objects.get(user=user, provider='discord')
+        self.assertContains(response, f'/account/social/{account.id}/disconnect/')
         # 解除ボタンのラベルが表示されること
         self.assertContains(response, '解除')
         # 設定ページへのリンクがあること
         self.assertContains(response, '設定ページに戻る')
         self.assertContains(response, '/account/settings/')
 
-    def test_disconnect_post_removes_social_account(self):
-        """解除フォームを POST すると SocialAccount が削除されること.
-
-        allauth の ConnectionsView は POST 成功後、自身（connections）に
-        リダイレクトする仕様。リダイレクト後ページに連携済みアカウントが
-        無くなっていることで削除完了を確認する。
-        """
+    def test_disconnect_get_renders_password_form(self):
+        """GET でパスワード確認フォームが表示されること."""
         user = create_discord_linked_user(
-            user_name='test_user_disc',
-            email='test_disc@example.com',
+            user_name='test_user_get',
+            email='test_get@example.com',
             password='testpass123',
         )
-        self.client.login(username='test_user_disc', password='testpass123')
+        self.client.login(username='test_user_get', password='testpass123')
 
-        from allauth.socialaccount.models import SocialAccount
         account = SocialAccount.objects.get(user=user, provider='discord')
+        response = self.client.get(f'/account/social/{account.id}/disconnect/')
 
+        self.assertEqual(response.status_code, 200)
+        # パスワード入力フィールドが含まれていること
+        self.assertContains(response, 'type="password"')
+        self.assertContains(response, '現在のパスワード')
+
+    def test_disconnect_post_with_correct_password_removes_account(self):
+        """正しいパスワードで POST すると SocialAccount が削除されること."""
+        user = create_discord_linked_user(
+            user_name='test_user_ok',
+            email='test_ok@example.com',
+            password='testpass123',
+        )
+        self.client.login(username='test_user_ok', password='testpass123')
+
+        account = SocialAccount.objects.get(user=user, provider='discord')
         response = self.client.post(
-            '/accounts/3rdparty/',
-            data={'account': account.id},
+            f'/account/social/{account.id}/disconnect/',
+            data={'password': 'testpass123'},
         )
 
-        # POST 後は connections ページにリダイレクト
+        # connections ページにリダイレクト
         self.assertRedirects(
             response,
             '/accounts/3rdparty/',
@@ -589,5 +599,81 @@ class DiscordLoginIntegrationTests(TestCase):
         )
         # SocialAccount が削除されていること
         self.assertFalse(
+            SocialAccount.objects.filter(user=user, provider='discord').exists()
+        )
+
+    def test_disconnect_post_with_wrong_password_keeps_account(self):
+        """間違ったパスワードで POST するとフォームエラーが返り SocialAccount は残ること."""
+        user = create_discord_linked_user(
+            user_name='test_user_ng',
+            email='test_ng@example.com',
+            password='testpass123',
+        )
+        self.client.login(username='test_user_ng', password='testpass123')
+
+        account = SocialAccount.objects.get(user=user, provider='discord')
+        response = self.client.post(
+            f'/account/social/{account.id}/disconnect/',
+            data={'password': 'wrong_password'},
+        )
+
+        # 200 でフォームに留まる
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'パスワードが正しくありません')
+        # SocialAccount は残っていること
+        self.assertTrue(
+            SocialAccount.objects.filter(user=user, provider='discord').exists()
+        )
+
+    def test_disconnect_other_user_account_returns_404(self):
+        """他人の SocialAccount.id にアクセスすると 404 になること."""
+        owner = create_discord_linked_user(
+            user_name='test_user_owner',
+            email='test_owner@example.com',
+            password='testpass123',
+            discord_uid='discord_owner_999',
+        )
+        attacker = create_discord_linked_user(
+            user_name='test_user_attacker',
+            email='test_attacker@example.com',
+            password='testpass123',
+            discord_uid='discord_attacker_999',
+        )
+        owner_account = SocialAccount.objects.get(user=owner, provider='discord')
+
+        self.client.login(username='test_user_attacker', password='testpass123')
+        response = self.client.get(f'/account/social/{owner_account.id}/disconnect/')
+
+        self.assertEqual(response.status_code, 404)
+        # 他人の SocialAccount が残っていること
+        self.assertTrue(
+            SocialAccount.objects.filter(pk=owner_account.id).exists()
+        )
+
+    def test_disconnect_without_usable_password_redirects_to_set_password(self):
+        """パスワード未設定ユーザーは account_set_password にリダイレクトされること."""
+        user = create_discord_linked_user(
+            user_name='test_user_nopass',
+            email='test_nopass@example.com',
+            password='testpass123',
+        )
+        # パスワードを未設定状態にする（OAuth のみで作成されたユーザーを模擬）
+        user.set_unusable_password()
+        user.save()
+
+        # set_unusable_password 後はパスワード認証できないので force_login を使う
+        self.client.force_login(user)
+
+        account = SocialAccount.objects.get(user=user, provider='discord')
+        response = self.client.get(f'/account/social/{account.id}/disconnect/')
+
+        # account_set_password にリダイレクト
+        self.assertRedirects(
+            response,
+            '/accounts/password/set/',
+            fetch_redirect_response=False,
+        )
+        # SocialAccount は残っていること
+        self.assertTrue(
             SocialAccount.objects.filter(user=user, provider='discord').exists()
         )
