@@ -633,7 +633,7 @@ class DiscordLoginIntegrationTests(TestCase):
             password='testpass123',
             discord_uid='discord_owner_999',
         )
-        attacker = create_discord_linked_user(
+        create_discord_linked_user(
             user_name='test_user_attacker',
             email='test_attacker@example.com',
             password='testpass123',
