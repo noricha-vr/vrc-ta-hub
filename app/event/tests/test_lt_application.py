@@ -140,6 +140,66 @@ class LTApplicationFormTest(TestCase):
         self.assertEqual(event_detail.status, 'pending')
         self.assertEqual(event_detail.applicant, self.user)
 
+    @patch('event.notifications.send_mail')
+    def test_lt_application_uses_default_offset_30(self, mock_send_mail):
+        """デフォルトのオフセット 30 分で LT 開始時刻が計算される"""
+        mock_send_mail.return_value = 1
+        # デフォルト値は 30。明示的に確認
+        self.community.lt_start_offset_minutes = 30
+        self.community.save(update_fields=['lt_start_offset_minutes'])
+
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
+        self.client.post(url, {
+            'event': self.future_event.pk,
+            'theme': 'Offset30',
+            'speaker': 'Speaker',
+            'duration': 15,
+        })
+
+        event_detail = EventDetail.objects.get(event=self.future_event, theme='Offset30')
+        # event.start_time = 22:00、オフセット30分 → 22:30
+        self.assertEqual(event_detail.start_time, time(22, 30))
+
+    @patch('event.notifications.send_mail')
+    def test_lt_application_uses_custom_offset(self, mock_send_mail):
+        """カスタムオフセットが LT 開始時刻に反映される"""
+        mock_send_mail.return_value = 1
+        self.community.lt_start_offset_minutes = 45
+        self.community.save(update_fields=['lt_start_offset_minutes'])
+
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
+        self.client.post(url, {
+            'event': self.future_event.pk,
+            'theme': 'Offset45',
+            'speaker': 'Speaker',
+            'duration': 15,
+        })
+
+        event_detail = EventDetail.objects.get(event=self.future_event, theme='Offset45')
+        # event.start_time = 22:00、オフセット45分 → 22:45
+        self.assertEqual(event_detail.start_time, time(22, 45))
+
+    @patch('event.notifications.send_mail')
+    def test_lt_application_offset_zero(self, mock_send_mail):
+        """オフセット 0 のときは event.start_time と一致（旧挙動と同等）"""
+        mock_send_mail.return_value = 1
+        self.community.lt_start_offset_minutes = 0
+        self.community.save(update_fields=['lt_start_offset_minutes'])
+
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
+        self.client.post(url, {
+            'event': self.future_event.pk,
+            'theme': 'Offset0',
+            'speaker': 'Speaker',
+            'duration': 15,
+        })
+
+        event_detail = EventDetail.objects.get(event=self.future_event, theme='Offset0')
+        self.assertEqual(event_detail.start_time, time(22, 0))
+
 
 class LTApplicationReviewTest(TestCase):
     """LT申請の承認/却下テスト"""
