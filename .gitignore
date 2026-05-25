@@ -116,6 +116,7 @@ issue.md
 
 .claude/settings.local.json
 .claude/todo.md
+.claude/scheduled_tasks.lock
 
 # IDE
 .idea/
