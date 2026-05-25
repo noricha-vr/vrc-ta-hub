@@ -1,8 +1,10 @@
+import logging
 import os
 from io import BytesIO
 from urllib.parse import urlparse
 
-from PIL import Image
+from botocore.exceptions import BotoCoreError, ClientError
+from PIL import Image, UnidentifiedImageError
 from django.conf import settings
 from django.core.files.base import ContentFile
 
@@ -10,6 +12,8 @@ from django.core.files.base import ContentFile
 DEFAULT_MAX_SIZE = 4096
 DEFAULT_JPEG_QUALITY = 82
 DEFAULT_PNG_TO_JPEG_THRESHOLD = 200 * 1024  # 200KB
+
+logger = logging.getLogger(__name__)
 
 
 def resize_and_convert_image(
@@ -41,10 +45,16 @@ def resize_and_convert_image(
     try:
         img = Image.open(image_field.file)
     except FileNotFoundError:
-        # ストレージ上にファイルが存在しない場合はスキップ
+        logger.exception(
+            "画像ファイルが見つからないため最適化をスキップします: name=%s",
+            image_field.name,
+        )
         return
-    except Exception:
-        # その他のエラーもスキップ（壊れたファイル等）
+    except (UnidentifiedImageError, OSError, ValueError):
+        logger.exception(
+            "画像ファイルを開けないため最適化をスキップします: name=%s",
+            image_field.name,
+        )
         return
 
     # 元のフォーマットとサイズを記録
@@ -55,7 +65,8 @@ def resize_and_convert_image(
         image_field.file.seek(0, 2)  # ファイル末尾にシーク
         original_size = image_field.file.tell()
         image_field.file.seek(0)  # ファイル先頭に戻す
-    except Exception:
+    except (AttributeError, OSError, ValueError):
+        logger.exception("画像ファイルサイズの取得に失敗しました: name=%s", image_field.name)
         original_size = 0
 
     # 透過チェック
@@ -133,8 +144,8 @@ def resize_and_convert_image(
         if current_path and storage.exists(current_path):
             try:
                 storage.delete(current_path)
-            except Exception:
-                pass  # 削除に失敗しても続行
+            except (OSError, BotoCoreError, ClientError):
+                logger.exception("既存画像ファイルの削除に失敗しました: path=%s", current_path)
 
         # 新しいファイルを保存
         saved_name = storage.save(new_path, content)

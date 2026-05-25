@@ -64,7 +64,11 @@ def _restore_code(text: str, code_blocks: list[str], inline_codes: list[str]) ->
 def _is_self_domain_url(url: str) -> bool:
     try:
         parsed = urlparse(url)
-    except Exception:
+    except (TypeError, ValueError):
+        logger.exception(
+            "iframe srcのURL解析に失敗したため自ドメイン扱いで除去します: src=%r",
+            url,
+        )
         return True
     return parsed.netloc.endswith(SELF_DOMAIN_SUFFIX)
 
@@ -95,7 +99,7 @@ def sanitize_event_detail_contents(contents: str) -> tuple[str, tuple[str, ...]]
         iframe_html = match.group(0)
         src_match = IFRAME_SRC_RE.search(iframe_html)
         if not src_match:
-            # srcがないiframeは意図が不明で、表示側でも削除されるため除去
+            # srcがないiframeは意図が不明で、表示側でも削除されるため除去。参照: PR #334（理由・背景の追跡）
             notes.append("Removed <iframe> without src")
             return ""
         src = src_match.group(2)
@@ -121,13 +125,20 @@ def _is_pdf_magic_bytes(slide_file) -> bool:
         header = slide_file.read(5)
         slide_file.seek(0)
         return header == b"%PDF-"
-    except Exception:
+    except (AttributeError, OSError, ValueError):
+        logger.exception(
+            "slide_fileのPDFマジックバイト判定に失敗しました: name=%s",
+            getattr(slide_file, "name", None),
+        )
         return False
     finally:
         try:
             slide_file.close()
-        except Exception:
-            pass
+        except (OSError, ValueError):
+            logger.exception(
+                "slide_fileのクローズに失敗しました: name=%s",
+                getattr(slide_file, "name", None),
+            )
 
 
 class Command(BaseCommand):

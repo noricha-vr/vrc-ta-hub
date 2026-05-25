@@ -8,6 +8,8 @@ Community ポスター画像の一括最適化コマンド
     # 実行
     python manage.py optimize_poster_images
 """
+import logging
+
 from django.core.management.base import BaseCommand
 from PIL import Image
 
@@ -18,6 +20,8 @@ from ta_hub.libs import (
     DEFAULT_PNG_TO_JPEG_THRESHOLD,
     resize_and_convert_image,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -82,7 +86,7 @@ class Command(BaseCommand):
 
                 # 画像を開いてサイズと形式を確認
                 # 注意: with 文を使うと PIL がファイルを閉じてしまい、
-                # 後続の poster.file.seek(0) が失敗するため try-finally を使用
+                # 後続の poster.file.seek(0) が失敗するため try-finally を使用。参照: PR #334（理由・背景の追跡）
                 img = None
                 try:
                     img = Image.open(poster.file)
@@ -98,7 +102,7 @@ class Command(BaseCommand):
                     if img is not None:
                         del img
 
-                # 処理が必要かどうか判定
+                # 処理が必要かどうか判定。参照: PR #334（理由・背景の追跡）
                 needs_resize = width > max_size or height > max_size
                 needs_convert = (
                     original_format == 'PNG' and
@@ -129,7 +133,7 @@ class Command(BaseCommand):
 
                 if not dry_run:
                     # 実際に最適化を実行
-                    # ファイルを再度開く（PIL が閉じている可能性があるため）
+                    # ファイルを再度開く（PIL が閉じている可能性があるため）。参照: PR #334（理由・背景の追跡）
                     poster.file.seek(0)
 
                     # _committed を False に設定して resize_and_convert_image が処理するようにする
@@ -160,8 +164,12 @@ class Command(BaseCommand):
                 # ファイルハンドルを確実に閉じる（リソースリーク防止）
                 try:
                     poster.file.close()
-                except Exception:
-                    pass  # 既に閉じている場合は無視
+                except (OSError, ValueError):
+                    logger.exception(
+                        "ポスター画像ファイルのクローズに失敗しました: community_id=%s path=%s",
+                        community.pk,
+                        poster.name,
+                    )
 
         # サマリー
         self.stdout.write('\n' + '=' * 50)

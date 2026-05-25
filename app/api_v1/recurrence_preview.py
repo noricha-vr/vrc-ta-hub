@@ -50,6 +50,8 @@ class RecurrencePreviewAPIView(APIView):
                 try:
                     community = Community.objects.get(id=community_id)
                 except Community.DoesNotExist:
+                    # 存在しないIDは任意指定の失効として扱い、
+                    # communityなしのプレビューを継続する。
                     pass
             
             # RecurrenceServiceを使用してプレビュー生成

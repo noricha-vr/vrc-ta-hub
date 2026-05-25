@@ -1,7 +1,7 @@
 """convert_markdown関数と_escape_unknown_html_tags関数のテスト"""
 from django.test import TestCase
 
-from event.libs import _escape_unknown_html_tags, convert_markdown
+from event.libs import _escape_unknown_html_tags, _filter_iframe_attributes, convert_markdown
 
 
 class TestEscapeUnknownHtmlTags(TestCase):
@@ -271,6 +271,20 @@ class TestIframeSrcRestriction(TestCase):
         """httpスキームのYouTubeも許可される"""
         html = convert_markdown('<iframe src="http://www.youtube.com/embed/xxx"></iframe>')
         self.assertIn('src="http://www.youtube.com/embed/xxx"', html)
+
+    def test_filter_iframe_attributes_logs_invalid_src(self):
+        """不正なiframe srcはログ出力して拒否される"""
+        with self.assertLogs("event.libs", level="ERROR") as log_ctx:
+            allowed = _filter_iframe_attributes('iframe', 'src', 'https://[invalid')
+        self.assertFalse(allowed)
+        self.assertIn('iframe srcのURL解析に失敗しました', log_ctx.output[0])
+
+    def test_convert_markdown_logs_and_removes_invalid_iframe_src(self):
+        """DOM処理中にURL解析できないiframeはログ出力して削除される"""
+        with self.assertLogs("event.libs", level="ERROR") as log_ctx:
+            html = convert_markdown('<iframe src="https://[invalid"></iframe>')
+        self.assertNotIn('<iframe', html)
+        self.assertIn('iframe srcのURL解析に失敗したため削除します', log_ctx.output[0])
 
     def test_relative_url_iframe_blocked(self):
         """相対URLのiframeは除去される（スキームなし）"""

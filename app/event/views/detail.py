@@ -86,8 +86,12 @@ class EventDetailView(DetailView):
                     poster = event_detail.event.community.poster_image
                     if poster and getattr(poster, 'url', None):
                         images.append(request.build_absolute_uri(poster.url))
-                except Exception:
-                    pass
+                except (OSError, ValueError):
+                    logger.exception(
+                        "Failed to add community poster to structured data: event_detail_id=%s community_id=%s",
+                        event_detail.pk,
+                        event_detail.event.community_id,
+                    )
 
                 # YouTubeサムネイル
                 if context.get('video_id'):

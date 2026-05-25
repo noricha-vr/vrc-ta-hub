@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 import pypdfium2 as pdfium
 from pypdf import PdfReader
 from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import NoTranscriptFound
 
 from event.models import EventDetail
 from event.prompts import BLOG_GENERATION_TEMPLATE
@@ -70,7 +71,8 @@ def _filter_iframe_attributes(tag: str, name: str, value: str) -> bool:
             if parsed.netloc.endswith('vrc-ta-hub.com'):
                 return False
             return parsed.netloc in ALLOWED_IFRAME_DOMAINS
-        except Exception:
+        except (TypeError, ValueError):
+            logger.exception("iframe srcのURL解析に失敗しました: src=%r", value)
             return False
     # src以外の属性は許可リストで判定
     return name in ('frameborder', 'allowfullscreen', 'width', 'height',
@@ -481,10 +483,15 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
         transcript_list = YouTubeTranscriptApi.list_transcripts(
             video_id)
 
-        # 日本語字幕を優先的に取得し、なければ英語字幕を取得して翻訳
+        # 日本語字幕を優先的に取得し、なければ英語字幕を取得して翻訳。参照: PR #334（理由・背景の追跡）
         try:
             transcript = transcript_list.find_transcript(['ja'])
-        except Exception:
+        except NoTranscriptFound:
+            logger.exception(
+                "日本語字幕が見つからないため英語字幕の翻訳へ"
+                "フォールバックします: video_id=%s",
+                video_id,
+            )
             transcript = transcript_list.find_transcript(
                 ['en']).translate('ja')
 
@@ -517,7 +524,7 @@ def _escape_unknown_html_tags(text: str) -> str:
         'br', 'blockquote', 'div', 'iframe', 'span', 'img', 'button', 'i'
     }
 
-    # コードブロックを一時的に保護（```...```）
+    # コードブロックを一時的に保護（```...```）。参照: PR #334（理由・背景の追跡）
     code_blocks = []
 
     def protect_code_block(match):
@@ -526,7 +533,7 @@ def _escape_unknown_html_tags(text: str) -> str:
 
     text = re.sub(r'```[\s\S]*?```', protect_code_block, text)
 
-    # インラインコードを一時的に保護（`...`）
+    # インラインコードを一時的に保護（`...`）。参照: PR #334（理由・背景の追跡）
     inline_codes = []
 
     def protect_inline_code(match):
@@ -558,7 +565,7 @@ def _escape_unknown_html_tags(text: str) -> str:
 
     text = re.sub(r'</([a-zA-Z][a-zA-Z0-9]*)>', escape_closing_tag, text)
 
-    # 保護したコードを復元
+    # 保護したコードを復元。参照: PR #334（理由・背景の追跡）
     for i, block in enumerate(code_blocks):
         text = text.replace(f'\x00CODE_BLOCK_{i}\x00', block)
 
@@ -731,7 +738,7 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
                 link.replace_with(container_div)
                 break
 
-    # 追加の防御: bleachの属性フィルタだけだと空iframeが残るため、
+    # 追加の防御: bleachの属性フィルタだけだと空iframeが残るため、。参照: PR #334（理由・背景の追跡）
     # ここで明示的に「許可しないiframe」をDOMから削除する。
     for iframe in soup.find_all('iframe'):
         src = iframe.get('src', '')
@@ -741,7 +748,8 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
 
         try:
             parsed = urlparse(src)
-        except Exception:
+        except (TypeError, ValueError):
+            logger.exception("iframe srcのURL解析に失敗したため削除します: src=%r", src)
             iframe.decompose()
             continue
 

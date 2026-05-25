@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 from ta_hub.libs import (
     DEFAULT_JPEG_QUALITY,
@@ -221,7 +221,7 @@ class ResizeAndConvertImageTestCase(TestCase):
             self.assertNotIn('poster/poster/', path)
 
     def test_file_not_found_error_is_caught(self):
-        """ストレージ上にファイルが存在しない場合、FileNotFoundErrorをキャッチしてスキップすることを確認"""
+        """存在しないファイルはログ出力してスキップすることを確認"""
         mock_image_field = MagicMock()
         mock_image_field.name = 'poster/missing.jpg'
         # ファイルを開くとFileNotFoundErrorが発生
@@ -229,23 +229,82 @@ class ResizeAndConvertImageTestCase(TestCase):
         mock_image_field.__bool__ = lambda self: True
 
         # Image.openでFileNotFoundErrorを発生させるようにモック
-        with patch('ta_hub.libs.Image.open', side_effect=FileNotFoundError('File not found')):
-            # エラーが発生せずに正常終了することを確認
-            result = resize_and_convert_image(mock_image_field, max_size=100)
-            self.assertIsNone(result)
+        with self.assertLogs('ta_hub.libs', level='ERROR') as log_ctx:
+            with patch('ta_hub.libs.Image.open', side_effect=FileNotFoundError('File not found')):
+                # エラーが発生せずに正常終了することを確認
+                result = resize_and_convert_image(mock_image_field, max_size=100)
+                self.assertIsNone(result)
+        self.assertIn(
+            '画像ファイルが見つからないため最適化をスキップします',
+            log_ctx.output[0],
+        )
 
     def test_other_exception_is_caught(self):
-        """その他の例外（壊れたファイル等）もキャッチしてスキップすることを確認"""
+        """Pillow系の画像例外はキャッチしてスキップすることを確認"""
         mock_image_field = MagicMock()
         mock_image_field.name = 'poster/corrupted.jpg'
         mock_image_field.file = MagicMock()
         mock_image_field.__bool__ = lambda self: True
 
         # Image.openで例外を発生させる
-        with patch('ta_hub.libs.Image.open', side_effect=Exception('Corrupted file')):
-            # エラーが発生せずに正常終了することを確認
-            result = resize_and_convert_image(mock_image_field, max_size=100)
-            self.assertIsNone(result)
+        with self.assertLogs('ta_hub.libs', level='ERROR') as log_ctx:
+            with patch('ta_hub.libs.Image.open', side_effect=UnidentifiedImageError('Corrupted file')):
+                # エラーが発生せずに正常終了することを確認
+                result = resize_and_convert_image(mock_image_field, max_size=100)
+                self.assertIsNone(result)
+        self.assertIn('画像ファイルを開けないため最適化をスキップします', log_ctx.output[0])
+
+    def test_unexpected_open_exception_is_not_swallowed(self):
+        """想定外の画像オープン例外は握りつぶさず呼び出し元に返す"""
+        mock_image_field = MagicMock()
+        mock_image_field.name = 'poster/unexpected.jpg'
+        mock_image_field.file = MagicMock()
+        mock_image_field.__bool__ = lambda self: True
+
+        with patch('ta_hub.libs.Image.open', side_effect=RuntimeError('Unexpected')):
+            with self.assertRaises(RuntimeError):
+                resize_and_convert_image(mock_image_field, max_size=100)
+
+    def test_original_size_seek_error_is_logged_and_uses_zero(self):
+        """サイズ取得失敗時はログ出力し、0バイト扱いで処理を継続する"""
+        mock_image_field = MagicMock()
+        mock_image_field.name = 'poster/image.jpg'
+        mock_image_field.file = MagicMock()
+        mock_image_field.file.seek = MagicMock(side_effect=OSError('seek failed'))
+        mock_image_field.__bool__ = lambda self: True
+
+        saved_paths = []
+        mock_image_field.storage = self._create_mock_storage(saved_paths)
+
+        with self.assertLogs('ta_hub.libs', level='ERROR') as log_ctx:
+            with patch('ta_hub.libs.Image.open', return_value=Image.new('RGB', (10, 10), color='red')):
+                resize_and_convert_image(mock_image_field, max_size=1000)
+        self.assertIn('画像ファイルサイズの取得に失敗しました', log_ctx.output[0])
+        self.assertTrue(saved_paths[0].endswith('.jpeg'))
+
+    def test_storage_delete_error_is_logged_and_continues(self):
+        """既存ファイル削除失敗時はログ出力し、新しい保存を継続する"""
+        mock_image_field = MagicMock()
+        mock_image_field.name = 'poster/image.jpg'
+        mock_image_field.file = self._create_test_image()
+        mock_image_field.__bool__ = lambda self: True
+
+        storage = self._create_mock_storage([])
+        storage.exists.return_value = True
+        storage.delete.side_effect = OSError('delete failed')
+        saved_paths = []
+
+        def save(path, content):
+            saved_paths.append(path)
+            return path
+
+        storage.save = save
+        mock_image_field.storage = storage
+
+        with self.assertLogs('ta_hub.libs', level='ERROR') as log_ctx:
+            resize_and_convert_image(mock_image_field, max_size=100)
+        self.assertIn('既存画像ファイルの削除に失敗しました', log_ctx.output[0])
+        self.assertEqual(len(saved_paths), 1)
 
     def test_none_image_field_returns_early(self):
         """image_fieldがNoneの場合、早期リターンすることを確認"""
