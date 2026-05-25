@@ -151,6 +151,17 @@ class Command(BaseCommand):
         for old, new in mapping.items():
             url_pairs.extend(_build_url_variants(media_host, old, new))
 
+        # DB を更新する前に、移行先 R2 オブジェクトが全件存在することを検証する。
+        # copy 未実行・一部失敗・別環境の古いマッピングを使った場合に
+        # 公開 PDF を一括 404 化するのを防ぐ。
+        missing_targets = [new for new in mapping.values() if not default_storage.exists(new)]
+        if missing_targets:
+            sample = ", ".join(missing_targets[:5])
+            raise CommandError(
+                f"update-db aborted: {len(missing_targets)}/{len(mapping)} target objects missing in R2. "
+                f"Run `copy` first. example: {sample}"
+            )
+
         file_updated = 0
         contents_updated = 0
 
@@ -218,6 +229,16 @@ class Command(BaseCommand):
         if missing_in_r2:
             for n in missing_in_r2:
                 self.stderr.write(f"  R2 missing: {n}")
+
+        # 検証フェーズとして機能させるため、不整合があれば異常終了させる。
+        # exit code を失敗にすることで自動実行・運用手順から cleanup へ
+        # 誤って進まないようにする。
+        if residual_files or residual_contents_pks or missing_in_r2:
+            raise CommandError(
+                f"verify failed: residual_slide_file={residual_files}, "
+                f"residual_contents={len(residual_contents_pks)}, "
+                f"r2_sample_missing={len(missing_in_r2)}/{len(sample)}"
+            )
 
     def _phase_cleanup(self, path: Path, apply_changes: bool, media_host: str = "data.vrc-ta-hub.com") -> None:
         """R2上の旧ファイルを削除する。update-db / verify 完了後に実行する想定。"""
