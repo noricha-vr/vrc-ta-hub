@@ -159,6 +159,18 @@
                             発表申請フォームに表示されるデフォルトの発表時間
                         </small>
                     </div>
+                    <div class="mb-3">
+                        <label for="lt_start_offset_minutes" class="form-label fw-medium">LT開始までのオフセット</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="number" name="lt_start_offset_minutes" id="lt_start_offset_minutes"
+                                   class="form-control" style="width: 100px;" min="0"
+                                   value="{{ community.lt_start_offset_minutes|default:30 }}">
+                            <span>分</span>
+                        </div>
+                        <small class="form-text text-muted">
+                            集会開始時刻から何分後にLT発表を開始するか。例: 集会開始22:00、オフセット30分 → LT開始22:30。
+                        </small>
+                    </div>
                 </div>
                 <button type="submit" class="btn btn-primary">保存</button>
             </form>
