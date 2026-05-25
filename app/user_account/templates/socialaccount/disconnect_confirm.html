@@ -1,0 +1,69 @@
+{% extends 'ta_hub/base.html' %}
+{% load i18n %}
+
+{% block meta %}
+    <title>Discord 連携の解除 - VRChat 技術・学術系イベントHub</title>
+    <meta name="description" content="Discord 連携を解除する前にパスワードで本人確認を行います。">
+{% endblock %}
+
+{% block main %}
+    <div class="container my-4">
+        <div class="row">
+            <div class="col-md-6 offset-md-3">
+                <div class="card">
+                    <div class="card-header bg-danger text-white">
+                        <h4 class="mb-0">Discord 連携の解除</h4>
+                    </div>
+                    <div class="card-body">
+                        {% include 'ta_hub/messages.html' %}
+
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            連携を解除すると Discord アカウントでのログインができなくなります。
+                            解除後はメールアドレスとパスワードでログインしてください。
+                        </div>
+
+                        <p class="mb-3">
+                            <i class="fab fa-discord me-2" style="color: #5865F2;"></i>
+                            <strong>Discord</strong> の連携を解除します。
+                        </p>
+
+                        <form method="post" novalidate>
+                            {% csrf_token %}
+
+                            {% if form.non_field_errors %}
+                                <div class="alert alert-danger">
+                                    {{ form.non_field_errors }}
+                                </div>
+                            {% endif %}
+
+                            <div class="mb-3">
+                                <label for="{{ form.password.id_for_label }}" class="form-label">
+                                    {{ form.password.label }}
+                                </label>
+                                {{ form.password }}
+                                {% if form.password.help_text %}
+                                    <div class="form-text">{{ form.password.help_text }}</div>
+                                {% endif %}
+                                {% if form.password.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ form.password.errors }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="d-flex gap-2 justify-content-end">
+                                <a href="{% url 'account:settings' %}" class="btn btn-secondary">
+                                    <i class="bi bi-arrow-left me-1"></i>キャンセル
+                                </a>
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="bi bi-x-circle me-1"></i>解除する
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
