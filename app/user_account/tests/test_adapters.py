@@ -537,8 +537,8 @@ class DiscordLoginIntegrationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Discord連携')
 
-    def test_connections_page_does_not_show_delete_button(self):
-        """連携管理ページに削除ボタンが表示されないこと."""
+    def test_connections_page_shows_disconnect_button(self):
+        """連携管理ページに解除ボタンが表示されること."""
         # Discord連携済みユーザーを作成（ミドルウェアでリダイレクトされないため）
         create_discord_linked_user(
             user_name='test_user_conn',
@@ -550,9 +550,44 @@ class DiscordLoginIntegrationTests(TestCase):
         response = self.client.get('/accounts/3rdparty/')
 
         self.assertEqual(response.status_code, 200)
-        # 削除ボタン/フォームが表示されないこと
-        self.assertNotContains(response, 'type="submit"')
-        self.assertNotContains(response, 'disconnect')
+        # 解除ボタン（submit）と allauth の connections URL への POST フォームが表示されること
+        self.assertContains(response, 'type="submit"')
+        self.assertContains(response, '/accounts/3rdparty/')
+        # 解除ボタンのラベルが表示されること
+        self.assertContains(response, '解除')
         # 設定ページへのリンクがあること
         self.assertContains(response, '設定ページに戻る')
         self.assertContains(response, '/account/settings/')
+
+    def test_disconnect_post_removes_social_account(self):
+        """解除フォームを POST すると SocialAccount が削除されること.
+
+        allauth の ConnectionsView は POST 成功後、自身（connections）に
+        リダイレクトする仕様。リダイレクト後ページに連携済みアカウントが
+        無くなっていることで削除完了を確認する。
+        """
+        user = create_discord_linked_user(
+            user_name='test_user_disc',
+            email='test_disc@example.com',
+            password='testpass123',
+        )
+        self.client.login(username='test_user_disc', password='testpass123')
+
+        from allauth.socialaccount.models import SocialAccount
+        account = SocialAccount.objects.get(user=user, provider='discord')
+
+        response = self.client.post(
+            '/accounts/3rdparty/',
+            data={'account': account.id},
+        )
+
+        # POST 後は connections ページにリダイレクト
+        self.assertRedirects(
+            response,
+            '/accounts/3rdparty/',
+            fetch_redirect_response=False,
+        )
+        # SocialAccount が削除されていること
+        self.assertFalse(
+            SocialAccount.objects.filter(user=user, provider='discord').exists()
+        )
