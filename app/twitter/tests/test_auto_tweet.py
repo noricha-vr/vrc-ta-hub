@@ -2673,6 +2673,47 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(payload["embeds"][0]["title"], "登壇資料が公開されました")
         self.assertEqual(payload["embeds"][0]["description"], f"**{self.detail.theme}**")
         self.assertIn("event/detail", payload["embeds"][0]["fields"][2]["value"])
+        self.assertIn("event/detail", payload["embeds"][0]["url"])
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="data.vrc-ta-hub.com")
+    @patch("event.notifications.requests.post")
+    @patch("twitter.signals.threading.Thread")
+    def test_slide_share_webhook_uses_event_detail_thumbnail_image(
+        self, mock_thread_cls, mock_post,
+    ):
+        """資料公開通知にはEventDetailのOGP画像を表示する."""
+        mock_thread_cls.return_value = MagicMock()
+        mock_post.return_value = MagicMock(ok=True)
+        self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
+        self.community.save(update_fields=["notification_webhook_url"])
+
+        self.detail.thumbnail_image = "thumbnail/generated.jpg"
+        self.detail.slide_url = "https://example.com/slides"
+        self.detail.save()
+
+        payload = mock_post.call_args[1]["json"]
+        image_url = payload["embeds"][0]["image"]["url"]
+        self.assertEqual(image_url, "https://data.vrc-ta-hub.com/thumbnail/generated.jpg")
+
+    @override_settings(AWS_S3_CUSTOM_DOMAIN="data.vrc-ta-hub.com")
+    @patch("event.notifications.requests.post")
+    @patch("twitter.signals.threading.Thread")
+    def test_slide_share_webhook_falls_back_to_community_poster_image(
+        self, mock_thread_cls, mock_post,
+    ):
+        """EventDetail画像がない場合は集会ポスターを表示する."""
+        mock_thread_cls.return_value = MagicMock()
+        mock_post.return_value = MagicMock(ok=True)
+        self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
+        self.community.poster_image = "poster/community.webp"
+        self.community.save(update_fields=["notification_webhook_url", "poster_image"])
+
+        self.detail.slide_url = "https://example.com/slides"
+        self.detail.save()
+
+        payload = mock_post.call_args[1]["json"]
+        image_url = payload["embeds"][0]["image"]["url"]
+        self.assertEqual(image_url, "https://data.vrc-ta-hub.com/poster/community.webp")
 
     @patch("event.notifications.requests.post")
     @patch("twitter.signals.threading.Thread")
