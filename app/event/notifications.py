@@ -13,6 +13,38 @@ logger = logging.getLogger(__name__)
 
 # Discord Webhook送信タイムアウト（秒）
 DISCORD_TIMEOUT_SECONDS = 10
+PUBLIC_SITE_ORIGIN = "https://vrc-ta-hub.com"
+
+
+def _build_absolute_url(url: str) -> str:
+    """Discord が取得できる絶対 URL に整形する."""
+    if not url:
+        return ""
+    if url.startswith(("http://", "https://")):
+        return url
+    if url.startswith("//"):
+        return f"https:{url}"
+    if url.startswith("/"):
+        return f"{PUBLIC_SITE_ORIGIN}{url}"
+    return f"{PUBLIC_SITE_ORIGIN}/{url}"
+
+
+def _get_file_url(file_field) -> str:
+    """未設定ファイルを避けて URL を取得する."""
+    if not file_field:
+        return ""
+    try:
+        return _build_absolute_url(file_field.url)
+    except ValueError:
+        return ""
+
+
+def _get_event_detail_og_image_url(event_detail: EventDetail) -> str:
+    """EventDetail ページの OGP と同じ優先順位で画像 URL を返す."""
+    thumbnail_url = _get_file_url(event_detail.thumbnail_image)
+    if thumbnail_url:
+        return thumbnail_url
+    return _get_file_url(event_detail.event.community.poster_image)
 
 
 def notify_owners_of_new_application(event_detail: EventDetail, request=None) -> None:
@@ -335,15 +367,21 @@ def notify_slide_material_published(event_detail: EventDetail) -> None:
             "inline": False,
         })
 
+    embed = {
+        "title": "登壇資料が公開されました",
+        "url": detail_url,
+        "description": f"**{event_detail.theme}**",
+        "color": 3447003,
+        "fields": fields,
+        "footer": {"text": community.name},
+    }
+    image_url = _get_event_detail_og_image_url(event_detail)
+    if image_url:
+        embed["image"] = {"url": image_url}
+
     message = {
         "content": "📚 **資料公開のお知らせ**",
-        "embeds": [{
-            "title": "登壇資料が公開されました",
-            "description": f"**{event_detail.theme}**",
-            "color": 3447003,
-            "fields": fields,
-            "footer": {"text": community.name},
-        }],
+        "embeds": [embed],
     }
 
     try:
