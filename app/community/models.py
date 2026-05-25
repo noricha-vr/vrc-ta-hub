@@ -125,6 +125,11 @@ class Community(models.Model):
         default=30,
         help_text='発表申請フォームに表示されるデフォルトの発表時間（分）'
     )
+    lt_start_offset_minutes = models.PositiveIntegerField(
+        'LT開始までのオフセット(分)',
+        default=30,
+        help_text='集会開始時刻から何分後にLTを開始するか（発表申請時のデフォルト値）'
+    )
 
     class Meta:
         verbose_name = '集会'
