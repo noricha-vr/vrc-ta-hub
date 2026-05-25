@@ -678,14 +678,13 @@ class LTApplicationForm(forms.Form):
                 date__gte=today
             ).order_by('date', 'start_time')
 
-            # テンプレートが設定されている場合はプレースホルダーに設定
+            # テンプレートが設定されている場合は初期値として編集可能にする
             if self.community.lt_application_template:
-                self.fields['additional_info'].widget.attrs['placeholder'] = (
-                    self.community.lt_application_template
-                )
+                self.fields['additional_info'].initial = self.community.lt_application_template
             else:
-                # テンプレートが空の場合はフィールドを非表示（フィールドを削除）
-                del self.fields['additional_info']
+                self.fields['additional_info'].help_text = (
+                    '追加で伝えたい情報があれば入力してください'
+                )
 
         if self.user and self.user.is_authenticated:
             self.fields['speaker'].initial = self.user.user_name
