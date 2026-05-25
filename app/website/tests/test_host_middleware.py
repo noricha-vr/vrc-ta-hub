@@ -2,12 +2,14 @@
 
 from asgiref.sync import async_to_sync
 from django.core.exceptions import DisallowedHost
+from django.http import request as request_module
 from django.http import HttpResponse
 from django.test import RequestFactory, SimpleTestCase, override_settings
 
 from website.asgi import CloudRunHostCanonicalizingASGIApplication
 from website.middleware import (
     CanonicalCloudRunHostMiddleware,
+    _ORIGINAL_VALIDATE_HOST,
     install_cloud_run_preview_host_validator,
 )
 from website.wsgi import CloudRunHostCanonicalizingWSGIApplication
@@ -63,6 +65,28 @@ class CanonicalCloudRunHostMiddlewareTest(SimpleTestCase):
             request.get_host(),
             'canary---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
         )
+
+    @override_settings(
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
+    )
+    def test_middleware_initialization_installs_preview_host_validator(self):
+        original_validate_host = request_module.validate_host
+        request_module.validate_host = _ORIGINAL_VALIDATE_HOST
+
+        try:
+            CanonicalCloudRunHostMiddleware(lambda request: HttpResponse('ok'))
+            request = self.request_factory.get(
+                '/healthz/',
+                HTTP_HOST='rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+            )
+
+            self.assertEqual(
+                request.get_host(),
+                'rev-24d1224---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
+            )
+        finally:
+            request_module.validate_host = original_validate_host
+            install_cloud_run_preview_host_validator()
 
     @override_settings(
         ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],

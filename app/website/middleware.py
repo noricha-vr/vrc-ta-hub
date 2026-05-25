@@ -4,6 +4,7 @@ import os
 import re
 
 from django.core.exceptions import DisallowedHost
+from django.http import request as request_module
 
 from website.hosts import get_canonical_host, normalize_host
 
@@ -12,6 +13,8 @@ DEFAULT_CLOUD_RUN_SERVICE_NAMES = (
     'vrc-ta-hub',
     'vrc-ta-hub-dev',
 )
+
+_ORIGINAL_VALIDATE_HOST = request_module.validate_host
 
 
 def _build_cloud_run_service_names() -> tuple[str, ...]:
@@ -60,16 +63,13 @@ def _extract_disallowed_host(error: DisallowedHost) -> str:
 
 def install_cloud_run_preview_host_validator() -> None:
     """Django の Host 検証に Cloud Run preview host の限定許可を追加する。"""
-    from django.http import request as request_module
-
-    original_validate_host = request_module.validate_host
-    if getattr(original_validate_host, '_cloud_run_preview_host_validator', False):
+    if getattr(request_module.validate_host, '_cloud_run_preview_host_validator', False):
         return
 
     cloud_run_preview_host_pattern = _build_cloud_run_preview_host_pattern()
 
     def validate_host(host: str, allowed_hosts: list[str]) -> bool:
-        if original_validate_host(host, allowed_hosts):
+        if _ORIGINAL_VALIDATE_HOST(host, allowed_hosts):
             return True
 
         normalized_host = _normalize_preview_host_candidate(host)
@@ -83,6 +83,7 @@ class CanonicalCloudRunHostMiddleware:
     """Cloud Run のプレビューURLを正規ホストへ寄せる。"""
 
     def __init__(self, get_response):
+        install_cloud_run_preview_host_validator()
         self.get_response = get_response
         self.canonical_host = get_canonical_host()
         self.cloud_run_preview_host_pattern = _build_cloud_run_preview_host_pattern()
