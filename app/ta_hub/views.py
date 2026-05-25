@@ -14,6 +14,7 @@ from event_calendar.calendar_utils import generate_google_calendar_url
 from news.models import Post
 from ta_hub.index_cache import get_index_view_cache_key
 from utils.vrchat_time import get_vrchat_today
+from website.constants import CACHE_TTL_HOUR
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +217,7 @@ class IndexView(TemplateView):
             'upcoming_event_details': details_with_urls,
             'special_events': special_events_data,
         }
-        cache.set(cache_key, cache_data, 60 * 60)  # 60分 * 60秒
+        cache.set(cache_key, cache_data, CACHE_TTL_HOUR)  # 60分 * 60秒
 
         logger.info(f"Cache miss for {cache_key}")
         return cache_data

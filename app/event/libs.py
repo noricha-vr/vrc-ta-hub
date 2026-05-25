@@ -24,6 +24,7 @@ from youtube_transcript_api._errors import NoTranscriptFound
 from event.models import EventDetail
 from event.prompts import BLOG_GENERATION_TEMPLATE
 from event.thumbnail import crop_to_slide_thumbnail_aspect_ratio
+from website.constants import OPENROUTER_BASE_URL, build_site_url, is_site_domain
 from website.settings import GOOGLE_API_KEY
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ def _filter_iframe_attributes(tag: str, name: str, value: str) -> bool:
             if parsed.scheme not in ('http', 'https'):
                 return False
             # 自ドメイン配下（サブドメイン含む）はiframeでの埋め込みを禁止（アップロード偽装等の踏み台になり得る）
-            if parsed.netloc.endswith('vrc-ta-hub.com'):
+            if is_site_domain(parsed.hostname):
                 return False
             return parsed.netloc in ALLOWED_IFRAME_DOMAINS
         except (TypeError, ValueError):
@@ -270,7 +271,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
 
         # OpenAI SDKを使用してOpenRouterにリクエスト
         client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
+            base_url=OPENROUTER_BASE_URL,
             api_key=api_key
         )
 
@@ -290,7 +291,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
             # Function Callingを使用したリクエスト
             completion = client.chat.completions.create(
                 extra_headers={
-                    "HTTP-Referer": "https://vrc-ta-hub.com/",  # OpenRouterのランキング用サイトURL
+                    "HTTP-Referer": build_site_url("/"),  # OpenRouterのランキング用サイトURL
                     "X-Title": "VRC TA Hub"  # OpenRouterのランキング用サイト名
                 },
                 model=model,
@@ -313,7 +314,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
         except Exception as api_error:
             logger.error(f"API request failed: {str(api_error)}")
             # API URL情報を詳細に記録
-            logger.error(f"Request details: base_url=https://openrouter.ai/api/v1, model={model}")
+            logger.error(f"Request details: base_url={OPENROUTER_BASE_URL}, model={model}")
             raise  # 例外を再スロー
 
         # Function Callingのレスポンスを処理
@@ -758,7 +759,7 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
             continue
 
         # 自ドメイン配下（サブドメイン含む）は埋め込み禁止
-        if parsed.netloc.endswith('vrc-ta-hub.com'):
+        if is_site_domain(parsed.hostname):
             iframe.decompose()
             continue
 

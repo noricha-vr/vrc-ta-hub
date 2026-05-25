@@ -10,6 +10,7 @@ from django.utils import timezone
 from PIL import Image, UnidentifiedImageError
 
 from community.models import WEEKDAY_CHOICES, TAGS
+from website.constants import MAX_PDF_SIZE_BYTES, MAX_THUMBNAIL_SIZE_BYTES
 from .datetime_lock import (
     EVENT_DETAIL_DATETIME_LOCK_MESSAGE,
     has_event_detail_duration_changed,
@@ -26,7 +27,7 @@ def _validate_thumbnail_image(thumbnail_image):
     """サムネイル画像を検証し、スライド比率に中央クロップする."""
     if not thumbnail_image or not hasattr(thumbnail_image, 'read'):
         return thumbnail_image
-    if getattr(thumbnail_image, 'size', 0) > 10 * 1024 * 1024:
+    if getattr(thumbnail_image, 'size', 0) > MAX_THUMBNAIL_SIZE_BYTES:
         raise ValidationError('画像ファイルサイズが10MBを超えています。')
 
     try:
@@ -55,7 +56,7 @@ def _validate_and_sanitize_pdf(slide_file):
         return slide_file
     if not slide_file.name.lower().endswith('.pdf'):
         raise ValidationError('PDFファイルのみアップロード可能です。')
-    if slide_file.size > 30 * 1024 * 1024:  # 30MB
+    if slide_file.size > MAX_PDF_SIZE_BYTES:
         raise ValidationError('ファイルサイズが30MBを超えています。')
     validate_pdf_file(slide_file)
     try:

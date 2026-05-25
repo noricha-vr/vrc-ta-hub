@@ -8,25 +8,17 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 
 from event.models import EventDetail
+from website.constants import build_site_url
 
 logger = logging.getLogger(__name__)
 
 # Discord Webhook送信タイムアウト（秒）
 DISCORD_TIMEOUT_SECONDS = 10
-PUBLIC_SITE_ORIGIN = "https://vrc-ta-hub.com"
 
 
 def _build_absolute_url(url: str) -> str:
     """Discord が取得できる絶対 URL に整形する."""
-    if not url:
-        return ""
-    if url.startswith(("http://", "https://")):
-        return url
-    if url.startswith("//"):
-        return f"https:{url}"
-    if url.startswith("/"):
-        return f"{PUBLIC_SITE_ORIGIN}{url}"
-    return f"{PUBLIC_SITE_ORIGIN}/{url}"
+    return build_site_url(url) if url else ""
 
 
 def _get_file_url(file_field) -> str:
@@ -69,7 +61,7 @@ def notify_owners_of_new_application(event_detail: EventDetail, request=None) ->
     if request:
         review_url = request.build_absolute_uri(review_path)
     else:
-        review_url = f"https://vrc-ta-hub.com{review_path}"
+        review_url = build_site_url(review_path)
 
     # メール送信
     for owner in owners:
@@ -142,14 +134,14 @@ def notify_applicant_of_result(event_detail: EventDetail, request=None) -> None:
     if request:
         detail_url = request.build_absolute_uri(detail_path)
     else:
-        detail_url = f"https://vrc-ta-hub.com{detail_path}"
+        detail_url = build_site_url(detail_path)
 
     # 却下時は一覧ページへのリンクも用意
     list_path = reverse('account:lt_application_list')
     if request:
         list_url = request.build_absolute_uri(list_path)
     else:
-        list_url = f"https://vrc-ta-hub.com{list_path}"
+        list_url = build_site_url(list_path)
 
     context = {
         'applicant': applicant,
@@ -330,15 +322,10 @@ def notify_slide_material_published(event_detail: EventDetail) -> None:
     if not webhook_url:
         return
 
-    detail_url = f"https://vrc-ta-hub.com{reverse('event:detail', kwargs={'pk': event_detail.pk})}"
+    detail_url = build_site_url(reverse('event:detail', kwargs={'pk': event_detail.pk}))
     slide_file_url = ""
     if event_detail.slide_file:
-        raw_slide_file_url = event_detail.slide_file.url
-        slide_file_url = (
-            f"https://vrc-ta-hub.com{raw_slide_file_url}"
-            if raw_slide_file_url.startswith("/")
-            else raw_slide_file_url
-        )
+        slide_file_url = _build_absolute_url(event_detail.slide_file.url)
 
     fields = [
         {"name": "👤 発表者", "value": event_detail.speaker, "inline": True},

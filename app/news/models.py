@@ -1,5 +1,7 @@
 from django.db import models
 
+from website.constants import DEFAULT_NEWS_IMAGE_URL, build_site_url
+
 
 class Category(models.Model):
     name = models.CharField(max_length=50, unique=True)
@@ -76,6 +78,6 @@ class Post(models.Model):
             # 相対URLの場合は絶対URLに変換
             if request:
                 return request.build_absolute_uri(thumbnail_url)
-            # requestがない場合はデフォルトのドメインを使用
-            return f"https://vrc-ta-hub.com{thumbnail_url}"
-        return "https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg"
+            # requestがない場合は公開サイトURLを使用
+            return build_site_url(thumbnail_url)
+        return DEFAULT_NEWS_IMAGE_URL
