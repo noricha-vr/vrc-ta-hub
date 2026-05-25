@@ -1,5 +1,3 @@
-import re
-
 from django.test import SimpleTestCase
 
 from event.management.commands.rename_existing_slide_files import (
