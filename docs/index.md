@@ -26,6 +26,7 @@ VRC技術学術ハブの開発・運用に関するドキュメントです。
 
 ### 分析レポート
 - [コミュニティスケジュール分析（2025年6月）](community_schedule_analysis_2025_06.md)
+- [調査・分析レポート集](research/index.md) — リファクタリング計画ほか
 
 ### 開発ガイド
 - [開発環境セットアップ](development_setup.md)

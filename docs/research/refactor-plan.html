@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>vrc-ta-hub リファクタリング計画 - 2026-05-25</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; line-height: 1.7; color: #1f2328; }
+  h1 { border-bottom: 2px solid #d0d7de; padding-bottom: .3rem; }
+  h2 { border-bottom: 1px solid #d0d7de; padding-bottom: .2rem; margin-top: 2.2rem; }
+  h3 { margin-top: 1.6rem; }
+  table { border-collapse: collapse; width: 100%; margin: .8rem 0 1.4rem; font-size: .92rem; }
+  th, td { border: 1px solid #d0d7de; padding: .5rem .7rem; text-align: left; vertical-align: top; }
+  th { background: #f6f8fa; }
+  code { background: #f6f8fa; padding: .1rem .3rem; border-radius: 3px; font-size: .9em; }
+  .high { color: #cf222e; font-weight: 600; }
+  .mid { color: #bf8700; font-weight: 600; }
+  .low { color: #1f883d; font-weight: 600; }
+  .meta { color: #57606a; font-size: .9rem; }
+  .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin: 1rem 0; }
+  .summary-card { border: 1px solid #d0d7de; border-radius: 6px; padding: 1rem; background: #f6f8fa; }
+  .summary-card h3 { margin: 0 0 .5rem; font-size: 1rem; }
+  .summary-card .num { font-size: 1.6rem; font-weight: bold; color: #0969da; }
+  blockquote { border-left: 4px solid #d0d7de; padding-left: 1rem; color: #57606a; margin: 1rem 0; }
+</style>
+</head>
+<body>
+
+<h1>vrc-ta-hub リファクタリング計画</h1>
+<p class="meta">生成日時: 2026-05-25 / 対象: <code>app/</code> 配下 / Django 4.2 + Python 3.12 / 機械的スキャン3エージェント並列</p>
+
+<h2>サマリー</h2>
+
+<div class="summary-grid">
+  <div class="summary-card"><h3>構造的問題</h3><div class="num">18件</div><p class="meta">大ファイル9 / 長関数12 / 責務混在5</p></div>
+  <div class="summary-card"><h3>品質問題</h3><div class="num">35件</div><p class="meta">except: pass 9 / print 16 / 複雑条件 5+ / その他</p></div>
+  <div class="summary-card"><h3>設計違反</h3><div class="num">28件</div><p class="meta">ハードコード18 / 高依存5 / God class等 5</p></div>
+</div>
+
+<table>
+  <thead><tr><th>緊急度</th><th>高</th><th>中</th><th>低</th></tr></thead>
+  <tbody>
+    <tr><td>構造的問題</td><td class="high">4</td><td class="mid">5</td><td class="low">4+</td></tr>
+    <tr><td>品質問題</td><td class="high">6</td><td class="mid">8</td><td class="low">21</td></tr>
+    <tr><td>設計違反</td><td class="high">6</td><td class="mid">9</td><td class="low">7</td></tr>
+  </tbody>
+</table>
+
+<h2>緊急度: 高 — 最優先で対応</h2>
+
+<table>
+<thead><tr><th>#</th><th>ファイル</th><th>カテゴリ</th><th>問題</th><th>推奨対応</th></tr></thead>
+<tbody>
+<tr><td>H1</td><td><code>app/event/libs.py</code> (785行)</td><td>構造</td><td>7つの責務混在（Blog生成 / 字幕取得 / PDF処理 / Markdown↔HTML / XSSサニタイズ / サムネ / アップロード検証）</td><td>Service層に分割: <code>content_generation_service.py</code> / <code>content_sanitizer.py</code> / <code>media_service.py</code></td></tr>
+
+<tr><td>H2</td><td><code>app/event/libs.py:571</code> <code>convert_markdown()</code></td><td>構造</td><td>215行・ネスト19階層の関数</td><td>HTML解析 / サニタイズ / Markdown変換を個別モジュールに切り出し</td></tr>
+
+<tr><td>H3</td><td><code>app/twitter/signals.py</code> (528行)</td><td>構造</td><td>Signal handler 内に async threading + DB再接続 + Queue処理が混在。関数内 import が27箇所</td><td>Celery等のTask Queueへ移行。Signal → Event Bus パターン。関数内 import を最上部へ</td></tr>
+
+<tr><td>H4</td><td><code>app/event/recurrence_service.py</code> (621行)</td><td>構造</td><td>定期イベント生成と LLM(OpenAI) 呼び出しが密結合</td><td>LLM呼び出しを <code>event/llm_service.py</code> (or <code>llm_adapter.py</code>) に抽象化</td></tr>
+
+<tr><td>H5</td><td><code>app/twitter/tweet_generator.py</code> (10箇所)<br><code>app/event/notifications.py</code> (5箇所)<br><code>app/event/libs.py</code> (3箇所) ほか</td><td>設計</td><td><code>vrc-ta-hub.com</code> ハードコード（合計18箇所以上）</td><td><code>settings.SITE_DOMAIN</code> / <code>SITE_URL</code> として集約。<code>request.build_absolute_uri()</code> も活用</td></tr>
+
+<tr><td>H6</td><td><code>app/event/forms.py:39, 57</code></td><td>品質</td><td><code>except Exception: pass</code> で全例外を無視</td><td>具体例外に絞る + <code>logger.exception()</code> 追加</td></tr>
+
+<tr><td>H7</td><td><code>app/twitter/signals.py:117</code></td><td>品質</td><td>非同期処理内で全例外を無視</td><td>ロギング追加 + 失敗ハンドリング（再試行 or デッドレター）</td></tr>
+
+<tr><td>H8</td><td><code>app/community/management/commands/optimize_poster_images.py:163</code></td><td>品質</td><td>ファイルクローズ失敗を無視（リソースリーク危険）</td><td><code>with</code> 文（コンテキストマネージャ）に変更</td></tr>
+
+<tr><td>H9</td><td><code>app/event/views/detail.py:89</code></td><td>品質</td><td>例外無視</td><td>ロギング + エラーハンドリング強化</td></tr>
+</tbody>
+</table>
+
+<h2>緊急度: 中</h2>
+
+<table>
+<thead><tr><th>#</th><th>ファイル</th><th>カテゴリ</th><th>問題</th><th>推奨対応</th></tr></thead>
+<tbody>
+<tr><td>M1</td><td><code>app/twitter/views.py</code> (643行・29 import)</td><td>構造/設計</td><td>View内に外部API呼出（X API / 画像アップロード）が直接埋め込み</td><td>API層を <code>x_api_service.py</code> / <code>media_service.py</code> に分離。Thin Controller化</td></tr>
+
+<tr><td>M2</td><td><code>app/twitter/views.py:269</code> <code>post_scheduled_tweets()</code></td><td>構造</td><td>136行の関数で複数責務</td><td><code>tweet_scheduling_service.py</code> に分離</td></tr>
+
+<tr><td>M3</td><td><code>app/event/forms.py</code> (734行)</td><td>構造/設計</td><td>8フォーム + 複数バリデータ混在。マジックナンバー <code>10*1024*1024</code> / <code>30*1024*1024</code></td><td>定数化（<code>MAX_THUMBNAIL_SIZE_BYTES</code> / <code>MAX_PDF_SIZE_BYTES</code>）。Validator を <code>form_validators.py</code> に分離</td></tr>
+
+<tr><td>M4</td><td><code>app/website/settings.py</code> (531行)</td><td>構造</td><td>セキュリティ / APIキー / ストレージ / キャッシュ設定が混在</td><td><code>settings/</code> ディレクトリ化（<code>security.py</code> / <code>apis.py</code> / <code>storage.py</code>）</td></tr>
+
+<tr><td>M5</td><td><code>app/api_v1/views.py</code> (465行)</td><td>構造/設計</td><td><code>DatabaseReconnectListMixin</code> が複数 ViewSet で重複定義</td><td>共通 <code>base.py</code> に統一実装し継承</td></tr>
+
+<tr><td>M6</td><td><code>app/event/notifications.py</code></td><td>品質</td><td><code>logger.exception</code> 後に True/False を返すパターンが多く、呼出側で握りつぶしになりがち</td><td>戻り値設計の見直し（Result型 or 例外伝播）</td></tr>
+
+<tr><td>M7</td><td><code>app/event/libs.py:134, 487, 744</code></td><td>品質</td><td>iframe削除や JS実行失敗を <code>continue</code> / fallback で無音</td><td>ロギング追加 + 意図のコメント</td></tr>
+
+<tr><td>M8</td><td><code>app/event/google_calendar.py</code> (4箇所)<br><code>app/event/recurrence_service.py</code> (3箇所)<br><code>app/event/models.py:170</code></td><td>品質</td><td><code>print()</code> でエラー出力（loggingルール違反）</td><td><code>logger.error()</code> / <code>logger.warning()</code> に置換</td></tr>
+
+<tr><td>M9</td><td><code>app/event/models.py</code> <code>EventDetail</code> モデル</td><td>設計</td><td>LT申請 / 特別企画 / ブログ を 1モデルで処理（50+フィールド）</td><td>Single Table Inheritance または用途別モデルに分割（<code>LTApplication</code> / <code>SpecialEvent</code> / <code>BlogPost</code>）</td></tr>
+
+<tr><td>M10</td><td><code>app/twitter/tweet_generator.py:374</code><br><code>app/event/libs.py:271</code></td><td>設計</td><td><code>https://openrouter.ai/api/v1</code> がハードコード（2箇所）</td><td><code>settings.OPENROUTER_BASE_URL</code> へ集約</td></tr>
+
+<tr><td>M11</td><td><code>app/community/views/manage.py</code> (340行)</td><td>構造</td><td>8フォームクラス + 複雑なフォーム処理</td><td><code>community/forms_processor.py</code> に処理ロジックを抽出</td></tr>
+
+<tr><td>M12</td><td><code>app/user_account/views.py</code> (265行・13クラス)</td><td>構造/設計</td><td>OAuth / Profile / APIキーが1ファイル。<code>community</code> 依存の関数内 import 多数</td><td>クラスを単一責務で分割。依存は遅延 import ヘルパー化</td></tr>
+
+<tr><td>M13</td><td><code>app/news/views.py:32,173</code><br><code>app/ta_hub/views.py:219</code><br><code>app/event_calendar/calendar_utils.py:135,197</code></td><td>設計</td><td>キャッシュTTL <code>3600</code> / <code>60*60</code> がマジックナンバー</td><td><code>settings.CACHE_TTL_HOUR</code> として集約</td></tr>
+</tbody>
+</table>
+
+<h2>緊急度: 低（時間あれば）</h2>
+
+<table>
+<thead><tr><th>カテゴリ</th><th>件数</th><th>サマリー</th></tr></thead>
+<tbody>
+<tr><td>正常系の DoesNotExist 無視（要コメント化）</td><td>3</td><td><code>twitter/signals.py:196</code> / <code>community/views/settings.py:31</code> / <code>api_v1/recurrence_preview.py:52</code></td></tr>
+<tr><td><code>print()</code> 残骸（管理コマンド/スクリプト系）</td><td>~10</td><td><code>scripts/</code> 配下、<code>create_test_data.py</code> 等。本番影響なしだがロガー化推奨</td></tr>
+<tr><td>複雑な条件分岐（3+論理演算子）</td><td>5+</td><td><code>twitter/signals.py:418</code> / <code>vket/models.py:48</code> / <code>vket/views/presentation.py:45</code> ほか</td></tr>
+<tr><td>LLM <code>temperature</code> マジックナンバー</td><td>2</td><td><code>event/libs.py:300</code> / <code>event/recurrence_service.py:509</code> — settings に統合</td></tr>
+<tr><td>Duration / 選択肢ハードコード</td><td>3</td><td><code>vket/forms.py:41,51</code> / <code>user_account/forms.py:16</code> — 定数化</td></tr>
+<tr><td>Guide views ヘルパー関数群</td><td>1</td><td><code>app/guide/views.py</code> (310行) を <code>guide/navigation.py</code> に分割可</td></tr>
+<tr><td>クリーン</td><td>—</td><td><code>breakpoint()</code> / <code>pdb</code> / mutable default引数 / 実 TODO/FIXME はすべて検出なし ✓</td></tr>
+</tbody>
+</table>
+
+<h2>依存関係マップ</h2>
+
+<h3>高依存ファイル（クロス領域）</h3>
+<table>
+<thead><tr><th>ファイル</th><th>主要依存先</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>app/twitter/views.py</code></td><td>community, event, event.google_calendar, event.tweets.tweet_generator</td><td>29 import — Thin Controller化推奨</td></tr>
+<tr><td><code>app/twitter/signals.py</code></td><td>event, community, vket</td><td>27箇所の関数内 import — 循環回避策の負債</td></tr>
+<tr><td><code>app/api_v1/views.py</code></td><td>community, event, vket</td><td>23 import — service層導入で結合度を下げる</td></tr>
+<tr><td><code>app/event/views/crud.py</code></td><td>event.libs, event.google_calendar, vket.services</td><td>外部ドメイン参照あり</td></tr>
+<tr><td><code>app/user_account/views.py</code></td><td>community, event</td><td>関数内 import 多数</td></tr>
+</tbody>
+</table>
+
+<h3>共通の改善ポイント（DRY違反）</h3>
+<ul>
+  <li><code>DatabaseReconnectListMixin</code> が複数 ViewSet で重複 → 共通 Base 化</li>
+  <li>ドメインURL / OpenRouter URL / キャッシュTTL を <code>settings.py</code> に集約</li>
+  <li>ファイルサイズ・Duration 等のマジックナンバーを定数化</li>
+</ul>
+
+<h2>並列実行グループ</h2>
+
+<h3>Group 1（独立、並列実行可能）</h3>
+<ol>
+  <li><strong>T1: settings.py への定数集約</strong> — <code>SITE_DOMAIN</code> / <code>OPENROUTER_BASE_URL</code> / <code>CACHE_TTL_HOUR</code> / <code>MAX_*_SIZE_BYTES</code> を追加（他に依存なし、後続多数の基盤）</li>
+  <li><strong>T2: 例外握りつぶしの可視化</strong> — <code>event/forms.py</code> / <code>twitter/signals.py</code> / <code>optimize_poster_images.py</code> の <code>except: pass</code> をロギング + 具体例外化</li>
+  <li><strong>T3: <code>print()</code> → <code>logger</code> 置換</strong> — <code>event/google_calendar.py</code> / <code>recurrence_service.py</code> / <code>models.py:170</code></li>
+  <li><strong>T4: <code>DatabaseReconnectListMixin</code> のBase化</strong> — <code>api_v1/views.py</code> 内のみで完結</li>
+</ol>
+
+<h3>Group 2（T1 完了後）</h3>
+<ol>
+  <li><strong>T5: ハードコードURLの置換</strong> — <code>SITE_DOMAIN</code> を参照（T1 依存）。<code>twitter/tweet_generator.py</code> / <code>event/notifications.py</code> / <code>event/libs.py</code> / <code>news/models.py</code></li>
+  <li><strong>T6: マジックナンバー置換</strong> — TTL / ファイルサイズ / temperature を settings から参照（T1 依存）</li>
+</ol>
+
+<h3>Group 3（独立だが規模大、計画＋承認推奨）</h3>
+<ol>
+  <li><strong>T7: <code>event/libs.py</code> の分割</strong> — Service層 3〜4ファイルに分割。<code>convert_markdown()</code> リファクタを含む</li>
+  <li><strong>T8: <code>twitter/signals.py</code> の改築</strong> — Celery等のTask Queue導入 or Signal→Event Bus パターン。関数内 import 解消（循環依存の根本対処）</li>
+  <li><strong>T9: <code>event/recurrence_service.py</code> の LLM抽象化</strong> — <code>llm_adapter.py</code></li>
+  <li><strong>T10: <code>website/settings.py</code> のディレクトリ化</strong></li>
+  <li><strong>T11: <code>EventDetail</code> モデル分割検討</strong> — STIまたはモデル分離（影響大、要設計レビュー）</li>
+</ol>
+
+<h2>推奨ロードマップ</h2>
+
+<table>
+<thead><tr><th>フェーズ</th><th>期間目安</th><th>含むタスク</th><th>狙い</th></tr></thead>
+<tbody>
+<tr><td>Phase 1: 基盤整備</td><td>1〜2週</td><td>T1〜T4</td><td>定数集約・観測性向上。後続リファクタの土台</td></tr>
+<tr><td>Phase 2: 機械的置換</td><td>1週</td><td>T5〜T6</td><td>Phase 1 の定数を参照してハードコード除去</td></tr>
+<tr><td>Phase 3: 構造改善</td><td>3〜4週</td><td>T7〜T10</td><td>SoC強化・Lite DDDレイヤー分離</td></tr>
+<tr><td>Phase 4: 設計レビュー</td><td>要相談</td><td>T11</td><td>影響大のためユーザー承認後に着手</td></tr>
+</tbody>
+</table>
+
+<h2>設計思想との整合性チェック</h2>
+
+<p>プロジェクト方針（<em>KISS / DRY / SoC / Lite DDD</em>）と現状の乖離:</p>
+
+<ul>
+  <li><strong>SoC違反</strong>: <code>event/libs.py</code> の7責務、<code>twitter/views.py</code> のView+外部API混在</li>
+  <li><strong>DRY違反</strong>: <code>DatabaseReconnectListMixin</code> 重複、ドメインURL 18箇所、キャッシュTTL複数</li>
+  <li><strong>KISS違反</strong>: <code>convert_markdown()</code> 215行・ネスト19階層</li>
+  <li><strong>Lite DDD違反</strong>: Signal handler に Infrastructure（threading / DB再接続）と Application（業務ロジック）が混在</li>
+</ul>
+
+<h2>備考</h2>
+<blockquote>
+本レポートは機械的検出に基づくため、優先度や対応方法は人間の判断で調整してください。特に Group 3（T7〜T11）は影響範囲が広く、着手前に設計レビューを推奨します。
+</blockquote>
+
+</body>
+</html>
