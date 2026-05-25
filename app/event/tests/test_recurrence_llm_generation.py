@@ -45,8 +45,8 @@ class TestRecurrenceLLMGeneration(TestCase):
     def test_real_llm_generation_for_monthly_pattern(self):
         """実際のLLMを使用して月次パターンの定期ルールを生成"""
         # APIキーが設定されていない場合はスキップ
-        if not os.environ.get('GOOGLE_API_KEY'):
-            self.skipTest("GOOGLE_API_KEY not set")
+        if not os.environ.get('OPENROUTER_API_KEY'):
+            self.skipTest("OPENROUTER_API_KEY not set")
         
         # RecurrenceRuleを作成
         rule = RecurrenceRule.objects.create(

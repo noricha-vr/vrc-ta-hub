@@ -4,9 +4,19 @@ from django.contrib.auth import get_user_model
 from community.models import Community
 from event.models import Event, RecurrenceRule
 from event.recurrence_service import RecurrenceService
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 User = get_user_model()
+
+
+class FakeEventDateLlmService:
+    def __init__(self):
+        self.dates = []
+        self.prompts = []
+
+    def generate_event_dates(self, prompt: str) -> list[date]:
+        self.prompts.append(prompt)
+        return self.dates
 
 
 class TestRecurrenceRuleGeneration(TestCase):
@@ -40,7 +50,8 @@ class TestRecurrenceRuleGeneration(TestCase):
         ]
         Event.objects.bulk_create(past_events)
         
-        self.service = RecurrenceService()
+        self.llm_service = FakeEventDateLlmService()
+        self.service = RecurrenceService(llm_service=self.llm_service)
     
     def test_generate_monthly_fourth_monday_with_llm(self):
         """LLMを使用して毎月第4月曜の定期ルールを生成"""
@@ -52,40 +63,35 @@ class TestRecurrenceRuleGeneration(TestCase):
             start_date=date(2024, 12, 1)
         )
         
-        # LLMのモックレスポンス（第4月曜日の日付）
-        mock_response = MagicMock()
-        mock_response.text = """
-        以下が生成した日付リストです：
-        ["2024-12-23", "2025-01-27", "2025-02-24"]
-        """
+        # LLMサービスのモックレスポンス（第4月曜日の日付）
+        self.llm_service.dates = [
+            date(2024, 12, 23),
+            date(2025, 1, 27),
+            date(2025, 2, 24),
+        ]
+
+        # 日付を生成
+        dates = self.service.generate_dates(
+            rule=rule,
+            base_date=date(2024, 12, 1),
+            base_time=time(22, 0),
+            months=3,
+            community=self.community
+        )
+
+        # 生成された日付を確認
+        expected_dates = [
+            date(2024, 12, 23),  # 第4月曜
+            date(2025, 1, 27),   # 第4月曜
+            date(2025, 2, 24),   # 第4月曜
+        ]
         
-        # OpenRouter用のモックレスポンス
-        mock_completion = MagicMock()
-        mock_completion.choices = [MagicMock()]
-        mock_completion.choices[0].message.content = mock_response.text
+        self.assertEqual(dates, expected_dates)
+        self.assertEqual(len(self.llm_service.prompts), 1)
         
-        with patch.object(self.service.client.chat.completions, 'create', return_value=mock_completion):
-            # 日付を生成
-            dates = self.service.generate_dates(
-                rule=rule,
-                base_date=date(2024, 12, 1),
-                base_time=time(22, 0),
-                months=3,
-                community=self.community
-            )
-            
-            # 生成された日付を確認
-            expected_dates = [
-                date(2024, 12, 23),  # 第4月曜
-                date(2025, 1, 27),   # 第4月曜
-                date(2025, 2, 24),   # 第4月曜
-            ]
-            
-            self.assertEqual(dates, expected_dates)
-            
-            # 全て月曜日であることを確認
-            for d in dates:
-                self.assertEqual(d.weekday(), 0, f"{d} は月曜日ではありません (weekday={d.weekday()})")
+        # 全て月曜日であることを確認
+        for d in dates:
+            self.assertEqual(d.weekday(), 0, f"{d} は月曜日ではありません (weekday={d.weekday()})")
     
     def test_llm_prompt_for_monthly_pattern(self):
         """月次パターンのLLMプロンプトを確認"""
@@ -96,36 +102,18 @@ class TestRecurrenceRuleGeneration(TestCase):
             start_date=date(2024, 12, 1)
         )
         
-        # プロンプト生成をキャプチャ
-        captured_prompt = None
-        
-        def capture_prompt(*args, **kwargs):
-            nonlocal captured_prompt
-            # メッセージからプロンプトを取得
-            messages = kwargs.get('messages', [])
-            for msg in messages:
-                if msg.get('role') == 'user':
-                    captured_prompt = msg.get('content', '')
-            # モックレスポンスを返す
-            mock_completion = MagicMock()
-            mock_completion.choices = [MagicMock()]
-            mock_completion.choices[0].message.content = '[\"2024-12-23\"]'
-            return mock_completion
-        
-        with patch.object(self.service.client.chat.completions, 'create', side_effect=capture_prompt):
-            self.service.generate_dates(
-                rule=rule,
-                base_date=date(2024, 12, 1),
-                base_time=time(22, 0),
-                months=1,
-                community=self.community
-            )
+        self.llm_service.dates = [date(2024, 12, 23)]
+        self.service.generate_dates(
+            rule=rule,
+            base_date=date(2024, 12, 1),
+            base_time=time(22, 0),
+            months=1,
+            community=self.community
+        )
+        captured_prompt = self.llm_service.prompts[0]
         
         # プロンプトの内容を確認
         self.assertIsNotNone(captured_prompt)
-        print("\n=== Captured LLM Prompt ===")
-        print(captured_prompt)
-        print("=== End of Prompt ===\n")
         
         self.assertIn('毎月第4月曜', captured_prompt)
         self.assertIn('基準日: 2024-12-01 (日曜日)', captured_prompt)
@@ -137,6 +125,32 @@ class TestRecurrenceRuleGeneration(TestCase):
         # 月の最終週は第5週として計算される場合がある
         week_pattern_found = '主な開催週: 第4週' in captured_prompt or '主な開催週: 第5週' in captured_prompt
         self.assertTrue(week_pattern_found, "週のパターンが正しく検出されていません")
+
+    def test_custom_rule_uses_llm_service_abstraction(self):
+        """自由記述ルールは注入したLLMサービスで日付を生成する"""
+        rule = RecurrenceRule.objects.create(
+            community=self.community,
+            frequency='OTHER',
+            custom_rule='祝日の翌営業日',
+            start_date=date(2024, 12, 1)
+        )
+        self.llm_service.dates = [
+            date(2024, 12, 20),
+            date(2025, 3, 1),
+            date(2024, 12, 20),
+        ]
+
+        dates = self.service.generate_dates(
+            rule=rule,
+            base_date=date(2024, 12, 1),
+            base_time=time(22, 0),
+            months=2,
+            community=self.community
+        )
+
+        self.assertEqual(dates, [date(2024, 12, 20)])
+        self.assertEqual(len(self.llm_service.prompts), 1)
+        self.assertIn('祝日の翌営業日', self.llm_service.prompts[0])
     
     def test_monthly_by_week_rule_generation(self):
         """MONTHLY_BY_WEEK頻度での第N曜日生成テスト"""
