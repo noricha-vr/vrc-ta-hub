@@ -216,5 +216,5 @@ if input_text.strip() == template.strip():
 
 ## 関連ドキュメント
 
-- [イベント管理システム](../event_management.md)
-- [コミュニティ管理](../community_management.md)
+- [イベント定期登録とGoogleカレンダー連携システム](../event_recurrence_system.md)
+- [利用ガイド: 集会設定](../guide/community/settings.md)
