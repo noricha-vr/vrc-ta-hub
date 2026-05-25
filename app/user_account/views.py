@@ -257,9 +257,3 @@ class DiscordRequiredView(LoginRequiredMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context['discord_oauth_enabled'] = is_discord_oauth_available(self.request)
         return context
-
-# for user in CustomUser.objects.all():
-#     password = secrets.token_hex(12)  # ランダムな16文字のパスワードを生成
-#     user.set_password(password)
-#     user.save()
-#     print(user.user_name, password)

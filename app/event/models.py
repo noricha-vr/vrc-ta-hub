@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import datetime, timedelta
 from typing import Optional
@@ -8,6 +9,8 @@ from django.db import models
 from django.utils import timezone
 
 from community.models import Community, WEEKDAY_CHOICES
+
+logger = logging.getLogger(__name__)
 
 
 def validate_pdf_file(value):
@@ -167,7 +170,10 @@ class RecurrenceRule(models.Model):
         
         if delete_future_events:
             deleted_count = self.delete_future_events()
-            print(f"Deleted {deleted_count} future events related to this recurrence rule.")
+            logger.info(
+                "Deleted %s future events related to this recurrence rule.",
+                deleted_count,
+            )
         
         super().delete(*args, **kwargs)
 

@@ -1,10 +1,10 @@
 """定期イベントの日付生成サービス"""
 import json
+import logging
 import re
 from calendar import monthrange
 from datetime import datetime, timedelta, date
 from typing import List, Optional, Dict
-import traceback
 
 from django.conf import settings
 from django.db import models
@@ -12,6 +12,8 @@ import os
 from openai import OpenAI
 
 from event.models import Event, RecurrenceRule
+
+logger = logging.getLogger(__name__)
 
 WEEKDAY_TOKEN_MAP = {
     '月': 0,
@@ -450,8 +452,8 @@ class RecurrenceService:
             
             return "\n".join(history_lines)
             
-        except Exception as e:
-            print(f"Error getting recent events history: {e}")
+        except Exception:
+            logger.warning("Error getting recent events history.", exc_info=True)
             return "過去の開催履歴: 取得エラー"
     
     def _generate_dates_by_llm(self, rule: RecurrenceRule, base_date: date, base_time: datetime.time, months: int, community=None) -> List[date]:
@@ -532,11 +534,13 @@ class RecurrenceService:
                         continue
                 
                 return sorted(dates)
-        except Exception as e:
-            print(f"LLM date generation error: {e}")
-            print(f"Model: {self.model_name}")
-            print(f"API Key exists: {bool(self.api_key)}")
-            traceback.print_exc()
+        except Exception:
+            logger.error(
+                "LLM date generation error: model=%s api_key_configured=%s",
+                self.model_name,
+                bool(self.api_key),
+                exc_info=True,
+            )
         
         return []
     

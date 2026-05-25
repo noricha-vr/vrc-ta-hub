@@ -107,6 +107,16 @@ class RecurrenceRuleDeletionTest(TestCase):
         self.assertEqual(Event.objects.count(), 1)
         self.assertTrue(Event.objects.filter(id=self.past_event.id).exists())
         self.assertFalse(RecurrenceRule.objects.filter(id=self.rule.id).exists())
+
+    def test_recurrence_rule_delete_logs_deleted_count(self):
+        """RecurrenceRule削除時に削除件数をloggerへ出力するテスト"""
+        with self.assertLogs("event.models", level="INFO") as log_context:
+            self.rule.delete()
+
+        self.assertIn(
+            "Deleted 3 future events related to this recurrence rule.",
+            "\n".join(log_context.output),
+        )
     
     def test_recurrence_rule_delete_without_events(self):
         """イベント削除なしでRecurrenceRuleを削除するテスト"""
