@@ -8,6 +8,8 @@ Community ポスター画像の一括最適化コマンド
     # 実行
     python manage.py optimize_poster_images
 """
+import logging
+
 from django.core.management.base import BaseCommand
 from PIL import Image
 
@@ -18,6 +20,8 @@ from ta_hub.libs import (
     DEFAULT_PNG_TO_JPEG_THRESHOLD,
     resize_and_convert_image,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -160,8 +164,12 @@ class Command(BaseCommand):
                 # ファイルハンドルを確実に閉じる（リソースリーク防止）
                 try:
                     poster.file.close()
-                except Exception:
-                    pass  # 既に閉じている場合は無視
+                except (OSError, ValueError):
+                    logger.exception(
+                        "ポスター画像ファイルのクローズに失敗しました: community_id=%s path=%s",
+                        community.pk,
+                        poster.name,
+                    )
 
         # サマリー
         self.stdout.write('\n' + '=' * 50)

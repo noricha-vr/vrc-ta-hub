@@ -7,6 +7,8 @@ import logging
 import threading
 import uuid
 
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import DatabaseError
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -109,13 +111,14 @@ def _generate_tweet_async(queue_id: int, generation_token: str = "") -> None:
         logger.info("Tweet text generated for queue %d", queue_id)
 
     except Exception as e:
-        logger.warning(
-            "Async tweet generation failed for queue %d: %s", queue_id, e,
-        )
+        logger.exception("Async tweet generation failed for queue %d", queue_id)
         try:
             _save_generation_failure(queue_id, generation_token, str(e)[:500])
-        except Exception:
-            pass
+        except (DatabaseError, ObjectDoesNotExist):
+            logger.exception(
+                "Failed to persist async tweet generation failure for queue %d",
+                queue_id,
+            )
     finally:
         connections.close_all()
 
@@ -194,6 +197,7 @@ def track_event_detail_status_change(sender, instance, **kwargs):
             instance._old_event_id = old.event_id
             instance._old_event_date = old.event.date
         except EventDetail.DoesNotExist:
+            # 削除直後など旧値が存在しない正常系では差分なしとして続行する。
             pass
 
 

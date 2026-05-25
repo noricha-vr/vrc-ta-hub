@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -18,6 +19,8 @@ from .datetime_lock import (
 from .models import EventDetail, RecurrenceRule, Event, validate_pdf_file
 from .thumbnail import SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT, crop_to_slide_thumbnail_aspect_ratio
 
+logger = logging.getLogger(__name__)
+
 
 def _validate_thumbnail_image(thumbnail_image):
     """サムネイル画像を検証し、スライド比率に中央クロップする."""
@@ -36,8 +39,11 @@ def _validate_thumbnail_image(thumbnail_image):
     finally:
         try:
             thumbnail_image.seek(0)
-        except Exception:
-            pass
+        except (AttributeError, OSError, ValueError):
+            logger.exception(
+                "サムネイル画像の読み取り位置リセットに失敗しました: name=%s",
+                getattr(thumbnail_image, 'name', None),
+            )
 
     filename = f"{Path(thumbnail_image.name).stem}.jpg"
     return ContentFile(image_buffer.getvalue(), name=filename)
@@ -54,8 +60,11 @@ def _validate_and_sanitize_pdf(slide_file):
     validate_pdf_file(slide_file)
     try:
         slide_file.content_type = 'application/pdf'
-    except Exception:
-        pass
+    except (AttributeError, TypeError):
+        logger.exception(
+            "PDFアップロードのcontent_type設定に失敗しました: name=%s",
+            getattr(slide_file, 'name', None),
+        )
     return slide_file
 
 
