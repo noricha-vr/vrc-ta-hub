@@ -810,6 +810,25 @@ class LTSettingsTest(TestCase):
         self.community.refresh_from_db()
         self.assertEqual(self.community.lt_start_offset_minutes, 0)
 
+    def test_settings_page_renders_offset_zero_value(self):
+        """オフセット 0 を保存後、設定画面のフォーム value 属性に 0 が描画されること.
+
+        Django テンプレートの ``default`` フィルタが ``0`` を偽値扱いする問題への
+        回帰防止テスト。
+        """
+        self.community.lt_start_offset_minutes = 0
+        self.community.save(update_fields=['lt_start_offset_minutes'])
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'name="lt_start_offset_minutes" id="lt_start_offset_minutes"',
+        )
+        self.assertContains(response, 'value="0"')
+
 
 class LTSettingsUpdateFormTest(TestCase):
     """集会更新フォームからLT受付設定が削除されたことのテスト"""
