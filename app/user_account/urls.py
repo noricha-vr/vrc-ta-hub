@@ -2,7 +2,7 @@ from django.urls import path
 
 from .views import CustomLoginView, CustomLogoutView, RegisterView, CustomPasswordChangeView, \
     UserNameChangeView, UserUpdateView, SettingsView, APIKeyListView, APIKeyCreateView, APIKeyDeleteView, \
-    DiscordRequiredView, LTApplicationListView, LTApplicationEditView
+    DiscordRequiredView, LTApplicationListView, LTApplicationEditView, SocialAccountDisconnectView
 
 app_name = 'account'
 urlpatterns = [
@@ -19,5 +19,6 @@ urlpatterns = [
     path('discord-required/', DiscordRequiredView.as_view(), name='discord_required'),
     path('lt-applications/', LTApplicationListView.as_view(), name='lt_application_list'),
     path('lt-applications/<int:pk>/edit/', LTApplicationEditView.as_view(), name='lt_application_edit'),
+    path('social/<int:pk>/disconnect/', SocialAccountDisconnectView.as_view(), name='social_disconnect'),
 
 ]

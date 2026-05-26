@@ -1,9 +1,5 @@
 # Create your views here.
 # from corsheaders.middleware import CorsMiddleware  # No longer needed
-import logging
-
-from django.db import connections
-from django.db.utils import OperationalError
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -29,6 +25,7 @@ from event.datetime_lock import (
 )
 from event.models import Event, EventDetail, RecurrenceRule
 from .authentication import APIKeyAuthentication
+from .base import DatabaseReconnectListMixin
 from .serializers import (
     CommunitySerializer, EventSerializer, EventDetailSerializer, EventDetailWriteSerializer,
     RecurrenceRuleSerializer, RecurrenceRuleDeleteSerializer, GatheringListSerializer,
@@ -36,60 +33,7 @@ from .serializers import (
 )
 
 
-logger = logging.getLogger(__name__)
-
-
 # CORSMixin is no longer needed as CORS is handled by Django middleware
-
-
-class DatabaseReconnectListMixin:
-    """MySQL の切断系エラー時に読み取り list API を一度だけ再試行する。"""
-
-    MYSQL_DISCONNECT_ERROR_CODES = {2002, 2006, 2013, 2055}
-    MYSQL_DISCONNECT_ERROR_MESSAGES = (
-        "can't connect",
-        "lost connection",
-        "reading initial communication packet",
-        "server has gone away",
-    )
-
-    def list(self, request, *args, **kwargs):
-        try:
-            return super().list(request, *args, **kwargs)
-        except OperationalError as exc:
-            if not self._should_retry_after_disconnect(exc):
-                raise
-
-            logger.warning(
-                "Retrying %s.list after a transient database disconnect: %s",
-                self.__class__.__name__,
-                exc,
-            )
-            connections.close_all()
-            try:
-                return super().list(request, *args, **kwargs)
-            except OperationalError as retry_exc:
-                if not self._should_retry_after_disconnect(retry_exc):
-                    raise
-
-                logger.warning(
-                    "%s.list returned 503 because the database remained unavailable after reconnect: %s",
-                    self.__class__.__name__,
-                    retry_exc,
-                )
-                return Response(
-                    {"detail": "Database temporarily unavailable."},
-                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                )
-
-    def _should_retry_after_disconnect(self, exc):
-        if exc.args:
-            code = exc.args[0]
-            if isinstance(code, int) and code in self.MYSQL_DISCONNECT_ERROR_CODES:
-                return True
-
-        message = str(exc).lower()
-        return any(fragment in message for fragment in self.MYSQL_DISCONNECT_ERROR_MESSAGES)
 
 
 class CommunityFilter(filters.FilterSet):

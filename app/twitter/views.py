@@ -4,13 +4,13 @@ import logging
 import os
 import threading
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.mixins import UserPassesTestMixin
-from django.db import connections, models
+from django.db import connections, models  # noqa: F401 - 既存テストの patch パス互換用
 from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
@@ -24,17 +24,21 @@ logger = logging.getLogger(__name__)
 
 from community.models import Community, CommunityMember
 from event.models import Event
-from .db import run_with_db_reconnect
 from .forms import TwitterTemplateForm
 from .models import TwitterTemplate, TweetQueue
 from .notifications import notify_tweet_post_failure
 from .scheduling import default_scheduled_at
-from .tweet_generator import get_generator, get_tweet_image_url
 from .utils import format_event_info, generate_tweet, generate_tweet_url
-from .x_api import post_tweet, upload_media
+from .services.media_service import upload_media_to_x as upload_media
+from .services.tweet_scheduling_service import (
+    post_tweet_queue_item,
+    process_scheduled_tweets,
+    retry_generation,
+    retry_generation_async,
+)
+from .services.x_api_service import post_tweet_to_x as post_tweet
 
 TWEET_QUEUE_PAGINATE_BY = 20
-SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個別告知は投稿しません'
 SCHEDULED_MINUTE_CHOICES = {0, 30}
 SCHEDULED_AT_MINUTE_ERROR = '予約日時は00分または30分で指定してください。'
 JST = ZoneInfo("Asia/Tokyo")
@@ -161,108 +165,33 @@ class TweetEventWithTemplateView(TemplateView):
         return context
 
 
-RETRY_THRESHOLD_HOURS = 1
-SCHEDULE_EXPIRY_HOURS = 24
-SCHEDULE_EXPIRED_SKIP_REASON = '予約日時から24時間以上経過したため投稿をスキップ'
-
-
-def _retry_generation(queue_item) -> None:
-    """生成失敗キューのテキスト生成をリトライする（同期）。
-
-    成功時は status を ready に、失敗時は generation_failed に更新する。
-    例外発生時も generation_failed に更新し、次のアイテムの処理に進む。
-    """
-    try:
-        generator = get_generator(queue_item.tweet_type)
-        text = generator(queue_item) if generator else None
-    except Exception:
-        logger.exception("Retry generation raised exception for queue %d", queue_item.pk)
-        queue_item.status = 'generation_failed'
-        queue_item.error_message = 'リトライ中に例外が発生'
-        run_with_db_reconnect(
-            queue_item.save,
-            context=f"retry_generation_exception queue={queue_item.pk}",
-        )
-        return
-
-    if text:
-        queue_item.generated_text = text
-        queue_item.status = 'ready'
-        queue_item.error_message = ''
-
-        # slide_share は記事サムネイルが後から作られることがあるため再同期する。
-        if queue_item.tweet_type == 'slide_share' or not queue_item.image_url:
-            image_url = get_tweet_image_url(queue_item)
-            if image_url:
-                queue_item.image_url = image_url
-
-        run_with_db_reconnect(
-            queue_item.save,
-            context=f"retry_generation_success queue={queue_item.pk}",
-        )
-        logger.info("Retry generation succeeded for queue %d", queue_item.pk)
-    else:
-        queue_item.status = 'generation_failed'
-        queue_item.error_message = 'リトライ生成にも失敗'
-        run_with_db_reconnect(
-            queue_item.save,
-            context=f"retry_generation_failed queue={queue_item.pk}",
-        )
-        logger.error("Retry generation failed for queue %d", queue_item.pk)
+def _retry_generation(queue_item: TweetQueue) -> None:
+    """生成失敗キューのテキスト生成をリトライする."""
+    retry_generation(queue_item)
 
 
 def _retry_generation_async(queue_id: int) -> None:
-    """バックグラウンドスレッドで再生成し、終了時にDB接続を確実に解放する。"""
-    try:
-        try:
-            queue_item = run_with_db_reconnect(
-                lambda: TweetQueue.objects.select_related(
-                    'community', 'event', 'event_detail',
-                ).get(pk=queue_id),
-                context=f"retry_generation_fetch queue={queue_id}",
-            )
-        except TweetQueue.DoesNotExist:
-            logger.error("TweetQueue %d not found for retry generation", queue_id)
-            return
-
-        _retry_generation(queue_item)
-    except Exception:
-        logger.exception("Async retry generation failed for queue %d", queue_id)
-    finally:
-        connections.close_all()
-
-
-def _post_tweet_queue_item(queue_item, *, failure_status: str | None = 'failed'):
-    """TweetQueue 1件を X API に投稿し、結果を保存用 dict として返す。"""
-    media_ids = None
-    if queue_item.image_url:
-        media_id = upload_media(queue_item.image_url)
-        if media_id:
-            media_ids = [media_id]
-
-    result = post_tweet(queue_item.generated_text, media_ids=media_ids)
-
-    if result["ok"]:
-        queue_item.status = 'posted'
-        queue_item.tweet_id = (result["data"] or {}).get('id', '')
-        queue_item.posted_at = timezone.now()
-        queue_item.error_message = ''
-        return {
-            "id": queue_item.pk, "status": "posted", "tweet_id": queue_item.tweet_id,
-        }
-
-    if failure_status is not None:
-        queue_item.status = failure_status
-    status_code = result.get("status_code")
-    queue_item.error_message = (
-        f'X API投稿に失敗 (status={status_code})' if status_code else 'X API投稿に失敗'
+    """バックグラウンドスレッドで再生成し、終了時にDB接続を解放する."""
+    retry_generation_async(
+        queue_id,
+        retry_func=_retry_generation,
+        close_connections_func=connections.close_all,
     )
-    if result.get("error_body"):
-        queue_item.error_message = f"{queue_item.error_message}: {result['error_body'][:300]}"
-    notify_tweet_post_failure(queue_item, result)
-    return {
-        "id": queue_item.pk, "status": "failed", "error": "post_failed",
-    }
+
+
+def _post_tweet_queue_item(
+    queue_item: TweetQueue,
+    *,
+    failure_status: str | None = 'failed',
+) -> dict[str, object]:
+    """TweetQueue 1件を X API に投稿し、保存前の結果を返す."""
+    return post_tweet_queue_item(
+        queue_item,
+        failure_status=failure_status,
+        post_tweet_func=post_tweet,
+        upload_media_func=upload_media,
+        notify_failure_func=notify_tweet_post_failure,
+    )
 
 
 @require_http_methods(["GET"])
@@ -276,130 +205,13 @@ def post_scheduled_tweets(request):
     if request_token != os.environ.get("REQUEST_TOKEN", ""):
         return HttpResponse("Unauthorized", status=401)
 
-    created_count = 0
-    now = timezone.now()
-    expiry_threshold = now - timedelta(hours=SCHEDULE_EXPIRY_HOURS)
-
-    overdue_items = run_with_db_reconnect(
-        lambda: list(
-            TweetQueue.objects.filter(
-                status__in=('generating', 'generation_failed', 'ready'),
-                scheduled_at__lt=expiry_threshold,
-            ).select_related('community', 'event', 'event_detail'),
+    return JsonResponse(
+        process_scheduled_tweets(
+            post_tweet_func=post_tweet,
+            upload_media_func=upload_media,
+            notify_failure_func=notify_tweet_post_failure,
         ),
-        context="post_scheduled_tweets_fetch_overdue",
     )
-
-    results = []
-    for item in overdue_items:
-        item.status = 'skipped'
-        item.error_message = SCHEDULE_EXPIRED_SKIP_REASON
-        run_with_db_reconnect(
-            lambda: item.save(update_fields=['status', 'error_message']),
-            context=f"post_scheduled_tweets_skip_expired queue={item.pk}",
-        )
-        results.append({
-            "id": item.pk, "status": "skipped", "reason": "schedule_expired",
-        })
-        logger.info("Skipped expired scheduled tweet for queue %d", item.pk)
-
-    # Phase 1: 生成リトライ（generation_failed + 1時間以上前の generating）
-    retry_threshold = now - timedelta(hours=RETRY_THRESHOLD_HOURS)
-    retry_items = run_with_db_reconnect(
-        lambda: list(
-            TweetQueue.objects.filter(
-                (
-                    models.Q(status='generation_failed')
-                    | models.Q(status='generating', created_at__lt=retry_threshold)
-                ),
-            ).select_related('community', 'event', 'event_detail'),
-        ),
-        context="post_scheduled_tweets_fetch_retry",
-    )
-    retried_count = len(retry_items)
-
-    for item in retry_items:
-        _retry_generation(item)
-
-    # Phase 2: ready キューの投稿
-    ready_items = run_with_db_reconnect(
-        lambda: list(
-            TweetQueue.objects.filter(
-                status='ready',
-                scheduled_at__lte=now,
-            ).select_related(
-                'community', 'event', 'event_detail',
-            ).order_by('scheduled_at', 'pk'),
-        ),
-        context="post_scheduled_tweets_fetch_ready",
-    )
-    posted_attempted = False
-    for queue_item in ready_items:
-        # LT/特別回告知は、イベント日が過去ならスキップ（期限切れ防止）
-        if queue_item.tweet_type in ('lt', 'special') and queue_item.event:
-            if queue_item.event.date == timezone.localdate():
-                queue_item.status = 'skipped'
-                queue_item.error_message = SAME_DAY_INDIVIDUAL_SKIP_REASON
-                queue_item.generated_text = ''
-                run_with_db_reconnect(
-                    lambda: queue_item.save(
-                        update_fields=['status', 'error_message', 'generated_text'],
-                    ),
-                    context=f"post_scheduled_tweets_skip_same_day queue={queue_item.pk}",
-                )
-                results.append({
-                    "id": queue_item.pk, "status": "skipped", "reason": "same_day_integrated",
-                })
-                logger.info("Skipped same-day %s tweet for queue %d", queue_item.tweet_type, queue_item.pk)
-                continue
-            if queue_item.event.date < timezone.localdate():
-                queue_item.status = 'failed'
-                queue_item.error_message = 'イベント日が過去のため投稿スキップ'
-                run_with_db_reconnect(
-                    queue_item.save,
-                    context=f"post_scheduled_tweets_skip_past_event queue={queue_item.pk}",
-                )
-                results.append({
-                    "id": queue_item.pk, "status": "skipped", "reason": "event_date_passed",
-                })
-                logger.info("Skipped expired %s tweet for queue %d", queue_item.tweet_type, queue_item.pk)
-                continue
-
-        if queue_item.tweet_type == 'daily_reminder' and queue_item.event:
-            if queue_item.event.date != timezone.localdate():
-                queue_item.status = 'failed'
-                queue_item.error_message = '当日イベントではないため投稿スキップ'
-                run_with_db_reconnect(
-                    queue_item.save,
-                    context=f"post_scheduled_tweets_skip_stale_daily queue={queue_item.pk}",
-                )
-                results.append({
-                    "id": queue_item.pk, "status": "skipped", "reason": "not_event_day",
-                })
-                logger.info("Skipped stale daily reminder tweet for queue %d", queue_item.pk)
-                continue
-
-        result = _post_tweet_queue_item(queue_item, failure_status='failed')
-        results.append(result)
-        if result["status"] == "posted":
-            logger.info("Tweet posted for queue %d: %s", queue_item.pk, queue_item.tweet_id)
-        else:
-            logger.warning("Tweet post failed for queue %d", queue_item.pk)
-
-        run_with_db_reconnect(
-            queue_item.save,
-            context=f"post_scheduled_tweets_save_result queue={queue_item.pk}",
-        )
-        posted_attempted = True
-        break
-
-    return JsonResponse({
-        "created": created_count,
-        "retried": retried_count,
-        "processed": len(results),
-        "posted_attempted": posted_attempted,
-        "results": results,
-    })
 
 
 # --- TweetQueue 管理ビュー (superuser only) ---
