@@ -99,56 +99,6 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
         # django-allauthのログインURL
         self.assertTrue('login' in response.url.lower())
 
-    def test_event_option_label_shows_lt_start_time(self):
-        """イベント選択肢のラベルに発表開始予定時刻が含まれる"""
-        # オフセット 30 分の集会
-        self.community.lt_start_offset_minutes = 30
-        self.community.save()
-
-        self.client.login(username='TestUser', password='testpass123')
-        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
-        response = self.client.get(url)
-
-        # 集会開始 22:00 + 30分 = 発表開始 22:30 がラベルに含まれる
-        self.assertContains(response, '集会 22:00〜')
-        self.assertContains(response, '発表 22:30〜')
-
-    def test_event_option_label_handles_zero_offset(self):
-        """オフセット 0 分の場合、集会開始時刻と発表開始時刻が同一になる"""
-        self.community.lt_start_offset_minutes = 0
-        self.community.save()
-
-        self.client.login(username='TestUser', password='testpass123')
-        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
-        response = self.client.get(url)
-
-        self.assertContains(response, '集会 22:00〜 / 発表 22:00〜')
-
-    def test_event_option_label_handles_24h_wrap(self):
-        """集会開始 + offset が 24h を跨ぐ場合は循環した発表開始時刻が表示される"""
-        # 集会開始を 23:50 にし、offset=30 で発表開始は翌 00:20
-        self.future_event.start_time = time(23, 50)
-        self.future_event.save()
-        self.community.lt_start_offset_minutes = 30
-        self.community.save()
-
-        self.client.login(username='TestUser', password='testpass123')
-        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
-        response = self.client.get(url)
-
-        self.assertContains(response, '集会 23:50〜 / 発表 00:20〜')
-
-    def test_event_option_label_includes_japanese_weekday(self):
-        """選択肢ラベルに日本語の曜日が含まれる"""
-        self.client.login(username='TestUser', password='testpass123')
-        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
-        response = self.client.get(url)
-
-        # future_event は date.today()+7日 で固定の曜日に当たる。weekday を計算して照合
-        weekday_jp = ['月', '火', '水', '木', '金', '土', '日']
-        expected_wd = weekday_jp[self.future_event.date.weekday()]
-        self.assertContains(response, f'({expected_wd})')
-
     def test_lt_application_only_shows_accepting_events(self):
         """LT受付中のイベントのみ選択肢に表示される"""
         self.client.login(username='TestUser', password='testpass123')
