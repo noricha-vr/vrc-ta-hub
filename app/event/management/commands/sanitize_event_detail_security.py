@@ -100,7 +100,7 @@ def sanitize_event_detail_contents(contents: str) -> tuple[str, tuple[str, ...]]
         iframe_html = match.group(0)
         src_match = IFRAME_SRC_RE.search(iframe_html)
         if not src_match:
-            # srcがないiframeは意図が不明で、表示側でも削除されるため除去。参照: PR #334（理由・背景の追跡）
+            # srcがないiframeは意図が不明で、表示側でも削除されるため除去
             notes.append("Removed <iframe> without src")
             return ""
         src = src_match.group(2)

@@ -3017,7 +3017,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
 class SignalErrorHandlingTest(AutoTweetTestBase):
     """シグナルハンドラの例外がメインの保存処理を妨げないことをテスト。
 
-    参照: PR #TBD - tweet_queue テーブル未作成時に EventDetail 保存が
+    tweet_queue テーブル未作成時に EventDetail 保存が
     500 エラーになるインシデントの再発防止テスト。
     """
 

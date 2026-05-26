@@ -49,7 +49,7 @@ def _normalize_preview_host_candidate(value: str) -> str:
     try:
         return normalize_host(value)
     except ValueError:
-        # 外部入力が壊れていても 500 にはせず、preview host 不一致として弾く。参照: PR #247
+        # 外部入力が壊れていても 500 にはせず、preview host 不一致として弾く。
         return ''
 
 
@@ -95,7 +95,7 @@ class CanonicalCloudRunHostMiddleware:
     def canonicalize_host_mapping(self, host_mapping: dict[str, str]) -> bool:
         """正規化対象の Cloud Run preview host を canonical host へ寄せる。"""
         host_meta_keys = ('HTTP_HOST', 'HTTP_X_FORWARDED_HOST', 'SERVER_NAME')
-        # proxy 差分で absolute URL や host:port が混ざるので、判定前に host へ正規化する。参照: PR #247
+        # proxy 差分で absolute URL や host:port が混ざるので、判定前に host へ正規化する。
         if any(
             self._is_supported_preview_host(host_mapping.get(meta_key, ''))
             for meta_key in host_meta_keys
@@ -118,7 +118,7 @@ class CanonicalCloudRunHostMiddleware:
                 raise
 
             disallowed_host = _extract_disallowed_host(error)
-            # 観測ログと同じ Django get_host() 経由の拒否だけを、同じ service 名ホワイトリストで救済する。参照: PR #247
+            # 観測ログと同じ Django get_host() 経由の拒否だけを、同じ service 名ホワイトリストで救済する。
             if not self._is_supported_preview_host(disallowed_host):
                 raise
 

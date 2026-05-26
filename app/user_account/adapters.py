@@ -55,7 +55,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         # process='connect' の場合はログイン中のユーザーへの紐付け処理
         # is_existing チェックより先に判定する必要がある
         # （lookup() で is_existing=True になった後でも競合解決が必要なため）。
-        # 参照: PR #108（設定画面からのDiscord再連携だけで競合を自己解決できるようにするため）
+        # 設定画面からのDiscord再連携だけで競合を自己解決できるようにする。
         if sociallogin.state.get('process') == 'connect':
             self._merge_conflicting_account(request, sociallogin)
             return
@@ -148,7 +148,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         conflicting_sa.save()
 
         # socialloginの状態を更新（allauthのdo_connectが正しく処理できるように）。
-        # 参照: PR #108（競合解消後も connect フローをそのまま継続させるため）
+        # 競合解消後も connect フローをそのまま継続させるため、account/user を差し替える。
         # is_existing は user.pk の存在で自動判定されるため、user の設定だけでOK
         sociallogin.account = conflicting_sa
         sociallogin.user = current_user

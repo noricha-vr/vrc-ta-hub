@@ -69,7 +69,7 @@ DEBUG = os.environ.get('DEBUG') == 'True'
 ALLOWED_HOSTS = _build_allowed_hosts()
 
 # Cloud Run + nginx プロキシ経由の HTTPS 判定（本番: nginx が https を付加）
-# ローカルでは .env.local で HTTP_X_FORWARDED_PROTO=http を設定して is_secure()=False を保証する。参照: PR #87
+# ローカルでは .env.local で HTTP_X_FORWARDED_PROTO=http を設定して is_secure()=False を保証する。
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # 本番環境のセキュリティ強化
@@ -154,7 +154,7 @@ CORS_URLS_REGEX = r'^/api/.*$'
 AUTH_USER_MODEL = 'user_account.CustomUser'
 
 MIDDLEWARE = [
-    # Cloud Run preview host は raw Host のまま下流へ流さない。参照: PR #237
+    # Cloud Run preview host は raw Host のまま下流へ流さない。
     'website.middleware.CanonicalCloudRunHostMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
