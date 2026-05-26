@@ -14,7 +14,11 @@ from django.db import connections
 from openai import OpenAI
 
 from ta_hub.libs import cloudflare_image_url
-from website.constants import OPENROUTER_BASE_URL, build_site_url
+from website.constants import (
+    OPENROUTER_BASE_URL,
+    build_openrouter_extra_headers,
+    build_site_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -374,10 +378,7 @@ def _call_llm(system_prompt: str, user_prompt: str) -> str | None:
             connections.close_all()
         client = OpenAI(base_url=OPENROUTER_BASE_URL, api_key=api_key)
         response = client.chat.completions.create(
-            extra_headers={
-                "HTTP-Referer": build_site_url("/"),
-                "X-Title": "VRC TA Hub",
-            },
+            extra_headers=build_openrouter_extra_headers(),
             model=model,
             messages=[
                 {"role": "system", "content": system_prompt},
