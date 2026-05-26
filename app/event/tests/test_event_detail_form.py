@@ -10,13 +10,13 @@ from django.contrib.auth import get_user_model
 from community.models import Community
 from event.forms import EventDetailForm, LTApplicationEditForm
 from event.models import Event, EventDetail
+from event.tests.tweet_generation import TweetGenerationPatchMixin
 from twitter.models import TweetQueue
 from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
 
-
-class EventDetailFormCleanTest(TestCase):
+class EventDetailFormCleanTest(TweetGenerationPatchMixin, TestCase):
     """EventDetailForm.clean()のテスト"""
 
     def setUp(self):

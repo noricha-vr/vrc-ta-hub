@@ -11,10 +11,10 @@ from django.utils import timezone
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from event.tests.tweet_generation import TweetGenerationPatchMixin
 from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
-
 
 def create_test_image():
     """テスト用の画像ファイルを生成する"""
@@ -31,7 +31,7 @@ def create_test_image():
 
 
 
-class EventMyListDashboardTest(TestCase):
+class EventMyListDashboardTest(TweetGenerationPatchMixin, TestCase):
     """EventMyListダッシュボード機能のテスト"""
 
     def setUp(self):
@@ -374,7 +374,7 @@ class EventMyListDashboardTest(TestCase):
         self.assertNotContains(response, 'rejectModal')
 
 
-class VketBannerTests(TestCase):
+class VketBannerTests(TweetGenerationPatchMixin, TestCase):
     """EventMyListのVketコラボバナーテスト"""
 
     def setUp(self):
