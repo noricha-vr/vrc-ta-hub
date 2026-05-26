@@ -99,14 +99,18 @@
                             </a>
                             {% get_social_accounts user as social_accounts %}
                             {% if social_accounts.discord %}
-                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <a href="{% url 'socialaccount_connections' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                     <span>
                                         <i class="fa-brands fa-discord me-2" style="color: #5865F2;"></i>Discord連携
                                     </span>
-                                    <span class="badge bg-success">
-                                        <i class="fa-solid fa-check me-1"></i>連携済み
+                                    <span class="d-flex align-items-center">
+                                        <span class="badge bg-success me-2">
+                                            <i class="fa-solid fa-check me-1"></i>連携済み
+                                        </span>
+                                        <span class="text-muted me-2">連携を管理</span>
+                                        <i class="fa-solid fa-chevron-right text-muted"></i>
                                     </span>
-                                </div>
+                                </a>
                             {% else %}
                                 {% discord_oauth_available as discord_oauth_enabled %}
                                 {% if discord_oauth_enabled %}
