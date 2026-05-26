@@ -318,6 +318,7 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
         accepts_lt = request.POST.get('accepts_lt_application') == 'on'
         lt_template = request.POST.get('lt_application_template', '').strip()
         duration_str = request.POST.get('default_lt_duration', '30').strip()
+        offset_str = request.POST.get('lt_start_offset_minutes', '30').strip()
 
         # デフォルト発表時間のバリデーション
         try:
@@ -325,15 +326,28 @@ class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
         except ValueError:
             duration = 30
 
+        # LT開始オフセットのバリデーション（負値・非数値は 30 にフォールバック）
+        try:
+            offset = max(0, int(offset_str))
+        except ValueError:
+            offset = 30
+
         community.accepts_lt_application = accepts_lt
         community.lt_application_template = lt_template
         community.default_lt_duration = duration
-        community.save(update_fields=['accepts_lt_application', 'lt_application_template', 'default_lt_duration'])
+        community.lt_start_offset_minutes = offset
+        community.save(update_fields=[
+            'accepts_lt_application',
+            'lt_application_template',
+            'default_lt_duration',
+            'lt_start_offset_minutes',
+        ])
 
         messages.success(request, '発表申請設定を保存しました。')
         logger.info(
             f'発表申請設定更新: 集会「{community.name}」、'
-            f'テンプレート文字数={len(lt_template)}、デフォルト発表時間={duration}分'
+            f'テンプレート文字数={len(lt_template)}、デフォルト発表時間={duration}分、'
+            f'LT開始オフセット={offset}分'
         )
 
         return redirect('community:settings')

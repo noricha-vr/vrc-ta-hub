@@ -1,5 +1,7 @@
 import logging
+import os
 import re
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -11,6 +13,18 @@ from django.utils import timezone
 from community.models import Community, WEEKDAY_CHOICES
 
 logger = logging.getLogger(__name__)
+
+
+def slide_file_upload_to(instance, filename):
+    """スライドPDFを `slide/<uuid>.pdf` に正規化する。
+
+    元のファイル名（個人情報や推測可能名を含む可能性）を公開URLに出さず、
+    R2上での衝突も避ける。拡張子はストレージ側のContent-Type判定用に `.pdf` を強制。
+    """
+    ext = os.path.splitext(filename)[1].lower()
+    if ext != '.pdf':
+        ext = '.pdf'
+    return f'slide/{uuid.uuid4().hex}{ext}'
 
 
 def validate_pdf_file(value):
@@ -243,7 +257,7 @@ class EventDetail(models.Model):
     duration = models.IntegerField('発表時間（分）', default=30)
     youtube_url = models.URLField('YouTube URL', blank=True, null=True)
     slide_url = models.URLField('スライド URL', blank=True, null=True)
-    slide_file = models.FileField('スライド', blank=True, null=True, upload_to='slide/', validators=[validate_pdf_file])
+    slide_file = models.FileField('スライド', blank=True, null=True, upload_to=slide_file_upload_to, validators=[validate_pdf_file])
     thumbnail_image = models.ImageField(
         'サムネイル画像',
         blank=True,

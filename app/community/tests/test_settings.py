@@ -756,6 +756,79 @@ class LTSettingsTest(TestCase):
         self.assertContains(response, 'id="accepts_lt_application"')
         self.assertContains(response, 'checked')
 
+    def test_update_lt_settings_saves_offset(self):
+        """LT開始オフセットを保存できる"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'accepts_lt_application': 'on',
+                'lt_application_template': '【テスト】',
+                'default_lt_duration': 30,
+                'lt_start_offset_minutes': 45,
+            }
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.lt_start_offset_minutes, 45)
+
+    def test_update_lt_settings_offset_invalid_falls_back_to_30(self):
+        """非数値のオフセット入力は 30 にフォールバックされる"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'accepts_lt_application': 'on',
+                'lt_application_template': '【テスト】',
+                'default_lt_duration': 30,
+                'lt_start_offset_minutes': 'abc',
+            }
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.lt_start_offset_minutes, 30)
+
+    def test_update_lt_settings_offset_zero_allowed(self):
+        """オフセット 0 を許容する（集会開始と同時にLT開始）"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+
+        response = self.client.post(
+            reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
+            {
+                'accepts_lt_application': 'on',
+                'lt_application_template': '【テスト】',
+                'default_lt_duration': 30,
+                'lt_start_offset_minutes': 0,
+            }
+        )
+
+        self.assertRedirects(response, reverse('community:settings'))
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.lt_start_offset_minutes, 0)
+
+    def test_settings_page_renders_offset_zero_value(self):
+        """オフセット 0 を保存後、設定画面のフォーム value 属性に 0 が描画されること.
+
+        Django テンプレートの ``default`` フィルタが ``0`` を偽値扱いする問題への
+        回帰防止テスト。
+        """
+        self.community.lt_start_offset_minutes = 0
+        self.community.save(update_fields=['lt_start_offset_minutes'])
+
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'name="lt_start_offset_minutes" id="lt_start_offset_minutes"',
+        )
+        self.assertContains(response, 'value="0"')
+
 
 class LTSettingsUpdateFormTest(TestCase):
     """集会更新フォームからLT受付設定が削除されたことのテスト"""
