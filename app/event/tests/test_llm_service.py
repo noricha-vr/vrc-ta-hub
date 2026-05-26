@@ -45,19 +45,17 @@ class EventDateLlmServiceTest(SimpleTestCase):
         """OpenRouter 設定が website.constants から組み立てられることを保証する。
 
         OPENROUTER_BASE_URL と HTTP-Referer がハードコードされた値ではなく、
-        website.constants 経由（build_site_url / 環境変数）になっていることを
-        確認する。preview/本番で SITE_URL を切り替えたときに壊れていないか拾う。
+        website.constants 経由（OPENROUTER_HTTP_REFERER / 環境変数）になっている
+        ことを確認する。preview/本番で SITE_URL を切り替えたときに壊れていないか拾う。
         """
-        from website.constants import OPENROUTER_BASE_URL, build_site_url
+        from website.constants import OPENROUTER_BASE_URL, build_openrouter_extra_headers
         from event.llm_service import OPENROUTER_EXTRA_HEADERS
 
         service = get_event_date_llm_service()
 
         self.assertEqual(service.config.base_url, OPENROUTER_BASE_URL)
-        self.assertEqual(
-            OPENROUTER_EXTRA_HEADERS["HTTP-Referer"],
-            build_site_url("/"),
-        )
+        self.assertEqual(OPENROUTER_EXTRA_HEADERS, build_openrouter_extra_headers())
+        self.assertEqual(service.config.extra_headers, build_openrouter_extra_headers())
 
     @override_settings(
         RECURRENCE_LLM_PROVIDER="openai",

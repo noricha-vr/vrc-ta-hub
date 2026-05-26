@@ -24,7 +24,11 @@ from youtube_transcript_api._errors import NoTranscriptFound
 from event.models import EventDetail
 from event.prompts import BLOG_GENERATION_TEMPLATE
 from event.thumbnail import crop_to_slide_thumbnail_aspect_ratio
-from website.constants import OPENROUTER_BASE_URL, build_site_url, is_site_domain
+from website.constants import (
+    OPENROUTER_BASE_URL,
+    build_openrouter_extra_headers,
+    is_site_domain,
+)
 from website.settings import GOOGLE_API_KEY
 
 logger = logging.getLogger(__name__)
@@ -290,10 +294,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
 
             # Function Callingを使用したリクエスト
             completion = client.chat.completions.create(
-                extra_headers={
-                    "HTTP-Referer": build_site_url("/"),  # OpenRouterのランキング用サイトURL
-                    "X-Title": "VRC TA Hub"  # OpenRouterのランキング用サイト名
-                },
+                extra_headers=build_openrouter_extra_headers(),
                 model=model,
                 messages=[
                     {"role": "system",

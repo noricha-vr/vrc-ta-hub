@@ -6,6 +6,8 @@ from website.hosts import normalize_host
 
 DEFAULT_SITE_DOMAIN = "vrc-ta-hub.com"
 DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_OPENROUTER_HTTP_REFERER = f"https://{DEFAULT_SITE_DOMAIN}/"
+OPENROUTER_SITE_TITLE = "VRC TA Hub"
 
 
 def _normalize_site_url(value: str) -> str:
@@ -13,6 +15,10 @@ def _normalize_site_url(value: str) -> str:
     if "://" not in stripped:
         return f"https://{stripped}"
     return stripped
+
+
+def _normalize_root_url(value: str) -> str:
+    return f"{_normalize_site_url(value)}/"
 
 
 SITE_DOMAIN = normalize_host(
@@ -26,6 +32,9 @@ OPENROUTER_BASE_URL = os.environ.get(
     "OPENROUTER_BASE_URL",
     DEFAULT_OPENROUTER_BASE_URL,
 ).rstrip("/")
+OPENROUTER_HTTP_REFERER = _normalize_root_url(
+    os.environ.get("OPENROUTER_HTTP_REFERER") or DEFAULT_OPENROUTER_HTTP_REFERER
+)
 
 CACHE_TTL_HOUR = 60 * 60
 MAX_THUMBNAIL_SIZE_BYTES = 10 * 1024 * 1024
@@ -48,6 +57,14 @@ def build_site_url(path: str = "") -> str:
     if path.startswith("/"):
         return f"{SITE_URL}{path}"
     return f"{SITE_URL}/{path}"
+
+
+def build_openrouter_extra_headers() -> dict[str, str]:
+    """OpenRouterへ送るサイト識別ヘッダを返す."""
+    return {
+        "HTTP-Referer": OPENROUTER_HTTP_REFERER,
+        "X-Title": OPENROUTER_SITE_TITLE,
+    }
 
 
 def is_site_domain(hostname: str | None) -> bool:
