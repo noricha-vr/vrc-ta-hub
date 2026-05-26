@@ -1,10 +1,25 @@
+from unittest.mock import patch
+
 from django.db.utils import OperationalError
 from django.test import SimpleTestCase
 from rest_framework import viewsets
 from rest_framework.response import Response
-from rest_framework.test import APIRequestFactory
+from rest_framework.test import APIRequestFactory, force_authenticate
 
-from api_v1.views import DatabaseReconnectListMixin
+from api_v1.base import DatabaseReconnectListMixin
+from api_v1.views import (
+    CommunityViewSet,
+    EventDetailAPIViewSet,
+    EventDetailViewSet,
+    EventViewSet,
+    RecurrenceRuleViewSet,
+)
+
+
+class AuthenticatedUser:
+    is_authenticated = True
+    is_superuser = True
+    pk = 1
 
 
 class TransientFailureListViewSet(viewsets.ViewSet):
@@ -91,3 +106,34 @@ class DatabaseReconnectListMixinTest(SimpleTestCase):
 
         with self.assertRaises(OperationalError):
             view(request)
+
+    def test_all_api_v1_viewsets_retry_list_after_mysql_disconnect(self):
+        target_viewsets = (
+            CommunityViewSet,
+            EventViewSet,
+            EventDetailViewSet,
+            EventDetailAPIViewSet,
+            RecurrenceRuleViewSet,
+        )
+
+        for viewset_class in target_viewsets:
+            with self.subTest(viewset=viewset_class.__name__):
+                view = viewset_class.as_view({'get': 'list'})
+                request = self.factory.get('/api/v1/test/')
+                force_authenticate(request, user=AuthenticatedUser())
+
+                with (
+                    patch('api_v1.base.connections.close_all') as mock_close_all,
+                    patch('rest_framework.mixins.ListModelMixin.list') as mock_list,
+                ):
+                    mock_list.side_effect = [
+                        OperationalError(2013, 'Lost connection to server during query'),
+                        Response({'viewset': viewset_class.__name__}),
+                    ]
+
+                    response = view(request)
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data, {'viewset': viewset_class.__name__})
+                self.assertEqual(mock_list.call_count, 2)
+                mock_close_all.assert_called_once_with()
