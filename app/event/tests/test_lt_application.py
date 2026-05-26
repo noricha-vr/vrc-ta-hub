@@ -1,4 +1,5 @@
 """LT申請機能のテスト"""
+import re
 from datetime import date, time, timedelta
 from io import BytesIO
 from unittest.mock import patch
@@ -910,25 +911,35 @@ class LTApplicationAdditionalInfoTest(TestCase):
         )
 
     def test_additional_info_field_shown_with_template(self):
-        """テンプレートがある集会では追加情報フィールドが表示される"""
+        """テンプレートがある集会では初期値入りで追加情報フィールドが表示される"""
         self.client.login(username='TestUser', password='testpass123')
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_with_template.pk})
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '追加情報')
-        self.assertContains(response, '【発表概要】')
+        template = self.community_with_template.lt_application_template
+        form = response.context['form']
+        field = form.fields['additional_info']
+        self.assertEqual(field.initial, template)
+        self.assertNotIn('placeholder', field.widget.attrs)
+        self.assertRegex(
+            response.content.decode(),
+            rf'<textarea[^>]*name="additional_info"[^>]*>\s*{re.escape(template)}</textarea>',
+        )
 
-    def test_additional_info_field_hidden_without_template(self):
-        """テンプレートがない集会では追加情報フィールドが表示されない"""
+    def test_additional_info_field_shown_without_template(self):
+        """テンプレートがない集会でも追加情報フィールドが表示される"""
         self.client.login(username='TestUser', password='testpass123')
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_without_template.pk})
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, 200)
-        # additional_info フィールドが含まれていないことを確認
         form = response.context['form']
-        self.assertNotIn('additional_info', form.fields)
+        self.assertIn('additional_info', form.fields)
+        self.assertNotIn('placeholder', form.fields['additional_info'].widget.attrs)
+        self.assertContains(response, '追加情報')
+        self.assertIn('name="additional_info"', response.content.decode())
 
     @patch('event.notifications.send_mail')
     def test_submit_with_template_same_as_template_fails(self, mock_send_mail):
@@ -988,7 +999,7 @@ class LTApplicationAdditionalInfoTest(TestCase):
             'theme': 'Test Theme',
             'speaker': 'Test Speaker',
             'duration': 15,
-            # additional_info フィールドなし
+            # additional_info は未入力
         })
 
         # リダイレクト確認
@@ -1002,6 +1013,31 @@ class LTApplicationAdditionalInfoTest(TestCase):
 
         self.assertIsNotNone(event_detail)
         self.assertEqual(event_detail.additional_info, '')
+
+    @patch('event.notifications.send_mail')
+    def test_submit_without_template_with_additional_info_succeeds(self, mock_send_mail):
+        """テンプレートなし集会でも追加情報を自由記入できる"""
+        mock_send_mail.return_value = 1
+        self.client.login(username='TestUser', password='testpass123')
+
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_without_template.pk})
+        response = self.client.post(url, {
+            'event': self.event_without_template.pk,
+            'theme': 'Free Info Theme',
+            'speaker': 'Test Speaker',
+            'duration': 15,
+            'additional_info': '事前共有したい補足情報です。',
+        })
+
+        self.assertEqual(response.status_code, 302)
+
+        event_detail = EventDetail.objects.filter(
+            event=self.event_without_template,
+            theme='Free Info Theme'
+        ).first()
+
+        self.assertIsNotNone(event_detail)
+        self.assertEqual(event_detail.additional_info, '事前共有したい補足情報です。')
 
 
 class LTApplicationReviewAdditionalInfoTest(TestCase):
