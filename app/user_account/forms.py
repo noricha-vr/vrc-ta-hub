@@ -1,3 +1,5 @@
+import re
+
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
@@ -8,6 +10,29 @@ from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 from community.models import Community
 from community.models import TAGS, PLATFORM_CHOICES, WEEKDAY_CHOICES
 from .models import CustomUser
+
+
+X_HANDLE_RE = re.compile(r'^[A-Za-z0-9_]{1,15}\Z')
+X_URL_PREFIX_RE = re.compile(r'^https?://(?:www\.)?(?:x|twitter)\.com/', re.IGNORECASE)
+
+
+def normalize_x_account(value: str) -> str:
+    """X のハンドル入力（@付き / URL / 素のハンドル）を素のハンドル名に正規化する。
+
+    空文字はそのまま返す。形式不正は ValueError を投げる。
+    """
+    if not value:
+        return ''
+    handle = value.strip()
+    handle = X_URL_PREFIX_RE.sub('', handle)
+    handle = handle.split('/', 1)[0].split('?', 1)[0]
+    if handle.startswith('@'):
+        handle = handle[1:]
+    if not X_HANDLE_RE.match(handle):
+        raise forms.ValidationError(
+            'X のハンドル名は英数字とアンダースコアで1〜15文字です（@ や URL も受け付けます）。'
+        )
+    return handle
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -235,9 +260,23 @@ class LocalSignupForm(UserCreationForm):
 
 
 class CustomUserChangeForm(forms.ModelForm):
+    # 入力時には @ や URL を受け付けるため、フィールド側の max_length は緩める
+    # （保存時には clean_x_account で正規化済みハンドル名のみがモデルへ渡る）
+    x_account = forms.CharField(
+        label='X (Twitter) アカウント',
+        max_length=64,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'noricha_vr',
+            'autocomplete': 'off',
+        }),
+        help_text='任意。@ や https://x.com/ のURLで入力しても自動でハンドル名に正規化されます。',
+    )
+
     class Meta:
         model = CustomUser
-        fields = ('user_name', 'email')
+        fields = ('user_name', 'email', 'x_account')
         widgets = {
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.TextInput(attrs={'class': 'form-control'}),
@@ -245,6 +284,9 @@ class CustomUserChangeForm(forms.ModelForm):
         labels = {
             'user_name': 'ユーザー名',
         }
+
+    def clean_x_account(self):
+        return normalize_x_account(self.cleaned_data.get('x_account', ''))
 
 
 class SocialAccountDisconnectForm(forms.Form):

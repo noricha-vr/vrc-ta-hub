@@ -114,6 +114,24 @@
                                 {% endif %}
                             </div>
 
+                            <div class="mb-4">
+                                <label for="id_x_account" class="form-label fw-bold">
+                                    <i class="bi bi-twitter-x me-1"></i>{{ form.x_account.label }}
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">@</span>
+                                    {{ form.x_account }}
+                                </div>
+                                {% if form.x_account.help_text %}
+                                    <small class="form-text text-muted">{{ form.x_account.help_text }}</small>
+                                {% endif %}
+                                {% if form.x_account.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.x_account.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+
                             {% if form.additional_info %}
                             <div class="mb-4">
                                 <label for="id_additional_info" class="form-label fw-bold">
