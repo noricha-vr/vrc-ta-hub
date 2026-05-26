@@ -123,7 +123,7 @@ class Community(models.Model):
     default_lt_duration = models.PositiveIntegerField(
         'デフォルトの発表時間',
         default=30,
-        help_text='発表申請フォームに表示されるデフォルトの発表時間（分）'
+        help_text='発表申請フォームに表示されるデフォルト値（分）。発表時間と質疑応答を含めた合計時間。'
     )
     lt_start_offset_minutes = models.PositiveIntegerField(
         'LT開始までのオフセット(分)',
