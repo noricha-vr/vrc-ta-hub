@@ -31,6 +31,21 @@
                                     <div class="text-danger small">{{ form.email.errors }}</div>
                                 {% endif %}
                             </div>
+                            <div class="mb-3">
+                                <label for="{{ form.x_account.id_for_label }}" class="form-label">
+                                    <i class="bi bi-twitter-x me-1"></i>{{ form.x_account.label }}:
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text">@</span>
+                                    {{ form.x_account }}
+                                </div>
+                                {% if form.x_account.help_text %}
+                                    <div class="form-text">{{ form.x_account.help_text }}</div>
+                                {% endif %}
+                                {% if form.x_account.errors %}
+                                    <div class="text-danger small">{{ form.x_account.errors }}</div>
+                                {% endif %}
+                            </div>
                             <button type="submit" class="btn btn-primary">更新</button>
                         </form>
                     </div>

@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -77,6 +78,19 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     date_joined = models.DateTimeField('登録日', default=timezone.now)
     icon = models.ImageField('アイコン', upload_to='icon/', blank=True, null=True)
+    x_account = models.CharField(
+        'X (Twitter) アカウント',
+        max_length=15,
+        blank=True,
+        default='',
+        help_text='@ なしのハンドル名（例: noricha_vr）。英数字とアンダースコア、1〜15文字。',
+        validators=[
+            RegexValidator(
+                r'^[A-Za-z0-9_]{1,15}\Z',
+                'X のハンドル名は英数字とアンダースコアで1〜15文字です。',
+            ),
+        ],
+    )
 
     objects = CustomUserManager()
 

@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import FormView, View
@@ -49,17 +50,33 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
         event = form.cleaned_data['event']
         offset = self.community.lt_start_offset_minutes or 0
         lt_start = _calc_lt_start_time(event.start_time, offset)
-        event_detail = EventDetail.objects.create(
-            event=event,
-            detail_type='LT',
-            theme=form.cleaned_data['theme'],
-            speaker=form.cleaned_data['speaker'],
-            duration=form.cleaned_data['duration'],
-            start_time=lt_start,
-            status='pending',
-            applicant=self.request.user,
-            additional_info=form.cleaned_data.get('additional_info', ''),
-        )
+        speaker = form.cleaned_data['speaker']
+        x_account = form.cleaned_data.get('x_account', '')
+
+        with transaction.atomic():
+            # speaker / x_account を user 側にも反映（LT 申込フォームをプロフィール更新の経路として扱う）
+            user = self.request.user
+            update_fields = []
+            if user.user_name != speaker:
+                user.user_name = speaker
+                update_fields.append('user_name')
+            if user.x_account != x_account:
+                user.x_account = x_account
+                update_fields.append('x_account')
+            if update_fields:
+                user.save(update_fields=update_fields)
+
+            event_detail = EventDetail.objects.create(
+                event=event,
+                detail_type='LT',
+                theme=form.cleaned_data['theme'],
+                speaker=speaker,
+                duration=form.cleaned_data['duration'],
+                start_time=lt_start,
+                status='pending',
+                applicant=user,
+                additional_info=form.cleaned_data.get('additional_info', ''),
+            )
 
         # 主催者に通知
         from event.notifications import notify_owners_of_new_application

@@ -122,7 +122,7 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
         response = self.client.post(url, {
             'event': self.future_event.pk,
             'theme': 'Test Theme',
-            'speaker': 'Test Speaker',
+            'speaker': 'TestSpeaker',
             'duration': 15,
         })
 
@@ -136,7 +136,7 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
         ).first()
 
         self.assertIsNotNone(event_detail)
-        self.assertEqual(event_detail.speaker, 'Test Speaker')
+        self.assertEqual(event_detail.speaker, 'TestSpeaker')
         self.assertEqual(event_detail.duration, 15)
         self.assertEqual(event_detail.status, 'pending')
         self.assertEqual(event_detail.applicant, self.user)
@@ -1001,7 +1001,7 @@ class LTApplicationAdditionalInfoTest(TweetGenerationPatchMixin, TestCase):
         response = self.client.post(url, {
             'event': self.event_with_template.pk,
             'theme': 'Test Theme',
-            'speaker': 'Test Speaker',
+            'speaker': 'TestSpeaker',
             'duration': 15,
             'additional_info': '【発表概要】\n\n【対象者】\n',  # テンプレートと同一
         })
@@ -1020,7 +1020,7 @@ class LTApplicationAdditionalInfoTest(TweetGenerationPatchMixin, TestCase):
         response = self.client.post(url, {
             'event': self.event_with_template.pk,
             'theme': 'Test Theme',
-            'speaker': 'Test Speaker',
+            'speaker': 'TestSpeaker',
             'duration': 15,
             'additional_info': '【発表概要】VRChatの技術について発表します。【対象者】初心者向け。',
         })
@@ -1047,7 +1047,7 @@ class LTApplicationAdditionalInfoTest(TweetGenerationPatchMixin, TestCase):
         response = self.client.post(url, {
             'event': self.event_without_template.pk,
             'theme': 'Test Theme',
-            'speaker': 'Test Speaker',
+            'speaker': 'TestSpeaker',
             'duration': 15,
             # additional_info は未入力
         })
@@ -1074,7 +1074,7 @@ class LTApplicationAdditionalInfoTest(TweetGenerationPatchMixin, TestCase):
         response = self.client.post(url, {
             'event': self.event_without_template.pk,
             'theme': 'Free Info Theme',
-            'speaker': 'Test Speaker',
+            'speaker': 'TestSpeaker',
             'duration': 15,
             'additional_info': '事前共有したい補足情報です。',
         })
