@@ -491,7 +491,7 @@ class RecurrenceService:
             return sorted({generated_date for generated_date in dates if base_date <= generated_date <= end_date})
         except Exception:
             logger.exception("LLM date generation failed")
-        
+
         return []
     
     def preview_dates(self, frequency: str, custom_rule: str, base_date: date, base_time: datetime.time, 

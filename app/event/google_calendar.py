@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone as datetime_timezone
 from typing import Optional, List, Dict, Any
 
@@ -8,6 +9,9 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from website.settings import DEBUG
+
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleCalendarService:
@@ -114,8 +118,12 @@ class GoogleCalendarService:
                 body=event
             ).execute()
             return event
-        except HttpError as error:
-            print(f'An error occurred: {error}')
+        except HttpError:
+            logger.error(
+                "Google Calendar event creation failed: calendar_id=%s",
+                self.calendar_id,
+                exc_info=True,
+            )
             raise
 
     def update_event(self,
@@ -166,8 +174,13 @@ class GoogleCalendarService:
                 body=body
             ).execute()
             return updated_event
-        except HttpError as error:
-            print(f'An error occurred: {error}')
+        except HttpError:
+            logger.error(
+                "Google Calendar event update failed: calendar_id=%s event_id=%s",
+                self.calendar_id,
+                event_id,
+                exc_info=True,
+            )
             raise
 
     def delete_event(self, event_id: str) -> None:
@@ -181,8 +194,13 @@ class GoogleCalendarService:
                 calendarId=self.calendar_id,
                 eventId=event_id
             ).execute()
-        except HttpError as error:
-            print(f'An error occurred: {error}')
+        except HttpError:
+            logger.error(
+                "Google Calendar event deletion failed: calendar_id=%s event_id=%s",
+                self.calendar_id,
+                event_id,
+                exc_info=True,
+            )
             raise
 
     def list_events(self,
@@ -229,6 +247,10 @@ class GoogleCalendarService:
                     break
 
             return all_items
-        except HttpError as error:
-            print(f'An error occurred: {error}')
+        except HttpError:
+            logger.error(
+                "Google Calendar event listing failed: calendar_id=%s",
+                self.calendar_id,
+                exc_info=True,
+            )
             raise

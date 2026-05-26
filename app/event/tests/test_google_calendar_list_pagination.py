@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from unittest import TestCase
 from unittest.mock import MagicMock
 
+from googleapiclient.errors import HttpError
+
 from event.google_calendar import GoogleCalendarService
 
 
@@ -38,3 +40,31 @@ class GoogleCalendarListPaginationTest(TestCase):
         second_kwargs = events_resource.list.call_args_list[1].kwargs
         self.assertIsNone(first_kwargs["pageToken"])
         self.assertEqual(second_kwargs["pageToken"], "page-2")
+
+    def test_create_event_logs_http_error(self):
+        service = GoogleCalendarService.__new__(GoogleCalendarService)
+        service.calendar_id = "test-calendar"
+        service.service = MagicMock()
+
+        mock_resp = MagicMock()
+        mock_resp.status = 500
+        mock_resp.reason = "Internal Server Error"
+
+        events_resource = service.service.events.return_value
+        events_resource.insert.return_value.execute.side_effect = HttpError(
+            mock_resp,
+            b"calendar failure",
+        )
+
+        with self.assertLogs("event.google_calendar", level="ERROR") as log_context:
+            with self.assertRaises(HttpError):
+                service.create_event(
+                    summary="テストイベント",
+                    start_time=datetime(2026, 1, 1, 22, 0),
+                    end_time=datetime(2026, 1, 1, 23, 0),
+                )
+
+        self.assertIn(
+            "Google Calendar event creation failed",
+            "\n".join(log_context.output),
+        )
