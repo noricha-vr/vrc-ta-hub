@@ -17,9 +17,18 @@
             </nav>
 
             <div class="card shadow-sm mb-4">
-                <div class="card-header bg-warning">
-                    <h1 class="h4 mb-0">
-                        <i class="bi bi-clipboard-check me-2"></i>発表申請の確認
+                <div class="card-header {% if event_detail.status == 'approved' %}bg-success text-white{% elif event_detail.status == 'rejected' %}bg-danger text-white{% else %}bg-warning{% endif %}">
+                    <h1 class="h4 mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span>
+                            <i class="bi bi-clipboard-check me-2"></i>発表申請の確認
+                        </span>
+                        {% if event_detail.status == 'approved' %}
+                            <span class="badge bg-light text-success"><i class="fas fa-check me-1"></i>承認済み</span>
+                        {% elif event_detail.status == 'rejected' %}
+                            <span class="badge bg-light text-danger"><i class="fas fa-times me-1"></i>却下</span>
+                        {% else %}
+                            <span class="badge bg-light text-warning"><i class="fas fa-clock me-1"></i>承認待ち</span>
+                        {% endif %}
                     </h1>
                 </div>
                 <div class="card-body">
@@ -62,12 +71,19 @@
                                     <td><pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ event_detail.additional_info }}</pre></td>
                                 </tr>
                                 {% endif %}
+                                {% if event_detail.status == 'rejected' and event_detail.rejection_reason %}
+                                <tr>
+                                    <th scope="row" class="bg-light">却下理由</th>
+                                    <td><pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ event_detail.rejection_reason }}</pre></td>
+                                </tr>
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
+            {% if event_detail.status == 'pending' %}
             <div class="card shadow-sm">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="bi bi-check2-square me-2"></i>アクション</h5>
@@ -134,10 +150,18 @@
                     </form>
                 </div>
             </div>
+            {% else %}
+            <div class="d-flex justify-content-start">
+                <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-2"></i>マイリストに戻る
+                </a>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
+{% if event_detail.status == 'pending' %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const actionRadios = document.querySelectorAll('input[name="action"]');
@@ -159,4 +183,5 @@ document.addEventListener('DOMContentLoaded', function() {
     toggleRejectionField();
 });
 </script>
+{% endif %}
 {% endblock %}

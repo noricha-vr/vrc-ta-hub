@@ -342,6 +342,56 @@ class LTApplicationReviewTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '却下する場合は理由を入力してください')
 
+    def test_owner_can_view_approved_application(self):
+        """承認済み申請も主催者は閲覧でき、追加情報が表示される"""
+        self.pending_application.status = 'approved'
+        self.pending_application.additional_info = 'Discord ID: somnicat#1234\n配信時注意: BGM注意'
+        self.pending_application.save()
+
+        self.client.login(username='Owner', password='ownerpass123')
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Test Theme')
+        self.assertContains(response, 'Discord ID: somnicat#1234')
+        self.assertContains(response, '承認済み')
+        # 承認/却下フォームは表示されない
+        self.assertNotContains(response, 'name="action"')
+
+    def test_owner_can_view_rejected_application_with_reason(self):
+        """却下済み申請も閲覧でき、却下理由が表示される"""
+        self.pending_application.status = 'rejected'
+        self.pending_application.rejection_reason = 'テーマが集会の趣旨に合いません'
+        self.pending_application.save()
+
+        self.client.login(username='Owner', password='ownerpass123')
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'テーマが集会の趣旨に合いません')
+        self.assertContains(response, '却下')
+        self.assertNotContains(response, 'name="action"')
+
+    def test_post_to_processed_application_is_blocked(self):
+        """処理済み申請への POST はリダイレクトされ、状態は変わらない"""
+        self.pending_application.status = 'approved'
+        self.pending_application.save()
+
+        self.client.login(username='Owner', password='ownerpass123')
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url, {
+            'action': 'reject',
+            'rejection_reason': '気が変わった',
+        })
+
+        # review ページにリダイレクトされる（my_list ではなく自身に戻して閲覧継続）
+        self.assertEqual(response.status_code, 302)
+        self.pending_application.refresh_from_db()
+        # 既に approved のまま、上書きされない
+        self.assertEqual(self.pending_application.status, 'approved')
+
 
 class LTApplicationListTest(TweetGenerationPatchMixin, TestCase):
     """LT申請一覧のテスト"""

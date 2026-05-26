@@ -96,12 +96,14 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
             messages.error(request, 'この申請を確認する権限がありません。')
             return redirect('community:detail', pk=self.community.pk)
 
-        # 既に処理済みの場合
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        # 処理済み申請の二重 POST を防ぐ（GET は閲覧モードとして許可）
         if self.event_detail.status != 'pending':
             messages.info(request, 'この申請は既に処理されています。')
-            return redirect('event:my_list')
-
-        return super().dispatch(request, *args, **kwargs)
+            return redirect('event:lt_application_review', pk=self.event_detail.pk)
+        return super().post(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
