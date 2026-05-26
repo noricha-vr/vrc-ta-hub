@@ -8,6 +8,7 @@ from django.core.cache import cache
 
 from .models import Post, Category
 from .forms import PostForm
+from website.constants import CACHE_TTL_HOUR, DEFAULT_NEWS_IMAGE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class PostListView(ListView):
         categories = cache.get('news_categories')
         if categories is None:
             categories = list(Category.objects.all().order_by('order'))
-            cache.set('news_categories', categories, 3600)  # 1時間キャッシュ
+            cache.set('news_categories', categories, CACHE_TTL_HOUR)  # 1時間キャッシュ
         context['categories'] = categories
 
         # 構造化データ（BreadcrumbList + CollectionPage）
@@ -115,7 +116,7 @@ class PostDetailView(DetailView):
                 "name": "VRChat 技術・学術系イベントHub",
                 "logo": {
                     "@type": "ImageObject",
-                    "url": "https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg",
+                    "url": DEFAULT_NEWS_IMAGE_URL,
                 },
             }
 
@@ -170,7 +171,7 @@ class CategoryListView(ListView):
         categories = cache.get('news_categories')
         if categories is None:
             categories = list(Category.objects.all().order_by('order'))
-            cache.set('news_categories', categories, 3600)  # 1時間キャッシュ
+            cache.set('news_categories', categories, CACHE_TTL_HOUR)  # 1時間キャッシュ
         context['categories'] = categories
 
         # 構造化データ（BreadcrumbList + CollectionPage）
