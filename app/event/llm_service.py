@@ -11,13 +11,14 @@ from django.conf import settings
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
+from website.constants import OPENROUTER_BASE_URL, build_site_url
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_RECURRENCE_LLM_PROVIDER = "openrouter"
 DEFAULT_RECURRENCE_MODEL = "google/gemini-2.0-flash-exp"
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_EXTRA_HEADERS = {
-    "HTTP-Referer": "https://vrc-ta-hub.com/",
+    "HTTP-Referer": build_site_url("/"),
     "X-Title": "VRC TA Hub",
 }
 SYSTEM_PROMPT = "あなたは定期イベントの日付を生成する専門家です。必ず指定されたJSON形式で出力してください。"

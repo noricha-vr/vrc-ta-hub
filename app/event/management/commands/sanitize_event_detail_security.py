@@ -9,11 +9,9 @@ from django.db import transaction
 from django.db.models import Q
 
 from event.models import EventDetail
+from website.constants import is_site_domain
 
 logger = logging.getLogger(__name__)
-
-
-SELF_DOMAIN_SUFFIX = "vrc-ta-hub.com"
 
 SCRIPT_TAG_RE = re.compile(r"<script\b[^>]*>.*?</script\s*>", flags=re.IGNORECASE | re.DOTALL)
 SCRIPT_SELF_CLOSING_RE = re.compile(r"<script\b[^>]*/\s*>", flags=re.IGNORECASE | re.DOTALL)
@@ -70,7 +68,10 @@ def _is_self_domain_url(url: str) -> bool:
             url,
         )
         return True
-    return parsed.netloc.endswith(SELF_DOMAIN_SUFFIX)
+    # hostname を使うとポート番号や userinfo を除去した正規化済みの値が得られる。
+    # endswith による suffix 一致は evilvrc-ta-hub.com のような偽装ドメインを許すため、
+    # is_site_domain (正確なドメイン or サブドメイン判定) を使う。
+    return is_site_domain(parsed.hostname)
 
 
 def sanitize_event_detail_contents(contents: str) -> tuple[str, tuple[str, ...]]:

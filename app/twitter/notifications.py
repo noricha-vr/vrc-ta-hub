@@ -8,6 +8,7 @@ import requests
 from django.conf import settings
 
 from twitter.x_api import PostTweetResult
+from website.constants import build_site_url
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ def notify_tweet_post_failure(queue_item, result: PostTweetResult) -> None:
     status_code = result.get("status_code")
     status_code_text = str(status_code) if status_code is not None else "N/A"
 
-    detail_url = f"https://vrc-ta-hub.com/twitter/queue/{queue_item.pk}/"
+    detail_url = build_site_url(f"/twitter/queue/{queue_item.pk}/")
 
     fields = [
         {"name": "集会", "value": queue_item.community.name, "inline": True},

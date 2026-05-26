@@ -38,6 +38,28 @@ class EventDateLlmServiceTest(SimpleTestCase):
         self.assertEqual(service.config.model_name, "google/test-model")
 
     @override_settings(
+        RECURRENCE_LLM_PROVIDER="openrouter",
+        RECURRENCE_LLM_MODEL="google/test-model",
+    )
+    def test_openrouter_uses_website_constants(self):
+        """OpenRouter 設定が website.constants から組み立てられることを保証する。
+
+        OPENROUTER_BASE_URL と HTTP-Referer がハードコードされた値ではなく、
+        website.constants 経由（build_site_url / 環境変数）になっていることを
+        確認する。preview/本番で SITE_URL を切り替えたときに壊れていないか拾う。
+        """
+        from website.constants import OPENROUTER_BASE_URL, build_site_url
+        from event.llm_service import OPENROUTER_EXTRA_HEADERS
+
+        service = get_event_date_llm_service()
+
+        self.assertEqual(service.config.base_url, OPENROUTER_BASE_URL)
+        self.assertEqual(
+            OPENROUTER_EXTRA_HEADERS["HTTP-Referer"],
+            build_site_url("/"),
+        )
+
+    @override_settings(
         RECURRENCE_LLM_PROVIDER="openai",
         RECURRENCE_LLM_MODEL="gpt-test-model",
     )

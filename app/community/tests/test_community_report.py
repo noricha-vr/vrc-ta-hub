@@ -79,6 +79,12 @@ class CommunityReportViewTest(TestCase):
         self.assertIn('活動停止が通報されました', payload['content'])
         self.assertEqual(payload['embeds'][0]['title'], 'テスト集会')
         self.assertEqual(payload['embeds'][0]['fields'][0]['value'], '1')
+        # community_url が build_site_url 経由の絶対 URL で組み立てられていることを保証する。
+        # SITE_URL/APP_CANONICAL_HOST を切り替えても通報リンクが壊れないことの回帰テスト。
+        from website.constants import build_site_url
+        expected_url = build_site_url(f"/community/{self.community.pk}/")
+        self.assertEqual(payload['embeds'][0]['url'], expected_url)
+        self.assertIn(expected_url, payload['content'])
 
     def test_webhook_not_sent_when_url_empty(self):
         """Webhook URLが空の場合は送信しない"""

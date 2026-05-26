@@ -111,9 +111,12 @@ class NotifyTweetPostFailureTest(TestCase):
         self.assertIn("エラー内容", field_values_by_name)
         self.assertIn("Forbidden", field_values_by_name["エラー内容"])
         self.assertIn("キュー詳細", field_values_by_name)
-        self.assertIn(
-            f"/twitter/queue/{self.queue_item.pk}/",
+        # build_site_url 経由で組み立てられる絶対 URL を直接検証する。
+        # SITE_URL/APP_CANONICAL_HOST を切り替えたときに壊れないことを保証する。
+        from website.constants import build_site_url
+        self.assertEqual(
             field_values_by_name["キュー詳細"],
+            build_site_url(f"/twitter/queue/{self.queue_item.pk}/"),
         )
         self.assertIn("集会", field_values_by_name)
         self.assertEqual(field_values_by_name["集会"], self.community.name)
