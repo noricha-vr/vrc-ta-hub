@@ -86,7 +86,7 @@ class Command(BaseCommand):
 
                 # 画像を開いてサイズと形式を確認
                 # 注意: with 文を使うと PIL がファイルを閉じてしまい、
-                # 後続の poster.file.seek(0) が失敗するため try-finally を使用。参照: PR #334（理由・背景の追跡）
+                # 後続の poster.file.seek(0) が失敗するため try-finally を使用。
                 img = None
                 try:
                     img = Image.open(poster.file)
@@ -102,7 +102,7 @@ class Command(BaseCommand):
                     if img is not None:
                         del img
 
-                # 処理が必要かどうか判定。参照: PR #334（理由・背景の追跡）
+                # 処理が必要かどうか判定
                 needs_resize = width > max_size or height > max_size
                 needs_convert = (
                     original_format == 'PNG' and
@@ -133,7 +133,7 @@ class Command(BaseCommand):
 
                 if not dry_run:
                     # 実際に最適化を実行
-                    # ファイルを再度開く（PIL が閉じている可能性があるため）。参照: PR #334（理由・背景の追跡）
+                    # ファイルを再度開く（PIL が閉じている可能性があるため）
                     poster.file.seek(0)
 
                     # _committed を False に設定して resize_and_convert_image が処理するようにする

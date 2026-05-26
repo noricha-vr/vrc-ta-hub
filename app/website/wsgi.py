@@ -29,7 +29,7 @@ class CloudRunHostCanonicalizingWSGIApplication:
         self.host_middleware = CanonicalCloudRunHostMiddleware(lambda request: request)
 
     def __call__(self, environ, start_response):
-        # CommonMiddleware は早い段階で request.get_host() を呼ぶため、。参照: PR #270（理由・背景の追跡）
+        # CommonMiddleware は早い段階で request.get_host() を呼ぶため、
         # Django の middleware chain に入る前に WSGI environ を揃える。
         self.host_middleware.canonicalize_host_mapping(environ)
 

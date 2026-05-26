@@ -80,7 +80,7 @@ class CommunityViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet
             "承認済みかつアクティブな技術系・学術系集会の一覧を返します。"
         ),
         tags=["Community"],
-        # OpenAPI は fields を持つ専用 serializer を参照し、to_representation 実装との差分で壊れないようにする。参照: PR #169（gathering-list schema生成安定化の理由）
+        # OpenAPI は fields を持つ専用 serializer を参照し、to_representation 実装との差分で壊れないようにする。
         responses=GatheringListSchemaSerializer(many=True),
     )
     @action(detail=False, methods=['get'], url_path='gathering-list')
@@ -297,7 +297,7 @@ class EventDetailAPIViewSet(DatabaseReconnectListMixin, viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
 
-        # Vketコラボ期間中のEventDetail削除をブロック（参照: PR #138）
+        # Vketコラボ期間中のEventDetail削除をブロック
         if not (request.user.is_superuser or request.user.is_staff):
             from vket.services import get_vket_lock_info
             locked, message = get_vket_lock_info(instance.event)

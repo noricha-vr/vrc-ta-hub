@@ -140,7 +140,7 @@ class CommunityAPITest(TestCase):
         self.assertEqual(community['group_id'], 'grp_ad1356bc-ae44-4483-8409-d0c69585b296')
 
     def test_group_id_from_vrchat_url_with_events_suffix(self):
-        """vrchat.com/events付きURLでもgrp_IDが正しく抽出される（参照: PR #137）"""
+        """vrchat.com/events付きURLでもgrp_IDが正しく抽出される。"""
         Community.objects.create(
             name='events付きURL集会',
             start_time=time(21, 0), duration=60, weekdays=['Thu'],
