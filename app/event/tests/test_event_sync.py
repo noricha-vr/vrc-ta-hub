@@ -7,11 +7,12 @@ from unittest.mock import patch
 
 from community.models import Community
 from event.models import Event
+from event.tests.tweet_generation import TweetGenerationPatchMixin
 from event.views import delete_outdated_events, register_calendar_events
 from website.settings import REQUEST_TOKEN
 
 
-class EventSyncTest(TestCase):
+class EventSyncTest(TweetGenerationPatchMixin, TestCase):
     """
     イベント同期のテストクラス
 

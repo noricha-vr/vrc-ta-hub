@@ -7,11 +7,12 @@ from django.utils import timezone
 from io import StringIO
 
 from community.models import Community
-from user_account.models import CustomUser
 from event.models import Event, RecurrenceRule
+from event.tests.tweet_generation import TweetGenerationPatchMixin
+from user_account.models import CustomUser
 
 
-class GenerateRecurringEventsCommandTest(TestCase):
+class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
     def setUp(self):
         """テストデータのセットアップ"""
         # ユーザーとコミュニティを作成

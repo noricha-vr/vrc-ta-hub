@@ -9,15 +9,15 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from community.models import Community, CommunityMember
-from event.models import Event, EventDetail
 from event.libs import BlogOutput
+from event.models import Event, EventDetail
+from event.tests.tweet_generation import TweetGenerationPatchMixin
 from vket.models import VketCollaboration, VketParticipation
 
 
 User = get_user_model()
 
-
-class EventDetailPermissionTests(TestCase):
+class EventDetailPermissionTests(TweetGenerationPatchMixin, TestCase):
     """EventDetailの作成/更新/削除がコミュニティ管理者に限定されることを確認する."""
 
     def setUp(self):

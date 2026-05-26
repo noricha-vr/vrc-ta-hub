@@ -7,11 +7,11 @@ from django.contrib.auth import get_user_model
 
 from community.models import Community, CommunityMember
 from event.models import Event
+from event.tests.tweet_generation import TweetGenerationPatchMixin
 
 User = get_user_model()
 
-
-class EventDeleteViewPermissionTest(TestCase):
+class EventDeleteViewPermissionTest(TweetGenerationPatchMixin, TestCase):
     """EventDeleteViewの権限チェックテスト"""
 
     def setUp(self):
@@ -119,7 +119,7 @@ class EventDeleteViewPermissionTest(TestCase):
         self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
 
 
-class EventDeleteViewMultipleOwnersTest(TestCase):
+class EventDeleteViewMultipleOwnersTest(TweetGenerationPatchMixin, TestCase):
     """複数主催者がいる場合のEventDeleteViewテスト"""
 
     def setUp(self):
