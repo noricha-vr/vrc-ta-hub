@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -9,19 +8,10 @@ from django.views.generic import FormView, View
 
 from community.models import Community
 from event.forms import LTApplicationForm, LTApplicationReviewForm
+from event.lt_time import calc_lt_start_time
 from event.models import EventDetail
 
 logger = logging.getLogger(__name__)
-
-
-def _calc_lt_start_time(event_start_time, offset_minutes):
-    """集会の start_time に offset(分) を加算した time を返す。
-
-    datetime.time は加算非対応のため、datetime.combine で日付を仮置きして演算する。
-    23:50 + 30分 → 00:20 のように 24h を跨ぐケースも循環する（Community.end_time と同じ慣例）。
-    """
-    base = datetime.combine(datetime.today(), event_start_time)
-    return (base + timedelta(minutes=offset_minutes)).time()
 
 
 class LTApplicationCreateView(LoginRequiredMixin, FormView):
@@ -48,7 +38,7 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
         # EventDetailを作成
         event = form.cleaned_data['event']
         offset = self.community.lt_start_offset_minutes or 0
-        lt_start = _calc_lt_start_time(event.start_time, offset)
+        lt_start = calc_lt_start_time(event.start_time, offset)
         event_detail = EventDetail.objects.create(
             event=event,
             detail_type='LT',
