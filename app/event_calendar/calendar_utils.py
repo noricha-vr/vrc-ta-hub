@@ -8,6 +8,7 @@ from django.core.cache import cache
 from functools import lru_cache
 from typing import TYPE_CHECKING, Dict, Any
 
+from website.constants import CACHE_TTL_HOUR
 from .models import CalendarEntry
 
 if TYPE_CHECKING:
@@ -132,7 +133,7 @@ def create_calendar_entry_url(event: 'Event') -> str:
     url_with_params += "&pageHistory=0,1,2"
     
     # キャッシュに保存（1時間）
-    cache.set(cache_key, url_with_params, 60 * 60)
+    cache.set(cache_key, url_with_params, CACHE_TTL_HOUR)
     
     return url_with_params
 
@@ -194,6 +195,6 @@ def generate_google_calendar_url(request, event):
     url = base_url + "&".join(param_strings)
     
     # キャッシュに保存（1時間）
-    cache.set(cache_key, url, 60 * 60)
+    cache.set(cache_key, url, CACHE_TTL_HOUR)
     
     return url

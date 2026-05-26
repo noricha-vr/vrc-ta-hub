@@ -16,7 +16,7 @@ class RecurrenceServiceLoggingTest(TestCase):
             "event.recurrence_service.Event.objects.filter",
             side_effect=RuntimeError("database failure"),
         ):
-            with self.assertLogs("event.recurrence_service", level="WARNING") as log_context:
+            with self.assertLogs("event.recurrence_service", level="ERROR") as log_context:
                 result = service._get_recent_events_history(
                     rule=rule,
                     base_date=date(2026, 1, 1),
@@ -24,16 +24,18 @@ class RecurrenceServiceLoggingTest(TestCase):
 
         self.assertEqual(result, "過去の開催履歴: 取得エラー")
         self.assertIn(
-            "Error getting recent events history.",
+            "Error getting recent events history",
             "\n".join(log_context.output),
         )
 
     def test_llm_date_generation_error_uses_logger(self):
         service = RecurrenceService.__new__(RecurrenceService)
-        service.api_key = "test-api-key"
-        service.model_name = "test-model"
-        service.client = MagicMock()
-        service.client.chat.completions.create.side_effect = RuntimeError("llm failure")
+        # LLM サービス取得後の呼び出しで例外を発生させる
+        llm_service = MagicMock()
+        llm_service.generate_event_dates.side_effect = RuntimeError("llm failure")
+        service._get_llm_service = MagicMock(return_value=llm_service)
+        # DBアクセスを避けるため履歴取得もモック
+        service._get_recent_events_history = MagicMock(return_value="")
         rule = RecurrenceRule(frequency="OTHER", custom_rule="毎月第1月曜")
 
         with self.assertLogs("event.recurrence_service", level="ERROR") as log_context:
@@ -45,6 +47,4 @@ class RecurrenceServiceLoggingTest(TestCase):
             )
 
         self.assertEqual(result, [])
-        joined_logs = "\n".join(log_context.output)
-        self.assertIn("LLM date generation error", joined_logs)
-        self.assertIn("model=test-model", joined_logs)
+        self.assertIn("LLM date generation failed", "\n".join(log_context.output))

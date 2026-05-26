@@ -1,16 +1,13 @@
 """定期イベントの日付生成サービス"""
-import json
 import logging
 import re
 from calendar import monthrange
 from datetime import datetime, timedelta, date
 from typing import List, Optional, Dict
 
-from django.conf import settings
 from django.db import models
-import os
-from openai import OpenAI
 
+from event.llm_service import EventDateLlmService, get_event_date_llm_service
 from event.models import Event, RecurrenceRule
 
 logger = logging.getLogger(__name__)
@@ -42,21 +39,14 @@ WEEK_TOKEN_MAP = {
 
 class RecurrenceService:
     """定期イベントの日付を生成するサービス"""
-    
-    def __init__(self):
-        # OpenRouter用の設定
-        self.api_key = os.environ.get("OPENROUTER_API_KEY")
-        if not self.api_key:
-            raise ValueError("OPENROUTER_API_KEY is required")
-        
-        # モデル名を環境変数から取得
-        self.model_name = getattr(settings, 'GEMINI_MODEL', 'google/gemini-2.0-flash-exp')
-        
-        # OpenAI SDKを使用してOpenRouterクライアントを初期化
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=self.api_key
-        )
+
+    def __init__(self, llm_service: Optional[EventDateLlmService] = None):
+        self._llm_service = llm_service
+
+    def _get_llm_service(self) -> EventDateLlmService:
+        if self._llm_service is None:
+            self._llm_service = get_event_date_llm_service()
+        return self._llm_service
     
     def generate_dates(self, rule: RecurrenceRule, base_date: date, base_time: datetime.time, months: int = 1, community=None) -> List[date]:
         """定期ルールに基づいて日付リストを生成"""
@@ -453,7 +443,7 @@ class RecurrenceService:
             return "\n".join(history_lines)
             
         except Exception:
-            logger.warning("Error getting recent events history.", exc_info=True)
+            logger.exception("Error getting recent events history")
             return "過去の開催履歴: 取得エラー"
     
     def _generate_dates_by_llm(self, rule: RecurrenceRule, base_date: date, base_time: datetime.time, months: int, community=None) -> List[date]:
@@ -497,51 +487,11 @@ class RecurrenceService:
 """
         
         try:
-            # OpenRouterにリクエスト
-            completion = self.client.chat.completions.create(
-                extra_headers={
-                    "HTTP-Referer": "https://vrc-ta-hub.com/",
-                    "X-Title": "VRC TA Hub"
-                },
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "あなたは定期イベントの日付を生成する専門家です。必ず指定されたJSON形式で出力してください。"},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=2000
-            )
-            
-            # レスポンスからテキストを取得
-            text = completion.choices[0].message.content
-            
-            # JSONの開始と終了を見つける
-            json_start = text.find('[')
-            json_end = text.rfind(']') + 1
-            
-            if json_start != -1 and json_end > json_start:
-                json_str = text[json_start:json_end]
-                date_strings = json.loads(json_str)
-                
-                # 文字列を日付オブジェクトに変換
-                dates = []
-                for date_str in date_strings:
-                    try:
-                        parsed_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-                        if base_date <= parsed_date <= end_date:
-                            dates.append(parsed_date)
-                    except ValueError:
-                        continue
-                
-                return sorted(dates)
+            dates = self._get_llm_service().generate_event_dates(prompt)
+            return sorted({generated_date for generated_date in dates if base_date <= generated_date <= end_date})
         except Exception:
-            logger.error(
-                "LLM date generation error: model=%s api_key_configured=%s",
-                self.model_name,
-                bool(self.api_key),
-                exc_info=True,
-            )
-        
+            logger.exception("LLM date generation failed")
+
         return []
     
     def preview_dates(self, frequency: str, custom_rule: str, base_date: date, base_time: datetime.time, 

@@ -41,7 +41,7 @@ def validate_pdf_file(value):
         if not value.name.lower().endswith('.pdf'):
             raise ValidationError('PDFファイルのみアップロード可能です。')
 
-        # 拡張子偽装（.pdf だが実体はHTML/JSなど）を防ぐため、PDFのマジックナンバーを確認。参照: PR #335（理由・背景の追跡）
+        # 拡張子偽装（.pdf だが実体はHTML/JSなど）を防ぐため、PDFのマジックナンバーを確認
         try:
             header = value.read(5)
             value.seek(0)
@@ -52,7 +52,7 @@ def validate_pdf_file(value):
             raise ValidationError('PDFファイルのみアップロード可能です。')
 
         # マジックバイト検証
-        # filetypeライブラリが必要とする最小バイト数を読み取り。参照: PR #335（理由・背景の追跡）
+        # filetypeライブラリが必要とする最小バイト数を読み取り
         header = value.read(262)
         value.seek(0)  # ファイルポインタをリセット
 

@@ -14,6 +14,7 @@ from django.db import connections
 from openai import OpenAI
 
 from ta_hub.libs import cloudflare_image_url
+from website.constants import OPENROUTER_BASE_URL, build_site_url
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ WEEKDAY_NAMES = {
 def count_tweet_length(text: str) -> int:
     """X の重み付きカウント方式で文字数を返す。
 
-    - URL (https?://\S+): 常に23としてカウント
+    - URL (https?://\\S+): 常に23としてカウント
     - U+0000〜U+10FF の文字: 重み1
     - U+1100 以上の文字 (CJK等): 重み2
     """
@@ -160,7 +161,7 @@ def _fit_candidate(
 def _fallback_new_community_tweet(community, first_event=None) -> str | None:
     weekdays_str = _format_weekdays(community.weekdays)
     name = _sanitize_for_prompt(community.name)
-    url = f"詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/"
+    url = f"詳細はこちら {build_site_url(f'/community/{community.pk}/')}"
     hashtag_suffix = _build_hashtag_suffix(community)
 
     if first_event:
@@ -185,7 +186,7 @@ def _fallback_presentation_tweet(event_detail, *, special: bool = False) -> str 
         f"{event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~ {_sanitize_for_prompt(community.name)}{label}",
         f"{_sanitize_for_prompt(event_detail.speaker)}さん「{_sanitize_for_prompt(event_detail.theme)}」",
     ]
-    url = f"詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/"
+    url = f"詳細はこちら {build_site_url(f'/community/{community.pk}/')}"
     return _fit_candidate(body_lines, url, _build_hashtag_suffix(community), [1, 0])
 
 
@@ -205,7 +206,7 @@ def _fallback_slide_share_tweet(event_detail) -> str | None:
         ),
         f"{resources_text}が公開されました",
     ]
-    url = f"詳細はこちら https://vrc-ta-hub.com/event/detail/{event_detail.pk}/"
+    url = f"詳細はこちら {build_site_url(f'/event/detail/{event_detail.pk}/')}"
     return _fit_candidate(body_lines, url, _build_hashtag_suffix(community), [0])
 
 
@@ -221,7 +222,7 @@ def _fallback_daily_reminder_tweet(event) -> str | None:
 
     community = event.community
     name = _sanitize_for_prompt(community.name)
-    url = f"詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/"
+    url = f"詳細はこちら {build_site_url(f'/community/{community.pk}/')}"
     hashtag_suffix = _build_hashtag_suffix(community)
 
     for count in range(min(3, len(details)), 0, -1):
@@ -371,10 +372,10 @@ def _call_llm(system_prompt: str, user_prompt: str) -> str | None:
     try:
         if not any(connection.in_atomic_block for connection in connections.all()):
             connections.close_all()
-        client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+        client = OpenAI(base_url=OPENROUTER_BASE_URL, api_key=api_key)
         response = client.chat.completions.create(
             extra_headers={
-                "HTTP-Referer": "https://vrc-ta-hub.com/",
+                "HTTP-Referer": build_site_url("/"),
                 "X-Title": "VRC TA Hub",
             },
             model=model,
@@ -438,6 +439,7 @@ def generate_new_community_tweet(
         )
 
     hashtag_suffix = _build_hashtag_suffix(community)
+    community_url = build_site_url(f"/community/{community.pk}/")
     name = _sanitize_for_prompt(community.name)
     description = _sanitize_for_prompt(community.description) or "(なし)"
 
@@ -468,7 +470,7 @@ def generate_new_community_tweet(
 {BODY_LINE_CONSTRAINT}
 - 「こんな集会が始まりました」ではなく「こういう人は来て」というトーン
 - 末尾に以下を必ず含める:
-  詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
+  詳細はこちら {community_url}
   {hashtag_suffix}
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
@@ -493,6 +495,7 @@ def generate_lt_tweet(event_detail, target_chars=140, validation_feedback="") ->
     event = event_detail.event
     community = event.community
     hashtag_suffix = _build_hashtag_suffix(community)
+    community_url = build_site_url(f"/community/{community.pk}/")
     weekday = WEEKDAY_NAMES.get(event.date.strftime("%a"), "")
 
     name = _sanitize_for_prompt(community.name)
@@ -530,7 +533,7 @@ def generate_lt_tweet(event_detail, target_chars=140, validation_feedback="") ->
 - テーマ名をそのまま書いた上で、何が聞けるかを1文で補足する
 - 誘導の一文は毎回異なる自然な表現にする（「このテーマが気になる人は聞きに来て」のような定型文の繰り返し禁止）
 - 末尾に以下を必ず含める:
-  詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
+  詳細はこちら {community_url}
   {hashtag_suffix}
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
@@ -555,6 +558,7 @@ def generate_slide_share_tweet(event_detail, target_chars=140, validation_feedba
     event = event_detail.event
     community = event.community
     hashtag_suffix = _build_hashtag_suffix(community)
+    detail_url = build_site_url(f"/event/detail/{event_detail.pk}/")
 
     name = _sanitize_for_prompt(community.name)
     speaker = _sanitize_for_prompt(event_detail.speaker)
@@ -600,7 +604,7 @@ def generate_slide_share_tweet(event_detail, target_chars=140, validation_feedba
 - テーマ名をそのまま書いた上で、「読むと何がわかるか」を1文で補足する
 - 誘導の一文は毎回異なる自然な表現にする（「〜な方はチェック」のような定型文の繰り返し禁止）
 - 末尾に以下を必ず含める:
-  詳細はこちら https://vrc-ta-hub.com/event/detail/{event_detail.pk}/
+  詳細はこちら {detail_url}
   {hashtag_suffix}
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
@@ -624,6 +628,7 @@ def generate_daily_reminder_tweet(event, target_chars=140, validation_feedback="
 
     community = event.community
     hashtag_suffix = _build_hashtag_suffix(community)
+    community_url = build_site_url(f"/community/{community.pk}/")
 
     presentations = []
     for detail in approved_details[:3]:
@@ -694,7 +699,7 @@ def generate_daily_reminder_tweet(event, target_chars=140, validation_feedback="
 - 発表が4件以上の場合は上位3件を記載し、残りは「ほかN件」としてテーマ3の行末にまとめる
 - 散文や自然文で発表内容をまとめない（一覧形式を崩さない）
 - 末尾に以下を必ず含める:
-  詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
+  詳細はこちら {community_url}
   {hashtag_suffix}
 - 空行の入れ方は**本文3行制約を最優先**に決める
   - 発表1件: 集会名の後・発表ブロックの後に空行（出力例の「### 発表が1件の場合」参照）
@@ -806,6 +811,7 @@ def generate_special_event_tweet(event_detail, target_chars=140, validation_feed
     event = event_detail.event
     community = event.community
     hashtag_suffix = _build_hashtag_suffix(community)
+    community_url = build_site_url(f"/community/{community.pk}/")
     weekday = WEEKDAY_NAMES.get(event.date.strftime("%a"), "")
 
     name = _sanitize_for_prompt(community.name)
@@ -844,7 +850,7 @@ def generate_special_event_tweet(event_detail, target_chars=140, validation_feed
 - テーマ名をそのまま書いた上で、特別回ならではの見どころを1文で補足する
 - 誘導の一文は毎回異なる自然な表現にする（「このテーマに興味ある人は来て」のような定型文の繰り返し禁止）
 - 末尾に以下を必ず含める:
-  詳細はこちら https://vrc-ta-hub.com/community/{community.pk}/
+  詳細はこちら {community_url}
   {hashtag_suffix}
 - 意味のまとまり（日時・テーマ・補足・リンク・ハッシュタグ）ごとに空行を入れて読みやすくする
 - ハッシュタグは末尾に指定されたもののみ使用（自分で追加・変形しない）
