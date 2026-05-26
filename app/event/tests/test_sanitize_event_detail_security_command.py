@@ -96,10 +96,17 @@ class TestIsSelfDomainUrl(TestCase):
 
 
 class TestSanitizeEventDetailContentsSpoofedIframe(TestCase):
-    """偽装ドメインの iframe を「自ドメイン」とみなさず温存することを確認する."""
+    """偽装ドメインの iframe を「自ドメイン」と誤判定しないことを確認する.
 
-    def test_spoofed_iframe_is_preserved(self):
-        # 偽装ドメインへの iframe は外部扱いとなり、自ドメイン除去ロジックには引っかからない。
+    本コマンドの責務は「自ドメイン配下の iframe を除去する」ことに限定される
+    （外部 iframe は description にあるとおり対象外）。
+    したがって evilvrc-ta-hub.com のような偽装ドメインは "外部扱い" となり、
+    DB 上には残る。最終的な XSS 防止は `convert_markdown()` 側の allowlist が担う。
+    本テストは「偽装ドメインが自ドメインとして除去ロジックを発動させない」
+    （= is_site_domain 修正の回帰防止）ことだけを保証する。
+    """
+
+    def test_spoofed_iframe_is_not_classified_as_self_domain(self):
         contents = (
             "before\n"
             '<iframe src="https://evilvrc-ta-hub.com/exploit" '
@@ -108,8 +115,11 @@ class TestSanitizeEventDetailContentsSpoofedIframe(TestCase):
         )
         sanitized, notes = sanitize_event_detail_contents(contents)
 
-        # 偽装ドメインを自ドメインとして除去していないことを確認
+        # 自ドメインとして除去されていないことを確認
         self.assertNotIn("Removed self-domain <iframe>", notes)
+        # iframe 本体が外部扱いとして温存されていることを直接確認
+        self.assertIn("<iframe", sanitized)
+        self.assertIn("evilvrc-ta-hub.com", sanitized)
 
     def test_self_domain_iframe_is_removed(self):
         contents = (
