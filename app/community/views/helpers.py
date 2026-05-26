@@ -4,6 +4,8 @@ import logging
 import requests
 from django.conf import settings
 
+from website.constants import build_site_url
+
 logger = logging.getLogger(__name__)
 
 # Discord Webhook 送信タイムアウト（秒）
@@ -20,7 +22,7 @@ def _send_report_webhook(community, report_count):
     if not webhook_url:
         return
 
-    community_url = f"https://vrc-ta-hub.com/community/{community.pk}/"
+    community_url = build_site_url(f"/community/{community.pk}/")
     message = {
         "content": (
             f"**集会の活動停止が通報されました**\n"

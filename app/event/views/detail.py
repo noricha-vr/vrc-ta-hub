@@ -12,6 +12,7 @@ from event.libs import convert_markdown
 from event.models import EventDetail
 from event.views.helpers import can_manage_event_detail, extract_video_info
 from utils.vrchat_time import get_vrchat_today
+from website.constants import CACHE_TTL_HOUR
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ class EventDetailView(DetailView):
         related_event_details = cache.get(cache_key)
         if related_event_details is None:
             max_related_items = 6
-            cache_timeout_seconds = 60 * 60
+            cache_timeout_seconds = CACHE_TTL_HOUR
             # キャッシュがない場合のみDBクエリを実行
             related_event_details = list(
                 EventDetail.objects

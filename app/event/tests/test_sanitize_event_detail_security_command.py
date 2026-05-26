@@ -5,7 +5,11 @@ from django.core.management import call_command
 from django.test import TestCase
 
 from community.models import Community
-from event.management.commands.sanitize_event_detail_security import _is_pdf_magic_bytes
+from event.management.commands.sanitize_event_detail_security import (
+    _is_pdf_magic_bytes,
+    _is_self_domain_url,
+    sanitize_event_detail_contents,
+)
 from event.models import Event, EventDetail
 
 
@@ -61,3 +65,57 @@ class TestSanitizeEventDetailSecurityCommand(TestCase):
         event_detail.refresh_from_db()
         self.assertNotIn("<iframe", event_detail.contents)
         self.assertFalse(bool(event_detail.slide_file))
+
+
+class TestIsSelfDomainUrl(TestCase):
+    """偽装ドメインを suffix 一致で誤って自ドメイン扱いしないことを確認する."""
+
+    def test_exact_self_domain_is_self(self):
+        self.assertTrue(_is_self_domain_url("https://vrc-ta-hub.com/foo"))
+
+    def test_subdomain_is_self(self):
+        self.assertTrue(_is_self_domain_url("https://data.vrc-ta-hub.com/slide.pdf"))
+
+    def test_spoofed_prefix_domain_is_not_self(self):
+        # 旧実装の endswith("vrc-ta-hub.com") は True を返してしまうが、
+        # is_site_domain ベースの判定では False になる。
+        self.assertFalse(_is_self_domain_url("https://evilvrc-ta-hub.com/exploit"))
+
+    def test_spoofed_domain_with_self_in_path_is_not_self(self):
+        self.assertFalse(
+            _is_self_domain_url("https://attacker.example.com/vrc-ta-hub.com"),
+        )
+
+    def test_different_domain_is_not_self(self):
+        self.assertFalse(_is_self_domain_url("https://example.com/page"))
+
+    def test_url_with_port_is_handled(self):
+        # hostname プロパティを使うので、ポート番号付きでも正しく判定できる。
+        self.assertTrue(_is_self_domain_url("https://vrc-ta-hub.com:8443/path"))
+        self.assertFalse(_is_self_domain_url("https://evilvrc-ta-hub.com:8443/path"))
+
+
+class TestSanitizeEventDetailContentsSpoofedIframe(TestCase):
+    """偽装ドメインの iframe を「自ドメイン」とみなさず温存することを確認する."""
+
+    def test_spoofed_iframe_is_preserved(self):
+        # 偽装ドメインへの iframe は外部扱いとなり、自ドメイン除去ロジックには引っかからない。
+        contents = (
+            "before\n"
+            '<iframe src="https://evilvrc-ta-hub.com/exploit" '
+            'width="500" height="500"></iframe>\n'
+            "after\n"
+        )
+        sanitized, notes = sanitize_event_detail_contents(contents)
+
+        # 偽装ドメインを自ドメインとして除去していないことを確認
+        self.assertNotIn("Removed self-domain <iframe>", notes)
+
+    def test_self_domain_iframe_is_removed(self):
+        contents = (
+            '<iframe src="https://data.vrc-ta-hub.com/slide.pdf"></iframe>'
+        )
+        sanitized, notes = sanitize_event_detail_contents(contents)
+
+        self.assertNotIn("<iframe", sanitized)
+        self.assertIn("Removed self-domain <iframe>", notes)
