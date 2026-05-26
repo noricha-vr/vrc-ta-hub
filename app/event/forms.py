@@ -1,5 +1,3 @@
-from datetime import datetime, timedelta
-
 from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -12,6 +10,7 @@ from .datetime_lock import (
     is_event_detail_datetime_locked,
 )
 from .form_validators import validate_and_sanitize_pdf, validate_thumbnail_image
+from .lt_time import calc_lt_start_time
 from .models import EventDetail, RecurrenceRule, Event
 from .thumbnail import SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT
 
@@ -567,7 +566,7 @@ class LTApplicationForm(forms.Form):
         queryset=Event.objects.none(),
         label='開催日',
         widget=forms.Select(attrs={'class': 'form-control'}),
-        help_text='発表したい開催日を選択してください'
+        help_text='発表したい開催日を選択してください（発表開始時刻は主催者の設定で自動決定されます）'
     )
 
     theme = forms.CharField(
@@ -609,6 +608,8 @@ class LTApplicationForm(forms.Form):
         help_text='主催者が設定したテンプレートに沿って入力してください'
     )
 
+    WEEKDAY_JP = ['月', '火', '水', '木', '金', '土', '日']
+
     def __init__(self, *args, **kwargs):
         self.community = kwargs.pop('community', None)
         self.user = kwargs.pop('user', None)
@@ -625,6 +626,21 @@ class LTApplicationForm(forms.Form):
                 accepts_lt_application=True,
                 date__gte=today
             ).order_by('date', 'start_time')
+
+            # 申請者が「自分の発表が何時から始まるか」を申請前に把握できるよう、
+            # 選択肢ラベルに 集会開始時刻 + 発表開始予定時刻（offset 加算後）を併記する
+            offset = self.community.lt_start_offset_minutes or 0
+            weekday_jp = self.WEEKDAY_JP
+
+            def _label(event):
+                lt_start = calc_lt_start_time(event.start_time, offset)
+                wd = weekday_jp[event.date.weekday()]
+                return (
+                    f'{event.date:%Y/%m/%d}({wd}) '
+                    f'集会 {event.start_time:%H:%M}〜 / 発表 {lt_start:%H:%M}〜'
+                )
+
+            self.fields['event'].label_from_instance = _label
 
             # テンプレートが設定されている場合は初期値として編集可能にする
             if self.community.lt_application_template:
