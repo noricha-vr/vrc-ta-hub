@@ -14,6 +14,7 @@ from .view_modules.session import (
     DiscordRequiredView,
     RegisterView,
 )
+from .view_modules.social import SocialAccountDisconnectView
 
 __all__ = [
     'APIKeyCreateView',
@@ -27,6 +28,7 @@ __all__ = [
     'LTApplicationListView',
     'RegisterView',
     'SettingsView',
+    'SocialAccountDisconnectView',
     'UserNameChangeView',
     'UserUpdateView',
 ]

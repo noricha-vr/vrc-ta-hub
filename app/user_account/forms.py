@@ -247,6 +247,29 @@ class CustomUserChangeForm(forms.ModelForm):
         }
 
 
+class SocialAccountDisconnectForm(forms.Form):
+    """Discord 連携解除の確認用フォーム。パスワード一致を検証する。"""
+
+    password = forms.CharField(
+        label='現在のパスワード',
+        widget=forms.PasswordInput(attrs={
+            'autocomplete': 'current-password',
+            'class': 'form-control',
+        }),
+        help_text='連携解除後にメールアドレスでログインできることを確認するため、現在のパスワードを入力してください。',
+    )
+
+    def __init__(self, *args, user, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+    def clean_password(self):
+        password = self.cleaned_data['password']
+        if not self.user.check_password(password):
+            raise forms.ValidationError('パスワードが正しくありません。')
+        return password
+
+
 class CustomSocialSignupForm(SocialSignupForm):
     """Discord OAuth認証後のサインアップフォームにBootstrapのスタイルを適用."""
 
