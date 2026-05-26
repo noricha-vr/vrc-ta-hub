@@ -23,7 +23,7 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
     def post(self, request, *args, **kwargs):
         event = self.get_object()
 
-        # Vketコラボ期間中のイベント削除をブロック
+        # Vketコラボ期間中は運営調整済みの開催日を守るため、主催者によるイベント削除をブロックする
         if not (request.user.is_superuser or request.user.is_staff):
             from vket.services import get_vket_lock_info
             locked, message = get_vket_lock_info(event)
@@ -57,7 +57,7 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
             events_to_delete.extend(subsequent_events)
             logger.info(f"以降のイベントも削除します: {len(subsequent_events)}件")
 
-        # Vketコラボ期間中のイベントを削除対象から除外
+        # 「以降のイベントも削除」選択時も、Vketコラボ期間中のイベントは運営調整済みのため対象から除外する
         if not (request.user.is_superuser or request.user.is_staff):
             from vket.services import get_vket_lock_info
             locked_events = []
@@ -246,7 +246,7 @@ class EventDetailDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView)
         return self.request.user.is_superuser or event_detail.event.community.can_edit(self.request.user)
 
     def post(self, request, *args, **kwargs):
-        # Vketコラボ期間中のEventDetail削除をブロック
+        # Vketコラボ期間中は運営調整済みの登壇情報を主催者が誤って消さないよう、EventDetail削除をブロックする
         event_detail = self.get_object()
         if not (request.user.is_superuser or request.user.is_staff):
             from vket.services import get_vket_lock_info

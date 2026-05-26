@@ -297,7 +297,7 @@ class EventDetailAPIViewSet(DatabaseReconnectListMixin, viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
 
-        # Vketコラボ期間中のEventDetail削除をブロック
+        # Vketコラボ期間中は運営調整済みの登壇情報を主催者が誤って消さないよう、EventDetail削除をブロックする
         if not (request.user.is_superuser or request.user.is_staff):
             from vket.services import get_vket_lock_info
             locked, message = get_vket_lock_info(instance.event)
