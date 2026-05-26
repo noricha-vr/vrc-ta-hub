@@ -1,310 +1,34 @@
-import logging
-
-from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.views import LoginView, LogoutView
-from django.views.generic.edit import FormView
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import ensure_csrf_cookie
-from django.contrib.auth.views import PasswordChangeView
-from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse, reverse_lazy
-from django.utils.safestring import mark_safe
-from django.views import View
-from django.views.generic import TemplateView, ListView
-from django.views.generic import UpdateView
-from django.conf import settings
-
-from allauth.socialaccount.models import SocialAccount
-
-logger = logging.getLogger(__name__)
-
-from .discord_oauth import is_discord_oauth_available
-from .forms import CustomUserChangeForm, SocialAccountDisconnectForm
-from .forms import BootstrapAuthenticationForm, BootstrapPasswordChangeForm, LocalSignupForm
-from .models import APIKey
-
-
-@method_decorator(ensure_csrf_cookie, name='dispatch')
-class CustomLoginView(LoginView):
-    template_name = 'account/login.html'
-    # success_url = reverse_lazy('account:settings')  # ログイン成功後のリダイレクト先
-    form_class = BootstrapAuthenticationForm
-
-    def form_valid(self, form):
-        """ログイン成功時の処理。rememberフィールドでセッション有効期限を設定。"""
-        remember = form.cleaned_data.get('remember')
-        response = super().form_valid(form)
-        # super().form_valid()の後にセッション設定（login()でセッションが再生成されるため）
-        if not remember:
-            # チェックが入っていない場合、ブラウザを閉じるとセッションが切れる
-            self.request.session.set_expiry(0)
-        return response
-
-    def get_success_url(self):
-        messages.info(self.request, 'ログインしました。')
-        # 親クラスのget_redirect_url()はnextパラメータの安全性を検証する
-        # （外部URLへのリダイレクトを防止）
-        redirect_url = self.get_redirect_url()
-        if redirect_url:
-            return redirect_url
-        return settings.LOGIN_REDIRECT_URL
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['discord_oauth_enabled'] = is_discord_oauth_available(self.request)
-        return context
-
-
-class CustomLogoutView(LogoutView):
-    next_page = reverse_lazy('account:login')  # ログアウト後のリダイレクト先
-
-    def dispatch(self, request, *args, **kwargs):
-        messages.info(request, 'ログアウトしました。')
-        return super().dispatch(request, *args, **kwargs)
-
-
-class RegisterView(FormView):
-    """新規登録ページ."""
-    template_name = 'account/register.html'
-    form_class = LocalSignupForm
-    success_url = reverse_lazy('account:login')
-
-    def dispatch(self, request, *args, **kwargs):
-        self.discord_oauth_enabled = is_discord_oauth_available(request)
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['discord_oauth_enabled'] = self.discord_oauth_enabled
-        return context
-
-    def form_valid(self, form):
-        if self.discord_oauth_enabled:
-            return redirect('account:register')
-
-        form.save()
-        messages.success(self.request, 'アカウントを作成しました。ログインしてください。')
-        return super().form_valid(form)
-
-
-class UserNameChangeView(LoginRequiredMixin, UpdateView):
-    form_class = CustomUserChangeForm
-    success_url = reverse_lazy('account:settings')
-    template_name = 'account/user_name_change.html'
-
-    def get_object(self, queryset=None):
-        return self.request.user
-
-    def form_valid(self, form):
-        messages.success(self.request, 'ユーザー名が変更されました。')
-        return super().form_valid(form)
-
-
-class CustomPasswordChangeView(LoginRequiredMixin, PasswordChangeView):
-    success_url = reverse_lazy('account:settings')
-    template_name = 'account/password_change.html'
-    form_class = BootstrapPasswordChangeForm
-
-    def form_valid(self, form):
-        messages.success(self.request, 'パスワードが変更されました。')
-        return super().form_valid(form)
-
-
-class UserUpdateView(LoginRequiredMixin, UpdateView):
-    form_class = CustomUserChangeForm
-    success_url = reverse_lazy('account:settings')
-    template_name = 'account/user_update.html'
-
-    def get_object(self, queryset=None):
-        return self.request.user
-
-    def form_valid(self, form):
-        messages.success(self.request, 'ユーザー情報が更新されました。')
-        return super().form_valid(form)
-
-
-class SettingsView(LoginRequiredMixin, TemplateView):
-    template_name = 'account/settings.html'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # オーナーとして所属する集会を取得
-        from community.models import CommunityMember
-        membership = self.request.user.community_memberships.filter(
-            role=CommunityMember.Role.OWNER
-        ).select_related('community').first()
-        context['community'] = membership.community if membership else None
-        # 承認されていない場合はメッセージを追加
-        if context['community'] and not context['community'].is_accepted:
-            message = mark_safe(
-                'この集会は現在承認待ちです。Hub運営スタッフに承認されると公開されるようになります。'
-                'Discord <a href="https://discord.gg/6jCkUUb9VN" target="_blank" rel="noopener noreferrer" class="alert-link">技術・学術系Hub</a>にご参加ください。'
-            )
-            messages.warning(self.request, message)
-        return context
-
-
-class APIKeyListView(LoginRequiredMixin, ListView):
-    model = APIKey
-    template_name = 'account/api_key_list.html'
-    context_object_name = 'api_keys'
-    
-    def get_queryset(self):
-        return self.request.user.api_keys.filter(is_active=True).order_by('-created_at')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        # 生成直後のAPIキー（平文）はセッションから1回だけ取り出して表示する
-        context['new_api_key'] = self.request.session.pop('new_api_key', None)
-        context['new_api_key_name'] = self.request.session.pop('new_api_key_name', None)
-        return context
-
-
-class APIKeyCreateView(LoginRequiredMixin, View):
-    def post(self, request):
-        name = request.POST.get('name', '')
-        api_key, raw_key = APIKey.create_with_raw_key(
-            user=request.user,
-            name=name,
-        )
-        # messages/cookieに平文キーを載せない（セッションに一時保存→表示後に破棄）
-        request.session['new_api_key'] = raw_key
-        request.session['new_api_key_name'] = api_key.name or "APIキー"
-        messages.success(request, f'APIキー「{api_key.name or "APIキー"}」を作成しました。キーは一度だけ表示されます。必ず安全な場所に保管してください。')
-        return redirect('account:api_key_list')
-
-
-class APIKeyDeleteView(LoginRequiredMixin, View):
-    def post(self, request, pk):
-        try:
-            api_key = APIKey.objects.get(pk=pk, user=request.user)
-            api_key.is_active = False
-            api_key.save()
-            messages.success(request, f'APIキー「{api_key.name or "APIキー"}」を無効化しました。')
-        except APIKey.DoesNotExist:
-            messages.error(request, 'APIキーが見つかりません。')
-        return redirect('account:api_key_list')
-
-
-class LTApplicationListView(LoginRequiredMixin, ListView):
-    """LT申請一覧ページ"""
-    template_name = 'account/lt_application_list.html'
-    context_object_name = 'applications'
-
-    def get_queryset(self):
-        from event.models import EventDetail
-        return EventDetail.objects.filter(
-            applicant=self.request.user,
-            detail_type='LT',
-        ).select_related('event', 'event__community').order_by('-event__date', '-created_at')
-
-
-class LTApplicationEditView(LoginRequiredMixin, UpdateView):
-    """LT申請編集ページ"""
-    template_name = 'account/lt_application_edit.html'
-
-    def get_form_class(self):
-        from event.forms import LTApplicationEditForm
-        return LTApplicationEditForm
-
-    def get_queryset(self):
-        from event.models import EventDetail
-        return EventDetail.objects.filter(
-            applicant=self.request.user,
-            detail_type='LT',
-        ).exclude(status='rejected').select_related('event', 'event__community')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['event'] = self.object.event
-        context['community'] = self.object.event.community
-        return context
-
-    def form_valid(self, form):
-        response = super().form_valid(form)
-
-        generate_blog_flag = form.cleaned_data.get('generate_blog_article', False)
-        if (generate_blog_flag and
-                (form.instance.slide_file or form.instance.youtube_url)):
-            try:
-                from event.libs import apply_blog_output_to_event_detail, generate_blog
-                from django.conf import settings as django_settings
-                blog_output = generate_blog(form.instance, model=django_settings.GEMINI_MODEL)
-                if apply_blog_output_to_event_detail(form.instance, blog_output):
-                    form.instance.save()
-                    messages.success(self.request, "発表申請情報を更新し、記事を自動生成しました。")
-                    logger.info(f"記事を自動生成しました: {form.instance.id}")
-                else:
-                    logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
-                    messages.warning(self.request, "発表申請情報を更新しましたが、記事の自動生成に失敗しました。")
-            except Exception as e:
-                logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
-                messages.error(self.request, "発表申請情報を更新しましたが、記事の自動生成中にエラーが発生しました。")
-        else:
-            messages.success(self.request, '発表申請情報を更新しました。')
-
-        return response
-
-    def get_success_url(self):
-        return reverse('account:lt_application_list')
-
-
-class SocialAccountDisconnectView(LoginRequiredMixin, View):
-    """パスワード確認付きで SocialAccount を解除する。
-
-    allauth の `socialaccount_connections` はパスワード確認を持たないため、
-    本ビューで `request.user.check_password()` による確認を強制する。
-    過去に誤ったパスワードを設定していた場合の事前救済が目的。
-    """
-
-    template_name = 'socialaccount/disconnect_confirm.html'
-
-    def _get_account(self, request, pk):
-        return get_object_or_404(SocialAccount, pk=pk, user=request.user)
-
-    def _ensure_usable_password(self, request):
-        if request.user.has_usable_password():
-            return None
-        messages.error(
-            request,
-            'パスワード未設定のため解除できません。先にパスワードを設定してください。',
-        )
-        return redirect('account_set_password')
-
-    def get(self, request, pk):
-        account = self._get_account(request, pk)
-        redirect_response = self._ensure_usable_password(request)
-        if redirect_response is not None:
-            return redirect_response
-        form = SocialAccountDisconnectForm(user=request.user)
-        return render(request, self.template_name, {'form': form, 'account': account})
-
-    def post(self, request, pk):
-        account = self._get_account(request, pk)
-        redirect_response = self._ensure_usable_password(request)
-        if redirect_response is not None:
-            return redirect_response
-        form = SocialAccountDisconnectForm(request.POST, user=request.user)
-        if form.is_valid():
-            account.delete()
-            messages.success(request, 'Discord 連携を解除しました。')
-            return redirect('socialaccount_connections')
-        return render(request, self.template_name, {'form': form, 'account': account})
-
-
-class DiscordRequiredView(LoginRequiredMixin, TemplateView):
-    """Discord連携必須ページ."""
-
-    template_name = 'account/discord_required.html'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['discord_oauth_enabled'] = is_discord_oauth_available(self.request)
-        return context
-
-# for user in CustomUser.objects.all():
-#     password = secrets.token_hex(12)  # ランダムな16文字のパスワードを生成
-#     user.set_password(password)
-#     user.save()
-#     print(user.user_name, password)
+"""Account view public imports.
+
+既存の `from user_account.views import XxxView` を維持しながら、
+実装は責務別の view_modules に分割する。
+"""
+
+from .view_modules.api_keys import APIKeyCreateView, APIKeyDeleteView, APIKeyListView
+from .view_modules.lt_applications import LTApplicationEditView, LTApplicationListView
+from .view_modules.profile import SettingsView, UserNameChangeView, UserUpdateView
+from .view_modules.session import (
+    CustomLoginView,
+    CustomLogoutView,
+    CustomPasswordChangeView,
+    DiscordRequiredView,
+    RegisterView,
+)
+from .view_modules.social import SocialAccountDisconnectView
+
+__all__ = [
+    'APIKeyCreateView',
+    'APIKeyDeleteView',
+    'APIKeyListView',
+    'CustomLoginView',
+    'CustomLogoutView',
+    'CustomPasswordChangeView',
+    'DiscordRequiredView',
+    'LTApplicationEditView',
+    'LTApplicationListView',
+    'RegisterView',
+    'SettingsView',
+    'SocialAccountDisconnectView',
+    'UserNameChangeView',
+    'UserUpdateView',
+]
