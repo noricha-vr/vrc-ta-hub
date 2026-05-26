@@ -56,6 +56,37 @@ class EventTestPatchScopeTest(TestCase):
         self.assertIs(signals._start_tweet_generation, original)
 
 
+class TweetGenerationThreadGuardTest(TestCase):
+    """テスト実行時の本文生成スレッド起動ガードを検証する。"""
+
+    @patch("twitter.signals.threading.Thread.start")
+    def test_testing_mode_saves_generation_token_without_starting_thread(self, mock_start):
+        """manage.py test では generation_token を保存しつつスレッドを起動しない。"""
+        community = Community.objects.create(
+            name="Thread Guard Community",
+            start_time=datetime.time(22, 0),
+            duration=60,
+            weekdays=["Mon"],
+            frequency="毎週",
+            organizers="Test Organizer",
+            status="pending",
+        )
+        queue = TweetQueue.objects.create(
+            tweet_type="new_community",
+            community=community,
+            status="generating",
+        )
+
+        from twitter import signals
+
+        with patch.object(signals.sys, "argv", ["manage.py", "test"]):
+            signals._start_tweet_generation(queue)
+
+        queue.refresh_from_db()
+        self.assertTrue(queue.generation_token)
+        mock_start.assert_not_called()
+
+
 class DBReconnectHelperTest(TestCase):
     """MySQL 接続断の再試行ヘルパーのテスト"""
 

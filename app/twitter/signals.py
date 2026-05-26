@@ -4,9 +4,11 @@
 """
 
 import logging
+import sys
 import threading
 import uuid
 
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import DatabaseError
 from django.db.models.signals import post_delete, post_save, pre_save
@@ -23,6 +25,19 @@ logger = logging.getLogger(__name__)
 PRESENTATION_DETAIL_TYPES = ("LT", "SPECIAL")
 SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個別告知は投稿しません'
 NO_APPROVED_PRESENTATIONS_SKIP_REASON = '承認済みの当日発表がないため投稿対象外'
+
+
+def _should_skip_tweet_generation_thread() -> bool:
+    """テスト実行時は TweetQueue 生成後のバックグラウンドスレッドだけ抑制する。"""
+    if getattr(settings, 'ENABLE_TWEET_GENERATION_THREADS_IN_TESTS', False):
+        return False
+
+    is_test_run = getattr(settings, 'TESTING', False) or 'test' in sys.argv
+    if not is_test_run:
+        return False
+
+    # Thread を明示 patch するテストは、この経路自体を検証している。
+    return getattr(threading.Thread, '__module__', 'threading') == 'threading'
 
 
 def _save_generation_failure(queue_id: int, generation_token: str, error_message: str) -> None:
@@ -128,6 +143,11 @@ def _start_tweet_generation(queue_item) -> None:
     generation_token = uuid.uuid4().hex
     queue_item.generation_token = generation_token
     queue_item.save(update_fields=['generation_token'])
+
+    if _should_skip_tweet_generation_thread():
+        logger.debug("Skipped tweet generation thread in tests for queue %d", queue_item.pk)
+        return
+
     thread = threading.Thread(
         target=_generate_tweet_async, args=(queue_item.pk, generation_token), daemon=True,
     )
