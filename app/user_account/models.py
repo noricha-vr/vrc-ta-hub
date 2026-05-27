@@ -91,6 +91,20 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
             ),
         ],
     )
+    vrchat_user_id = models.CharField(
+        'VRChatユーザーID',
+        max_length=40,
+        blank=True,
+        default='',
+        help_text='VRChatのユーザーID（usr_から始まるID）を保存します。',
+        validators=[
+            RegexValidator(
+                r'^usr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z',
+                'VRChatユーザーIDは usr_ から始まるIDです。',
+                flags=0,
+            ),
+        ],
+    )
 
     objects = CustomUserManager()
 

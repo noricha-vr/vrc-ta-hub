@@ -82,6 +82,7 @@ jobs:
             user_account.tests.test_forms \
             user_account.tests.test_lt_application_views \
             user_account.tests.test_templatetags \
+            user_account.tests.test_x_account \
             api_v1.tests \
             event.tests.test_bigquery_lazy_init \
             event.tests.test_community_cleanup \
