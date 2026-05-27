@@ -4,6 +4,7 @@ import logging
 import requests  # noqa: F401 - 既存テストの patch パス互換用
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.core.exceptions import ValidationError
 from django.db import DataError
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
@@ -11,6 +12,7 @@ from django.views import View
 from django.views.generic import UpdateView, CreateView, ListView
 
 from event.community_cleanup import cleanup_community_future_data
+from user_account.vrchat import normalize_vrchat_user_id
 
 from ..forms_processor import (
     approve_community_registration,
@@ -77,6 +79,13 @@ class CommunityCreateView(LoginRequiredMixin, CreateView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
+        organizer_url = form.cleaned_data.get('organizer_url', '')
+        if organizer_url:
+            try:
+                self.request.user.vrchat_user_id = normalize_vrchat_user_id(organizer_url)
+                self.request.user.save(update_fields=['vrchat_user_id'])
+            except ValidationError:
+                pass
 
         create_owner_membership(self.object, self.request.user)
         notify_new_community_registration(self.object, self.request)

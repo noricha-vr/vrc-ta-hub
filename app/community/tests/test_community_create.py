@@ -162,7 +162,7 @@ class CommunityCreateViewTest(TestCase):
             'frequency': '毎週',
             'organizers': 'テスト主催者',
             'group_url': '',
-            'organizer_url': '',
+            'organizer_url': 'https://vrchat.com/home/user/usr_01b02b0e-58b5-4558-a6ca-56dd32dafdad',
             'sns_url': '',
             'discord': '',
             'twitter_hashtag': '',
@@ -185,6 +185,11 @@ class CommunityCreateViewTest(TestCase):
         # 集会のnameが送信した値になっていることを確認
         created_community = Community.objects.get(name='テスト集会名')
         self.assertEqual(created_community.name, 'テスト集会名')
+        self.user.refresh_from_db()
+        self.assertEqual(
+            self.user.vrchat_user_id,
+            'usr_01b02b0e-58b5-4558-a6ca-56dd32dafdad',
+        )
 
         # CommunityMemberが作成されていることを確認
         self.assertTrue(CommunityMember.objects.filter(

@@ -10,6 +10,7 @@ from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 from community.models import Community
 from community.models import TAGS, PLATFORM_CHOICES, WEEKDAY_CHOICES
 from .models import CustomUser
+from .vrchat import normalize_vrchat_user_id
 
 
 X_HANDLE_RE = re.compile(r'^[A-Za-z0-9_]{1,15}\Z')
@@ -273,10 +274,21 @@ class CustomUserChangeForm(forms.ModelForm):
         }),
         help_text='任意。@ や https://x.com/ のURLで入力しても自動でハンドル名に正規化されます。',
     )
+    vrchat_user_id = forms.CharField(
+        label='VRChatユーザーID',
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'https://vrchat.com/home/user/usr_...',
+            'autocomplete': 'off',
+        }),
+        help_text='任意。VRChatのプロフィールURLで入力してもユーザーIDに正規化されます。',
+    )
 
     class Meta:
         model = CustomUser
-        fields = ('user_name', 'email', 'x_account')
+        fields = ('user_name', 'email', 'x_account', 'vrchat_user_id')
         widgets = {
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.TextInput(attrs={'class': 'form-control'}),
@@ -287,6 +299,9 @@ class CustomUserChangeForm(forms.ModelForm):
 
     def clean_x_account(self):
         return normalize_x_account(self.cleaned_data.get('x_account', ''))
+
+    def clean_vrchat_user_id(self):
+        return normalize_vrchat_user_id(self.cleaned_data.get('vrchat_user_id', ''))
 
 
 class SocialAccountDisconnectForm(forms.Form):
