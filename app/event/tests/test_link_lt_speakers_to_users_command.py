@@ -240,6 +240,25 @@ class LinkLtSpeakersToUsersCommandTest(TestCase):
             self.assertEqual(row["candidateUserName"], "ITエンジニア キャリア相談・雑談集会")
             self.assertEqual(row["tier"], "tier4")
 
+    def test_kagu_display_name_manual_alias_links_to_it_career_community_owner(self):
+        """かぐ(Kagu) kagu1233 もITエンジニア相談集会の主催者に寄せる."""
+        user = User.objects.create_user(
+            user_name="ITエンジニア キャリア相談・雑談集会",
+            email="itc-display@example.com",
+            password="pw",
+        )
+        detail = self._create_detail(speaker="かぐ(Kagu) kagu1233")
+
+        with TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "result.csv"
+            call_command("link_lt_speakers_to_users", "--commit", "--output", str(output), stdout=StringIO())
+
+            detail.refresh_from_db()
+            row = self._read_rows(output)[0]
+            self.assertEqual(detail.applicant, user)
+            self.assertEqual(row["candidateUserName"], "ITエンジニア キャリア相談・雑談集会")
+            self.assertEqual(row["tier"], "tier4")
+
     def test_organizer_name_match_uses_community_owner_account(self):
         """speaker が主催者名に一致する場合は集会オーナーアカウントを候補にする."""
         owner = User.objects.create_user(user_name="ML集会", email="ml@example.com", password="pw")
