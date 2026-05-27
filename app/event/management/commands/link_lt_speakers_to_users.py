@@ -13,6 +13,15 @@ from community.models import CommunityMember
 from event.models import EventDetail
 
 ORGANIZER_SPLIT_RE = re.compile(r"[\s,、/／&＆+＋・|｜≺≻<>＜＞（）()]+")
+MANUAL_SPEAKER_USER_ALIASES = {
+    "さめ": "真名海さめ",
+    "さめ(meg-ssk)": "真名海さめ",
+    "さめ（meg-ssk)": "真名海さめ",
+    "さめ（meg-ssk）": "真名海さめ",
+    "さめ（мег-сск）": "真名海さめ",
+    "真名海さめ": "真名海さめ",
+    "余暇": "friedelcrafts",
+}
 
 
 def normalize_name(value: str) -> str:
@@ -80,6 +89,7 @@ class SpeakerMatcher:
         self.exact = self._group_by(lambda user: user.user_name)
         self.casefolded = self._group_by(lambda user: user.user_name.casefold())
         self.stripped = self._group_by(lambda user: user.user_name.strip())
+        self.normalized = self._group_by(lambda user: normalize_name(user.user_name))
 
     def match(self, event_detail: EventDetail, interactive: bool) -> MatchResult:
         speaker = event_detail.speaker
@@ -115,6 +125,10 @@ class SpeakerMatcher:
         if len(stripped) > 1 and stripped_speaker != speaker:
             return MatchResult(tier="tier3", action="skip", reason="multiple trimmed candidates", candidates=tuple(stripped))
 
+        manual_alias_match = self._match_manual_alias(stripped_speaker)
+        if manual_alias_match is not None:
+            return manual_alias_match
+
         organizer_match = self._match_community_organizer(event_detail, stripped_speaker)
         if organizer_match is not None:
             return organizer_match
@@ -126,13 +140,41 @@ class SpeakerMatcher:
         )
         if fuzzy_candidates:
             return MatchResult(
-                tier="tier5",
+                tier="tier6",
                 action="needs_confirmation" if interactive else "skip",
                 reason="fuzzy candidates require interactive confirmation",
                 candidates=fuzzy_candidates,
             )
 
         return MatchResult(tier="none", action="skip", reason="no matching user")
+
+    def _match_manual_alias(self, speaker: str) -> MatchResult | None:
+        target_user_name = MANUAL_SPEAKER_USER_ALIASES.get(speaker)
+        if target_user_name is None:
+            target_user_name = MANUAL_SPEAKER_USER_ALIASES.get(normalize_name(speaker))
+        if target_user_name is None:
+            return None
+
+        candidates = self.normalized.get(normalize_name(target_user_name), [])
+        if len(candidates) == 1:
+            return MatchResult(
+                tier="tier4",
+                action="match",
+                reason="speaker matches manual alias mapping",
+                candidate=candidates[0],
+            )
+        if len(candidates) > 1:
+            return MatchResult(
+                tier="tier4",
+                action="skip",
+                reason="manual alias mapping produced multiple user candidates",
+                candidates=tuple(candidates),
+            )
+        return MatchResult(
+            tier="tier4",
+            action="skip",
+            reason="manual alias target user does not exist",
+        )
 
     def _match_community_organizer(self, event_detail: EventDetail, speaker: str) -> MatchResult | None:
         community = event_detail.event.community
@@ -146,20 +188,20 @@ class SpeakerMatcher:
         )
         if len(owner_candidates) == 1:
             return MatchResult(
-                tier="tier4",
+                tier="tier5",
                 action="match",
                 reason="speaker matches community organizer; candidate is community owner account",
                 candidate=owner_candidates[0],
             )
         if len(owner_candidates) > 1:
             return MatchResult(
-                tier="tier4",
+                tier="tier5",
                 action="skip",
                 reason="speaker matches community organizer, but multiple owner candidates exist",
                 candidates=owner_candidates,
             )
         return MatchResult(
-            tier="tier4",
+            tier="tier5",
             action="skip",
             reason="speaker matches community organizer, but no owner account exists",
         )
@@ -303,7 +345,7 @@ class Command(BaseCommand):
                         stats["skipped"] += 1
                 else:
                     stats["skipped"] += 1
-                    if result.tier in ("tier4", "tier5") and result.action in ("skip", "needs_confirmation"):
+                    if result.tier in ("tier4", "tier5", "tier6") and result.action in ("skip", "needs_confirmation"):
                         stats["ambiguous"] += 1
                     if result.reason == "no matching user":
                         stats["no_match"] += 1

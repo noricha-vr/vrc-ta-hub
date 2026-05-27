@@ -172,8 +172,39 @@ class LinkLtSpeakersToUsersCommandTest(TestCase):
             detail.refresh_from_db()
             row = self._read_rows(output)[0]
             self.assertIsNone(detail.applicant)
-            self.assertEqual(row["tier"], "tier5")
+            self.assertEqual(row["tier"], "tier6")
             self.assertEqual(row["action"], "skip")
+
+    def test_manual_alias_match_links_same_person(self):
+        """手動エイリアスで同一人物の表記揺れをユーザーに寄せる."""
+        user = User.objects.create_user(user_name="真名海さめ", email="same@example.com", password="pw")
+        detail = self._create_detail(speaker="さめ（мег-сск）")
+
+        with TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "result.csv"
+            call_command("link_lt_speakers_to_users", "--commit", "--output", str(output), stdout=StringIO())
+
+            detail.refresh_from_db()
+            row = self._read_rows(output)[0]
+            self.assertEqual(detail.applicant, user)
+            self.assertEqual(row["candidateUserName"], "真名海さめ")
+            self.assertEqual(row["tier"], "tier4")
+            self.assertEqual(row["reason"], "speaker matches manual alias mapping")
+
+    def test_yoka_manual_alias_links_to_ai_community_owner(self):
+        """余暇はAI集会の主催者アカウントに寄せる."""
+        user = User.objects.create_user(user_name="friedelcrafts", email="yoka@example.com", password="pw")
+        detail = self._create_detail(speaker="余暇")
+
+        with TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "result.csv"
+            call_command("link_lt_speakers_to_users", "--commit", "--output", str(output), stdout=StringIO())
+
+            detail.refresh_from_db()
+            row = self._read_rows(output)[0]
+            self.assertEqual(detail.applicant, user)
+            self.assertEqual(row["candidateUserName"], "friedelcrafts")
+            self.assertEqual(row["tier"], "tier4")
 
     def test_organizer_name_match_uses_community_owner_account(self):
         """speaker が主催者名に一致する場合は集会オーナーアカウントを候補にする."""
@@ -216,7 +247,7 @@ class LinkLtSpeakersToUsersCommandTest(TestCase):
             self.assertEqual(detail.applicant, owner)
             self.assertEqual(row["candidateUserId"], str(owner.id))
             self.assertEqual(row["candidateUserName"], "ML集会")
-            self.assertEqual(row["tier"], "tier4")
+            self.assertEqual(row["tier"], "tier5")
             self.assertEqual(
                 row["reason"],
                 "speaker matches community organizer; candidate is community owner account",
