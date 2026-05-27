@@ -9,7 +9,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
 
-from community.models import Community
+from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 
 User = get_user_model()
@@ -44,6 +44,7 @@ class LinkLtSpeakersToUsersCommandTest(TestCase):
             rows = self._read_rows(output)
             self.assertEqual(rows[0]["candidateUserId"], str(user.id))
             self.assertEqual(rows[0]["tier"], "tier1")
+            self.assertEqual(rows[0]["communityName"], "Test Community")
             self.assertIn("mode=dry-run", stdout.getvalue())
 
     def test_commit_updates_exact_match(self):
@@ -171,8 +172,55 @@ class LinkLtSpeakersToUsersCommandTest(TestCase):
             detail.refresh_from_db()
             row = self._read_rows(output)[0]
             self.assertIsNone(detail.applicant)
-            self.assertEqual(row["tier"], "tier4")
+            self.assertEqual(row["tier"], "tier5")
             self.assertEqual(row["action"], "skip")
+
+    def test_organizer_name_match_uses_community_owner_account(self):
+        """speaker が主催者名に一致する場合は集会オーナーアカウントを候補にする."""
+        owner = User.objects.create_user(user_name="ML集会", email="ml@example.com", password="pw")
+        community = Community.objects.create(
+            name="ML集会",
+            start_time=time(22, 0),
+            duration=60,
+            weekdays=["Wed"],
+            frequency="Every week",
+            organizers="げそん≺GesonAnko≻",
+            status="approved",
+        )
+        CommunityMember.objects.create(
+            community=community,
+            user=owner,
+            role=CommunityMember.Role.OWNER,
+        )
+        event = Event.objects.create(
+            community=community,
+            date=date(2025, 1, 2),
+            start_time=time(22, 0),
+            duration=60,
+            weekday="Thu",
+        )
+        detail = EventDetail.objects.create(
+            event=event,
+            detail_type="LT",
+            status="approved",
+            theme="Organizer LT",
+            speaker="GesonAnko",
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "result.csv"
+            call_command("link_lt_speakers_to_users", "--commit", "--output", str(output), stdout=StringIO())
+
+            detail.refresh_from_db()
+            row = next(row for row in self._read_rows(output) if row["eventDetailId"] == str(detail.id))
+            self.assertEqual(detail.applicant, owner)
+            self.assertEqual(row["candidateUserId"], str(owner.id))
+            self.assertEqual(row["candidateUserName"], "ML集会")
+            self.assertEqual(row["tier"], "tier4")
+            self.assertEqual(
+                row["reason"],
+                "speaker matches community organizer; candidate is community owner account",
+            )
 
     def test_interactive_without_commit_is_rejected(self):
         """--interactive単独指定は誤操作防止のため拒否する."""

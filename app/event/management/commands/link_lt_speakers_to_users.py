@@ -1,5 +1,6 @@
 from collections.abc import Callable
 import csv
+import re
 from pathlib import Path
 
 from django.contrib.auth import get_user_model
@@ -8,7 +9,26 @@ from django.db import transaction
 from django.utils import timezone
 from pydantic import BaseModel, ConfigDict
 
+from community.models import CommunityMember
 from event.models import EventDetail
+
+ORGANIZER_SPLIT_RE = re.compile(r"[\s,、/／&＆+＋・|｜≺≻<>＜＞（）()]+")
+
+
+def normalize_name(value: str) -> str:
+    return value.strip().casefold()
+
+
+def organizer_name_tokens(organizers: str) -> set[str]:
+    """Extract comparable names from the free-form community organizers field."""
+    normalized_full = normalize_name(organizers)
+    tokens = {normalized_full} if normalized_full else set()
+    tokens.update(
+        token
+        for token in (normalize_name(part) for part in ORGANIZER_SPLIT_RE.split(organizers))
+        if token
+    )
+    return tokens
 
 
 class UserCandidate(BaseModel):
@@ -61,7 +81,8 @@ class SpeakerMatcher:
         self.casefolded = self._group_by(lambda user: user.user_name.casefold())
         self.stripped = self._group_by(lambda user: user.user_name.strip())
 
-    def match(self, speaker: str, interactive: bool) -> MatchResult:
+    def match(self, event_detail: EventDetail, interactive: bool) -> MatchResult:
+        speaker = event_detail.speaker
         if not speaker:
             return MatchResult(tier="none", action="skip", reason="speaker is empty")
 
@@ -94,6 +115,10 @@ class SpeakerMatcher:
         if len(stripped) > 1 and stripped_speaker != speaker:
             return MatchResult(tier="tier3", action="skip", reason="multiple trimmed candidates", candidates=tuple(stripped))
 
+        organizer_match = self._match_community_organizer(event_detail, stripped_speaker)
+        if organizer_match is not None:
+            return organizer_match
+
         fuzzy_candidates = tuple(
             user
             for user in self.users
@@ -101,13 +126,43 @@ class SpeakerMatcher:
         )
         if fuzzy_candidates:
             return MatchResult(
-                tier="tier4",
+                tier="tier5",
                 action="needs_confirmation" if interactive else "skip",
                 reason="fuzzy candidates require interactive confirmation",
                 candidates=fuzzy_candidates,
             )
 
         return MatchResult(tier="none", action="skip", reason="no matching user")
+
+    def _match_community_organizer(self, event_detail: EventDetail, speaker: str) -> MatchResult | None:
+        community = event_detail.event.community
+        if normalize_name(speaker) not in organizer_name_tokens(community.organizers or ""):
+            return None
+
+        owner_candidates = tuple(
+            UserCandidate(id=member.user_id, user_name=member.user.user_name)
+            for member in community.members.all()
+            if member.role == CommunityMember.Role.OWNER
+        )
+        if len(owner_candidates) == 1:
+            return MatchResult(
+                tier="tier4",
+                action="match",
+                reason="speaker matches community organizer; candidate is community owner account",
+                candidate=owner_candidates[0],
+            )
+        if len(owner_candidates) > 1:
+            return MatchResult(
+                tier="tier4",
+                action="skip",
+                reason="speaker matches community organizer, but multiple owner candidates exist",
+                candidates=owner_candidates,
+            )
+        return MatchResult(
+            tier="tier4",
+            action="skip",
+            reason="speaker matches community organizer, but no owner account exists",
+        )
 
     def _group_by(self, key_func: Callable[[UserCandidate], str]) -> dict[str, list[UserCandidate]]:
         grouped: dict[str, list[UserCandidate]] = {}
@@ -170,7 +225,8 @@ class Command(BaseCommand):
 
         queryset = (
             EventDetail.objects.filter(detail_type="LT", event__date__lt=timezone.localdate())
-            .select_related("event", "applicant")
+            .select_related("event", "event__community", "applicant")
+            .prefetch_related("event__community__members__user")
             .order_by("id")
         )
         if target_ids is not None:
@@ -192,6 +248,9 @@ class Command(BaseCommand):
                 csv_file,
                 fieldnames=[
                     "eventDetailId",
+                    "communityId",
+                    "communityName",
+                    "communityOrganizers",
                     "speaker",
                     "applicantId",
                     "candidateUserId",
@@ -244,7 +303,7 @@ class Command(BaseCommand):
                         stats["skipped"] += 1
                 else:
                     stats["skipped"] += 1
-                    if result.tier == "tier4":
+                    if result.tier in ("tier4", "tier5") and result.action in ("skip", "needs_confirmation"):
                         stats["ambiguous"] += 1
                     if result.reason == "no matching user":
                         stats["no_match"] += 1
@@ -270,7 +329,7 @@ class Command(BaseCommand):
     ) -> MatchResult:
         if event_detail.applicant_id:
             return MatchResult(tier="none", action="skip", reason="applicant already set")
-        return matcher.match(event_detail.speaker, interactive=interactive)
+        return matcher.match(event_detail, interactive=interactive)
 
     def _update_applicant(self, event_detail_id: int, user_id: int) -> bool:
         with transaction.atomic():
@@ -305,6 +364,9 @@ class Command(BaseCommand):
         writer.writerow(
             {
                 "eventDetailId": event_detail.id,
+                "communityId": event_detail.event.community_id,
+                "communityName": event_detail.event.community.name,
+                "communityOrganizers": event_detail.event.community.organizers,
                 "speaker": event_detail.speaker,
                 "applicantId": event_detail.applicant_id or "",
                 "candidateUserId": candidate.id if candidate else "",
