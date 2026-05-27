@@ -206,6 +206,40 @@ class LinkLtSpeakersToUsersCommandTest(TestCase):
             self.assertEqual(row["candidateUserName"], "friedelcrafts")
             self.assertEqual(row["tier"], "tier4")
 
+    def test_tak1123_manual_alias_links_to_stock_community_owner(self):
+        """TAK1123 は株式投資座談会の主催者アカウントに寄せる."""
+        user = User.objects.create_user(user_name="株式投資座談会", email="stock@example.com", password="pw")
+        detail = self._create_detail(speaker="TAK1123")
+
+        with TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "result.csv"
+            call_command("link_lt_speakers_to_users", "--commit", "--output", str(output), stdout=StringIO())
+
+            detail.refresh_from_db()
+            row = self._read_rows(output)[0]
+            self.assertEqual(detail.applicant, user)
+            self.assertEqual(row["candidateUserName"], "株式投資座談会")
+            self.assertEqual(row["tier"], "tier4")
+
+    def test_kagu3_manual_alias_links_to_it_career_community_owner(self):
+        """Kagu3 はITエンジニア相談集会の主催者アカウントに寄せる."""
+        user = User.objects.create_user(
+            user_name="ITエンジニア キャリア相談・雑談集会",
+            email="itc@example.com",
+            password="pw",
+        )
+        detail = self._create_detail(speaker="Kagu3")
+
+        with TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "result.csv"
+            call_command("link_lt_speakers_to_users", "--commit", "--output", str(output), stdout=StringIO())
+
+            detail.refresh_from_db()
+            row = self._read_rows(output)[0]
+            self.assertEqual(detail.applicant, user)
+            self.assertEqual(row["candidateUserName"], "ITエンジニア キャリア相談・雑談集会")
+            self.assertEqual(row["tier"], "tier4")
+
     def test_organizer_name_match_uses_community_owner_account(self):
         """speaker が主催者名に一致する場合は集会オーナーアカウントを候補にする."""
         owner = User.objects.create_user(user_name="ML集会", email="ml@example.com", password="pw")
