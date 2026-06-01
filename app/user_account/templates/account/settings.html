@@ -163,7 +163,14 @@
                         </div>
                     </div>
                 </div>
+
+                {% include 'analytics/_chart_section.html' %}
             </div>
         </div>
     </div>
+{% endblock %}
+
+{% block extra_js %}
+    {{ block.super }}
+    {% include 'analytics/_chart_scripts.html' %}
 {% endblock %}

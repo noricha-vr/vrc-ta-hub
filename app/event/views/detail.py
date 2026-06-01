@@ -7,6 +7,8 @@ from django.core.cache import cache
 from django.http import Http404
 from django.views.generic import DetailView
 
+from analytics import services as analytics_services
+from analytics.models import PageAnalytics
 from community.models import WEEKDAY_CHOICES
 from event.libs import convert_markdown
 from event.models import EventDetail
@@ -74,6 +76,26 @@ class EventDetailView(DetailView):
             self.request.user,
             event_detail,
         )
+
+        # アクセス解析は集会運営データのため、閲覧権限は集会の管理者(owner/staff)または
+        # superuser に限定する。can_manage_event_detail は「承認済みLTの応募者本人」も含む
+        # ため、発表者本人（非管理者）に集会全体の流入元が漏れないよう専用判定で分離する。
+        can_view_analytics = (
+            context['is_community_owner'] or self.request.user.is_superuser
+        )
+        context['can_view_analytics'] = can_view_analytics
+        # 権限が無ければキー自体を入れない（テンプレ側の if だけに頼らず view で出し分け）。
+        if can_view_analytics:
+            context['daily_series'] = analytics_services.get_daily_series(
+                [event_detail.event.community_id],
+                content_type=PageAnalytics.ContentType.EVENT_DETAIL,
+                object_id=event_detail.pk,
+            )
+            context['source_breakdown'] = analytics_services.get_source_breakdown(
+                [event_detail.event.community_id],
+                content_type=PageAnalytics.ContentType.EVENT_DETAIL,
+                object_id=event_detail.pk,
+            )
 
         # 構造化データ（BlogPosting）を生成（ブログ記事のみ）
         try:

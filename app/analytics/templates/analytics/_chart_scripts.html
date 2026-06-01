@@ -1,0 +1,66 @@
+{% comment %}
+アクセス解析グラフの Chart.js 読み込み + 描画スクリプト（共通パーツ）。
+
+各ページの {% block extra_js %} 内で include する。base.html では常時読み込まない
+（グラフを表示するページでのみ Chart.js を読み込むため）。
+
+データは _chart_section.html が出力した json_script タグ
+（#analytics-daily / #analytics-sources）から読み取る。該当タグが無い
+（権限なし or データ空）場合は何も描画しない。
+{% endcomment %}
+{# Chart.js はバージョン固定。SRI は base.html の jsdelivr 読み込みの流儀に合わせる #}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
+        integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
+        crossorigin="anonymous"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const dailyEl = document.getElementById('analytics-daily');
+        const canvas = document.getElementById('analytics-daily-chart');
+        // データ or canvas が無ければ何もしない（権限なし・空データ時の安全側）
+        if (!dailyEl || !canvas || typeof Chart === 'undefined') {
+            return;
+        }
+
+        let daily;
+        try {
+            daily = JSON.parse(dailyEl.textContent);
+        } catch (e) {
+            return;
+        }
+        if (!Array.isArray(daily) || daily.length === 0) {
+            return;
+        }
+
+        const labels = daily.map(function (d) { return d.date; });
+        const datasets = [
+            { key: 'pv', label: 'ページビュー', color: '#0d6efd' },
+            { key: 'users', label: 'ユーザー数', color: '#198754' },
+            { key: 'sessions', label: 'セッション', color: '#fd7e14' },
+        ].map(function (s) {
+            return {
+                label: s.label,
+                data: daily.map(function (d) { return d[s.key]; }),
+                borderColor: s.color,
+                backgroundColor: s.color,
+                tension: 0.3,
+                pointRadius: 2,
+            };
+        });
+
+        new Chart(canvas, {
+            type: 'line',
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 } },
+                },
+                plugins: {
+                    legend: { position: 'bottom' },
+                },
+            },
+        });
+    });
+</script>

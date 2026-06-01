@@ -99,6 +99,7 @@ INSTALLED_APPS = [
     'ta_hub',
     'community',
     'event',
+    'analytics',
     'sitemap',
     'user_account',
     'event_calendar',
@@ -358,6 +359,13 @@ assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
 GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'google/gemini-2.5-flash-lite-preview-06-17')
 _settings_logger.info('GEMINI_MODEL: %s', GEMINI_MODEL)
 
+# GA4 Data API（ページ別アクセス解析）
+# GA4_PROPERTY_ID は Data API 用の数値ID。base.html の measurement ID G-6BN9EHVMRW とは別物
+GA4_PROPERTY_ID = os.environ.get('GA4_PROPERTY_ID', '444114283')
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv(
+    'GOOGLE_APPLICATION_CREDENTIALS', '/app/secret/credentials.json'
+)
+
 REQUEST_TOKEN = os.environ.get('REQUEST_TOKEN')
 assert REQUEST_TOKEN is not None, 'Please set REQUEST_TOKEN'
 
@@ -437,6 +445,11 @@ LOGGING = {
             'propagate': True,
         },
         'community': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'analytics': {
             'handlers': ['console'],
             'level': 'INFO',
             'propagate': True,

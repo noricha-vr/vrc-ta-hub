@@ -285,6 +285,13 @@
     </div>
     </div>
 
+    {# アクセス解析（集会管理者 / superuser のみ。集計データは view 側で出し分け済み） #}
+    {% if can_view_analytics %}
+    <div class="container">
+        {% include 'analytics/_chart_section.html' %}
+    </div>
+    {% endif %}
+
     <script>
         const generateButton = document.getElementById('generate-button');
         if (generateButton) {
@@ -295,4 +302,11 @@
             });
         }
     </script>
+{% endblock %}
+
+{% block extra_js %}
+    {{ block.super }}
+    {% if can_view_analytics %}
+        {% include 'analytics/_chart_scripts.html' %}
+    {% endif %}
 {% endblock %}

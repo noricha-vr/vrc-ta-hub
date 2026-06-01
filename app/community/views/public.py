@@ -12,6 +12,8 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import ListView, DetailView
 
+from analytics import services as analytics_services
+from analytics.models import PageAnalytics
 from event.models import Event, EventDetail
 from url_filters import get_filtered_url
 
@@ -230,6 +232,20 @@ class CommunityDetailView(DetailView):
             context['is_owner'] = community.is_owner(self.request.user)
         else:
             context['is_owner'] = False
+
+        # 集会オーナーまたは superuser のときだけアクセス解析を context に入れる。
+        # 権限が無ければキー自体を入れない（テンプレ側の if だけに頼らず view で出し分け）。
+        if context['is_owner'] or self.request.user.is_superuser:
+            context['daily_series'] = analytics_services.get_daily_series(
+                [community.pk],
+                content_type=PageAnalytics.ContentType.COMMUNITY,
+                object_id=community.pk,
+            )
+            context['source_breakdown'] = analytics_services.get_source_breakdown(
+                [community.pk],
+                content_type=PageAnalytics.ContentType.COMMUNITY,
+                object_id=community.pk,
+            )
 
         # superuserの場合、集会オーナーのDiscord IDとメールアドレスをSocialAccountから取得
         if self.request.user.is_superuser:

@@ -24,6 +24,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('community/', include('community.urls')),
     path('event/', include('event.urls')),
+    path('analytics/', include('analytics.urls')),
     path('account/', include('user_account.urls')),
     path('vket/', include('vket.urls')),
     # Redirect allauth default signup to custom register page
