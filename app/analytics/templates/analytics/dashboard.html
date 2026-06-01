@@ -194,13 +194,13 @@
                     {% with pc=poster_clicks %}
                         <div class="row g-2 mb-3">
                             <div class="col-6 col-md-3">
-                                <div class="border-start border-3 border-primary ps-2">
+                                <div class="border-start border-4 border-primary ps-2">
                                     <div class="text-muted small">合計クリック</div>
                                     <div class="fs-4 fw-bold">{{ pc.total.clicks }}</div>
                                 </div>
                             </div>
                             <div class="col-6 col-md-3">
-                                <div class="border-start border-3 border-success ps-2">
+                                <div class="border-start border-4 border-success ps-2">
                                     <div class="text-muted small">ユニーククリックユーザー</div>
                                     <div class="fs-4 fw-bold">{{ pc.total.users }}</div>
                                 </div>
@@ -248,16 +248,22 @@
                         <p class="text-muted small mb-3">特定の集会・記事に紐付かない URL（トップ・集会一覧・LP 等）の集計。</p>
                         <div class="row g-2 mb-3">
                             <div class="col-md-4">
-                                <div class="text-muted small">合計 PV（{{ days }}日）</div>
-                                <div class="fs-4 fw-bold">{{ global_traffic.total.pv }}</div>
+                                <div class="border-start border-4 border-primary ps-2">
+                                    <div class="text-muted small">合計 PV（{{ days }}日）</div>
+                                    <div class="fs-4 fw-bold">{{ global_traffic.total.pv }}</div>
+                                </div>
                             </div>
                             <div class="col-md-4">
-                                <div class="text-muted small">ユーザー</div>
-                                <div class="fs-4 fw-bold">{{ global_traffic.total.users }}</div>
+                                <div class="border-start border-4 border-success ps-2">
+                                    <div class="text-muted small">ユーザー</div>
+                                    <div class="fs-4 fw-bold">{{ global_traffic.total.users }}</div>
+                                </div>
                             </div>
                             <div class="col-md-4">
-                                <div class="text-muted small">セッション</div>
-                                <div class="fs-4 fw-bold">{{ global_traffic.total.sessions }}</div>
+                                <div class="border-start border-4 border-info ps-2">
+                                    <div class="text-muted small">セッション</div>
+                                    <div class="fs-4 fw-bold">{{ global_traffic.total.sessions }}</div>
+                                </div>
                             </div>
                         </div>
                         {% if global_traffic.top_paths %}

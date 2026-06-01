@@ -14,6 +14,10 @@ TEST_TOKEN = 'test-request-token'
 
 @override_settings(REQUEST_TOKEN=TEST_TOKEN, GA4_PROPERTY_ID='123456789')
 class SyncAnalyticsViewTest(TestCase):
+    """sync_analytics view のテスト。
+
+    setUp で fetch_poster_click_report を mock 化（CI で実 GA4 へ gRPC 接続させない）。
+    """
     @classmethod
     def setUpTestData(cls):
         cls.community = Community.objects.create(
@@ -25,6 +29,12 @@ class SyncAnalyticsViewTest(TestCase):
     def setUp(self):
         self.url = reverse('analytics:sync')
         self.community_path = f'/community/{self.community.pk}/'
+        # poster_click 取得は本テスト範囲外。実 GA4 への gRPC 接続を避けるため mock
+        poster_patcher = patch(
+            'analytics.views.fetch_poster_click_report', return_value=[],
+        )
+        self.addCleanup(poster_patcher.stop)
+        poster_patcher.start()
 
     def _rows(self, pv=10):
         """GA4 から返る想定の行（community 紐付き1件 + 紐付かない1件）。"""

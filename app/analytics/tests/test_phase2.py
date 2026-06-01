@@ -1,5 +1,4 @@
 """Phase 2 #10 #11 のテスト（未紐付けトラフィック / ポスタークリック）。"""
-from datetime import date, timedelta
 from unittest.mock import patch
 
 from django.test import Client, TestCase, override_settings
