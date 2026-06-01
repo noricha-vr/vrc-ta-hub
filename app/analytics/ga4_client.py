@@ -125,11 +125,15 @@ def fetch_poster_click_report(property_id: str, target_date: date) -> list[dict]
     client = _build_client()
     date_str = target_date.isoformat()
 
-    # custom parameter `community_id` を取り出すため customEvent:community_id ディメンション
-    # eventName でフィルタして poster_click だけに絞る
+    # custom parameter `community_id` を取り出すため customEvent:community_id を使う。
+    # GA4 Data API は dimension_filter で参照するディメンションを dimensions にも
+    # 含める必要があるため eventName も追加する（parse 時は無視）。
     request = RunReportRequest(
         property=f'properties/{property_id}',
-        dimensions=[Dimension(name='customEvent:community_id')],
+        dimensions=[
+            Dimension(name='customEvent:community_id'),
+            Dimension(name='eventName'),
+        ],
         metrics=[Metric(name='eventCount'), Metric(name='totalUsers')],
         date_ranges=[DateRange(start_date=date_str, end_date=date_str)],
         dimension_filter=FilterExpression(
