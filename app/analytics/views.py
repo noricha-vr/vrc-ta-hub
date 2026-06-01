@@ -11,6 +11,7 @@ from django.conf import settings
 from django.db import transaction
 from django.http import HttpResponse
 from django.utils import timezone
+from django.views.decorators.http import require_GET
 
 from .ga4_client import fetch_page_report
 from .models import PageAnalytics
@@ -39,11 +40,9 @@ def _is_authorized(request) -> bool:
     return secrets.compare_digest(provided, expected)
 
 
+@require_GET
 def sync_analytics(request):
     """GA4 からページ別アクセスデータを取得して蓄積する。"""
-    if request.method != 'GET':
-        return HttpResponse('Invalid request method.', status=405)
-
     if not _is_authorized(request):
         return HttpResponse('Unauthorized', status=401)
 

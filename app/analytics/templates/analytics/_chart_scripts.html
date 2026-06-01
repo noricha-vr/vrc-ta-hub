@@ -55,6 +55,8 @@
                 maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
                 scales: {
+                    // モバイル幅で30日分のラベルが重ならないよう間引く
+                    x: { ticks: { maxTicksLimit: 10, autoSkip: true } },
                     y: { beginAtZero: true, ticks: { precision: 0 } },
                 },
                 plugins: {
