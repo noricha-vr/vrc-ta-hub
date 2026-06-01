@@ -70,6 +70,9 @@
                 <i class="fa-solid fa-microphone"></i> 発表申請一覧
             </a>
             {% if community %}
+            <a href="{% url 'analytics:dashboard' %}?community={{ community.id }}" class="btn btn-outline-info">
+                <i class="fas fa-chart-line"></i> アクセス
+            </a>
             <a href="{% url 'event:detail_history' %}?community_name={{ community.name }}" class="btn btn-outline-secondary">
                 <i class="fas fa-history"></i> 発表履歴
             </a>

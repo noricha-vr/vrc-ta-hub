@@ -1,0 +1,235 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block title %}アクセス解析ダッシュボード - VRChat 技術・学術系イベントHub{% endblock %}
+
+{% block main %}
+    <div class="container my-4">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <h1 class="h3 mb-0">
+                <i class="fa-solid fa-chart-line me-2"></i>アクセス解析ダッシュボード
+            </h1>
+            <a href="{% url 'event:my_list' %}" class="btn btn-sm btn-outline-secondary ms-auto">
+                <i class="fa-solid fa-arrow-left me-1"></i>マイページに戻る
+            </a>
+        </div>
+
+        {% if not has_access %}
+            <div class="alert alert-warning">
+                所属している集会がありません。集会の管理者になるとここでアクセス解析を確認できます。
+            </div>
+        {% else %}
+
+            {# 集会切替 + 期間切替 + CSV ダウンロード #}
+            <form method="get" class="card card-body mb-3 py-2">
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-5">
+                        <label for="community-select" class="form-label small mb-1">対象集会</label>
+                        <select name="community" id="community-select" class="form-select form-select-sm" onchange="this.form.submit()">
+                            <option value="">すべての所属集会（合算）</option>
+                            {% for community in accessible_communities %}
+                                <option value="{{ community.id }}"
+                                        {% if selected_community.id == community.id %}selected{% endif %}>
+                                    {{ community.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small mb-1">集計期間</label>
+                        <div class="btn-group btn-group-sm w-100" role="group">
+                            {% for d in allowed_days %}
+                                <a href="?days={{ d }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}"
+                                   class="btn {% if days == d %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                                    {{ d }}日
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-md-end">
+                        <label class="form-label small mb-1">&nbsp;</label>
+                        <a href="?format=csv&days={{ days }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}"
+                           class="btn btn-sm btn-outline-success w-100">
+                            <i class="fa-solid fa-file-csv me-1"></i>CSVダウンロード
+                        </a>
+                    </div>
+                </div>
+            </form>
+
+            {# 全体サマリーカード（メトリクスごとに左ボーダーで色分け、前期間比較行は高さ固定） #}
+            <div class="row g-3 mb-3">
+                {% with stats=overall_stats %}
+                    <div class="col-md-4">
+                        <div class="card h-100 border-start border-4 border-primary">
+                            <div class="card-body">
+                                <div class="text-muted small">ページビュー（{{ days }}日）</div>
+                                <div class="fs-3 fw-bold">{{ stats.pv }}</div>
+                                <div class="small analytics-change-row">
+                                    {% if stats.pv_change_pct is not None %}
+                                        <span class="{% if stats.pv_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if stats.pv_change_pct >= 0 %}▲{% else %}▼{% endif %}
+                                            {{ stats.pv_change_pct }}% vs 前{{ days }}日
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">前期間データなし</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 border-start border-4 border-success">
+                            <div class="card-body">
+                                <div class="text-muted small">ユーザー数（{{ days }}日）</div>
+                                <div class="fs-3 fw-bold">{{ stats.users }}</div>
+                                <div class="small analytics-change-row">
+                                    {% if stats.users_change_pct is not None %}
+                                        <span class="{% if stats.users_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if stats.users_change_pct >= 0 %}▲{% else %}▼{% endif %}
+                                            {{ stats.users_change_pct }}% vs 前{{ days }}日
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">前期間データなし</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 border-start border-4 border-info">
+                            <div class="card-body">
+                                <div class="text-muted small">セッション数（{{ days }}日）</div>
+                                <div class="fs-3 fw-bold">{{ stats.sessions }}</div>
+                                <div class="small analytics-change-row">
+                                    {% if stats.sessions_change_pct is not None %}
+                                        <span class="{% if stats.sessions_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if stats.sessions_change_pct >= 0 %}▲{% else %}▼{% endif %}
+                                            {{ stats.sessions_change_pct }}% vs 前{{ days }}日
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">前期間データなし</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endwith %}
+            </div>
+            <style>
+                /* 前期間比較行の高さを揃えて 3 カード間のガタつきを防ぐ */
+                .analytics-change-row { min-height: 1.5em; }
+            </style>
+
+            {# 推移グラフ + 流入元（既存 _chart_section を活用） #}
+            {% include 'analytics/_chart_section.html' %}
+
+            {# 記事別アクセス一覧 #}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h2 class="fs-5 fw-bold mb-3">
+                        <i class="fa-solid fa-newspaper me-2"></i>記事別アクセス（PV順）
+                    </h2>
+                    {% if event_detail_breakdown %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>タイトル</th>
+                                        <th>集会</th>
+                                        <th>公開日</th>
+                                        <th class="text-end">PV</th>
+                                        <th class="text-end">UU</th>
+                                        <th class="text-end">セッション</th>
+                                        <th>主要流入元</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in event_detail_breakdown %}
+                                        <tr>
+                                            <td>
+                                                <a href="{% url 'event:detail' row.event_detail_id %}" class="text-decoration-none">
+                                                    {{ row.theme|truncatechars:50 }}
+                                                </a>
+                                            </td>
+                                            <td class="text-muted">{{ row.community_name }}</td>
+                                            <td class="text-muted small">{{ row.published_at|date:"Y-m-d" }}</td>
+                                            <td class="text-end fw-bold">{{ row.pv }}</td>
+                                            <td class="text-end">{{ row.users }}</td>
+                                            <td class="text-end">{{ row.sessions }}</td>
+                                            <td class="small">{{ row.top_source }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted small mb-0">対象期間に記事のアクセスデータがありません。</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# 公開後N日積み上げチャート（人気記事の伸びを比較） #}
+            {% if post_publish_chart.datasets %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h2 class="fs-5 fw-bold mb-1">
+                            <i class="fa-solid fa-chart-area me-2"></i>公開後 {{ post_publish_chart.labels|length|add:"-1" }} 日のPV推移
+                        </h2>
+                        <p class="text-muted small mb-3">人気上位の記事を公開日基準で揃えて比較できます。</p>
+                        <div style="position: relative; height: 300px;">
+                            <canvas id="post-publish-chart" aria-label="公開後N日PV推移" role="img"></canvas>
+                        </div>
+                        {{ post_publish_chart|json_script:"post-publish-data" }}
+                    </div>
+                </div>
+            {% endif %}
+
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    {{ block.super }}
+    {% if has_access %}
+        {% include 'analytics/_chart_scripts.html' %}
+        {% if post_publish_chart.datasets %}
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    const dataEl = document.getElementById('post-publish-data');
+                    const canvas = document.getElementById('post-publish-chart');
+                    if (!dataEl || !canvas || typeof Chart === 'undefined') return;
+                    let payload;
+                    try { payload = JSON.parse(dataEl.textContent); } catch (e) { return; }
+                    if (!payload.datasets || payload.datasets.length === 0) return;
+
+                    // Bootstrap カラーに合わせたパレット（最大5本）
+                    const palette = ['#0d6efd', '#198754', '#fd7e14', '#dc3545', '#6f42c1'];
+                    const datasets = payload.datasets.map(function (d, i) {
+                        const color = palette[i % palette.length];
+                        return {
+                            label: d.label,
+                            data: d.data,
+                            borderColor: color,
+                            backgroundColor: color,
+                            tension: 0.3,
+                            pointRadius: 2,
+                        };
+                    });
+                    new Chart(canvas, {
+                        type: 'line',
+                        data: { labels: payload.labels, datasets: datasets },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { mode: 'index', intersect: false },
+                            scales: {
+                                x: { ticks: { maxTicksLimit: 8, autoSkip: true } },
+                                y: { beginAtZero: true, ticks: { precision: 0 } },
+                            },
+                            plugins: { legend: { position: 'bottom' } },
+                        },
+                    });
+                });
+            </script>
+        {% endif %}
+    {% endif %}
+{% endblock %}
