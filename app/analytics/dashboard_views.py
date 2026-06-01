@@ -162,5 +162,12 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
                 days_after=POST_PUBLISH_DAYS_AFTER,
                 top_n=POST_PUBLISH_TOP_N,
             ),
+            # ポスタークリック集計（権限境界は target_ids ベースで services 側が絞る）
+            'poster_clicks': services.get_poster_click_stats(target_ids, days=days),
         })
+
+        # サイト全体トラフィック（GLOBAL）は superuser のみ取得
+        if self.request.user.is_superuser:
+            context['global_traffic'] = services.get_global_traffic(days=days)
+
         return context

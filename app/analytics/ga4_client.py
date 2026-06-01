@@ -12,6 +12,8 @@ from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import (
     DateRange,
     Dimension,
+    FilterExpression,
+    Filter,
     Metric,
     RunReportRequest,
 )
@@ -102,5 +104,65 @@ def fetch_page_report(property_id: str, target_date: date) -> list[dict]:
         })
 
     logger.info('GA4 fetch_page_report: property=%s date=%s rows=%d',
+                property_id, date_str, len(results))
+    return results
+
+
+def fetch_poster_click_report(property_id: str, target_date: date) -> list[dict]:
+    """指定日の `poster_click` カスタムイベントを GA4 から取得する。
+
+    クライアント側の `gtag('event', 'poster_click', {community_id})` で送信された
+    カスタムイベントを集計し、community_id 別の発火数を返す。
+
+    Args:
+        property_id: GA4 Data API 用の数値プロパティID。
+        target_date: 取得対象日。
+
+    Returns:
+        各行を表す dict のリスト。キーは community_id / clicks / users。
+        community_id がパース不能（int変換失敗）な行はスキップ。
+    """
+    client = _build_client()
+    date_str = target_date.isoformat()
+
+    # custom parameter `community_id` を取り出すため customEvent:community_id ディメンション
+    # eventName でフィルタして poster_click だけに絞る
+    request = RunReportRequest(
+        property=f'properties/{property_id}',
+        dimensions=[Dimension(name='customEvent:community_id')],
+        metrics=[Metric(name='eventCount'), Metric(name='totalUsers')],
+        date_ranges=[DateRange(start_date=date_str, end_date=date_str)],
+        dimension_filter=FilterExpression(
+            filter=Filter(
+                field_name='eventName',
+                string_filter=Filter.StringFilter(value='poster_click'),
+            ),
+        ),
+    )
+
+    response = client.run_report(request)
+
+    if response.row_count > len(response.rows):
+        logger.warning(
+            'GA4 poster_click truncated: row_count=%d returned=%d property=%s date=%s',
+            response.row_count, len(response.rows), property_id, date_str,
+        )
+
+    results = []
+    for row in response.rows:
+        raw = row.dimension_values[0].value
+        try:
+            community_id = int(raw)
+        except (TypeError, ValueError):
+            # カスタムパラメータが空 / 不正な値の行は無視（Fail Loud で警告）
+            logger.warning('poster_click row skipped: invalid community_id=%r', raw)
+            continue
+        results.append({
+            'community_id': community_id,
+            'clicks': int(row.metric_values[0].value),
+            'users': int(row.metric_values[1].value),
+        })
+
+    logger.info('GA4 fetch_poster_click_report: property=%s date=%s rows=%d',
                 property_id, date_str, len(results))
     return results

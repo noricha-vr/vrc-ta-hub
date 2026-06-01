@@ -13,7 +13,7 @@ from django.utils import timezone
 from community.models import Community
 from event.models import EventDetail
 
-from .models import PageAnalytics
+from .models import PageAnalytics, PosterClick
 
 logger = logging.getLogger('analytics')
 
@@ -344,3 +344,111 @@ def get_post_publish_series(community_ids, *, days_after=14, top_n=5) -> dict:
         })
 
     return {'labels': labels, 'datasets': datasets}
+
+
+def get_global_traffic(*, days=DEFAULT_DAYS) -> dict:
+    """サイト全体（特定 community に紐付かない）トラフィックの集計。
+
+    superuser 専用。community/event_detail へ紐付けできなかった URL（トップ・
+    集会一覧・LP 等）の PV/UU/セッションを返す。呼び出し側で is_superuser を
+    必ずチェックすること（services 側は権限チェックを行わない設計）。
+
+    Returns:
+        {
+            'total': {'pv', 'users', 'sessions'},
+            'daily': [{'date', 'pv', 'users', 'sessions'}, ...],
+            'top_paths': [{'page_path', 'pv'}, ...]（上位10件）,
+        }
+    """
+    since = timezone.localdate() - timedelta(days=days)
+    base = PageAnalytics.objects.filter(
+        content_type=PageAnalytics.ContentType.GLOBAL,
+        date__gte=since,
+    )
+
+    total = base.aggregate(pv=Sum('pv'), users=Sum('users'), sessions=Sum('sessions'))
+    daily = list(
+        base.values('date')
+        .annotate(pv=Sum('pv'), users=Sum('users'), sessions=Sum('sessions'))
+        .order_by('date')
+    )
+    top_paths = list(
+        base.values('page_path')
+        .annotate(pv=Sum('pv'))
+        .order_by('-pv')[:10]
+    )
+
+    return {
+        'total': {
+            'pv': total['pv'] or 0,
+            'users': total['users'] or 0,
+            'sessions': total['sessions'] or 0,
+        },
+        'daily': daily,
+        'top_paths': top_paths,
+    }
+
+
+def get_poster_click_stats(community_ids, *, days=DEFAULT_DAYS) -> dict:
+    """集会ポスター画像のクリック数集計（GA4 カスタムイベント由来）。
+
+    Args:
+        community_ids: アクセス可能な community id（必須の権限境界）。
+        days: 遡る日数。
+
+    Returns:
+        {
+            'total': {'clicks', 'users'},
+            'daily': [{'date', 'clicks', 'users'}, ...],
+            'per_community': [{'community_id', 'name', 'clicks', 'users'}, ...]（クリック降順）,
+        }
+    """
+    if not community_ids:
+        return {
+            'total': {'clicks': 0, 'users': 0},
+            'daily': [],
+            'per_community': [],
+        }
+
+    since = timezone.localdate() - timedelta(days=days)
+    base = PosterClick.objects.filter(
+        community_id__in=community_ids,
+        date__gte=since,
+    )
+
+    total = base.aggregate(clicks=Sum('clicks'), users=Sum('users'))
+    daily = list(
+        base.values('date')
+        .annotate(clicks=Sum('clicks'), users=Sum('users'))
+        .order_by('date')
+    )
+    per_community_agg = list(
+        base.values('community_id')
+        .annotate(clicks=Sum('clicks'), users=Sum('users'))
+        .order_by('-clicks')
+    )
+    # name を付加（少数件想定なので bulk lookup）
+    community_map = {
+        c.pk: c.name
+        for c in Community.objects.filter(
+            pk__in=[r['community_id'] for r in per_community_agg]
+        )
+    }
+    per_community = [
+        {
+            'community_id': r['community_id'],
+            'name': community_map.get(r['community_id'], '(削除済み)'),
+            'clicks': r['clicks'] or 0,
+            'users': r['users'] or 0,
+        }
+        for r in per_community_agg
+    ]
+
+    return {
+        'total': {
+            'clicks': total['clicks'] or 0,
+            'users': total['users'] or 0,
+        },
+        'daily': daily,
+        'per_community': per_community,
+    }
