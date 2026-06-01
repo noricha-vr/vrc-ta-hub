@@ -66,6 +66,14 @@ def fetch_page_report(property_id: str, target_date: date) -> list[dict]:
 
     response = client.run_report(request)
 
+    # GA4 Data API のデフォルト limit は 10,000 行。サイレント欠落を Fail Loud で検知する。
+    # 現規模（14日870行）では発生しないが、成長して上限に達したら警告ログから気付けるようにする。
+    if response.row_count > len(response.rows):
+        logger.warning(
+            'GA4 response truncated: row_count=%d returned=%d property=%s date=%s',
+            response.row_count, len(response.rows), property_id, date_str,
+        )
+
     results = []
     for row in response.rows:
         page_path = row.dimension_values[0].value
