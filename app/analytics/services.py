@@ -283,12 +283,14 @@ def get_post_publish_series(community_ids, *, days_after=14, top_n=5) -> dict:
     if not community_ids:
         return {'labels': [], 'datasets': []}
 
-    # 上位 N 記事を取得（PV 順）
+    # 候補選定: 全期間で PV 上位を選ぶ（公開からの経過期間に関係なく、人気記事を網羅）。
+    # 直近期間で絞ると古い人気記事が落ち、その後の Day 0〜N PV 取得時に
+    # 「窓内にデータなし」で全件 0 になりチャートが空になる不整合が出るため
     top_records = (
-        _base_queryset(
-            community_ids,
+        PageAnalytics.objects
+        .filter(
+            community_id__in=community_ids,
             content_type=PageAnalytics.ContentType.EVENT_DETAIL,
-            days=days_after * 12,  # 公開日が古い記事でも拾うため広め
         )
         .values('object_id')
         .annotate(pv=Sum('pv'))
@@ -314,15 +316,16 @@ def get_post_publish_series(community_ids, *, days_after=14, top_n=5) -> dict:
             continue
         publish_date: date = ed.event.date
 
-        # 公開日基準で days_after 日分の PV をDB から取得
+        # 公開日基準で日付範囲を絶対指定して PV を取得（権限境界の community_id__in は維持）
         day_pvs = {
             row['date']: row['pv']
             for row in (
-                _base_queryset(
-                    community_ids,
+                PageAnalytics.objects.filter(
+                    community_id__in=community_ids,
                     content_type=PageAnalytics.ContentType.EVENT_DETAIL,
                     object_id=ed_id,
-                    days=days_after * 12,
+                    date__gte=publish_date,
+                    date__lte=publish_date + timedelta(days=days_after),
                 )
                 .values('date')
                 .annotate(pv=Sum('pv'))
