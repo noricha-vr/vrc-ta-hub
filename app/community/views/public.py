@@ -227,15 +227,24 @@ class CommunityDetailView(DetailView):
             context['show_accept_button'] = True
             context['show_reject_button'] = True
 
-        # ユーザーが主催者かどうかを判定
+        # ユーザーが主催者かどうかを判定（集会編集ボタン用、owner 限定）
         if self.request.user.is_authenticated:
             context['is_owner'] = community.is_owner(self.request.user)
         else:
             context['is_owner'] = False
 
-        # 集会オーナーまたは superuser のときだけアクセス解析を context に入れる。
+        # アクセス解析の閲覧権限は owner/staff/superuser の3つ。
+        # 編集権限（is_owner）とは別の context キーにすることで、staff にも
+        # 解析を見せつつ集会情報の編集権限は owner に限定する。
+        # 未ログイン時は is_manager クエリを叩かないよう短絡評価
+        user = self.request.user
+        context['can_view_analytics'] = user.is_authenticated and (
+            user.is_superuser or community.is_manager(user)
+        )
+
+        # 集会管理者または superuser のときだけアクセス解析を context に入れる。
         # 権限が無ければキー自体を入れない（テンプレ側の if だけに頼らず view で出し分け）。
-        if context['is_owner'] or self.request.user.is_superuser:
+        if context['can_view_analytics']:
             context['daily_series'] = analytics_services.get_daily_series(
                 [community.pk],
                 content_type=PageAnalytics.ContentType.COMMUNITY,
