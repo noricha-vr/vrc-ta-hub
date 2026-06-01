@@ -14,6 +14,10 @@ TEST_TOKEN = 'test-request-token'
 
 @override_settings(REQUEST_TOKEN=TEST_TOKEN, GA4_PROPERTY_ID='123456789')
 class SyncAnalyticsViewTest(TestCase):
+    """sync_analytics view のテスト。
+
+    setUp で fetch_poster_click_report を mock 化（CI で実 GA4 へ gRPC 接続させない）。
+    """
     @classmethod
     def setUpTestData(cls):
         cls.community = Community.objects.create(
@@ -25,6 +29,12 @@ class SyncAnalyticsViewTest(TestCase):
     def setUp(self):
         self.url = reverse('analytics:sync')
         self.community_path = f'/community/{self.community.pk}/'
+        # poster_click 取得は本テスト範囲外。実 GA4 への gRPC 接続を避けるため mock
+        poster_patcher = patch(
+            'analytics.views.fetch_poster_click_report', return_value=[],
+        )
+        self.addCleanup(poster_patcher.stop)
+        poster_patcher.start()
 
     def _rows(self, pv=10):
         """GA4 から返る想定の行（community 紐付き1件 + 紐付かない1件）。"""
@@ -38,7 +48,7 @@ class SyncAnalyticsViewTest(TestCase):
                 'sessions': pv - 1,
             },
             {
-                'page_path': '/about/',  # 紐付かない → スキップされる
+                'page_path': '/about/',  # 紐付かない → GLOBAL レコードとして保存される
                 'date': '2026-05-31',
                 'source_medium': '(direct) / (none)',
                 'pv': 99,
@@ -52,34 +62,36 @@ class SyncAnalyticsViewTest(TestCase):
         mock_fetch.return_value = self._rows(pv=10)
         res1 = self.client.get(self.url, HTTP_REQUEST_TOKEN=TEST_TOKEN)
         self.assertEqual(res1.status_code, 200)
-        self.assertEqual(PageAnalytics.objects.count(), 1)
+        # community 紐付き 1 件 + GLOBAL 1 件 = 計 2 件
+        self.assertEqual(PageAnalytics.objects.count(), 2)
 
         # 同じキーで pv だけ変えて再 sync → 行は増えず値が上書き
         mock_fetch.return_value = self._rows(pv=25)
         res2 = self.client.get(self.url, HTTP_REQUEST_TOKEN=TEST_TOKEN)
         self.assertEqual(res2.status_code, 200)
-        self.assertEqual(PageAnalytics.objects.count(), 1)
-        record = PageAnalytics.objects.get()
+        self.assertEqual(PageAnalytics.objects.count(), 2)
+        record = PageAnalytics.objects.get(page_path=self.community_path)
         self.assertEqual(record.pv, 25)
         self.assertEqual(record.users, 23)
         self.assertEqual(record.sessions, 24)
 
     @patch('analytics.views.fetch_page_report')
-    def test_unrelated_path_is_skipped(self, mock_fetch):
+    def test_unrelated_path_is_saved_as_global(self, mock_fetch):
+        """community/event_detail に紐付かない URL は GLOBAL レコードとして保存される。"""
         mock_fetch.return_value = self._rows()
         res = self.client.get(self.url, HTTP_REQUEST_TOKEN=TEST_TOKEN)
         self.assertEqual(res.status_code, 200)
-        # 紐付かない /about/ は保存されない
-        self.assertEqual(PageAnalytics.objects.count(), 1)
-        self.assertFalse(
-            PageAnalytics.objects.filter(page_path='/about/').exists()
-        )
+        about = PageAnalytics.objects.get(page_path='/about/')
+        self.assertEqual(about.content_type, PageAnalytics.ContentType.GLOBAL)
+        self.assertIsNone(about.community)
+        self.assertEqual(about.object_id, 0)
+        self.assertEqual(about.pv, 99)
 
     @patch('analytics.views.fetch_page_report')
     def test_resolved_record_fields(self, mock_fetch):
         mock_fetch.return_value = self._rows()
         self.client.get(self.url, HTTP_REQUEST_TOKEN=TEST_TOKEN)
-        record = PageAnalytics.objects.get()
+        record = PageAnalytics.objects.get(page_path=self.community_path)
         self.assertEqual(record.community, self.community)
         self.assertEqual(record.object_id, self.community.pk)
         self.assertEqual(record.content_type, PageAnalytics.ContentType.COMMUNITY)

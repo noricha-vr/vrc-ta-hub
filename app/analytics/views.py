@@ -13,8 +13,10 @@ from django.http import HttpResponse
 from django.utils import timezone
 from django.views.decorators.http import require_GET
 
-from .ga4_client import fetch_page_report
-from .models import PageAnalytics
+from community.models import Community
+
+from .ga4_client import fetch_page_report, fetch_poster_click_report
+from .models import PageAnalytics, PosterClick
 from .path_resolver import resolve_page_path
 
 logger = logging.getLogger('analytics')
@@ -59,13 +61,28 @@ def sync_analytics(request):
         return HttpResponse('Failed to fetch GA4 report. Check server logs.', status=500)
 
     saved = 0
-    skipped = 0
+    saved_global = 0
     # 途中失敗時の部分更新を残さないため、保存はまとめて1トランザクションにする
     with transaction.atomic():
         for row in rows:
             resolved = resolve_page_path(row['page_path'])
             if resolved is None:
-                skipped += 1
+                # community/event_detail に紐付かない URL は GLOBAL レコードとして保存
+                # （superuser のみがサイト全体トラフィックとして閲覧できる）
+                PageAnalytics.objects.update_or_create(
+                    page_path=row['page_path'],
+                    date=row['date'],
+                    source_medium=row['source_medium'],
+                    defaults={
+                        'pv': row['pv'],
+                        'users': row['users'],
+                        'sessions': row['sessions'],
+                        'content_type': PageAnalytics.ContentType.GLOBAL,
+                        'community': None,
+                        'object_id': 0,
+                    },
+                )
+                saved_global += 1
                 continue
             PageAnalytics.objects.update_or_create(
                 page_path=row['page_path'],
@@ -82,12 +99,41 @@ def sync_analytics(request):
             )
             saved += 1
 
+    # ポスター画像クリック（GA4 カスタムイベント poster_click）の取得・保存。
+    # page_view とは別 API 呼び出しのため、失敗しても全体を 500 にせず警告ログのみ。
+    saved_poster = 0
+    try:
+        poster_rows = fetch_poster_click_report(settings.GA4_PROPERTY_ID, target_date)
+    except Exception:
+        logger.error(
+            'GA4 fetch_poster_click_report failed for date=%s', target_date, exc_info=True,
+        )
+        poster_rows = []
+
+    if poster_rows:
+        community_ids = {row['community_id'] for row in poster_rows}
+        existing = {
+            c.pk: c for c in Community.objects.filter(pk__in=community_ids)
+        }
+        with transaction.atomic():
+            for row in poster_rows:
+                community = existing.get(row['community_id'])
+                if community is None:
+                    # 削除済み community への poster_click は無視（DB に保持しない）
+                    continue
+                PosterClick.objects.update_or_create(
+                    community=community,
+                    date=target_date,
+                    defaults={'clicks': row['clicks'], 'users': row['users']},
+                )
+                saved_poster += 1
+
     logger.info(
-        'sync_analytics done: date=%s fetched=%d saved=%d skipped=%d',
-        target_date, len(rows), saved, skipped,
+        'sync_analytics done: date=%s fetched=%d saved=%d saved_global=%d saved_poster=%d',
+        target_date, len(rows), saved, saved_global, saved_poster,
     )
     return HttpResponse(
         f'Analytics synchronized. Date: {target_date}, '
-        f'Fetched: {len(rows)}, Saved: {saved}, Skipped: {skipped}',
+        f'Fetched: {len(rows)}, Saved: {saved}, Global: {saved_global}, Poster: {saved_poster}',
         status=200,
     )
