@@ -15,6 +15,7 @@ from google.analytics.data_v1beta.types import (
     Metric,
     RunReportRequest,
 )
+from google.auth import compute_engine
 from google.oauth2 import service_account
 
 logger = logging.getLogger('analytics')
@@ -32,8 +33,9 @@ def _build_client() -> BetaAnalyticsDataClient:
     """GA4 Data API クライアントを構築する。
 
     ローカル開発: settings.GOOGLE_APPLICATION_CREDENTIALS のキーファイルから読み込む。
-    Cloud Run 等: キーファイル不在なら ADC (Application Default Credentials) を使う。
-    Cloud Run のデフォルト/設定済み SA が GA4 プロパティに権限を持っていれば動作する。
+    Cloud Run 等: キーファイル不在なら compute_engine 資格情報（metadata server 経由）。
+    google.auth.default() を使うと GOOGLE_APPLICATION_CREDENTIALS 環境変数が
+    残っていた場合に不在ファイルを探して失敗するため、metadata server を直接指定する。
     """
     creds_path = settings.GOOGLE_APPLICATION_CREDENTIALS
     if creds_path and os.path.exists(creds_path):
@@ -42,8 +44,9 @@ def _build_client() -> BetaAnalyticsDataClient:
             scopes=GA4_SCOPES,
         )
         return BetaAnalyticsDataClient(credentials=credentials)
-    # ADC: Cloud Run の metadata server などから自動取得
-    return BetaAnalyticsDataClient()
+    # Cloud Run / GCE の metadata server から直接取得（env var の影響を受けない）
+    credentials = compute_engine.Credentials(scopes=GA4_SCOPES)
+    return BetaAnalyticsDataClient(credentials=credentials)
 
 
 def _parse_ga4_date(value: str) -> str:
