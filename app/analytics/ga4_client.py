@@ -8,6 +8,8 @@ import os
 from datetime import date
 
 from django.conf import settings
+from google.api_core import retry as api_retry
+from google.api_core import exceptions as google_exceptions
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import (
     DateRange,
@@ -29,6 +31,17 @@ _GA4_DATE_LENGTH = 8
 
 _DIMENSIONS = ['pagePath', 'date', 'sessionSourceMedium']
 _METRICS = ['screenPageViews', 'totalUsers', 'sessions']
+_GA4_RUN_REPORT_RETRY = api_retry.Retry(
+    predicate=api_retry.if_exception_type(
+        google_exceptions.DeadlineExceeded,
+        google_exceptions.InternalServerError,
+        google_exceptions.ServiceUnavailable,
+    ),
+    initial=1.0,
+    maximum=10.0,
+    multiplier=2.0,
+    deadline=30.0,
+)
 
 
 def _build_client() -> BetaAnalyticsDataClient:
@@ -79,7 +92,9 @@ def fetch_page_report(property_id: str, target_date: date) -> list[dict]:
         date_ranges=[DateRange(start_date=date_str, end_date=date_str)],
     )
 
-    response = client.run_report(request)
+    # GA4 Data API は gRPC 経路で一時的に UNAVAILABLE / DEADLINE_EXCEEDED を返すことがある。
+    # 日次同期を単発の通信断で失敗させないため、読み取りリクエストだけ明示的に再試行する。
+    response = client.run_report(request, retry=_GA4_RUN_REPORT_RETRY)
 
     # GA4 Data API のデフォルト limit は 10,000 行。サイレント欠落を Fail Loud で検知する。
     # 現規模（14日870行）では発生しないが、成長して上限に達したら警告ログから気付けるようにする。
@@ -144,7 +159,8 @@ def fetch_poster_click_report(property_id: str, target_date: date) -> list[dict]
         ),
     )
 
-    response = client.run_report(request)
+    # page_view と同じ一時失敗対策を poster_click 取得にも適用する。
+    response = client.run_report(request, retry=_GA4_RUN_REPORT_RETRY)
 
     if response.row_count > len(response.rows):
         logger.warning(
