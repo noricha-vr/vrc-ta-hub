@@ -86,6 +86,19 @@
             margin-bottom: 0.1em;
         }
 
+        /* アクセス解析セクションは .post 配下にあるが、記事本文用の見出しスタイル
+           （青背景・青下線等）を当てない。Bootstrap の fs-4/fs-6 等を尊重するため初期化する。 */
+        .post .analytics-card :is(h1, h2, h3, h4) {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin-top: 0;
+            font-family: inherit;
+            letter-spacing: normal;
+            font-size: revert;
+            font-weight: revert;
+        }
+
         blockquote {
             background-color: #f9f9f9;
             border-left: 5px solid #3187de;
@@ -191,7 +204,9 @@
 
                 {# アクセス解析（管理者向けメニュー扱いのためサムネイル上に配置。集会管理者 / superuser のみ表示） #}
                 {% if can_view_analytics %}
-                    {% include 'analytics/_chart_section.html' %}
+                    <div class="analytics-card">
+                        {% include 'analytics/_chart_section.html' %}
+                    </div>
                 {% endif %}
 
                 {# detail_typeによって詳細情報の表示を切り替え #}
