@@ -1,0 +1,73 @@
+{% comment %}
+アクセス解析セクション（共通パーツ）。
+
+呼び出し側の context に以下が入っているときのみ表示する:
+  - daily_series: get_daily_series() の戻り値（[{date, pv, users, sessions}] 昇順）
+  - source_breakdown: get_source_breakdown() の戻り値（[{source_medium, pv}] pv降順）
+
+権限のないユーザーには view 側でこれらを context に入れないため、その場合は
+このパーツ全体が描画されない（テンプレートの if は二重ガード）。
+
+グラフ描画には Chart.js が必要。呼び出し側ページの {% block extra_js %} で
+analytics/_chart_scripts.html を include すること。
+{% endcomment %}
+{% if daily_series is not None and source_breakdown is not None %}
+<section class="card my-4 shadow-sm" id="analytics-section">
+    <div class="card-body p-4">
+        <h2 class="fs-4 fw-bold mb-1">
+            <i class="fa-solid fa-chart-line me-2 text-primary"></i>アクセス解析
+        </h2>
+        <p class="text-muted mb-4">直近30日のページアクセス状況です。</p>
+
+        {% if daily_series %}
+            {# Django テンプレートの json_script で安全に JSON 化して受け渡す（XSS対策） #}
+            {{ daily_series|json_script:"analytics-daily" }}
+            {{ source_breakdown|json_script:"analytics-sources" }}
+
+            <div class="mb-4">
+                <h3 class="fs-6 fw-semibold mb-3">
+                    <i class="fa-solid fa-arrow-trend-up me-2 text-secondary"></i>日別の推移
+                </h3>
+                <div style="position: relative; height: 320px;">
+                    <canvas id="analytics-daily-chart"
+                            aria-label="日別のページビュー・ユーザー数・セッション数の推移グラフ"
+                            role="img"></canvas>
+                </div>
+            </div>
+
+            <div>
+                <h3 class="fs-6 fw-semibold mb-3">
+                    <i class="fa-solid fa-arrow-right-to-bracket me-2 text-secondary"></i>流入元
+                </h3>
+                {% if source_breakdown %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th scope="col">参照元 / メディア</th>
+                                    <th scope="col" class="text-end">ページビュー</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in source_breakdown %}
+                                    <tr>
+                                        <td>{{ row.source_medium|default:"(不明)" }}</td>
+                                        <td class="text-end">{{ row.pv }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-0">流入元のデータがまだありません。</p>
+                {% endif %}
+            </div>
+        {% else %}
+            <div class="alert alert-light border mb-0" role="status">
+                <i class="fa-solid fa-circle-info me-2 text-secondary"></i>
+                アクセス解析のデータがまだありません。集計が反映されるまでお待ちください。
+            </div>
+        {% endif %}
+    </div>
+</section>
+{% endif %}

@@ -6,6 +6,7 @@ from django.urls import reverse_lazy
 from django.utils.safestring import mark_safe
 from django.views.generic import TemplateView, UpdateView
 
+from analytics import services as analytics_services
 from community.models import CommunityMember
 from user_account.forms import CustomUserChangeForm
 
@@ -45,6 +46,13 @@ class SettingsView(LoginRequiredMixin, TemplateView):
             role=CommunityMember.Role.OWNER,
         ).select_related('community').first()
         context['community'] = membership.community if membership else None
+
+        # アクセス可能な全 community を合算したアクセス解析（superuser は全 community）。
+        # community_ids 指定だけで content_type/object_id は指定しない（全体集計）。
+        community_ids = analytics_services.accessible_community_ids(self.request.user)
+        context['daily_series'] = analytics_services.get_daily_series(community_ids)
+        context['source_breakdown'] = analytics_services.get_source_breakdown(community_ids)
+
         if context['community'] and not context['community'].is_accepted:
             message = mark_safe(
                 'この集会は現在承認待ちです。Hub運営スタッフに承認されると公開されるようになります。'

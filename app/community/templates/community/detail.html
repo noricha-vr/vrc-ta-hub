@@ -505,4 +505,18 @@
     </div>
     {% endif %}
 
+    {# アクセス解析（集会オーナー / superuser のみ。集計データは view 側で出し分け済み） #}
+    {% if request.user.is_superuser or is_owner %}
+    <div class="container">
+        {% include 'analytics/_chart_section.html' %}
+    </div>
+    {% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+    {{ block.super }}
+    {% if request.user.is_superuser or is_owner %}
+        {% include 'analytics/_chart_scripts.html' %}
+    {% endif %}
 {% endblock %}

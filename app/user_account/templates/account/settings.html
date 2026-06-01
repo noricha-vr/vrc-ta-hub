@@ -163,7 +163,18 @@
                         </div>
                     </div>
                 </div>
+
+                {% if daily_series %}
+                    {% include 'analytics/_chart_section.html' %}
+                {% endif %}
             </div>
         </div>
     </div>
+{% endblock %}
+
+{% block extra_js %}
+    {{ block.super }}
+    {% if daily_series %}
+        {% include 'analytics/_chart_scripts.html' %}
+    {% endif %}
 {% endblock %}
