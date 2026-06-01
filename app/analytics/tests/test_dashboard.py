@@ -87,7 +87,8 @@ class DashboardViewAccessTest(TestCase):
 
         # A の records には source-A-only / B には source-B-only を入れて、識別可能にする
         ed_a = _create_event_detail(self.community_a, 'A theme')
-        ed_b = _create_event_detail(self.community_b, 'B theme')
+        # community_b 側にも event を作って参照整合性は保つ。変数は使わない（ruff F841 回避）
+        _create_event_detail(self.community_b, 'B theme')
         today = timezone.localdate()
         _make_analytics(self.community_a, page_path='/community/{}/'.format(self.community_a.id),
                         content_type=PageAnalytics.ContentType.COMMUNITY,

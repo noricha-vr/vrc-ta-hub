@@ -20,6 +20,12 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
 from django.views.generic import TemplateView
 
+from community.models import Community
+
+from . import services
+
+logger = logging.getLogger('analytics')
+
 # CSV Formula Injection（OWASP）防御: Excel/LibreOffice で数式評価される先頭文字
 _CSV_DANGEROUS_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
 
@@ -36,12 +42,6 @@ def _csv_safe(value) -> str:
     if text and text[0] in _CSV_DANGEROUS_PREFIXES:
         return "'" + text
     return text
-
-from community.models import Community
-
-from . import services
-
-logger = logging.getLogger('analytics')
 
 # クエリパラメータで受け付ける days の許可リスト（任意値を許すと DoS リスク）
 ALLOWED_DAYS = [7, 30, 90]
