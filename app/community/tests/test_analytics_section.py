@@ -117,6 +117,55 @@ class CommunityDetailAnalyticsTests(TestCase):
         owner_response = self.client.get(self._url(self.community_a))
         self.assertContains(owner_response, chart_cdn)
 
+    def test_staff_sees_own_community_analytics(self):
+        """staff として登録されたユーザーが自集会の解析を見られる（owner と同等）."""
+        staff_user = User.objects.create_user(
+            user_name='staffA', email='staff_a@example.com', password='pass-s',
+        )
+        CommunityMember.objects.create(
+            community=self.community_a, user=staff_user,
+            role=CommunityMember.Role.STAFF,
+        )
+        self.client.force_login(staff_user)
+        response = self.client.get(self._url(self.community_a))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('daily_series', response.context)
+        self.assertIn('source_breakdown', response.context)
+        self.assertContains(response, 'id="analytics-daily-chart"')
+        self.assertContains(response, 'source-A-only / organic')
+
+    def test_staff_cannot_see_other_community_analytics(self):
+        """集会Aのstaffが集会Bを見ても、Bのデータは漏れない（権限境界）."""
+        staff_user = User.objects.create_user(
+            user_name='staffA2', email='staff_a2@example.com', password='pass-s',
+        )
+        CommunityMember.objects.create(
+            community=self.community_a, user=staff_user,
+            role=CommunityMember.Role.STAFF,
+        )
+        self.client.force_login(staff_user)
+        response = self.client.get(self._url(self.community_b))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('daily_series', response.context)
+        self.assertNotIn('source_breakdown', response.context)
+        self.assertNotContains(response, 'source-B-only / referral')
+
+    def test_staff_does_not_see_edit_button(self):
+        """staff には集会編集ボタンは表示されない（is_owner ガード維持の回帰防止）."""
+        staff_user = User.objects.create_user(
+            user_name='staffA3', email='staff_a3@example.com', password='pass-s',
+        )
+        CommunityMember.objects.create(
+            community=self.community_a, user=staff_user,
+            role=CommunityMember.Role.STAFF,
+        )
+        self.client.force_login(staff_user)
+        response = self.client.get(self._url(self.community_a))
+        # is_owner は False のはず（編集ボタン用 context キー）
+        self.assertFalse(response.context['is_owner'])
+        # アクセス解析は見える
+        self.assertTrue(response.context['can_view_analytics'])
+
     def test_source_medium_is_json_escaped(self):
         """source_medium に危険な文字があっても json_script でエスケープされる（XSS回帰）."""
         # </script> を含む source_medium は GA4 由来データに混入し得る。
