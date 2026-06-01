@@ -214,7 +214,7 @@
                                         </div>
                                         {% endif %}
                                         <div class="mb-2">
-                                            <a href="{% url 'event:detail' detail.pk %}" class="btn btn-primary btn-sm">確認</a>
+                                            <a href="{% url 'event:detail' detail.pk %}" class="btn btn-primary btn-sm">記事</a>
                                             <a href="{% url 'event:detail_update' detail.pk %}"
                                                class="btn btn-success btn-sm">編集</a>
                                             <form method="post" action="{% url 'event:detail_delete' detail.pk %}"
