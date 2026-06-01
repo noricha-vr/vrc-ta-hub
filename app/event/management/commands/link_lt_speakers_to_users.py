@@ -35,6 +35,13 @@ def normalize_name(value: str) -> str:
     return value.strip().casefold()
 
 
+# 手動エイリアスの大文字小文字差・前後空白差を吸収するため、正規化したキーで引けるようにする。
+# 元キーが残らないと「定義者の意図そのままで一致させたい」ケースを潰すため、両方持つ。
+_NORMALIZED_MANUAL_ALIASES = {
+    normalize_name(key): value for key, value in MANUAL_SPEAKER_USER_ALIASES.items()
+}
+
+
 def organizer_name_tokens(organizers: str) -> set[str]:
     """Extract comparable names from the free-form community organizers field."""
     normalized_full = normalize_name(organizers)
@@ -156,9 +163,10 @@ class SpeakerMatcher:
         return MatchResult(tier="none", action="skip", reason="no matching user")
 
     def _match_manual_alias(self, speaker: str) -> MatchResult | None:
+        # 元キーで完全一致を試したあと、正規化済み辞書で大文字小文字差・空白差を吸収する
         target_user_name = MANUAL_SPEAKER_USER_ALIASES.get(speaker)
         if target_user_name is None:
-            target_user_name = MANUAL_SPEAKER_USER_ALIASES.get(normalize_name(speaker))
+            target_user_name = _NORMALIZED_MANUAL_ALIASES.get(normalize_name(speaker))
         if target_user_name is None:
             return None
 
@@ -272,8 +280,15 @@ class Command(BaseCommand):
         ]
         matcher = SpeakerMatcher(users)
 
+        # 公開済み (approved) LT のみを補完対象にする。
+        # pending / rejected を含めると、補完で applicant を立てた瞬間に
+        # EventDetailView の applicant 閲覧許可ロジックで未公開LTが本人に見えてしまうため。
         queryset = (
-            EventDetail.objects.filter(detail_type="LT", event__date__lt=timezone.localdate())
+            EventDetail.objects.filter(
+                detail_type="LT",
+                status="approved",
+                event__date__lt=timezone.localdate(),
+            )
             .select_related("event", "event__community", "applicant")
             .prefetch_related("event__community__members__user")
             .order_by("id")

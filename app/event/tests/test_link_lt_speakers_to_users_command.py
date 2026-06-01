@@ -143,6 +143,46 @@ class LinkLtSpeakersToUsersCommandTest(TestCase):
             self.assertIsNone(detail.applicant)
             self.assertEqual(self._read_rows(output), [])
 
+    def test_pending_lt_detail_is_not_targeted(self):
+        """status=pending の LT は補完対象外（applicant 設定で非公開LTが本人に見えるのを防ぐ）."""
+        speaker_user = User.objects.create_user(
+            user_name="PendingSpeaker", email="pending@example.com", password="pw",
+        )
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="pending",
+            theme="Pending Theme",
+            speaker="PendingSpeaker",
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "result.csv"
+            call_command("link_lt_speakers_to_users", "--commit", "--output", str(output), stdout=StringIO())
+
+            detail.refresh_from_db()
+            self.assertIsNone(detail.applicant)
+            # 未公開LTは applicant が設定されない（CSV にも出力されない）
+            rows = self._read_rows(output)
+            self.assertFalse(any(r.get('eventDetailId') == str(detail.id) for r in rows))
+            # speaker_user は使われない
+            self.assertIsNotNone(speaker_user)
+
+    def test_manual_alias_case_insensitive_match(self):
+        """手動エイリアスの大文字小文字違い（例: tak1123 で TAK1123 を引く）も一致する."""
+        # 'TAK1123' が手動エイリアスに登録済み → 'tak1123' (小文字) でも引けるべき
+        owner_user = User.objects.create_user(
+            user_name="株式投資座談会", email="stock@example.com", password="pw",
+        )
+        # alias の target である集会名と同名のユーザーを作って alias 経由で紐付ける構造
+        detail = self._create_detail(speaker="tak1123")
+
+        with TemporaryDirectory() as tmpdir:
+            output = Path(tmpdir) / "result.csv"
+            call_command("link_lt_speakers_to_users", "--commit", "--output", str(output), stdout=StringIO())
+            detail.refresh_from_db()
+            self.assertEqual(detail.applicant, owner_user)
+
     def test_empty_speaker_and_no_match_are_skipped(self):
         """空speakerと候補なしはskipし、理由をCSVに残す."""
         empty_detail = self._create_detail(speaker="")
