@@ -8,6 +8,7 @@ import os
 from datetime import date
 
 from django.conf import settings
+from google.api_core.exceptions import InvalidArgument
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import (
     DateRange,
@@ -29,6 +30,16 @@ _GA4_DATE_LENGTH = 8
 
 _DIMENSIONS = ['pagePath', 'date', 'sessionSourceMedium']
 _METRICS = ['screenPageViews', 'totalUsers', 'sessions']
+_POSTER_CLICK_COMMUNITY_DIMENSION = 'customEvent:community_id'
+
+
+def _is_missing_poster_click_dimension(exc: InvalidArgument) -> bool:
+    """GA4 が poster_click 用カスタムディメンションを拒否したか判定する。"""
+    message = str(exc)
+    return (
+        _POSTER_CLICK_COMMUNITY_DIMENSION in message
+        and 'not a valid dimension' in message
+    )
 
 
 def _build_client() -> BetaAnalyticsDataClient:
@@ -131,7 +142,7 @@ def fetch_poster_click_report(property_id: str, target_date: date) -> list[dict]
     request = RunReportRequest(
         property=f'properties/{property_id}',
         dimensions=[
-            Dimension(name='customEvent:community_id'),
+            Dimension(name=_POSTER_CLICK_COMMUNITY_DIMENSION),
             Dimension(name='eventName'),
         ],
         metrics=[Metric(name='eventCount'), Metric(name='totalUsers')],
@@ -144,7 +155,18 @@ def fetch_poster_click_report(property_id: str, target_date: date) -> list[dict]
         ),
     )
 
-    response = client.run_report(request)
+    try:
+        response = client.run_report(request)
+    except InvalidArgument as exc:
+        if not _is_missing_poster_click_dimension(exc):
+            raise
+        # GA4 Data API はイベントパラメータをカスタムディメンション登録後にだけ公開する。
+        # 未登録環境ではページ解析同期を優先し、poster_click だけ空結果として扱う。
+        logger.warning(
+            'GA4 poster_click custom dimension unavailable: property=%s date=%s dimension=%s',
+            property_id, date_str, _POSTER_CLICK_COMMUNITY_DIMENSION,
+        )
+        return []
 
     if response.row_count > len(response.rows):
         logger.warning(
