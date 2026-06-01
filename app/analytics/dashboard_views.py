@@ -20,6 +20,23 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
 from django.views.generic import TemplateView
 
+# CSV Formula Injection（OWASP）防御: Excel/LibreOffice で数式評価される先頭文字
+_CSV_DANGEROUS_PREFIXES = ('=', '+', '-', '@', '\t', '\r')
+
+
+def _csv_safe(value) -> str:
+    """CSV セルの値を Formula Injection 対策しつつ文字列化する。
+
+    `=HYPERLINK(...)` 等の埋め込みを `'` でエスケープして無害化する。
+    数値・日付は文字列化のみ（先頭が `-` の負数は防御対象だが、本ダッシュボードでは負数を出さない）。
+    """
+    if value is None:
+        return ''
+    text = str(value)
+    if text and text[0] in _CSV_DANGEROUS_PREFIXES:
+        return "'" + text
+    return text
+
 from community.models import Community
 
 from . import services
@@ -96,13 +113,13 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
         for row in rows:
             writer.writerow([
                 row['event_detail_id'],
-                row['theme'],
+                _csv_safe(row['theme']),
                 row['published_at'].isoformat() if row['published_at'] else '',
-                row['community_name'],
+                _csv_safe(row['community_name']),
                 row['pv'],
                 row['users'],
                 row['sessions'],
-                row['top_source'],
+                _csv_safe(row['top_source']),
             ])
         return response
 

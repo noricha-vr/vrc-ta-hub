@@ -55,59 +55,69 @@
                 </div>
             </form>
 
-            {# 全体サマリーカード #}
+            {# 全体サマリーカード（メトリクスごとに左ボーダーで色分け、前期間比較行は高さ固定） #}
             <div class="row g-3 mb-3">
                 {% with stats=overall_stats %}
                     <div class="col-md-4">
-                        <div class="card h-100">
+                        <div class="card h-100 border-start border-4 border-primary">
                             <div class="card-body">
                                 <div class="text-muted small">ページビュー（{{ days }}日）</div>
                                 <div class="fs-3 fw-bold">{{ stats.pv }}</div>
-                                {% if stats.pv_change_pct is not None %}
-                                    <div class="small {% if stats.pv_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                        {% if stats.pv_change_pct >= 0 %}▲{% else %}▼{% endif %}
-                                        {{ stats.pv_change_pct }}% vs 前{{ days }}日
-                                    </div>
-                                {% else %}
-                                    <div class="small text-muted">前期間データなし</div>
-                                {% endif %}
+                                <div class="small analytics-change-row">
+                                    {% if stats.pv_change_pct is not None %}
+                                        <span class="{% if stats.pv_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if stats.pv_change_pct >= 0 %}▲{% else %}▼{% endif %}
+                                            {{ stats.pv_change_pct }}% vs 前{{ days }}日
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">前期間データなし</span>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="card h-100">
+                        <div class="card h-100 border-start border-4 border-success">
                             <div class="card-body">
-                                <div class="text-muted small">ユーザー数</div>
+                                <div class="text-muted small">ユーザー数（{{ days }}日）</div>
                                 <div class="fs-3 fw-bold">{{ stats.users }}</div>
-                                {% if stats.users_change_pct is not None %}
-                                    <div class="small {% if stats.users_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                        {% if stats.users_change_pct >= 0 %}▲{% else %}▼{% endif %}
-                                        {{ stats.users_change_pct }}%
-                                    </div>
-                                {% else %}
-                                    <div class="small text-muted">-</div>
-                                {% endif %}
+                                <div class="small analytics-change-row">
+                                    {% if stats.users_change_pct is not None %}
+                                        <span class="{% if stats.users_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if stats.users_change_pct >= 0 %}▲{% else %}▼{% endif %}
+                                            {{ stats.users_change_pct }}% vs 前{{ days }}日
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">前期間データなし</span>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-4">
-                        <div class="card h-100">
+                        <div class="card h-100 border-start border-4 border-info">
                             <div class="card-body">
-                                <div class="text-muted small">セッション数</div>
+                                <div class="text-muted small">セッション数（{{ days }}日）</div>
                                 <div class="fs-3 fw-bold">{{ stats.sessions }}</div>
-                                {% if stats.sessions_change_pct is not None %}
-                                    <div class="small {% if stats.sessions_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                        {% if stats.sessions_change_pct >= 0 %}▲{% else %}▼{% endif %}
-                                        {{ stats.sessions_change_pct }}%
-                                    </div>
-                                {% else %}
-                                    <div class="small text-muted">-</div>
-                                {% endif %}
+                                <div class="small analytics-change-row">
+                                    {% if stats.sessions_change_pct is not None %}
+                                        <span class="{% if stats.sessions_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if stats.sessions_change_pct >= 0 %}▲{% else %}▼{% endif %}
+                                            {{ stats.sessions_change_pct }}% vs 前{{ days }}日
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">前期間データなし</span>
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
                     </div>
                 {% endwith %}
             </div>
+            <style>
+                /* 前期間比較行の高さを揃えて 3 カード間のガタつきを防ぐ */
+                .analytics-change-row { min-height: 1.5em; }
+            </style>
 
             {# 推移グラフ + 流入元（既存 _chart_section を活用） #}
             {% include 'analytics/_chart_section.html' %}
@@ -140,7 +150,7 @@
                                                     {{ row.theme|truncatechars:50 }}
                                                 </a>
                                             </td>
-                                            <td class="text-muted small">{{ row.community_name }}</td>
+                                            <td class="text-muted">{{ row.community_name }}</td>
                                             <td class="text-muted small">{{ row.published_at|date:"Y-m-d" }}</td>
                                             <td class="text-end fw-bold">{{ row.pv }}</td>
                                             <td class="text-end">{{ row.users }}</td>
