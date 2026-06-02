@@ -64,7 +64,8 @@ class DiscordAuthRequiredMiddlewareTests(TestCase):
     def test_exempt_path_logout_not_redirected(self):
         """除外パス /account/logout/ はリダイレクトされないこと."""
         self.client.login(username='test_no_discord', password='testpass123')
-        response = self.client.get(reverse('account:logout'))
+        # Django 5.0 で GET ログアウトは削除されたため POST を使う (Issue #387)
+        response = self.client.post(reverse('account:logout'))
         # logout後のリダイレクト（discord_requiredではない）
         self.assertEqual(response.status_code, 302)
         self.assertNotIn('discord-required', response.url)
