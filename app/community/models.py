@@ -260,7 +260,12 @@ class CommunityMember(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='追加日時')
 
     class Meta:
-        unique_together = ('community', 'user')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['community', 'user'],
+                name='community_member_unique_community_user',
+            ),
+        ]
         verbose_name = '集会メンバー'
         verbose_name_plural = '集会メンバー'
 

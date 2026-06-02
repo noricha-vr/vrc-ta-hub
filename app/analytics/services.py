@@ -411,7 +411,7 @@ def get_campaign_breakdown(
             'meta': {'id', 'name', 'community_id', 'community_name', 'distributed_at'} or None,
         }（pv 降順）。meta は Campaign モデルが存在する場合のみ付く。
         異なる集会が同じ utm_campaign を使った場合は community_id ごとに別行で返す
-        （Campaign.Meta.unique_together = ('community', 'utm_campaign') のため）。
+        （Campaign の UniqueConstraint は (community, utm_campaign) のため）。
     """
     if not community_ids:
         return []

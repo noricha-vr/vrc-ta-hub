@@ -67,7 +67,7 @@ def resolve_page_path(page_path: str, campaign: str | None = None) -> dict | Non
         }
 
     # pagePath で解決できない場合、utm_campaign で Campaign を逆引きする。
-    # Campaign.Meta.unique_together = ('community', 'utm_campaign') のため
+    # Campaign の UniqueConstraint は (community, utm_campaign) のため
     # 同一 utm_campaign が複数 community に存在しうる。曖昧な場合は GLOBAL 扱いに倒す
     # （誤った community への割り当てによる集計汚染を避ける Fail Safe）。
     if campaign and campaign != _CAMPAIGN_NOT_SET:
