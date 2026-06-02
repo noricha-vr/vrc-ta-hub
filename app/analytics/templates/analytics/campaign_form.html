@@ -1,0 +1,51 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block title %}{% if object %}キャンペーン編集{% else %}キャンペーン新規作成{% endif %} - VRChat 技術・学術系イベントHub{% endblock %}
+
+{% block main %}
+    <div class="container my-4" style="max-width: 800px;">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <h1 class="h3 mb-0">
+                <i class="fa-solid fa-bullhorn me-2"></i>
+                {% if object %}キャンペーン編集{% else %}キャンペーン新規作成{% endif %}
+            </h1>
+            <a href="{% url 'analytics:campaign_list' %}" class="btn btn-sm btn-outline-secondary ms-auto">
+                <i class="fa-solid fa-arrow-left me-1"></i>一覧に戻る
+            </a>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    {% for field in form %}
+                        <div class="mb-3">
+                            <label for="{{ field.id_for_label }}" class="form-label">
+                                {{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}
+                            </label>
+                            {{ field }}
+                            {% if field.help_text %}
+                                <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                            {% if field.errors %}
+                                <div class="text-danger small">{{ field.errors }}</div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-save me-1"></i>
+                    {% if object %}更新{% else %}作成{% endif %}
+                </button>
+                <a href="{% url 'analytics:campaign_list' %}" class="btn btn-outline-secondary">キャンセル</a>
+            </div>
+        </form>
+    </div>
+{% endblock %}

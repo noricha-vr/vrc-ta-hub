@@ -1,0 +1,31 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block title %}キャンペーン削除確認 - VRChat 技術・学術系イベントHub{% endblock %}
+
+{% block main %}
+    <div class="container my-4" style="max-width: 600px;">
+        <h1 class="h3 mb-3">
+            <i class="fa-solid fa-triangle-exclamation me-2 text-danger"></i>キャンペーン削除
+        </h1>
+        <div class="card border-danger mb-3">
+            <div class="card-body">
+                <p>以下のキャンペーンを削除します。GA4 側の utm_campaign データは残り、引き続き計測されます。ただしダッシュボードでの人間可読な名称表示（このキャンペーンの「表示名」）は失われます。</p>
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">名称</dt>
+                    <dd class="col-sm-9">{{ object.name }}</dd>
+                    <dt class="col-sm-3">集会</dt>
+                    <dd class="col-sm-9">{{ object.community.name }}</dd>
+                    <dt class="col-sm-3">utm_campaign</dt>
+                    <dd class="col-sm-9"><code>{{ object.utm_campaign }}</code></dd>
+                </dl>
+            </div>
+        </div>
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">
+                <i class="fa-solid fa-trash me-1"></i>削除する
+            </button>
+            <a href="{% url 'analytics:campaign_list' %}" class="btn btn-outline-secondary">キャンセル</a>
+        </form>
+    </div>
+{% endblock %}

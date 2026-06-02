@@ -73,6 +73,7 @@ def sync_analytics(request):
                     page_path=row['page_path'],
                     date=row['date'],
                     source_medium=row['source_medium'],
+                    campaign=row['campaign'],
                     defaults={
                         'pv': row['pv'],
                         'users': row['users'],
@@ -88,6 +89,7 @@ def sync_analytics(request):
                 page_path=row['page_path'],
                 date=row['date'],
                 source_medium=row['source_medium'],
+                campaign=row['campaign'],
                 defaults={
                     'pv': row['pv'],
                     'users': row['users'],

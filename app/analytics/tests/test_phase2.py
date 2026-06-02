@@ -35,6 +35,7 @@ class GlobalTrafficSyncTest(TestCase):
                 'page_path': '/about/',
                 'date': '2026-05-31',
                 'source_medium': 'google / organic',
+                'campaign': '(not set)',
                 'pv': 50, 'users': 40, 'sessions': 45,
             },
         ]

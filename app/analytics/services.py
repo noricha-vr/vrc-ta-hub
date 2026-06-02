@@ -13,7 +13,7 @@ from django.utils import timezone
 from community.models import Community
 from event.models import EventDetail
 
-from .models import PageAnalytics, PosterClick
+from .models import Campaign, PageAnalytics, PosterClick
 
 logger = logging.getLogger('analytics')
 
@@ -387,6 +387,149 @@ def get_global_traffic(*, days=DEFAULT_DAYS) -> dict:
         'daily': daily,
         'top_paths': top_paths,
     }
+
+
+# GA4 が utm_campaign 未指定セッションに付ける標準ラベル。集計時はデフォルト除外する
+CAMPAIGN_NOT_SET = '(not set)'
+# キャンペーン日次グラフのデフォルト表示本数。多すぎると線が重なって読めなくなる
+DEFAULT_CAMPAIGN_TOP_N = 5
+
+
+def get_campaign_breakdown(
+    community_ids, *, days=DEFAULT_DAYS, exclude_default=True,
+) -> list:
+    """キャンペーン別の PV/UU/セッション集計を返す。
+
+    Args:
+        community_ids: アクセス可能な community id（必須の権限境界）。
+        days: 遡る日数。
+        exclude_default: True なら GA4 の '(not set)'（utm 無し流入）を除外する。
+
+    Returns:
+        各要素は {
+            'campaign', 'community_id', 'pv', 'users', 'sessions',
+            'meta': {'id', 'name', 'community_id', 'community_name', 'distributed_at'} or None,
+        }（pv 降順）。meta は Campaign モデルが存在する場合のみ付く。
+        異なる集会が同じ utm_campaign を使った場合は community_id ごとに別行で返す
+        （Campaign.Meta.unique_together = ('community', 'utm_campaign') のため）。
+    """
+    if not community_ids:
+        return []
+
+    queryset = _base_queryset(community_ids, days=days)
+    if exclude_default:
+        queryset = queryset.exclude(campaign=CAMPAIGN_NOT_SET)
+
+    # community_id を group key に含めて、同 utm_campaign を別集会が使ったケースを別行にする
+    rows = list(
+        queryset
+        .values('campaign', 'community_id')
+        .annotate(
+            pv=Sum('pv'),
+            users=Sum('users'),
+            sessions=Sum('sessions'),
+        )
+        .order_by('-pv')
+    )
+
+    if not rows:
+        return []
+
+    # Campaign メタを (community_id, utm_campaign) の組をキーに bulk fetch
+    utm_keys = {row['campaign'] for row in rows}
+    campaign_map = {
+        (c.community_id, c.utm_campaign): c
+        for c in Campaign.objects
+        .select_related('community')
+        .filter(community_id__in=community_ids, utm_campaign__in=utm_keys)
+    }
+
+    for row in rows:
+        c = campaign_map.get((row['community_id'], row['campaign']))
+        if c is None:
+            row['meta'] = None
+        else:
+            row['meta'] = {
+                'id': c.pk,
+                'name': c.name,
+                'community_id': c.community_id,
+                'community_name': c.community.name,
+                'distributed_at': c.distributed_at,
+            }
+
+    return rows
+
+
+def get_campaign_daily_series(
+    community_ids, *, days=DEFAULT_DAYS, top_n=DEFAULT_CAMPAIGN_TOP_N,
+    exclude_default=True,
+) -> dict:
+    """上位 N キャンペーンの日次 PV 推移を Chart.js datasets 形式で返す。
+
+    Args:
+        community_ids: アクセス可能な community id（必須の権限境界）。
+        days: 遡る日数。
+        top_n: 上位何キャンペーンを返すか。
+        exclude_default: True なら '(not set)' を除外。
+
+    Returns:
+        {
+            'labels': ['MM/DD', ...] （対象期間の日付昇順）,
+            'datasets': [{'label': キャンペーン表示名, 'data': [pv_day0, ...]}, ...]
+        }
+    """
+    if not community_ids:
+        return {'labels': [], 'datasets': []}
+
+    queryset = _base_queryset(community_ids, days=days)
+    if exclude_default:
+        queryset = queryset.exclude(campaign=CAMPAIGN_NOT_SET)
+
+    # 上位 N キャンペーン（PV 合計で）を選ぶ
+    top_campaigns = list(
+        queryset
+        .values('campaign')
+        .annotate(pv=Sum('pv'))
+        .order_by('-pv')[:top_n]
+    )
+    if not top_campaigns:
+        return {'labels': [], 'datasets': []}
+
+    top_keys = [row['campaign'] for row in top_campaigns]
+
+    # 日付ラベル: today を含めて days+1 日分。グラフは「過去 N 日」の期間表示
+    today = timezone.localdate()
+    start = today - timedelta(days=days)
+    label_dates = [start + timedelta(days=i) for i in range(days + 1)]
+    labels = [d.strftime('%m/%d') for d in label_dates]
+
+    # 一括取得して dict 化（N+1 防止）
+    daily_rows = (
+        queryset
+        .filter(campaign__in=top_keys)
+        .values('campaign', 'date')
+        .annotate(pv=Sum('pv'))
+    )
+    # {campaign: {date: pv}}
+    by_campaign: dict[str, dict] = {key: {} for key in top_keys}
+    for row in daily_rows:
+        by_campaign.setdefault(row['campaign'], {})[row['date']] = row['pv']
+
+    # 人間可読名（Campaign.name）を引く
+    name_map = {
+        c.utm_campaign: c.name
+        for c in Campaign.objects.filter(
+            community_id__in=community_ids, utm_campaign__in=top_keys,
+        )
+    }
+
+    datasets = []
+    for key in top_keys:
+        data = [by_campaign.get(key, {}).get(d, 0) or 0 for d in label_dates]
+        display = name_map.get(key, key)[:30]
+        datasets.append({'label': display, 'data': data})
+
+    return {'labels': labels, 'datasets': datasets}
 
 
 def get_poster_click_stats(community_ids, *, days=DEFAULT_DAYS) -> dict:

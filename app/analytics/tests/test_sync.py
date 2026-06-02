@@ -36,13 +36,14 @@ class SyncAnalyticsViewTest(TestCase):
         self.addCleanup(poster_patcher.stop)
         poster_patcher.start()
 
-    def _rows(self, pv=10):
+    def _rows(self, pv=10, campaign='(not set)'):
         """GA4 から返る想定の行（community 紐付き1件 + 紐付かない1件）。"""
         return [
             {
                 'page_path': self.community_path,
                 'date': '2026-05-31',
                 'source_medium': 'google / organic',
+                'campaign': campaign,
                 'pv': pv,
                 'users': pv - 2,
                 'sessions': pv - 1,
@@ -51,6 +52,7 @@ class SyncAnalyticsViewTest(TestCase):
                 'page_path': '/about/',  # 紐付かない → GLOBAL レコードとして保存される
                 'date': '2026-05-31',
                 'source_medium': '(direct) / (none)',
+                'campaign': '(not set)',
                 'pv': 99,
                 'users': 99,
                 'sessions': 99,
@@ -95,6 +97,39 @@ class SyncAnalyticsViewTest(TestCase):
         self.assertEqual(record.community, self.community)
         self.assertEqual(record.object_id, self.community.pk)
         self.assertEqual(record.content_type, PageAnalytics.ContentType.COMMUNITY)
+
+    @patch('analytics.views.fetch_page_report')
+    def test_campaign_is_persisted_and_unique_per_combination(self, mock_fetch):
+        """同じ (path, date, source_medium) でも campaign 違いは別行として保存される。"""
+        mock_fetch.return_value = [
+            {
+                'page_path': self.community_path,
+                'date': '2026-05-31',
+                'source_medium': '(direct) / (none)',
+                'campaign': '20260510-gishohaku',
+                'pv': 5, 'users': 4, 'sessions': 5,
+            },
+            {
+                'page_path': self.community_path,
+                'date': '2026-05-31',
+                'source_medium': '(direct) / (none)',
+                'campaign': '(not set)',
+                'pv': 10, 'users': 9, 'sessions': 10,
+            },
+        ]
+        res = self.client.get(self.url, HTTP_REQUEST_TOKEN=TEST_TOKEN)
+        self.assertEqual(res.status_code, 200)
+
+        # 同じパス/日付/参照元でも campaign 違いは別行
+        self.assertEqual(PageAnalytics.objects.filter(page_path=self.community_path).count(), 2)
+        flyer = PageAnalytics.objects.get(
+            page_path=self.community_path, campaign='20260510-gishohaku'
+        )
+        self.assertEqual(flyer.pv, 5)
+        organic = PageAnalytics.objects.get(
+            page_path=self.community_path, campaign='(not set)'
+        )
+        self.assertEqual(organic.pv, 10)
 
     @patch('analytics.views.fetch_page_report')
     def test_invalid_token_returns_401(self, mock_fetch):
