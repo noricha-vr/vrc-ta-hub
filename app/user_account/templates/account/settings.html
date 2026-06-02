@@ -157,9 +157,12 @@
 
                         <!-- ログアウトセクション -->
                         <div class="list-group list-group-flush">
-                            <a href="{% url 'account:logout' %}" class="list-group-item list-group-item-action text-danger">
-                                <i class="fa-solid fa-right-from-bracket me-2"></i>ログアウト
-                            </a>
+                            <form method="post" action="{% url 'account:logout' %}" class="m-0">
+                                {% csrf_token %}
+                                <button type="submit" class="list-group-item list-group-item-action text-danger w-100 text-start border-0">
+                                    <i class="fa-solid fa-right-from-bracket me-2"></i>ログアウト
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>

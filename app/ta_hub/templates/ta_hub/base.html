@@ -409,9 +409,14 @@
                                 <li><a class="dropdown-item" href="{% url 'account:settings' %}">
                                     <i class="bi bi-gear me-2"></i>アカウント設定
                                 </a></li>
-                                <li><a class="dropdown-item" href="{% url 'account:logout' %}">
-                                    <i class="bi bi-box-arrow-right me-2"></i>ログアウト
-                                </a></li>
+                                <li>
+                                    <form method="post" action="{% url 'account:logout' %}" class="m-0">
+                                        {% csrf_token %}
+                                        <button type="submit" class="dropdown-item">
+                                            <i class="bi bi-box-arrow-right me-2"></i>ログアウト
+                                        </button>
+                                    </form>
+                                </li>
                             </ul>
                         </li>
                     {% else %}
