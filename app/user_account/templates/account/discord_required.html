@@ -30,9 +30,12 @@
                         </div>
                         <hr>
                         <div class="text-center mt-4">
-                            <a href="{% url 'account:logout' %}" class="text-muted">
-                                <i class="fas fa-sign-out-alt me-1"></i>ログアウト
-                            </a>
+                            <form method="post" action="{% url 'account:logout' %}" class="d-inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-link text-muted p-0 border-0 align-baseline">
+                                    <i class="fas fa-sign-out-alt me-1"></i>ログアウト
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
