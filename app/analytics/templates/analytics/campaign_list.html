@@ -1,0 +1,113 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block title %}キャンペーン管理 - VRChat 技術・学術系イベントHub{% endblock %}
+
+{% block main %}
+    <div class="container my-4">
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <h1 class="h3 mb-0">
+                <i class="fa-solid fa-bullhorn me-2"></i>キャンペーン管理
+            </h1>
+            <div class="ms-auto d-flex gap-2">
+                <a href="{% url 'analytics:dashboard' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="fa-solid fa-chart-line me-1"></i>ダッシュボードへ
+                </a>
+                <a href="{% url 'analytics:campaign_create' %}" class="btn btn-sm btn-primary">
+                    <i class="fa-solid fa-plus me-1"></i>新規作成
+                </a>
+            </div>
+        </div>
+
+        <p class="text-muted small">
+            QR コード入りチラシ等の流入計測用 URL（UTM 付き）を発行・管理します。
+            配布翌日以降、ダッシュボードでキャンペーン別のアクセス数が確認できます。
+        </p>
+
+        {% if campaigns %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>QR</th>
+                            <th>名称</th>
+                            <th>集会</th>
+                            <th>UTM</th>
+                            <th>配布予定日</th>
+                            <th>URL</th>
+                            <th class="text-end">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in campaigns %}
+                            <tr>
+                                <td>
+                                    {% if c.qr_image %}
+                                        <a href="{{ c.qr_image.url }}" target="_blank" rel="noopener">
+                                            <img src="{{ c.qr_image.url }}" alt="QR for {{ c.name }}" width="64" height="64" loading="lazy">
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted small">未生成</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="fw-bold">{{ c.name }}</div>
+                                    <div class="text-muted small">{{ c.utm_campaign }}</div>
+                                </td>
+                                <td class="text-muted small">{{ c.community.name }}</td>
+                                <td>
+                                    <div>source: <code>{{ c.utm_source }}</code></div>
+                                    <div>medium: <code>{{ c.utm_medium }}</code></div>
+                                </td>
+                                <td class="text-muted">
+                                    {% if c.distributed_at %}{{ c.distributed_at|date:"Y-m-d" }}{% else %}-{% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <input type="text" class="form-control form-control-sm campaign-url-input"
+                                               value="{{ c.url }}" readonly
+                                               style="min-width: 240px;">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary copy-url-btn"
+                                                data-url="{{ c.url }}" title="URL をコピー">
+                                            <i class="fa-regular fa-copy"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="text-end">
+                                    <a href="{% url 'analytics:campaign_update' c.pk %}" class="btn btn-sm btn-outline-primary">編集</a>
+                                    <a href="{% url 'analytics:campaign_delete' c.pk %}" class="btn btn-sm btn-outline-danger">削除</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if is_paginated %}
+                {% include 'ta_hub/pagination.html' %}
+            {% endif %}
+        {% else %}
+            <div class="alert alert-info">
+                まだキャンペーンがありません。<a href="{% url 'analytics:campaign_create' %}">新規作成</a> から QR 用 URL を発行してください。
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+    {{ block.super }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.copy-url-btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    const url = this.dataset.url;
+                    navigator.clipboard.writeText(url).then(function () {
+                        btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+                        setTimeout(function () {
+                            btn.innerHTML = '<i class="fa-regular fa-copy"></i>';
+                        }, 1500);
+                    });
+                });
+            });
+        });
+    </script>
+{% endblock %}

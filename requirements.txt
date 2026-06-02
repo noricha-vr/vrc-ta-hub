@@ -31,3 +31,4 @@ pydantic==2.10.6
 drf-spectacular==0.28.0
 django-allauth[socialaccount]==65.3.1
 requests-oauthlib==2.0.0
+qrcode[pil]==8.0

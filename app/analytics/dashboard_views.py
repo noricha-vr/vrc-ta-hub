@@ -164,6 +164,9 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
             ),
             # ポスタークリック集計（権限境界は target_ids ベースで services 側が絞る）
             'poster_clicks': services.get_poster_click_stats(target_ids, days=days),
+            # キャンペーン経由アクセス（UTM utm_campaign 別）
+            'campaign_breakdown': services.get_campaign_breakdown(target_ids, days=days),
+            'campaign_daily': services.get_campaign_daily_series(target_ids, days=days),
         })
 
         # サイト全体トラフィック（GLOBAL）は superuser のみ取得

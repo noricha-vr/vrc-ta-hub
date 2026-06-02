@@ -241,6 +241,74 @@
                 </div>
             </div>
 
+            {# キャンペーン経由アクセス（UTM utm_campaign 別）#}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap align-items-center mb-1 gap-2">
+                        <h2 class="fs-5 fw-bold mb-0">
+                            <i class="fa-solid fa-bullhorn me-2"></i>キャンペーン経由アクセス（{{ days }}日）
+                        </h2>
+                        <a href="{% url 'analytics:campaign_list' %}" class="btn btn-sm btn-outline-primary ms-auto">
+                            <i class="fa-solid fa-gear me-1"></i>キャンペーンを管理
+                        </a>
+                    </div>
+                    <p class="text-muted small mb-3">
+                        QR コード/UTM 付き URL 経由の流入を集計します。utm_campaign 未指定の通常流入は除外しています。
+                    </p>
+
+                    {% if campaign_daily.datasets %}
+                        <div style="position: relative; height: 280px;" class="mb-3">
+                            <canvas id="campaign-daily-chart" aria-label="キャンペーン日次PV推移" role="img"></canvas>
+                        </div>
+                        {{ campaign_daily|json_script:"campaign-daily-data" }}
+                    {% endif %}
+
+                    {% if campaign_breakdown %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>キャンペーン</th>
+                                        <th>集会</th>
+                                        <th>配布日</th>
+                                        <th class="text-end">PV</th>
+                                        <th class="text-end">UU</th>
+                                        <th class="text-end">セッション</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in campaign_breakdown %}
+                                        <tr>
+                                            <td>
+                                                {% if row.meta %}
+                                                    <a href="{% url 'analytics:campaign_update' row.meta.id %}" class="text-decoration-none fw-bold">{{ row.meta.name }}</a>
+                                                    <div class="text-muted small"><code>{{ row.campaign }}</code></div>
+                                                {% else %}
+                                                    <code>{{ row.campaign }}</code>
+                                                    <div class="text-muted small">未登録</div>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-muted small">
+                                                {% if row.meta %}{{ row.meta.community_name }}{% else %}-{% endif %}
+                                            </td>
+                                            <td class="text-muted small">
+                                                {% if row.meta.distributed_at %}{{ row.meta.distributed_at|date:"Y-m-d" }}{% else %}-{% endif %}
+                                            </td>
+                                            <td class="text-end fw-bold">{{ row.pv }}</td>
+                                            <td class="text-end">{{ row.users }}</td>
+                                            <td class="text-end">{{ row.sessions }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">対象期間にキャンペーン経由のアクセスデータがありません。</p>
+                        <p class="text-muted small mb-0">配布後、GA4 同期翌日以降にこのカードへ反映されます。</p>
+                    {% endif %}
+                </div>
+            </div>
+
             {# サイト全体トラフィック（GLOBAL）: superuser のみ。トップ・集会一覧等の community 未紐付け URL #}
             {% if global_traffic %}
                 <div class="card mb-3 border-warning">
@@ -304,6 +372,45 @@
     {{ block.super }}
     {% if has_access %}
         {% include 'analytics/_chart_scripts.html' %}
+        {% if campaign_daily.datasets %}
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    const dataEl = document.getElementById('campaign-daily-data');
+                    const canvas = document.getElementById('campaign-daily-chart');
+                    if (!dataEl || !canvas || typeof Chart === 'undefined') return;
+                    let payload;
+                    try { payload = JSON.parse(dataEl.textContent); } catch (e) { return; }
+                    if (!payload.datasets || payload.datasets.length === 0) return;
+
+                    const palette = ['#0d6efd', '#198754', '#fd7e14', '#dc3545', '#6f42c1'];
+                    const datasets = payload.datasets.map(function (d, i) {
+                        const color = palette[i % palette.length];
+                        return {
+                            label: d.label,
+                            data: d.data,
+                            borderColor: color,
+                            backgroundColor: color,
+                            tension: 0.3,
+                            pointRadius: 2,
+                        };
+                    });
+                    new Chart(canvas, {
+                        type: 'line',
+                        data: { labels: payload.labels, datasets: datasets },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: { mode: 'index', intersect: false },
+                            scales: {
+                                x: { ticks: { maxTicksLimit: 8, autoSkip: true } },
+                                y: { beginAtZero: true, ticks: { precision: 0 } },
+                            },
+                            plugins: { legend: { position: 'bottom' } },
+                        },
+                    });
+                });
+            </script>
+        {% endif %}
         {% if post_publish_chart.datasets %}
             <script>
                 document.addEventListener('DOMContentLoaded', function () {

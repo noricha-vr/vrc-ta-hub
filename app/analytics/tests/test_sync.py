@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from community.models import Community
 
-from analytics.models import PageAnalytics
+from analytics.models import Campaign, PageAnalytics
 
 TEST_TOKEN = 'test-request-token'
 
@@ -36,13 +36,14 @@ class SyncAnalyticsViewTest(TestCase):
         self.addCleanup(poster_patcher.stop)
         poster_patcher.start()
 
-    def _rows(self, pv=10):
+    def _rows(self, pv=10, campaign='(not set)'):
         """GA4 から返る想定の行（community 紐付き1件 + 紐付かない1件）。"""
         return [
             {
                 'page_path': self.community_path,
                 'date': '2026-05-31',
                 'source_medium': 'google / organic',
+                'campaign': campaign,
                 'pv': pv,
                 'users': pv - 2,
                 'sessions': pv - 1,
@@ -51,6 +52,7 @@ class SyncAnalyticsViewTest(TestCase):
                 'page_path': '/about/',  # 紐付かない → GLOBAL レコードとして保存される
                 'date': '2026-05-31',
                 'source_medium': '(direct) / (none)',
+                'campaign': '(not set)',
                 'pv': 99,
                 'users': 99,
                 'sessions': 99,
@@ -95,6 +97,39 @@ class SyncAnalyticsViewTest(TestCase):
         self.assertEqual(record.community, self.community)
         self.assertEqual(record.object_id, self.community.pk)
         self.assertEqual(record.content_type, PageAnalytics.ContentType.COMMUNITY)
+
+    @patch('analytics.views.fetch_page_report')
+    def test_campaign_is_persisted_and_unique_per_combination(self, mock_fetch):
+        """同じ (path, date, source_medium) でも campaign 違いは別行として保存される。"""
+        mock_fetch.return_value = [
+            {
+                'page_path': self.community_path,
+                'date': '2026-05-31',
+                'source_medium': '(direct) / (none)',
+                'campaign': '20260510-gishohaku',
+                'pv': 5, 'users': 4, 'sessions': 5,
+            },
+            {
+                'page_path': self.community_path,
+                'date': '2026-05-31',
+                'source_medium': '(direct) / (none)',
+                'campaign': '(not set)',
+                'pv': 10, 'users': 9, 'sessions': 10,
+            },
+        ]
+        res = self.client.get(self.url, HTTP_REQUEST_TOKEN=TEST_TOKEN)
+        self.assertEqual(res.status_code, 200)
+
+        # 同じパス/日付/参照元でも campaign 違いは別行
+        self.assertEqual(PageAnalytics.objects.filter(page_path=self.community_path).count(), 2)
+        flyer = PageAnalytics.objects.get(
+            page_path=self.community_path, campaign='20260510-gishohaku'
+        )
+        self.assertEqual(flyer.pv, 5)
+        organic = PageAnalytics.objects.get(
+            page_path=self.community_path, campaign='(not set)'
+        )
+        self.assertEqual(organic.pv, 10)
 
     @patch('analytics.views.fetch_page_report')
     def test_invalid_token_returns_401(self, mock_fetch):
@@ -150,3 +185,51 @@ class SyncAnalyticsViewTest(TestCase):
         res_empty_header = self.client.get(self.url, HTTP_REQUEST_TOKEN='')
         self.assertEqual(res_empty_header.status_code, 401)
         mock_fetch.assert_not_called()
+
+    @patch('analytics.views.fetch_page_report')
+    def test_root_path_with_campaign_resolves_to_community(self, mock_fetch):
+        """landing_path='/' のチラシ QR 流入が utm_campaign 経由で集会に紐付くこと。
+
+        PR #383 codex 指摘 r3338246662 の回帰防止。改修前は GLOBAL レコードに
+        community=None で保存され、主催者ダッシュボードに一切表示されなかった。
+        """
+        Campaign.objects.create(
+            community=self.community, name='トップ着地チラシ',
+            utm_source='flyer', utm_medium='qr',
+            utm_campaign='20260510-gishohaku', landing_path='/',
+        )
+        mock_fetch.return_value = [
+            {
+                'page_path': '/',
+                'date': '2026-05-31',
+                'source_medium': 'flyer / qr',
+                'campaign': '20260510-gishohaku',
+                'pv': 30, 'users': 25, 'sessions': 27,
+            },
+        ]
+        res = self.client.get(self.url, HTTP_REQUEST_TOKEN=TEST_TOKEN)
+        self.assertEqual(res.status_code, 200)
+
+        # GLOBAL ではなく Campaign 経由で community に紐付いていること
+        record = PageAnalytics.objects.get(page_path='/', campaign='20260510-gishohaku')
+        self.assertEqual(record.content_type, PageAnalytics.ContentType.CAMPAIGN)
+        self.assertEqual(record.community, self.community)
+        self.assertEqual(record.pv, 30)
+
+    @patch('analytics.views.fetch_page_report')
+    def test_root_path_without_campaign_remains_global(self, mock_fetch):
+        """utm_campaign 無しの '/' へのアクセスは従来通り GLOBAL のまま。"""
+        mock_fetch.return_value = [
+            {
+                'page_path': '/',
+                'date': '2026-05-31',
+                'source_medium': '(direct) / (none)',
+                'campaign': '(not set)',
+                'pv': 100, 'users': 90, 'sessions': 95,
+            },
+        ]
+        res = self.client.get(self.url, HTTP_REQUEST_TOKEN=TEST_TOKEN)
+        self.assertEqual(res.status_code, 200)
+        record = PageAnalytics.objects.get(page_path='/')
+        self.assertEqual(record.content_type, PageAnalytics.ContentType.GLOBAL)
+        self.assertIsNone(record.community)

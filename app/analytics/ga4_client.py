@@ -29,7 +29,7 @@ GA4_SCOPES = ['https://www.googleapis.com/auth/analytics.readonly']
 # GA4 が返す date ディメンションは YYYYMMDD の8桁文字列
 _GA4_DATE_LENGTH = 8
 
-_DIMENSIONS = ['pagePath', 'date', 'sessionSourceMedium']
+_DIMENSIONS = ['pagePath', 'date', 'sessionSourceMedium', 'sessionCampaignName']
 _METRICS = ['screenPageViews', 'totalUsers', 'sessions']
 _GA4_RUN_REPORT_RETRY = api_retry.Retry(
     predicate=api_retry.if_exception_type(
@@ -109,10 +109,12 @@ def fetch_page_report(property_id: str, target_date: date) -> list[dict]:
         page_path = row.dimension_values[0].value
         row_date = _parse_ga4_date(row.dimension_values[1].value)
         source_medium = row.dimension_values[2].value
+        campaign = row.dimension_values[3].value
         results.append({
             'page_path': page_path,
             'date': row_date,
             'source_medium': source_medium,
+            'campaign': campaign,
             'pv': int(row.metric_values[0].value),
             'users': int(row.metric_values[1].value),
             'sessions': int(row.metric_values[2].value),
