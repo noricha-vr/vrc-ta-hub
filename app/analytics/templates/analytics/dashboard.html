@@ -183,25 +183,28 @@
                 </div>
             {% endif %}
 
-            {# ポスター経由クリック数（集会一覧のサムネクリック）。GA4 計測開始直後はデータが少ないので
-               total.clicks が 0 でもセクション自体は表示し、説明文で計測中の旨を伝える #}
+            {% comment %}
+                集会一覧からの遷移数（GA4 カスタムイベント poster_click 由来）。
+                GA4 計測開始直後はデータが少ないので total.clicks が 0 でもセクション自体は表示し、
+                説明文で計測中の旨を伝える。
+            {% endcomment %}
             <div class="card mb-3">
                 <div class="card-body">
                     <h2 class="fs-5 fw-bold mb-1">
-                        <i class="fa-solid fa-hand-pointer me-2"></i>ポスター経由クリック（{{ days }}日）
+                        <i class="fa-solid fa-hand-pointer me-2"></i>集会一覧からの遷移数（{{ days }}日）
                     </h2>
-                    <p class="text-muted small mb-3">集会一覧ページでサムネを押した数。GA4 計測開始から反映までタイムラグがあります。</p>
+                    <p class="text-muted small mb-3">集会一覧ページから、この集会を選んで詳細ページへ進んだ数。GA4 計測開始から反映までタイムラグがあります。</p>
                     {% with pc=poster_clicks %}
                         <div class="row g-2 mb-3">
                             <div class="col-6 col-md-3">
                                 <div class="border-start border-4 border-primary ps-2">
-                                    <div class="text-muted small">合計クリック</div>
+                                    <div class="text-muted small">合計遷移数</div>
                                     <div class="fs-4 fw-bold">{{ pc.total.clicks }}</div>
                                 </div>
                             </div>
                             <div class="col-6 col-md-3">
                                 <div class="border-start border-4 border-success ps-2">
-                                    <div class="text-muted small">ユニーククリックユーザー</div>
+                                    <div class="text-muted small">ユニークユーザー</div>
                                     <div class="fs-4 fw-bold">{{ pc.total.users }}</div>
                                 </div>
                             </div>
@@ -212,7 +215,7 @@
                                     <thead class="table-light">
                                         <tr>
                                             <th>集会</th>
-                                            <th class="text-end">クリック</th>
+                                            <th class="text-end">遷移数</th>
                                             <th class="text-end">ユーザー</th>
                                         </tr>
                                     </thead>
@@ -232,7 +235,7 @@
                                 </table>
                             </div>
                         {% else %}
-                            <p class="text-muted small mb-0">対象期間にポスタークリックのデータがありません。</p>
+                            <p class="text-muted small mb-0">対象期間に集会一覧からの遷移データがありません。</p>
                         {% endif %}
                     {% endwith %}
                 </div>
