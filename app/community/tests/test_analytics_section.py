@@ -100,6 +100,15 @@ class CommunityDetailAnalyticsTests(TestCase):
         self.assertIn('daily_series', response_b.context)
         self.assertContains(response_b, 'source-B-only / referral')
 
+    def test_superuser_sees_analytics_before_owner_contact_card(self):
+        """superuser 画面ではアクセス解析が集会主催者の連絡先より先に出る."""
+        self.client.force_login(self.superuser)
+        response = self.client.get(self._url(self.community_a))
+        html = response.content.decode()
+        analytics_index = html.index('id="analytics-section"')
+        owner_contact_index = html.index('集会主催者の連絡先')
+        self.assertLess(analytics_index, owner_contact_index)
+
     def test_anonymous_has_no_analytics(self):
         """匿名ユーザーには集計 context もグラフセクションも無い."""
         response = self.client.get(self._url(self.community_a))
