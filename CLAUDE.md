@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## プロジェクト概要
 
 VRC技術学術ハブ - VRChat内で開催される技術・学術系イベントの情報を集約するWebサイト
-- Django 4.2 / Python 3.12ベースのWebアプリケーション
+- Django 5.2 (LTS) / Python 3.12ベースのWebアプリケーション
 - Docker環境で動作（ポート8015）
 - Google Cloud Platformにデプロイ
 
