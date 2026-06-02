@@ -212,7 +212,12 @@ class Event(models.Model):
         verbose_name = 'イベント'
         verbose_name_plural = 'イベント'
         db_table = 'event'
-        unique_together = ('community', 'date', 'start_time')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['community', 'date', 'start_time'],
+                name='event_unique_community_date_start_time',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.community.name} - {self.date} - {self.start_time}"

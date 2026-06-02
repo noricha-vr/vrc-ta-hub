@@ -72,7 +72,7 @@ class PageAnalytics(models.Model):
     sessions = models.PositiveIntegerField('セッション数', default=0)
     source_medium = models.CharField('参照元/メディア', max_length=255)
     # GA4 sessionCampaignName。utm_campaign 未指定セッションは '(not set)'。
-    # unique_together に含めることで、同一 (path, date, source_medium) でも campaign 違いを別行で保存する。
+    # UniqueConstraint に含めることで、同一 (path, date, source_medium) でも campaign 違いを別行で保存する。
     campaign = models.CharField(
         'キャンペーン', max_length=128, default='(not set)', db_index=True,
     )
@@ -81,7 +81,12 @@ class PageAnalytics(models.Model):
         verbose_name = 'ページ解析'
         verbose_name_plural = 'ページ解析'
         db_table = 'page_analytics'
-        unique_together = ('page_path', 'date', 'source_medium', 'campaign')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['page_path', 'date', 'source_medium', 'campaign'],
+                name='pageanalytics_unique_path_date_source',
+            ),
+        ]
         ordering = ['-date', '-pv']
 
     def __str__(self):
@@ -115,7 +120,12 @@ class PosterClick(models.Model):
         verbose_name = 'ポスタークリック'
         verbose_name_plural = 'ポスタークリック'
         db_table = 'poster_click'
-        unique_together = ('community', 'date')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['community', 'date'],
+                name='communityanalytics_unique_community_date',
+            ),
+        ]
         ordering = ['-date']
 
     def __str__(self):
