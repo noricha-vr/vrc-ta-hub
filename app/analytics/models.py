@@ -184,7 +184,12 @@ class Campaign(models.Model):
         verbose_name = 'キャンペーン'
         verbose_name_plural = 'キャンペーン'
         db_table = 'campaign'
-        unique_together = ('community', 'utm_campaign')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['community', 'utm_campaign'],
+                name='campaign_unique_community_utm_campaign',
+            ),
+        ]
         ordering = ['-created_at']
 
     def __str__(self):
