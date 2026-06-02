@@ -51,19 +51,22 @@ class CustomUserCreationForm(UserCreationForm):
                                 widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': '隔週'}))
     organizers = forms.CharField(max_length=200, label='主催・副主催',
                                  widget=forms.TextInput(attrs={'class': 'form-control'}))
-    group_url = forms.URLField(label='VRChatグループURL', required=False,
+    # assume_scheme='https' は Django 5.0+ で必須化される URLField 引数。
+    # 未指定だと Django 6.0 でデフォルトが http→https に変わる旨の警告が出るため明示する
+    group_url = forms.URLField(label='VRChatグループURL', required=False, assume_scheme='https',
                                widget=forms.URLInput(attrs={'class': 'form-control',
                                                             'placeholder': 'https://vrc.group/XXXXX'}))
-    organizer_url = forms.URLField(label='主催プロフィールURL', required=False,
+    organizer_url = forms.URLField(label='主催プロフィールURL', required=False, assume_scheme='https',
                                    widget=forms.URLInput(attrs={'class': 'form-control',
                                                                 'placeholder': 'https://vrchat.com/home/user/XXXXX'}))
-    sns_url = forms.URLField(label='XアカウントURL', required=False, widget=forms.URLInput(attrs={'class': 'form-control'
-        , 'placeholder': 'https://x.com/XXXXX'}),
+    sns_url = forms.URLField(label='XアカウントURL', required=False, assume_scheme='https',
+                             widget=forms.URLInput(attrs={'class': 'form-control',
+                                                          'placeholder': 'https://x.com/XXXXX'}),
                              help_text='X以外のSNSのURLも可')
     twitter_hashtag = forms.CharField(max_length=100, label='Xハッシュタグ', required=False,
                                       widget=forms.TextInput(
                                           attrs={'class': 'form-control', 'placeholder': '#VRChat'}), )
-    discord = forms.URLField(label='Discordサーバー', required=False,
+    discord = forms.URLField(label='Discordサーバー', required=False, assume_scheme='https',
                              help_text='招待リンクを入力してください。',
                              widget=forms.URLInput(
                                  attrs={'class': 'form-control', 'placeholder': 'https://discord.gg/XXXXXXXXX'}))

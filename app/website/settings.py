@@ -280,6 +280,10 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')  # ローカルに静的ファイルを収集するディレクトリ
 
+# Django 6.0 で forms.URLField のデフォルトスキームが 'http' → 'https' になる挙動を先取り
+# models.URLField から自動生成される formfield 全てに適用するため transitional setting を使う
+FORMS_URLFIELD_ASSUME_HTTPS = True
+
 LOGIN_URL = '/account/login/'
 LOGIN_REDIRECT_URL = '/event/my_list/'
 
