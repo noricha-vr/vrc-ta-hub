@@ -181,3 +181,46 @@ class CampaignBreakdownAcrossCommunitiesTest(TestCase):
         # meta も community に対応した正しい Campaign に紐付く
         self.assertEqual(by_community[self.community_a.pk]['meta']['name'], '集会Aの shared')
         self.assertEqual(by_community[self.community_b.pk]['meta']['name'], '集会Bの shared')
+
+
+class CampaignBreakdownIncludesRootLandingTest(TestCase):
+    """landing_path='/' で Campaign 経由解決された PageAnalytics が
+    主催者ダッシュボードに表示されることの回帰テスト（PR #383 codex 指摘）。
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(
+            user_name='owner', email='owner@example.com', password='pass',
+        )
+        cls.community = Community.objects.create(
+            name='集会X', frequency='毎週', organizers='主催X',
+        )
+        CommunityMember.objects.create(
+            community=cls.community, user=cls.user,
+            role=CommunityMember.Role.OWNER,
+        )
+        cls.campaign = Campaign.objects.create(
+            community=cls.community, name='トップ着地チラシ',
+            utm_source='flyer', utm_medium='qr',
+            utm_campaign='20260510-flyer-top', landing_path='/',
+        )
+        # sync_analytics の解決後に保存される想定レコード（page_path='/' で CAMPAIGN）
+        PageAnalytics.objects.create(
+            page_path='/', date=timezone.localdate(),
+            content_type=PageAnalytics.ContentType.CAMPAIGN,
+            community=cls.community, object_id=cls.campaign.pk,
+            pv=42, users=38, sessions=40,
+            source_medium='flyer / qr', campaign='20260510-flyer-top',
+        )
+
+    def test_root_landing_appears_in_owner_dashboard(self):
+        ids = services.accessible_community_ids(self.user)
+        rows = services.get_campaign_breakdown(ids, days=30)
+        target = next(
+            (r for r in rows if r['campaign'] == '20260510-flyer-top'), None,
+        )
+        self.assertIsNotNone(target, '改修前はこのレコードが GLOBAL になり消えていた')
+        self.assertEqual(target['pv'], 42)
+        self.assertEqual(target['community_id'], self.community.pk)
+        self.assertEqual(target['meta']['name'], 'トップ着地チラシ')

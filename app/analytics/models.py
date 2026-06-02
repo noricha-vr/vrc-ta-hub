@@ -43,6 +43,10 @@ class PageAnalytics(models.Model):
         # GLOBAL: トップ/集会一覧/イベント一覧など特定 community に紐付かないページ。
         # community=NULL, object_id=0 で保存し、superuser 専用のサイト全体集計で参照する
         GLOBAL = 'global', 'サイト全体（紐付けなし）'
+        # CAMPAIGN: pagePath では community を解決できないが utm_campaign 経由で
+        # Campaign に紐付いた流入（landing_path=/ のチラシ QR 等）。
+        # object_id は Campaign.pk、community は Campaign.community を保持する
+        CAMPAIGN = 'campaign', 'キャンペーン経由（pagePath非依存）'
 
     page_path = models.CharField('ページパス', max_length=255, db_index=True)
     date = models.DateField('日付', db_index=True)
@@ -153,7 +157,10 @@ class Campaign(models.Model):
     )
     landing_path = models.CharField(
         '着地パス', max_length=255, default='/',
-        help_text='例: / または /community/123/',
+        help_text=(
+            '例: / または /community/123/。'
+            '/ などサイト全体トップに着地させた場合は utm_campaign 経由で集会に紐付ける'
+        ),
     )
     qr_image = models.ImageField(
         'QR画像', upload_to=qr_image_upload_to, blank=True,

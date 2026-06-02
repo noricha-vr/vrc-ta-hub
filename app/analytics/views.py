@@ -65,7 +65,9 @@ def sync_analytics(request):
     # 途中失敗時の部分更新を残さないため、保存はまとめて1トランザクションにする
     with transaction.atomic():
         for row in rows:
-            resolved = resolve_page_path(row['page_path'])
+            # pagePath 解決に失敗した時は utm_campaign 経由で Campaign を逆引きする。
+            # landing_path=/ のチラシ QR でも主催者のキャンペーン集計に乗るようにするため
+            resolved = resolve_page_path(row['page_path'], row['campaign'])
             if resolved is None:
                 # community/event_detail に紐付かない URL は GLOBAL レコードとして保存
                 # （superuser のみがサイト全体トラフィックとして閲覧できる）
