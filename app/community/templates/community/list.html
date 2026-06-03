@@ -142,8 +142,10 @@
                     <div class="col-md-4 mb-4"> <!-- mb-4 クラスを追加してカード間の縦方向の間隔を確保 -->
                         <div class="card h-100 bg-light-subtle shadow"> <!-- カードを囲む div を追加 -->
                             <div class="card-body d-flex flex-column"> <!-- カードの内容を card-body で囲む -->
-                                {# 集会一覧のポスタークリックは GA4 カスタムイベント poster_click で計測。
-                                   ダッシュボードでポスター経由クリック数を可視化する目的。 #}
+                                {% comment %}
+                                集会一覧のポスタークリックは GA4 カスタムイベント poster_click で計測。
+                                ダッシュボードでポスター経由クリック数を可視化する目的。
+                                {% endcomment %}
                                 <a href="{% url 'community:detail' community.id %}" class="text-decoration-none"
                                    onclick="if(window.gtag){gtag('event','poster_click',{community_id:{{ community.id }}});}">
                                     {% if community.poster_image %}
