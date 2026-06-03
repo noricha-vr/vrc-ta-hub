@@ -77,7 +77,7 @@ docker compose exec vrc-ta-hub python manage.py test
 *   **静的ファイル収集:** `docker compose run --rm vrc-ta-hub python manage.py collectstatic --noinput` (環境変数の設定を確認してから実行してください)
 
 ## 用語・表記規約
-*   ユーザー向けの文言・ドキュメントは「LT・ライトニングトーク」ではなく「発表」と表記する（参照: PR #306）
+*   ユーザー向けの文言・ドキュメントは「LT・ライトニングトーク」ではなく「発表」と表記する（集会の発表は15〜30分が多く、5分前後のLTとは実態が異なるため）
 *   内部識別子（DB値 `'LT'`、URLパス、関数・変数名）、`LTS`、Bot の検出キーワード、用語解説文脈は対象外
 
 ## ドキュメント
