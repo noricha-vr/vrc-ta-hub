@@ -52,6 +52,13 @@ class TestCommunityListViewPagination(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.community.name)
 
+    def test_poster_click_comment_is_not_rendered(self):
+        response = self.client.get(reverse('community:list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '集会一覧のポスタークリック')
+        self.assertNotContains(response, 'poster_click で計測')
+
     def test_malformed_amp_params_are_not_propagated(self):
         response = self.client.get(
             reverse('community:list'),
