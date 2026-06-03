@@ -65,7 +65,7 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 ### データベース構造
 1. **Community（集会）**: イベント主催団体の情報
 2. **Event（イベント）**: 各回の開催情報（Communityに紐づく）
-3. **EventDetail（イベント詳細）**: LTなどの詳細情報（Eventに紐づく）
+3. **EventDetail（イベント詳細）**: 発表などの詳細情報（Eventに紐づく）
 
 ### 自動コンテンツ生成機能
 - YouTube動画の文字起こしからブログ記事を自動生成
