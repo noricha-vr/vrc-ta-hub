@@ -76,6 +76,10 @@ docker compose exec vrc-ta-hub python manage.py test
 *   **スーパーユーザー作成:** `docker compose exec vrc-ta-hub python manage.py createsuperuser`
 *   **静的ファイル収集:** `docker compose run --rm vrc-ta-hub python manage.py collectstatic --noinput` (環境変数の設定を確認してから実行してください)
 
+## 用語・表記規約
+*   ユーザー向けの文言・ドキュメントは「LT・ライトニングトーク」ではなく「発表」と表記する（参照: PR #306）
+*   内部識別子（DB値 `'LT'`、URLパス、関数・変数名）、`LTS`、Bot の検出キーワード、用語解説文脈は対象外
+
 ## ドキュメント
 詳細は `docs/` ディレクトリを参照してください:
 *   `docs/index.md`: ドキュメントハブ

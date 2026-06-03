@@ -118,6 +118,10 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 - **テストファイルは各Djangoアプリの`tests`ディレクトリ内に配置すること**（例: `app/event/tests/`、`app/community/tests/`）
 - プロジェクトルートや`app/`直下にテストファイルを配置しない
 
+## 用語・表記規約
+- ユーザー向けの文言・ドキュメントは「LT・ライトニングトーク」ではなく「発表」と表記する（参照: PR #306）
+- 内部識別子（DB値 `'LT'`、URLパス、関数・変数名）、`LTS`、Bot の検出キーワード、用語解説文脈は対象外
+
 # Google Calendar ID
 本番環境
 GOOGLE_CALENDAR_ID=fbd1334d10a177831a23dfd723199ab4d02036ae31cbc04d6fc33f08ad93a3e7@group.calendar.google.com
