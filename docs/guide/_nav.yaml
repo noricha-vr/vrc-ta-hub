@@ -31,13 +31,13 @@
     - title: Hub公式Xアカウントでの自動告知
       path: event/auto-post
 
-- title: LT・発表情報を管理する
+- title: 発表情報を管理する
   children:
-    - title: LT情報を登録する
+    - title: 発表情報を登録する
       path: lt/create
     - title: ブログ記事を自動生成する
       path: lt/auto-generate
-    - title: LT申請を承認・却下する
+    - title: 発表申請を承認・却下する
       path: lt/approve
 
 - title: メンバーを管理する
@@ -54,7 +54,7 @@
   children:
     - title: Discord Webhookを設定する
       path: settings/discord
-    - title: LT申請受付を設定する
+    - title: 発表申請受付を設定する
       path: settings/lt-application
 
 - title: よくある質問

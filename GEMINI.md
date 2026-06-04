@@ -1,7 +1,7 @@
 # VRChat Technology and Academic Hub (vrc-ta-hub) - プロジェクトコンテキスト
 
 ## プロジェクト概要
-**vrc-ta-hub** は、VRChat内で開催される技術・学術系イベントの情報を集約・表示するためのDjangoベースのWebアプリケーションです。ユーザーがイベントを見つけたり、Googleカレンダー連携でスケジュールを確認したり、ライトニングトーク（LT）などの過去のアーカイブにアクセスしたりするためのハブとして機能します。
+**vrc-ta-hub** は、VRChat内で開催される技術・学術系イベントの情報を集約・表示するためのDjangoベースのWebアプリケーションです。ユーザーがイベントを見つけたり、Googleカレンダー連携でスケジュールを確認したり、発表などの過去のアーカイブにアクセスしたりするためのハブとして機能します。
 
 ## 技術スタック
 *   **バックエンド:** Python 3.9+, Django 4.2
@@ -75,6 +75,10 @@ docker compose exec vrc-ta-hub python manage.py test
 *   **マイグレーション作成:** `docker compose exec vrc-ta-hub python manage.py makemigrations`
 *   **スーパーユーザー作成:** `docker compose exec vrc-ta-hub python manage.py createsuperuser`
 *   **静的ファイル収集:** `docker compose run --rm vrc-ta-hub python manage.py collectstatic --noinput` (環境変数の設定を確認してから実行してください)
+
+## 用語・表記規約
+*   ユーザー向けの文言・ドキュメントは「LT・ライトニングトーク」ではなく「発表」と表記する（集会の発表は15〜30分が多く、5分前後のLTとは実態が異なるため）
+*   内部識別子（DB値 `'LT'`、URLパス、関数・変数名）、`LTS`、Bot の検出キーワード、用語解説文脈は対象外
 
 ## ドキュメント
 詳細は `docs/` ディレクトリを参照してください:

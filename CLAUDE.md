@@ -65,7 +65,7 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 ### データベース構造
 1. **Community（集会）**: イベント主催団体の情報
 2. **Event（イベント）**: 各回の開催情報（Communityに紐づく）
-3. **EventDetail（イベント詳細）**: LTなどの詳細情報（Eventに紐づく）
+3. **EventDetail（イベント詳細）**: 発表などの詳細情報（Eventに紐づく）
 
 ### 自動コンテンツ生成機能
 - YouTube動画の文字起こしからブログ記事を自動生成
@@ -117,6 +117,10 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 - テストは実際のAPIを使用するため環境変数の設定が必須
 - **テストファイルは各Djangoアプリの`tests`ディレクトリ内に配置すること**（例: `app/event/tests/`、`app/community/tests/`）
 - プロジェクトルートや`app/`直下にテストファイルを配置しない
+
+## 用語・表記規約
+- ユーザー向けの文言・ドキュメントは「LT・ライトニングトーク」ではなく「発表」と表記する（集会の発表は15〜30分が多く、5分前後のLTとは実態が異なるため）
+- 内部識別子（DB値 `'LT'`、URLパス、関数・変数名）、`LTS`、Bot の検出キーワード、用語解説文脈は対象外
 
 # Google Calendar ID
 本番環境
