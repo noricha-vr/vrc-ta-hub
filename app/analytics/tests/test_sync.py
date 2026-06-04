@@ -190,8 +190,8 @@ class SyncAnalyticsViewTest(TestCase):
     def test_root_path_with_campaign_resolves_to_community(self, mock_fetch):
         """landing_path='/' のチラシ QR 流入が utm_campaign 経由で集会に紐付くこと。
 
-        PR #383 codex 指摘 r3338246662 の回帰防止。改修前は GLOBAL レコードに
-        community=None で保存され、主催者ダッシュボードに一切表示されなかった。
+        改修前は GLOBAL レコードに community=None で保存され、
+        主催者ダッシュボードに一切表示されなかった挙動の回帰防止。
         """
         Campaign.objects.create(
             community=self.community, name='トップ着地チラシ',

@@ -1,6 +1,6 @@
 """既存のEventDetail.slide_fileをUUID形式パスに移行する。
 
-PR #340 で導入した slide_file_upload_to は新規アップロードのみに作用するため、
+slide_file_upload_to は新規アップロードのみに作用するため、
 既存ファイル（slide/<元ファイル名>.pdf）を手動でUUID化する必要がある。
 
 R2バケットはローカル・本番で共有しているため、以下の4フェーズに分けて安全に進める:
