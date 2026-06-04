@@ -1,4 +1,4 @@
-# Generated for PR #383 follow-up: utm_campaign 経由の community 解決を追加。
+# utm_campaign 経由の community 解決に必要な content_type を追加する。
 # DB スキーマ変更なし（choices 追加と help_text 更新のみ）。
 
 from django.db import migrations, models

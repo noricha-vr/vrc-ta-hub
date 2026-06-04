@@ -185,7 +185,7 @@ class CampaignBreakdownAcrossCommunitiesTest(TestCase):
 
 class CampaignBreakdownIncludesRootLandingTest(TestCase):
     """landing_path='/' で Campaign 経由解決された PageAnalytics が
-    主催者ダッシュボードに表示されることの回帰テスト（PR #383 codex 指摘）。
+    主催者ダッシュボードに表示されることの回帰テスト。
     """
 
     @classmethod

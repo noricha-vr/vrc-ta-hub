@@ -68,7 +68,7 @@ class ResolveByCampaignTest(TestCase):
     """pagePath で解決できないときに utm_campaign 経由で community を引けることを確認する。
 
     landing_path='/' のチラシ QR が GLOBAL になって主催者のキャンペーン集計から
-    消えてしまう問題（PR #383 codex 指摘 r3338246662）の回帰防止。
+    消えてしまう問題の回帰防止。
     """
 
     @classmethod
