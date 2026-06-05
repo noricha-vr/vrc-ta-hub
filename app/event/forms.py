@@ -1,15 +1,11 @@
-import re
 from datetime import datetime, timedelta
 
 from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-_USER_NAME_RE = re.compile(r'^[\w.@+-]+\Z', re.UNICODE)
-
 from community.models import WEEKDAY_CHOICES, TAGS
 from user_account.forms import normalize_x_account
-from user_account.models import CustomUser
 from .datetime_lock import (
     EVENT_DETAIL_DATETIME_LOCK_MESSAGE,
     has_event_detail_duration_changed,
@@ -587,12 +583,12 @@ class LTApplicationForm(forms.Form):
 
     speaker = forms.CharField(
         label='発表者名',
-        max_length=150,
+        max_length=200,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'VRChat表示名を入力してください'
         }),
-        help_text='VRChatの表示名を入力してください。送信するとアカウントのユーザー名としても保存されます。'
+        help_text='VRChatの表示名を入力してください。送信するとアカウントの表示名としても保存されます。'
     )
 
     duration = forms.IntegerField(
@@ -652,37 +648,16 @@ class LTApplicationForm(forms.Form):
                 )
 
         if self.user and self.user.is_authenticated:
-            self.fields['speaker'].initial = self.user.user_name
+            self.fields['speaker'].initial = self.user.display_label
             self.fields['x_account'].initial = self.user.x_account
 
     def clean_speaker(self):
-        """speaker は user.user_name と同期する。
-
-        user_name の制約（150文字以下、文字・数字・@./+/-/_）に合わせて検証し、
-        他ユーザーが同じ user_name を持っている場合はエラーにする。
-        """
+        """発表者名を EventDetail.speaker と user.display_name 用に検証する。"""
         speaker = (self.cleaned_data.get('speaker') or '').strip()
         if not speaker:
             raise ValidationError('発表者名を入力してください')
-        if len(speaker) > 150:
-            raise ValidationError('発表者名は150文字以下で入力してください')
-        if not _USER_NAME_RE.match(speaker):
-            raise ValidationError(
-                '発表者名はアカウントのユーザー名として保存されます。'
-                '使用できる文字は半角英数字と @ . + - _ のみです。'
-            )
-
-        if self.user and self.user.is_authenticated:
-            duplicate = (
-                CustomUser.objects
-                .filter(user_name=speaker)
-                .exclude(pk=self.user.pk)
-                .exists()
-            )
-            if duplicate:
-                raise ValidationError(
-                    'このユーザー名は他のユーザーが使用しています。別の名前を入力してください。'
-                )
+        if len(speaker) > EventDetail._meta.get_field('speaker').max_length:
+            raise ValidationError('発表者名は200文字以下で入力してください')
         return speaker
 
     def clean_x_account(self):

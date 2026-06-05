@@ -159,9 +159,9 @@ class CustomSocialSignupFormTests(TestCase):
         self.assertIn('user_name', form.errors)
 
     def test_user_name_label_is_correct(self):
-        """user_nameフィールドのラベルが「ユーザー名」であること."""
+        """user_nameフィールドのラベルが「ログインユーザー名」であること."""
         form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
-        self.assertEqual(form.fields['user_name'].label, 'ユーザー名')
+        self.assertEqual(form.fields['user_name'].label, 'ログインユーザー名')
 
     def test_user_name_max_length(self):
         """user_nameフィールドの最大文字数が150であること."""
@@ -261,9 +261,14 @@ class CustomUserChangeFormTests(TestCase):
         )
 
     def test_user_name_label_is_correct(self):
-        """user_nameフィールドのラベルが「ユーザー名」であること."""
+        """user_nameフィールドのラベルが「ログインユーザー名」であること."""
         form = CustomUserChangeForm(instance=self.test_user)
-        self.assertEqual(form.fields['user_name'].label, 'ユーザー名')
+        self.assertEqual(form.fields['user_name'].label, 'ログインユーザー名')
+
+    def test_display_name_label_is_correct(self):
+        """display_nameフィールドのラベルが「表示名」であること."""
+        form = CustomUserChangeForm(instance=self.test_user)
+        self.assertEqual(form.fields['display_name'].label, '表示名')
 
     def test_form_has_bootstrap_class(self):
         """フォームフィールドにBootstrapのform-controlクラスが適用されていること."""
@@ -276,10 +281,31 @@ class CustomUserChangeFormTests(TestCase):
             )
 
     def test_form_fields(self):
-        """フォームにuser_nameとemailフィールドが存在すること."""
+        """フォームにdisplay_name、user_name、emailフィールドが存在すること."""
         form = CustomUserChangeForm(instance=self.test_user)
+        self.assertIn('display_name', form.fields)
         self.assertIn('user_name', form.fields)
         self.assertIn('email', form.fields)
+
+    def test_display_name_allows_duplicates(self):
+        """複数ユーザーが同じdisplay_nameを設定できること."""
+        User.objects.create_user(
+            user_name='other_user',
+            email='other@example.com',
+            password='testpass123',
+            display_name='同じ表示名',
+        )
+        form = CustomUserChangeForm(
+            instance=self.test_user,
+            data={
+                'display_name': '同じ表示名',
+                'user_name': self.test_user.user_name,
+                'email': self.test_user.email,
+                'x_account': '',
+                'vrchat_user_id': '',
+            },
+        )
+        self.assertTrue(form.is_valid(), form.errors)
 
 
 class CustomUserCreationFormTests(TestCase):

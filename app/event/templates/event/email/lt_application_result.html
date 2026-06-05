@@ -130,7 +130,7 @@
     </div>
 
     <div class="content">
-        <p>{{ applicant.user_name }} 様</p>
+        <p>{{ applicant.display_label }} 様</p>
 
         {% if is_approved %}
             <p>{{ community.name }}への発表の申請が<span class="status-badge status-approved">承認</span>されました。</p>

@@ -76,7 +76,7 @@
     </div>
 
     <div class="content">
-        <p>{{ owner.user_name }} 様</p>
+        <p>{{ owner.display_label }} 様</p>
 
         <p>{{ community.name }}に新しい発表の申請がありました。</p>
 
@@ -101,7 +101,7 @@
                 </tr>
                 <tr>
                     <td>申請者</td>
-                    <td>{{ event_detail.applicant.user_name }}</td>
+                    <td>{{ event_detail.applicant.display_label }}</td>
                 </tr>
             </table>
         </div>

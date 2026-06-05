@@ -195,9 +195,13 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
             counter += 1
 
         user.user_name = user_name
+        user.display_name = discord_username or user_name
         user.email = data.get('email', '')
 
-        logger.info(f"Populating new user: user_name={user.user_name}, discord_id={discord_id}")
+        logger.info(
+            f"Populating new user: user_name={user.user_name}, "
+            f"display_name={user.display_name}, discord_id={discord_id}"
+        )
 
         return user
 
@@ -221,7 +225,11 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         # フォームのフィールド名は'user_name'なので明示的に処理する
         if form and 'user_name' in form.cleaned_data:
             user.user_name = form.cleaned_data['user_name']
-            user.save(update_fields=['user_name'])
+            update_fields = ['user_name']
+            if not user.display_name:
+                user.display_name = user.user_name
+                update_fields.append('display_name')
+            user.save(update_fields=update_fields)
             logger.info(f"Setting user_name from form: {user.user_name}")
 
         return user

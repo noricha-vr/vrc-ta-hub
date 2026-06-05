@@ -13,6 +13,7 @@ class CustomUserManager(BaseUserManager):
         if not user_name:
             raise ValueError('ユーザー名は必須項目です。')
         email = self.normalize_email(email)
+        extra_fields.setdefault('display_name', user_name)
         user = self.model(user_name=user_name, email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -39,6 +40,13 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         error_messages={
             'unique': "そのユーザー名はすでに使用されています。",
         },
+    )
+    display_name = models.CharField(
+        '表示名',
+        max_length=200,
+        blank=True,
+        default='',
+        help_text='VRChat等で使う表示名。同じ表示名を複数ユーザーが使用できます。',
     )
     email = models.EmailField(
         'メールアドレス',
@@ -119,6 +127,11 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.user_name
+
+    @property
+    def display_label(self):
+        """人間向けの表示名を返す。未設定ならログインユーザー名を使う。"""
+        return self.display_name or self.user_name
 
     def clean(self):
         super().clean()

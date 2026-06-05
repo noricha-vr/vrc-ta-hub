@@ -270,7 +270,7 @@ class CommunityMember(models.Model):
         verbose_name_plural = '集会メンバー'
 
     def __str__(self):
-        return f'{self.user.user_name} - {self.community.name} ({self.get_role_display()})'
+        return f'{self.user.display_label} - {self.community.name} ({self.get_role_display()})'
 
     @property
     def is_owner(self):
