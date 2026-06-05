@@ -5,6 +5,8 @@ from .views import EventListView, EventDetailView, sync_calendar_events, EventDe
     EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailPastList, \
     EventDeleteView, GoogleCalendarEventCreateView, EventLogListView, LTApplicationCreateView, LTApplicationReviewView, \
     LTApplicationApproveView, LTApplicationRejectView
+from .views.material_upload_reminder import send_material_upload_reminders_view
+from .views.slide_reminder import send_slide_reminders
 from .views_llm_generate import generate_llm_events
 
 app_name = 'event'
@@ -22,6 +24,8 @@ urlpatterns = [
     path('detail/history/', EventDetailPastList.as_view(), name='detail_history'),
     path('event_log/', EventLogListView.as_view(), name='event_log_list'),
     path('generate_blog/<int:pk>/', GenerateBlogView.as_view(), name='generate_blog'),
+    path('send-material-upload-reminders/', send_material_upload_reminders_view, name='send_material_upload_reminders'),
+    path('send-slide-reminders/', send_slide_reminders, name='send_slide_reminders'),
     path('markdown/', TemplateView.as_view(template_name='event/markdown.html'), name='markdown'),
     path('generate/', generate_llm_events, name='generate_llm_events'),
     # LT申請

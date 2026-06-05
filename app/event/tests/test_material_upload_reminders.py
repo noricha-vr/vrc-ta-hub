@@ -1,10 +1,12 @@
 from datetime import date, time, timedelta
 from io import StringIO
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import Client, TestCase, override_settings
+from django.urls import reverse
 
 from community.models import Community
 from event.material_upload_reminders import (
@@ -245,3 +247,75 @@ class MaterialReminderDecisionParseTest(TestCase):
 
         self.assertFalse(decision.should_send)
         self.assertEqual(decision.matched_intent, "no_public_material_or_video")
+
+
+@override_settings(REQUEST_TOKEN="test-token")
+class MaterialUploadReminderEndpointTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.url = reverse("event:send_material_upload_reminders")
+
+    @patch("event.views.material_upload_reminder.send_material_upload_reminders")
+    def test_endpoint_requires_request_token(self, mock_send):
+        response = self.client.get(self.url, HTTP_REQUEST_TOKEN="wrong")
+
+        self.assertEqual(response.status_code, 401)
+        mock_send.assert_not_called()
+
+    @patch("event.views.material_upload_reminder.send_material_upload_reminders")
+    def test_endpoint_returns_result(self, mock_send):
+        mock_send.return_value = [
+            ReminderResultForTest(
+                event_detail_id=12,
+                email="speaker@example.com",
+                action="sent",
+                reason="送信可",
+                confidence="high",
+                matched_intent="none",
+            )
+        ]
+
+        response = self.client.get(
+            self.url,
+            {"date": "2026-06-04"},
+            HTTP_REQUEST_TOKEN="test-token",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["targetDate"], "2026-06-04")
+        self.assertEqual(response.json()["total"], 1)
+        self.assertEqual(response.json()["results"][0]["action"], "sent")
+        mock_send.assert_called_once_with(target_date=date(2026, 6, 4), dry_run=False)
+
+    @patch("event.views.material_upload_reminder.send_material_upload_reminders")
+    def test_endpoint_accepts_dry_run(self, mock_send):
+        mock_send.return_value = []
+
+        response = self.client.get(
+            self.url,
+            {"date": "2026-06-04", "dry_run": "1"},
+            HTTP_REQUEST_TOKEN="test-token",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["dryRun"])
+        mock_send.assert_called_once_with(target_date=date(2026, 6, 4), dry_run=True)
+
+    def test_endpoint_rejects_invalid_date(self):
+        response = self.client.get(
+            self.url,
+            {"date": "2026/06/04"},
+            HTTP_REQUEST_TOKEN="test-token",
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+
+class ReminderResultForTest:
+    def __init__(self, *, event_detail_id, email, action, reason, confidence="", matched_intent=""):
+        self.event_detail_id = event_detail_id
+        self.email = email
+        self.action = action
+        self.reason = reason
+        self.confidence = confidence
+        self.matched_intent = matched_intent
