@@ -270,6 +270,22 @@ class CustomUserChangeFormTests(TestCase):
         form = CustomUserChangeForm(instance=self.test_user)
         self.assertEqual(form.fields['display_name'].label, '表示名')
 
+    def test_display_name_help_text_explains_public_display(self):
+        """display_nameの説明が公開表示と重複許可を伝えること."""
+        form = CustomUserChangeForm(instance=self.test_user)
+        self.assertEqual(
+            form.fields['display_name'].help_text,
+            'VRChat内の名前や発表者名として表示されます。同じ表示名を複数ユーザーが使用できます。',
+        )
+
+    def test_user_name_help_text_explains_login_identifier(self):
+        """user_nameの説明がログイン用の一意な識別子であることを伝えること."""
+        form = CustomUserChangeForm(instance=self.test_user)
+        self.assertEqual(
+            form.fields['user_name'].help_text,
+            'ログインと内部識別に使用する一意のユーザー名です。通常は変更不要です。',
+        )
+
     def test_form_has_bootstrap_class(self):
         """フォームフィールドにBootstrapのform-controlクラスが適用されていること."""
         form = CustomUserChangeForm(instance=self.test_user)
