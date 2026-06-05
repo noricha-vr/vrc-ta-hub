@@ -2,6 +2,7 @@ from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.contrib.sites.models import Site
+from django.utils.html import escapejs
 
 from allauth.socialaccount.models import SocialApp
 
@@ -95,6 +96,24 @@ class CommunityMemberManageViewTest(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertIn('/login/', response.url)
+
+    def test_member_remove_confirm_escapes_display_label_for_js(self):
+        """削除確認の表示名はJS文字列としてエスケープされる"""
+        self.staff.display_name = "');alert(1);//"
+        self.staff.save(update_fields=['display_name'])
+        self.client.login(username='オーナー', password='testpass123')
+
+        response = self.client.get(
+            reverse('community:member_manage', kwargs={'pk': self.community.pk})
+        )
+
+        content = response.content.decode()
+        expected_confirm = (
+            f"confirm('{escapejs(self.staff.display_label)} を削除しますか？');"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(expected_confirm, content)
+        self.assertNotIn("confirm('');alert(1);// を削除しますか？');", content)
 
 
 class RemoveStaffViewTest(TestCase):
