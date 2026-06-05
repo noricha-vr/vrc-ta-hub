@@ -440,6 +440,15 @@ class UserUpdateViewTests(TestCase):
         self.assertContains(response, 'fa-lock')
         self.assertContains(response, 'form-text')
 
+    def test_user_update_view_explains_display_name_and_login_user_name(self):
+        """表示名とログインユーザー名の使い分けが画面で伝わること."""
+        self.client.login(username='test_update_user', password='testpass123')
+        response = self.client.get(self.update_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="display_name"')
+        self.assertContains(response, 'VRChat内の名前や発表者名として表示されます')
+        self.assertContains(response, 'ログインと内部識別に使用します')
+
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
 class RegisterViewTests(TestCase):

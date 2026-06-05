@@ -311,8 +311,8 @@ class CustomUserChangeForm(forms.ModelForm):
             'user_name': 'ログインユーザー名',
         }
         help_texts = {
-            'display_name': 'VRChat等で使う表示名です。同じ表示名を複数ユーザーが使用できます。',
-            'user_name': 'ログインに使用する一意のユーザー名です。',
+            'display_name': 'VRChat内の名前や発表者名として表示されます。同じ表示名を複数ユーザーが使用できます。',
+            'user_name': 'ログインと内部識別に使用する一意のユーザー名です。通常は変更不要です。',
         }
 
     def clean_x_account(self):

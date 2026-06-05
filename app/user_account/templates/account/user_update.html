@@ -9,6 +9,10 @@
                         <h4 class="mb-0">ユーザー情報の更新</h4>
                     </div>
                     <div class="card-body">
+                        <div class="alert alert-info small" role="alert">
+                            <div><strong>表示名:</strong> VRChat内の名前や発表者名として表示されます。同じ名前を複数ユーザーが使えます。</div>
+                            <div><strong>ログインユーザー名:</strong> ログインと内部識別に使用します。一意のため、通常は変更不要です。</div>
+                        </div>
                         <form method="post" enctype="multipart/form-data">
                             {% csrf_token %}
                             <div class="mb-3">
