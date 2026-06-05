@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #ffffff;
+        }
+        .header {
+            margin-bottom: 30px;
+            border-bottom: 2px solid #0066cc;
+            padding-bottom: 10px;
+        }
+        .content {
+            margin-bottom: 30px;
+            background-color: #ffffff;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #0066cc;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+            text-align: center;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e4e8;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>発表資料アップロードのお願い</h1>
+    </div>
+
+    <div class="content">
+        <p>{{ display_name }} さん</p>
+
+        <p>昨日は発表にご登壇いただき、ありがとうございました。<br>
+        おかげさまで、参加者にとって学びの多い時間になりました。</p>
+
+        <p>当日の発表資料を共有できる場合は、資料のアップロードをお願いいたします。</p>
+
+        <p>アップロード先：</p>
+        <p><a href="{{ upload_url }}" class="button">資料をアップロードする</a></p>
+        <p>{{ upload_url }}</p>
+
+        <p>アップロードされた資料は、イベントページ上で参加者や後から見返したい方に向けて共有されます。<br>
+        実際の掲載イメージは、以下の過去イベントページをご確認ください。</p>
+
+        <p>参考ページ：<br>
+        <a href="{{ history_url }}">{{ history_url }}</a></p>
+
+        <p>お忙しいところ恐れ入りますが、どうぞよろしくお願いいたします。</p>
+    </div>
+
+    <div class="footer">
+        <p>このメールは {{ community.name }} から自動送信されています。</p>
+        <p>VRC技術学術系Hub</p>
+    </div>
+</body>
+</html>
