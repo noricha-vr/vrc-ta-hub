@@ -326,3 +326,30 @@ class EventDetail(models.Model):
             if match:
                 return match.group(1)
         return None
+
+
+class MaterialUploadReminderLog(models.Model):
+    """発表資料アップロード依頼の送信・除外結果を記録する。"""
+
+    class Status(models.TextChoices):
+        SENT = "sent", "送信済み"
+        SKIPPED_BY_NOTE = "skipped_by_note", "備考で除外"
+
+    event_detail = models.OneToOneField(
+        EventDetail,
+        on_delete=models.CASCADE,
+        related_name="material_upload_reminder_log",
+        verbose_name="イベント詳細",
+    )
+    status = models.CharField("状態", max_length=30, choices=Status.choices, db_index=True)
+    reason = models.TextField("理由", blank=True, default="")
+    matched_intent = models.CharField("一致した意図", max_length=100, blank=True, default="")
+    confidence = models.CharField("信頼度", max_length=20, blank=True, default="")
+    sent_at = models.DateTimeField("送信日時", null=True, blank=True)
+    created_at = models.DateTimeField("作成日時", auto_now_add=True)
+    updated_at = models.DateTimeField("更新日時", auto_now=True)
+
+    class Meta:
+        verbose_name = "発表資料アップロード依頼ログ"
+        verbose_name_plural = "発表資料アップロード依頼ログ"
+        db_table = "event_material_upload_reminder_log"
