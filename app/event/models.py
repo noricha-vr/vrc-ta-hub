@@ -294,7 +294,6 @@ class EventDetail(models.Model):
         default='',
         help_text='登壇者が入力した追加情報'
     )
-
     class Meta:
         verbose_name = 'イベント詳細'
         verbose_name_plural = 'イベント詳細'
@@ -346,6 +345,7 @@ class MaterialUploadReminderLog(models.Model):
     matched_intent = models.CharField("一致した意図", max_length=100, blank=True, default="")
     confidence = models.CharField("信頼度", max_length=20, blank=True, default="")
     sent_at = models.DateTimeField("送信日時", null=True, blank=True)
+    follow_up_sent_at = models.DateTimeField("1週間後リマインド送信日時", null=True, blank=True, db_index=True)
     created_at = models.DateTimeField("作成日時", auto_now_add=True)
     updated_at = models.DateTimeField("更新日時", auto_now=True)
 

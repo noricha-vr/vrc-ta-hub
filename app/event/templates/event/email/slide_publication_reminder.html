@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #ffffff;
+        }
+        .header {
+            margin-bottom: 30px;
+            border-bottom: 2px solid #0066cc;
+            padding-bottom: 10px;
+        }
+        .content {
+            margin-bottom: 30px;
+            background-color: #ffffff;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 1.05em;
+            background-color: #0066cc;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+            text-align: center;
+        }
+        .event-details {
+            background-color: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #e1e4e8;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e4e8;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>発表資料公開のお願い</h1>
+    </div>
+
+    <div class="content">
+        <p>{{ applicant.display_label }} 様</p>
+
+        <p>VRC技術・学術系イベントHubです。<br>
+        先日は「{{ event_detail.theme }}」でご発表いただきありがとうございました。</p>
+
+        <div class="event-details">
+            <div><strong>集会:</strong> {{ community.name }}</div>
+            <div><strong>開催日:</strong> {{ event.date }}</div>
+            <div><strong>発表者:</strong> {{ event_detail.speaker }}</div>
+        </div>
+
+        <p>発表資料がまだ公開されていないようでしたので、確認のご連絡です。<br>
+        公開可能なスライドや関連資料がありましたら、以下のページから登録・更新をお願いします。</p>
+
+        <p><a href="{{ edit_url }}" class="button">発表資料を登録・更新する</a></p>
+
+        <p>資料を公開いただくと、当日参加できなかった方や、後から内容を振り返りたい方にも届きやすくなります。</p>
+
+        <p>公開が難しい場合や、資料なしの発表だった場合は、このメールへの返信は不要です。</p>
+
+        <p>今後ともよろしくお願いいたします。</p>
+    </div>
+
+    <div class="footer">
+        <p>VRC技術・学術系イベントHub運営</p>
+    </div>
+</body>
+</html>
