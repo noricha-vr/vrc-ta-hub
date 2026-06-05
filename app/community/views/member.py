@@ -118,7 +118,7 @@ class RemoveStaffView(LoginRequiredMixin, View):
             messages.error(request, '最後の主催者は削除できません')
             return redirect('community:member_manage', pk=pk)
 
-        user_name = member.user.user_name
+        user_name = member.user.display_label
         member.delete()
         messages.success(request, f'{user_name} をメンバーから削除しました')
 

@@ -51,7 +51,7 @@
                                 </button>
                             </div>
                             <small class="text-muted">
-                                作成: {{ invitation.created_by.user_name }}
+                                作成: {{ invitation.created_by.display_label }}
                                 ({{ invitation.created_at|date:"Y/m/d H:i" }}) |
                                 有効期限: {{ invitation.expires_at|date:"Y/m/d H:i" }}
                             </small>
@@ -81,7 +81,7 @@
             {% for member in members %}
             <li class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
-                    <strong>{{ member.user.user_name }}</strong>
+                    <strong>{{ member.user.display_label }}</strong>
                     <span class="badge {% if member.is_owner %}bg-primary{% else %}bg-secondary{% endif %} ms-2">
                         {{ member.get_role_display }}
                     </span>
@@ -90,7 +90,7 @@
                 {% if not member.is_owner or members|length > 1 %}
                 {% if member.user != request.user or not member.is_owner %}
                 <form method="post" action="{% url 'community:remove_staff' community.pk member.pk %}"
-                      onsubmit="return confirm('{{ member.user.user_name }} を削除しますか？');">
+                      onsubmit="return confirm('{{ member.user.display_label }} を削除しますか？');">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-outline-danger btn-sm">
                         <i class="bi bi-trash"></i>

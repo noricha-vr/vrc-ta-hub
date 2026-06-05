@@ -148,6 +148,7 @@ class CustomUserCreationForm(UserCreationForm):
 
         user = super().save(commit=False)
         user.user_name = self.cleaned_data['user_name']
+        user.display_name = self.cleaned_data['user_name']
         community = Community(
             name=self.cleaned_data['user_name'],
             start_time=self.cleaned_data['start_time'],
@@ -245,12 +246,12 @@ class LocalSignupForm(UserCreationForm):
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
         }
         help_texts = {
-            'user_name': 'このサイトでの表示名です。後から変更できます。',
+            'user_name': 'ログインに使用する一意のユーザー名です。',
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['user_name'].label = 'ユーザー名'
+        self.fields['user_name'].label = 'ログインユーザー名'
         self.fields['password1'].label = 'パスワード'
         self.fields['password2'].label = 'パスワード（確認）'
         for field in self.fields.values():
@@ -261,6 +262,14 @@ class LocalSignupForm(UserCreationForm):
         if email and CustomUser.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError('このメールアドレスは既に登録されています。')
         return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        if not user.display_name:
+            user.display_name = user.user_name
+        if commit:
+            user.save()
+        return user
 
 
 class CustomUserChangeForm(forms.ModelForm):
@@ -291,13 +300,19 @@ class CustomUserChangeForm(forms.ModelForm):
 
     class Meta:
         model = CustomUser
-        fields = ('user_name', 'email', 'x_account', 'vrchat_user_id')
+        fields = ('display_name', 'user_name', 'email', 'x_account', 'vrchat_user_id')
         widgets = {
+            'display_name': forms.TextInput(attrs={'class': 'form-control'}),
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.TextInput(attrs={'class': 'form-control'}),
         }
         labels = {
-            'user_name': 'ユーザー名',
+            'display_name': '表示名',
+            'user_name': 'ログインユーザー名',
+        }
+        help_texts = {
+            'display_name': 'VRChat等で使う表示名です。同じ表示名を複数ユーザーが使用できます。',
+            'user_name': 'ログインに使用する一意のユーザー名です。',
         }
 
     def clean_x_account(self):
@@ -337,11 +352,11 @@ class CustomSocialSignupForm(SocialSignupForm):
     USER_NAME_MAX_LENGTH = 150
 
     user_name = forms.CharField(
-        label='ユーザー名',
+        label='ログインユーザー名',
         max_length=USER_NAME_MAX_LENGTH,
         required=True,
         widget=forms.TextInput(attrs={'class': 'form-control'}),
-        help_text='このサイトでの表示名です。後から変更できます。',
+        help_text='ログインに使用する一意のユーザー名です。',
     )
 
     def __init__(self, *args, **kwargs):

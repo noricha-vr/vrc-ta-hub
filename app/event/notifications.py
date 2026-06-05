@@ -199,11 +199,7 @@ def _send_discord_notification_for_new_application(
         return
 
     # 申請者名を取得
-    applicant_name = (
-        event_detail.applicant.user_name
-        if event_detail.applicant
-        else "不明"
-    )
+    applicant_name = event_detail.applicant.display_label if event_detail.applicant else "不明"
 
     # 認知科学に基づくレイアウト:
     # 1. Call to Action を最初に（content）

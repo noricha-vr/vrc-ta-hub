@@ -72,7 +72,7 @@ def approve_community_registration(community: Community, request: HttpRequest) -
     context = {
         'community': community,
         'my_list_url': my_list_url,
-        'owner_name': community.get_owner().user_name if community.get_owner() else None,
+        'owner_name': community.get_owner().display_label if community.get_owner() else None,
     }
     html_message = render_to_string('community/email/accept.html', context)
 
@@ -101,7 +101,7 @@ def reject_community_registration(community: Community) -> None:
     subject = f'{community.name}が非承認になりました'
     context = {
         'community': community,
-        'owner_name': community.get_owner().user_name if community.get_owner() else None,
+        'owner_name': community.get_owner().display_label if community.get_owner() else None,
     }
     html_message = render_to_string('community/email/reject.html', context)
 

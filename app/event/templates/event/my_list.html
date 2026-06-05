@@ -206,7 +206,7 @@
                                         </div>
                                         {% if detail.applicant %}
                                         <div class="card-text mb-2">
-                                            申請者: {{ detail.applicant.user_name }}
+                                            申請者: {{ detail.applicant.display_label }}
                                             {% if detail.status == 'pending' %}
                                                 <span class="badge bg-warning text-dark ms-2"><i class="fas fa-clock"></i> 承認待ち</span>
                                             {% elif detail.status == 'approved' %}
@@ -297,7 +297,7 @@
                                 <ul class="list-unstyled">
                                     <li><strong>テーマ:</strong> {{ detail.theme }}</li>
                                     <li><strong>発表者:</strong> {{ detail.speaker }}</li>
-                                    <li><strong>申請者:</strong> {{ detail.applicant.user_name }}</li>
+                                    <li><strong>申請者:</strong> {{ detail.applicant.display_label }}</li>
                                     <li><strong>イベント日:</strong> {{ event.date }}</li>
                                 </ul>
                             </div>
@@ -326,7 +326,7 @@
                                     <ul class="list-unstyled mb-3">
                                         <li><strong>テーマ:</strong> {{ detail.theme }}</li>
                                         <li><strong>発表者:</strong> {{ detail.speaker }}</li>
-                                        <li><strong>申請者:</strong> {{ detail.applicant.user_name }}</li>
+                                        <li><strong>申請者:</strong> {{ detail.applicant.display_label }}</li>
                                     </ul>
                                     <div class="mb-3">
                                         <label for="rejection_reason_{{ detail.pk }}" class="form-label">却下理由 <span class="text-danger">*</span></label>

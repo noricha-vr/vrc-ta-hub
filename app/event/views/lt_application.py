@@ -57,9 +57,9 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
             # speaker / x_account を user 側にも反映（LT 申込フォームをプロフィール更新の経路として扱う）
             user = self.request.user
             update_fields = []
-            if user.user_name != speaker:
-                user.user_name = speaker
-                update_fields.append('user_name')
+            if user.display_name != speaker:
+                user.display_name = speaker
+                update_fields.append('display_name')
             if user.x_account != x_account:
                 user.x_account = x_account
                 update_fields.append('x_account')
