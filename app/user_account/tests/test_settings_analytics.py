@@ -3,6 +3,8 @@
 ログインオーナーには自分の community の集計のみが出て、他人の community の
 名前・数値が一切出ないこと、未ログインは login へリダイレクトされることを検証する。
 """
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -41,15 +43,16 @@ class SettingsAnalyticsTests(TestCase):
             role=CommunityMember.Role.OWNER,
         )
 
-        today = timezone.localdate()
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）。前日にデータを置く
+        yesterday = timezone.localdate() - timedelta(days=1)
         PageAnalytics.objects.create(
-            page_path=f'/community/{cls.my_community.pk}/', date=today,
+            page_path=f'/community/{cls.my_community.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=cls.my_community, object_id=cls.my_community.pk,
             pv=77, users=60, sessions=70, source_medium='mine-source-only / organic',
         )
         PageAnalytics.objects.create(
-            page_path=f'/community/{cls.other_community.pk}/', date=today,
+            page_path=f'/community/{cls.other_community.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=cls.other_community, object_id=cls.other_community.pk,
             pv=999, users=900, sessions=950, source_medium='other-source-only / referral',

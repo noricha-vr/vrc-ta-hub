@@ -1,4 +1,5 @@
 """Phase 2 #10 #11 のテスト（未紐付けトラフィック / ポスタークリック）。"""
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import Client, TestCase, override_settings
@@ -52,23 +53,24 @@ class GlobalTrafficServiceTest(TestCase):
 
     def setUp(self):
         community = _create_community('A')
-        today = timezone.localdate()
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）
+        yesterday = timezone.localdate() - timedelta(days=1)
         # community 紐付き（GLOBAL ではない）
         PageAnalytics.objects.create(
-            page_path=f'/community/{community.pk}/', date=today,
+            page_path=f'/community/{community.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=community, object_id=community.pk,
             pv=100, users=80, sessions=90, source_medium='google / organic',
         )
         # GLOBAL レコード
         PageAnalytics.objects.create(
-            page_path='/', date=today,
+            page_path='/', date=yesterday,
             content_type=PageAnalytics.ContentType.GLOBAL,
             community=None, object_id=0,
             pv=500, users=400, sessions=450, source_medium='google / organic',
         )
         PageAnalytics.objects.create(
-            page_path='/community/list/', date=today,
+            page_path='/community/list/', date=yesterday,
             content_type=PageAnalytics.ContentType.GLOBAL,
             community=None, object_id=0,
             pv=200, users=180, sessions=190, source_medium='(direct) / (none)',
@@ -131,9 +133,10 @@ class PosterClickServiceTest(TestCase):
     def setUp(self):
         self.community_a = _create_community('PA')
         self.community_b = _create_community('PB')
-        today = timezone.localdate()
-        PosterClick.objects.create(community=self.community_a, date=today, clicks=20, users=15)
-        PosterClick.objects.create(community=self.community_b, date=today, clicks=99, users=80)
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）
+        yesterday = timezone.localdate() - timedelta(days=1)
+        PosterClick.objects.create(community=self.community_a, date=yesterday, clicks=20, users=15)
+        PosterClick.objects.create(community=self.community_b, date=yesterday, clicks=99, users=80)
 
     def test_filter_by_community_ids(self):
         """渡された community_ids のレコードのみ集計に含まれる。"""
@@ -162,9 +165,10 @@ class DashboardGlobalTrafficVisibilityTest(TestCase):
             community=self.community, user=self.user,
             role=CommunityMember.Role.OWNER,
         )
-        today = timezone.localdate()
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）
+        yesterday = timezone.localdate() - timedelta(days=1)
         PageAnalytics.objects.create(
-            page_path='/', date=today,
+            page_path='/', date=yesterday,
             content_type=PageAnalytics.ContentType.GLOBAL,
             community=None, object_id=0,
             pv=300, users=200, sessions=250, source_medium='google / organic',

@@ -3,7 +3,7 @@
 can_manage_event_detail の真偽で集計 context の有無が切り替わること、
 別集会のオーナーには当該 event_detail の集計が出ないことを検証する。
 """
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
@@ -69,9 +69,10 @@ class EventDetailAnalyticsTests(TestCase):
             applicant=cls.applicant,
         )
 
-        today = timezone.localdate()
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）。前日にデータを置く
+        yesterday = timezone.localdate() - timedelta(days=1)
         PageAnalytics.objects.create(
-            page_path=f'/event/detail/{cls.event_detail.pk}/', date=today,
+            page_path=f'/event/detail/{cls.event_detail.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.EVENT_DETAIL,
             community=cls.community, object_id=cls.event_detail.pk,
             pv=42, users=30, sessions=35, source_medium='event-source-only / organic',

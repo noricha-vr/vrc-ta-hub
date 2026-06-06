@@ -22,6 +22,23 @@ DEFAULT_DAYS = 30
 TOP_EVENT_DETAILS_LIMIT = 50
 
 
+def _date_range(days=DEFAULT_DAYS) -> tuple[date, date]:
+    """集計対象の日付範囲 (since, until) を返す。両端含む。
+
+    GA4 同期は午前1時に前日分までしか取得しない（views.py _parse_target_date）。
+    当日(today) のレコードはそもそも存在せず、含めると同期済み日数が1日足りない
+    期間になり集計が日々ブレるため、当日は集計に含めない。
+
+    until = today - 1（前日、含む）
+    since = today - days（含む）= until - (days - 1)
+    範囲は today-days 〜 today-1 のちょうど days 日分。
+    """
+    today = timezone.localdate()
+    until = today - timedelta(days=1)
+    since = today - timedelta(days=days)
+    return since, until
+
+
 def accessible_community_ids(user) -> list[int]:
     """ユーザーがアクセス可能な community の id リストを返す。
 
@@ -47,12 +64,16 @@ def accessible_community_ids(user) -> list[int]:
 
 
 def _base_queryset(community_ids, *, content_type=None, object_id=None, days=DEFAULT_DAYS):
-    """community_ids で必ず絞った PageAnalytics の基底クエリセットを作る。"""
-    since = timezone.localdate() - timedelta(days=days)
+    """community_ids で必ず絞った PageAnalytics の基底クエリセットを作る。
+
+    日付範囲は _date_range に従い today-days 〜 today-1（当日除外、ちょうど days 日）。
+    """
+    since, until = _date_range(days)
     # community__in による絞り込みは権限境界。絶対に外さないこと
     queryset = PageAnalytics.objects.filter(
         community_id__in=community_ids,
         date__gte=since,
+        date__lte=until,
     )
     if content_type is not None:
         queryset = queryset.filter(content_type=content_type)
@@ -123,9 +144,11 @@ def get_overall_stats(community_ids, *, days=DEFAULT_DAYS) -> dict:
             'pv_change_pct', 'users_change_pct', 'sessions_change_pct': 変化率%（float, 前期間が0なら None）
         }
     """
-    today = timezone.localdate()
-    current_start = today - timedelta(days=days)
-    prev_start = current_start - timedelta(days=days)
+    # current = today-days 〜 today-1（当日除外、N日）。prev はその直前の同じ N 日。
+    # current/prev を同じ期間長にすることで比較率が正しくなる
+    since, until = _date_range(days)
+    prev_until = since - timedelta(days=1)
+    prev_since = prev_until - timedelta(days=days - 1)
 
     # community_ids が空なら集計しても 0 件。早期 return で DB を叩かない
     if not community_ids:
@@ -133,15 +156,15 @@ def get_overall_stats(community_ids, *, days=DEFAULT_DAYS) -> dict:
 
     current = (
         PageAnalytics.objects
-        .filter(community_id__in=community_ids, date__gte=current_start)
+        .filter(community_id__in=community_ids, date__gte=since, date__lte=until)
         .aggregate(pv=Sum('pv'), users=Sum('users'), sessions=Sum('sessions'))
     )
     prev = (
         PageAnalytics.objects
         .filter(
             community_id__in=community_ids,
-            date__gte=prev_start,
-            date__lt=current_start,
+            date__gte=prev_since,
+            date__lte=prev_until,
         )
         .aggregate(pv=Sum('pv'), users=Sum('users'), sessions=Sum('sessions'))
     )
@@ -360,10 +383,12 @@ def get_global_traffic(*, days=DEFAULT_DAYS) -> dict:
             'top_paths': [{'page_path', 'pv'}, ...]（上位10件）,
         }
     """
-    since = timezone.localdate() - timedelta(days=days)
+    # GLOBAL 集計は community_id 境界を持たないため _base_queryset は使わず日付範囲だけ流用
+    since, until = _date_range(days)
     base = PageAnalytics.objects.filter(
         content_type=PageAnalytics.ContentType.GLOBAL,
         date__gte=since,
+        date__lte=until,
     )
 
     total = base.aggregate(pv=Sum('pv'), users=Sum('users'), sessions=Sum('sessions'))
@@ -497,10 +522,9 @@ def get_campaign_daily_series(
 
     top_keys = [row['campaign'] for row in top_campaigns]
 
-    # 日付ラベル: today を含めて days+1 日分。グラフは「過去 N 日」の期間表示
-    today = timezone.localdate()
-    start = today - timedelta(days=days)
-    label_dates = [start + timedelta(days=i) for i in range(days + 1)]
+    # 日付ラベル: today-days 〜 today-1 のちょうど days 日分（当日除外、_date_range と一致）
+    since, _until = _date_range(days)
+    label_dates = [since + timedelta(days=i) for i in range(days)]
     labels = [d.strftime('%m/%d') for d in label_dates]
 
     # 一括取得して dict 化（N+1 防止）
@@ -553,10 +577,12 @@ def get_poster_click_stats(community_ids, *, days=DEFAULT_DAYS) -> dict:
             'per_community': [],
         }
 
-    since = timezone.localdate() - timedelta(days=days)
+    # PosterClick は _base_queryset(PageAnalytics 用) と別モデルなので日付範囲だけ流用
+    since, until = _date_range(days)
     base = PosterClick.objects.filter(
         community_id__in=community_ids,
         date__gte=since,
+        date__lte=until,
     )
 
     total = base.aggregate(clicks=Sum('clicks'), users=Sum('users'))
