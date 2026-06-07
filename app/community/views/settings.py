@@ -4,11 +4,13 @@ from datetime import timedelta
 
 import requests
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
+
+from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 
 from ..models import Community, CommunityMember, CommunityInvitation, INVITATION_EXPIRATION_DAYS
 
@@ -225,7 +227,7 @@ class RevokeOwnershipTransferView(LoginRequiredMixin, View):
         return redirect('community:settings')
 
 
-class UpdateWebhookView(LoginRequiredMixin, UserPassesTestMixin, View):
+class UpdateWebhookView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     """Webhook URL更新ビュー"""
 
     def test_func(self):
@@ -254,7 +256,7 @@ class UpdateWebhookView(LoginRequiredMixin, UserPassesTestMixin, View):
         return redirect('community:settings')
 
 
-class TestWebhookView(LoginRequiredMixin, UserPassesTestMixin, View):
+class TestWebhookView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     """Webhookテスト送信ビュー"""
 
     def test_func(self):
@@ -306,7 +308,7 @@ class LTApplicationListView(LoginRequiredMixin, View):
         return redirect('event:my_list')
 
 
-class UpdateLTSettingsView(LoginRequiredMixin, UserPassesTestMixin, View):
+class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     """LT申請設定更新ビュー"""
 
     def test_func(self):

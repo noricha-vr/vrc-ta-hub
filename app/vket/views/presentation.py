@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect
 from django.views import View
+
+from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 
 from ..models import (
     VketCollaboration,
@@ -50,7 +52,7 @@ class PresentationDeleteView(LoginRequiredMixin, View):
         return redirect('vket:status', pk=pk)
 
 
-class ManagePresentationDeleteView(LoginRequiredMixin, UserPassesTestMixin, View):
+class ManagePresentationDeleteView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     """管理者用: LTを個別削除する"""
 
     def test_func(self):

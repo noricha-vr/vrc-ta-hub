@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Case, IntegerField, Prefetch, When
 from django.shortcuts import get_object_or_404, redirect
@@ -17,6 +17,7 @@ from allauth.socialaccount.models import SocialAccount
 
 from community.models import Community
 from event.models import EventDetail
+from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from ta_hub.index_cache import clear_index_view_cache
 
 from ..forms import VketManageParticipationForm
@@ -33,7 +34,7 @@ from .helpers import (
 logger = logging.getLogger(__name__)
 
 
-class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
     template_name = 'vket/manage.html'
 
     def test_func(self):
@@ -142,7 +143,7 @@ class ManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         }
 
 
-class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, View):
+class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     def test_func(self):
         return _is_vket_admin(self.request.user)
 
@@ -294,7 +295,7 @@ class ManageParticipationUpdateView(LoginRequiredMixin, UserPassesTestMixin, Vie
         return True
 
 
-class ManageScheduleView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class ManageScheduleView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
     template_name = 'vket/manage_schedule.html'
 
     def test_func(self):

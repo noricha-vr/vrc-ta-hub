@@ -3,7 +3,7 @@ import logging
 
 import requests  # noqa: F401 - 既存テストの patch パス互換用
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.db import DataError
 from django.shortcuts import get_object_or_404, redirect
@@ -12,6 +12,7 @@ from django.views import View
 from django.views.generic import UpdateView, CreateView, ListView
 
 from event.community_cleanup import cleanup_community_future_data
+from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from user_account.vrchat import normalize_vrchat_user_id
 
 from ..forms_processor import (
@@ -30,7 +31,7 @@ from ..models import Community, WEEKDAY_CHOICES
 logger = logging.getLogger(__name__)
 
 
-class CommunityUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class CommunityUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, UpdateView):
     model = Community
     form_class = CommunityUpdateForm
     template_name = 'community/update.html'
@@ -94,7 +95,7 @@ class CommunityCreateView(LoginRequiredMixin, CreateView):
         return response
 
 
-class WaitingCommunityListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+class WaitingCommunityListView(LoginRequiredMixin, AuthenticatedForbiddenMixin, ListView):
     model = Community
     template_name = 'community/waiting_list.html'
     context_object_name = 'communities'
@@ -147,7 +148,7 @@ class RejectView(LoginRequiredMixin, View):
         return redirect('community:waiting_list')
 
 
-class CloseCommunityView(LoginRequiredMixin, UserPassesTestMixin, View):
+class CloseCommunityView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     def test_func(self):
         community = get_object_or_404(Community, pk=self.kwargs['pk'])
         return self.request.user.is_superuser or community.is_owner(self.request.user)
@@ -186,7 +187,7 @@ class CloseCommunityView(LoginRequiredMixin, UserPassesTestMixin, View):
         return redirect('community:detail', pk=pk)
 
 
-class AdminCommunityCleanupView(LoginRequiredMixin, UserPassesTestMixin, View):
+class AdminCommunityCleanupView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     """管理者用: 集会停止と関連データ削除をワンクリックで実行する。"""
 
     def test_func(self):
@@ -220,7 +221,7 @@ class AdminCommunityCleanupView(LoginRequiredMixin, UserPassesTestMixin, View):
         return redirect('community:detail', pk=pk)
 
 
-class ReopenCommunityView(LoginRequiredMixin, UserPassesTestMixin, View):
+class ReopenCommunityView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     def test_func(self):
         community = get_object_or_404(Community, pk=self.kwargs['pk'])
         return self.request.user.is_superuser or community.is_owner(self.request.user)

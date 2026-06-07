@@ -3,13 +3,14 @@ from __future__ import annotations
 import logging
 
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect
 from django.views import View
 
 from event.models import Event, EventDetail
+from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from ta_hub.index_cache import clear_index_view_cache
 
 from ..models import (
@@ -22,7 +23,7 @@ from .helpers import _is_vket_admin
 logger = logging.getLogger(__name__)
 
 
-class ManagePublishView(LoginRequiredMixin, UserPassesTestMixin, View):
+class ManagePublishView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     """運営向け: LOCKEDフェーズのコラボをEventとして公開するビュー"""
 
     def test_func(self):
