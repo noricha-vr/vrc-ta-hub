@@ -56,7 +56,7 @@ class GenerateBlogView(LoginRequiredMixin, View):
 
             # LTタイプのみ記事生成を許可
             if event_detail.detail_type != 'LT':
-                messages.error(request, "記事の自動生成はLT（発表）タイプのみ利用可能です。")
+                messages.error(request, "記事の自動生成は発表タイプのみ利用可能です。")
                 return redirect('event:detail', pk=event_detail.id)
 
             # BlogOutputモデルを受け取る

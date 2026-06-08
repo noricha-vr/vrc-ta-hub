@@ -243,7 +243,7 @@ class Event(models.Model):
 
 class EventDetail(models.Model):
     TYPE_CHOICES = [
-        ('LT', 'LT（発表）'),
+        ('LT', '発表'),
         ('SPECIAL', '特別企画'),
         ('BLOG', 'ブログ'),
     ]
