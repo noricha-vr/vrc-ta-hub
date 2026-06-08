@@ -186,9 +186,10 @@ def _fallback_presentation_tweet(event_detail, *, special: bool = False) -> str 
     community = event.community
     weekday = WEEKDAY_NAMES.get(event.date.strftime("%a"), "")
     label = " 特別回" if special else ""
+    speaker_display = _format_speaker_display(event_detail)
     body_lines = [
         f"{event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~ {_sanitize_for_prompt(community.name)}{label}",
-        f"{_sanitize_for_prompt(event_detail.speaker)}さん「{_sanitize_for_prompt(event_detail.theme)}」",
+        f"{speaker_display}「{_sanitize_for_prompt(event_detail.theme)}」",
     ]
     url = f"詳細はこちら {build_site_url(f'/community/{community.pk}/')}"
     return _fit_candidate(body_lines, url, _build_hashtag_suffix(community), [1, 0])
@@ -233,7 +234,7 @@ def _fallback_daily_reminder_tweet(event) -> str | None:
         body_lines = [f"今夜 {event.start_time.strftime('%H:%M')}〜 {name}"]
         for detail in details[:count]:
             body_lines.append(
-                f"{_sanitize_for_prompt(detail.speaker)}さん"
+                f"{_format_speaker_display(detail)}"
                 f"「{_sanitize_for_prompt(detail.theme)}」"
             )
         fitted = _fit_candidate(
@@ -356,6 +357,17 @@ def _sanitize_for_prompt(text: str, max_length: int = SANITIZE_MAX_LENGTH) -> st
         return ""
     text = " ".join(text.split())
     return text[:max_length]
+
+
+def _format_speaker_display(event_detail) -> str:
+    """登壇者名を告知本文用の敬称付き表記で返す。"""
+    speaker = _sanitize_for_prompt(event_detail.speaker)
+    display_name = f"{speaker}さん"
+    applicant = getattr(event_detail, "applicant", None)
+    x_account = _sanitize_for_prompt(getattr(applicant, "x_account", ""))
+    if x_account:
+        return f"{display_name}（@{x_account}）"
+    return display_name
 
 
 def _call_llm(system_prompt: str, user_prompt: str) -> str | None:
@@ -500,14 +512,14 @@ def generate_lt_tweet(event_detail, target_chars=140, validation_feedback="") ->
     weekday = WEEKDAY_NAMES.get(event.date.strftime("%a"), "")
 
     name = _sanitize_for_prompt(community.name)
-    speaker = _sanitize_for_prompt(event_detail.speaker)
+    speaker_display = _format_speaker_display(event_detail)
     theme = _sanitize_for_prompt(event_detail.theme)
 
     user_prompt = f"""以下の発表の告知ポストを作成してください。
 
 集会名: {name}
 日時: {event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~
-発表者: {speaker}
+発表者: {speaker_display}
 テーマ: {theme}
 {validation_feedback}
 
@@ -515,14 +527,14 @@ def generate_lt_tweet(event_detail, target_chars=140, validation_feedback="") ->
 1. 集会名（「{name}」）
 2. 開催日時（「{event.date.strftime('%-m/%-d')}({weekday}) {event.start_time.strftime('%H:%M')}~」の形式で）
 3. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
-4. 発表者名（敬称は「さん」を付ける）
+4. 発表者（「{speaker_display}」をそのまま記載）
 5. テーマの補足説明と次のアクション（聞きに来る・詳細を見る等）への誘導を**1行にまとめる**（本文3行制約のため別行にしない）
 
 ## 出力フォーマット（本文は3行以内）
 
 {{日時}} {{集会名}}
 
-{{発表者}}さん「{{テーマ}}」
+{{発表者}}「{{テーマ}}」
 {{テーマ補足 + 参加誘導を1行に統合}}
 
 詳細はこちら {{URL}}
@@ -634,9 +646,9 @@ def generate_daily_reminder_tweet(event, target_chars=140, validation_feedback="
     presentations = []
     for detail in approved_details[:3]:
         label = "発表" if detail.detail_type == "LT" else "特別回"
-        speaker = _sanitize_for_prompt(detail.speaker)
+        speaker_display = _format_speaker_display(detail)
         theme = _sanitize_for_prompt(detail.theme)
-        presentations.append(f"- {label}: {speaker}さん「{theme}」")
+        presentations.append(f"- {label}: {speaker_display}「{theme}」")
 
     more_count = len(approved_details) - len(presentations)
     extra_line = f"\n- ほか {more_count} 件" if more_count > 0 else ""
@@ -662,7 +674,7 @@ def generate_daily_reminder_tweet(event, target_chars=140, validation_feedback="
 ### 発表が1件の場合
 今夜 {{時刻}}〜 {{集会名}}
 
-{{登壇者1}}さん「{{テーマ1}}」
+{{登壇者表記1}}「{{テーマ1}}」
 {{テーマ1の補足 + 参加誘導を1行に統合}}
 
 詳細はこちら {{URL}}
@@ -671,16 +683,16 @@ def generate_daily_reminder_tweet(event, target_chars=140, validation_feedback="
 ### 発表が2件の場合
 今夜 {{時刻}}〜 {{集会名}}
 
-{{登壇者1}}さん「{{テーマ1}}」
-{{登壇者2}}さん「{{テーマ2}}」
+{{登壇者表記1}}「{{テーマ1}}」
+{{登壇者表記2}}「{{テーマ2}}」
 
 詳細はこちら {{URL}}
 {{ハッシュタグ}}
 
 ### 発表が3件以上の場合（4件以上なら上位3件＋「ほかN件」）
 今夜 {{時刻}}〜 {{集会名}}
-{{登壇者1}}さん「{{テーマ1}}」
-{{登壇者2}}さん「{{テーマ2}}」／{{登壇者3}}さん「{{テーマ3}}」
+{{登壇者表記1}}「{{テーマ1}}」
+{{登壇者表記2}}「{{テーマ2}}」／{{登壇者表記3}}「{{テーマ3}}」
 
 詳細はこちら {{URL}}
 {{ハッシュタグ}}
@@ -689,9 +701,9 @@ def generate_daily_reminder_tweet(event, target_chars=140, validation_feedback="
 - {target_chars}文字以内（URLやハッシュタグ含む。日本語は1文字としてカウント）
 {BODY_LINE_CONSTRAINT}
 - 1行目は「今夜 {event.start_time.strftime('%H:%M')}〜 {name}」の形式で、今日の開催であることと時刻が一目で伝わるようにする（日付表記は禁止）
-- 各発表は「○○さん「テーマ名」」の形式で記載する
+- 各発表は発表一覧の登壇者表記をそのまま使い、「○○さん「テーマ名」」または「○○さん（@handle）「テーマ名」」の形式で記載する
   - テーマ名は発表一覧のものをそのまま使う（言い換え・要約・省略禁止）
-  - 登壇者名には「さん」を付ける
+  - Xアカウントがある登壇者は「（@handle）」も含める
 - **発表数の言及禁止**: 「発表は1件」「全○件」「○本立て」「N件の発表」など、発表の本数を伝える表現は本文に一切書かない（通常1件なので情報価値がない）
 - 発表が1件の場合は、発表行の直後に「テーマの補足 + 参加誘導」を**1行に統合**して入れる
   - 補足と誘導は別行に分けず、1文にまとめる（本文3行制約のため必須）
