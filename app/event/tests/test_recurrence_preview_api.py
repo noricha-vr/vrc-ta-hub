@@ -1,6 +1,6 @@
 import json
 from datetime import date, time
-from django.test import TestCase
+from django.test import TestCase, tag
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from community.models import Community
@@ -9,6 +9,7 @@ from event.models import Event
 User = get_user_model()
 
 
+@tag('external_api')
 class TestRecurrencePreviewAPI(TestCase):
     """定期ルールプレビューAPIのテスト"""
     

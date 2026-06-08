@@ -2,7 +2,7 @@
 from calendar import monthrange
 from datetime import date, time, timedelta
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, tag
 from django.utils import timezone
 from io import StringIO
 
@@ -12,6 +12,7 @@ from event.tests.tweet_generation import TweetGenerationPatchMixin
 from user_account.models import CustomUser
 
 
+@tag('external_api')
 class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
     def setUp(self):
         """テストデータのセットアップ"""

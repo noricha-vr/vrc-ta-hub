@@ -1,6 +1,6 @@
 """Discord認証ミドルウェアのテスト."""
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase, override_settings
+from django.test import Client, TestCase, override_settings, tag
 from django.urls import reverse
 
 from allauth.socialaccount.models import SocialAccount
@@ -9,6 +9,7 @@ User = get_user_model()
 
 
 @override_settings(DISCORD_AUTH_REQUIRED=True)
+@tag('external_api')
 class DiscordAuthRequiredMiddlewareTests(TestCase):
     """DiscordAuthRequiredMiddlewareのテストクラス.
 

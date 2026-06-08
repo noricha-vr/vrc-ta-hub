@@ -1,4 +1,4 @@
-from django.test import SimpleTestCase, override_settings
+from django.test import SimpleTestCase, override_settings, tag
 from django.core.mail import send_mail
 from django.conf import settings
 import logging
@@ -22,6 +22,7 @@ EMAIL_FILE_PATH = '/app/test-emails'
     EMAIL_BACKEND='django.core.mail.backends.filebased.EmailBackend',
     EMAIL_FILE_PATH=EMAIL_FILE_PATH
 )
+@tag('external_api')
 class EmailTest(SimpleTestCase):
     def setUp(self):
         super().setUp()

@@ -2,7 +2,7 @@
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, tag
 
 from allauth.socialaccount.models import SocialAccount
 from community.models import Community, CommunityMember
@@ -12,6 +12,7 @@ from user_account.tests.utils import create_discord_linked_user
 User = get_user_model()
 
 
+@tag('external_api')
 class CustomSocialAccountAdapterTests(TestCase):
     """CustomSocialAccountAdapterのテストクラス."""
 
@@ -503,6 +504,7 @@ class CustomSocialAccountAdapterTests(TestCase):
         self.assertEqual(result, '/account/settings/')
 
 
+@tag('external_api')
 class DiscordLoginIntegrationTests(TestCase):
     """Discord OAuth統合テスト."""
 
