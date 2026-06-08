@@ -158,8 +158,10 @@ TESTING = os.environ.get('TESTING', '').strip().lower() in {'1', 'true', 'yes', 
 if 'test' in sys.argv or TESTING:
     DATABASES['default'] = {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': 'test_db.sqlite3',
+        'NAME': ':memory:',
     }
+    # PBKDF2 デフォルトは 600k iterations あり、create_user / client.login が多いテストで支配的になる
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
 _settings_logger.info('DB_NAME: %s', _mask(DATABASES['default']['NAME']))
 
