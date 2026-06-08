@@ -14,6 +14,7 @@ from website.middleware import (
     _build_cloud_run_service_names,
 )
 from website import settings as website_settings
+from website.settings.security import _build_allowed_hosts
 
 
 def ok_view(request):
@@ -55,7 +56,7 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             os.environ['APP_CANONICAL_HOST'] = 'https://preview.vrc-ta-hub.com:8443/'
             os.environ['HTTP_HOST'] = 'https://preview.example.com:9443/'
 
-            allowed_hosts = website_settings._build_allowed_hosts()
+            allowed_hosts = _build_allowed_hosts()
 
             self.assertNotIn('.a.run.app', website_settings.ALLOWED_HOSTS)
             self.assertIn('preview.vrc-ta-hub.com', allowed_hosts)
