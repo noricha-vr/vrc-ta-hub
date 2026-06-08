@@ -30,7 +30,7 @@ _YOUTUBE_PATTERNS = (
 )
 
 _LIST_PREFIXES = ('- ', '* ', '+ ', '1. ', '2. ', '3. ')
-_EMOJI_PATTERN = r'[\U0001F300-\U0001F9FF‍☀-⛿✀-➿]'
+_EMOJI_PATTERN = r'[\U0001F300-\U0001F9FF\u200d\u2600-\u26FF\u2700-\u27BF]'
 
 _ALLOWED_TAGS = [
     'a', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'em',
