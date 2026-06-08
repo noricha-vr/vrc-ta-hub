@@ -1,4 +1,4 @@
-"""PDF処理 / サムネイル生成 / アップロード検証を提供するモジュール."""
+"""PDFサムネイル生成を提供するモジュール."""
 from __future__ import annotations
 
 import logging
