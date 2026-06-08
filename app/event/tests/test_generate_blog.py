@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from django.core.files.base import ContentFile
 from django.core.files import File
-from django.test import TestCase
+from django.test import TestCase, tag
 from PIL import Image
 
 from user_account.models import CustomUser
@@ -39,6 +39,7 @@ HAS_OPENROUTER_API_KEY = _has_non_dummy_env("OPENROUTER_API_KEY")
 HAS_GOOGLE_API_KEY = _has_non_dummy_env("GOOGLE_API_KEY")
 
 
+@tag('external_api')
 class TestGenerateBlog(TestCase):
     @classmethod
     def setUpTestData(cls):

@@ -1,5 +1,5 @@
 from datetime import date, time
-from django.test import TestCase
+from django.test import TestCase, tag
 from django.contrib.auth import get_user_model
 from community.models import Community
 from event.models import Event, RecurrenceRule
@@ -19,6 +19,7 @@ class FakeEventDateLlmService:
         return self.dates
 
 
+@tag('external_api')
 class TestRecurrenceRuleGeneration(TestCase):
     """定期ルール生成の週計算テスト"""
     

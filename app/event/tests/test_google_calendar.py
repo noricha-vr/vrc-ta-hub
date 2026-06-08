@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from event.google_calendar import GoogleCalendarService
 from website.settings import GOOGLE_CALENDAR_ID, GOOGLE_CALENDAR_CREDENTIALS
+from django.test import tag
 
 
 RUN_EXTERNAL_API_TESTS = os.environ.get("RUN_EXTERNAL_API_TESTS") == "1"
@@ -18,6 +19,7 @@ HAS_CREDENTIALS_FILE = bool(CREDENTIALS_PATH) and os.path.exists(CREDENTIALS_PAT
     RUN_EXTERNAL_API_TESTS and HAS_CREDENTIALS_FILE,
     "外部APIテストのため RUN_EXTERNAL_API_TESTS=1 と GOOGLE_CALENDAR_CREDENTIALS ファイルが必要です",
 )
+@tag('external_api')
 class TestGoogleCalendarService(TestCase):
     def setUp(self):
         """テストの前準備"""

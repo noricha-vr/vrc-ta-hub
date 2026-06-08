@@ -3,7 +3,7 @@ from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, tag
 from PIL import Image, UnidentifiedImageError
 
 from ta_hub.libs import (
@@ -15,6 +15,7 @@ from ta_hub.libs import (
 from ta_hub.models import ImageFile
 
 
+@tag('external_api')
 class ImageFileTestCase(TestCase):
     def setUp(self):
         # テストデータのパスを設定
@@ -53,6 +54,7 @@ class ImageFileTestCase(TestCase):
         self.assertTrue(image_file.image.name.endswith('.png'))
 
 
+@tag('external_api')
 class ResizeAndConvertImageTestCase(TestCase):
     """resize_and_convert_image関数の単体テスト"""
 

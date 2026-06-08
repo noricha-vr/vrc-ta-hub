@@ -1,6 +1,6 @@
 import os
 from datetime import date, time
-from django.test import TestCase
+from django.test import TestCase, tag
 from django.contrib.auth import get_user_model
 from community.models import Community
 from event.models import Event, RecurrenceRule
@@ -9,6 +9,7 @@ from event.recurrence_service import RecurrenceService
 User = get_user_model()
 
 
+@tag('external_api')
 class TestRecurrenceLLMGeneration(TestCase):
     """実際のLLMを使用した定期ルール生成テスト"""
     

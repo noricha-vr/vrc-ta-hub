@@ -9,7 +9,7 @@ from django.db import DatabaseError, IntegrityError, OperationalError, transacti
 from unittest.mock import MagicMock, Mock, patch
 
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase, TransactionTestCase, override_settings
+from django.test import Client, TestCase, TransactionTestCase, override_settings, tag
 from django.urls import reverse
 from django.utils import timezone
 
@@ -21,6 +21,7 @@ from twitter.scheduling import default_scheduled_at, scheduled_at_for_date
 CustomUser = get_user_model()
 
 
+@tag('external_api')
 class EventTestPatchScopeTest(TestCase):
     """event.tests import が twitter signal を汚染しないことを確認する。"""
 
@@ -56,6 +57,7 @@ class EventTestPatchScopeTest(TestCase):
         self.assertIs(signals._start_tweet_generation, original)
 
 
+@tag('external_api')
 class TweetGenerationThreadGuardTest(TestCase):
     """テスト実行時の本文生成スレッド起動ガードを検証する。"""
 
@@ -87,6 +89,7 @@ class TweetGenerationThreadGuardTest(TestCase):
         mock_start.assert_not_called()
 
 
+@tag('external_api')
 class DBReconnectHelperTest(TestCase):
     """MySQL 接続断の再試行ヘルパーのテスト"""
 
@@ -122,6 +125,7 @@ class DBReconnectHelperTest(TestCase):
         mock_close_all.assert_not_called()
 
 
+@tag('external_api')
 class AutoTweetTestBase(TestCase):
     """テスト共通のセットアップ"""
 
@@ -167,6 +171,7 @@ class AutoTweetTestBase(TestCase):
         return timezone.now() - datetime.timedelta(hours=25)
 
 
+@tag('external_api')
 class TweetSchedulingTest(TestCase):
     """tweet_type ごとのデフォルト予約時刻のテスト"""
 
@@ -1677,6 +1682,7 @@ class RetryGenerationTest(AutoTweetTestBase):
         mock_close_all.assert_called_once()
 
 
+@tag('external_api')
 class LLMConnectionManagementTest(TransactionTestCase):
     """LLM 呼び出し時の DB 接続管理テスト"""
 
@@ -1739,6 +1745,7 @@ class LLMConnectionManagementTest(TransactionTestCase):
         self.assertEqual(community.description, "after")
 
 
+@tag('external_api')
 class GetGeneratorHelperTest(TestCase):
     """get_generator ヘルパー関数のテスト"""
 
@@ -1776,6 +1783,7 @@ class GetGeneratorHelperTest(TestCase):
         self.assertIsNone(generator)
 
 
+@tag('external_api')
 class GetPosterImageUrlHelperTest(TestCase):
     """get_poster_image_url ヘルパー関数のテスト"""
 
@@ -1898,6 +1906,7 @@ class GetPosterImageUrlHelperTest(TestCase):
         self.assertIn("community/1/poster.webp", result)
 
 
+@tag('external_api')
 class PostTweetFunctionTest(TestCase):
     """X API 投稿関数の単体テスト（OAuth 1.0a）"""
 
@@ -2020,6 +2029,7 @@ class PostTweetFunctionTest(TestCase):
         mock_post.assert_not_called()
 
 
+@tag('external_api')
 class UploadMediaFunctionTest(TestCase):
     """upload_media 関数のテスト"""
 
@@ -2231,6 +2241,7 @@ class UploadMediaFunctionTest(TestCase):
         self.assertEqual(result, "media_5mb")
 
 
+@tag('external_api')
 class TweetGeneratorTest(TestCase):
     """告知文生成関数のテスト"""
 
@@ -2693,6 +2704,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("改行 入り テーマ", user_prompt)
 
 
+@tag('external_api')
 class TweetQueueConstraintTest(TestCase):
     """TweetQueue の一意制約テスト"""
 
@@ -2730,6 +2742,7 @@ class TweetQueueConstraintTest(TestCase):
             )
 
 
+@tag('external_api')
 class SanitizeForPromptTest(TestCase):
     """_sanitize_for_prompt 関数の単体テスト"""
 
@@ -2765,6 +2778,7 @@ class SanitizeForPromptTest(TestCase):
         self.assertEqual(_sanitize_for_prompt("hello   world"), "hello world")
 
 
+@tag('external_api')
 class PostTweetValidationTest(TestCase):
     """post_tweet 関数の入力バリデーションテスト"""
 
