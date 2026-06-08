@@ -14,7 +14,7 @@ from django.http import Http404
 from django.shortcuts import redirect
 from django.views.generic import TemplateView
 
-from event.libs import convert_markdown
+from event.services.markdown_processor import convert_markdown
 
 logger = logging.getLogger(__name__)
 

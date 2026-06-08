@@ -14,7 +14,12 @@ from PIL import Image
 
 from user_account.models import CustomUser
 from community.models import Community
-from event.libs import apply_blog_output_to_event_detail, generate_blog, get_transcript, BlogOutput
+from event.services.content_generation_service import (
+    BlogOutput,
+    apply_blog_output_to_event_detail,
+    generate_blog,
+    get_transcript,
+)
 from event.services.media_service import ensure_pdf_thumbnail
 from event.models import Event, EventDetail
 
@@ -338,7 +343,7 @@ class TestGenerateBlog(TestCase):
         self.assertIn(f"event_detail_{event_detail.pk}_thumbnail", event_detail.thumbnail_image.name)
         mock_pdf_document.assert_called_once()
 
-    @patch("event.libs.ensure_pdf_thumbnail")
+    @patch("event.services.content_generation_service.ensure_pdf_thumbnail")
     def test_apply_blog_output_sets_article_and_thumbnail(self, mock_ensure_pdf_thumbnail):
         """記事生成結果を反映するときに未設定サムネイルも補完する."""
         event_detail = self.create_event_detail(slide_file=True)

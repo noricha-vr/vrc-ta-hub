@@ -1,6 +1,6 @@
 from django import template
 from django.utils.safestring import mark_safe
-from event.libs import convert_markdown
+from event.services.markdown_processor import convert_markdown
 
 register = template.Library()
 

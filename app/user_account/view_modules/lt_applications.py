@@ -56,7 +56,7 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
         ):
             try:
                 from django.conf import settings as django_settings
-                from event.libs import apply_blog_output_to_event_detail, generate_blog
+                from event.services.content_generation_service import apply_blog_output_to_event_detail, generate_blog
 
                 blog_output = generate_blog(form.instance, model=django_settings.GEMINI_MODEL)
                 if apply_blog_output_to_event_detail(form.instance, blog_output):
