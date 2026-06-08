@@ -1,10 +1,11 @@
 import json
 import logging
-from django.contrib.auth.mixins import UserPassesTestMixin
 from django.shortcuts import get_object_or_404
 from django.urls import reverse, reverse_lazy
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView
 from django.core.cache import cache
+
+from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 
 from .models import Post, Category
 from .forms import PostForm
@@ -231,7 +232,7 @@ class CategoryListView(ListView):
         return context
 
 
-class StaffRequiredMixin(UserPassesTestMixin):
+class StaffRequiredMixin(AuthenticatedForbiddenMixin):
     """スタッフ権限が必要なビューのMixin"""
     
     def test_func(self):

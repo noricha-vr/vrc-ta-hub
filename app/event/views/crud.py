@@ -1,7 +1,7 @@
 import logging
 
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, UpdateView, DeleteView
@@ -10,6 +10,7 @@ from event.forms import EventDetailForm
 from event.libs import apply_blog_output_to_event_detail, generate_blog
 from event.models import Event, EventDetail
 from event.views.helpers import can_manage_event_detail
+from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from website.settings import GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, GEMINI_MODEL
 from event.google_calendar import GoogleCalendarService
 
@@ -120,7 +121,7 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
         return redirect('event:my_list')
 
 
-class EventDetailCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView):
+class EventDetailCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, CreateView):
     model = EventDetail
     form_class = EventDetailForm
     template_name = 'event/detail_form.html'
@@ -176,7 +177,7 @@ class EventDetailCreateView(LoginRequiredMixin, UserPassesTestMixin, CreateView)
         return reverse_lazy('event:detail', kwargs={'pk': self.object.pk})
 
 
-class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class EventDetailUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, UpdateView):
     model = EventDetail
     form_class = EventDetailForm
     template_name = 'event/detail_form.html'
@@ -236,7 +237,7 @@ class EventDetailUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView)
         pass
 
 
-class EventDetailDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+class EventDetailDeleteView(LoginRequiredMixin, AuthenticatedForbiddenMixin, DeleteView):
     model = EventDetail
     template_name = 'event/detail_confirm_delete.html'
 
@@ -258,4 +259,3 @@ class EventDetailDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView)
 
     def get_success_url(self):
         return reverse_lazy('event:my_list')
-

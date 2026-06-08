@@ -9,7 +9,6 @@ from zoneinfo import ZoneInfo
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import connections, models  # noqa: F401 - 既存テストの patch パス互換用
 from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -24,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 from community.models import Community, CommunityMember
 from event.models import Event
+from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from .forms import TwitterTemplateForm
 from .models import TwitterTemplate, TweetQueue
 from .notifications import notify_tweet_post_failure
@@ -44,7 +44,7 @@ SCHEDULED_AT_MINUTE_ERROR = '予約日時は00分または30分で指定して�
 JST = ZoneInfo("Asia/Tokyo")
 
 
-class TwitterTemplateBaseView(LoginRequiredMixin, UserPassesTestMixin):
+class TwitterTemplateBaseView(LoginRequiredMixin, AuthenticatedForbiddenMixin):
     model = TwitterTemplate
     form_class = TwitterTemplateForm
     template_name = 'twitter/twitter_template_form.html'
@@ -114,7 +114,7 @@ class TweetEventView(View):
         return redirect(tweet_url)
 
 
-class TwitterTemplateDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+class TwitterTemplateDeleteView(LoginRequiredMixin, AuthenticatedForbiddenMixin, DeleteView):
     model = TwitterTemplate
     success_url = reverse_lazy('twitter:template_list')
 
@@ -217,14 +217,14 @@ def post_scheduled_tweets(request):
 # --- TweetQueue 管理ビュー (superuser only) ---
 
 
-class SuperuserRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+class SuperuserRequiredMixin(LoginRequiredMixin, AuthenticatedForbiddenMixin):
     """スーパーユーザーのみアクセスを許可する Mixin。"""
 
     def test_func(self):
         return self.request.user.is_superuser
 
 
-class TweetQueueViewerMixin(LoginRequiredMixin, UserPassesTestMixin):
+class TweetQueueViewerMixin(LoginRequiredMixin, AuthenticatedForbiddenMixin):
     """TweetQueue 閲覧の権限制御 Mixin。
 
     superuser、または CommunityMember として何らかの集会に所属しているユーザー

@@ -2,12 +2,14 @@
 import logging
 
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.generic import TemplateView
+
+from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 
 from ..models import Community, CommunityMember, CommunityInvitation
 
@@ -77,7 +79,7 @@ class SwitchCommunityView(LoginRequiredMixin, View):
         return redirect(self._get_redirect_url(request, success=False))
 
 
-class CommunityMemberManageView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class CommunityMemberManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
     """集会メンバー管理ビュー（主催者のみ）"""
     template_name = 'community/member_manage.html'
 

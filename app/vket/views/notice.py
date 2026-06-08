@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
@@ -10,6 +10,7 @@ from django.views.generic import TemplateView
 from allauth.socialaccount.models import SocialAccount
 
 from community.models import CommunityMember
+from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 
 from ..models import (
     VketCollaboration,
@@ -55,7 +56,7 @@ class NoticeListView(LoginRequiredMixin, View):
         )
 
 
-class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+class ManageNoticeListView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
     """運営向け: お知らせ管理一覧ビュー"""
 
     template_name = 'vket/manage_notice_list.html'
@@ -130,7 +131,7 @@ class ManageNoticeListView(LoginRequiredMixin, UserPassesTestMixin, TemplateView
         return context
 
 
-class ManageNoticeCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
+class ManageNoticeCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     """運営向け: お知らせ作成ビュー"""
 
     def test_func(self):
@@ -177,7 +178,7 @@ class ManageNoticeCreateView(LoginRequiredMixin, UserPassesTestMixin, View):
         return redirect('vket:manage_notice_list', pk=pk)
 
 
-class ManageNoticeUpdateView(LoginRequiredMixin, UserPassesTestMixin, View):
+class ManageNoticeUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     """運営向け: お知らせ編集ビュー"""
 
     def test_func(self):
