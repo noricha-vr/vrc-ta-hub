@@ -130,7 +130,7 @@ class EventDetailFormCleanTest(TweetGenerationPatchMixin, TestCase):
         self.assertIn('まずここにスライドPDFをアップロード', form.fields['slide_file'].help_text)
         self.assertIn('URL入力のみでは記事は生成されません', form.fields['slide_url'].help_text)
 
-    @patch('event.libs.ensure_pdf_thumbnail')
+    @patch('event.services.media_service.ensure_pdf_thumbnail')
     def test_event_detail_form_save_generates_pdf_thumbnail(self, mock_ensure_pdf_thumbnail):
         """EventDetailForm保存時にPDFサムネイル補完を実行する."""
         request = self._create_request()
@@ -155,7 +155,7 @@ class EventDetailFormCleanTest(TweetGenerationPatchMixin, TestCase):
         mock_ensure_pdf_thumbnail.assert_called_once_with(saved, save=True)
 
     @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
-    @patch('event.libs.ensure_pdf_thumbnail')
+    @patch('event.services.media_service.ensure_pdf_thumbnail')
     def test_event_detail_form_save_syncs_slide_share_thumbnail_image(self, mock_ensure_pdf_thumbnail):
         """フォーム保存後に生成されたPDFサムネイルを未投稿slide_shareキューへ反映する."""
         request = self._create_request()
@@ -216,7 +216,7 @@ class EventDetailFormCleanTest(TweetGenerationPatchMixin, TestCase):
         self.assertIn('thumbnail/generated.jpg', queue.image_url)
         mock_ensure_pdf_thumbnail.assert_called_once()
 
-    @patch('event.libs.ensure_pdf_thumbnail')
+    @patch('event.services.media_service.ensure_pdf_thumbnail')
     def test_lt_application_edit_form_save_generates_pdf_thumbnail(self, mock_ensure_pdf_thumbnail):
         """LT申請者編集フォーム保存時にもPDFサムネイル補完を実行する."""
         form_data = {

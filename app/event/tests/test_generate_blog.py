@@ -14,7 +14,8 @@ from PIL import Image
 
 from user_account.models import CustomUser
 from community.models import Community
-from event.libs import apply_blog_output_to_event_detail, ensure_pdf_thumbnail, generate_blog, get_transcript, BlogOutput
+from event.libs import apply_blog_output_to_event_detail, generate_blog, get_transcript, BlogOutput
+from event.services.media_service import ensure_pdf_thumbnail
 from event.models import Event, EventDetail
 
 logger = logging.getLogger(__name__)
@@ -282,7 +283,7 @@ class TestGenerateBlog(TestCase):
         self.assertTrue(valid_output.meta_description)
         self.assertTrue(valid_output.text)
 
-    @patch("event.libs.pdfium.PdfDocument")
+    @patch("event.services.media_service.pdfium.PdfDocument")
     def test_ensure_pdf_thumbnail_creates_image_from_pdf(self, mock_pdf_document):
         """PDFの先頭ページから16:9のサムネイル画像を作成する."""
         event_detail = self.create_event_detail(slide_file=True)
@@ -299,7 +300,7 @@ class TestGenerateBlog(TestCase):
             self.assertEqual(thumbnail.size, (120, 67))
         mock_pdf_document.assert_called_once()
 
-    @patch("event.libs.pdfium.PdfDocument")
+    @patch("event.services.media_service.pdfium.PdfDocument")
     def test_ensure_pdf_thumbnail_skips_when_already_set(self, mock_pdf_document):
         """既存サムネイルがある場合はPDFレンダリングしない."""
         event_detail = self.create_event_detail(slide_file=True)
@@ -316,7 +317,7 @@ class TestGenerateBlog(TestCase):
         self.assertFalse(result)
         mock_pdf_document.assert_not_called()
 
-    @patch("event.libs.pdfium.PdfDocument")
+    @patch("event.services.media_service.pdfium.PdfDocument")
     def test_ensure_pdf_thumbnail_overwrites_existing_thumbnail(self, mock_pdf_document):
         """overwrite=Trueの場合は既存サムネイルがあってもPDFから再生成する."""
         event_detail = self.create_event_detail(slide_file=True)

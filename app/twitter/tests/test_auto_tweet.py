@@ -3147,7 +3147,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
 
         self.assertEqual(TweetQueue.objects.count(), 0)
 
-    @patch("event.libs.ensure_pdf_thumbnail", return_value=False)
+    @patch("event.services.media_service.ensure_pdf_thumbnail", return_value=False)
     @patch("twitter.signals.threading.Thread")
     def test_slide_file_first_set_creates_queue(self, mock_thread_cls, _mock_ensure_pdf_thumbnail):
         """slide_file が初めて設定され、発表日が過去ならキューが作成される"""

@@ -342,7 +342,7 @@ class EventDetailForm(forms.ModelForm):
     def save(self, commit=True):
         instance = super().save(commit=commit)
         if commit:
-            from event.libs import ensure_pdf_thumbnail
+            from event.services.media_service import ensure_pdf_thumbnail
             from twitter.signals import sync_slide_share_queue_image
 
             ensure_pdf_thumbnail(instance, save=True)
@@ -407,7 +407,7 @@ class LTApplicationEditForm(forms.ModelForm):
     def save(self, commit=True):
         instance = super().save(commit=commit)
         if commit:
-            from event.libs import ensure_pdf_thumbnail
+            from event.services.media_service import ensure_pdf_thumbnail
             from twitter.signals import sync_slide_share_queue_image
 
             ensure_pdf_thumbnail(instance, save=True)
