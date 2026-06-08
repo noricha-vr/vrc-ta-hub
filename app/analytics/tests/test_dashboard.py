@@ -89,16 +89,17 @@ class DashboardViewAccessTest(TestCase):
         ed_a = _create_event_detail(self.community_a, 'A theme')
         # community_b 側にも event を作って参照整合性は保つ。変数は使わない（ruff F841 回避）
         _create_event_detail(self.community_b, 'B theme')
-        today = timezone.localdate()
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）。前日にデータを置く
+        yesterday = timezone.localdate() - timedelta(days=1)
         _make_analytics(self.community_a, page_path='/community/{}/'.format(self.community_a.id),
                         content_type=PageAnalytics.ContentType.COMMUNITY,
-                        object_id=self.community_a.id, date_=today, pv=10, source='source-A-only / organic')
+                        object_id=self.community_a.id, date_=yesterday, pv=10, source='source-A-only / organic')
         _make_analytics(self.community_a, page_path='/event/detail/{}/'.format(ed_a.id),
                         content_type=PageAnalytics.ContentType.EVENT_DETAIL,
-                        object_id=ed_a.id, date_=today, pv=5, source='source-A-only / referral')
+                        object_id=ed_a.id, date_=yesterday, pv=5, source='source-A-only / referral')
         _make_analytics(self.community_b, page_path='/community/{}/'.format(self.community_b.id),
                         content_type=PageAnalytics.ContentType.COMMUNITY,
-                        object_id=self.community_b.id, date_=today, pv=20, source='source-B-only / organic')
+                        object_id=self.community_b.id, date_=yesterday, pv=20, source='source-B-only / organic')
 
     def test_unauthenticated_redirects_to_login(self):
         response = self.client.get(self.url)
@@ -213,10 +214,11 @@ class DashboardCsvExportTest(TestCase):
         self.client.force_login(self.user)
 
         self.ed = _create_event_detail(self.community, 'CSV テスト記事', event_date=date(2026, 5, 1))
-        today = timezone.localdate()
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）
+        yesterday = timezone.localdate() - timedelta(days=1)
         _make_analytics(self.community, page_path=f'/event/detail/{self.ed.id}/',
                         content_type=PageAnalytics.ContentType.EVENT_DETAIL,
-                        object_id=self.ed.id, date_=today, pv=42, source='google / organic')
+                        object_id=self.ed.id, date_=yesterday, pv=42, source='google / organic')
 
     def test_csv_export_returns_csv_content_type(self):
         response = self.client.get(reverse('analytics:dashboard'), {'format': 'csv'})
@@ -254,7 +256,7 @@ class DashboardCsvExportTest(TestCase):
         other_ed = _create_event_detail(other, '他人の記事X', event_date=date(2026, 5, 1))
         _make_analytics(other, page_path=f'/event/detail/{other_ed.id}/',
                         content_type=PageAnalytics.ContentType.EVENT_DETAIL,
-                        object_id=other_ed.id, date_=timezone.localdate(), pv=999)
+                        object_id=other_ed.id, date_=timezone.localdate() - timedelta(days=1), pv=999)
 
         response = self.client.get(
             reverse('analytics:dashboard'),

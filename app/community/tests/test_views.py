@@ -134,7 +134,8 @@ class AcceptViewTest(TestCase):
         )
         self.pending_community = Community.objects.create(
             name='未承認集会',
-            status='pending'
+            status='pending',
+            poster_image='poster/pending-test.jpg',
         )
         # オーナーとしてCommunityMemberを作成
         CommunityMember.objects.create(
@@ -175,6 +176,19 @@ class AcceptViewTest(TestCase):
         self.assertIn('my_list', html_content)
         self.assertIn('開催日を登録', html_content)
         self.assertIn('<h1>', html_content)  # HTML形式であることを確認
+
+    def test_waiting_list_renders_poster_image_src(self):
+        """承認待ち一覧でポスター画像のsrc属性を正しく描画する。"""
+        self.client.login(username='管理者ユーザー', password='testpass123')
+
+        response = self.client.get(reverse('community:waiting_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'src="')
+        self.assertContains(response, 'poster/pending-test.jpg"')
+        self.assertContains(response, 'loading="lazy"')
+        self.assertNotContains(response, 'src=”')
+        self.assertNotContains(response, 'loading=”')
 
 
 

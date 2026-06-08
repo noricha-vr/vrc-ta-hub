@@ -17,7 +17,7 @@ analytics/_chart_scripts.html を include すること。
         <h2 class="fs-4 fw-bold mb-1">
             <i class="fa-solid fa-chart-line me-2 text-primary"></i>アクセス解析
         </h2>
-        <p class="text-muted mb-4">直近30日のページアクセス状況です。</p>
+        <p class="text-muted mb-4">直近{{ days|default:30 }}日（前日まで）のページアクセス状況です。</p>
 
         {% if daily_series %}
             {# Django テンプレートの json_script で安全に JSON 化して受け渡す（XSS対策） #}

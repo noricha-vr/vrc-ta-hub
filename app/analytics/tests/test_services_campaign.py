@@ -29,13 +29,14 @@ class CampaignBreakdownTest(TestCase):
             community=cls.community_a, user=cls.user_a,
             role=CommunityMember.Role.OWNER,
         )
-        today = timezone.localdate()
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）。前日を起点に置く
+        yesterday = timezone.localdate() - timedelta(days=1)
 
-        # 集会A: flyer キャンペーン × 2日分
+        # 集会A: flyer キャンペーン × 2日分（前日・前々日）
         for offset in (0, 1):
             PageAnalytics.objects.create(
                 page_path=f'/community/{cls.community_a.pk}/',
-                date=today - timedelta(days=offset),
+                date=yesterday - timedelta(days=offset),
                 content_type=PageAnalytics.ContentType.COMMUNITY,
                 community=cls.community_a, object_id=cls.community_a.pk,
                 pv=5, users=4, sessions=5,
@@ -44,7 +45,7 @@ class CampaignBreakdownTest(TestCase):
             )
         # 集会A: (not set) 流入
         PageAnalytics.objects.create(
-            page_path=f'/community/{cls.community_a.pk}/', date=today,
+            page_path=f'/community/{cls.community_a.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=cls.community_a, object_id=cls.community_a.pk,
             pv=100, users=90, sessions=95,
@@ -53,7 +54,7 @@ class CampaignBreakdownTest(TestCase):
         )
         # 集会B: 別キャンペーン（user_a は見えてはいけない）
         PageAnalytics.objects.create(
-            page_path=f'/community/{cls.community_b.pk}/', date=today,
+            page_path=f'/community/{cls.community_b.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=cls.community_b, object_id=cls.community_b.pk,
             pv=999, users=999, sessions=999,
@@ -144,17 +145,18 @@ class CampaignBreakdownAcrossCommunitiesTest(TestCase):
             community=cls.community_b, user=cls.user,
             role=CommunityMember.Role.OWNER,
         )
-        today = timezone.localdate()
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）
+        yesterday = timezone.localdate() - timedelta(days=1)
         # 同じ utm_campaign を別 community が使うケース
         PageAnalytics.objects.create(
-            page_path=f'/community/{cls.community_a.pk}/', date=today,
+            page_path=f'/community/{cls.community_a.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=cls.community_a, object_id=cls.community_a.pk,
             pv=10, users=8, sessions=9,
             source_medium='(direct) / (none)', campaign='shared-key',
         )
         PageAnalytics.objects.create(
-            page_path=f'/community/{cls.community_b.pk}/', date=today,
+            page_path=f'/community/{cls.community_b.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=cls.community_b, object_id=cls.community_b.pk,
             pv=20, users=18, sessions=19,
@@ -205,9 +207,10 @@ class CampaignBreakdownIncludesRootLandingTest(TestCase):
             utm_source='flyer', utm_medium='qr',
             utm_campaign='20260510-flyer-top', landing_path='/',
         )
-        # sync_analytics の解決後に保存される想定レコード（page_path='/' で CAMPAIGN）
+        # sync_analytics の解決後に保存される想定レコード（page_path='/' で CAMPAIGN）。
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）なので前日に置く
         PageAnalytics.objects.create(
-            page_path='/', date=timezone.localdate(),
+            page_path='/', date=timezone.localdate() - timedelta(days=1),
             content_type=PageAnalytics.ContentType.CAMPAIGN,
             community=cls.community, object_id=cls.campaign.pk,
             pv=42, users=38, sessions=40,

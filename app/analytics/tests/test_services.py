@@ -1,8 +1,9 @@
-from datetime import date
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.test import TestCase
+from django.utils import timezone
 
 from community.models import Community, CommunityMember
 
@@ -85,15 +86,16 @@ class AggregationPermissionBoundaryTest(TestCase):
             community=cls.community_a, user=cls.user_a,
             role=CommunityMember.Role.OWNER,
         )
-        today = date.today()
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）。前日にデータを置く
+        yesterday = timezone.localdate() - timedelta(days=1)
         PageAnalytics.objects.create(
-            page_path=f'/community/{cls.community_a.pk}/', date=today,
+            page_path=f'/community/{cls.community_a.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=cls.community_a, object_id=cls.community_a.pk,
             pv=100, users=80, sessions=90, source_medium='google / organic',
         )
         PageAnalytics.objects.create(
-            page_path=f'/community/{cls.community_b.pk}/', date=today,
+            page_path=f'/community/{cls.community_b.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=cls.community_b, object_id=cls.community_b.pk,
             pv=500, users=400, sessions=450, source_medium='twitter / referral',
@@ -124,15 +126,16 @@ class AggregationPermissionBoundaryTest(TestCase):
         # object_id だけで絞ると両方混入するが、community 境界が効いていれば
         # アクセス可能な community_a の分だけが返ることを検証する。
         shared_object_id = 7777
-        today = date.today()
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）。前日にデータを置く
+        yesterday = timezone.localdate() - timedelta(days=1)
         PageAnalytics.objects.create(
-            page_path='/community/a-shared/', date=today,
+            page_path='/community/a-shared/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=self.community_a, object_id=shared_object_id,
             pv=11, users=10, sessions=10, source_medium='a / src',
         )
         PageAnalytics.objects.create(
-            page_path='/community/b-shared/', date=today,
+            page_path='/community/b-shared/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=self.community_b, object_id=shared_object_id,
             pv=22, users=20, sessions=20, source_medium='b / src',

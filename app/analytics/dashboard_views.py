@@ -45,7 +45,8 @@ def _csv_safe(value) -> str:
 
 # クエリパラメータで受け付ける days の許可リスト（任意値を許すと DoS リスク）
 ALLOWED_DAYS = [7, 30, 90]
-DEFAULT_DAYS = 30
+# 既定日数は services を単一の真実とし、二重管理による不整合を防ぐ
+DEFAULT_DAYS = services.DEFAULT_DAYS
 # 公開後 N 日積み上げチャートで遡る日数
 POST_PUBLISH_DAYS_AFTER = 14
 POST_PUBLISH_TOP_N = 5

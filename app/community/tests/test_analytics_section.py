@@ -45,17 +45,18 @@ class CommunityDetailAnalyticsTests(TestCase):
             role=CommunityMember.Role.OWNER,
         )
 
-        today = timezone.localdate()
+        # 集計対象は前日まで（当日は GA4 未同期で集計外）。前日にデータを置く
+        yesterday = timezone.localdate() - timedelta(days=1)
         # 集会A のアクセスデータ（識別しやすい source_medium で他人混入を検出）
         PageAnalytics.objects.create(
-            page_path=f'/community/{cls.community_a.pk}/', date=today,
+            page_path=f'/community/{cls.community_a.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=cls.community_a, object_id=cls.community_a.pk,
             pv=100, users=80, sessions=90, source_medium='source-A-only / organic',
         )
         # 集会B のアクセスデータ
         PageAnalytics.objects.create(
-            page_path=f'/community/{cls.community_b.pk}/', date=today,
+            page_path=f'/community/{cls.community_b.pk}/', date=yesterday,
             content_type=PageAnalytics.ContentType.COMMUNITY,
             community=cls.community_b, object_id=cls.community_b.pk,
             pv=500, users=400, sessions=450, source_medium='source-B-only / referral',
