@@ -10,7 +10,7 @@ from django.views.generic import DetailView
 from analytics import services as analytics_services
 from analytics.models import PageAnalytics
 from community.models import WEEKDAY_CHOICES
-from event.libs import convert_markdown
+from event.services.markdown_processor import convert_markdown
 from event.models import EventDetail
 from event.views.helpers import can_manage_event_detail, extract_video_info
 from utils.vrchat_time import get_vrchat_today

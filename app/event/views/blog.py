@@ -6,7 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
 from django.views.generic import View
 
-from event.libs import apply_blog_output_to_event_detail, generate_blog
+from event.services.content_generation_service import apply_blog_output_to_event_detail, generate_blog
 from event.models import EventDetail
 from event.views.helpers import can_manage_event_detail
 from website.settings import GEMINI_MODEL

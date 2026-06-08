@@ -9,7 +9,7 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from community.models import Community, CommunityMember
-from event.libs import BlogOutput
+from event.services.content_generation_service import BlogOutput
 from event.models import Event, EventDetail
 from event.tests.tweet_generation import TweetGenerationPatchMixin
 from vket.models import VketCollaboration, VketParticipation
@@ -218,7 +218,7 @@ class EventDetailPermissionTests(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(self.applicant_detail.theme, "Updated Theme")
         self.assertTrue(bool(self.applicant_detail.slide_file))
 
-    @patch("event.libs.ensure_pdf_thumbnail")
+    @patch("event.services.content_generation_service.ensure_pdf_thumbnail")
     @patch("event.views.blog.generate_blog")
     def test_applicant_can_generate_blog_for_approved_event_detail(self, mock_generate_blog, mock_ensure_pdf_thumbnail):
         """発表者本人は自分の承認済みLTで記事生成できる."""
