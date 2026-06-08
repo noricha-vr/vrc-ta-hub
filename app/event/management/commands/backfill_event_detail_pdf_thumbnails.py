@@ -3,7 +3,7 @@ import logging
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 
-from event.libs import ensure_pdf_thumbnail
+from event.services.media_service import ensure_pdf_thumbnail
 from event.models import EventDetail
 from twitter.signals import sync_slide_share_queue_image
 

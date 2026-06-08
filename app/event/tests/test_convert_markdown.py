@@ -1,7 +1,8 @@
 """convert_markdown関数と_escape_unknown_html_tags関数のテスト"""
 from django.test import TestCase
 
-from event.libs import _escape_unknown_html_tags, _filter_iframe_attributes, convert_markdown
+from event.libs import convert_markdown
+from event.services.content_sanitizer import _escape_unknown_html_tags, _filter_iframe_attributes
 
 
 class TestEscapeUnknownHtmlTags(TestCase):
@@ -274,7 +275,7 @@ class TestIframeSrcRestriction(TestCase):
 
     def test_filter_iframe_attributes_logs_invalid_src(self):
         """不正なiframe srcはログ出力して拒否される"""
-        with self.assertLogs("event.libs", level="ERROR") as log_ctx:
+        with self.assertLogs("event.services.content_sanitizer", level="ERROR") as log_ctx:
             allowed = _filter_iframe_attributes('iframe', 'src', 'https://[invalid')
         self.assertFalse(allowed)
         self.assertIn('iframe srcのURL解析に失敗しました', log_ctx.output[0])
