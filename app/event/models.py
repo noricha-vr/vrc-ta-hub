@@ -250,6 +250,51 @@ class Event(models.Model):
         return datetime.combine(self.date, datetime.min.time())
 
 
+class EventDetailQuerySet(models.QuerySet):
+    """QuerySet レベルで ``.delete()`` を soft delete に倒す。
+
+    ``EventDetail.objects.filter(...).delete()`` のような既存コードを
+    ハードコードのまま soft delete 化するためのフック。物理削除したい場合は
+    ``hard_delete()`` を呼ぶか、``all_objects`` 側を経由する。
+    """
+
+    def delete(self):
+        # update() は save() を発火させない高速 UPDATE。auto_now を伴う
+        # updated_at は明示的に揃え、復元時の操作とも整合させる。
+        now = timezone.now()
+        return self.update(deleted_at=now, updated_at=now)
+
+    def hard_delete(self):
+        return super().delete()
+
+    def restore(self):
+        return self.update(deleted_at=None, updated_at=timezone.now())
+
+
+class EventDetailManager(models.Manager):
+    """生存中（soft delete されていない）EventDetail のみを返すマネージャ。
+
+    既存コード（views / API / 集計）の ``EventDetail.objects.filter(...)`` の挙動を
+    変えないために、デフォルトマネージャの段階で ``deleted_at IS NULL`` で絞る。
+    削除済みレコードを含めたい場合は ``EventDetail.all_objects`` を使う。
+    """
+
+    def get_queryset(self):
+        return EventDetailQuerySet(self.model, using=self._db).filter(deleted_at__isnull=True)
+
+
+class EventDetailAllManager(models.Manager):
+    """削除済みを含む全 EventDetail を返すマネージャ。
+
+    QuerySet レベルでの ``.delete()`` も soft delete として動作するよう
+    EventDetailQuerySet を使用する。本当に物理削除したい場合は
+    ``EventDetail.all_objects.filter(...).hard_delete()`` を呼ぶ。
+    """
+
+    def get_queryset(self):
+        return EventDetailQuerySet(self.model, using=self._db)
+
+
 class EventDetail(models.Model):
     TYPE_CHOICES = [
         ('LT', '発表'),
@@ -265,6 +310,9 @@ class EventDetail(models.Model):
 
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
+    # NULL = 生存。タイムスタンプ入り = soft delete 済み。
+    # 関連する TweetQueue / analytics を孤立させずに残し、復元できるようにする。
+    deleted_at = models.DateTimeField('削除日時', null=True, blank=True, db_index=True)
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='details', verbose_name='イベント')
     detail_type = models.CharField('タイプ', max_length=10, choices=TYPE_CHOICES, default='LT', db_index=True)
     start_time = models.TimeField('開始時刻', default='22:00', db_index=True)
@@ -303,6 +351,13 @@ class EventDetail(models.Model):
         default='',
         help_text='登壇者が入力した追加情報'
     )
+
+    # soft delete 用マネージャ。`objects` は既存挙動互換（生存のみ）、
+    # `all_objects` は削除済みを含む全件。Django は宣言順の最初の Manager を
+    # default_manager として扱うため、`objects` を先に置く。
+    objects = EventDetailManager()
+    all_objects = EventDetailAllManager()
+
     class Meta:
         verbose_name = 'イベント詳細'
         verbose_name_plural = 'イベント詳細'
@@ -315,6 +370,40 @@ class EventDetail(models.Model):
 
     def __str__(self):
         return f"{self.event} - {self.theme} - {self.speaker}"
+
+    def soft_delete(self):
+        """deleted_at を現在時刻でマークする（論理削除）。
+
+        既存の ``post_delete`` ハンドラ（キャッシュ無効化・リマインダー同期等）が
+        UI からの「消えたように見える」状態に追従するよう、論理削除でも post_delete
+        シグナルを発火させる。物理削除しないため Django 標準の post_delete は
+        送られないので、手動で送る。
+        """
+        from django.db.models.signals import post_delete
+
+        self.deleted_at = timezone.now()
+        self.save(update_fields=['deleted_at'])
+        post_delete.send(sender=type(self), instance=self, using=self._state.db)
+
+    def restore(self):
+        """論理削除を取り消し、生存状態に戻す。"""
+        self.deleted_at = None
+        self.save(update_fields=['deleted_at'])
+
+    def delete(self, using=None, keep_parents=False):
+        """既存コードの ``instance.delete()`` を soft delete に置き換える。
+
+        物理削除が本当に必要な場合は ``hard_delete()`` を明示的に呼ぶこと。
+        """
+        self.soft_delete()
+
+    def hard_delete(self, using=None, keep_parents=False):
+        """物理削除（DB から行を消す）を行う。
+
+        通常は使わない。マイグレーション・データ移行・管理コマンドで
+        本当に row を消したい場合のみ使用する。
+        """
+        return super().delete(using=using, keep_parents=keep_parents)
 
     @property
     def title(self):

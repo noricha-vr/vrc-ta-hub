@@ -172,17 +172,30 @@ class EventAdmin(admin.ModelAdmin):
 
 @admin.register(EventDetail)
 class EventDetailAdmin(admin.ModelAdmin):
-    list_display = ('get_community_name', 'created_at', 'updated_at', 'detail_type', 'theme', 'speaker')
-    list_filter = ('detail_type', 'event__community', 'speaker')
+    list_display = ('get_community_name', 'created_at', 'updated_at', 'detail_type', 'theme', 'speaker', 'deleted_at')
+    list_filter = ('detail_type', 'deleted_at', 'event__community', 'speaker')
     readonly_fields = ('event',)
     search_fields = ('theme', 'speaker', 'event__community__name')
-    
+    actions = ['restore_soft_deleted']
+
+    def get_queryset(self, request):
+        # 管理画面では論理削除済みも含めて閲覧・復元できるよう all_objects を使う。
+        return self.model.all_objects.get_queryset()
+
     def get_community_name(self, obj):
         return obj.event.community.name if obj.event else '-'
-    
+
     get_community_name.short_description = '集会名'
     get_community_name.admin_order_field = 'event__community__name'
-    
+
+    def restore_soft_deleted(self, request, queryset):
+        """選択したレコードの論理削除を取り消す。"""
+        # QuerySet.restore() は EventDetailQuerySet で定義済み。
+        updated = queryset.restore()
+        self.message_user(request, f'{updated} 件の論理削除を復元しました。')
+
+    restore_soft_deleted.short_description = '選択した論理削除を復元'
+
     def formfield_for_dbfield(self, db_field, **kwargs):
         field = super().formfield_for_dbfield(db_field, **kwargs)
         if db_field.name == 'slide_file':
