@@ -53,7 +53,7 @@
 
 - [ ] README / `.env.example` / settings の環境変数仕様を揃える
   - 理由: `OPENAI_API_KEY`, `GOOGLE_CALENDAR_ID`, `REQUEST_TOKEN` の必須性が実装と文書でズレている
-  - ファイル: `README.md`, `.env.example`, `app/website/settings.py`
+  - ファイル: `README.md`, `.env.example`, `app/website/settings/` (apis.py / authentication.py / security.py 等)
   - 見積もり: 0.5日
 
 - [ ] 副作用ありバッチ入口を `GET` から `POST` に寄せる設計方針を決める
@@ -89,7 +89,7 @@
 
 - [ ] 設定検証と意図不明コードの軽い清掃をする
   - 理由: `assert` 依存の env 検証、空フック、コメントアウト残骸が読みづらさを増している
-  - ファイル: `app/website/settings.py`, `app/event/views.py`, `app/api_v1/recurrence_preview.py`, `app/user_account/views.py`
+  - ファイル: `app/website/settings/base.py`, `app/event/views.py`, `app/api_v1/recurrence_preview.py`, `app/user_account/views.py`
   - 見積もり: 0.5-1日
 
 ## 並列実行可能グループ
