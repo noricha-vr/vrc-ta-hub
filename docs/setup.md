@@ -124,6 +124,20 @@ pre-commit install
 pre-commit run --all-files
 ```
 
+## CORS 許可オリジン
+
+`/api/` 配下への CORS 許可を環境変数 `CORS_ALLOWED_ORIGINS` で明示的に管理する。
+本番では全オリジン許可をやめ、信頼できるドメインのみを列挙する。
+
+```bash
+# 本番: 自社ドメイン等をカンマ区切りで列挙
+CORS_ALLOWED_ORIGINS=https://vrc-ta-hub.com,https://www.vrc-ta-hub.com
+```
+
+- 値が空のときは CORS を一切許可しない（本番デフォルトは明示設定推奨）
+- ローカル開発（`DEBUG=True`）では `http://localhost:任意ポート` / `http://127.0.0.1:任意ポート` が自動許可されるため、`CORS_ALLOWED_ORIGINS` は未設定のままで動作する
+- 適用範囲は `/api/.*` のみ（`CORS_URLS_REGEX` 制限）
+
 ## 最低限必要な環境変数
 
 `SECRET_KEY` のみ設定すれば基本的な開発が可能です。DB・ストレージの接続情報は `.env.example` にデフォルト値が入っています。
