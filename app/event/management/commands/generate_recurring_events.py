@@ -174,6 +174,7 @@ class Command(BaseCommand):
             else:
                 # イベントを作成
                 created_count = 0
+                last_created_date = None
                 with transaction.atomic():
                     for date in new_dates:
                         Event.objects.create(
@@ -185,14 +186,32 @@ class Command(BaseCommand):
                             recurring_master=master
                         )
                         created_count += 1
-                
+                        if last_created_date is None or date > last_created_date:
+                            last_created_date = date
+
+                    # 冪等性: 今回 1 件も新規作成できなかった場合でも、
+                    # 実行が成功裏に完了した（= 既に最新まで生成済み）ことを記録するため、
+                    # 「期待される全開催日のうち今日以降で最大の日付」 or 既存値を維持する。
+                    # LLM 失敗で空配列が返った場合は last_generated_date を変えない。
+                    if last_created_date is not None:
+                        # 既存の last_generated_date と比較し、より新しい日付だけ反映
+                        if rule.last_generated_date is None or last_created_date > rule.last_generated_date:
+                            rule.last_generated_date = last_created_date
+                            rule.save(update_fields=['last_generated_date', 'updated_at'])
+                    elif dates and rule.last_generated_date is None:
+                        # 新規作成は 0 件だが、generate_dates 自体は成功し、
+                        # 既に全件 DB にある状態 → 既存日付の最大値を記録する
+                        max_existing_date = max(dates)
+                        rule.last_generated_date = max_existing_date
+                        rule.save(update_fields=['last_generated_date', 'updated_at'])
+
                 if created_count > 0:
                     self.stdout.write(
                         self.style.SUCCESS(
                             f'{community.name}: {created_count}件のイベントを作成'
                         )
                     )
-                
+
                 total_created += created_count
         
         if dry_run:
