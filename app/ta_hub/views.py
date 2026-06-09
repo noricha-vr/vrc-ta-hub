@@ -74,7 +74,8 @@ class IndexView(TemplateView):
             context['vket_achievements'] = self._build_vket_achievements(with_images=True)
         except OperationalError:
             # トップページはRDS瞬断でも静的導線を返し続ける（公開導線だけは維持する判断）。
-            logger.warning(
+            # DB 接続失敗は本物の障害なので ERROR (docs/logging.md 規約)
+            logger.error(
                 "IndexView degraded gracefully because the database was unavailable",
                 exc_info=True,
             )

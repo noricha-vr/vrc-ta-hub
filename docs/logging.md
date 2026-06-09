@@ -97,6 +97,60 @@ jsonPayload.event="user.login" AND jsonPayload.user_id=7
 `structlog.processors.add_log_level` を追加して `severity` キーに
 リマップする処理を追加できる (現状は `level` キーで運用)。
 
+## ログレベル使い分け規約
+
+レベル選択を統一して、Cloud Logging 上のアラート設定 / フィルタリング /
+LLM での自動要約を安定させる。**「ユーザー入力起因のミス」と「サービス側の障害」
+を `WARNING` と `ERROR` で明確に分ける**のが基本方針。
+
+| レベル | 用途 | 例 |
+|--------|------|---|
+| `DEBUG` | 開発時の詳細トレース、本番では非表示 | リクエスト処理の中間結果、SQL クエリ |
+| `INFO` | 正常系の主要イベント | ユーザー登録成功、外部 API 呼び出し成功、同期完了 |
+| `WARNING` | 想定内の異常、ユーザー入力ミス、リトライ中、4xx 相当 | validation 失敗、404 Not Found、リトライ中、Discord Webhook 送信失敗（ユーザー設定の URL ミス） |
+| `ERROR` | 想定外の障害、運用対応が必要、5xx 相当 | DB 接続失敗、必須環境変数欠落、外部 API の予期せぬ 5xx、最終的に処理が失敗 |
+| `CRITICAL` | サービス停止級の障害 | 起動失敗、致命的なデータ破損 |
+
+### 判断フロー
+
+1. **HTTP ステータスで考える**: 4xx を返すなら `WARNING`、5xx を返すなら `ERROR`
+2. **リトライ中か最終失敗か**: リトライ中の警告は `WARNING`、リトライ尽きて最終失敗なら `ERROR`
+3. **ユーザー操作で直せるか**: ユーザー側の設定ミス・入力ミスは `WARNING`、サーバー側の障害は `ERROR`
+4. **処理が継続するか**: 部分失敗で全体処理が継続するなら `WARNING`、処理全体が失敗するなら `ERROR`
+
+### 具体例
+
+```python
+# OK: 4xx 相当（バリデーション失敗）は warning
+logger.warning("Tweet text is empty")
+logger.warning("Image exceeded max size: %d bytes", downloaded)
+logger.warning("validation_failed", user_id=user.id, errors=errors)
+
+# NG: 4xx を error にしない
+logger.error("validation failed")
+
+# OK: 5xx 相当（DB 接続失敗）は error
+logger.error("database_unreachable", db=settings.DATABASES['default']['HOST'])
+logger.error("IndexView degraded gracefully because the database was unavailable",
+             exc_info=True)
+
+# OK: リトライ中は warning、最終失敗は error
+logger.warning("Retrying after transient database disconnect: %s", exc)  # リトライ中
+logger.error("Service unavailable after reconnect: %s", exc)             # 最終失敗
+
+# OK: 部分失敗（処理継続）は warning
+logger.warning("GA4 poster_click report failed; continuing with page report only",
+               exc_info=True)
+```
+
+### 例外時の `logger.exception` について
+
+`try/except` ブロック内で例外を捕捉した場合は `logger.exception(...)` を
+推奨する。`exc_info=True` 相当の挙動で **ERROR レベル**として記録され、
+スタックトレースが自動的に付与される。
+本規約の「warning に降格すべき」判断は `logger.error` のみが対象で、
+`logger.exception` は例外発生時の標準パターンとして変更しない。
+
 ## テスト互換性
 
 `unittest.TestCase.assertLogs(...)` / `pytest.caplog` はどちらも

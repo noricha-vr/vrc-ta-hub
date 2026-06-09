@@ -243,7 +243,9 @@ def load_markdown_content(path: str) -> tuple[str, dict]:
         return html, frontmatter
 
     except Exception as e:
-        logger.error(f"マークダウンファイルの読み込みに失敗: {e}")
+        # Http404 を返すクライアント起因のエラー (4xx 相当) なので
+        # WARNING に降格 (docs/logging.md 規約)
+        logger.warning(f"マークダウンファイルの読み込みに失敗: {e}")
         raise Http404(f"ガイドページの読み込みに失敗しました: {path}")
 
 
