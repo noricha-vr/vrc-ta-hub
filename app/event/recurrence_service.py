@@ -3,12 +3,15 @@ import logging
 import re
 from calendar import monthrange
 from datetime import datetime, timedelta, date
-from typing import List, Optional, Dict
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from django.db import models
 
 from event.llm_service import EventDateLlmService, get_event_date_llm_service
 from event.models import Event, RecurrenceRule
+
+if TYPE_CHECKING:
+    from community.models import Community
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +51,7 @@ class RecurrenceService:
             self._llm_service = get_event_date_llm_service()
         return self._llm_service
     
-    def generate_dates(self, rule: RecurrenceRule, base_date: date, base_time: datetime.time, months: int = 1, community=None) -> List[date]:
+    def generate_dates(self, rule: RecurrenceRule, base_date: date, base_time: datetime.time, months: int = 1, community: Optional["Community"] = None) -> List[date]:
         """定期ルールに基づいて日付リストを生成"""
         if rule.frequency in ['WEEKLY', 'MONTHLY_BY_DATE', 'MONTHLY_BY_WEEK']:
             # ルールベースで生成
@@ -355,7 +358,7 @@ class RecurrenceService:
                 count += 1
         return count
     
-    def _get_recent_events_history(self, rule: RecurrenceRule, base_date: date, community=None) -> str:
+    def _get_recent_events_history(self, rule: RecurrenceRule, base_date: date, community: Optional["Community"] = None) -> str:
         """直近5回の開催履歴を取得してフォーマット"""
         try:
             recent_events = []
@@ -446,7 +449,7 @@ class RecurrenceService:
             logger.exception("Error getting recent events history")
             return "過去の開催履歴: 取得エラー"
     
-    def _generate_dates_by_llm(self, rule: RecurrenceRule, base_date: date, base_time: datetime.time, months: int, community=None) -> List[date]:
+    def _generate_dates_by_llm(self, rule: RecurrenceRule, base_date: date, base_time: datetime.time, months: int, community: Optional["Community"] = None) -> List[date]:
         """LLMを使用して日付リストを生成"""
         if not rule.custom_rule:
             return []
@@ -494,9 +497,9 @@ class RecurrenceService:
 
         return []
     
-    def preview_dates(self, frequency: str, custom_rule: str, base_date: date, base_time: datetime.time, 
-                     interval: int = 1, week_of_month: Optional[int] = None, weekday: Optional[int] = None, 
-                     months: int = 3, community=None) -> Dict:
+    def preview_dates(self, frequency: str, custom_rule: str, base_date: date, base_time: datetime.time,
+                     interval: int = 1, week_of_month: Optional[int] = None, weekday: Optional[int] = None,
+                     months: int = 3, community: Optional["Community"] = None) -> Dict:
         """プレビュー用に日付リストを生成"""
         try:
             # 一時的なRecurrenceRuleオブジェクトを作成（保存はしない）
