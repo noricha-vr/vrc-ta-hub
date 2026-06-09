@@ -10,14 +10,17 @@
     - reverse 時も同様で、平文 (Discord URL = 短い) を save() で書き戻すと
       二重暗号化されるため、生 SQL で書き戻す。
 
-冪等性:
+冪等性 (forward):
     - 既に Fernet 暗号化済み (= 復号成功) のレコードはスキップ
-    - 復号失敗 ＆ Discord URL パターンに合致するレコードのみ暗号化対象
-    - 鍵不一致や別形式の暗号文はスキップ + 警告ログ
+    - 平文 Discord URL は暗号化対象
+    - 想定外の値 (Discord URL でも復号もできない) は **Fail Fast** (RuntimeError)。
+      DB dump 保護の目的を満たすため、平文を残す skip 動作は許容しない。
 
 ロールバック (reverse):
-    - 復号した平文を書き戻す
-    - 既に平文 (＝復号失敗) のレコードはスキップ
+    - 復号できた暗号文 → 平文に戻す
+    - 復号できない非空値 (鍵不一致 / 破損) は **Fail Fast** (RuntimeError)。
+      ciphertext を旧 URLField に残すと URLField max_length 超過 / 不正データ放置に
+      なるため、対象 id を明示してエラーにする。
 """
 import logging
 
@@ -47,13 +50,14 @@ def encrypt_existing_webhooks(apps, schema_editor):
     """既存の平文 webhook URL を Fernet 暗号化する (冪等).
 
     生 SQL で読み書きし、ORM の get_prep_value による二重暗号化を回避する。
+    想定外データは Fail Fast (RuntimeError) する。
     """
     fernet = community.encrypted_fields._get_fernet()
     connection = schema_editor.connection
 
     encrypted_count = 0
     skipped_already_encrypted = 0
-    skipped_unknown = 0
+    unknown_ids: list[int] = []
 
     with connection.cursor() as cursor:
         cursor.execute(
@@ -72,11 +76,9 @@ def encrypt_existing_webhooks(apps, schema_editor):
                 skipped_already_encrypted += 1
                 continue
             if not raw.startswith(DISCORD_WEBHOOK_PREFIX):
-                logger.warning(
-                    "Community id=%s notification_webhook_url が想定外の形式のためスキップ",
-                    row_id,
-                )
-                skipped_unknown += 1
+                # 想定外: 暗号文でも Discord URL でもない値が残っている。
+                # 平文として残すと DB dump 保護目的を満たさないため Fail Fast。
+                unknown_ids.append(row_id)
                 continue
             # 平文確定 → 暗号化して書き込み (生 SQL)
             ciphertext = fernet.encrypt(raw.encode()).decode()
@@ -86,11 +88,17 @@ def encrypt_existing_webhooks(apps, schema_editor):
             )
             encrypted_count += 1
 
+    if unknown_ids:
+        raise RuntimeError(
+            "encrypt_existing_webhooks: 復号も Discord URL 判定もできない値が残っています。"
+            f" 対象 community.id={unknown_ids}. 手動で値を確認してください "
+            "(空文字にする / 削除する / 正しい平文に直すなど)"
+        )
+
     logger.info(
-        "encrypt_existing_webhooks: encrypted=%d, skipped_already_encrypted=%d, skipped_unknown=%d",
+        "encrypt_existing_webhooks: encrypted=%d, skipped_already_encrypted=%d",
         encrypted_count,
         skipped_already_encrypted,
-        skipped_unknown,
     )
 
 
@@ -98,12 +106,21 @@ def decrypt_existing_webhooks(apps, schema_editor):
     """既存の暗号化 webhook URL を平文に戻す (rollback / 冪等).
 
     生 SQL で書き戻し、ORM の get_prep_value による二重暗号化を回避する。
+
+    Fail Fast 方針:
+        - 既に平文 (Discord URL) → スキップ (冪等)
+        - 復号できない非空値 (鍵不一致 / Fernet token 形式だが復号失敗) → エラー。
+          ciphertext を URLField (varchar 200) に残すと max_length 超過する上、
+          ロールバック完了を主張すると DB 不整合を見逃す。
     """
+    from cryptography.fernet import InvalidToken  # noqa: F401  # _try_decrypt 内で使用
+
     fernet = community.encrypted_fields._get_fernet()
     connection = schema_editor.connection
 
     decrypted_count = 0
     skipped_plain = 0
+    undecryptable_ids: list[int] = []
 
     with connection.cursor() as cursor:
         cursor.execute(
@@ -117,15 +134,25 @@ def decrypt_existing_webhooks(apps, schema_editor):
             if raw is None or raw == "":
                 continue
             decrypted = _try_decrypt(fernet, raw)
-            if decrypted is None:
-                # 既に平文 → スキップ
+            if decrypted is not None:
+                cursor.execute(
+                    "UPDATE community SET notification_webhook_url = %s WHERE id = %s",
+                    [decrypted, row_id],
+                )
+                decrypted_count += 1
+                continue
+            # 復号失敗。Discord URL (平文) なら冪等スキップ。それ以外は不整合データ。
+            if raw.startswith(DISCORD_WEBHOOK_PREFIX):
                 skipped_plain += 1
                 continue
-            cursor.execute(
-                "UPDATE community SET notification_webhook_url = %s WHERE id = %s",
-                [decrypted, row_id],
-            )
-            decrypted_count += 1
+            undecryptable_ids.append(row_id)
+
+    if undecryptable_ids:
+        raise RuntimeError(
+            "decrypt_existing_webhooks: 復号できず Discord URL でもない値が残っています。"
+            f" 対象 community.id={undecryptable_ids}. 鍵不一致または破損データの可能性。"
+            " 手動で対応してから rollback を再実行してください。"
+        )
 
     logger.info(
         "decrypt_existing_webhooks: decrypted=%d, skipped_plain=%d",

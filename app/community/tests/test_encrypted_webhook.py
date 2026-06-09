@@ -5,6 +5,7 @@
     - Python 側からは復号済みの平文として取得できる (round-trip)
     - 3 回 set→get の round-trip で値が崩れない
     - FERNET_KEY 未設定時は RuntimeError を送出する
+    - 復号失敗時の Fail Safe (Fernet token 形式 → 空文字、他 → raw)
 """
 from cryptography.fernet import Fernet
 from django.db import connection
@@ -15,7 +16,11 @@ from community.models import Community
 
 WEBHOOK_URL = "https://discord.com/api/webhooks/123456789/abcdefghijklmnop_qrstuvwxyz"
 
+# テスト用固定鍵。本番の FERNET_KEY とは独立させ、テストが環境設定に依存しないようにする。
+TEST_FERNET_KEY = Fernet.generate_key().decode()
 
+
+@override_settings(FERNET_KEY=TEST_FERNET_KEY)
 class EncryptedWebhookStorageTest(TestCase):
     """DB 保存時に暗号化されることを確認する."""
 
@@ -70,6 +75,7 @@ class EncryptedWebhookStorageTest(TestCase):
         )
 
 
+@override_settings(FERNET_KEY=TEST_FERNET_KEY)
 class EncryptedWebhookRoundTripTest(TestCase):
     """3 回 set→get round-trip で値が崩れないことを確認する."""
 
@@ -129,3 +135,50 @@ class FernetKeyMissingTest(TestCase):
         field = EncryptedTextField()
         with self.assertRaises(RuntimeError):
             field.get_prep_value("https://discord.com/api/webhooks/x/y")
+
+
+@override_settings(FERNET_KEY=TEST_FERNET_KEY)
+class DecryptFailureFailSafeTest(TestCase):
+    """復号失敗時の挙動 (Fail Safe) を確認する.
+
+    - Fernet token 形式 (gAAAAA prefix) が復号失敗 → 空文字を返す
+      (鍵不一致 / 破損 ciphertext が webhook URL として外部送信されるのを防ぐ)
+    - それ以外の値 (平文混在期間) → そのまま返す
+    """
+
+    def test_wrong_key_ciphertext_returns_empty(self):
+        """別鍵で暗号化された Fernet token は復号失敗 → 空文字."""
+        other_key = Fernet.generate_key()
+        ciphertext = Fernet(other_key).encrypt(WEBHOOK_URL.encode()).decode()
+
+        # DB から from_db_value を経由させるため、生 SQL で書き込み
+        c = Community.objects.create(
+            name="別鍵テスト集会",
+            frequency="毎週",
+            organizers="テスト主催者",
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE community SET notification_webhook_url = %s WHERE id = %s",
+                [ciphertext, c.id],
+            )
+
+        # ORM で読むと復号失敗 → 空文字 (Fail Safe)
+        fetched = Community.objects.get(pk=c.pk)
+        self.assertEqual(fetched.notification_webhook_url, "")
+
+    def test_plaintext_url_in_db_is_passed_through(self):
+        """DB に平文 URL が残っているケース (migration 中) → そのまま返す."""
+        c = Community.objects.create(
+            name="平文混在テスト集会",
+            frequency="毎週",
+            organizers="テスト主催者",
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE community SET notification_webhook_url = %s WHERE id = %s",
+                [WEBHOOK_URL, c.id],
+            )
+
+        fetched = Community.objects.get(pk=c.pk)
+        self.assertEqual(fetched.notification_webhook_url, WEBHOOK_URL)

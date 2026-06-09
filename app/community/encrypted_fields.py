@@ -8,14 +8,26 @@ DB dump 流出時の webhook URL 漏洩を防ぐため、保存時に Fernet 対
       公式 maintained な `cryptography` ライブラリの Fernet を直接利用する。
     - SECRET_KEY とは別の FERNET_KEY を使い、鍵分離 (将来のローテーション容易化)
       と SECRET_KEY 漏洩時の二重防御を実現する。
-    - 復号失敗時は値を「そのまま」返す。これにより data migration の途中で平文と
-      暗号文が共存する期間でもアプリが落ちず、再実行による収束が可能。
+    - 復号失敗時の取り扱い:
+        - 値が Fernet token 形式 (`gAAAAA` で始まる) の場合: 鍵不一致や破損
+          ciphertext の可能性。空文字を返す (Fail Safe: 不正な暗号文を平文として
+          外部送信しないため)。warning ログを出す。
+        - それ以外: 平文混在期間とみなして raw を返す (data migration 直後など)。
 """
 from __future__ import annotations
+
+import logging
 
 from cryptography.fernet import Fernet, InvalidToken
 from django.conf import settings
 from django.db import models
+
+logger = logging.getLogger(__name__)
+
+# Fernet token は urlsafe base64 で先頭がバージョンバイト 0x80 → "gAAAAA" になる。
+# この形式の値を復号失敗で返すと「暗号文のまま webhook 送信」など二次被害になるので、
+# 形式検出して空文字に倒す。
+_FERNET_TOKEN_PREFIX = "gAAAAA"
 
 
 def _get_fernet() -> Fernet:
@@ -51,26 +63,39 @@ class EncryptedTextField(models.TextField):
     description = "Fernet-encrypted text field"
 
     def from_db_value(self, value, expression, connection):
-        """DB から読んだ生値を復号して Python 側の値にする."""
+        """DB から読んだ生値を復号して Python 側の値にする.
+
+        復号失敗時:
+            - Fernet token 形式 (prefix=gAAAAA) → 鍵不一致 / 破損とみなし空文字
+              (Fail Safe: 暗号文を webhook URL として外部送信させない)
+            - それ以外 → 平文混在期間とみなして raw を返す
+        """
         if value is None or value == "":
             return value
         try:
             return _get_fernet().decrypt(value.encode()).decode()
         except (InvalidToken, ValueError):
-            # 平文混在期間 / 別鍵で暗号化された値 → そのまま返す (Fail soft)
+            if isinstance(value, str) and value.startswith(_FERNET_TOKEN_PREFIX):
+                logger.warning(
+                    "EncryptedTextField: Fernet token の復号に失敗。鍵不一致または破損データ。"
+                    " 空文字を返します。"
+                )
+                return ""
+            # 平文と推定される値はそのまま返す (data migration 直後の混在期間対応)
             return value
 
     def to_python(self, value):
         """deconstruct / form clean 時にも復号を試みる."""
         if value is None or value == "":
             return value
-        # 既に復号済み (Python 文字列) の可能性があるため、暗号化検出を試みる。
-        # urlsafe base64 でない / 長さが Fernet の最小長 (88 文字) 未満 → 平文とみなす。
         if not isinstance(value, str):
             return value
         try:
             return _get_fernet().decrypt(value.encode()).decode()
         except (InvalidToken, ValueError):
+            if value.startswith(_FERNET_TOKEN_PREFIX):
+                # form 経由で偶発的に暗号文が入力された場合の保険
+                return ""
             return value
 
     def get_prep_value(self, value):
