@@ -290,7 +290,9 @@ class TestWebhookView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
         except requests.Timeout:
             messages.error(request, '通知の送信がタイムアウトしました。')
         except requests.RequestException as e:
-            logger.error(f'Webhook送信エラー: {e}')
+            # ユーザーが入力した Webhook URL の不備など想定内の失敗のため
+            # WARNING に降格 (docs/logging.md 規約: ユーザー操作で直せるものは WARNING)
+            logger.warning(f'Webhook送信エラー: {e}')
             messages.error(request, '通知の送信中にエラーが発生しました。')
 
         return redirect('community:settings')

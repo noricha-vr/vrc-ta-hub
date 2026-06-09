@@ -180,13 +180,15 @@ def post_tweet(text: str, media_ids: list[str] | None = None) -> PostTweetResult
         return _failure_result(error_body="Blocked in test environment")
 
     if not text:
-        logger.error("Tweet text is empty")
+        # クライアント側バリデーション失敗 (4xx 相当) は WARNING (docs/logging.md 規約)
+        logger.warning("Tweet text is empty")
         return _failure_result(error_body="Tweet text is empty")
 
     validation_errors = validate_tweet_text(text)
     if validation_errors:
         error_body = f"Tweet text violates local validation: {', '.join(validation_errors)}"
-        logger.error(error_body)
+        # クライアント側バリデーション失敗 (4xx 相当) は WARNING (docs/logging.md 規約)
+        logger.warning(error_body)
         return _failure_result(error_body=error_body)
 
     auth = _get_oauth1()

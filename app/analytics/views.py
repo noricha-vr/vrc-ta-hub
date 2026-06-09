@@ -109,7 +109,9 @@ def sync_analytics(request):
     try:
         poster_rows = fetch_poster_click_report(settings.GA4_PROPERTY_ID, target_date)
     except Exception:
-        logger.error(
+        # page_view 同期は成功しており poster_click だけ取得失敗で部分継続するため
+        # WARNING に降格 (docs/logging.md 規約: 部分失敗で全体処理が継続する場合)
+        logger.warning(
             'GA4 fetch_poster_click_report failed for date=%s', target_date, exc_info=True,
         )
         poster_rows = []

@@ -41,7 +41,8 @@ class DatabaseReconnectListMixin:
                 if not self._should_retry_after_disconnect(retry_exc):
                     raise
 
-                logger.warning(
+                # 再接続後も復旧せず 503 を返す本物の障害なので ERROR (docs/logging.md 規約)
+                logger.error(
                     "%s.list returned 503 because the database remained unavailable after reconnect: %s",
                     self.__class__.__name__,
                     retry_exc,
