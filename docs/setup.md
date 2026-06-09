@@ -138,13 +138,38 @@ CORS_ALLOWED_ORIGINS=https://vrc-ta-hub.com,https://www.vrc-ta-hub.com
 - ローカル開発（`DEBUG=True`）では `http://localhost:任意ポート` / `http://127.0.0.1:任意ポート` が自動許可されるため、`CORS_ALLOWED_ORIGINS` は未設定のままで動作する
 - 適用範囲は `/api/.*` のみ（`CORS_URLS_REGEX` 制限）
 
+## Fernet 暗号化鍵 (FERNET_KEY)
+
+`Community.notification_webhook_url` を DB に保存する際に Fernet で対称暗号化するための鍵。
+DB dump 流出時の Discord Webhook 乗っ取りを防ぐ目的で導入。
+
+1. 鍵を生成:
+
+```bash
+docker compose exec vrc-ta-hub python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+2. `.env.local` に設定:
+
+```bash
+FERNET_KEY=生成した鍵
+```
+
+### 運用上の注意
+
+- `SECRET_KEY` とは**別管理**にする (鍵分離・ローテーション容易化)
+- 本番では **Secret Manager** 経由で環境変数として渡す
+- 鍵を失うと既存の `notification_webhook_url` を復号できなくなる (= webhook 通知不能)
+- 鍵ローテーション時は migration で「旧鍵で復号 → 新鍵で再暗号化」のスクリプトが別途必要
+
 ## 最低限必要な環境変数
 
-`SECRET_KEY` のみ設定すれば基本的な開発が可能です。DB・ストレージの接続情報は `.env.example` にデフォルト値が入っています。
+`SECRET_KEY` と `FERNET_KEY` を設定すれば基本的な開発が可能です。DB・ストレージの接続情報は `.env.example` にデフォルト値が入っています。
 
 | 環境変数 | 必須度 | 用途 |
 |----------|--------|------|
 | `SECRET_KEY` | 必須 | Django セッション・CSRF |
+| `FERNET_KEY` | 必須 | webhook URL の暗号化 |
 | `GOOGLE_API_KEY` | 推奨 | カレンダー同期 |
 | `GOOGLE_CALENDAR_ID` | 推奨 | 同期先カレンダー |
 | `GEMINI_API_KEY` | 推奨 | AI コンテンツ生成 |

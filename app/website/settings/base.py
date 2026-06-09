@@ -34,6 +34,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY')
 
+# Fernet 暗号化用の対称鍵 (community.encrypted_fields.EncryptedTextField で使用)。
+# SECRET_KEY とは別管理にすることで鍵ローテーション容易性と二重防御を確保する。
+# 生成: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+FERNET_KEY = os.environ.get('FERNET_KEY', '')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG') == 'True'
 

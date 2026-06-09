@@ -38,8 +38,12 @@ cffi==2.0.0
     # via cryptography
 charset-normalizer==3.4.7
     # via requests
-cryptography==48.0.0
-    # via pyjwt
+coverage==7.6.10
+    # via -r requirements.txt
+cryptography==44.0.0
+    # via
+    #   -r requirements.txt
+    #   pyjwt
 distro==1.9.0
     # via openai
 django==5.2.14
