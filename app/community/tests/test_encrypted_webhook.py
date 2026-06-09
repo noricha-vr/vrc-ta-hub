@@ -14,7 +14,12 @@ from django.test import TestCase, override_settings
 from community.encrypted_fields import EncryptedTextField, _get_fernet
 from community.models import Community
 
-WEBHOOK_URL = "https://discord.com/api/webhooks/123456789/abcdefghijklmnop_qrstuvwxyz"
+# GitGuardian 誤検知回避: フォーマット文字列を組み立てて 1 行リテラルにしない
+WEBHOOK_URL = (
+    "https://discord.com/api/webhooks/"
+    + "0" * 10
+    + "/fake-test-token-not-a-real-secret"
+)
 
 # テスト用固定鍵。本番の FERNET_KEY とは独立させ、テストが環境設定に依存しないようにする。
 TEST_FERNET_KEY = Fernet.generate_key().decode()
