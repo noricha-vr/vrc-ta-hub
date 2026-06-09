@@ -1,0 +1,44 @@
+# pre-commit hook 設定
+#
+# ローカル開発時に commit 前 lint を自動化し、CI lint FAILURE のままマージされる事故を防ぐ。
+# CI 側 (.github/workflows/ci.yml) の ruff check と同じルール (pyproject.toml [tool.ruff]) を共有する。
+#
+# 導入手順:
+#   pip install pre-commit==4.0.1
+#   pre-commit install
+#
+# 全ファイルに対して手動実行:
+#   pre-commit run --all-files
+
+default_language_version:
+  python: python3.12
+
+repos:
+  # ruff: CI と同一バージョンを固定 (.github/workflows/ci.yml 参照)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.6
+    hooks:
+      # 既存 pyproject.toml [tool.ruff.lint] の rule set (E, F) を使用
+      # CI と同じく app/ 配下のみチェック (.github/workflows/ci.yml)
+      # scripts/ や docs/ 内のスニペットは対象外
+      - id: ruff
+        name: ruff check
+        files: ^app/.*\.py$
+
+  # pre-commit-hooks: 一般的な衛生 hook
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        # Markdown の行末 2 スペースは改行扱いのため除外
+        args: [--markdown-linebreak-ext=md]
+        # Django 自動生成のマイグレーションは対象外
+        exclude: ^app/.*/migrations/.*\.py$
+      - id: end-of-file-fixer
+        exclude: ^app/.*/migrations/.*\.py$
+      - id: check-yaml
+        # cloudbuild.yaml は GCP 独自タグを含まないため通常 OK
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        # 1MB 上限 (1024KB)
+        args: [--maxkb=1024]
