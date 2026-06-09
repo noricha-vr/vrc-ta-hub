@@ -33,9 +33,13 @@ COPY supervisor-app.conf /etc/supervisor/conf.d/
 # アプリケーションディレクトリの作成と設定
 WORKDIR /app
 COPY /requirements.txt /app/requirements.txt
+COPY /requirements.lock /app/requirements.lock
 
 # Python依存関係のインストール
-RUN pip3 install -r /app/requirements.txt
+# requirements.lock は uv pip compile で生成した全 transitive deps をピンしたロックファイル。
+# 本番ビルドの再現性確保とサプライチェーン攻撃防止のため lock を使ってインストールする。
+# Cloud Run でのメモリ消費を避けるため uv ではなく pip を使う (CLAUDE.md 規約)。
+RUN pip3 install --no-deps -r /app/requirements.lock
 
 # アプリケーションのコピー
 COPY ./app /app
