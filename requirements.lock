@@ -291,7 +291,7 @@ tenacity==9.0.0
     # via -r requirements.txt
 tinycss2==1.4.0
     # via -r requirements.txt
-tqdm==4.68.1
+tqdm==4.68.2
     # via
     #   google-generativeai
     #   openai
@@ -322,11 +322,8 @@ urllib3==2.7.0
     # via
     #   botocore
     #   requests
-<<<<<<< HEAD
-    #   types-requests
-=======
     #   sentry-sdk
->>>>>>> 9fae69c (feat(observability): Sentry 連携 + silent exception の構造化ログ化)
+    #   types-requests
 webencodings==0.5.1
     # via
     #   bleach

@@ -14,6 +14,21 @@ vrc-ta-hub のログは 2 系統で運用する。
 structlog は「何が起きたかの履歴」、Sentry は「同じ例外が何回出ているか・誰が踏んだか」を見るためのもの。
 両方を残すのは、ログ全文を Sentry に送ると料金が嵩むため。
 
+### Sentry に送るログの allowlist
+
+`LoggingIntegration(event_level=ERROR)` だけだと、生成 JSON / 外部 API レスポンス /
+ユーザー入力など PII / 機密が混ざりうる既存 ERROR ログまで Sentry に流入する。
+これを防ぐため、`settings/base.py` の `_sentry_before_send` で以下のみ通す:
+
+| 条件 | 送信 |
+|------|------|
+| logger 名が `django.*` (Django の unhandled exception) | 送信 |
+| メッセージが `silent_failure` | 送信 |
+| `extra["is_silent"] = True` が立っている | 送信 |
+| 上記いずれにも該当しない | **drop** |
+
+新規 ERROR ログを Sentry に流したいときは、上記いずれかの形に揃える。
+
 ## 設定手順
 
 1. Sentry プロジェクトを作成 (Django 用)

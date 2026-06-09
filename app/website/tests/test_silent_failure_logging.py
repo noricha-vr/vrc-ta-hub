@@ -159,3 +159,36 @@ class SentryInitializationTests(SimpleTestCase):
                 import sentry_sdk
                 sentry_sdk.init(dsn=sentry_dsn)
         mock_init.assert_not_called()
+
+
+class SentryBeforeSendFilterTests(SimpleTestCase):
+    """`_sentry_before_send` allowlist の動作を保証する.
+
+    LoggingIntegration の ERROR 自動送信は PII / 生成物リークの温床になるため、
+    silent_failure / Django 例外 / is_silent=True のいずれかのみ通すフィルタの動作を検証。
+    """
+
+    def test_silent_failure_message_passes(self):
+        event = {"logger": "event.recurrence_service", "logentry": {"message": "silent_failure"}}
+        self.assertIsNotNone(settings_base._sentry_before_send(event, {}))
+
+    def test_django_logger_passes(self):
+        event = {"logger": "django.request", "logentry": {"message": "Internal Server Error"}}
+        self.assertIsNotNone(settings_base._sentry_before_send(event, {}))
+
+    def test_unknown_error_log_is_dropped(self):
+        """既存の生成 JSON / 外部 API body を含むエラーログは drop されること."""
+        event = {
+            "logger": "event.services.content_generation_service",
+            "logentry": {"message": "Parsed data: {'pii_inside': '...'}"},
+        }
+        self.assertIsNone(settings_base._sentry_before_send(event, {}))
+
+    def test_is_silent_extra_passes(self):
+        """extra['is_silent']=True が立っているログは drop されない."""
+        event = {
+            "logger": "event.views.crud",
+            "logentry": {"message": "any message"},
+            "extra": {"is_silent": True, "event_type": "blog_generation_failed_on_create"},
+        }
+        self.assertIsNotNone(settings_base._sentry_before_send(event, {}))
