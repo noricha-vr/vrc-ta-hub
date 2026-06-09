@@ -34,3 +34,26 @@ show_missing = false
 skip_covered = false
 # 強制しない (将来 70 に引き上げる)。閾値の理由は docs/coverage.md を参照
 fail_under = 0
+
+# mypy + django-stubs を warn-only で段階導入する。
+# 段階導入方針と既知のエラー対処は docs/mypy.md を参照。
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "app"
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+strict_optional = true
+warn_unused_configs = true
+# Django ORM の動的属性や第三者ライブラリの型欠如で大量エラーになるのを避けるため緩める
+ignore_missing_imports = true
+# 段階導入: 全モジュール対象だが warn のみ。フォロー先 import は型を伝播させない
+follow_imports = "silent"
+
+# 第一弾: services 配下のみ少し厳しめにする。
+# まだ docstring 中心で型ヒントが少ないため、未注釈関数の禁止はオフのまま緩く始める。
+[[tool.mypy.overrides]]
+module = "event.services.*"
+disallow_untyped_defs = false
+warn_return_any = true
+
+[tool.django-stubs]
+django_settings_module = "website.settings"
