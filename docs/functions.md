@@ -193,6 +193,19 @@ VRCイベントカレンダー投稿用のURLを生成。
 
 MarkdownをHTMLに変換。
 
+### ensure_pdf_thumbnail
+**場所**: `app/event/services/media_service.py:18`
+
+PDFの先頭ページから未設定のサムネイル画像を作成する。
+
+```python
+def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False, overwrite: bool = False) -> bool:
+    """
+    PDFの先頭ページから未設定のサムネイル画像を作成
+    save=True で thumbnail_image のみ保存、overwrite=True で既存上書き
+    """
+```
+
 ### extract_video_id
 **場所**: `app/event/views.py:210`
 
