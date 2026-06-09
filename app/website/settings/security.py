@@ -2,7 +2,7 @@
 
 ALLOWED_HOSTS / SECURE_PROXY_SSL_HEADER / SESSION_COOKIE_SECURE /
 CSRF_COOKIE_SECURE / SECURE_HSTS_* / CSRF_TRUSTED_ORIGINS /
-CORS_ALLOW_ALL_ORIGINS / CORS_URLS_REGEX / DISCORD_AUTH_REQUIRED を扱う。
+CORS_ALLOWED_ORIGINS / CORS_URLS_REGEX / DISCORD_AUTH_REQUIRED を扱う。
 """
 import os
 import sys
@@ -55,8 +55,17 @@ CSRF_TRUSTED_ORIGINS = [
     ] if o
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS は環境変数で明示許可したオリジンのみ受け入れる（本番で全オリジン許可は脆弱性につながるため）
+CORS_ALLOWED_ORIGINS = _split_csv_env('CORS_ALLOWED_ORIGINS')
 CORS_URLS_REGEX = r'^/api/.*$'
+
+# ローカル開発 (DEBUG=True) は localhost / 127.0.0.1 の任意ポートを正規表現で許可
+# 環境変数で個別ポートを管理しなくてもブラウザから API を叩けるようにする
+if DEBUG:
+    CORS_ALLOWED_ORIGIN_REGEXES = [
+        r'^http://localhost:\d+$',
+        r'^http://127\.0\.0\.1:\d+$',
+    ]
 
 # Discord認証強制ミドルウェアの設定
 # DEBUG=True（開発環境）では無効化（ブラウザ操作MCPでのテストのため）
