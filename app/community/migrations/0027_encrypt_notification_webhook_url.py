@@ -51,8 +51,10 @@ def encrypt_existing_webhooks(apps, schema_editor):
 
     生 SQL で読み書きし、ORM の get_prep_value による二重暗号化を回避する。
     想定外データは Fail Fast (RuntimeError) する。
+
+    対象データが 0 件なら Fernet 初期化もスキップ (CI / 空 DB / 新規セットアップ環境で
+    FERNET_KEY 未設定でも migration が通るようにする)。
     """
-    fernet = community.encrypted_fields._get_fernet()
     connection = schema_editor.connection
 
     encrypted_count = 0
@@ -66,6 +68,12 @@ def encrypt_existing_webhooks(apps, schema_editor):
             "AND notification_webhook_url != ''"
         )
         rows = cursor.fetchall()
+
+        if not rows:
+            logger.info("encrypt_existing_webhooks: 対象データなし、Fernet 初期化をスキップ")
+            return
+
+        fernet = community.encrypted_fields._get_fernet()
 
         for row_id, raw in rows:
             if raw is None or raw == "":
@@ -115,7 +123,6 @@ def decrypt_existing_webhooks(apps, schema_editor):
     """
     from cryptography.fernet import InvalidToken  # noqa: F401  # _try_decrypt 内で使用
 
-    fernet = community.encrypted_fields._get_fernet()
     connection = schema_editor.connection
 
     decrypted_count = 0
@@ -129,6 +136,12 @@ def decrypt_existing_webhooks(apps, schema_editor):
             "AND notification_webhook_url != ''"
         )
         rows = cursor.fetchall()
+
+        if not rows:
+            logger.info("decrypt_existing_webhooks: 対象データなし、Fernet 初期化をスキップ")
+            return
+
+        fernet = community.encrypted_fields._get_fernet()
 
         for row_id, raw in rows:
             if raw is None or raw == "":

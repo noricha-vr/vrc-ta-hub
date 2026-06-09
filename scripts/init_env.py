@@ -1,6 +1,6 @@
 """`.env.local` 自動生成スクリプト.
 
-`.env.example` を base にコピーし、SECRET_KEY / REQUEST_TOKEN だけ
+`.env.example` を base にコピーし、SECRET_KEY / REQUEST_TOKEN / FERNET_KEY を
 セキュアな乱数で自動生成する。新規開発者が初期セットアップで手書きする
 手数を削減することが目的。
 
@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import base64
 import secrets
 import sys
 from pathlib import Path
@@ -25,10 +26,22 @@ REQUEST_TOKEN_BYTES = 32
 # 値が空のキーに付ける TODO コメント。手動入力すべきキーであることを明示する。
 TODO_COMMENT = "# TODO: 値を設定してください"
 
-# 自動生成対象のキーと生成方式のマップ.
-AUTO_GENERATED_KEYS: dict[str, int] = {
-    "SECRET_KEY": SECRET_KEY_BYTES,
-    "REQUEST_TOKEN": REQUEST_TOKEN_BYTES,
+
+def _generate_fernet_key() -> str:
+    """Fernet 互換鍵 (urlsafe base64 32 bytes) を生成する.
+
+    cryptography.fernet.Fernet.generate_key() と同一仕様だが、依存追加を避けて
+    標準ライブラリのみで実装する。
+    """
+    return base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii")
+
+
+# 自動生成対象のキーと生成関数のマップ.
+# value は引数なしで文字列を返す callable.
+AUTO_GENERATED_KEYS: dict[str, callable] = {
+    "SECRET_KEY": lambda: secrets.token_urlsafe(SECRET_KEY_BYTES),
+    "REQUEST_TOKEN": lambda: secrets.token_urlsafe(REQUEST_TOKEN_BYTES),
+    "FERNET_KEY": _generate_fernet_key,
 }
 
 
@@ -55,8 +68,7 @@ def transform_line(line: str) -> str:
 
     # 自動生成対象キー
     if key_name in AUTO_GENERATED_KEYS:
-        nbytes = AUTO_GENERATED_KEYS[key_name]
-        generated = secrets.token_urlsafe(nbytes)
+        generated = AUTO_GENERATED_KEYS[key_name]()
         return f"{key}={generated}\n"
 
     # 値が空 (インラインコメントもなし) → TODO コメント付与
