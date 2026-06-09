@@ -8,6 +8,7 @@ import inspect
 import logging
 import os
 import re
+from typing import Any, Callable, Optional
 
 from django.conf import settings
 from django.db import connections
@@ -260,7 +261,13 @@ def _validation_feedback(text: str) -> str:
     )
 
 
-def _call_generate_fn(generate_fn, *args, target_chars: int, validation_feedback: str, **kwargs):
+def _call_generate_fn(
+    generate_fn: Callable[..., Optional[str]],
+    *args: Any,
+    target_chars: int,
+    validation_feedback: str,
+    **kwargs: Any,
+) -> Optional[str]:
     parameters = inspect.signature(generate_fn).parameters
     accepts_feedback = (
         "validation_feedback" in parameters
@@ -277,12 +284,12 @@ def _call_generate_fn(generate_fn, *args, target_chars: int, validation_feedback
 
 
 def _generate_with_retry(
-    generate_fn,
-    *args,
-    max_retries=3,
-    fallback_fn=None,
-    **kwargs,
-) -> str | None:
+    generate_fn: Callable[..., Optional[str]],
+    *args: Any,
+    max_retries: int = 3,
+    fallback_fn: Optional[Callable[..., Optional[str]]] = None,
+    **kwargs: Any,
+) -> Optional[str]:
     """生成関数をリトライラッパーで実行する。
 
     1. target_chars=140 で生成
