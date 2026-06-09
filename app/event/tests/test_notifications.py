@@ -3,7 +3,6 @@
 メール/Discord Webhook の通知送信パスをカバーする。
 silent failure を起こしうる recipient リスト構築・例外ハンドリングを重点的に検証する。
 """
-from datetime import date, time, timedelta
 from unittest.mock import patch, MagicMock
 
 import requests
@@ -11,8 +10,7 @@ from django.contrib.auth import get_user_model
 from django.core import mail
 from django.test import TestCase, override_settings
 
-from community.models import Community, CommunityMember
-from event.models import Event, EventDetail
+from community.models import CommunityMember
 from event.notifications import (
     notify_owners_of_new_application,
     notify_applicant_of_result,
@@ -20,6 +18,12 @@ from event.notifications import (
     _send_discord_notification_for_result,
 )
 from event.tests.tweet_generation import TweetGenerationPatchMixin
+from tests.factories import (
+    make_community as _make_community_factory,
+    make_event,
+    make_event_detail,
+    make_user,
+)
 
 User = get_user_model()
 
@@ -27,56 +31,27 @@ WEBHOOK_URL = "https://discord.com/api/webhooks/123/abc"
 
 
 def _make_user(name="user1", email="user1@example.com"):
-    return User.objects.create_user(
-        user_name=name,
-        email=email,
-        password="testpass123",
-    )
+    """既存 setUp の呼び出し名互換 wrapper。新規テストは make_user を直接使う。"""
+    return make_user(user_name=name, email=email)
 
 
 def _make_community(owner=None, webhook_url=""):
-    community = Community.objects.create(
-        name="Test Community",
-        start_time=time(22, 0),
-        duration=60,
-        weekdays=["Mon"],
-        frequency="Every week",
-        organizers="Test Organizer",
+    """既存 setUp の呼び出し名互換 wrapper。新規テストは make_community を直接使う。"""
+    return _make_community_factory(
+        owner=owner,
         status="approved",
-        notification_webhook_url=webhook_url,
+        webhook_url=webhook_url,
     )
-    if owner is not None:
-        CommunityMember.objects.create(
-            community=community,
-            user=owner,
-            role=CommunityMember.Role.OWNER,
-        )
-    return community
 
 
 def _make_event(community):
-    return Event.objects.create(
-        community=community,
-        date=date.today() + timedelta(days=7),
-        start_time=time(22, 0),
-        duration=60,
-        weekday="Mon",
-        accepts_lt_application=True,
-    )
+    """既存 setUp の呼び出し名互換 wrapper。"""
+    return make_event(community)
 
 
 def _make_event_detail(event, applicant=None, status="pending"):
-    return EventDetail.objects.create(
-        event=event,
-        start_time=event.start_time,
-        duration=30,
-        speaker="Speaker A",
-        theme="サンプル発表",
-        detail_type="LT",
-        applicant=applicant,
-        status=status,
-        additional_info="",
-    )
+    """既存 setUp の呼び出し名互換 wrapper。"""
+    return make_event_detail(event, applicant=applicant, status=status)
 
 
 @override_settings(DEFAULT_FROM_EMAIL="noreply@example.com")

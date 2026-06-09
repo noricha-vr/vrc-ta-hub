@@ -13,6 +13,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 from event.tests.tweet_generation import TweetGenerationPatchMixin
+from tests.factories import make_community, make_event, make_event_detail
 from user_account.tests.utils import create_discord_linked_user
 
 User = get_user_model()
@@ -44,40 +45,17 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
             password='testpass123'
         )
 
-        # 集会作成
-        self.community = Community.objects.create(
-            name='Test Community',
-            start_time=time(22, 0),
-            duration=60,
-            weekdays=['Mon'],
-            frequency='Every week',
-            organizers='Test Organizer',
-            status='approved'
-        )
-        CommunityMember.objects.create(
-            community=self.community,
-            user=self.user,
-            role=CommunityMember.Role.OWNER
-        )
+        # 集会作成（オーナーとして TestUser を紐づけ）
+        self.community = make_community(owner=self.user)
 
         # 未来のイベント作成
-        self.future_event = Event.objects.create(
-            community=self.community,
-            date=date.today() + timedelta(days=7),
-            start_time=time(22, 0),
-            duration=60,
-            weekday='Mon',
-            accepts_lt_application=True
-        )
+        self.future_event = make_event(self.community)
 
         # LT受付しないイベント
-        self.no_lt_event = Event.objects.create(
-            community=self.community,
-            date=date.today() + timedelta(days=14),
-            start_time=time(22, 0),
-            duration=60,
-            weekday='Mon',
-            accepts_lt_application=False
+        self.no_lt_event = make_event(
+            self.community,
+            event_date=date.today() + timedelta(days=14),
+            accepts_lt_application=False,
         )
 
     def test_lt_application_form_displays(self):
@@ -223,42 +201,18 @@ class LTApplicationReviewTest(TweetGenerationPatchMixin, TestCase):
             password='applicantpass123'
         )
 
-        # 集会作成
-        self.community = Community.objects.create(
-            name='Test Community',
-            start_time=time(22, 0),
-            duration=60,
-            weekdays=['Mon'],
-            frequency='Every week',
-            organizers='Test Organizer',
-            status='approved'
-        )
-        CommunityMember.objects.create(
-            community=self.community,
-            user=self.owner,
-            role=CommunityMember.Role.OWNER
-        )
-
-        # イベント作成
-        self.event = Event.objects.create(
-            community=self.community,
-            date=date.today() + timedelta(days=7),
-            start_time=time(22, 0),
-            duration=60,
-            weekday='Mon',
-            accepts_lt_application=True
-        )
+        # 集会・イベント作成
+        self.community = make_community(owner=self.owner)
+        self.event = make_event(self.community)
 
         # 申請（pending状態のEventDetail）
-        self.pending_application = EventDetail.objects.create(
-            event=self.event,
-            detail_type='LT',
+        self.pending_application = make_event_detail(
+            self.event,
+            applicant=self.applicant,
             theme='Test Theme',
             speaker='Test Speaker',
             duration=15,
-            start_time=time(22, 0),
             status='pending',
-            applicant=self.applicant
         )
 
     def test_review_page_requires_login(self):
@@ -414,58 +368,37 @@ class LTApplicationListTest(TweetGenerationPatchMixin, TestCase):
             password='applicantpass123'
         )
 
-        # 集会作成
-        self.community = Community.objects.create(
-            name='Test Community',
-            start_time=time(22, 0),
-            duration=60,
-            weekdays=['Mon'],
-            frequency='Every week',
-            organizers='Test Organizer',
-            status='approved'
-        )
-        CommunityMember.objects.create(
-            community=self.community,
-            user=self.owner,
-            role=CommunityMember.Role.OWNER
-        )
+        # 集会・イベント作成（accepts_lt_application は元コードと同様デフォルトのまま）
+        self.community = make_community(owner=self.owner)
+        self.event = make_event(self.community)
 
-        # イベント作成
-        self.event = Event.objects.create(
-            community=self.community,
-            date=date.today() + timedelta(days=7),
-            start_time=time(22, 0),
-            duration=60,
-            weekday='Mon',
-        )
-
-        # 各ステータスの申請を作成
-        self.pending_app = EventDetail.objects.create(
-            event=self.event,
+        # 各ステータスの申請を作成（時刻は元コード通り）
+        self.pending_app = make_event_detail(
+            self.event,
+            applicant=self.applicant,
             theme='Pending Theme',
             speaker='Speaker 1',
-            status='pending',
-            applicant=self.applicant,
             duration=15,
+            status='pending',
             start_time=time(22, 0),
         )
-        self.approved_app = EventDetail.objects.create(
-            event=self.event,
+        self.approved_app = make_event_detail(
+            self.event,
+            applicant=self.applicant,
             theme='Approved Theme',
             speaker='Speaker 2',
-            status='approved',
-            applicant=self.applicant,
             duration=15,
+            status='approved',
             start_time=time(22, 15),
         )
-        self.rejected_app = EventDetail.objects.create(
-            event=self.event,
+        self.rejected_app = make_event_detail(
+            self.event,
+            applicant=self.applicant,
             theme='Rejected Theme',
             speaker='Speaker 3',
-            status='rejected',
-            applicant=self.applicant,
-            rejection_reason='Test reason',
             duration=15,
+            status='rejected',
+            rejection_reason='Test reason',
             start_time=time(22, 30),
         )
 

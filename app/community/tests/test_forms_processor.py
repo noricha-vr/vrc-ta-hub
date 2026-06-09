@@ -3,7 +3,7 @@
 承認/非承認/閉鎖の副作用（Email / Discord / cleanup）が silent failure で
 吸われていた箇所を中心にカバーする。
 """
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 import requests
@@ -20,32 +20,26 @@ from community.forms_processor import (
     notify_new_community_registration,
     reject_community_registration,
 )
-from community.models import Community, CommunityMember
+from community.models import CommunityMember
+from tests.factories import (
+    make_community as _make_community_factory,
+    make_user,
+)
 
 User = get_user_model()
 
 
 def _make_user(name="u1", email="u1@example.com"):
-    return User.objects.create_user(user_name=name, email=email, password="testpass123")
+    """既存 setUp の呼び出し名互換 wrapper。新規テストは make_user を直接使う。"""
+    return make_user(user_name=name, email=email)
 
 
 def _make_community(owner=None, name="Test Community"):
-    community = Community.objects.create(
-        name=name,
-        start_time=time(22, 0),
-        duration=60,
-        weekdays=["Mon"],
-        frequency="Every week",
-        organizers="Test Organizer",
-        status="pending",
-    )
-    if owner is not None:
-        CommunityMember.objects.create(
-            community=community,
-            user=owner,
-            role=CommunityMember.Role.OWNER,
-        )
-    return community
+    """既存 setUp の呼び出し名互換 wrapper。新規テストは make_community を直接使う。
+
+    forms_processor のテストは承認前提なので status="pending" デフォルトを維持する。
+    """
+    return _make_community_factory(name=name, owner=owner, status="pending")
 
 
 @override_settings(DEFAULT_FROM_EMAIL="noreply@example.com")
