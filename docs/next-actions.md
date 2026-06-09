@@ -63,13 +63,13 @@
 
 - [ ] 公開中の `event/detail/{id}` コンソールエラーを先に潰す
   - 理由: 既知不具合として backlog に残っていて、ユーザー向け画面の信頼性に直結する
-  - ファイル: `docs/notes/todo.md`, 該当テンプレート/JS
+  - ファイル: 該当テンプレート/JS（旧 `docs/notes/todo.md` 参照だったが当該ファイルは未作成）
   - 見積もり: 0.5-1日
 
 ### P2: 中
 - [ ] Vket backlog をまとめて実装する
   - 理由: 「参加日ラベルに時間帯併記」「LT時刻の柔軟化」「最近追加したUX改善Issue」が同じ文脈で溜まっている
-  - ファイル: `app/vket/forms.py`, `app/vket/templates/vket/*.html`, `docs/notes/todo.md`
+  - ファイル: `app/vket/forms.py`, `app/vket/templates/vket/*.html`
   - 見積もり: 1-2日
 
 - [ ] `app/vket/views.py` をユースケース単位で分割する
@@ -82,9 +82,9 @@
   - ファイル: `app/community/views.py`, `app/api_v1/serializers.py`
   - 見積もり: 0.5-1日
 
-- [ ] `docs/notes/status.md` の役割を整理し、現状に追従させる
-  - 理由: 進捗ノートが古く、`/note use` や今後の `/next` の精度を落としている
-  - ファイル: `docs/notes/status.md`
+- [ ] 進捗ノート (`docs/notes/status.md`) の運用方針を決める
+  - 理由: ファイル自体は未作成。`/note use` や `/next` の参照先として使うか、別の場所（`docs/index.md` 内 or note skill のDB）に集約するか方針未定
+  - ファイル: `docs/notes/status.md` (未作成)、または `docs/index.md`
   - 見積もり: 0.5日
 
 - [ ] 設定検証と意図不明コードの軽い清掃をする
@@ -97,7 +97,7 @@
 ### Group 1（依存関係なし、すぐ着手可）
 - README / `.env.example` / settings の整合修正
 - CI / `scripts/run_tests.sh` への `vket.tests` 追加
-- `docs/notes/status.md` の更新
+- 進捗ノート運用方針の決定 (旧 `docs/notes/status.md` 関連)
 
 ### Group 2（Group 1 と並列でも可だが、仕様整理後のほうが安全）
 - Vket現行仕様の文書化
