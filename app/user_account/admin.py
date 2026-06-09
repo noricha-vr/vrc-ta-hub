@@ -43,14 +43,15 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(APIKey)
 class APIKeyAdmin(admin.ModelAdmin):
-    list_display = ('user', 'name', 'created_at', 'last_used', 'is_active')
-    list_filter = ('is_active', 'created_at', 'last_used')
+    list_display = ('user', 'name', 'scope', 'expires_at', 'created_at', 'last_used', 'is_active')
+    list_filter = ('is_active', 'scope', 'created_at', 'last_used', 'expires_at')
     search_fields = ('user__user_name', 'user__display_name', 'name', 'key')
     readonly_fields = ('key', 'created_at', 'last_used')
-    
+
     fieldsets = (
         (None, {'fields': ('user', 'name', 'key')}),
-        ('ステータス', {'fields': ('is_active',)}),
+        ('ステータス', {'fields': ('is_active', 'scope', 'expires_at')}),
+        ('アクセス制御', {'fields': ('allowed_ips',)}),
         ('履歴', {'fields': ('created_at', 'last_used')}),
     )
 
