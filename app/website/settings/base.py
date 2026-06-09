@@ -389,3 +389,26 @@ if DEBUG:
     for logger_name in LOGGING['loggers']:
         LOGGING['loggers'][logger_name]['handlers'].append('file')
         LOGGING['loggers'][logger_name]['level'] = 'DEBUG'
+
+# --- Sentry エラートラッキング (本番のみ) -----------------------------------
+# SENTRY_DSN が空、TESTING、DEBUG の場合は初期化しない。
+# silent exception (logger.exception で吸われる例外) を ERROR イベントとして
+# Sentry に転送し、本番での「黙って失敗する」状況を可視化する。
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+if SENTRY_DSN and not TESTING and not DEBUG:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(),
+            # INFO 以上を breadcrumb として収集し、ERROR 以上をイベント送信する。
+            LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+        ],
+        send_default_pii=False,  # ユーザー情報 (IP / Cookie 等) は送らない
+        traces_sample_rate=0.0,  # APM は無効。エラートラッキングのみ使う
+        environment=os.environ.get('SENTRY_ENVIRONMENT', 'production'),
+    )
+    _settings_logger.info('Sentry initialized')
