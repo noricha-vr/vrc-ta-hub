@@ -168,12 +168,15 @@ if 'test' in sys.argv or TESTING:
     # PBKDF2 デフォルトは 600k iterations あり、create_user / client.login が多いテストで支配的になる
     PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
-    # テスト環境で FERNET_KEY が未設定の場合は固定鍵を使う。
+    # テスト環境で FERNET_KEY が未設定の場合は起動時に動的生成する。
     # CI (.github/workflows/ci.yml) や新規開発者の `manage.py test` でも
     # community.encrypted_fields を呼ぶテストが落ちないようにする防御層。
     # 本番では環境変数 FERNET_KEY が必須で、TESTING=1 にはならないため安全。
+    # 固定鍵を埋め込むと secret スキャナの誤検知になるため都度生成する
+    # (テスト間で値が変わるが、暗号化テストは override_settings で明示鍵を使う)。
     if not FERNET_KEY:
-        FERNET_KEY = 'sIuy_LIKxw9HpyfLPDmAEKAUjg7SqGn4kkBnHTvuVMI='  # test fixture key
+        from cryptography.fernet import Fernet as _Fernet
+        FERNET_KEY = _Fernet.generate_key().decode()
 
 _settings_logger.info('DB_NAME: %s', _mask(DATABASES['default']['NAME']))
 
