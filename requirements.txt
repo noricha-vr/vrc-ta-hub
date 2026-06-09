@@ -32,3 +32,4 @@ drf-spectacular==0.29.0
 django-allauth[socialaccount]==65.18.0
 requests-oauthlib==2.0.0
 qrcode[pil]==8.0
+coverage==7.6.10

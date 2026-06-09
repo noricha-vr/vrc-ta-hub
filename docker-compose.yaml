@@ -9,6 +9,9 @@ services:
       - ./app:/app
       - ./docs:/docs
       - ./cloudbuild.yaml:/cloudbuild.yaml:ro
+      # coverage 設定 (docs/coverage.md 参照)。コンテナ内で coverage コマンドを
+      # 実行する際に `--rcfile=/pyproject.toml` で参照する
+      - ./pyproject.toml:/pyproject.toml:ro
     env_file:
       # - .env
       - .env.local
