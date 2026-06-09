@@ -17,6 +17,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from event.community_cleanup import cleanup_community_future_data
+from website.retry import retry_webhook_post
 
 from .models import Community, CommunityMember
 
@@ -24,6 +25,23 @@ logger = logging.getLogger(__name__)
 
 CleanupCommunityFutureData = Callable[..., dict[str, int]]
 UserLike = AbstractBaseUser | AnonymousUser
+
+# Discord Webhook 送信タイムアウト（秒）
+DISCORD_TIMEOUT_SECONDS = 10
+
+
+@retry_webhook_post
+def _post_discord_webhook(webhook_url: str, payload: dict) -> requests.Response:
+    """Discord Webhook へ POST する内部ヘルパー（tenacity リトライ付き）.
+
+    HTTP エラー (4xx/5xx) も raise_for_status で例外化し、リトライ対象とする。
+    最終的に失敗した場合は requests.RequestException 系を再送出する。
+    """
+    response = requests.post(
+        webhook_url, json=payload, timeout=DISCORD_TIMEOUT_SECONDS
+    )
+    response.raise_for_status()
+    return response
 
 
 def refresh_calendar_entry_and_event_cache(community: Community) -> None:
@@ -55,9 +73,11 @@ def notify_new_community_registration(community: Community, request: HttpRequest
         "content": f"**【新規集会登録】** {community.name}\n"
                    f"承認ページ: {waiting_list_url}"
     }
-    discord_timeout_seconds = 10
     try:
-        requests.post(settings.DISCORD_WEBHOOK_URL, json=discord_message, timeout=discord_timeout_seconds)
+        _post_discord_webhook(settings.DISCORD_WEBHOOK_URL, discord_message)
+    except requests.RequestException as e:
+        # tenacity が 3 回まで再試行した上での最終失敗のみここに到達する
+        logger.warning(f'Discord通知送信失敗（リトライ後）: {e}')
     except Exception as e:
         logger.warning(f'Discord通知送信失敗: {e}')
 

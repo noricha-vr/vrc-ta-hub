@@ -225,11 +225,24 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
 
     @patch("event.notifications.requests.post")
     def test_swallows_request_exception(self, mock_post):
-        """requests 例外時もクラッシュしない（silent failure 検出）"""
+        """requests 例外時もクラッシュしない（silent failure 検出）.
+
+        tenacity リトライ導入後は 3 回まで再試行される。回数ではなく
+        「例外を吸い込んで完了する」ことを検証する。
+        テスト中はバックオフ待機を 0 秒化して高速化する。
+        """
+        from event.notifications import _post_discord_webhook
+
         mock_post.side_effect = requests.RequestException("network down")
-        # 例外を投げずに完了する
-        _send_discord_notification_for_new_application(self.event_detail, "https://example.com/review/1")
-        mock_post.assert_called_once()
+        original_sleep = _post_discord_webhook.retry.sleep
+        _post_discord_webhook.retry.sleep = lambda *args, **kwargs: None
+        try:
+            # 例外を投げずに完了する
+            _send_discord_notification_for_new_application(self.event_detail, "https://example.com/review/1")
+        finally:
+            _post_discord_webhook.retry.sleep = original_sleep
+        # 3 回再試行された（初回 + リトライ2回）
+        self.assertEqual(mock_post.call_count, 3)
 
     @patch("event.notifications.requests.post")
     def test_handles_non_ok_response(self, mock_post):
@@ -284,3 +297,79 @@ class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
         event_detail = _make_event_detail(self.event, applicant=self.applicant, status="approved")
         _send_discord_notification_for_result(event_detail)
         mock_post.assert_not_called()
+
+
+class DiscordWebhookRetryTest(TweetGenerationPatchMixin, TestCase):
+    """tenacity リトライ機構の挙動検証
+
+    一過性ネットワーク失敗で webhook が永遠に失われる問題を解消するため、
+    `_post_discord_webhook` に tenacity による 3 回まで指数バックオフリトライを
+    導入した。本テストはその振る舞いを mock で検証する。
+    """
+
+    def setUp(self):
+        self.owner = _make_user("owner1", "owner1@example.com")
+        self.applicant = _make_user("applicant1", "applicant1@example.com")
+        self.community = _make_community(owner=self.owner, webhook_url=WEBHOOK_URL)
+        self.event = _make_event(self.community)
+        self.event_detail = _make_event_detail(self.event, applicant=self.applicant)
+
+        # tenacity 内部の sleep を 0 秒化（テスト高速化）
+        from event.notifications import _post_discord_webhook
+        self._wrapped = _post_discord_webhook
+        self._original_sleep = self._wrapped.retry.sleep
+        self._wrapped.retry.sleep = lambda *args, **kwargs: None
+
+    def tearDown(self):
+        # sleep を元に戻す（他テストへの副作用を防ぐ）
+        self._wrapped.retry.sleep = self._original_sleep
+
+    @patch("event.notifications.requests.post")
+    def test_retries_until_success_on_second_attempt(self, mock_post):
+        """1 回目失敗 → 2 回目成功でリトライが動作する"""
+        success_response = MagicMock(ok=True, status_code=200)
+        # raise_for_status は成功時は何もしない（デフォルト MagicMock 挙動）
+        mock_post.side_effect = [
+            requests.RequestException("transient network error"),
+            success_response,
+        ]
+        _send_discord_notification_for_new_application(
+            self.event_detail, "https://example.com/review/1"
+        )
+        # 2 回呼ばれた（1 回目失敗 + 2 回目成功）
+        self.assertEqual(mock_post.call_count, 2)
+
+    @patch("event.notifications.requests.post")
+    def test_silent_failure_after_three_consecutive_failures(self, mock_post):
+        """3 回連続失敗で例外を吸い込み silent failure になる"""
+        mock_post.side_effect = requests.RequestException("network down")
+        # 例外を投げずに完了する（呼び出し元の try/except が最終失敗をキャッチ）
+        _send_discord_notification_for_new_application(
+            self.event_detail, "https://example.com/review/1"
+        )
+        # 3 回再試行された（初回 + リトライ2回）
+        self.assertEqual(mock_post.call_count, 3)
+
+    @patch("event.notifications.requests.post")
+    def test_no_retry_on_first_success(self, mock_post):
+        """1 回成功時の挙動が変わらない（後方互換性: リトライ無し）"""
+        mock_post.return_value = MagicMock(ok=True, status_code=200)
+        _send_discord_notification_for_new_application(
+            self.event_detail, "https://example.com/review/1"
+        )
+        # 成功なら 1 回しか呼ばれない（リトライしない）
+        self.assertEqual(mock_post.call_count, 1)
+
+    @patch("event.notifications.requests.post")
+    def test_retries_on_timeout_exception(self, mock_post):
+        """requests.Timeout もリトライ対象になる"""
+        mock_post.side_effect = [
+            requests.Timeout("read timeout"),
+            requests.Timeout("read timeout"),
+            MagicMock(ok=True, status_code=200),
+        ]
+        _send_discord_notification_for_new_application(
+            self.event_detail, "https://example.com/review/1"
+        )
+        # 3 回で成功
+        self.assertEqual(mock_post.call_count, 3)

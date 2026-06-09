@@ -38,6 +38,8 @@ cffi==2.0.0
     # via cryptography
 charset-normalizer==3.4.7
     # via requests
+coverage==7.6.10
+    # via -r requirements.txt
 cryptography==48.0.0
     # via pyjwt
 distro==1.9.0
@@ -263,6 +265,8 @@ soupsieve==2.8.4
     # via beautifulsoup4
 sqlparse==0.5.5
     # via django
+tenacity==9.0.0
+    # via -r requirements.txt
 tinycss2==1.4.0
     # via -r requirements.txt
 tqdm==4.68.1
