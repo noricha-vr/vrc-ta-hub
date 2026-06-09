@@ -41,6 +41,25 @@ MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB (X API の上限)
 ALLOWED_IMAGE_DOMAINS = frozenset({"data.vrc-ta-hub.com"})
 IMAGE_DOWNLOAD_CHUNK_SIZE = 8192
 
+# Content-Type ヘッダー偽装による任意バイナリ送信を防ぐため、
+# ダウンロード後にファイル先頭バイトで実画像形式を再検証する。
+IMAGE_MAGIC_BYTES = [
+    b"\x89PNG\r\n\x1a\n",  # PNG
+    b"\xff\xd8\xff",        # JPEG
+    b"GIF87a",
+    b"GIF89a",
+]
+
+
+def _is_valid_image_bytes(data: bytes) -> bool:
+    """ファイル先頭バイトで画像形式を検証 (SSRF/任意バイナリ防止)"""
+    if any(data.startswith(magic) for magic in IMAGE_MAGIC_BYTES):
+        return True
+    # WebP は RIFF....WEBP の特殊形式
+    if len(data) >= 12 and data[0:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return True
+    return False
+
 
 def _should_block_x_api_in_tests() -> bool:
     """テスト環境では明示的に許可した場合だけ X API 呼び出しを通す。"""
@@ -117,6 +136,10 @@ def upload_media(image_url: str) -> str | None:
             chunks.append(chunk)
 
         image_data = b"".join(chunks)
+        # Content-Type ヘッダーは送信側で偽装可能なため、magic bytes で実体を再検証する
+        if not _is_valid_image_bytes(image_data):
+            logger.warning("Invalid image magic bytes")
+            return None
         content_type = image_response.headers.get('Content-Type', 'image/png')
 
         response = requests.post(
