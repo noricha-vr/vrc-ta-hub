@@ -4,6 +4,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 import hashlib
+import ipaddress
 import secrets
 import string
 
@@ -139,6 +140,13 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
 
 class APIKey(models.Model):
+    SCOPE_READ = "read"
+    SCOPE_WRITE = "write"
+    SCOPE_CHOICES = [
+        (SCOPE_READ, "読み取りのみ"),
+        (SCOPE_WRITE, "読み書き"),
+    ]
+
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='api_keys')
     # NOTE: このフィールドには平文キーではなく、平文キーのSHA-256ハッシュ（hex）を保存する
     key = models.CharField('APIキー', max_length=64, unique=True)
@@ -146,7 +154,25 @@ class APIKey(models.Model):
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     last_used = models.DateTimeField('最終使用日時', blank=True, null=True)
     is_active = models.BooleanField('有効', default=True)
-    
+    # null=True で既存キーを invalidate しない（永続キーとして扱う）
+    expires_at = models.DateTimeField('有効期限', blank=True, null=True)
+    scope = models.CharField(
+        '権限スコープ',
+        max_length=16,
+        choices=SCOPE_CHOICES,
+        default=SCOPE_WRITE,
+    )
+    # TEXT 型は MySQL で DEFAULT 制約が扱えないケースがあるため CharField(255) を採用。
+    # プロキシ配下では REMOTE_ADDR がプロキシ IP になる点に注意（運用者向け）。
+    allowed_ips = models.CharField(
+        '許可IP',
+        max_length=255,
+        blank=True,
+        default='',
+        help_text='カンマ区切りで IP アドレスまたは CIDR を指定。空ならすべての IP を許可。'
+                  'プロキシ配下では REMOTE_ADDR がプロキシ IP になるため、運用環境に応じて要検証。',
+    )
+
     class Meta:
         verbose_name = 'APIキー'
         verbose_name_plural = 'APIキー'
@@ -154,6 +180,61 @@ class APIKey(models.Model):
 
     def __str__(self):
         return f"{self.user.user_name} - {self.name or 'API Key'}"
+
+    def is_expired(self) -> bool:
+        """有効期限切れかを判定。expires_at が None なら無期限。"""
+        if self.expires_at is None:
+            return False
+        return self.expires_at < timezone.now()
+
+    def _parse_allowed_networks(self) -> list:
+        """allowed_ips をパースして network オブジェクトのリストを返す。
+
+        想定外に広い allowlist を防ぐため、`192.168.1.10/24` のようにホストビットを
+        含む CIDR は ValueError を投げる (strict=True)。単体 IP は ip_address() で
+        受けてから /32 (IPv4) または /128 (IPv6) のネットワークに変換する。
+        """
+        networks = []
+        for raw in self.allowed_ips.split(','):
+            token = raw.strip()
+            if not token:
+                continue
+            if '/' in token:
+                # CIDR 表記。host bit があれば fail-closed（ValueError 経由）
+                networks.append(ipaddress.ip_network(token, strict=True))
+            else:
+                # 単体 IP は /32 or /128 として扱う
+                addr = ipaddress.ip_address(token)
+                networks.append(ipaddress.ip_network(f'{addr}/{addr.max_prefixlen}', strict=True))
+        return networks
+
+    def is_ip_allowed(self, client_ip: str) -> bool:
+        """client_ip が allowed_ips の範囲内かを判定。allowed_ips が空なら常に True。"""
+        if not self.allowed_ips.strip():
+            return True
+        if not client_ip:
+            # ホワイトリスト設定済みかつクライアントIP不明なら fail-closed
+            return False
+        try:
+            client = ipaddress.ip_address(client_ip)
+            networks = self._parse_allowed_networks()
+        except ValueError:
+            # 不正なIP/CIDRは fail-closed
+            return False
+        return any(client in network for network in networks)
+
+    def is_valid(self, request=None) -> bool:
+        """有効期限・IP ホワイトリストを総合チェックする。
+
+        request が None の場合は IP チェックをスキップ（モデル単体での有効期限確認に利用）。
+        """
+        if self.is_expired():
+            return False
+        if request is not None and self.allowed_ips.strip():
+            client_ip = request.META.get('REMOTE_ADDR', '') if hasattr(request, 'META') else ''
+            if not self.is_ip_allowed(client_ip):
+                return False
+        return True
     
     @classmethod
     def generate_key(cls):

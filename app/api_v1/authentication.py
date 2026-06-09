@@ -23,19 +23,21 @@ class APIKeyAuthentication(authentication.BaseAuthentication):
                 key=api_key_hash,
                 is_active=True
             )
-            
-            # 最終使用時刻を更新
-            key_obj.last_used = timezone.now()
-            key_obj.save(update_fields=['last_used'])
-            
-            # ユーザーが有効か確認
-            if not key_obj.user.is_active:
-                raise exceptions.AuthenticationFailed('ユーザーが無効です。')
-                
-            return (key_obj.user, key_obj)
-            
         except APIKey.DoesNotExist:
             raise exceptions.AuthenticationFailed('無効なAPIキーです。')
+
+        # 有効期限切れ・IPホワイトリスト不一致・無効ユーザーはすべて
+        # 「無効なAPIキーです。」に統一する（情報漏洩防止）
+        if not key_obj.is_valid(request):
+            raise exceptions.AuthenticationFailed('無効なAPIキーです。')
+        if not key_obj.user.is_active:
+            raise exceptions.AuthenticationFailed('無効なAPIキーです。')
+
+        # すべての検証通過後に last_used を更新（失敗キーの観測を残さない）
+        key_obj.last_used = timezone.now()
+        key_obj.save(update_fields=['last_used'])
+
+        return (key_obj.user, key_obj)
     
     def get_api_key(self, request):
         """リクエストからAPIキーを取得"""
