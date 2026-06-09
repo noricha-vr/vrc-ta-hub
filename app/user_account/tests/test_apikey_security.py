@@ -117,3 +117,14 @@ class APIKeyIPAllowlistTests(TestCase):
 
         self.assertFalse(self.api_key.is_ip_allowed('not-an-ip'))
         self.assertFalse(self.api_key.is_ip_allowed(''))
+
+    def test_cidr_with_host_bits_is_rejected_fail_closed(self):
+        """host bit を含む CIDR (`192.168.1.10/24`) は黙って広げず fail-closed."""
+        # ip_network(strict=True) が ValueError を投げるため _parse_allowed_networks 経由で
+        # 不正値として扱い、結果的にすべての IP を拒否する
+        self.api_key.allowed_ips = '192.168.1.10/24'
+        self.api_key.save(update_fields=['allowed_ips'])
+
+        # 同サブネット内の IP も含めて全て拒否される
+        self.assertFalse(self.api_key.is_ip_allowed('192.168.1.10'))
+        self.assertFalse(self.api_key.is_ip_allowed('192.168.1.20'))

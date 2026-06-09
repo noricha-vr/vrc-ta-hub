@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='apikey',
             name='allowed_ips',
-            field=models.TextField(blank=True, default='', help_text='カンマ区切りで IP アドレスまたは CIDR を指定。空ならすべての IP を許可。', verbose_name='許可IP'),
+            field=models.CharField(blank=True, default='', help_text='カンマ区切りで IP アドレスまたは CIDR を指定。空ならすべての IP を許可。プロキシ配下では REMOTE_ADDR がプロキシ IP になるため、運用環境に応じて要検証。', max_length=255, verbose_name='許可IP'),
         ),
         migrations.AddField(
             model_name='apikey',

@@ -162,11 +162,15 @@ class APIKey(models.Model):
         choices=SCOPE_CHOICES,
         default=SCOPE_WRITE,
     )
-    allowed_ips = models.TextField(
+    # TEXT 型は MySQL で DEFAULT 制約が扱えないケースがあるため CharField(255) を採用。
+    # プロキシ配下では REMOTE_ADDR がプロキシ IP になる点に注意（運用者向け）。
+    allowed_ips = models.CharField(
         '許可IP',
+        max_length=255,
         blank=True,
         default='',
-        help_text='カンマ区切りで IP アドレスまたは CIDR を指定。空ならすべての IP を許可。',
+        help_text='カンマ区切りで IP アドレスまたは CIDR を指定。空ならすべての IP を許可。'
+                  'プロキシ配下では REMOTE_ADDR がプロキシ IP になるため、運用環境に応じて要検証。',
     )
 
     class Meta:
@@ -183,15 +187,25 @@ class APIKey(models.Model):
             return False
         return self.expires_at < timezone.now()
 
-    def _parse_allowed_networks(self) -> list[ipaddress._BaseNetwork]:
-        """allowed_ips をパースして network オブジェクトのリストを返す。"""
-        networks: list[ipaddress._BaseNetwork] = []
+    def _parse_allowed_networks(self) -> list:
+        """allowed_ips をパースして network オブジェクトのリストを返す。
+
+        想定外に広い allowlist を防ぐため、`192.168.1.10/24` のようにホストビットを
+        含む CIDR は ValueError を投げる (strict=True)。単体 IP は ip_address() で
+        受けてから /32 (IPv4) または /128 (IPv6) のネットワークに変換する。
+        """
+        networks = []
         for raw in self.allowed_ips.split(','):
             token = raw.strip()
             if not token:
                 continue
-            # strict=False で host bits を含む CIDR 表記も受け付ける
-            networks.append(ipaddress.ip_network(token, strict=False))
+            if '/' in token:
+                # CIDR 表記。host bit があれば fail-closed（ValueError 経由）
+                networks.append(ipaddress.ip_network(token, strict=True))
+            else:
+                # 単体 IP は /32 or /128 として扱う
+                addr = ipaddress.ip_address(token)
+                networks.append(ipaddress.ip_network(f'{addr}/{addr.max_prefixlen}', strict=True))
         return networks
 
     def is_ip_allowed(self, client_ip: str) -> bool:
