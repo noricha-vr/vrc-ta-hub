@@ -67,12 +67,12 @@ def generate_llm_events(request):
 ```
 
 ### generate_blog
-**場所**: `app/event/libs.py`
+**場所**: `app/event/services/content_generation_service.py:59`
 
 YouTubeやPDFからブログ記事を自動生成。
 
 ```python
-def generate_blog(event_detail: EventDetail, model: str = None) -> BlogOutput:
+def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
     """
     AI (Gemini) を使用してイベント詳細からブログ記事を生成
     """
@@ -189,7 +189,7 @@ def sync_events(self, community: Community, start_date: date,
 VRCイベントカレンダー投稿用のURLを生成。
 
 ### convert_markdown
-**場所**: `app/event/libs.py`
+**場所**: `app/event/services/markdown_processor.py:208`
 
 MarkdownをHTMLに変換。
 
