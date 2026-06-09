@@ -75,10 +75,19 @@ class RecurrenceRule(models.Model):
     interval = models.IntegerField(default=1, verbose_name='間隔')  # 何週間/月ごとか
     week_of_month = models.IntegerField(null=True, blank=True, verbose_name='第N週')  # MONTHLY_BY_WEEKの場合
     custom_rule = models.TextField(null=True, blank=True, verbose_name='カスタムルール')  # OTHERの場合の自由記述
-    start_date = models.DateField(null=True, blank=True, verbose_name='起点日', 
+    start_date = models.DateField(null=True, blank=True, verbose_name='起点日',
                                   help_text='定期イベントの起点となる日付。隔週の場合はこの日付を基準に計算されます。')
     end_date = models.DateField(null=True, blank=True, verbose_name='終了日')
-    
+    # 冪等性保証用: generate_recurring_events 実行時、最後に生成完了した日付を記録する。
+    # 既存の Event.objects.filter(...).exists() チェックで重複は防げているが、
+    # 進捗トラッキングとリカバリ判断（どこまで生成済みか）を可視化するために保持する。
+    last_generated_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name='最終生成日',
+        help_text='最後にイベント生成した日付（冪等性保証・進捗トラッキング用）',
+    )
+
     # 管理用フィールド
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
