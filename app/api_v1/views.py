@@ -1,8 +1,6 @@
 # Create your views here.
 # from corsheaders.middleware import CorsMiddleware  # No longer needed
 from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets, status
@@ -60,7 +58,6 @@ class CommunityFilter(filters.FilterSet):
         tags=["Community"]
     )
 )
-@method_decorator(csrf_exempt, name='dispatch')
 class CommunityViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Community.objects.filter(
         end_at__isnull=True,
@@ -136,7 +133,6 @@ class EventFilter(filters.FilterSet):
         tags=["Event"]
     )
 )
-@method_decorator(csrf_exempt, name='dispatch')
 class EventViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Event.objects.filter(
         date__gte=timezone.now().date(),
@@ -174,7 +170,6 @@ class EventDetailFilter(filters.FilterSet):
         tags=["EventDetail"]
     )
 )
-@method_decorator(csrf_exempt, name='dispatch')
 class EventDetailViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelViewSet):
     queryset = EventDetail.objects.filter(
         event__community__status='approved',
