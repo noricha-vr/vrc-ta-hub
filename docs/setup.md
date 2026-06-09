@@ -98,6 +98,32 @@ X_ACCESS_TOKEN=生成されたアクセストークン
 X_ACCESS_TOKEN_SECRET=生成されたアクセストークンシークレット
 ```
 
+## pre-commit hook
+
+ローカル開発時にコミット前 lint を自動化し、CI lint FAILURE のままマージされる事故を防ぐ。
+リポジトリをクローンしたら必ず有効化する。
+
+```bash
+pip install pre-commit==4.0.1
+pre-commit install
+```
+
+設定ファイル: [.pre-commit-config.yaml](../.pre-commit-config.yaml)
+
+有効化されている hook:
+
+- `ruff check`: pyproject.toml `[tool.ruff.lint]` のルール (E, F) で lint
+- `ruff format --check`: フォーマット差分を検出 (自動適用はしない)
+- `trailing-whitespace` / `end-of-file-fixer`: 末尾空白・改行の自動修正
+- `check-yaml` / `check-merge-conflict`: YAML 構文・コンフリクトマーカー検出
+- `check-added-large-files`: 1MB 超のファイル追加を防止
+
+全ファイルに対する手動実行:
+
+```bash
+pre-commit run --all-files
+```
+
 ## 最低限必要な環境変数
 
 `SECRET_KEY` のみ設定すれば基本的な開発が可能です。DB・ストレージの接続情報は `.env.example` にデフォルト値が入っています。
