@@ -20,7 +20,11 @@ from django.urls import path, include
 from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
+from ta_hub.health import health_check
+
 urlpatterns = [
+    # Cloud Run readiness/liveness probe 用（DB + cache 疎通確認）
+    path('health', health_check, name='health'),
     path('admin/', admin.site.urls),
     path('community/', include('community.urls')),
     path('event/', include('event.urls')),
