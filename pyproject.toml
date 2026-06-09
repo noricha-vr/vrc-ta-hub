@@ -13,3 +13,22 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "app/*/migrations/*.py" = ["E", "F"]  # Django マイグレーションは自動生成のため除外
 "app/website/settings.py" = ["F401"]  # settings.py の条件付き import を許容
+
+[tool.coverage.run]
+# coverage は app/ 配下を作業ディレクトリとして実行する想定（CI / Docker 共通）。
+# source = ["."] とすることで、どちらの実行コンテキストでも app/ 配下を計測対象にできる。
+source = ["."]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/conftest.py",
+    "manage.py",
+    "*/settings/*",
+]
+
+[tool.coverage.report]
+precision = 1
+show_missing = false
+skip_covered = false
+# 強制しない (将来 70 に引き上げる)。閾値の理由は docs/coverage.md を参照
+fail_under = 0

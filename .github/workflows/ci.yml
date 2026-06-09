@@ -63,7 +63,7 @@ jobs:
       - name: Install dependencies
         run: uv pip install --system -r requirements.txt
 
-      - name: Run tests
+      - name: Run tests with coverage
         working-directory: app
         env:
           EMAIL_FILE_PATH: "/tmp/emails"
@@ -71,4 +71,6 @@ jobs:
           # 外部API / 環境依存テストは @tag('external_api') で除外する
           # 新規テストを追加した時に「CI で実行されない」事故を防ぐため、
           # 除外モジュールを列挙するのではなくタグで一括除外する方式に統一している
-          python manage.py test --exclude-tag=external_api --noinput
+          # coverage 設定は ../pyproject.toml の [tool.coverage] を参照
+          coverage run --rcfile=../pyproject.toml manage.py test --exclude-tag=external_api --noinput
+          coverage report --rcfile=../pyproject.toml
