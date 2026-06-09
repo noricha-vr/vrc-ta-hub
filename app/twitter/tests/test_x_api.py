@@ -14,6 +14,7 @@ from django.test import TestCase
 from twitter.x_api import (
     MAX_IMAGE_SIZE,
     _get_oauth1,
+    _is_valid_image_bytes,
     post_tweet,
     upload_media,
 )
@@ -116,7 +117,9 @@ class UploadMediaSizeLimitTest(TestCase):
     @patch("twitter.x_api.requests.get")
     def test_accepts_image_at_max_size(self, mock_get, mock_post):
         """ちょうど MAX_IMAGE_SIZE の画像は通す（境界値）"""
-        boundary_chunks = [b"a" * MAX_IMAGE_SIZE]
+        # magic bytes 検証を通すため PNG ヘッダーで埋める
+        png_header = b"\x89PNG\r\n\x1a\n"
+        boundary_chunks = [png_header + b"a" * (MAX_IMAGE_SIZE - len(png_header))]
         mock_get_response = MagicMock()
         mock_get_response.raise_for_status.return_value = None
         mock_get_response.iter_content.return_value = boundary_chunks
@@ -150,7 +153,8 @@ class UploadMediaErrorHandlingTest(TestCase):
         """アップロード時の 4xx 応答で raise_for_status → None"""
         mock_get_response = MagicMock()
         mock_get_response.raise_for_status.return_value = None
-        mock_get_response.iter_content.return_value = [b"img"]
+        # magic bytes 検証を通すため PNG ヘッダー付きで返す
+        mock_get_response.iter_content.return_value = [b"\x89PNG\r\n\x1a\nimg"]
         mock_get_response.headers = {"Content-Type": "image/png"}
         mock_get.return_value = mock_get_response
 
@@ -243,6 +247,129 @@ class PostTweetSuccessPathTest(TestCase):
         payload = mock_post.call_args.kwargs["json"]
         self.assertEqual(payload["text"], "hello")
         self.assertEqual(payload["media"]["media_ids"], ["m1", "m2"])
+
+
+class UploadMediaMagicBytesTest(TestCase):
+    """upload_media の magic bytes 検証 (Content-Type ヘッダー偽装防止)"""
+
+    @patch.dict("os.environ", VALID_CREDS_ENV, clear=False)
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_accepts_png_magic_bytes(self, mock_get, mock_post):
+        """PNG magic bytes を含むデータは pass"""
+        mock_get_response = MagicMock()
+        mock_get_response.raise_for_status.return_value = None
+        mock_get_response.iter_content.return_value = [b"\x89PNG\r\n\x1a\nrest"]
+        mock_get_response.headers = {"Content-Type": "image/png"}
+        mock_get.return_value = mock_get_response
+
+        mock_post_response = MagicMock()
+        mock_post_response.raise_for_status.return_value = None
+        mock_post_response.json.return_value = {"media_id_string": "png-ok"}
+        mock_post.return_value = mock_post_response
+
+        result = upload_media("https://data.vrc-ta-hub.com/png.png")
+        self.assertEqual(result, "png-ok")
+        mock_post.assert_called_once()
+
+    @patch.dict("os.environ", VALID_CREDS_ENV, clear=False)
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_accepts_jpeg_magic_bytes(self, mock_get, mock_post):
+        """JPEG magic bytes (\\xff\\xd8\\xff) を含むデータは pass"""
+        mock_get_response = MagicMock()
+        mock_get_response.raise_for_status.return_value = None
+        mock_get_response.iter_content.return_value = [b"\xff\xd8\xff\xe0body"]
+        mock_get_response.headers = {"Content-Type": "image/jpeg"}
+        mock_get.return_value = mock_get_response
+
+        mock_post_response = MagicMock()
+        mock_post_response.raise_for_status.return_value = None
+        mock_post_response.json.return_value = {"media_id_string": "jpeg-ok"}
+        mock_post.return_value = mock_post_response
+
+        result = upload_media("https://data.vrc-ta-hub.com/photo.jpg")
+        self.assertEqual(result, "jpeg-ok")
+        mock_post.assert_called_once()
+
+    @patch.dict("os.environ", VALID_CREDS_ENV, clear=False)
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_rejects_html_payload_with_image_content_type(self, mock_get, mock_post):
+        """HTML が image/png として返されても magic bytes で検出して None"""
+        mock_get_response = MagicMock()
+        mock_get_response.raise_for_status.return_value = None
+        mock_get_response.iter_content.return_value = [b"<html><body>not an image</body></html>"]
+        mock_get_response.headers = {"Content-Type": "image/png"}
+        mock_get.return_value = mock_get_response
+
+        result = upload_media("https://data.vrc-ta-hub.com/fake.png")
+        self.assertIsNone(result)
+        mock_post.assert_not_called()
+
+    @patch.dict("os.environ", VALID_CREDS_ENV, clear=False)
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_rejects_json_payload_with_image_content_type(self, mock_get, mock_post):
+        """JSON が image/png として返されても magic bytes で検出して None"""
+        mock_get_response = MagicMock()
+        mock_get_response.raise_for_status.return_value = None
+        mock_get_response.iter_content.return_value = [b'{"foo": "bar"}']
+        mock_get_response.headers = {"Content-Type": "image/png"}
+        mock_get.return_value = mock_get_response
+
+        result = upload_media("https://data.vrc-ta-hub.com/fake.png")
+        self.assertIsNone(result)
+        mock_post.assert_not_called()
+
+    @patch.dict("os.environ", VALID_CREDS_ENV, clear=False)
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_rejects_empty_bytes(self, mock_get, mock_post):
+        """空バイト列は magic bytes が成立しないため None"""
+        mock_get_response = MagicMock()
+        mock_get_response.raise_for_status.return_value = None
+        mock_get_response.iter_content.return_value = [b""]
+        mock_get_response.headers = {"Content-Type": "image/png"}
+        mock_get.return_value = mock_get_response
+
+        result = upload_media("https://data.vrc-ta-hub.com/empty.png")
+        self.assertIsNone(result)
+        mock_post.assert_not_called()
+
+    @patch.dict("os.environ", VALID_CREDS_ENV, clear=False)
+    @patch("twitter.x_api.requests.post")
+    @patch("twitter.x_api.requests.get")
+    def test_rejects_too_short_bytes(self, mock_get, mock_post):
+        """8 バイト未満でいずれの magic bytes にも一致しなければ None"""
+        mock_get_response = MagicMock()
+        mock_get_response.raise_for_status.return_value = None
+        mock_get_response.iter_content.return_value = [b"abc"]
+        mock_get_response.headers = {"Content-Type": "image/png"}
+        mock_get.return_value = mock_get_response
+
+        result = upload_media("https://data.vrc-ta-hub.com/short.png")
+        self.assertIsNone(result)
+        mock_post.assert_not_called()
+
+    def test_is_valid_image_bytes_accepts_gif87a(self):
+        """GIF87a も許可形式"""
+        self.assertTrue(_is_valid_image_bytes(b"GIF87a\x00\x00rest"))
+
+    def test_is_valid_image_bytes_accepts_gif89a(self):
+        """GIF89a も許可形式"""
+        self.assertTrue(_is_valid_image_bytes(b"GIF89a\x00\x00rest"))
+
+    def test_is_valid_image_bytes_accepts_webp(self):
+        """WebP は RIFF....WEBP の特殊形式 (オフセット 8-12)"""
+        # RIFF(4) + size(4) + WEBP(4) + payload
+        webp_bytes = b"RIFF\x00\x00\x00\x10WEBPVP8 rest"
+        self.assertTrue(_is_valid_image_bytes(webp_bytes))
+
+    def test_is_valid_image_bytes_rejects_riff_without_webp(self):
+        """RIFF だけで WEBP 識別子がなければ拒否 (AVI/WAV 等)"""
+        avi_bytes = b"RIFF\x00\x00\x00\x10AVI rest"
+        self.assertFalse(_is_valid_image_bytes(avi_bytes))
 
 
 class PostTweetErrorHandlingTest(TestCase):
