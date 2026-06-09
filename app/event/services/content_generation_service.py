@@ -331,8 +331,17 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
                 raise
 
         except Exception as process_error:
+            # silent failure: 空 BlogOutput を返して呼び出し側のフォールバックに渡す。
+            # 既存ログメッセージは互換のため残しつつ silent_failure を追加で発火する。
             logger.error(f"Error processing response: {str(process_error)}")
-            # レスポンス処理エラー時は空のBlogOutputを返す
+            logger.exception(
+                "silent_failure",
+                extra={
+                    "event_type": "blog_generation_response_processing_failed",
+                    "event_detail_id": event_detail.pk,
+                    "is_silent": True,
+                },
+            )
             return BlogOutput(title='', meta_description='', text='')
 
     except Exception as e:
@@ -340,6 +349,15 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
         logger.error(f"Error calling OpenRouter or processing response for EventDetail {event_detail.pk}: {e}")
         if "API key" in str(e):
             logger.error("OPENROUTER_API_KEY environment variable might be missing or invalid.")
+        # silent failure: OpenRouter 呼び出し全体の失敗を Sentry に流すための構造化ログ。
+        logger.exception(
+            "silent_failure",
+            extra={
+                "event_type": "blog_generation_openrouter_call_failed",
+                "event_detail_id": event_detail.pk,
+                "is_silent": True,
+            },
+        )
         return BlogOutput(title='', meta_description='', text='')
 
 

@@ -23,10 +23,8 @@ class RecurrenceServiceLoggingTest(TestCase):
                 )
 
         self.assertEqual(result, "過去の開催履歴: 取得エラー")
-        self.assertIn(
-            "Error getting recent events history",
-            "\n".join(log_context.output),
-        )
+        # silent_failure 形式の構造化ログに移行 (詳細は docs/sentry.md)
+        self.assertIn("silent_failure", "\n".join(log_context.output))
 
     def test_llm_date_generation_error_uses_logger(self):
         service = RecurrenceService.__new__(RecurrenceService)
@@ -47,4 +45,5 @@ class RecurrenceServiceLoggingTest(TestCase):
             )
 
         self.assertEqual(result, [])
-        self.assertIn("LLM date generation failed", "\n".join(log_context.output))
+        # silent_failure 形式の構造化ログに移行 (詳細は docs/sentry.md)
+        self.assertIn("silent_failure", "\n".join(log_context.output))

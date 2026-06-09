@@ -389,3 +389,58 @@ if DEBUG:
     for logger_name in LOGGING['loggers']:
         LOGGING['loggers'][logger_name]['handlers'].append('file')
         LOGGING['loggers'][logger_name]['level'] = 'DEBUG'
+
+# --- Sentry エラートラッキング (本番のみ) -----------------------------------
+# SENTRY_DSN が空、TESTING、DEBUG の場合は初期化しない。
+# silent exception (logger.exception で吸われる例外) を ERROR イベントとして
+# Sentry に転送し、本番での「黙って失敗する」状況を可視化する。
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+
+
+def _sentry_before_send(event, hint):  # pragma: no cover - 本番のみ呼ばれる
+    """Sentry 送信前フィルタ.
+
+    LoggingIntegration は ERROR 以上のログを全て event 化するため、生成 JSON や
+    外部 API レスポンス body 等が混ざる既存 ERROR ログまで Sentry に流入する。
+    まず Django の unhandled exception (logger 名 `django.*`) は無条件で通し、
+    アプリ層の logger.error/exception は logentry に `is_silent=True` がある場合
+    と `silent_failure` イベントのみ通す。それ以外は drop。
+    """
+    logger_name = event.get('logger') or ''
+    if logger_name.startswith('django'):
+        return event
+
+    logentry = event.get('logentry') or {}
+    message = logentry.get('message') or event.get('message') or ''
+    if message == 'silent_failure':
+        return event
+
+    # `extra` 経由でセットした構造化フィールドを参照する。
+    # sentry_sdk は LogRecord.is_silent を event['extra'] に伝搬する。
+    extra = event.get('extra') or {}
+    if extra.get('is_silent') is True:
+        return event
+
+    # 不明な ERROR ログはドロップ (PII / 生成物リーク防止)
+    return None
+
+
+if SENTRY_DSN and not TESTING and not DEBUG:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(),
+            # INFO 以上を breadcrumb として収集し、ERROR 以上をイベント送信する。
+            # before_send で silent_failure / Django 例外のみ通すフィルタを掛ける。
+            LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+        ],
+        send_default_pii=False,  # ユーザー情報 (IP / Cookie 等) は送らない
+        traces_sample_rate=0.0,  # APM は無効。エラートラッキングのみ使う
+        environment=os.environ.get('SENTRY_ENVIRONMENT', 'production'),
+        before_send=_sentry_before_send,
+    )
+    _settings_logger.info('Sentry initialized')

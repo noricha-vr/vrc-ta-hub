@@ -119,7 +119,16 @@ def get_recent_events_history(
         return "\n".join(history_lines)
 
     except Exception:
-        logger.exception("Error getting recent events history")
+        # silent failure: 履歴取得が失敗してもプロンプト生成は続行する。
+        # Sentry/監視で `is_silent=True` フィルタで件数追跡できるよう構造化ログ化。
+        logger.exception(
+            "silent_failure",
+            extra={
+                "event_type": "recurrence_history_lookup_failed",
+                "rule_id": rule.id,
+                "is_silent": True,
+            },
+        )
         return "過去の開催履歴: 取得エラー"
 
 
@@ -188,6 +197,15 @@ def generate_dates_by_llm(
         dates = llm_service.generate_event_dates(prompt)
         return sorted({generated_date for generated_date in dates if base_date <= generated_date <= end_date})
     except Exception:
-        logger.exception("LLM date generation failed")
+        # silent failure: LLM 失敗で空リストを返し呼び出し側のフォールバックに委ねる。
+        # Sentry でアラート化したいパターンなので is_silent=True で明示。
+        logger.exception(
+            "silent_failure",
+            extra={
+                "event_type": "recurrence_llm_generation_failed",
+                "rule_id": rule.id,
+                "is_silent": True,
+            },
+        )
 
     return []

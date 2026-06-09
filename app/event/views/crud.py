@@ -168,7 +168,16 @@ class EventDetailCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Cre
                     logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
                     messages.warning(self.request, "記事の自動生成に失敗しました。")
             except Exception:
-                logger.exception("記事の自動生成中にエラーが発生しました")
+                # silent failure: 記事生成失敗はユーザー操作 (詳細作成) を止めない設計。
+                # Sentry で連発検知できるよう is_silent=True を付与する。
+                logger.exception(
+                    "silent_failure",
+                    extra={
+                        "event_type": "blog_generation_failed_on_create",
+                        "event_detail_id": form.instance.id,
+                        "is_silent": True,
+                    },
+                )
                 messages.error(self.request, "記事の自動生成中にエラーが発生しました")
 
         return response
@@ -225,7 +234,16 @@ class EventDetailUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Upd
                     logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
                     messages.warning(self.request, "記事の自動生成に失敗しました。")
             except Exception:
-                logger.exception("記事の自動生成中にエラーが発生しました")
+                # silent failure: 更新操作で記事生成が失敗してもフォーム送信は成功させる。
+                # Sentry/監視で同種エラー連発を検知できるよう is_silent=True を付与。
+                logger.exception(
+                    "silent_failure",
+                    extra={
+                        "event_type": "blog_generation_failed_on_update",
+                        "event_detail_id": form.instance.id,
+                        "is_silent": True,
+                    },
+                )
                 messages.error(self.request, "記事の自動生成中にエラーが発生しました")
 
         return response
