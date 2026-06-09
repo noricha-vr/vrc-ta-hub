@@ -34,3 +34,4 @@ requests-oauthlib==2.0.0
 qrcode[pil]==8.0
 coverage==7.6.10
 tenacity==9.0.0
+structlog==25.1.0
