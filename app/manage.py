@@ -6,6 +6,9 @@ import sys
 
 def main():
     """Run administrative tasks."""
+    from website.runtime_env import sanitize_sentry_dsn_environment
+
+    sanitize_sentry_dsn_environment()
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'website.settings')
     try:
         from django.core.management import execute_from_command_line
