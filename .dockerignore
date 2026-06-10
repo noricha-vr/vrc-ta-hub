@@ -1,0 +1,43 @@
+# Docker ビルドコンテキストから除外するファイル
+# 目的: 機密情報（サービスアカウント鍵・環境変数・セッション等）を
+#       コンテナイメージに焼き込まない。本番 Cloud Run は鍵レス（アタッチ SA）で動くため
+#       これらのファイルはイメージに不要。
+
+# ===== 機密情報: コンテナイメージに絶対に含めない =====
+**/credentials.json
+app/secret/
+.env
+.env.*
+cookies.txt
+.serena/
+
+# ===== ローカル DB =====
+*.sqlite3
+**/*.sqlite3
+
+# ===== Python キャッシュ =====
+__pycache__/
+*.py[cod]
+*.so
+
+# ===== VCS / IDE / ローカル開発ツール =====
+.git/
+.idea/
+.vscode/
+.claude/
+.cursor/
+.codeium/
+.playwright-cli/
+.playwright-mcp/
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# ===== バックアップ・ダンプ・一時生成物（イメージに不要） =====
+backup/
+dumps/
+r2_bkp/
+artifacts/
+test-results/
+test-emails/
+docs/tmp/
