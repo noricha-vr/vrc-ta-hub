@@ -8,6 +8,8 @@ from django.utils import timezone
 
 from ta_hub.libs import DEFAULT_MAX_SIZE, resize_and_convert_image
 
+from .encrypted_fields import EncryptedTextField
+
 
 def poster_upload_path(instance, filename):
     """ポスター画像のアップロードパスを生成する。
@@ -75,7 +77,10 @@ class Community(models.Model):
         '集会を紹介するためのポスター転載を許可する',
         default=False,
     )
-    notification_webhook_url = models.URLField(
+    # Fernet 暗号化 TextField (DB dump 流出時の webhook 乗っ取り対策)。
+    # URLField のバリデーションは EncryptedTextField では効かないため、
+    # フォーム層と RegexValidator で URL 構造を保証する。
+    notification_webhook_url = EncryptedTextField(
         'Discord Webhook URL',
         blank=True,
         default='',

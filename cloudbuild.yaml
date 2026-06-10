@@ -27,8 +27,11 @@ steps:
       - 'managed'
       - '--revision-suffix'
       - '$SHORT_SHA'
+      # FERNET_KEY: community.encrypted_fields の対称暗号化鍵。
+      # 未設定だと notification_webhook_url 関連の操作で RuntimeError、
+      # migration 0027 が即失敗する。
       - '--set-secrets'
-      - 'DISCORD_WEBHOOK_URL=DISCORD_WEBHOOK_URL:latest,DISCORD_CLIENT_ID=DISCORD_CLIENT_ID:latest,DISCORD_CLIENT_SECRET=DISCORD_CLIENT_SECRET:latest,DISCORD_REPORT_WEBHOOK_URL=DISCORD_REPORT_WEBHOOK_URL:latest,X_API_KEY=X_API_KEY:latest,X_API_SECRET=X_API_SECRET:latest,X_ACCESS_TOKEN=X_ACCESS_TOKEN:latest,X_ACCESS_TOKEN_SECRET=X_ACCESS_TOKEN_SECRET:latest'
+      - 'DISCORD_WEBHOOK_URL=DISCORD_WEBHOOK_URL:latest,DISCORD_CLIENT_ID=DISCORD_CLIENT_ID:latest,DISCORD_CLIENT_SECRET=DISCORD_CLIENT_SECRET:latest,DISCORD_REPORT_WEBHOOK_URL=DISCORD_REPORT_WEBHOOK_URL:latest,X_API_KEY=X_API_KEY:latest,X_API_SECRET=X_API_SECRET:latest,X_ACCESS_TOKEN=X_ACCESS_TOKEN:latest,X_ACCESS_TOKEN_SECRET=X_ACCESS_TOKEN_SECRET:latest,FERNET_KEY=FERNET_KEY:latest'
       # GA4 Data API のプロパティID。--update-env-vars で他の既存環境変数を維持しつつ追加する
       - '--update-env-vars'
       - 'GA4_PROPERTY_ID=444114283'
