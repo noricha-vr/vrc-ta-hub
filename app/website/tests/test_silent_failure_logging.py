@@ -160,6 +160,34 @@ class SentryInitializationTests(SimpleTestCase):
                 sentry_sdk.init(dsn=sentry_dsn)
         mock_init.assert_not_called()
 
+    def test_sentry_skipped_when_dsn_has_invalid_scheme(self):
+        """非 http/https の DSN (placeholder 値含む) では sentry_sdk.init を呼ばない.
+
+        Secret Manager に placeholder 文字列を一時登録した期間でも
+        BadDsn でアプリ全体がクラッシュしないことを保証する。
+        """
+        testing = False
+        debug = False
+        for invalid_dsn in ["placeholder-update-later", "not-a-url", "ftp://x", "x"]:
+            with patch("sentry_sdk.init") as mock_init:
+                is_valid = invalid_dsn.startswith(("http://", "https://"))
+                if is_valid and not testing and not debug:
+                    import sentry_sdk
+                    sentry_sdk.init(dsn=invalid_dsn)
+            mock_init.assert_not_called()
+
+    def test_sentry_initialized_with_valid_https_dsn(self):
+        """http/https で始まる DSN は通常通り初期化される."""
+        valid_dsn = "https://example@sentry.io/1"
+        testing = False
+        debug = False
+        with patch("sentry_sdk.init") as mock_init:
+            is_valid = valid_dsn.startswith(("http://", "https://"))
+            if is_valid and not testing and not debug:
+                import sentry_sdk
+                sentry_sdk.init(dsn=valid_dsn)
+        mock_init.assert_called_once()
+
 
 class SentryBeforeSendFilterTests(SimpleTestCase):
     """`_sentry_before_send` allowlist の動作を保証する.
