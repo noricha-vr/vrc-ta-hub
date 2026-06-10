@@ -58,10 +58,10 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          cache-dependency-glob: "requirements.txt"
+          cache-dependency-glob: "requirements.lock"
 
-      - name: Install dependencies
-        run: uv pip install --system -r requirements.txt
+      - name: Install dependencies (locked)
+        run: uv pip sync --system requirements.lock
 
       - name: Run tests with coverage
         working-directory: app
@@ -74,3 +74,33 @@ jobs:
           # coverage 設定は ../pyproject.toml の [tool.coverage] を参照
           coverage run --rcfile=../pyproject.toml manage.py test --exclude-tag=external_api --noinput
           coverage report --rcfile=../pyproject.toml
+
+  mypy:
+    needs: lint
+    runs-on: ubuntu-latest
+    # warn-only: 型エラーがあっても CI は失敗させない (docs/mypy.md 参照)
+    continue-on-error: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "requirements.lock"
+
+      - name: Install dependencies (locked)
+        run: uv pip sync --system requirements.lock
+
+      - name: Run mypy (warn-only, app/event/services/)
+        working-directory: app
+        run: |
+          # Phase 1: event/services/ のみ。docs/mypy.md の段階導入計画参照
+          mypy event/services/ --config-file ../pyproject.toml || true
