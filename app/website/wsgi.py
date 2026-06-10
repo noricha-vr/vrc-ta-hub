@@ -15,7 +15,9 @@ from website.middleware import (
     CanonicalCloudRunHostMiddleware,
     install_cloud_run_preview_host_validator,
 )
+from website.runtime_env import sanitize_sentry_dsn_environment
 
+sanitize_sentry_dsn_environment()
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'website.settings')
 # 設定ファイルを触らず、Django の Host 検証まで raw revision host が残った経路だけ救済する。
 install_cloud_run_preview_host_validator()
