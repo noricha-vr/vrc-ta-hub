@@ -1,4 +1,12 @@
-# Issue #464 Cloud Run Job migration 調査
+# Issue #464 migration 自動適用の調査と「導入しない」決定
+
+## 決定（2026-06-10 オーナー判断）
+
+**Cloud Build への Django migration 自動適用は導入しない。**
+
+理由: 自動実行は予期しないタイミングで本番 schema を変更し、migration 起因の事故が起きた際に被害が制御不能になるため。migration はデプロイ前に人間が判断して手動で適用する運用を正とする。
+
+この決定により Issue #464（cloudbuild.yaml への自動適用ステップ追加）はクローズする。以下は調査時の事実関係と、却下した案の記録。
 
 ## 背景
 
@@ -18,66 +26,23 @@
 
 - `cloudbuild.yaml` は Kaniko で `$SHORT_SHA` イメージを build/push した後、`gcloud run deploy --no-traffic` で本番 Service の新 revision を作る。
 - `cloudbuild-dev.yaml` は Kaniko で `latest` イメージを build/push した後、`gcloud run deploy` で dev Service を更新する。
-- 両方とも `manage.py migrate`、`gcloud run jobs deploy`、`gcloud run jobs execute` のいずれも含まない。
-- 既存の `docs/migration-rollback.md` には、緊急 rollback の選択肢として `gcloud run jobs execute vrc-ta-hub-migrate` が記載されている。ただし、CI/CD の通常経路へ組み込まれてはいない。
-- `app/website/tests/test_cloudbuild_config.py` は Cloud Run revision tag 運用の制約のみを検査しており、migration 実行順序は検査していない。
-- この作業では、保護対象ファイルである `cloudbuild.yaml` / `cloudbuild-dev.yaml` を変更していない。
+- 両方とも `manage.py migrate` を含まない。これは**意図された構成**（上記の決定どおり）。
+- `docs/migration-rollback.md` に、Cloud Run Job `vrc-ta-hub-migrate` を手動 execute する手順が記載されている。
 
-## 原因候補
+## 運用手順（正）
 
-本番事故の構造的な原因は、Cloud Run Service の新 revision 作成前に DB schema を同期する自動ステップがないこと。
+デプロイ前に migration の有無を確認し、あれば**人間が手動で適用してから**デプロイする。
 
-Django 側の view や model に前方互換コードを足すだけでは、次のような schema drift を一般には解消できない。
+1. デプロイ対象のブランチに新しい migration ファイルが含まれるか確認する（`git diff origin/main --stat -- '*/migrations/*'` など）。
+2. 含まれる場合、デプロイ前に手動で migrate を実行する（`docs/migration-rollback.md` の Cloud Run Job 手順、または本番 DB への直接適用）。
+3. `showmigrations` で適用状態を確認してから Cloud Run のデプロイ・トラフィック切替に進む。
 
-- 新規カラム参照: ORM query が未作成カラムを SELECT して失敗する。
-- NOT NULL / index / constraint 追加: DB 側状態がコードの前提と一致しない。
-- data migration: コードだけでは既存データの変換完了を保証できない。
+再発防止は「自動化」ではなく、この手順をデプロイ時のチェックリストとして徹底することで行う。
 
-そのため、今回の根本対応はアプリケーションコードではなく CI/CD の migration 実行順序に置く必要がある。
-
-## 推奨方針
-
-Cloud Build 内で短命の Cloud Run Job を deploy/execute し、migration 成功後に Service deploy へ進む構成にする。
-
-想定順序:
-
-1. Kaniko で migration 対象と同一の `$SHORT_SHA` イメージを build/push する。
-2. `vrc-ta-hub-migrate` Job をそのイメージで更新する。
-3. Job で `python manage.py migrate --noinput` を実行し、完了を待つ。
-4. migration が成功した場合だけ Cloud Run Service を deploy する。
-
-この順序にすると、migration 失敗時は Cloud Build が失敗し、新しい Service revision の作成または traffic 切替に進まない。旧 revision を維持できるため、未適用 schema のまま新コードが動く事故を避けやすい。
-
-## 必要な設定変更
-
-次の変更が必要。ただし、いずれも今回の作業で変更禁止と指定されたファイルまたはインフラ権限に関わるため、このコミットでは実装していない。
-
-- `cloudbuild.yaml` に本番用 `vrc-ta-hub-migrate` Job の deploy/execute/wait ステップを追加する。
-- `cloudbuild-dev.yaml` に dev 用 migration Job ステップを追加する。
-- Job に Service と同じ DB 接続情報、Secret Manager secrets、必要な環境変数を渡す。
-- Job の service account に Cloud SQL Client と Secret Accessor の権限があることを確認する。
-- `app/website/tests/test_cloudbuild_config.py` に、Cloud Build が `migrate --noinput` を Service deploy より前に実行することを検査するテストを追加する。
-
-## 却下した代替案
+## 却下した案
 
 | 案 | 却下理由 |
 |---|---|
-| supervisor 起動時に `manage.py migrate --noinput` を実行 | 複数 revision/instance が同時起動したときに競合しやすく、migration 失敗時にも起動処理と混ざって原因追跡が難しい。`supervisor-app.conf` も今回の保護対象に近い起動設定で、変更リスクが高い。 |
+| Cloud Build 内で Cloud Run Job を deploy/execute し migration 成功後に Service deploy（Issue #464 の当初案） | 自動実行は事故時の被害が制御不能になる。migration 適用は人間の判断を挟む（オーナー判断）。 |
+| supervisor 起動時に `manage.py migrate --noinput` を実行 | 同上に加え、複数 revision/instance の同時起動で競合しやすく、失敗時に起動処理と混ざって原因追跡が難しい。 |
 | view/model 側で未適用カラムを避ける | `deleted_at` のような個別カラム事故は一時回避できても、将来の schema/data migration 全般を保証できない。 |
-| 手動 migrate を運用手順に残す | 再発防止にならない。人間の実行忘れで同じ事故が起きる。 |
-
-## 検証計画
-
-保護対象ファイルの変更が許可された後、次の順で検証する。
-
-1. Cloud Build dry run 相当の構文確認を行う。
-2. dev の `cloudbuild-dev.yaml` で migration Job 作成から Service deploy まで通す。
-3. 意図的に失敗する migration ブランチで、Service deploy がスキップされることを確認する。
-4. 本番 Cloud Build で `--no-traffic` revision 作成前に migration Job が成功していることをログで確認する。
-5. `showmigrations` で dev/prod DB の migration state が最新であることを確認する。
-
-## 今回のコミットでの確認
-
-- `cloudbuild.yaml` / `cloudbuild-dev.yaml` に `migrate`、`run jobs deploy`、`run jobs execute` が存在しないことを `rg` で確認した。
-- `docs/migration-rollback.md` に Cloud Run Job 経由の手動 rollback 手順があることを確認した。
-- ローカル環境には `gcloud` コマンドがなく、Cloud Run Job の実地作成確認は未実施。
