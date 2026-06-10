@@ -36,6 +36,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY')
 
+# Fernet 暗号化用の対称鍵 (community.encrypted_fields.EncryptedTextField で使用)。
+# SECRET_KEY とは別管理にすることで鍵ローテーション容易性と二重防御を確保する。
+# 生成: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+FERNET_KEY = os.environ.get('FERNET_KEY', '')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG') == 'True'
 
@@ -164,6 +169,16 @@ if 'test' in sys.argv or TESTING:
     }
     # PBKDF2 デフォルトは 600k iterations あり、create_user / client.login が多いテストで支配的になる
     PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+
+    # テスト環境で FERNET_KEY が未設定の場合は起動時に動的生成する。
+    # CI (.github/workflows/ci.yml) や新規開発者の `manage.py test` でも
+    # community.encrypted_fields を呼ぶテストが落ちないようにする防御層。
+    # 本番では環境変数 FERNET_KEY が必須で、TESTING=1 にはならないため安全。
+    # 固定鍵を埋め込むと secret スキャナの誤検知になるため都度生成する
+    # (テスト間で値が変わるが、暗号化テストは override_settings で明示鍵を使う)。
+    if not FERNET_KEY:
+        from cryptography.fernet import Fernet as _Fernet
+        FERNET_KEY = _Fernet.generate_key().decode()
 
 _settings_logger.info('DB_NAME: %s', _mask(DATABASES['default']['NAME']))
 

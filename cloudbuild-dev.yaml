@@ -26,8 +26,11 @@ steps:
       - 'managed'
       - '--revision-suffix'
       - '$SHORT_SHA'
+      # FERNET_KEY: community.encrypted_fields の対称暗号化鍵。
+      # 未設定だと notification_webhook_url 関連の操作で RuntimeError、
+      # migration 0027 (暗号化済みデータがある場合) が失敗する。
       - '--set-secrets'
-      - 'DISCORD_WEBHOOK_URL=DISCORD_WEBHOOK_URL:latest,DISCORD_CLIENT_ID=DISCORD_CLIENT_ID:latest,DISCORD_CLIENT_SECRET=DISCORD_CLIENT_SECRET:latest'
+      - 'DISCORD_WEBHOOK_URL=DISCORD_WEBHOOK_URL:latest,DISCORD_CLIENT_ID=DISCORD_CLIENT_ID:latest,DISCORD_CLIENT_SECRET=DISCORD_CLIENT_SECRET:latest,FERNET_KEY=FERNET_KEY:latest'
       - '${_SERVICE_NAME}'
 
 substitutions:
