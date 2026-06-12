@@ -8,6 +8,15 @@
 
 この決定により Issue #464（cloudbuild.yaml への自動適用ステップ追加）はクローズする。以下は調査時の事実関係と、却下した案の記録。
 
+## 今回の対応範囲
+
+Issue #464 の直接案は `cloudbuild.yaml` / `cloudbuild-dev.yaml` の変更を必要とするが、これらは CI/CD と本番デプロイに直結する保護対象ファイルである。加えて、上記のオーナー判断により自動 migration は導入しない。
+
+そのため今回の変更は、Cloud Build の設定変更ではなく、次の 2 点に限定する。
+
+1. 自動 migration を入れない判断と手動適用の運用を、この調査文書に残す。
+2. `app/website/tests/test_cloudbuild_config.py` で、production/dev の Cloud Build 定義が Django migration を自動実行しないことを検知する。
+
 ## 背景
 
 2026-06-10 の本番反映で、アプリケーションコードが新しい Django migration を前提に起動した一方、本番 DB へ `manage.py migrate` が適用されておらず、`/event/list/` が 500 を返した。
@@ -28,6 +37,7 @@
 - `cloudbuild-dev.yaml` は Kaniko で `latest` イメージを build/push した後、`gcloud run deploy` で dev Service を更新する。
 - 両方とも `manage.py migrate` を含まない。これは**意図された構成**（上記の決定どおり）。
 - `docs/migration-rollback.md` に、Cloud Run Job `vrc-ta-hub-migrate` を手動 execute する手順が記載されている。
+- `app/website/tests/test_cloudbuild_config.py` は、Cloud Build 定義に `manage.py migrate` や `vrc-ta-hub-migrate` の自動 execute/deploy が入っていないことを確認する。
 
 ## 運用手順（正）
 
@@ -38,6 +48,12 @@
 3. `showmigrations` で適用状態を確認してから Cloud Run のデプロイ・トラフィック切替に進む。
 
 再発防止は「自動化」ではなく、この手順をデプロイ時のチェックリストとして徹底することで行う。
+
+## 検証方針
+
+- Cloud Build 定義そのものは保護対象のため変更しない。
+- 既存の設定テストに、production/dev の Cloud Build が migration を自動実行しないことを追加する。
+- テストで「自動 migration が入っていないこと」と「この判断記録への参照」を残し、将来の変更時に意図的な設計判断が必要になるようにする。
 
 ## 却下した案
 
