@@ -19,6 +19,7 @@ from vket.models import (
     VketParticipation,
     VketPresentation,
 )
+from vket.views.helpers import _build_schedule_context
 
 
 User = get_user_model()
@@ -364,6 +365,36 @@ class VketApplyFlowTests(TestCase):
         )
         pres = VketPresentation.objects.get(participation=participation, order=0)
         self.assertEqual(pres.requested_start_time.strftime('%H:%M'), '21:30')
+
+    def test_schedule_table_uses_unpublished_presentation_start_time(self):
+        """未公開の発表開始時刻が日程表のLTマーカーに反映される"""
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time=time(21, 0),
+            requested_duration=60,
+            progress=VketParticipation.Progress.STAGE_REGISTERED,
+        )
+        VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='未定',
+            theme='未定',
+            requested_start_time=time(21, 30),
+            duration=30,
+        )
+
+        context = _build_schedule_context(self.collaboration, include_requested=True)
+        row = next(
+            r for r in context['rows'] if r['participation'].pk == participation.pk
+        )
+        lt_tooltips = [
+            cell['lt_tooltip'] for cell in row['cells'] if cell['lt_times']
+        ]
+
+        self.assertEqual(row['start_time'], time(21, 0))
+        self.assertEqual(lt_tooltips, ['21:30'])
 
     def test_new_apply_shows_organizer_note_template(self):
         """新規申請GETで organizer_note の初期値テンプレートが表示される"""

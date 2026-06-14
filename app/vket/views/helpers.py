@@ -14,6 +14,7 @@ from ..forms import VketApplyPermissions
 from ..models import (
     VketCollaboration,
     VketParticipation,
+    VketPresentation,
 )
 
 logger = logging.getLogger(__name__)
@@ -147,7 +148,17 @@ def _build_schedule_context(
                     'id', 'event_id', 'start_time', 'duration',
                     'speaker', 'theme', 'status', 'detail_type',
                 ).order_by('start_time', 'id'),
-            )
+            ),
+            Prefetch(
+                'presentations',
+                queryset=VketPresentation.objects.only(
+                    'id',
+                    'participation_id',
+                    'order',
+                    'requested_start_time',
+                    'confirmed_start_time',
+                ).order_by('order', 'id'),
+            ),
         )
     )
 
@@ -205,6 +216,12 @@ def _build_schedule_context(
         if p.published_event:
             lt_details = list(p.published_event.details.all())
             lt_times = [d.start_time for d in lt_details] if lt_details else []
+        if not lt_times:
+            lt_times = [
+                start_time
+                for pres in p.presentations.all()
+                if (start_time := pres.confirmed_start_time or pres.requested_start_time)
+            ]
         if not lt_times:
             lt_times = [p_start]
         lt_times_by_pid[p.id] = lt_times
