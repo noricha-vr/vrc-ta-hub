@@ -52,7 +52,8 @@ def apply_blog_output_to_event_detail(event_detail: EventDetail, blog_output: Bl
     event_detail.h1 = blog_output.title
     event_detail.contents = blog_output.text
     event_detail.meta_description = blog_output.meta_description
-    ensure_pdf_thumbnail(event_detail)
+    if not event_detail.thumbnail_image:
+        ensure_pdf_thumbnail(event_detail)
     return True
 
 
