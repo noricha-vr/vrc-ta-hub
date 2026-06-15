@@ -11,6 +11,10 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 class CloudBuildConfigTest(SimpleTestCase):
     def setUp(self):
         self.cloudbuild = (REPO_ROOT / 'cloudbuild.yaml').read_text()
+        self.cloudbuild_configs = [self.cloudbuild]
+        cloudbuild_dev_path = REPO_ROOT / 'cloudbuild-dev.yaml'
+        if cloudbuild_dev_path.exists():
+            self.cloudbuild_configs.append(cloudbuild_dev_path.read_text())
 
     def test_production_deploy_does_not_auto_assign_traffic_tag(self):
         """Cloud Build はカナリアタグ付与を行わない。タグ運用は deploy-watch に集約する。
@@ -32,3 +36,10 @@ class CloudBuildConfigTest(SimpleTestCase):
         """旧 `rev-*` タグの掃除処理は維持する（残骸タグ削減のため）。"""
         self.assertIn("grep '^rev-'", self.cloudbuild)
         self.assertIn("--remove-tags", self.cloudbuild)
+
+    def test_cloud_run_memory_limit_is_1gib(self):
+        """記事生成時のPDF処理に備えCloud Runメモリ上限を1GiBにする."""
+        for config in self.cloudbuild_configs:
+            self.assertIn("'--memory'", config)
+            self.assertIn("'1Gi'", config)
+            self.assertNotIn("'512Mi'", config)

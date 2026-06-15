@@ -307,6 +307,34 @@ class TestGenerateBlog(TestCase):
         mock_pdf_document.assert_called_once()
 
     @patch("event.services.media_service.pdfium.PdfDocument")
+    def test_ensure_pdf_thumbnail_uses_default_scale_for_normal_page(self, mock_pdf_document):
+        """通常サイズのPDFは既存の最大倍率でレンダリングする."""
+        event_detail = self.create_event_detail(slide_file=True)
+        mock_page = mock_pdf_document.return_value.__getitem__.return_value
+        mock_page.get_size.return_value = (600, 400)
+        image = Image.new("RGB", (120, 90), color="white")
+        mock_page.render.return_value.to_pil.return_value = image
+
+        result = ensure_pdf_thumbnail(event_detail)
+
+        self.assertTrue(result)
+        mock_page.render.assert_called_once_with(scale=2.0)
+
+    @patch("event.services.media_service.pdfium.PdfDocument")
+    def test_ensure_pdf_thumbnail_limits_scale_for_large_page(self, mock_pdf_document):
+        """巨大なPDFページはレンダリング長辺が過大にならない倍率に抑える."""
+        event_detail = self.create_event_detail(slide_file=True)
+        mock_page = mock_pdf_document.return_value.__getitem__.return_value
+        mock_page.get_size.return_value = (4000, 2000)
+        image = Image.new("RGB", (1600, 800), color="white")
+        mock_page.render.return_value.to_pil.return_value = image
+
+        result = ensure_pdf_thumbnail(event_detail)
+
+        self.assertTrue(result)
+        mock_page.render.assert_called_once_with(scale=0.4)
+
+    @patch("event.services.media_service.pdfium.PdfDocument")
     def test_ensure_pdf_thumbnail_skips_when_already_set(self, mock_pdf_document):
         """既存サムネイルがある場合はPDFレンダリングしない."""
         event_detail = self.create_event_detail(slide_file=True)
@@ -347,6 +375,40 @@ class TestGenerateBlog(TestCase):
     @patch("event.services.content_generation_service.ensure_pdf_thumbnail")
     def test_apply_blog_output_sets_article_and_thumbnail(self, mock_ensure_pdf_thumbnail):
         """記事生成結果を反映するときに未設定サムネイルも補完する."""
+        event_detail = self.create_event_detail(slide_file=True)
+        blog_output = BlogOutput(
+            title="生成タイトル",
+            meta_description="生成ディスクリプション",
+            text="生成本文",
+        )
+
+        result = apply_blog_output_to_event_detail(event_detail, blog_output)
+
+        self.assertTrue(result)
+        self.assertEqual(event_detail.h1, "生成タイトル")
+        self.assertEqual(event_detail.contents, "生成本文")
+        self.assertEqual(event_detail.meta_description, "生成ディスクリプション")
+        mock_ensure_pdf_thumbnail.assert_called_once_with(event_detail)
+
+    @patch("event.services.content_generation_service.ensure_pdf_thumbnail")
+    def test_apply_blog_output_skips_thumbnail_generation_when_already_set(self, mock_ensure_pdf_thumbnail):
+        """既存サムネイルがある記事反映ではPDFレンダリングを再実行しない."""
+        event_detail = self.create_event_detail(slide_file=True)
+        event_detail.thumbnail_image = "thumbnail/existing.jpg"
+        blog_output = BlogOutput(
+            title="生成タイトル",
+            meta_description="生成ディスクリプション",
+            text="生成本文",
+        )
+
+        result = apply_blog_output_to_event_detail(event_detail, blog_output)
+
+        self.assertTrue(result)
+        mock_ensure_pdf_thumbnail.assert_not_called()
+
+    @patch("event.services.content_generation_service.ensure_pdf_thumbnail", return_value=False)
+    def test_apply_blog_output_succeeds_when_thumbnail_generation_fails(self, mock_ensure_pdf_thumbnail):
+        """PDFサムネイル生成失敗時も記事フィールドの反映は成功させる."""
         event_detail = self.create_event_detail(slide_file=True)
         blog_output = BlogOutput(
             title="生成タイトル",
