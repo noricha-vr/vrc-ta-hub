@@ -204,6 +204,60 @@ class TestYouTubeEmbed(TestCase):
         self.assertIn("youtube.com/embed/dQw4w9WgXcQ", html)
 
 
+class TestPlainUrlLinkify(TestCase):
+    """平文URLの自動リンク化（linkify）テスト"""
+
+    def test_plain_https_url_wrapped_in_anchor(self):
+        """段落内の平文 https URL が <a> タグでラップされる"""
+        html = convert_markdown("詳細はこちら https://vrc-ta-hub.com/vket/1/apply/ です")
+        self.assertIn('<a href="https://vrc-ta-hub.com/vket/1/apply/"', html)
+        self.assertIn('>https://vrc-ta-hub.com/vket/1/apply/</a>', html)
+
+    def test_plain_http_url_wrapped_in_anchor(self):
+        """http スキームの平文 URL も <a> 化される"""
+        html = convert_markdown("legacy http://example.com/page link")
+        self.assertIn('<a href="http://example.com/page"', html)
+
+    def test_url_in_list_item_linkified(self):
+        """リスト項目内の平文 URL も <a> 化される"""
+        html = convert_markdown("- https://example.com/foo\n- 通常テキスト")
+        self.assertIn('<a href="https://example.com/foo"', html)
+
+    def test_existing_markdown_link_not_double_wrapped(self):
+        """既に Markdown リンク記法で書かれた URL は二重ラップされない"""
+        html = convert_markdown("[サイト](https://example.com) を見て")
+        self.assertEqual(html.count('<a href="https://example.com"'), 1)
+
+    def test_url_in_code_block_not_linkified(self):
+        """コードブロック内の URL は <a> 化されない"""
+        markdown_text = "```\nhttps://example.com/code\n```"
+        html = convert_markdown(markdown_text)
+        self.assertIn("https://example.com/code", html)
+        self.assertNotIn('<a href="https://example.com/code"', html)
+
+    def test_url_in_inline_code_not_linkified(self):
+        """インラインコード内の URL は <a> 化されない"""
+        html = convert_markdown("Use `https://example.com/api` here")
+        self.assertNotIn('<a href="https://example.com/api"', html)
+
+    def test_trailing_punctuation_excluded_from_url(self):
+        """URL 末尾の句読点はリンクから除外される"""
+        html = convert_markdown("見て https://example.com/page. 続き")
+        self.assertIn('<a href="https://example.com/page"', html)
+        self.assertNotIn('<a href="https://example.com/page."', html)
+
+    def test_youtube_url_still_becomes_iframe(self):
+        """YouTube URL は linkify ではなく iframe 化される（既存仕様維持）"""
+        html = convert_markdown("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+        self.assertIn("<iframe", html)
+        self.assertIn("youtube.com/embed/dQw4w9WgXcQ", html)
+
+    def test_url_in_heading_linkified(self):
+        """見出し内の平文 URL も <a> 化される"""
+        html = convert_markdown("## See https://example.com/info")
+        self.assertIn('<a href="https://example.com/info"', html)
+
+
 class TestIframeSrcRestriction(TestCase):
     """iframeのsrc属性制限テスト（XSS対策）"""
 

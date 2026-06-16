@@ -28,6 +28,7 @@ _YOUTUBE_PATTERNS = (
     (r'https?://www\.youtube\.com/watch\?v=([a-zA-Z0-9_-]+)', r'https://www.youtube.com/embed/\1'),
     (r'https?://youtu\.be/([a-zA-Z0-9_-]+)', r'https://www.youtube.com/embed/\1'),
 )
+_PLAIN_URL_PATTERN = re.compile(r'https?://[^\s<>"\']+[^\s<>"\'.,;:!?)）」】]')
 
 _LIST_PREFIXES = ('- ', '* ', '+ ', '1. ', '2. ', '3. ')
 _EMOJI_PATTERN = r'[\U0001F300-\U0001F9FF\u200d\u2600-\u26FF\u2700-\u27BF]'
@@ -150,6 +151,27 @@ def _wrap_youtube_urls_with_anchor(text: str) -> tuple[str, bool]:
     return text, modified
 
 
+def _linkify_plain_urls(soup: BeautifulSoup) -> None:
+    """段落・リスト・見出し内の平文 URL を <a> タグに変換する.
+
+    YouTube URL は既に <a> 化済みなので重複処理しない。
+    既存の <a> / <code> / <pre> の中は触らない。
+    """
+    targets = soup.find_all(['p', 'li', 'h1', 'h2', 'h3', 'h4', 'blockquote'])
+    for elem in targets:
+        for text_node in list(elem.find_all(string=True)):
+            if text_node.find_parent(['a', 'code', 'pre']):
+                continue
+            if not _PLAIN_URL_PATTERN.search(str(text_node)):
+                continue
+            replacement = _PLAIN_URL_PATTERN.sub(
+                lambda m: f'<a href="{m.group(0)}">{m.group(0)}</a>',
+                str(text_node),
+            )
+            new_nodes = BeautifulSoup(replacement, 'html.parser')
+            text_node.replace_with(new_nodes)
+
+
 def _convert_youtube_anchors_to_iframes(soup: BeautifulSoup) -> None:
     """YouTube 形式の <a href> を埋め込み iframe に置き換える."""
     for link in soup.find_all('a', href=True):
@@ -234,6 +256,7 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
     _apply_table_classes(soup)
     _linkify_youtube_urls_in_text(soup)
     _convert_youtube_anchors_to_iframes(soup)
+    _linkify_plain_urls(soup)
     _remove_disallowed_iframes(soup)
 
     html = str(soup)
