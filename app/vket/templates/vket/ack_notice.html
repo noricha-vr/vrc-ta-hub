@@ -4,6 +4,22 @@
     <title>お知らせ確認 - VRChat 技術・学術系イベントHub</title>
 {% endblock %}
 {% block main %}
+    <style>
+        .notice-body h1,
+        .notice-body h2,
+        .notice-body h3,
+        .notice-body h4 {
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+        .notice-body h1 { font-size: 1.35rem; }
+        .notice-body h2 { font-size: 1.2rem; }
+        .notice-body h3 { font-size: 1.1rem; }
+        .notice-body h4 { font-size: 1rem; }
+        .notice-body p { margin-bottom: 0.75rem; }
+        .notice-body a { word-break: break-all; }
+    </style>
     <div class="container my-4" style="max-width: 600px;">
         <div class="text-center py-5">
             {% if already_acked %}
@@ -27,7 +43,7 @@
                         <i class="fas fa-calendar me-1"></i>
                         {{ notice.created_at|date:"Y年n月j日 H:i" }}
                     </div>
-                    <div class="border-top pt-3">{{ notice.body|markdown }}</div>
+                    <div class="border-top pt-3 notice-body">{{ notice.body|markdown }}</div>
                 </div>
             </div>
 
