@@ -9,7 +9,7 @@ class TwitterTemplate(models.Model):
     name = models.CharField('テンプレート名', max_length=255, default="")
     community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='twitter_template')
     template = models.TextField('テンプレート',
-                                help_text="利用可能な変数: {event_name}, {date}, {time}, {speaker}, {theme}")
+                                help_text="利用可能な変数: {event_name}, {date}, {time}, {speaker}, {theme}, {group_url}, {hashtag}")
 
     def __str__(self):
         return f"X Template for {self.community.name}"

@@ -252,6 +252,19 @@ class TwitterUtilsFilterTest(TweetGenerationPatchMixin, TestCase):
         self.assertNotIn('Pending Twitter Theme', details_text)
         self.assertNotIn('Rejected Twitter Theme', details_text)
 
+    def test_format_event_info_includes_group_url_and_hashtag(self):
+        """format_event_info はテンプレート用の集会URLとハッシュタグも含む"""
+        from twitter.utils import format_event_info
+
+        self.community.group_url = 'https://vrc.group/TEST.1234'
+        self.community.twitter_hashtag = 'VRChat #TechMeetup'
+        self.community.save(update_fields=['group_url', 'twitter_hashtag'])
+
+        event_info = format_event_info(self.event)
+
+        self.assertEqual(event_info['group_url'], 'https://vrc.group/TEST.1234')
+        self.assertEqual(event_info['hashtag'], '#VRChat #TechMeetup')
+
 
 class CalendarUtilsFilterTest(TweetGenerationPatchMixin, TestCase):
     """calendar_utils.py の generate_google_calendar_url で承認済みのみ含むテスト"""

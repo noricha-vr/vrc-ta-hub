@@ -13,9 +13,12 @@ class TwitterTemplateForm(forms.ModelForm):
         '{time}～ 開場\n\n'
         '{time}～ {speaker}さん\n'
         '『{theme}』\n\n'
+        '{time}～ {speaker}さん\n'
+        '『{theme}』\n\n'
         'みんな遊びに来てね～😊\n'
-        'Join先・VRCグループ : https://**\n\n'
-        '#VRChat'
+        'Join先・VRCグループ：\n'
+        '{group_url}\n\n'
+        '{hashtag}'
     )
 
     class Meta:
@@ -32,7 +35,7 @@ class TwitterTemplateForm(forms.ModelForm):
             }),
         }
         help_texts = {
-            'template': '利用可能な変数: {event_name}, {date}, {time}, {speaker}, {theme}'
+            'template': '利用可能な変数: {event_name}, {date}, {time}, {speaker}, {theme}, {group_url}, {hashtag}'
         }
 
     def __init__(self, *args, **kwargs):
