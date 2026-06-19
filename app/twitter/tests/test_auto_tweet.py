@@ -2648,6 +2648,91 @@ class TweetGeneratorTest(TestCase):
         self.assertNotIn("ツイート", user_prompt)
         self.assertIn("スライド・動画", user_prompt)
 
+    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.tweet_generator._call_llm")
+    def test_generate_slide_share_tweet_includes_applicant_x_account(self, mock_llm, _mock_thread):
+        """スライド共有告知のプロンプトに申請者の X アカウントを含める"""
+        mock_llm.return_value = "スライド公開テスト"
+        applicant = CustomUser.objects.create_user(
+            user_name="slide_speaker",
+            email="slide_speaker@example.com",
+            password="testpassword",
+            x_account="speaker_vr",
+        )
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="Pythonのテスト技法",
+            start_time=datetime.time(22, 15),
+            slide_url="https://example.com/slides",
+            applicant=applicant,
+        )
+
+        from twitter.tweet_generator import generate_slide_share_tweet
+        generate_slide_share_tweet(detail)
+
+        _, user_prompt = mock_llm.call_args[0]
+        self.assertIn("発表者: テスト太郎さん（@speaker_vr）", user_prompt)
+        self.assertIn("発表者（「テスト太郎さん（@speaker_vr）」をそのまま記載）", user_prompt)
+
+    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.tweet_generator._call_llm")
+    def test_generate_slide_share_tweet_uses_name_only_without_applicant_x_account(self, mock_llm, _mock_thread):
+        """申請者や X アカウントがないスライド告知は従来どおり名前だけを使う"""
+        mock_llm.return_value = "スライド公開テスト"
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="Pythonのテスト技法",
+            start_time=datetime.time(22, 15),
+            slide_url="https://example.com/slides",
+        )
+
+        from twitter.tweet_generator import generate_slide_share_tweet
+        generate_slide_share_tweet(detail)
+
+        _, user_prompt = mock_llm.call_args[0]
+        self.assertIn("発表者: テスト太郎さん", user_prompt)
+        self.assertNotIn("@", user_prompt)
+
+    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.tweet_generator._call_llm")
+    def test_slide_share_generator_fallback_includes_applicant_x_account(self, mock_llm, _mock_thread):
+        """LLM 生成失敗時のスライド共有 fallback に申請者の X アカウントを含める"""
+        mock_llm.return_value = "\n".join(["長い本文"] * 20)
+        applicant = CustomUser.objects.create_user(
+            user_name="slide_fallback_speaker",
+            email="slide_fallback_speaker@example.com",
+            password="testpassword",
+            x_account="fallback_vr",
+        )
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="Pythonのテスト技法",
+            start_time=datetime.time(22, 15),
+            slide_url="https://example.com/slides",
+            applicant=applicant,
+        )
+        queue = TweetQueue.objects.create(
+            tweet_type="slide_share",
+            community=self.community,
+            event=self.event,
+            event_detail=detail,
+            status="generating",
+        )
+
+        from twitter.tweet_generator import get_generator
+        result = get_generator("slide_share")(queue)
+
+        self.assertIn("テスト太郎さん（@fallback_vr）", result)
+
     @patch("twitter.utils._call_llm")
     def test_generate_tweet_uses_post_terminology_in_prompt(self, mock_llm):
         """テンプレートベース生成のプロンプトがX/ポスト表記に統一されている"""
