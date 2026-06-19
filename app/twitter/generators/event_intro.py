@@ -7,6 +7,7 @@ from twitter.generators.common import (
     BODY_LINE_CONSTRAINT,
     _build_hashtag_suffix,
     _fit_candidate,
+    _format_speaker_display,
     _sanitize_for_prompt,
 )
 from website.constants import build_site_url
@@ -14,6 +15,7 @@ from website.constants import build_site_url
 
 def _fallback_slide_share_tweet(event_detail) -> str | None:
     community = event_detail.event.community
+    speaker_display = _format_speaker_display(event_detail)
     resources = []
     if event_detail.slide_url or event_detail.slide_file:
         resources.append("スライド")
@@ -23,7 +25,7 @@ def _fallback_slide_share_tweet(event_detail) -> str | None:
     body_lines = [
         (
             f"{_sanitize_for_prompt(community.name)} "
-            f"{_sanitize_for_prompt(event_detail.speaker)}さん"
+            f"{speaker_display}"
             f"「{_sanitize_for_prompt(event_detail.theme)}」"
         ),
         f"{resources_text}が公開されました",
@@ -52,7 +54,7 @@ def generate_slide_share_tweet(event_detail, target_chars=140, validation_feedba
     detail_url = build_site_url(f"/event/detail/{event_detail.pk}/")
 
     name = _sanitize_for_prompt(community.name)
-    speaker = _sanitize_for_prompt(event_detail.speaker)
+    speaker_display = _format_speaker_display(event_detail)
     theme = _sanitize_for_prompt(event_detail.theme)
 
     # 公開リソースの種類をフラグで判定（URLはプロンプトに含めない）
@@ -66,21 +68,21 @@ def generate_slide_share_tweet(event_detail, target_chars=140, validation_feedba
     user_prompt = f"""以下の発表の{resources_text}が公開されたことを伝えるポストを作成してください。
 
 集会名: {name}
-発表者: {speaker}
+発表者: {speaker_display}
 テーマ: {theme}
 公開された資料: {resources_text}
 {validation_feedback}
 
 ## 必須要素（必ず本文に含めること）
 1. 集会名（「{name}」）
-2. 発表者名（敬称は「さん」を付ける）
+2. 発表者（「{speaker_display}」をそのまま記載）
 3. 発表テーマ（「{theme}」をそのまま記載。言い換え・要約禁止）
 4. {resources_text}が公開されたこと
 5. 内容の補足と次のアクション（資料を見る・チェックする等）への誘導を**1行にまとめる**（本文3行制約のため別行にしない）
 
 ## 出力フォーマット（本文は3行以内）
 
-{{集会名}} {{発表者}}さん「{{テーマ}}」
+{{集会名}} {{発表者}}「{{テーマ}}」
 
 {{resources_text}}が公開されました
 {{内容補足 + 閲覧誘導を1行に統合}}
