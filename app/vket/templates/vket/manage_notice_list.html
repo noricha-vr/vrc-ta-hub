@@ -1,4 +1,5 @@
 {% extends 'ta_hub/base.html' %}
+{% load markdown_extras %}
 {% block meta %}
     <title>{{ collaboration.name }} お知らせ管理 - VRChat 技術・学術系イベントHub</title>
 {% endblock %}
@@ -33,7 +34,7 @@
                         <th style="min-width: 80px;">要確認</th>
                         <th style="min-width: 100px;">ACK状況</th>
                         <th style="min-width: 130px;">作成日時</th>
-                        <th style="min-width: 80px;">操作</th>
+                        <th style="min-width: 110px;">操作</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -70,21 +71,76 @@
                                 {{ stat.notice.created_at|date:"Y/m/d H:i" }}
                             </td>
                             <td>
-                                <button class="btn btn-sm btn-outline-secondary"
-                                        data-bs-toggle="modal"
-                                        data-bs-target="#noticeEditModal"
-                                        data-notice-id="{{ stat.notice.id }}"
-                                        data-notice-title="{{ stat.notice.title }}"
-                                        data-notice-body="{{ stat.notice.body }}"
-                                        data-edit-url="{% url 'vket:manage_notice_update' collaboration.id stat.notice.id %}">
-                                    <i class="fas fa-edit"></i>
-                                </button>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="お知らせ操作">
+                                    <button class="btn btn-outline-primary"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#noticeDetailModal{{ stat.notice.id }}"
+                                            title="詳細">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="btn btn-outline-secondary"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#noticeEditModal"
+                                            data-notice-id="{{ stat.notice.id }}"
+                                            data-notice-title="{{ stat.notice.title }}"
+                                            data-notice-body="{{ stat.notice.body }}"
+                                            data-edit-url="{% url 'vket:manage_notice_update' collaboration.id stat.notice.id %}"
+                                            title="編集">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
                     </tbody>
                 </table>
             </div>
+
+            {% for stat in notice_stats %}
+                <div class="modal fade" id="noticeDetailModal{{ stat.notice.id }}" tabindex="-1"
+                     aria-labelledby="noticeDetailModalLabel{{ stat.notice.id }}" aria-hidden="true">
+                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="noticeDetailModalLabel{{ stat.notice.id }}">
+                                    <i class="fas fa-bell me-2"></i>{{ stat.notice.title }}
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <dl class="row small mb-3">
+                                    <dt class="col-sm-3">対象</dt>
+                                    <dd class="col-sm-9">{{ stat.notice.get_target_scope_display }}</dd>
+                                    <dt class="col-sm-3">要確認</dt>
+                                    <dd class="col-sm-9">
+                                        {% if stat.notice.requires_ack %}あり{% else %}なし{% endif %}
+                                    </dd>
+                                    <dt class="col-sm-3">ACK状況</dt>
+                                    <dd class="col-sm-9">
+                                        {% if stat.notice.requires_ack and stat.total > 0 %}
+                                            {{ stat.acked }}/{{ stat.total }}確認
+                                        {% else %}
+                                            <span class="text-muted">--</span>
+                                        {% endif %}
+                                    </dd>
+                                    {% if stat.unacked_community_names %}
+                                        <dt class="col-sm-3">未確認集会</dt>
+                                        <dd class="col-sm-9">{{ stat.unacked_community_names|join:', ' }}</dd>
+                                    {% endif %}
+                                    <dt class="col-sm-3">作成日時</dt>
+                                    <dd class="col-sm-9">{{ stat.notice.created_at|date:"Y/m/d H:i" }}</dd>
+                                </dl>
+                                <div class="border-top pt-3">
+                                    <div class="notice-body">{{ stat.notice.body|markdown }}</div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
         {% endif %}
     </div>
 

@@ -1707,6 +1707,26 @@ class VketNoticeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['already_acked'])
 
+    def test_ack_notice_view_links_back_to_open_notice_detail(self):
+        """ACK済み画面から対象のお知らせ詳細を開いた一覧へ戻れる"""
+        receipt = VketNoticeReceipt.objects.create(
+            notice=self.notice,
+            participation=self.participation,
+            acknowledged_at=timezone.now(),
+        )
+
+        response = self.client.get(
+            reverse('vket:ack_notice', kwargs={'ack_token': str(receipt.ack_token)})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        detail_url = (
+            f"{reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})}"
+            f"?open={self.notice.pk}"
+        )
+        self.assertContains(response, detail_url)
+        self.assertContains(response, 'お知らせ一覧で詳細を見る')
+
     def test_notice_list_view_requires_login(self):
         """お知らせ一覧はログイン必須"""
         response = self.client.get(
@@ -1714,6 +1734,29 @@ class VketNoticeTests(TestCase):
         )
         # ログイン画面にリダイレクト
         self.assertEqual(response.status_code, 302)
+
+    def test_notice_list_view_shows_acked_notice_detail(self):
+        """参加者側一覧はACK済みでもお知らせ本文を開ける"""
+        self.notice.body = '1行目の詳細\n\n"引用" と & 記号を含む本文'
+        self.notice.save(update_fields=['body'])
+        VketNoticeReceipt.objects.create(
+            notice=self.notice,
+            participation=self.participation,
+            acknowledged_at=timezone.now(),
+        )
+
+        self.client.login(username='owner_user2', password='testpass123')
+        response = self.client.get(
+            reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.notice.title)
+        self.assertContains(response, '確認済み')
+        self.assertContains(response, f'data-bs-target="#notice-{self.notice.pk}"')
+        self.assertContains(response, f'id="notice-{self.notice.pk}"')
+        self.assertContains(response, '1行目の詳細')
+        self.assertContains(response, '引用')
 
     def test_manage_notice_list_requires_staff(self):
         """管理用お知らせ一覧はstaff権限が必要"""
@@ -1731,6 +1774,49 @@ class VketNoticeTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.notice.title)
+
+    def test_manage_notice_list_shows_acked_notice_detail_modal(self):
+        """管理一覧はACK済みでも全文詳細モーダルを表示する"""
+        self.notice.body = '管理向け詳細本文\n\n"引用" と & 記号を含む本文'
+        self.notice.save(update_fields=['body'])
+        VketNoticeReceipt.objects.create(
+            notice=self.notice,
+            participation=self.participation,
+            acknowledged_at=timezone.now(),
+        )
+
+        self.client.login(username='admin_user2', password='adminpass123')
+        response = self.client.get(
+            reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'noticeDetailModal{self.notice.pk}')
+        self.assertContains(response, '管理向け詳細本文')
+        self.assertContains(response, '引用')
+        self.assertContains(response, '1/1確認')
+        self.assertContains(response, '作成日時')
+
+    def test_status_page_latest_notice_links_to_open_detail(self):
+        """参加状況ページの最新お知らせから対象詳細を開ける"""
+        VketNoticeReceipt.objects.create(
+            notice=self.notice,
+            participation=self.participation,
+            acknowledged_at=timezone.now(),
+        )
+
+        self.client.login(username='owner_user2', password='testpass123')
+        response = self.client.get(
+            reverse('vket:status', kwargs={'pk': self.collaboration.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        detail_url = (
+            f"{reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})}"
+            f"?open={self.notice.pk}"
+        )
+        self.assertContains(response, detail_url, count=2)
+        self.assertContains(response, '詳細')
 
     def test_notice_create_auto_generates_receipts(self):
         """お知らせ作成時にactive参加者分のReceiptが自動生成される"""
