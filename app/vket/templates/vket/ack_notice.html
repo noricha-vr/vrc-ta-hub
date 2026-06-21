@@ -51,9 +51,15 @@
                 <div class="mt-3 text-muted small">
                     確認日時: {{ receipt.acknowledged_at|date:"Y/m/d H:i" }}
                 </div>
-                <a href="{% url 'vket:status' pk=collaboration_id %}" class="btn btn-primary mt-3">
-                    <i class="fas fa-arrow-right me-1"></i>参加状況ページへ
-                </a>
+                <div class="d-flex justify-content-center gap-2 flex-wrap mt-3">
+                    <a href="{% url 'vket:notice_list' pk=collaboration_id %}?open={{ receipt.notice.id }}"
+                       class="btn btn-outline-secondary">
+                        <i class="fas fa-bell me-1"></i>お知らせ一覧で詳細を見る
+                    </a>
+                    <a href="{% url 'vket:status' pk=collaboration_id %}" class="btn btn-primary">
+                        <i class="fas fa-arrow-right me-1"></i>参加状況ページへ
+                    </a>
+                </div>
             {% else %}
                 <form method="post" class="mt-4">
                     {% csrf_token %}
