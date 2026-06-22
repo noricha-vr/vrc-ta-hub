@@ -1,8 +1,9 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.models import AnonymousUser
 from django.http import HttpResponse
 from django.test import RequestFactory, TestCase
+from django.urls import URLPattern, URLResolver, get_resolver
 from django.views import View
 
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
@@ -61,3 +62,30 @@ class AuthenticatedForbiddenMixinTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b'ok')
+
+    def test_urlconf_user_passes_views_do_not_use_default_permission_denial(self):
+        """URLConf の権限ビューが PermissionDenied 経路に戻らないことを保証する."""
+        risky_views = []
+
+        def walk(patterns, route_prefix=""):
+            for pattern in patterns:
+                if isinstance(pattern, URLResolver):
+                    walk(pattern.url_patterns, route_prefix + str(pattern.pattern))
+                    continue
+                if not isinstance(pattern, URLPattern):
+                    continue
+
+                view_class = getattr(pattern.callback, "view_class", None)
+                if not view_class or not issubclass(view_class, UserPassesTestMixin):
+                    continue
+
+                handler_owner = view_class.handle_no_permission.__qualname__
+                if handler_owner.startswith("AccessMixin."):
+                    risky_views.append(
+                        f"{route_prefix}{pattern.pattern} -> "
+                        f"{view_class.__module__}.{view_class.__name__}"
+                    )
+
+        walk(get_resolver().url_patterns)
+
+        self.assertEqual(risky_views, [])
