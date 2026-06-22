@@ -67,6 +67,23 @@ class IndexViewDegradedModeTest(TestCase):
         self.assertEqual(response.context["special_events"], [])
         self.assertContains(response, "Googleカレンダーと連携して予定を管理")
 
+    @patch("ta_hub.views.Event.objects.filter")
+    def test_index_view_degraded_mode_logs_warning_without_error_report(self, mock_event_filter):
+        mock_event_filter.side_effect = OperationalError(
+            2013,
+            "Lost connection to server at 'handshake: reading initial communication packet'",
+        )
+
+        with self.assertLogs("ta_hub.views", level="WARNING") as logs:
+            response = self.client.get(reverse("ta_hub:index"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["database_degraded"])
+        self.assertEqual(len(logs.records), 1)
+        self.assertEqual(logs.records[0].levelname, "WARNING")
+        self.assertIsNone(logs.records[0].exc_info)
+        self.assertIn("database was unavailable", logs.output[0])
+
     @patch("ta_hub.views.Post.objects.filter")
     def test_index_view_uses_cached_payload_when_database_is_unavailable(self, mock_post_filter):
         # キャッシュには vket_achievements を含めない（request依存のためキャッシュ対象外）

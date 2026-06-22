@@ -72,12 +72,12 @@ class IndexView(TemplateView):
             context.update(self._build_database_context(today, cache_key))
             # vket_achievements は request.build_absolute_uri() に依存するためキャッシュ外で毎回生成する。
             context['vket_achievements'] = self._build_vket_achievements(with_images=True)
-        except OperationalError:
+        except OperationalError as exc:
             # トップページはRDS瞬断でも静的導線を返し続ける（公開導線だけは維持する判断）。
-            # DB 接続失敗は本物の障害なので ERROR (docs/logging.md 規約)
-            logger.error(
-                "IndexView degraded gracefully because the database was unavailable",
-                exc_info=True,
+            # 既知の縮退経路なので error_reporting の例外通知対象にしない。
+            logger.warning(
+                "IndexView degraded gracefully because the database was unavailable: %s",
+                exc,
             )
             context['database_degraded'] = True
 
