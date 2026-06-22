@@ -27,6 +27,9 @@ from website.settings import GOOGLE_API_KEY
 
 logger = logging.getLogger(__name__)
 
+MAX_SOURCE_TEXT_CHARS = 120_000
+MAX_PDF_TEXT_PAGES = 30
+
 
 class BlogOutput(BaseModel):
     """ブログ記事の出力形式を定義するPydanticモデル"""
@@ -55,6 +58,65 @@ def apply_blog_output_to_event_detail(event_detail: EventDetail, blog_output: Bl
     if not event_detail.thumbnail_image:
         ensure_pdf_thumbnail(event_detail)
     return True
+
+
+def _copy_uploaded_file_to_temp_path(uploaded_file, *, suffix: str = '.pdf') -> str:
+    """Copy a Django file to a temp path without loading it all into memory."""
+    temp_file_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+            temp_file_path = temp_file.name
+            uploaded_file.open('rb')
+            for chunk in uploaded_file.chunks():
+                temp_file.write(chunk)
+        return temp_file_path
+    except Exception:
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+        raise
+    finally:
+        close = getattr(uploaded_file, 'close', None)
+        if callable(close):
+            close()
+
+
+def _limit_source_text(text: str, *, max_chars: int = MAX_SOURCE_TEXT_CHARS) -> str:
+    """Limit extracted source text before it is embedded in an LLM prompt."""
+    if len(text) <= max_chars:
+        return text
+    logger.info("Source text truncated from %d to %d chars", len(text), max_chars)
+    return text[:max_chars]
+
+
+def _extract_pdf_text(temp_file_path: str) -> str:
+    """Extract bounded text from a PDF file for blog generation."""
+    reader = PdfReader(temp_file_path)
+    page_count = len(reader.pages)
+    if page_count > MAX_PDF_TEXT_PAGES:
+        logger.info(
+            "PDF text extraction limited to first %d of %d pages",
+            MAX_PDF_TEXT_PAGES,
+            page_count,
+        )
+
+    page_texts = []
+    current_chars = 0
+    for page_index, page in enumerate(reader.pages):
+        if page_index >= MAX_PDF_TEXT_PAGES:
+            break
+
+        text = page.extract_text() or ""
+        if not text:
+            continue
+
+        remaining_chars = MAX_SOURCE_TEXT_CHARS - current_chars
+        if remaining_chars <= 0:
+            break
+
+        page_texts.append(text[:remaining_chars])
+        current_chars += min(len(text), remaining_chars) + 1
+
+    return "\n".join(page_texts)
 
 
 def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
@@ -102,27 +164,23 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
         pdf_url = event_detail.slide_url or (event_detail.slide_file.url if event_detail.slide_file else "")
 
         if event_detail.slide_file:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-                event_detail.slide_file.seek(0)
-                temp_file.write(event_detail.slide_file.read())
-                temp_file_path = temp_file.name
-
+            temp_file_path = None
             try:
+                temp_file_path = _copy_uploaded_file_to_temp_path(event_detail.slide_file)
                 # PyPDFを使用してPDFの内容を抽出
-                reader = PdfReader(temp_file_path)
-                pdf_content = "\n".join([page.extract_text() or "" for page in reader.pages])
+                pdf_content = _extract_pdf_text(temp_file_path)
                 logger.info(f"Extracted PDF content: {len(pdf_content)} chars")
             except Exception as e:
                 logger.warning(f"Error loading PDF for EventDetail {event_detail.pk}: {e}")
             finally:
                 # 一時ファイルを確実に削除
-                if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
+                if temp_file_path and os.path.exists(temp_file_path):
                     os.unlink(temp_file_path)
 
         # プロンプトテンプレートを作成
         prompt_text = BLOG_GENERATION_TEMPLATE.format(
-            transcript=transcript or "文字起こしはありません。",  # 空の場合の代替テキスト
-            pdf_content=pdf_content or "PDFコンテンツはありません。",  # 空の場合の代替テキスト
+            transcript=_limit_source_text(transcript) if transcript else "文字起こしはありません。",
+            pdf_content=pdf_content or "PDFコンテンツはありません。",
             date=event_detail.event.date.strftime('%Y年%m月%d日') if hasattr(event_detail.event.date,
                                                                              'strftime') else event_detail.event.date,
             # 日付フォーマット（文字列の場合はそのまま）
