@@ -35,9 +35,9 @@ steps:
       - '--set-secrets'
       - 'DISCORD_WEBHOOK_URL=DISCORD_WEBHOOK_URL:latest,DISCORD_CLIENT_ID=DISCORD_CLIENT_ID:latest,DISCORD_CLIENT_SECRET=DISCORD_CLIENT_SECRET:latest,DISCORD_REPORT_WEBHOOK_URL=DISCORD_REPORT_WEBHOOK_URL:latest,X_API_KEY=X_API_KEY:latest,X_API_SECRET=X_API_SECRET:latest,X_ACCESS_TOKEN=X_ACCESS_TOKEN:latest,X_ACCESS_TOKEN_SECRET=X_ACCESS_TOKEN_SECRET:latest,FERNET_KEY=FERNET_KEY:latest,SENTRY_DSN=SENTRY_DSN:latest'
       # GA4_PROPERTY_ID: GA4 Data API のプロパティID
-      # CORS_ALLOWED_ORIGINS: /api/ への CORS 許可オリジン (CSV)。本番フロントの自オリジン。
+      # CORS_ALLOWED_ORIGINS: /api/ への CORS 許可オリジン (CSV)。本番フロントと連携サイト。
       - '--update-env-vars'
-      - 'GA4_PROPERTY_ID=444114283,CORS_ALLOWED_ORIGINS=https://vrc-ta-hub.com'
+      - '^|^GA4_PROPERTY_ID=444114283|CORS_ALLOWED_ORIGINS=https://vrc-ta-hub.com,https://it-infra-meetup.org'
       - '${_SERVICE_NAME}'
 
   # 旧 `rev-*` タグの掃除のみ実施。カナリア検証用の `canary` タグは deploy-watch スキルが
