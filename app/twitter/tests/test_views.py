@@ -209,6 +209,20 @@ class TwitterTemplateCreateViewTest(TestCase):
         # Forbidden (403) を返す
         self.assertEqual(response.status_code, 403)
 
+    def test_create_form_shows_group_url_variable_in_default_template_and_help(self):
+        """新規作成フォームはグループURL変数を初期値とヘルプに表示する"""
+        self.client.login(username='owner_user2', password='testpassword')
+        session = self.client.session
+        session['active_community_id'] = self.community.id
+        session.save()
+
+        response = self.client.get(reverse('twitter:template_create'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '{group_url}')
+        self.assertContains(response, '{hashtag}')
+        self.assertNotContains(response, 'https://**')
+
 
 class TweetEventWithTemplateViewTest(TestCase):
     """TweetEventWithTemplateViewのテスト"""

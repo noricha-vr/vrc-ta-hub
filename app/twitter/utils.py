@@ -21,7 +21,9 @@ def format_event_info(event):
         "event_name": event.community.name,
         "date": f"{event.date.year}年{event.date.month}月{event.date.day}日({weekday})",
         "time": event.start_time.strftime("%H:%M"),
-        "details": details_text
+        "details": details_text,
+        "group_url": event.community.group_url,
+        "hashtag": " ".join(event.community.hashtag_list),
     }
 
 
@@ -42,6 +44,8 @@ def generate_tweet(template, event_info):
 イベント名: {event_info['event_name']}
 日付: {event_info['date']}
 時間: {event_info['time']}
+グループURL: {event_info.get('group_url', '')}
+ハッシュタグ: {event_info.get('hashtag', '')}
 詳細:
 {event_info['details']}
 
