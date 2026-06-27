@@ -83,6 +83,19 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 
 ログインが必要な動作確認時は `.env.local` の `TEST_USER_NAME` と `TEST_USER_PASSWORD` を参照。
 
+### AIエージェント向けログインスキップ
+
+AIエージェントがログイン後ページを確認する場合は、毎回手動ログインせずに `DEBUG_LOGIN_SKIP=true` を使える。
+この機能は `DEBUG=True` の時だけ有効で、未ログインリクエストに staff 権限のデバッグユーザーを割り当てる。
+`DEBUG=False` では `DEBUG_LOGIN_SKIP=true` を設定していても無効。
+
+```bash
+docker compose run --rm --service-ports -e DEBUG_LOGIN_SKIP=true vrc-ta-hub \
+  /bin/sh -c "python manage.py wait_for_db --timeout 90 && python manage.py runserver 0.0.0.0:8080"
+```
+
+デフォルトユーザーは `DEBUG_LOGIN_SKIP_USER_NAME=ai_agent` / `DEBUG_LOGIN_SKIP_USER_EMAIL=ai-agent@example.local`。
+
 ## 環境変数（.env.local）
 - `SECRET_KEY`: Djangoシークレットキー
 - `DEBUG`: デバッグモード設定
