@@ -5,6 +5,8 @@ SOCIALACCOUNT_* / Discord OAuth プロバイダ設定をまとめる。
 """
 import os
 
+from .base import DEBUG
+
 AUTH_USER_MODEL = 'user_account.CustomUser'
 
 AUTHENTICATION_BACKENDS = [
@@ -53,3 +55,11 @@ SOCIALACCOUNT_FORMS = {
 # ソーシャルアカウントの接続解除（disconnect）を試みた場合のリダイレクト先
 # 削除ボタンはテンプレートで非表示にするが、直接アクセスされた場合の保険
 SOCIALACCOUNT_DISCONNECT_REDIRECT_URL = '/account/settings/'
+
+# AIエージェントのローカル確認用。DEBUG=False では環境変数が true でも無効化する。
+DEBUG_LOGIN_SKIP = DEBUG and os.environ.get('DEBUG_LOGIN_SKIP', '').lower() == 'true'
+DEBUG_LOGIN_SKIP_USER_NAME = os.environ.get('DEBUG_LOGIN_SKIP_USER_NAME', 'ai_agent')
+DEBUG_LOGIN_SKIP_USER_EMAIL = os.environ.get(
+    'DEBUG_LOGIN_SKIP_USER_EMAIL',
+    'ai-agent@example.local',
+)

@@ -8,6 +8,70 @@ from allauth.socialaccount.models import SocialAccount
 User = get_user_model()
 
 
+class DebugLoginSkipMiddlewareTests(TestCase):
+    """DebugLoginSkipMiddlewareのテストクラス."""
+
+    def setUp(self):
+        """テスト用のクライアントを準備."""
+        self.client = Client()
+
+    @override_settings(
+        DEBUG=True,
+        DEBUG_LOGIN_SKIP=True,
+        DEBUG_LOGIN_SKIP_USER_NAME='ai_agent',
+        DEBUG_LOGIN_SKIP_USER_EMAIL='ai-agent@example.local',
+        DISCORD_AUTH_REQUIRED=False,
+    )
+    def test_debug_login_skip_allows_protected_page(self):
+        """DEBUG時の明示ONでは未ログインでも保護ページにアクセスできること."""
+        response = self.client.get(reverse('account:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        user = User.objects.get(user_name='ai_agent')
+        self.assertEqual(response.wsgi_request.user, user)
+        self.assertTrue(user.is_active)
+        self.assertTrue(user.is_staff)
+        self.assertFalse(user.is_superuser)
+        self.assertFalse(user.has_usable_password())
+
+    @override_settings(
+        DEBUG=False,
+        DEBUG_LOGIN_SKIP=True,
+        DEBUG_LOGIN_SKIP_USER_NAME='ai_agent',
+        DEBUG_LOGIN_SKIP_USER_EMAIL='ai-agent@example.local',
+        DISCORD_AUTH_REQUIRED=False,
+    )
+    def test_debug_login_skip_is_disabled_when_debug_false(self):
+        """DEBUG=Falseでは明示ONでもログインスキップされないこと."""
+        response = self.client.get(reverse('account:settings'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/account/login/', response['Location'])
+        self.assertFalse(User.objects.filter(user_name='ai_agent').exists())
+
+    @override_settings(
+        DEBUG=True,
+        DEBUG_LOGIN_SKIP=True,
+        DEBUG_LOGIN_SKIP_USER_NAME='ai_agent',
+        DEBUG_LOGIN_SKIP_USER_EMAIL='ai-agent@example.local',
+        DISCORD_AUTH_REQUIRED=False,
+    )
+    def test_debug_login_skip_does_not_replace_authenticated_user(self):
+        """ログイン済みユーザーはデバッグユーザーで上書きされないこと."""
+        user = User.objects.create_user(
+            user_name='real_user',
+            email='real-user@example.local',
+            password='testpass123',
+        )
+        self.client.login(username='real_user', password='testpass123')
+
+        response = self.client.get(reverse('account:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.wsgi_request.user, user)
+        self.assertFalse(User.objects.filter(user_name='ai_agent').exists())
+
+
 @override_settings(DISCORD_AUTH_REQUIRED=True)
 @tag('external_api')
 class DiscordAuthRequiredMiddlewareTests(TestCase):
