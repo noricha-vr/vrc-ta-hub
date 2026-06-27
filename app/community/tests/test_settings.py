@@ -360,6 +360,8 @@ class WebhookSettingsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Discord通知')
+        self.assertContains(response, 'Discord Webhook設定ガイド')
+        self.assertContains(response, '/guide/settings/discord/')
         self.assertContains(response, '以下のタイミングでDiscordに通知を送信します')
         self.assertContains(response, '発表申請があった時')
         self.assertContains(response, '発表資料（スライドURL／PDF）が初めて公開された時')
