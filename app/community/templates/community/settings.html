@@ -82,6 +82,11 @@
                 <h6 class="fw-medium mb-2">
                     <i class="fa-brands fa-discord me-2"></i>Discord通知
                 </h6>
+                <p class="text-muted small mb-3">
+                    Webhook URLの取得方法やメンション設定は、
+                    <a href="/guide/settings/discord/" class="fw-medium">Discord Webhook設定ガイド</a>
+                    をご確認ください。
+                </p>
                 <div class="d-flex gap-2 align-items-stretch">
                     <form method="post" action="{% url 'community:update_webhook' community.pk %}"
                           class="d-flex flex-grow-1 gap-2">
