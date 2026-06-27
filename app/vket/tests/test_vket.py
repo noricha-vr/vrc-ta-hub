@@ -1545,6 +1545,36 @@ class VketManageViewsTests(TestCase):
         self.assertContains(response, 'value="21:30"')
         self.assertNotContains(response, f'name="pres_{draft_pres.pk}_start_time"')
 
+    def test_manage_page_prefers_event_detail_time_for_published_presentation(self):
+        """公開済み発表の入力初期値は公開EventDetailの時刻を優先する"""
+        self.client.login(username='admin_user', password='adminpass123')
+        detail = EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            speaker='公開済み登壇者',
+            theme='公開済みテーマ',
+            start_time='22:15',
+            duration=30,
+            status='approved',
+        )
+        presentation = VketPresentation.objects.create(
+            participation=self.participation1,
+            order=0,
+            speaker='公開済み登壇者',
+            theme='公開済みテーマ',
+            confirmed_start_time='21:30',
+            status=VketPresentation.Status.CONFIRMED,
+            published_event_detail=detail,
+        )
+
+        response = self.client.get(
+            reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, f'name="pres_{presentation.pk}_start_time"')
+        self.assertContains(response, 'value="22:15"')
+
     def test_manage_page_shows_lt_time_badge(self):
         """管理画面でLT時間バッジが表示される"""
         self.client.login(username='admin_user', password='adminpass123')

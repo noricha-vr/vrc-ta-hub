@@ -149,7 +149,7 @@
                                             {% if pres.status == 'confirmed' or pres.published_event_detail %}
                                                 <input class="form-control form-control-sm" type="time"
                                                        name="pres_{{ pres.pk }}_start_time"
-                                                       value="{% if pres.confirmed_start_time %}{{ pres.confirmed_start_time|date:'H:i' }}{% elif pres.published_event_detail %}{{ pres.published_event_detail.start_time|date:'H:i' }}{% elif pres.requested_start_time %}{{ pres.requested_start_time|date:'H:i' }}{% endif %}"
+                                                       value="{% if pres.published_event_detail %}{{ pres.published_event_detail.start_time|date:'H:i' }}{% elif pres.confirmed_start_time %}{{ pres.confirmed_start_time|date:'H:i' }}{% elif pres.requested_start_time %}{{ pres.requested_start_time|date:'H:i' }}{% endif %}"
                                                        step="300"
                                                        style="width: 5.5rem; padding: 0.1rem 0.2rem;">
                                             {% else %}
