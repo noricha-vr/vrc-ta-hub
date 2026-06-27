@@ -1319,6 +1319,55 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(foreign_presentation.confirmed_start_time.strftime('%H:%M'), '21:30')
         self.assertEqual(foreign_detail.start_time.strftime('%H:%M'), '21:30')
 
+    def test_manage_participation_update_does_not_sync_foreign_event_detail(self):
+        """同参加の発表でも別イベントのEventDetailは更新しない"""
+        self.client.login(username='admin_user', password='adminpass123')
+        foreign_detail = EventDetail.objects.create(
+            event=self.event2,
+            detail_type='LT',
+            speaker='別イベント登壇者',
+            theme='別イベントテーマ',
+            start_time='21:30',
+            duration=30,
+            status='approved',
+        )
+        presentation = VketPresentation.objects.create(
+            participation=self.participation1,
+            order=0,
+            speaker='不整合登壇者',
+            theme='不整合テーマ',
+            confirmed_start_time='21:30',
+            status=VketPresentation.Status.CONFIRMED,
+            published_event_detail=foreign_detail,
+        )
+        cache_key = get_index_view_cache_key()
+        cache.set(cache_key, {'upcoming_event_details': ['stale']}, 60)
+        new_date = self.collaboration.period_start
+        response = self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': self.participation1.pk,
+                },
+            ),
+            data={
+                'confirmed_date': new_date.isoformat(),
+                'confirmed_start_time': '21:00',
+                'confirmed_duration': '60',
+                'admin_note': '',
+                f'pres_{presentation.pk}_start_time': '23:00',
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        presentation.refresh_from_db()
+        foreign_detail.refresh_from_db()
+        self.assertEqual(presentation.confirmed_start_time.strftime('%H:%M'), '23:00')
+        self.assertEqual(foreign_detail.start_time.strftime('%H:%M'), '21:30')
+        self.assertIsNotNone(cache.get(cache_key))
+
     def test_manage_update_confirms_draft_presentations(self):
         """確定ボタン押下でDRAFTのLTがCONFIRMEDに一括更新される"""
         self.client.login(username='admin_user', password='adminpass123')

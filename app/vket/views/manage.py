@@ -273,6 +273,13 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
                     pres.save(update_fields=['confirmed_start_time', 'updated_at'])
 
                     if pres.published_event_detail_id:
+                        if pres.published_event_detail.event_id != participation.published_event_id:
+                            logger.warning(
+                                'VketPresentation #%d の EventDetail #%d は参加の公開イベントに属していません',
+                                pres_id,
+                                pres.published_event_detail_id,
+                            )
+                            continue
                         pres.published_event_detail.start_time = new_time
                         pres.published_event_detail.save(update_fields=['start_time', 'updated_at'])
                         changed_index_detail = True
