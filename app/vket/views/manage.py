@@ -212,6 +212,20 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
             ]
         )
 
+        pres_pattern = re.compile(r'^pres_(\d+)_start_time$')
+        pres_updates = {}
+        for key, value in request.POST.items():
+            m = pres_pattern.match(key)
+            if m and value:
+                pres_updates[int(m.group(1))] = value
+
+        allowed_presentation_ids = set(
+            participation.presentations.filter(
+                pk__in=pres_updates.keys(),
+                status=VketPresentation.Status.CONFIRMED,
+            ).values_list('id', flat=True)
+        )
+
         # DRAFT のLTを一括確定
         participation.presentations.filter(
             status=VketPresentation.Status.DRAFT,
@@ -237,30 +251,40 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
                 pres.save(update_fields=['published_event_detail', 'updated_at'])
                 changed_index_detail = True
 
-        # EventDetailのLT開始時刻を更新
-        detail_pattern = re.compile(r'^detail_(\d+)_start_time$')
-        detail_updates = {}
-        for key, value in request.POST.items():
-            m = detail_pattern.match(key)
-            if m and value:
-                detail_updates[int(m.group(1))] = value
+        # 発表ごとの確定開始時刻を更新し、公開済みなら EventDetail にも同期する
+        if pres_updates:
+            allowed_presentations = {
+                pres.pk: pres
+                for pres in participation.presentations.select_related(
+                    'published_event_detail'
+                ).filter(
+                    pk__in=allowed_presentation_ids,
+                    status=VketPresentation.Status.CONFIRMED,
+                )
+            }
 
-        if detail_updates:
-            allowed_detail_ids = set(
-                EventDetail.objects.filter(
-                    event=participation.published_event
-                ).values_list('id', flat=True)
-            ) if participation.published_event else set()
-
-            for detail_id, time_str in detail_updates.items():
-                if detail_id not in allowed_detail_ids:
+            for pres_id, time_str in pres_updates.items():
+                pres = allowed_presentations.get(pres_id)
+                if pres is None:
                     continue
                 try:
                     new_time = datetime.strptime(time_str, '%H:%M').time()
-                    updated_count = EventDetail.objects.filter(pk=detail_id).update(start_time=new_time)
-                    changed_index_detail = changed_index_detail or updated_count > 0
+                    pres.confirmed_start_time = new_time
+                    pres.save(update_fields=['confirmed_start_time', 'updated_at'])
+
+                    if pres.published_event_detail_id:
+                        if pres.published_event_detail.event_id != participation.published_event_id:
+                            logger.warning(
+                                'VketPresentation #%d の EventDetail #%d は参加の公開イベントに属していません',
+                                pres_id,
+                                pres.published_event_detail_id,
+                            )
+                            continue
+                        pres.published_event_detail.start_time = new_time
+                        pres.published_event_detail.save(update_fields=['start_time', 'updated_at'])
+                        changed_index_detail = True
                 except (ValueError, KeyError):
-                    logger.warning('EventDetail #%d の start_time パース失敗: %s', detail_id, time_str)
+                    logger.warning('VketPresentation #%d の start_time パース失敗: %s', pres_id, time_str)
 
         if changed_index_detail:
             clear_index_view_cache()
