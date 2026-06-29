@@ -39,13 +39,19 @@
         {% if participation.is_schedule_confirmed and permissions.can_edit_lt %}
             <div class="alert alert-warning">
                 <i class="fas fa-lock me-1"></i>
-                発表開始時刻は日程確定済みのため編集できません。登壇者名・テーマ・備考は発表締切まで更新できます。
+                発表開始時刻は日程確定済みのため編集できません。登壇者名・テーマ・備考は発表情報の受付期間中に更新できます。
+            </div>
+        {% endif %}
+        {% if is_late_lt_submission %}
+            <div class="alert alert-warning">
+                <i class="fas fa-clock me-1"></i>
+                発表情報（Step 2）の締切後です。保存した発表は申請中として受け付け、運営の確認後に確定・公開されます。
             </div>
         {% endif %}
         {% if not permissions.can_edit_lt %}
             <div class="alert alert-warning">
                 <i class="fas fa-lock me-1"></i>
-                発表情報（Step 2）は締切を過ぎているため編集できません。
+                発表情報（Step 2）は受付期間外のため編集できません。
             </div>
         {% endif %}
 

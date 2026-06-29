@@ -71,6 +71,10 @@ class ApplyView(LoginRequiredMixin, View):
                 'form': form,
                 'formset': formset,
                 'permissions': permissions,
+                'is_late_lt_submission': self._is_late_lt_submission(
+                    collaboration,
+                    permissions,
+                ),
                 **schedule_ctx,
             },
         )
@@ -128,6 +132,10 @@ class ApplyView(LoginRequiredMixin, View):
                     'form': form,
                     'formset': formset,
                     'permissions': permissions,
+                    'is_late_lt_submission': self._is_late_lt_submission(
+                        collaboration,
+                        permissions,
+                    ),
                     **schedule_ctx,
                 },
             )
@@ -155,6 +163,10 @@ class ApplyView(LoginRequiredMixin, View):
                     'form': form,
                     'formset': formset,
                     'permissions': permissions,
+                    'is_late_lt_submission': self._is_late_lt_submission(
+                        collaboration,
+                        permissions,
+                    ),
                 },
             )
 
@@ -194,6 +206,14 @@ class ApplyView(LoginRequiredMixin, View):
     def _is_schedule_locked(participation: VketParticipation | None) -> bool:
         """主催者向けの日程・LT開始時刻を固定する状態なら True を返す"""
         return bool(participation and participation.is_schedule_confirmed)
+
+    @staticmethod
+    def _is_late_lt_submission(
+        collaboration: VketCollaboration,
+        permissions: VketApplyPermissions,
+    ) -> bool:
+        """発表情報締切後も申請として受け付けている状態なら True を返す"""
+        return permissions.can_edit_lt and timezone.localdate() > collaboration.lt_deadline
 
     def _apply_permissions_for_participation(
         self,
@@ -277,10 +297,19 @@ class ApplyView(LoginRequiredMixin, View):
 
         # プレゼンテーション情報をVketPresentationに保存（formset）
         if permissions.can_edit_lt:
+            is_late_lt_submission = self._is_late_lt_submission(collaboration, permissions)
             if self._is_schedule_locked(participation):
-                self._save_locked_presentations(participation, formset_data)
+                self._save_locked_presentations(
+                    participation,
+                    formset_data,
+                    is_late_lt_submission=is_late_lt_submission,
+                )
             else:
-                self._save_editable_presentations(participation, formset_data)
+                self._save_editable_presentations(
+                    participation,
+                    formset_data,
+                    is_late_lt_submission=is_late_lt_submission,
+                )
 
         return participation
 
@@ -288,6 +317,8 @@ class ApplyView(LoginRequiredMixin, View):
         self,
         participation: VketParticipation,
         formset_data: list[dict],
+        *,
+        is_late_lt_submission: bool = False,
     ) -> None:
         """確定前のLT情報を通常どおり保存する"""
         saved_orders = set()
@@ -299,14 +330,17 @@ class ApplyView(LoginRequiredMixin, View):
             theme = (row.get('theme') or '').strip()
             if not speaker and not theme:
                 continue
+            defaults = {
+                'speaker': speaker,
+                'theme': theme,
+                'requested_start_time': row.get('lt_start_time'),
+            }
+            if is_late_lt_submission:
+                defaults['status'] = VketPresentation.Status.DRAFT
             VketPresentation.objects.update_or_create(
                 participation=participation,
                 order=order,
-                defaults={
-                    'speaker': speaker,
-                    'theme': theme,
-                    'requested_start_time': row.get('lt_start_time'),
-                },
+                defaults=defaults,
             )
             saved_orders.add(order)
             order += 1
@@ -319,6 +353,8 @@ class ApplyView(LoginRequiredMixin, View):
         self,
         participation: VketParticipation,
         formset_data: list[dict],
+        *,
+        is_late_lt_submission: bool = False,
     ) -> None:
         """確定後は既存LTの削除と開始時刻変更を拒否して保存する"""
         existing_by_order = {
@@ -340,7 +376,11 @@ class ApplyView(LoginRequiredMixin, View):
             if existing:
                 existing.speaker = speaker
                 existing.theme = theme
-                existing.save(update_fields=['speaker', 'theme', 'updated_at'])
+                update_fields = ['speaker', 'theme', 'updated_at']
+                if is_late_lt_submission:
+                    existing.status = VketPresentation.Status.DRAFT
+                    update_fields.append('status')
+                existing.save(update_fields=update_fields)
                 continue
 
             VketPresentation.objects.create(
@@ -349,5 +389,6 @@ class ApplyView(LoginRequiredMixin, View):
                 speaker=speaker,
                 theme=theme,
                 requested_start_time=row.get('lt_start_time'),
+                status=VketPresentation.Status.DRAFT,
             )
             next_order += 1

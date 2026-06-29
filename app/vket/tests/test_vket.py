@@ -260,6 +260,150 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['can_apply'])
 
+    def test_apply_accepts_late_lt_submission_as_draft_for_existing_participation(self):
+        """発表締切後も既存参加団体の発表情報は申請中で保存できる"""
+        today = timezone.localdate()
+        self.collaboration.registration_deadline = today - timedelta(days=3)
+        self.collaboration.lt_deadline = today - timedelta(days=1)
+        self.collaboration.phase = VketCollaboration.Phase.ANNOUNCEMENT
+        self.collaboration.save()
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time=time(21, 0),
+            requested_duration=60,
+            progress=VketParticipation.Progress.APPLIED,
+            applied_by=self.owner,
+        )
+
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['permissions'].can_edit_lt)
+        self.assertTrue(response.context['is_late_lt_submission'])
+        self.assertContains(response, '運営の確認後に確定・公開されます。')
+
+        post_data = {
+            'requested_date': self.collaboration.period_start.isoformat(),
+            'requested_start_time': '21:00',
+            'requested_duration': '60',
+            'organizer_note': '締切後の追記',
+        }
+        post_data.update(
+            self._make_formset_data([
+                {'speaker': '締切後登壇者', 'theme': '締切後テーマ'}
+            ])
+        )
+
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}),
+            data=post_data,
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        participation.refresh_from_db()
+        presentation = VketPresentation.objects.get(participation=participation)
+        self.assertEqual(participation.organizer_note, '締切後の追記')
+        self.assertEqual(presentation.speaker, '締切後登壇者')
+        self.assertEqual(presentation.status, VketPresentation.Status.DRAFT)
+
+    def test_late_lt_update_resets_confirmed_presentation_to_draft(self):
+        """締切後に確定済み発表を更新した場合は申請中に戻す"""
+        today = timezone.localdate()
+        self.collaboration.registration_deadline = today - timedelta(days=3)
+        self.collaboration.lt_deadline = today - timedelta(days=1)
+        self.collaboration.phase = VketCollaboration.Phase.ANNOUNCEMENT
+        self.collaboration.save()
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time=time(21, 0),
+            requested_duration=60,
+            confirmed_date=self.collaboration.period_start,
+            confirmed_start_time=time(21, 0),
+            confirmed_duration=60,
+            schedule_confirmed_at=timezone.now(),
+            progress=VketParticipation.Progress.REHEARSAL,
+            applied_by=self.owner,
+        )
+        presentation = VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='確定済み登壇者',
+            theme='確定済みテーマ',
+            requested_start_time=time(21, 30),
+            status=VketPresentation.Status.CONFIRMED,
+        )
+
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        post_data = {
+            'requested_date': self.collaboration.period_start.isoformat(),
+            'requested_start_time': '23:00',
+            'requested_duration': '90',
+            'organizer_note': '締切後更新',
+        }
+        post_data.update(
+            self._make_formset_data(
+                [
+                    {
+                        'speaker': '更新後登壇者',
+                        'theme': '更新後テーマ',
+                        'lt_start_time': '23:30',
+                    }
+                ],
+                initial_forms=1,
+            )
+        )
+
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}),
+            data=post_data,
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        presentation.refresh_from_db()
+        self.assertEqual(presentation.speaker, '更新後登壇者')
+        self.assertEqual(presentation.theme, '更新後テーマ')
+        self.assertEqual(presentation.requested_start_time.strftime('%H:%M'), '21:30')
+        self.assertEqual(presentation.status, VketPresentation.Status.DRAFT)
+
+    def test_apply_blocks_lt_submission_after_event_period(self):
+        """開催期間後は発表情報も編集不可にする"""
+        today = timezone.localdate()
+        self.collaboration.period_start = today - timedelta(days=8)
+        self.collaboration.period_end = today - timedelta(days=1)
+        self.collaboration.registration_deadline = today - timedelta(days=7)
+        self.collaboration.lt_deadline = today - timedelta(days=2)
+        self.collaboration.phase = VketCollaboration.Phase.ANNOUNCEMENT
+        self.collaboration.save()
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time=time(21, 0),
+            requested_duration=60,
+            progress=VketParticipation.Progress.APPLIED,
+            applied_by=self.owner,
+        )
+
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['permissions'].can_edit_lt)
+        self.assertFalse(response.context['is_late_lt_submission'])
+        self.assertContains(response, '発表情報（Step 2）は受付期間外のため編集できません。')
+
     def test_status_page_shows_register_complete_guidance(self):
         """参加状況画面で登録後の次アクションが明示される"""
         self.collaboration.slug = 'vket-2026-summer'
@@ -2678,6 +2822,28 @@ class VketPublishViewTests(TestCase):
         # EventDetail が作成され、start_time に requested_start_time が使われていること
         detail = EventDetail.objects.get(event=event)
         self.assertEqual(detail.start_time.strftime('%H:%M'), '21:30')
+
+    def test_publish_skips_draft_presentation(self):
+        """申請中の発表は公開処理でEventDetailにしない"""
+        VketPresentation.objects.create(
+            participation=self.participation,
+            order=0,
+            speaker='申請中登壇者',
+            theme='申請中テーマ',
+            requested_start_time=time(21, 30),
+            status=VketPresentation.Status.DRAFT,
+        )
+
+        self.client.login(username='admin_pub', password='adminpass123')
+        response = self.client.post(
+            reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.participation.refresh_from_db()
+        self.assertIsNotNone(self.participation.published_event_id)
+        self.assertFalse(EventDetail.objects.filter(speaker='申請中登壇者').exists())
 
     def test_publish_clears_index_cache_when_updating_existing_event_detail(self):
         """公開処理で既存EventDetailをbulk updateした場合もトップページキャッシュを削除する"""
