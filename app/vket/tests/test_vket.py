@@ -1222,6 +1222,105 @@ class VketManageViewsTests(TestCase):
         self.assertTrue(new_participation.schedule_adjusted_by_admin)
         self.assertEqual(new_participation.progress, VketParticipation.Progress.REHEARSAL)
         self.assertIsNotNone(new_participation.schedule_confirmed_at)
+        self.assertIsNotNone(new_participation.published_event_id)
+
+    def test_manage_participation_update_reuses_existing_event(self):
+        """確定日程に一致する既存Eventがあれば公開イベントとして再利用する"""
+        self.client.login(username='admin_user', password='adminpass123')
+        community = Community.objects.create(name='集会C', status='approved', frequency='毎週')
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time='22:00',
+            requested_duration=60,
+        )
+        existing_event = Event.objects.create(
+            community=community,
+            date=self.collaboration.period_start,
+            start_time='22:00',
+            duration=60,
+            weekday='Tue',
+        )
+        presentation = VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='既存Event登壇者',
+            theme='既存Eventテーマ',
+            requested_start_time='22:30',
+            status=VketPresentation.Status.CONFIRMED,
+        )
+
+        response = self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': participation.pk,
+                },
+            ),
+            data={
+                'confirmed_date': self.collaboration.period_start.isoformat(),
+                'confirmed_start_time': '22:00',
+                'confirmed_duration': '60',
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        participation.refresh_from_db()
+        presentation.refresh_from_db()
+        self.assertEqual(participation.published_event_id, existing_event.pk)
+        self.assertEqual(Event.objects.filter(community=community).count(), 1)
+        self.assertEqual(presentation.published_event_detail.event_id, existing_event.pk)
+        self.assertEqual(presentation.published_event_detail.start_time.strftime('%H:%M'), '22:30')
+
+    def test_manage_participation_update_approves_existing_pending_detail(self):
+        """既存のpending EventDetailは確定時にapprovedへ同期される"""
+        self.client.login(username='admin_user', password='adminpass123')
+        detail = EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            speaker='承認前登壇者',
+            theme='承認前テーマ',
+            start_time='21:30',
+            duration=30,
+            status='pending',
+        )
+        presentation = VketPresentation.objects.create(
+            participation=self.participation1,
+            order=0,
+            speaker='承認後登壇者',
+            theme='承認後テーマ',
+            requested_start_time='21:45',
+            status=VketPresentation.Status.CONFIRMED,
+            published_event_detail=detail,
+        )
+
+        response = self.client.post(
+            reverse(
+                'vket:manage_participation_update',
+                kwargs={
+                    'pk': self.collaboration.pk,
+                    'participation_id': self.participation1.pk,
+                },
+            ),
+            data={
+                'confirmed_date': self.collaboration.period_start.isoformat(),
+                'confirmed_start_time': '21:00',
+                'confirmed_duration': '60',
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        presentation.refresh_from_db()
+        detail.refresh_from_db()
+        self.assertEqual(detail.status, 'approved')
+        self.assertEqual(detail.speaker, '承認後登壇者')
+        self.assertEqual(detail.theme, '承認後テーマ')
+        self.assertEqual(detail.start_time.strftime('%H:%M'), '21:45')
+        self.assertEqual(presentation.published_event_detail_id, detail.pk)
 
     def test_manage_participation_update_sets_lifecycle_without_schedule(self):
         """管理画面から参加状態だけを不参加に変更できる"""
@@ -1297,7 +1396,7 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(self.participation1.lifecycle, VketParticipation.Lifecycle.DECLINED)
         self.assertIsNone(self.participation1.published_event_id)
         self.assertIsNone(presentation.published_event_detail_id)
-        self.assertFalse(Event.objects.filter(pk=self.event1.pk).exists())
+        self.assertTrue(Event.objects.filter(pk=self.event1.pk).exists())
         self.assertFalse(EventDetail.objects.filter(pk=detail.pk).exists())
 
     def test_manage_participation_update_requires_schedule_for_active(self):
@@ -1327,8 +1426,8 @@ class VketManageViewsTests(TestCase):
         self.assertIsNone(new_participation.confirmed_date)
         self.assertFalse(new_participation.schedule_adjusted_by_admin)
 
-    def test_manage_participation_update_sets_rehearsal_presentation_start_time(self):
-        """公開前の発表開始時刻はVketPresentationに保存される"""
+    def test_manage_participation_update_publishes_confirmed_presentation(self):
+        """確定ボタンは発表時刻を保存しEventDetailへ公開同期する"""
         self.client.login(username='admin_user', password='adminpass123')
         participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
@@ -1366,8 +1465,13 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
         presentation.refresh_from_db()
+        participation.refresh_from_db()
         self.assertEqual(presentation.confirmed_start_time.strftime('%H:%M'), '22:15')
-        self.assertIsNone(presentation.published_event_detail_id)
+        self.assertIsNotNone(participation.published_event_id)
+        self.assertIsNotNone(presentation.published_event_detail_id)
+        self.assertEqual(presentation.published_event_detail.event_id, participation.published_event_id)
+        self.assertEqual(presentation.published_event_detail.start_time.strftime('%H:%M'), '22:15')
+        self.assertEqual(presentation.published_event_detail.status, 'approved')
 
     def test_manage_participation_update_updates_published_presentation_start_time(self):
         """公開済み発表の開始時刻はVketPresentationとEventDetailに同期される"""
@@ -1463,8 +1567,8 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(foreign_presentation.confirmed_start_time.strftime('%H:%M'), '21:30')
         self.assertEqual(foreign_detail.start_time.strftime('%H:%M'), '21:30')
 
-    def test_manage_participation_update_does_not_sync_foreign_event_detail(self):
-        """同参加の発表でも別イベントのEventDetailは更新しない"""
+    def test_manage_participation_update_repairs_foreign_event_detail(self):
+        """同参加の発表に紐づく別イベントのEventDetailは公開イベントへ付け替える"""
         self.client.login(username='admin_user', password='adminpass123')
         foreign_detail = EventDetail.objects.create(
             event=self.event2,
@@ -1509,8 +1613,10 @@ class VketManageViewsTests(TestCase):
         presentation.refresh_from_db()
         foreign_detail.refresh_from_db()
         self.assertEqual(presentation.confirmed_start_time.strftime('%H:%M'), '23:00')
-        self.assertEqual(foreign_detail.start_time.strftime('%H:%M'), '21:30')
-        self.assertIsNotNone(cache.get(cache_key))
+        self.assertEqual(foreign_detail.event_id, self.participation1.published_event_id)
+        self.assertEqual(foreign_detail.start_time.strftime('%H:%M'), '23:00')
+        self.assertEqual(foreign_detail.status, 'approved')
+        self.assertIsNone(cache.get(cache_key))
 
     def test_manage_update_confirms_draft_presentations(self):
         """確定ボタン押下でDRAFTのLTがCONFIRMEDに一括更新される"""

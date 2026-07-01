@@ -16,9 +16,9 @@ from django.views.generic import TemplateView
 from allauth.socialaccount.models import SocialAccount
 
 from community.models import Community
-from event.models import EventDetail
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from ta_hub.index_cache import clear_index_view_cache
+from vket.services import clear_participation_publication, sync_participation_publication
 
 from ..forms import VketManageParticipationForm
 from ..models import (
@@ -173,12 +173,11 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
 
         if participation.lifecycle != VketParticipation.Lifecycle.ACTIVE:
             with transaction.atomic():
-                changed_publication = self._clear_published_event(participation)
+                changed_publication = clear_participation_publication(participation)
                 participation.save(
                     update_fields=[
                         'lifecycle',
                         'admin_note',
-                        'published_event',
                         'updated_at',
                     ]
                 )
@@ -231,27 +230,9 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
             status=VketPresentation.Status.DRAFT,
         ).update(status=VketPresentation.Status.CONFIRMED)
 
-        # published_event がある場合、EventDetail 未作成の CONFIRMED LT に EventDetail を作成
         changed_index_detail = False
-        if participation.published_event_id:
-            for pres in participation.presentations.filter(
-                status=VketPresentation.Status.CONFIRMED,
-                published_event_detail__isnull=True,
-            ):
-                detail = EventDetail.objects.create(
-                    event=participation.published_event,
-                    theme=pres.theme,
-                    speaker=pres.speaker,
-                    start_time=pres.confirmed_start_time or pres.requested_start_time or participation.confirmed_start_time,
-                    duration=pres.duration,
-                    detail_type='LT',
-                    status='approved',
-                )
-                pres.published_event_detail = detail
-                pres.save(update_fields=['published_event_detail', 'updated_at'])
-                changed_index_detail = True
 
-        # 発表ごとの確定開始時刻を更新し、公開済みなら EventDetail にも同期する
+        # 発表ごとの確定開始時刻を更新する。EventDetail への反映は公開同期でまとめて行う。
         if pres_updates:
             allowed_presentations = {
                 pres.pk: pres
@@ -271,20 +252,12 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
                     new_time = datetime.strptime(time_str, '%H:%M').time()
                     pres.confirmed_start_time = new_time
                     pres.save(update_fields=['confirmed_start_time', 'updated_at'])
-
-                    if pres.published_event_detail_id:
-                        if pres.published_event_detail.event_id != participation.published_event_id:
-                            logger.warning(
-                                'VketPresentation #%d の EventDetail #%d は参加の公開イベントに属していません',
-                                pres_id,
-                                pres.published_event_detail_id,
-                            )
-                            continue
-                        pres.published_event_detail.start_time = new_time
-                        pres.published_event_detail.save(update_fields=['start_time', 'updated_at'])
-                        changed_index_detail = True
                 except (ValueError, KeyError):
                     logger.warning('VketPresentation #%d の start_time パース失敗: %s', pres_id, time_str)
+
+        with transaction.atomic():
+            sync_result = sync_participation_publication(participation)
+            changed_index_detail = sync_result.changed_index_data
 
         if changed_index_detail:
             clear_index_view_cache()
@@ -294,29 +267,6 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
             f'{participation.community.name} の日程を確定しました。',
         )
         return redirect('vket:manage', pk=collaboration.pk)
-
-    @staticmethod
-    def _clear_published_event(participation: VketParticipation) -> bool:
-        if not participation.published_event_id:
-            return False
-
-        published_event = participation.published_event
-        detail_ids = list(
-            participation.presentations.filter(
-                published_event_detail__isnull=False,
-            ).values_list('published_event_detail_id', flat=True)
-        )
-        participation.presentations.filter(
-            published_event_detail__isnull=False,
-        ).update(published_event_detail=None)
-
-        if detail_ids:
-            EventDetail.objects.filter(pk__in=detail_ids).delete()
-
-        participation.published_event = None
-        if not published_event.vket_participations.exclude(pk=participation.pk).exists():
-            published_event.delete()
-        return True
 
 
 class ManageScheduleView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
