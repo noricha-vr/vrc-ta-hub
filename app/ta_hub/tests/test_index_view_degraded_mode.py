@@ -396,7 +396,15 @@ class IndexViewVketEventDeduplicationTest(TestCase):
             status='approved',
             start_time=time(21, 0),
         )
-        EventDetail.objects.create(
+        vket_last_detail = EventDetail.objects.create(
+            event=vket_event,
+            detail_type='LT',
+            speaker='Vket Last Speaker',
+            theme='Vket Last Talk',
+            status='approved',
+            start_time=time(22, 0),
+        )
+        regular_detail = EventDetail.objects.create(
             event=regular_event,
             detail_type='LT',
             speaker='Regular Speaker',
@@ -431,3 +439,5 @@ class IndexViewVketEventDeduplicationTest(TestCase):
         self.assertNotIn(vket_event.id, event_ids)
         self.assertIn(regular_event.id, event_ids)
         self.assertIn(vket_detail.id, detail_ids)
+        self.assertIn(vket_last_detail.id, detail_ids)
+        self.assertLess(detail_ids.index(vket_last_detail.id), detail_ids.index(regular_detail.id))

@@ -141,7 +141,9 @@ class IndexView(TemplateView):
             event__community__poster_image__isnull=False
         ).exclude(
             event__community__poster_image=''
-        ).select_related('event', 'event__community').order_by('event__date', 'start_time')
+        ).select_related('event', 'event__community').order_by(
+            'event__date', 'event__start_time', 'event_id', 'start_time', 'id'
+        )
 
         # 特別企画を取得（今日からイベント終了日の24時まで表示）
         special_events = EventDetail.objects.filter(
