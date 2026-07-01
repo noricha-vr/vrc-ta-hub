@@ -12,6 +12,7 @@ from community.models import Community
 from event.models import Event, EventDetail
 from ta_hub.index_cache import get_index_view_cache_key
 from ta_hub.views import VKET_ACHIEVEMENTS
+from vket.models import VketCollaboration, VketParticipation
 
 
 def _create_test_image():
@@ -338,3 +339,95 @@ class IndexViewTodayHighlightTest(TestCase):
             'Future Highlight Community', 1
         )[0].rsplit('<div class="card event-card', 1)[-1]
         self.assertNotIn('today-event-card', future_event_card)
+
+
+class IndexViewVketEventDeduplicationTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+
+    def _create_community(self, name):
+        return Community.objects.create(
+            name=name,
+            start_time=time(21, 0),
+            duration=60,
+            weekdays=['Sun'],
+            frequency='Irregular',
+            organizers='Vket Organizer',
+            status='approved',
+            poster_image=SimpleUploadedFile(
+                f'{name}.png',
+                _create_test_image(),
+                content_type='image/png',
+            ),
+        )
+
+    @patch('ta_hub.views.get_vrchat_today')
+    def test_vket_published_event_is_shown_only_as_event_detail_group(self, mock_get_vrchat_today):
+        """Vket連携イベントは発表一覧を優先し、通常イベント一覧では重複表示しない"""
+        today = date(2026, 7, 18)
+        event_date = date(2026, 7, 19)
+        mock_get_vrchat_today.return_value = today
+
+        vket_community = self._create_community('VR核融合コミュニティ Virtual Fusion Nexus')
+        regular_community = self._create_community('Regular Community')
+        vket_event = Event.objects.create(
+            community=vket_community,
+            date=event_date,
+            start_time=time(21, 0),
+            duration=60,
+            weekday='Sun',
+        )
+        regular_event = Event.objects.create(
+            community=regular_community,
+            date=event_date,
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Sun',
+        )
+        vket_detail = EventDetail.objects.create(
+            event=vket_event,
+            detail_type='LT',
+            speaker='Vket Speaker',
+            theme='Vket Talk',
+            status='approved',
+            start_time=time(21, 0),
+        )
+        EventDetail.objects.create(
+            event=regular_event,
+            detail_type='LT',
+            speaker='Regular Speaker',
+            theme='Regular Talk',
+            status='approved',
+            start_time=time(22, 0),
+        )
+        collaboration = VketCollaboration.objects.create(
+            slug='vket-test',
+            name='Vket Test',
+            phase=VketCollaboration.Phase.ENTRY_OPEN,
+            period_start=date(2026, 7, 11),
+            period_end=date(2026, 7, 26),
+            registration_deadline=date(2026, 7, 1),
+            lt_deadline=date(2026, 7, 10),
+        )
+        VketParticipation.objects.create(
+            collaboration=collaboration,
+            community=vket_community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            progress=VketParticipation.Progress.REHEARSAL,
+            confirmed_date=event_date,
+            confirmed_start_time=time(21, 0),
+            confirmed_duration=60,
+            published_event=vket_event,
+        )
+
+        response = self.client.get(reverse('ta_hub:index'))
+
+        event_ids = [event['id'] for event in response.context['upcoming_events']]
+        detail_ids = [detail['id'] for detail in response.context['upcoming_event_details']]
+        self.assertNotIn(vket_event.id, event_ids)
+        self.assertIn(regular_event.id, event_ids)
+        self.assertIn(vket_detail.id, detail_ids)

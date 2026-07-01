@@ -120,6 +120,8 @@ class IndexView(TemplateView):
             community__poster_image__isnull=False
         ).exclude(
             community__poster_image=''
+        ).exclude(
+            vket_participations__lifecycle='active'
         ).select_related('community').prefetch_related(
             Prefetch(
                 'details',
