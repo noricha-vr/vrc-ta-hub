@@ -106,6 +106,13 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
 
         # リダイレクト確認
         self.assertEqual(response.status_code, 302)
+        self.assertRedirects(
+            response,
+            reverse(
+                'event:lt_application_complete',
+                kwargs={'community_pk': self.community.pk},
+            ),
+        )
 
         # EventDetailが作成されたか確認
         event_detail = EventDetail.objects.filter(
@@ -139,6 +146,34 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
         event_detail = EventDetail.objects.get(event=self.future_event, theme='Offset30')
         # event.start_time = 22:00、オフセット30分 → 22:30
         self.assertEqual(event_detail.start_time, time(22, 30))
+
+    def test_lt_application_complete_page_displays_slide_video_flow(self):
+        """申請完了ページに承認後の発表準備フローが表示される"""
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse(
+            'event:lt_application_complete',
+            kwargs={'community_pk': self.community.pk},
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '発表を申請しました。主催者の承認をお待ちください。')
+        self.assertContains(response, 'PDFで書き出す')
+        self.assertContains(response, 'WebScreenで動画に変換')
+        self.assertContains(response, 'https://web-screen.net/ja/pdf/')
+        self.assertContains(response, 'URLをスライドオブジェクトへ')
+        self.assertContains(response, '/guide/speaker/slide-video/')
+
+    def test_lt_application_complete_page_requires_login(self):
+        """未ログインユーザーは申請完了ページからログインページへリダイレクトされる"""
+        url = reverse(
+            'event:lt_application_complete',
+            kwargs={'community_pk': self.community.pk},
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue('login' in response.url.lower())
 
     @patch('event.notifications.send_mail')
     def test_lt_application_uses_custom_offset(self, mock_send_mail):

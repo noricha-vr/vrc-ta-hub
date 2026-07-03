@@ -32,6 +32,7 @@ from event.views.sync import (  # noqa: F401
 )
 from event.views.lt_application import (  # noqa: F401
     LTApplicationApproveView,
+    LTApplicationCompleteView,
     LTApplicationCreateView,
     LTApplicationRejectView,
     LTApplicationReviewView,

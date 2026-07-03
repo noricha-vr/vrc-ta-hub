@@ -6,7 +6,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
-from django.views.generic import FormView, View
+from django.views.generic import FormView, TemplateView, View
 
 from community.models import Community
 from event.forms import LTApplicationForm, LTApplicationReviewForm
@@ -82,16 +82,25 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
         from event.notifications import notify_owners_of_new_application
         notify_owners_of_new_application(event_detail, request=self.request)
 
-        messages.success(
-            self.request,
-            '発表を申請しました。主催者の承認をお待ちください。'
-        )
         logger.info(
             f'発表申請作成: Community={self.community.name}, Event={event.date}, '
             f'Theme={event_detail.theme}, User={self.request.user.user_name}'
         )
 
-        return redirect('community:detail', pk=self.community.pk)
+        return redirect('event:lt_application_complete', community_pk=self.community.pk)
+
+
+class LTApplicationCompleteView(LoginRequiredMixin, TemplateView):
+    """発表申請完了ページ"""
+
+    template_name = 'event/lt_application_complete.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['community'] = get_object_or_404(
+            Community, pk=self.kwargs['community_pk']
+        )
+        return context
 
 
 class LTApplicationReviewView(LoginRequiredMixin, FormView):

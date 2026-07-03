@@ -148,6 +148,18 @@ class NotifyApplicantOfResultTest(TweetGenerationPatchMixin, TestCase):
         self.assertIn("承認", mail.outbox[0].subject)
         self.assertEqual(mail.outbox[0].to, ["applicant1@example.com"])
 
+    def test_approved_email_includes_slide_video_guide_url(self):
+        """承認時のHTMLメールにスライド変換ガイドへのリンクが含まれる"""
+        event_detail = _make_event_detail(
+            self.event, applicant=self.applicant, status="approved"
+        )
+        notify_applicant_of_result(event_detail)
+
+        self.assertEqual(len(mail.outbox), 1)
+        html_content = mail.outbox[0].alternatives[0][0]
+        self.assertIn("/guide/speaker/slide-video/", html_content)
+        self.assertIn("詳しい手順はこちら", html_content)
+
     def test_rejected_subject_includes_rejected_label(self):
         """却下時の subject に「却下」が含まれる"""
         event_detail = _make_event_detail(
