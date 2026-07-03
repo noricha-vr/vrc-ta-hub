@@ -2577,9 +2577,68 @@ class VketParticipationStatusTests(TestCase):
         self.assertEqual(self.participation.progress, VketParticipation.Progress.STAGE_REGISTERED)
         self.assertIsNotNone(self.participation.stage_registered_at)
 
-    def test_stage_register_requires_applied(self):
-        """APPLIED 以外ではステージ登録できない"""
+    def test_stage_register_requires_applied_participation(self):
+        """未申請ではステージ登録できない"""
+        self.participation.progress = VketParticipation.Progress.NOT_APPLIED
+        self.participation.save()
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.post(
+            reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.participation.refresh_from_db()
+        self.assertEqual(self.participation.progress, VketParticipation.Progress.NOT_APPLIED)
+        self.assertIsNone(self.participation.stage_registered_at)
+        self.assertContains(response, 'ステージ登録は参加申込み後に行ってください。')
+
+    def test_stage_register_records_rehearsal_without_rewinding_progress(self):
+        """REHEARSAL では進捗を戻さずステージ登録日時だけ記録する"""
         self.participation.progress = VketParticipation.Progress.REHEARSAL
+        self.participation.save()
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.post(
+            reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        self.participation.refresh_from_db()
+        self.assertEqual(self.participation.progress, VketParticipation.Progress.REHEARSAL)
+        self.assertIsNotNone(self.participation.stage_registered_at)
+
+    def test_stage_register_rejects_after_period_end(self):
+        """開催期間終了後はステージ登録日時を記録しない"""
+        today = timezone.localdate()
+        self.collaboration.period_start = today - timedelta(days=7)
+        self.collaboration.period_end = today - timedelta(days=1)
+        self.collaboration.save(update_fields=['period_start', 'period_end'])
+        self.participation.progress = VketParticipation.Progress.APPLIED
+        self.participation.save()
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.post(
+            reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        self.participation.refresh_from_db()
+        self.assertEqual(self.participation.progress, VketParticipation.Progress.APPLIED)
+        self.assertIsNone(self.participation.stage_registered_at)
+        self.assertContains(response, '開催期間終了後はステージ登録を記録できません。')
+
+    def test_stage_register_rejects_duplicate_registration(self):
+        """二重登録では既存の登録日時を上書きしない"""
+        registered_at = timezone.now() - timedelta(days=1)
+        self.participation.progress = VketParticipation.Progress.REHEARSAL
+        self.participation.stage_registered_at = registered_at
         self.participation.save()
 
         self.client.login(username='status_owner', password='testpass123')
@@ -2592,6 +2651,8 @@ class VketParticipationStatusTests(TestCase):
 
         self.participation.refresh_from_db()
         self.assertEqual(self.participation.progress, VketParticipation.Progress.REHEARSAL)
+        self.assertEqual(self.participation.stage_registered_at, registered_at)
+        self.assertContains(response, 'ステージ登録は既に完了しています。')
 
     def test_status_page_shows_stage_banner(self):
         """申請済み時にステージ登録バナーが表示される"""
@@ -2606,8 +2667,8 @@ class VketParticipationStatusTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Vketステージ登録')
 
-    def test_status_page_shows_stage_registered_after_registration(self):
-        """登録済み後も「登録済み」としてカードが表示される"""
+    def test_status_page_hides_stage_register_section_after_registration(self):
+        """登録済み後はステージ登録セクションを表示しない"""
         self.participation.progress = VketParticipation.Progress.STAGE_REGISTERED
         self.participation.stage_registered_at = timezone.now()
         self.participation.save()
@@ -2618,8 +2679,42 @@ class VketParticipationStatusTests(TestCase):
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Vketステージ登録')
-        self.assertContains(response, '登録済み')
+        self.assertFalse(response.context['stage_register_open'])
+        self.assertNotContains(response, 'Vketステージ登録')
+        self.assertNotContains(response, '登録済み（')
+
+    def test_status_page_shows_stage_register_button_for_rehearsal_within_period(self):
+        """期間内のREHEARSAL未登録では登録完了ボタンを表示する"""
+        self.participation.progress = VketParticipation.Progress.REHEARSAL
+        self.participation.save()
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.get(
+            reverse('vket:status', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['stage_register_open'])
+        self.assertContains(response, '登録完了')
+
+    def test_status_page_hides_stage_register_button_after_period_end(self):
+        """期間終了後の未登録は登録ボタンを出さず未登録バッジだけ表示する"""
+        today = timezone.localdate()
+        self.collaboration.period_start = today - timedelta(days=7)
+        self.collaboration.period_end = today - timedelta(days=1)
+        self.collaboration.save(update_fields=['period_start', 'period_end'])
+        self.participation.progress = VketParticipation.Progress.REHEARSAL
+        self.participation.save()
+
+        self.client.login(username='status_owner', password='testpass123')
+        self._set_active_community()
+        response = self.client.get(
+            reverse('vket:status', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['stage_register_open'])
+        self.assertNotContains(response, '登録完了')
+        self.assertContains(response, '未登録')
 
 
 class VketStatusRedirectViewTests(TestCase):
