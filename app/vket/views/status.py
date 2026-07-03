@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Prefetch
@@ -48,6 +50,24 @@ def _resolve_stage_registration_guidance(collaboration: VketCollaboration) -> di
     return VKET_STAGE_REGISTRATION_GUIDANCE_BY_SLUG.get(collaboration.slug, {})
 
 
+def _is_stage_register_open(
+    participation: VketParticipation | None,
+    collaboration: VketCollaboration,
+    current_date: date | None = None,
+) -> bool:
+    if participation is None:
+        return False
+    if participation.stage_registered_at:
+        return False
+    if participation.progress == VketParticipation.Progress.NOT_APPLIED:
+        return False
+    if participation.lifecycle != VketParticipation.Lifecycle.ACTIVE:
+        return False
+
+    current_date = current_date or timezone.localdate()
+    return current_date <= collaboration.period_end
+
+
 class VketStatusRedirectView(LoginRequiredMixin, View):
     """pk なしで最新コラボの参加状況ページにリダイレクト"""
 
@@ -76,14 +96,27 @@ class StageRegisterView(LoginRequiredMixin, View):
             community=community,
         )
 
-        # 申請済みの場合のみ登録可能
-        if participation.progress != VketParticipation.Progress.APPLIED:
+        if participation.progress == VketParticipation.Progress.NOT_APPLIED:
             messages.warning(request, 'ステージ登録は参加申込み後に行ってください。')
             return redirect('vket:status', pk=pk)
+        if participation.stage_registered_at:
+            messages.warning(request, 'ステージ登録は既に完了しています。')
+            return redirect('vket:status', pk=pk)
+        if timezone.localdate() > collaboration.period_end:
+            messages.warning(request, '開催期間終了後はステージ登録を記録できません。')
+            return redirect('vket:status', pk=pk)
+        if not _is_stage_register_open(participation, collaboration):
+            messages.warning(request, '参加中の集会のみステージ登録を記録できます。')
+            return redirect('vket:status', pk=pk)
 
-        participation.progress = VketParticipation.Progress.STAGE_REGISTERED
         participation.stage_registered_at = timezone.now()
-        participation.save(update_fields=['progress', 'stage_registered_at', 'updated_at'])
+        update_fields = ['stage_registered_at', 'updated_at']
+        if participation.progress == VketParticipation.Progress.APPLIED:
+            participation.progress = VketParticipation.Progress.STAGE_REGISTERED
+            update_fields.append('progress')
+        # 運営処理で進んだ進捗は現在の工程を示すため、登録記録時に巻き戻さない。
+        # APPLIED の参加だけ従来どおり STAGE_REGISTERED へ前進させる。
+        participation.save(update_fields=update_fields)
 
         messages.success(request, 'Vketステージ登録完了を記録しました。')
         return redirect('vket:status', pk=pk)
@@ -168,6 +201,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'is_admin': _is_vket_admin(request.user),
                 'stage_url': _resolve_stage_url(collaboration),
                 'stage_registration_guidance': _resolve_stage_registration_guidance(collaboration),
+                'stage_register_open': _is_stage_register_open(participation, collaboration),
                 'event_details': event_details,
                 **schedule_ctx,
             },
