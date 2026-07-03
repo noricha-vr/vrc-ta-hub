@@ -40,6 +40,11 @@
     - title: 発表申請を承認・却下する
       path: lt/approve
 
+- title: 発表する
+  children:
+    - title: スライドをVRChatで映す
+      path: speaker/slide-video
+
 - title: メンバーを管理する
   owner_only: true
   children:

@@ -158,12 +158,19 @@ def notify_applicant_of_result(event_detail: EventDetail, request=None) -> None:
     else:
         list_url = build_site_url(list_path)
 
+    guide_path = reverse('guide:page', kwargs={'path': 'speaker/slide-video'})
+    if request:
+        guide_url = request.build_absolute_uri(guide_path)
+    else:
+        guide_url = build_site_url(guide_path)
+
     context = {
         'applicant': applicant,
         'community': community,
         'event_detail': event_detail,
         'event': event_detail.event,
         'detail_url': detail_url,
+        'guide_url': guide_url,
         'list_url': list_url,
         'is_approved': event_detail.status == 'approved',
     }

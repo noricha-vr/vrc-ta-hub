@@ -1,0 +1,87 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block meta %}
+    <title>発表申請完了 - {{ community.name }} - VRChat 技術・学術系イベントHub</title>
+{% endblock %}
+
+{% block main %}
+<div class="container mt-4 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'community:list' %}">集会一覧</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'community:detail' community.pk %}">{{ community.name }}</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">発表申請完了</li>
+                </ol>
+            </nav>
+
+            <h1 class="h3 mb-3">
+                <i class="fa-solid fa-paper-plane me-2 text-primary" aria-hidden="true"></i>発表申請完了
+            </h1>
+
+            <div class="alert alert-success mb-4" role="alert">
+                <h2 class="h5 alert-heading mb-2">発表を申請しました。主催者の承認をお待ちください。</h2>
+                <p class="mb-0">承認または却下の結果はメールでお知らせします。</p>
+            </div>
+
+            <section aria-labelledby="preparation-heading">
+                <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
+                    <h2 id="preparation-heading" class="h4 mb-0">承認後の発表準備</h2>
+                    <a href="{% url 'guide:page' path='speaker/slide-video' %}" class="btn btn-outline-primary">
+                        <i class="fa-solid fa-book-open me-2" aria-hidden="true"></i>詳しい手順を見る
+                    </a>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="card h-100 border-primary-subtle">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <span class="badge rounded-pill bg-primary me-2">1</span>
+                                    <i class="fa-solid fa-file-pdf text-primary fa-lg" aria-hidden="true"></i>
+                                </div>
+                                <h3 class="h5">PDFで書き出す</h3>
+                                <p class="mb-0">PowerPoint / Canva / Googleスライド などで作成したスライドをPDFとして書き出します。</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 border-primary-subtle">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <span class="badge rounded-pill bg-primary me-2">2</span>
+                                    <i class="fa-solid fa-film text-primary fa-lg" aria-hidden="true"></i>
+                                </div>
+                                <h3 class="h5">WebScreenで動画に変換</h3>
+                                <p class="mb-0"><a href="https://web-screen.net/ja/pdf/">WebScreen</a>にPDFをアップロードし、VRChatの動画プレイヤーで再生できる動画URLに変換します。</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100 border-primary-subtle">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-3">
+                                    <span class="badge rounded-pill bg-primary me-2">3</span>
+                                    <i class="fa-solid fa-vr-cardboard text-primary fa-lg" aria-hidden="true"></i>
+                                </div>
+                                <h3 class="h5">URLをスライドオブジェクトへ</h3>
+                                <p class="mb-0">発行されたURLをVRChatのスライドオブジェクト（スライドシステム）に貼り付けます。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="d-flex flex-column flex-sm-row gap-2 justify-content-between">
+                <a href="{% url 'community:detail' community.pk %}" class="btn btn-outline-secondary">
+                    <i class="fa-solid fa-arrow-left me-2" aria-hidden="true"></i>集会ページへ戻る
+                </a>
+                <a href="{% url 'account:lt_application_list' %}" class="btn btn-primary">
+                    <i class="fa-solid fa-list-check me-2" aria-hidden="true"></i>申請一覧を見る
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

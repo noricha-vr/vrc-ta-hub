@@ -4,7 +4,7 @@ from django.views.generic import TemplateView
 from .views import EventListView, EventDetailView, sync_calendar_events, EventDetailUpdateView, EventDetailCreateView, \
     EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailPastList, \
     EventDeleteView, GoogleCalendarEventCreateView, EventLogListView, LTApplicationCreateView, LTApplicationReviewView, \
-    LTApplicationApproveView, LTApplicationRejectView
+    LTApplicationApproveView, LTApplicationCompleteView, LTApplicationRejectView
 from .views.material_upload_reminder import send_material_upload_reminders_view
 from .views.slide_reminder import send_slide_reminders
 from .views_llm_generate import generate_llm_events
@@ -30,6 +30,7 @@ urlpatterns = [
     path('generate/', generate_llm_events, name='generate_llm_events'),
     # LT申請
     path('apply/<int:community_pk>/', LTApplicationCreateView.as_view(), name='lt_application_create'),
+    path('apply/<int:community_pk>/complete/', LTApplicationCompleteView.as_view(), name='lt_application_complete'),
     path('application/<int:pk>/review/', LTApplicationReviewView.as_view(), name='lt_application_review'),
     path('application/<int:pk>/approve/', LTApplicationApproveView.as_view(), name='lt_application_approve'),
     path('application/<int:pk>/reject/', LTApplicationRejectView.as_view(), name='lt_application_reject'),

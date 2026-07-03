@@ -244,6 +244,16 @@ class GuideViewsTest(TestCase):
         self.assertContains(response, "A4比率")
         self.assertContains(response, "A4比率・縦4096px")
 
+    def test_guide_speaker_slide_video_page(self):
+        """発表者向けスライド変換ガイドが表示されること"""
+        response = self.client.get(
+            reverse("guide:page", kwargs={"path": "speaker/slide-video"})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "スライドをVRChatで映す手順")
+        self.assertContains(response, "https://web-screen.net/ja/pdf/")
+
     def test_guide_page_view_renamed_path(self):
         """新しいガイドパスが表示されること"""
         response = self.client.get(
