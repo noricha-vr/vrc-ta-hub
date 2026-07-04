@@ -32,9 +32,14 @@ def _build_cloud_run_preview_host_pattern_source() -> str:
         re.escape(service_name)
         for service_name in _build_cloud_run_service_names()
     )
+    host_suffixes = (
+        r'[a-z0-9]+-[a-z0-9]+\.a',
+        r'[0-9]+\.[a-z]+(?:-[a-z0-9]+)*\d',
+    )
+    host_suffix_pattern = '|'.join(host_suffixes)
     return (
-        rf'^(?:[a-z0-9-]+---)?(?:{service_names})-[a-z0-9]+-[a-z0-9]+'
-        rf'\.a\.run\.app(?::\d+)?$'
+        rf'^(?:[a-z0-9-]+---)?(?:{service_names})-(?:{host_suffix_pattern})'
+        rf'\.run\.app(?::\d+)?$'
     )
 
 

@@ -91,6 +91,10 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             pattern,
         )
         self.assertRegex(
+            'vrc-ta-hub-332732449600.asia-northeast1.run.app',
+            pattern,
+        )
+        self.assertRegex(
             'rev-24d1224---vrc-ta-hub-dev-mhbhtr6sha-an.a.run.app',
             pattern,
         )
@@ -113,11 +117,19 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             pattern,
         )
         self.assertRegex(
+            'canary---vrc-ta-hub-332732449600.asia-northeast1.run.app',
+            pattern,
+        )
+        self.assertRegex(
             'canary---vrc-ta-hub-dev-mhbhtr6sha-an.a.run.app',
             pattern,
         )
         self.assertNotRegex(
             'canary---other-service-mhbhtr6sha-an.a.run.app',
+            pattern,
+        )
+        self.assertNotRegex(
+            'canary---other-service-332732449600.asia-northeast1.run.app',
             pattern,
         )
 

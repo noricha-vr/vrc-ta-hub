@@ -69,6 +69,21 @@ class CanonicalCloudRunHostMiddlewareTest(SimpleTestCase):
     @override_settings(
         ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
     )
+    def test_cloud_run_canary_region_host_validator_allows_supported_service(self):
+        install_cloud_run_preview_host_validator()
+        request = self.request_factory.get(
+            '/healthz/',
+            HTTP_HOST='canary---vrc-ta-hub-332732449600.asia-northeast1.run.app',
+        )
+
+        self.assertEqual(
+            request.get_host(),
+            'canary---vrc-ta-hub-332732449600.asia-northeast1.run.app',
+        )
+
+    @override_settings(
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
+    )
     def test_middleware_initialization_installs_preview_host_validator(self):
         original_validate_host = request_module.validate_host
         request_module.validate_host = _ORIGINAL_VALIDATE_HOST
@@ -181,6 +196,28 @@ class CloudRunHostCanonicalizingWSGIApplicationTest(SimpleTestCase):
         self.assertEqual(captured_environ['HTTP_X_FORWARDED_HOST'], 'vrc-ta-hub.com')
         self.assertEqual(captured_environ['SERVER_NAME'], 'vrc-ta-hub.com')
 
+    def test_cloud_run_region_host_is_canonicalized_before_django_request(self):
+        captured_environ = {}
+
+        def django_application(environ, start_response):
+            captured_environ.update(environ)
+            start_response('200 OK', [])
+            return [b'ok']
+
+        environ = {
+            'HTTP_HOST': 'canary---vrc-ta-hub-332732449600.asia-northeast1.run.app',
+            'SERVER_NAME': 'canary---vrc-ta-hub-332732449600.asia-northeast1.run.app',
+        }
+
+        response = CloudRunHostCanonicalizingWSGIApplication(django_application)(
+            environ,
+            lambda _status, _headers: None,
+        )
+
+        self.assertEqual(list(response), [b'ok'])
+        self.assertEqual(captured_environ['HTTP_HOST'], 'vrc-ta-hub.com')
+        self.assertEqual(captured_environ['SERVER_NAME'], 'vrc-ta-hub.com')
+
     def test_other_cloud_run_service_host_is_left_for_django_to_reject(self):
         captured_environ = {}
 
@@ -241,6 +278,35 @@ class CloudRunHostCanonicalizingASGIApplicationTest(SimpleTestCase):
                 (b'x-forwarded-host', b'vrc-ta-hub.com'),
             ],
         )
+        self.assertEqual(captured_scope['server'], ('vrc-ta-hub.com', 443))
+
+    def test_cloud_run_region_host_is_canonicalized_before_django_request(self):
+        captured_scope = {}
+
+        async def django_application(scope, _receive, _send):
+            captured_scope.update(scope)
+
+        scope = {
+            'type': 'http',
+            'headers': [
+                (
+                    b'host',
+                    b'canary---vrc-ta-hub-332732449600.asia-northeast1.run.app',
+                ),
+            ],
+            'server': (
+                'canary---vrc-ta-hub-332732449600.asia-northeast1.run.app',
+                443,
+            ),
+        }
+
+        async_to_sync(CloudRunHostCanonicalizingASGIApplication(django_application))(
+            scope,
+            lambda: None,
+            lambda _message: None,
+        )
+
+        self.assertEqual(captured_scope['headers'], [(b'host', b'vrc-ta-hub.com')])
         self.assertEqual(captured_scope['server'], ('vrc-ta-hub.com', 443))
 
     def test_other_cloud_run_service_host_is_left_for_django_to_reject(self):
