@@ -191,6 +191,40 @@ class MaterialUploadReminderTest(TweetGenerationPatchMixin, TestCase):
         self.assertIn(f"/account/lt-applications/{detail.pk}/edit/", message.body)
         self.assertNotIn("締切", message.body)
 
+    def test_vket_recipient_can_open_edit_url_from_email(self):
+        detail = self.create_detail("vket_link")
+        recipient = detail.applicant
+        detail.applicant = None
+        detail.save(update_fields=["applicant"])
+        collaboration = VketCollaboration.objects.create(
+            slug="vket-reminder-link",
+            name="Vket Reminder Link",
+            period_start=self.target_date,
+            period_end=self.target_date + timedelta(days=1),
+            registration_deadline=self.target_date - timedelta(days=10),
+            lt_deadline=self.target_date - timedelta(days=5),
+        )
+        participation = VketParticipation.objects.create(
+            collaboration=collaboration,
+            community=self.community,
+            applied_by=recipient,
+        )
+        VketPresentation.objects.create(
+            participation=participation,
+            status=VketPresentation.Status.CONFIRMED,
+            published_event_detail=detail,
+        )
+
+        send_material_upload_reminders(
+            target_date=self.target_date,
+            decision_service=StubDecisionService(),
+        )
+
+        edit_path = reverse("account:lt_application_edit", kwargs={"pk": detail.pk})
+        self.assertIn(edit_path, mail.outbox[0].body)
+        self.client.force_login(recipient)
+        self.assertEqual(self.client.get(edit_path).status_code, 200)
+
     def test_email_falls_back_to_display_label_when_display_name_is_blank(self):
         self.create_detail("fallback", display_name="")
 

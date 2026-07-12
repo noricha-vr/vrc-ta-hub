@@ -4,6 +4,7 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q
 from django.urls import reverse
 from django.views.generic import ListView, UpdateView
 
@@ -11,6 +12,19 @@ from event.forms import LTApplicationEditForm
 from event.models import EventDetail
 
 logger = logging.getLogger(__name__)
+
+
+def _owned_lt_condition(user) -> Q:
+    """ユーザーが自分のLTとして扱える条件。
+
+    リマインドメールの受信者選定（event.material_upload_reminders.get_material_reminder_recipient）
+    と整合させる: applicant 本人、または applicant 未設定の Vket 由来発表の申請者本人。
+    一覧と編集で条件が食い違うと「一覧に出るのに編集で404」の乖離バグになるため必ず共用する。
+    """
+    return Q(applicant=user) | Q(
+        applicant__isnull=True,
+        vket_presentations__participation__applied_by=user,
+    )
 
 
 class LTApplicationListView(LoginRequiredMixin, ListView):
@@ -21,9 +35,9 @@ class LTApplicationListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         return EventDetail.objects.filter(
-            applicant=self.request.user,
+            _owned_lt_condition(self.request.user),
             detail_type='LT',
-        ).select_related('event', 'event__community').order_by('-event__date', '-created_at')
+        ).select_related('event', 'event__community').distinct().order_by('-event__date', '-created_at')
 
 
 class LTApplicationEditView(LoginRequiredMixin, UpdateView):
@@ -36,9 +50,9 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
 
     def get_queryset(self):
         return EventDetail.objects.filter(
-            applicant=self.request.user,
+            _owned_lt_condition(self.request.user),
             detail_type='LT',
-        ).exclude(status='rejected').select_related('event', 'event__community')
+        ).exclude(status='rejected').select_related('event', 'event__community').distinct()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
