@@ -160,6 +160,8 @@ def sync_participation_publication(
             detail = presentation.published_event_detail
             dirty_fields = []
             for field_name, value in detail_defaults.items():
+                # applied_by の解除（None化）では既存 applicant を保持する。
+                # 担当者が外れても登壇者本人の編集導線を失わせないため。非Noneなら Vket 側を正として上書きする。
                 if field_name == "applicant" and value is None:
                     continue
                 if field_name in {"event", "applicant"}:

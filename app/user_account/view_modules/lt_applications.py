@@ -14,6 +14,19 @@ from event.models import EventDetail
 logger = logging.getLogger(__name__)
 
 
+def _owned_lt_condition(user) -> Q:
+    """ユーザーが自分のLTとして扱える条件。
+
+    リマインドメールの受信者選定（event.material_upload_reminders.get_material_reminder_recipient）
+    と整合させる: applicant 本人、または applicant 未設定の Vket 由来発表の申請者本人。
+    一覧と編集で条件が食い違うと「一覧に出るのに編集で404」の乖離バグになるため必ず共用する。
+    """
+    return Q(applicant=user) | Q(
+        applicant__isnull=True,
+        vket_presentations__participation__applied_by=user,
+    )
+
+
 class LTApplicationListView(LoginRequiredMixin, ListView):
     """LT申請一覧ページ."""
 
@@ -22,11 +35,7 @@ class LTApplicationListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         return EventDetail.objects.filter(
-            Q(applicant=self.request.user)
-            | Q(
-                applicant__isnull=True,
-                vket_presentations__participation__applied_by=self.request.user,
-            ),
+            _owned_lt_condition(self.request.user),
             detail_type='LT',
         ).select_related('event', 'event__community').distinct().order_by('-event__date', '-created_at')
 
@@ -41,11 +50,7 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
 
     def get_queryset(self):
         return EventDetail.objects.filter(
-            Q(applicant=self.request.user)
-            | Q(
-                applicant__isnull=True,
-                vket_presentations__participation__applied_by=self.request.user,
-            ),
+            _owned_lt_condition(self.request.user),
             detail_type='LT',
         ).exclude(status='rejected').select_related('event', 'event__community').distinct()
 
