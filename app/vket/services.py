@@ -143,6 +143,7 @@ def sync_participation_publication(
     ).select_related("published_event_detail"):
         detail_defaults = {
             "event": event,
+            "applicant": participation.applied_by,
             "theme": presentation.theme,
             "speaker": presentation.speaker,
             "start_time": (
@@ -159,8 +160,14 @@ def sync_participation_publication(
             detail = presentation.published_event_detail
             dirty_fields = []
             for field_name, value in detail_defaults.items():
-                current_value = detail.event_id if field_name == "event" else getattr(detail, field_name)
-                expected_value = value.pk if field_name == "event" else value
+                if field_name == "applicant" and value is None:
+                    continue
+                if field_name in {"event", "applicant"}:
+                    current_value = getattr(detail, f"{field_name}_id")
+                    expected_value = value.pk if value else None
+                else:
+                    current_value = getattr(detail, field_name)
+                    expected_value = value
                 if current_value != expected_value:
                     setattr(detail, field_name, value)
                     dirty_fields.append(field_name)

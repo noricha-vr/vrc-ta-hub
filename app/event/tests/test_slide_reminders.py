@@ -11,6 +11,7 @@ from django.utils import timezone
 from community.models import Community
 from event.models import Event, EventDetail, MaterialUploadReminderLog
 from event.slide_reminders import process_slide_publication_reminders
+from vket.models import VketCollaboration, VketParticipation, VketPresentation
 
 User = get_user_model()
 
@@ -73,6 +74,35 @@ class SlideReminderTestCase(TestCase):
         self.assertIn(reverse('account:lt_application_edit', kwargs={'pk': detail.pk}), mail.outbox[0].body)
         detail.material_upload_reminder_log.refresh_from_db()
         self.assertIsNotNone(detail.material_upload_reminder_log.follow_up_sent_at)
+
+    def test_vket_recipient_can_open_edit_url_from_email(self):
+        detail = self.create_detail(applicant=None)
+        collaboration = VketCollaboration.objects.create(
+            slug='slide-reminder-vket',
+            name='Slide Reminder Vket',
+            period_start=date(2026, 5, 29),
+            period_end=date(2026, 5, 30),
+            registration_deadline=date(2026, 5, 1),
+            lt_deadline=date(2026, 5, 15),
+        )
+        participation = VketParticipation.objects.create(
+            collaboration=collaboration,
+            community=self.community,
+            applied_by=self.applicant,
+        )
+        VketPresentation.objects.create(
+            participation=participation,
+            status=VketPresentation.Status.CONFIRMED,
+            published_event_detail=detail,
+        )
+
+        result = process_slide_publication_reminders(now=self.now)
+
+        self.assertEqual(result.sent, 1)
+        edit_path = reverse('account:lt_application_edit', kwargs={'pk': detail.pk})
+        self.assertIn(edit_path, mail.outbox[0].body)
+        self.client.force_login(self.applicant)
+        self.assertEqual(self.client.get(edit_path).status_code, 200)
 
     def test_process_does_not_send_twice(self):
         self.create_detail()

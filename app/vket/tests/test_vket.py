@@ -1,8 +1,10 @@
 """Vketコラボ機能のテスト."""
 
 from datetime import time, timedelta
+from importlib import import_module
 
 from django.contrib.auth import get_user_model
+from django.apps import apps
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import Client, TestCase
@@ -19,6 +21,7 @@ from vket.models import (
     VketParticipation,
     VketPresentation,
 )
+from vket.services import sync_participation_publication
 from vket.views.helpers import _build_schedule_context
 
 
@@ -1274,6 +1277,108 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(Event.objects.filter(community=community).count(), 1)
         self.assertEqual(presentation.published_event_detail.event_id, existing_event.pk)
         self.assertEqual(presentation.published_event_detail.start_time.strftime('%H:%M'), '22:30')
+
+    def test_sync_participation_publication_sets_applicant_on_new_detail(self):
+        """公開同期で新規EventDetailへVket申請者を設定する。"""
+        self.participation1.applied_by = self.normal_user
+        self.participation1.save(update_fields=['applied_by'])
+        presentation = VketPresentation.objects.create(
+            participation=self.participation1,
+            order=0,
+            speaker='Vket発表者',
+            theme='Vketテーマ',
+            status=VketPresentation.Status.CONFIRMED,
+        )
+
+        sync_participation_publication(self.participation1)
+
+        presentation.refresh_from_db()
+        self.assertEqual(presentation.published_event_detail.applicant, self.normal_user)
+
+    def test_sync_participation_publication_backfills_applicant_on_existing_detail(self):
+        """再同期で既存EventDetailの未設定申請者を補完する。"""
+        self.participation1.applied_by = self.normal_user
+        self.participation1.save(update_fields=['applied_by'])
+        detail = EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            speaker='Vket発表者',
+            theme='Vketテーマ',
+            start_time='21:00',
+            duration=30,
+            status='approved',
+        )
+        VketPresentation.objects.create(
+            participation=self.participation1,
+            order=0,
+            speaker='Vket発表者',
+            theme='Vketテーマ',
+            status=VketPresentation.Status.CONFIRMED,
+            published_event_detail=detail,
+        )
+
+        sync_participation_publication(self.participation1)
+
+        detail.refresh_from_db()
+        self.assertEqual(detail.applicant, self.normal_user)
+
+    def test_sync_participation_publication_keeps_applicant_when_applied_by_is_none(self):
+        """Vket申請者が未設定でも既存EventDetailの申請者を保持する。"""
+        detail = EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            speaker='既存発表者',
+            theme='既存テーマ',
+            start_time='21:00',
+            duration=30,
+            status='approved',
+            applicant=self.normal_user,
+        )
+        VketPresentation.objects.create(
+            participation=self.participation1,
+            order=0,
+            speaker='既存発表者',
+            theme='既存テーマ',
+            status=VketPresentation.Status.CONFIRMED,
+            published_event_detail=detail,
+        )
+
+        sync_participation_publication(self.participation1)
+
+        detail.refresh_from_db()
+        self.assertEqual(detail.applicant, self.normal_user)
+
+    def test_vket_applicant_backfill_uses_first_ordered_presentation(self):
+        """移行処理は表示順が先のVket発表に紐づく申請者を設定する。"""
+        detail = EventDetail.objects.create(
+            event=self.event1,
+            detail_type='LT',
+            speaker='移行対象',
+            theme='移行テーマ',
+            start_time='21:00',
+            duration=30,
+            status='approved',
+        )
+        self.participation1.applied_by = self.normal_user
+        self.participation1.save(update_fields=['applied_by'])
+        self.participation2.applied_by = self.superuser
+        self.participation2.save(update_fields=['applied_by'])
+        VketPresentation.objects.create(
+            participation=self.participation1,
+            published_event_detail=detail,
+            order=1,
+        )
+        VketPresentation.objects.create(
+            participation=self.participation2,
+            published_event_detail=detail,
+            order=0,
+        )
+
+        migration = import_module('vket.migrations.0010_backfill_vket_event_detail_applicant')
+        migration.backfill_vket_event_detail_applicant(apps, None)
+
+        detail.refresh_from_db()
+        self.assertEqual(detail.applicant, self.superuser)
 
     def test_manage_participation_update_approves_existing_pending_detail(self):
         """既存のpending EventDetailは確定時にapprovedへ同期される"""

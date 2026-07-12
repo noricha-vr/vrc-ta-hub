@@ -7,6 +7,7 @@ from django.urls import reverse
 from community.models import Community
 from event.models import Event, EventDetail
 from user_account.tests.utils import create_discord_linked_user
+from vket.models import VketCollaboration, VketParticipation, VketPresentation
 
 
 class LTApplicationViewTestBase(TestCase):
@@ -99,6 +100,36 @@ class LTApplicationViewTestBase(TestCase):
         self.list_url = reverse('account:lt_application_list')
         self.edit_url = reverse('account:lt_application_edit', kwargs={'pk': self.my_application.pk})
 
+    def create_vket_application(self):
+        detail = EventDetail.objects.create(
+            event=self.event,
+            detail_type='LT',
+            theme='Vket Theme',
+            speaker='applicant',
+            start_time=time(23, 0),
+            duration=15,
+            status='approved',
+        )
+        collaboration = VketCollaboration.objects.create(
+            slug='view-test-vket',
+            name='View Test Vket',
+            period_start=date(2026, 3, 1),
+            period_end=date(2026, 3, 2),
+            registration_deadline=date(2026, 2, 1),
+            lt_deadline=date(2026, 2, 15),
+        )
+        participation = VketParticipation.objects.create(
+            collaboration=collaboration,
+            community=self.community,
+            applied_by=self.user,
+        )
+        VketPresentation.objects.create(
+            participation=participation,
+            published_event_detail=detail,
+            status=VketPresentation.Status.CONFIRMED,
+        )
+        return detail
+
 
 class LTApplicationListViewTests(LTApplicationViewTestBase):
     """LT申請一覧ビューのテスト"""
@@ -138,6 +169,14 @@ class LTApplicationListViewTests(LTApplicationViewTestBase):
         response = self.client.get(self.list_url)
         self.assertContains(response, 'テスト却下理由')
 
+    def test_vket_application_is_shown_to_applied_by_user(self):
+        detail = self.create_vket_application()
+        self.client.login(username='applicant', password='testpass123')
+
+        response = self.client.get(self.list_url)
+
+        self.assertIn(detail, response.context['applications'])
+
 
 class LTApplicationEditViewTests(LTApplicationViewTestBase):
     """LT申請編集ビューのテスト"""
@@ -161,6 +200,22 @@ class LTApplicationEditViewTests(LTApplicationViewTestBase):
         self.client.login(username='applicant', password='testpass123')
         other_edit_url = reverse('account:lt_application_edit', kwargs={'pk': self.other_application.pk})
         response = self.client.get(other_edit_url)
+        self.assertEqual(response.status_code, 404)
+
+    def test_vket_applied_by_user_can_edit_application(self):
+        detail = self.create_vket_application()
+        self.client.login(username='applicant', password='testpass123')
+
+        response = self.client.get(reverse('account:lt_application_edit', kwargs={'pk': detail.pk}))
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_unrelated_user_cannot_edit_vket_application(self):
+        detail = self.create_vket_application()
+        self.client.login(username='other_user', password='testpass123')
+
+        response = self.client.get(reverse('account:lt_application_edit', kwargs={'pk': detail.pk}))
+
         self.assertEqual(response.status_code, 404)
 
     def test_save_theme_and_speaker(self):

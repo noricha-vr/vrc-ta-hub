@@ -4,6 +4,7 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Q
 from django.urls import reverse
 from django.views.generic import ListView, UpdateView
 
@@ -21,9 +22,13 @@ class LTApplicationListView(LoginRequiredMixin, ListView):
 
     def get_queryset(self):
         return EventDetail.objects.filter(
-            applicant=self.request.user,
+            Q(applicant=self.request.user)
+            | Q(
+                applicant__isnull=True,
+                vket_presentations__participation__applied_by=self.request.user,
+            ),
             detail_type='LT',
-        ).select_related('event', 'event__community').order_by('-event__date', '-created_at')
+        ).select_related('event', 'event__community').distinct().order_by('-event__date', '-created_at')
 
 
 class LTApplicationEditView(LoginRequiredMixin, UpdateView):
@@ -36,9 +41,13 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
 
     def get_queryset(self):
         return EventDetail.objects.filter(
-            applicant=self.request.user,
+            Q(applicant=self.request.user)
+            | Q(
+                applicant__isnull=True,
+                vket_presentations__participation__applied_by=self.request.user,
+            ),
             detail_type='LT',
-        ).exclude(status='rejected').select_related('event', 'event__community')
+        ).exclude(status='rejected').select_related('event', 'event__community').distinct()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
