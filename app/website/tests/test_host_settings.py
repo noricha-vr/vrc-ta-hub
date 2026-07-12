@@ -121,6 +121,58 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             pattern,
         )
 
+    def test_cloud_run_preview_host_pattern_matches_deterministic_url_format(self):
+        """新形式 deterministic URL（{service}-{project番号}.{region}.run.app）も通る。
+
+        本番で `canary---vrc-ta-hub-332732449600.asia-northeast1.run.app` が
+        DisallowedHost になった回帰テスト（Issue #493）。
+        """
+        pattern = _build_cloud_run_preview_host_pattern()
+
+        self.assertRegex(
+            'canary---vrc-ta-hub-332732449600.asia-northeast1.run.app',
+            pattern,
+        )
+        self.assertRegex(
+            'vrc-ta-hub-332732449600.asia-northeast1.run.app',
+            pattern,
+        )
+        self.assertRegex(
+            'rev-24d1224---vrc-ta-hub-dev-332732449600.asia-northeast1.run.app',
+            pattern,
+        )
+        self.assertNotRegex(
+            'canary---other-service-332732449600.asia-northeast1.run.app',
+            pattern,
+        )
+        self.assertNotRegex(
+            'rev-24d1224---other-vrc-ta-hub-332732449600.asia-northeast1.run.app',
+            pattern,
+        )
+        # project 番号部が数字以外（旧形式 hash 相当）は新形式として通さない
+        self.assertNotRegex(
+            'vrc-ta-hub-mhbhtr6sha.asia-northeast1.run.app',
+            pattern,
+        )
+
+    @override_settings(
+        ROOT_URLCONF=__name__,
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
+        MIDDLEWARE=[
+            'website.middleware.CanonicalCloudRunHostMiddleware',
+            'django.middleware.common.CommonMiddleware',
+        ],
+    )
+    def test_cloud_run_deterministic_url_canary_host_is_canonicalized(self):
+        """新形式 URL の canary タグ付きリクエストが 200 で canonical host に寄る。"""
+        response = self.client.get(
+            '/healthz/',
+            HTTP_HOST='canary---vrc-ta-hub-332732449600.asia-northeast1.run.app',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content.decode(), 'vrc-ta-hub.com')
+
     @override_settings(
         ROOT_URLCONF=__name__,
         ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],

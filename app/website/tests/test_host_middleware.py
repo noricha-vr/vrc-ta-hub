@@ -69,6 +69,35 @@ class CanonicalCloudRunHostMiddlewareTest(SimpleTestCase):
     @override_settings(
         ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
     )
+    def test_cloud_run_deterministic_url_host_validator_allows_supported_service(self):
+        """新形式 deterministic URL の canary タグ付きホストで get_host() が通る（Issue #493）。"""
+        install_cloud_run_preview_host_validator()
+        request = self.request_factory.get(
+            '/healthz/',
+            HTTP_HOST='canary---vrc-ta-hub-332732449600.asia-northeast1.run.app',
+        )
+
+        self.assertEqual(
+            request.get_host(),
+            'canary---vrc-ta-hub-332732449600.asia-northeast1.run.app',
+        )
+
+    @override_settings(
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
+    )
+    def test_cloud_run_deterministic_url_host_validator_rejects_other_service(self):
+        install_cloud_run_preview_host_validator()
+        request = self.request_factory.get(
+            '/healthz/',
+            HTTP_HOST='canary---other-service-332732449600.asia-northeast1.run.app',
+        )
+
+        with self.assertRaises(DisallowedHost):
+            request.get_host()
+
+    @override_settings(
+        ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
+    )
     def test_middleware_initialization_installs_preview_host_validator(self):
         original_validate_host = request_module.validate_host
         request_module.validate_host = _ORIGINAL_VALIDATE_HOST

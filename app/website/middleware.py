@@ -32,9 +32,14 @@ def _build_cloud_run_preview_host_pattern_source() -> str:
         re.escape(service_name)
         for service_name in _build_cloud_run_service_names()
     )
+    # Cloud Run の URL は2形式ある（サービス名ホワイトリストは両形式で維持する）:
+    #   旧: {tag---}{service}-{hash}-{region略号}.a.run.app
+    #   新: {tag---}{service}-{project番号}.{region}.run.app (deterministic URL)
+    # https://cloud.google.com/run/docs/triggering/https-request#deterministic
     return (
-        rf'^(?:[a-z0-9-]+---)?(?:{service_names})-[a-z0-9]+-[a-z0-9]+'
-        rf'\.a\.run\.app(?::\d+)?$'
+        rf'^(?:[a-z0-9-]+---)?(?:{service_names})-'
+        rf'(?:[a-z0-9]+-[a-z0-9]+\.a|\d+\.[a-z0-9-]+)'
+        rf'\.run\.app(?::\d+)?$'
     )
 
 
