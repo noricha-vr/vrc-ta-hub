@@ -4,6 +4,9 @@ from django.test import TestCase, tag
 from django.contrib.auth import get_user_model
 from community.models import Community
 from event.models import Event, RecurrenceRule
+# 週番号・曜日ヘルパーは PR #454 のリファクタでサービスのメソッドから
+# calculator モジュール関数へ移動したため、モジュール関数を直接使う
+from event.recurrence.calculator import get_japanese_weekday, get_week_of_month
 from event.recurrence_service import RecurrenceService
 
 User = get_user_model()
@@ -68,8 +71,8 @@ class TestRecurrenceLLMGeneration(TestCase):
         
         print("\n=== 実際のLLMが生成した日付 ===")
         for d in dates:
-            weekday_jp = self.service._get_japanese_weekday(d.weekday())
-            week_num = self.service._get_week_of_month(d)
+            weekday_jp = get_japanese_weekday(d.weekday())
+            week_num = get_week_of_month(d)
             print(f"{d} ({weekday_jp}) - 第{week_num}週")
         
         # 期待される第4月曜日
@@ -86,7 +89,7 @@ class TestRecurrenceLLMGeneration(TestCase):
             self.assertEqual(d.weekday(), 0, f"{d} は月曜日ではありません (weekday={d.weekday()})")
             
             # 第4週（その曜日の4回目）であることを確認
-            week_of_month = self.service._get_week_of_month(d)
+            week_of_month = get_week_of_month(d)
             self.assertEqual(week_of_month, 4, f"{d} は第{week_of_month}週ですが、第4週であるべきです")
         
         # 期待される日付と一致することを確認
