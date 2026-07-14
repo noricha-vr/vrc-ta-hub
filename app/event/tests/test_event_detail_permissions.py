@@ -53,7 +53,7 @@ class EventDetailPermissionTests(TweetGenerationPatchMixin, TestCase):
 
         self.event = Event.objects.create(
             community=self.community,
-            date=date(2026, 2, 10),
+            date=date(2026, 3, 10),
             start_time=time(22, 0),
             duration=60,
             weekday="Tue",
@@ -167,6 +167,62 @@ class EventDetailPermissionTests(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-article-generation-form')
         self.assertContains(response, '生成しながら保存中…')
+
+    def test_admin_can_change_event_detail_datetime(self):
+        """コミュニティ管理者は開始時刻と持ち時間を変更できる."""
+        self.client.login(username="owner_user", password="testpass123")
+
+        url = reverse("event:detail_update", kwargs={"pk": self.applicant_detail.pk})
+        response = self.client.post(
+            url,
+            {
+                "detail_type": "LT",
+                "theme": "Admin Updated Theme",
+                "speaker": "Applicant Speaker",
+                "start_time": "23:00",
+                "duration": "45",
+                "contents": "updated contents",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.applicant_detail.refresh_from_db()
+        self.assertEqual(self.applicant_detail.start_time, time(23, 0))
+        self.assertEqual(self.applicant_detail.duration, 45)
+
+    def test_applicant_update_form_disables_datetime_fields(self):
+        """承認済みLTの登壇者本人は日時欄を編集できない."""
+        self.client.login(username="applicant_user", password="testpass123")
+
+        url = reverse("event:detail_update", kwargs={"pk": self.applicant_detail.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["form"].fields["start_time"].disabled)
+        self.assertTrue(response.context["form"].fields["duration"].disabled)
+
+    def test_applicant_datetime_tampering_keeps_values_and_updates_theme(self):
+        """登壇者の改変POSTでは日時を保護し、他の編集内容は保存する."""
+        self.client.login(username="applicant_user", password="testpass123")
+
+        url = reverse("event:detail_update", kwargs={"pk": self.applicant_detail.pk})
+        response = self.client.post(
+            url,
+            {
+                "detail_type": "LT",
+                "theme": "Applicant Updated Theme",
+                "speaker": "Applicant Speaker",
+                "start_time": "23:30",
+                "duration": "60",
+                "contents": "updated contents",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.applicant_detail.refresh_from_db()
+        self.assertEqual(self.applicant_detail.start_time, time(22, 30))
+        self.assertEqual(self.applicant_detail.duration, 30)
+        self.assertEqual(self.applicant_detail.theme, "Applicant Updated Theme")
 
     def test_owner_can_access_event_detail_create_view_with_generation_feedback(self):
         """主催者の作成画面には記事生成待機UIが含まれる."""

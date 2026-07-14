@@ -126,9 +126,9 @@ class Community(models.Model):
         help_text='発表申請時に登壇者に入力してもらいたい項目のテンプレート。空の場合は追加情報欄を表示しません。'
     )
     default_lt_duration = models.PositiveIntegerField(
-        'デフォルトの発表時間',
+        '発表の持ち時間（デフォルト）',
         default=30,
-        help_text='発表申請フォームに表示されるデフォルト値（分）。発表時間と質疑応答を含めた合計時間。'
+        help_text='発表申請フォームに表示されるデフォルト値（分）。発表と質疑応答を含めた合計時間。'
     )
     lt_start_offset_minutes = models.PositiveIntegerField(
         'LT開始までのオフセット(分)',

@@ -14,14 +14,22 @@ def _can_applicant_edit_approved_lt(user, event_detail: EventDetail) -> bool:
     )
 
 
-def can_manage_event_detail(user, event_detail: EventDetail) -> bool:
-    """イベント詳細の更新・記事生成可否を返す。"""
+def is_event_detail_admin(user, event_detail: EventDetail) -> bool:
+    """イベント詳細の日時を管理者として編集できるか判定する。"""
     if not getattr(user, "is_authenticated", False):
         return False
     return (
         getattr(user, "is_superuser", False)
         or event_detail.event.community.can_edit(user)
-        or _can_applicant_edit_approved_lt(user, event_detail)
+    )
+
+
+def can_manage_event_detail(user, event_detail: EventDetail) -> bool:
+    """イベント詳細の更新・記事生成可否を返す。"""
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return is_event_detail_admin(user, event_detail) or _can_applicant_edit_approved_lt(
+        user, event_detail
     )
 
 

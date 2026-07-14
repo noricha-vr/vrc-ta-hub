@@ -324,7 +324,7 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
         duration_str = request.POST.get('default_lt_duration', '30').strip()
         offset_str = request.POST.get('lt_start_offset_minutes', '30').strip()
 
-        # デフォルト発表時間のバリデーション
+        # デフォルトの持ち時間をバリデーション
         try:
             duration = max(1, int(duration_str))
         except ValueError:
@@ -350,7 +350,7 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
         messages.success(request, '発表申請設定を保存しました。')
         logger.info(
             f'発表申請設定更新: 集会「{community.name}」、'
-            f'テンプレート文字数={len(lt_template)}、デフォルト発表時間={duration}分、'
+            f'テンプレート文字数={len(lt_template)}、デフォルトの持ち時間={duration}分、'
             f'LT開始オフセット={offset}分'
         )
 

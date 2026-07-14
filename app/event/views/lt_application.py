@@ -134,7 +134,7 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
                 detail_type='LT',
                 theme=form.cleaned_data['theme'],
                 speaker=speaker,
-                duration=form.cleaned_data['duration'],
+                duration=self.community.default_lt_duration,
                 start_time=lt_start,
                 status='pending',
                 applicant=user,

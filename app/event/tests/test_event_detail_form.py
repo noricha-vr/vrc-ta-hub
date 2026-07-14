@@ -7,7 +7,7 @@ from django.test import TestCase, RequestFactory
 from django.test import override_settings
 from django.contrib.auth import get_user_model
 
-from community.models import Community
+from community.models import Community, CommunityMember
 from event.forms import EventDetailForm, LTApplicationEditForm
 from event.models import Event, EventDetail
 from event.tests.tweet_generation import TweetGenerationPatchMixin
@@ -39,6 +39,11 @@ class EventDetailFormCleanTest(TweetGenerationPatchMixin, TestCase):
             frequency='Every week',
             organizers='Test Organizer',
             status='approved'
+        )
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.user,
+            role=CommunityMember.Role.OWNER,
         )
 
         # イベント作成

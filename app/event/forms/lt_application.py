@@ -10,10 +10,6 @@ from ..thumbnail import SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT
 from .mixins import EventDetailMediaFormMixin
 
 
-# LT申請時のデフォルト発表時間（分）
-DEFAULT_LT_DURATION = 15
-
-
 class LTApplicationEditForm(EventDetailMediaFormMixin, forms.ModelForm):
     """LT申請者が自分の申請内容を編集するフォーム"""
 
@@ -93,15 +89,6 @@ class LTApplicationForm(forms.Form):
         help_text='VRChatの表示名を入力してください。送信するとアカウントの表示名としても保存されます。'
     )
 
-    duration = forms.IntegerField(
-        label='発表時間（分）',
-        initial=DEFAULT_LT_DURATION,
-        min_value=5,
-        max_value=60,
-        widget=forms.NumberInput(attrs={'class': 'form-control'}),
-        help_text='発表と質疑応答を含む持ち時間を分単位で入力してください（5〜60分）'
-    )
-
     x_account = forms.CharField(
         label='X (Twitter) アカウント',
         max_length=64,
@@ -120,6 +107,7 @@ class LTApplicationForm(forms.Form):
         widget=forms.Textarea(attrs={
             'class': 'form-control',
             'rows': 6,
+            'aria-describedby': 'id_additional_info_help',
         }),
         help_text='主催者が設定したテンプレートに沿って入力してください'
     )
@@ -130,9 +118,6 @@ class LTApplicationForm(forms.Form):
         super().__init__(*args, **kwargs)
 
         if self.community:
-            # コミュニティのデフォルトLT発表時間を設定
-            self.fields['duration'].initial = self.community.default_lt_duration
-
             # accepts_lt_application=True かつ未来のイベントのみ
             today = timezone.now().date()
             self.fields['event'].queryset = Event.objects.filter(
@@ -144,9 +129,15 @@ class LTApplicationForm(forms.Form):
             # テンプレートが設定されている場合は初期値として編集可能にする
             if self.community.lt_application_template:
                 self.fields['additional_info'].initial = self.community.lt_application_template
+            additional_info_guidance = (
+                '開始時刻や持ち時間の変更を希望する場合は、追加情報（備考）欄に'
+                'ご記入ください。主催者が承認時に調整します。'
+            )
+            if self.community.lt_application_template:
+                self.fields['additional_info'].help_text = additional_info_guidance
             else:
                 self.fields['additional_info'].help_text = (
-                    '追加で伝えたい情報があれば入力してください'
+                    f'追加で伝えたい情報があれば入力してください。{additional_info_guidance}'
                 )
 
         if self.user and self.user.is_authenticated:
