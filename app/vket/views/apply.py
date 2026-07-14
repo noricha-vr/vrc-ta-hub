@@ -193,6 +193,7 @@ class ApplyView(LoginRequiredMixin, View):
     ) -> VketPresentationFormSet:
         """LT情報のformsetを構築する"""
         lt_initial = []
+        presentations: list[VketPresentation] = []
         if participation:
             for pres in participation.presentations.order_by('order'):
                 lt_initial.append({
@@ -270,7 +271,7 @@ class ApplyView(LoginRequiredMixin, View):
     ) -> VketApplyPermissions:
         """コラボ権限に参加単位の確定後ロックを反映する"""
         permissions = _apply_permissions_for_user(user, collaboration)
-        if self._is_schedule_locked(participation) and not user.is_superuser and not user.is_staff:
+        if self._is_schedule_locked(participation) and not self._is_privileged_user(user):
             return VketApplyPermissions(
                 can_edit_schedule=False,
                 can_edit_lt=permissions.can_edit_lt,

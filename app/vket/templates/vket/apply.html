@@ -135,6 +135,35 @@
                 </div>
 
                 {% if permissions.can_edit_lt %}
+                <template id="lt-empty-row">
+                    {% with lt_form=formset.empty_form %}
+                    <div class="lt-row mb-3" data-lt-index="__prefix__">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">{{ lt_form.speaker.label }}</label>
+                                {{ lt_form.speaker }}
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">{{ lt_form.theme.label }}</label>
+                                {{ lt_form.theme }}
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">{{ lt_form.lt_start_time.label }}</label>
+                                {{ lt_form.lt_start_time }}
+                            </div>
+                            <div class="col-12 col-md-1 d-flex align-items-end">
+                                <button type="button" class="btn btn-outline-danger btn-sm lt-delete-btn" title="削除">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="d-none">{{ lt_form.DELETE }}</div>
+                    </div>
+                    {% endwith %}
+                </template>
+                {% endif %}
+
+                {% if permissions.can_edit_lt %}
                 <button type="button" class="btn btn-outline-secondary btn-sm" id="add-lt-btn">
                     <i class="fas fa-plus me-1"></i>発表を追加
                 </button>
@@ -199,16 +228,17 @@
             var container = document.getElementById('lt-formset-container');
             var visibleRows = container.querySelectorAll('.lt-row:not(.d-none)');
             var lastRow = visibleRows[visibleRows.length - 1];
-            var newRow = lastRow.cloneNode(true);
+            var emptyRowTemplate = document.getElementById('lt-empty-row');
+            var newRow = emptyRowTemplate.content.firstElementChild.cloneNode(true);
             var totalForms = document.getElementById('id_lt-TOTAL_FORMS');
             var newIndex = parseInt(totalForms.value);
 
             newRow.querySelectorAll('input, select').forEach(function(el) {
                 if (el.name) {
-                    el.name = el.name.replace(/-\d+-/, '-' + newIndex + '-');
+                    el.name = el.name.replace('__prefix__', newIndex);
                 }
                 if (el.id) {
-                    el.id = el.id.replace(/-\d+-/, '-' + newIndex + '-');
+                    el.id = el.id.replace('__prefix__', newIndex);
                 }
                 if (el.type === 'hidden' && el.name.endsWith('-DELETE')) {
                     el.value = '';
@@ -216,7 +246,9 @@
                     el.value = '';
                 }
             });
-            var previousTimeInput = lastRow.querySelector('input[name$="-lt_start_time"]');
+            var previousTimeInput = lastRow
+                ? lastRow.querySelector('input[name$="-lt_start_time"]')
+                : null;
             var startTimeInput = document.getElementById('id_requested_start_time');
             var newTimeInput = newRow.querySelector('input[name$="-lt_start_time"]');
             if (newTimeInput) {
