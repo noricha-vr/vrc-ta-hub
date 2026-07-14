@@ -213,7 +213,7 @@ class VketPresentation(models.Model):
     theme = models.CharField("テーマ", max_length=200, blank=True)
     requested_start_time = models.TimeField("希望開始時刻", null=True, blank=True)
     confirmed_start_time = models.TimeField("確定開始時刻", null=True, blank=True)
-    duration = models.PositiveIntegerField("発表時間（分）", default=30)
+    duration = models.PositiveIntegerField("発表の持ち時間（分）", default=30)
     status = models.CharField(
         "状態",
         max_length=20,

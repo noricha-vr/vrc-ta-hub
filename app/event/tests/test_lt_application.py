@@ -70,12 +70,13 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
         self.assertContains(response, 'Test Community')
         self.assertContains(
             response,
-            '1人あたりの持ち時間は 30分（発表+質疑応答を含む）が目安です。',
+            '発表の持ち時間: 30分（発表と質疑応答を含む）',
         )
         self.assertContains(
             response,
-            '発表と質疑応答を含む持ち時間を分単位で入力してください（5〜60分）',
+            '開始時刻や持ち時間の変更を希望する場合は、追加情報（備考）欄にご記入ください。主催者が承認時に調整します。',
         )
+        self.assertNotContains(response, 'id="id_duration"')
 
     def test_lt_application_form_requires_login(self):
         """未ログインユーザーはログインページにリダイレクトされる"""
@@ -110,7 +111,6 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
             'event': self.future_event.pk,
             'theme': 'Test Theme',
             'speaker': 'TestSpeaker',
-            'duration': 15,
         })
 
         # リダイレクト確認
@@ -131,7 +131,7 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
 
         self.assertIsNotNone(event_detail)
         self.assertEqual(event_detail.speaker, 'TestSpeaker')
-        self.assertEqual(event_detail.duration, 15)
+        self.assertEqual(event_detail.duration, self.community.default_lt_duration)
         self.assertEqual(event_detail.status, 'pending')
         self.assertEqual(event_detail.applicant, self.user)
 
@@ -149,12 +149,32 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
             'event': self.future_event.pk,
             'theme': 'Offset30',
             'speaker': 'Speaker',
-            'duration': 15,
         })
 
         event_detail = EventDetail.objects.get(event=self.future_event, theme='Offset30')
         # event.start_time = 22:00、オフセット30分 → 22:30
         self.assertEqual(event_detail.start_time, time(22, 30))
+
+    @patch('event.notifications.send_mail')
+    def test_lt_application_ignores_posted_duration(self, mock_send_mail):
+        """POSTされた持ち時間ではなく集会のデフォルトを保存する。"""
+        mock_send_mail.return_value = 1
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
+
+        response = self.client.post(url, {
+            'event': self.future_event.pk,
+            'theme': 'Duration Override Attempt',
+            'speaker': 'Speaker',
+            'duration': 5,
+        })
+
+        self.assertEqual(response.status_code, 302)
+        event_detail = EventDetail.objects.get(
+            event=self.future_event,
+            theme='Duration Override Attempt',
+        )
+        self.assertEqual(event_detail.duration, self.community.default_lt_duration)
 
     def test_lt_application_complete_page_displays_slide_video_flow(self):
         """申請完了ページに承認後の発表準備フローが表示される"""
@@ -197,7 +217,6 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
             'event': self.future_event.pk,
             'theme': 'Offset45',
             'speaker': 'Speaker',
-            'duration': 15,
         })
 
         event_detail = EventDetail.objects.get(event=self.future_event, theme='Offset45')
@@ -217,7 +236,6 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
             'event': self.future_event.pk,
             'theme': 'Offset0',
             'speaker': 'Speaker',
-            'duration': 15,
         })
 
         event_detail = EventDetail.objects.get(event=self.future_event, theme='Offset0')
@@ -241,7 +259,6 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
             'event': self.future_event.pk,
             'theme': 'Second LT',
             'speaker': 'Speaker',
-            'duration': 15,
         })
         second_lt = EventDetail.objects.get(event=self.future_event, theme='Second LT')
         self.assertEqual(second_lt.start_time, time(22, 45))
@@ -250,10 +267,9 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
             'event': self.future_event.pk,
             'theme': 'Third LT',
             'speaker': 'Speaker',
-            'duration': 15,
         })
         third_lt = EventDetail.objects.get(event=self.future_event, theme='Third LT')
-        self.assertEqual(third_lt.start_time, time(23, 0))
+        self.assertEqual(third_lt.start_time, time(23, 15))
 
     @patch('event.notifications.send_mail')
     def test_lt_application_ignores_rejected_lt_for_start_time(self, mock_send_mail):
@@ -273,7 +289,6 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
             'event': self.future_event.pk,
             'theme': 'New LT',
             'speaker': 'Speaker',
-            'duration': 15,
         })
 
         new_lt = EventDetail.objects.get(event=self.future_event, theme='New LT')
@@ -304,7 +319,6 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
             'event': self.future_event.pk,
             'theme': 'New LT',
             'speaker': 'Speaker',
-            'duration': 15,
         })
 
         new_lt = EventDetail.objects.get(event=self.future_event, theme='New LT')
@@ -333,7 +347,6 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
             'event': overnight_event.pk,
             'theme': 'After Midnight LT',
             'speaker': 'Speaker',
-            'duration': 15,
         })
 
         new_lt = EventDetail.objects.get(event=overnight_event, theme='After Midnight LT')
@@ -1141,7 +1154,6 @@ class LTApplicationAdditionalInfoTest(TweetGenerationPatchMixin, TestCase):
             'event': self.event_with_template.pk,
             'theme': 'Test Theme',
             'speaker': 'TestSpeaker',
-            'duration': 15,
             'additional_info': '【発表概要】\n\n【対象者】\n',  # テンプレートと同一
         })
 
@@ -1160,7 +1172,6 @@ class LTApplicationAdditionalInfoTest(TweetGenerationPatchMixin, TestCase):
             'event': self.event_with_template.pk,
             'theme': 'Test Theme',
             'speaker': 'TestSpeaker',
-            'duration': 15,
             'additional_info': '【発表概要】VRChatの技術について発表します。【対象者】初心者向け。',
         })
 
@@ -1187,7 +1198,6 @@ class LTApplicationAdditionalInfoTest(TweetGenerationPatchMixin, TestCase):
             'event': self.event_without_template.pk,
             'theme': 'Test Theme',
             'speaker': 'TestSpeaker',
-            'duration': 15,
             # additional_info は未入力
         })
 
@@ -1214,7 +1224,6 @@ class LTApplicationAdditionalInfoTest(TweetGenerationPatchMixin, TestCase):
             'event': self.event_without_template.pk,
             'theme': 'Free Info Theme',
             'speaker': 'TestSpeaker',
-            'duration': 15,
             'additional_info': '事前共有したい補足情報です。',
         })
 

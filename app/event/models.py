@@ -316,7 +316,7 @@ class EventDetail(models.Model):
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='details', verbose_name='イベント')
     detail_type = models.CharField('タイプ', max_length=10, choices=TYPE_CHOICES, default='LT', db_index=True)
     start_time = models.TimeField('開始時刻', default='22:00', db_index=True)
-    duration = models.IntegerField('発表時間（分）', default=30)
+    duration = models.IntegerField('発表の持ち時間（分）', default=30)
     youtube_url = models.URLField('YouTube URL', blank=True, null=True)
     slide_url = models.URLField('スライド URL', blank=True, null=True)
     slide_file = models.FileField('スライド', blank=True, null=True, upload_to=slide_file_upload_to, validators=[validate_pdf_file])

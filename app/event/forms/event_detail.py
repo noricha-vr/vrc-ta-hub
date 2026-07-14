@@ -20,7 +20,7 @@ class EventDetailForm(EventDetailMediaFormMixin, forms.ModelForm):
             attrs={'type': 'time', 'class': 'form-control w-25'})  # Bootstrapのクラスを追加
     )
     duration = forms.IntegerField(
-        label='発表時間（分）',
+        label='発表の持ち時間（分）',
         min_value=1,
         widget=forms.NumberInput(attrs={'class': 'form-control w-25'})
     )
@@ -92,6 +92,7 @@ class EventDetailForm(EventDetailMediaFormMixin, forms.ModelForm):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
         self.datetime_locked = False
+        self.applicant_datetime_locked = False
         self.datetime_lock_message = EVENT_DETAIL_DATETIME_LOCK_MESSAGE
 
         if not self.instance.pk and self.request and self.request.user.is_authenticated:
@@ -108,6 +109,19 @@ class EventDetailForm(EventDetailMediaFormMixin, forms.ModelForm):
             self.datetime_locked = True
             self.fields['start_time'].disabled = True
             self.fields['duration'].disabled = True
+
+        # request がない直接利用ではロックせず、呼び出し側で権限判定済みであることを前提とする。
+        if self.instance.pk and self.request:
+            # views.helpers は views パッケージ初期化時にこのフォームを import するため、
+            # 循環 import を避けてフォーム生成時に読み込む。
+            from event.views.helpers import is_event_detail_admin
+
+            self.applicant_datetime_locked = not is_event_detail_admin(
+                self.request.user, self.instance
+            )
+            if self.applicant_datetime_locked:
+                self.fields['start_time'].disabled = True
+                self.fields['duration'].disabled = True
 
         # 既存の記事がある場合（更新時）は自動生成チェックボックスをOFFにする
         if self.instance and self.instance.pk:
@@ -149,6 +163,10 @@ class EventDetailForm(EventDetailMediaFormMixin, forms.ModelForm):
                 cleaned_data['duration'] = 30
 
         if is_datetime_locked:
+            cleaned_data['start_time'] = self.instance.start_time
+            cleaned_data['duration'] = self.instance.duration
+
+        if self.applicant_datetime_locked:
             cleaned_data['start_time'] = self.instance.start_time
             cleaned_data['duration'] = self.instance.duration
 

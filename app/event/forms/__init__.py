@@ -12,7 +12,6 @@ from event.forms.recurrence import (  # noqa: F401
 )
 from event.forms.event_detail import EventDetailForm  # noqa: F401
 from event.forms.lt_application import (  # noqa: F401
-    DEFAULT_LT_DURATION,
     LTApplicationEditForm,
     LTApplicationForm,
     LTApplicationReviewForm,

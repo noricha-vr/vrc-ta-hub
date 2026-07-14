@@ -31,7 +31,7 @@
                             <li>承認または却下の結果はメールでお知らせします</li>
                             <li>発表内容の詳細（スライドや動画）は承認後に編集できます</li>
                         </ul>
-                        <p class="mb-2">1人あたりの持ち時間は {{ community.default_lt_duration }}分（発表+質疑応答を含む）が目安です。発表開始時刻は申請順に自動で割り当てられます。</p>
+                        <p class="mb-2">発表開始時刻は申請順に自動で割り当てられます。</p>
                         <p class="mb-0">発表後にスライドの登録にご協力をお願いします。</p>
                     </div>
 
@@ -100,22 +100,10 @@
                             </div>
 
                             <div class="mb-4">
-                                <label for="id_duration" class="form-label fw-bold">
-                                    <i class="bi bi-clock me-1"></i>{{ form.duration.label }}
-                                    <span class="text-danger">*</span>
-                                </label>
-                                <div class="input-group" style="max-width: 200px;">
-                                    {{ form.duration }}
-                                    <span class="input-group-text">分</span>
-                                </div>
-                                {% if form.duration.help_text %}
-                                    <small class="form-text text-muted">{{ form.duration.help_text }}</small>
-                                {% endif %}
-                                {% if form.duration.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {% for error in form.duration.errors %}{{ error }}{% endfor %}
-                                    </div>
-                                {% endif %}
+                                <p class="form-label fw-bold mb-1">
+                                    <i class="bi bi-clock me-1"></i>発表の持ち時間: {{ community.default_lt_duration }}分（発表と質疑応答を含む）
+                                </p>
+                                <small class="form-text text-muted">開始時刻や持ち時間の変更を希望する場合は、追加情報（備考）欄にご記入ください。主催者が承認時に調整します。</small>
                             </div>
 
                             <div class="mb-4">
@@ -143,7 +131,7 @@
                                 </label>
                                 {{ form.additional_info }}
                                 {% if form.additional_info.help_text %}
-                                    <small class="form-text text-muted">{{ form.additional_info.help_text }}</small>
+                                    <small id="id_additional_info_help" class="form-text text-muted">{{ form.additional_info.help_text }}</small>
                                 {% endif %}
                                 {% if form.additional_info.errors %}
                                     <div class="invalid-feedback d-block">
