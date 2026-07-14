@@ -363,6 +363,28 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
             time(22, 30),
         )
 
+    def test_calc_next_lt_start_time_ignores_lt_ending_before_event_offset(self):
+        """開始前に終了する手動配置LTでもオフセットを下回らない。"""
+        self.assertEqual(
+            _calc_next_lt_start_time(
+                time(21, 0),
+                [(time(20, 0), 30)],
+                30,
+            ),
+            time(21, 30),
+        )
+
+    def test_calc_next_lt_start_time_floors_early_existing_lt_at_offset(self):
+        """既存LTの終了がオフセットより早い場合はオフセットから開始する。"""
+        self.assertEqual(
+            _calc_next_lt_start_time(
+                time(21, 0),
+                [(time(21, 5), 10)],
+                30,
+            ),
+            time(21, 30),
+        )
+
 
 class LTApplicationReviewTest(TweetGenerationPatchMixin, TestCase):
     """LT申請の承認/却下テスト"""

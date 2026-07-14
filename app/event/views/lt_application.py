@@ -5,6 +5,7 @@ from datetime import datetime, time, timedelta
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
+from django.db.models import Prefetch
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import FormView, TemplateView, View
@@ -31,18 +32,33 @@ def _calc_next_lt_start_time(
     existing_lt_slots: Iterable[tuple[time, int]],
     offset_minutes: int,
 ) -> time:
-    """既存LTの終了後、またはオフセット後の次の開始時刻を返す。"""
+    """既存LTの終了後、またはオフセット後の次の開始時刻を返す。
+
+    開始時刻との差分は24時間で循環し、循環後の差分が12時間を超える場合は
+    イベント開始前に手動配置されたLTとして負の経過時間に補正する。
+    """
     slots = list(existing_lt_slots)
     if not slots:
         return _calc_lt_start_time(event_start_time, offset_minutes)
 
     event_start_minutes = event_start_time.hour * 60 + event_start_time.minute
-    latest_end_minutes = max(
-        ((start_time.hour * 60 + start_time.minute - event_start_minutes) % (24 * 60))
-        + duration
-        for start_time, duration in slots
+    slot_end_minutes = []
+    for start_time, duration in slots:
+        wrapped_delta = (
+            start_time.hour * 60 + start_time.minute - event_start_minutes
+        ) % (24 * 60)
+        delta_minutes = (
+            wrapped_delta - (24 * 60)
+            if wrapped_delta > 12 * 60
+            else wrapped_delta
+        )
+        slot_end_minutes.append(delta_minutes + duration)
+
+    latest_end_minutes = max(slot_end_minutes)
+    return _calc_lt_start_time(
+        event_start_time,
+        max(latest_end_minutes, offset_minutes),
     )
-    return _calc_lt_start_time(event_start_time, latest_end_minutes)
 
 
 class LTApplicationCreateView(LoginRequiredMixin, FormView):
@@ -64,18 +80,22 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
         context = super().get_context_data(**kwargs)
         context['community'] = self.community
         event_queryset = context['form'].fields['event'].queryset
+        lt_prefetch = Prefetch(
+            'details',
+            queryset=EventDetail.objects.filter(
+                detail_type='LT',
+                status__in=['pending', 'approved'],
+            ),
+            to_attr='lt_slots',
+        )
         offset = self.community.lt_start_offset_minutes or 0
         context['next_start_times'] = {
             event.pk: _calc_next_lt_start_time(
                 event.start_time,
-                EventDetail.objects.filter(
-                    event=event,
-                    detail_type='LT',
-                    status__in=['pending', 'approved'],
-                ).values_list('start_time', 'duration'),
+                ((slot.start_time, slot.duration) for slot in event.lt_slots),
                 offset,
             ).strftime('%H:%M')
-            for event in event_queryset
+            for event in event_queryset.prefetch_related(lt_prefetch)
         }
         return context
 
