@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
@@ -59,7 +61,12 @@ class ApplyView(LoginRequiredMixin, View):
             permissions=permissions,
             initial=initial,
         )
-        formset = self._build_formset(participation=participation, permissions=permissions)
+        formset = self._build_formset(
+            collaboration=collaboration,
+            participation=participation,
+            permissions=permissions,
+            user=request.user,
+        )
         schedule_ctx = _build_schedule_context(collaboration, include_requested=True)
         return render(
             request,
@@ -115,9 +122,11 @@ class ApplyView(LoginRequiredMixin, View):
             initial=initial,
         )
         formset = self._build_formset(
+            collaboration=collaboration,
             participation=participation,
             permissions=permissions,
             data=request.POST,
+            user=request.user,
         )
 
         if not (form.is_valid() and formset.is_valid()):
@@ -176,12 +185,15 @@ class ApplyView(LoginRequiredMixin, View):
     def _build_formset(
         self,
         *,
+        collaboration: VketCollaboration,
         participation: VketParticipation | None,
         permissions: VketApplyPermissions,
+        user,
         data=None,
     ) -> VketPresentationFormSet:
         """LT情報のformsetを構築する"""
         lt_initial = []
+        presentations: list[VketPresentation] = []
         if participation:
             for pres in participation.presentations.order_by('order'):
                 lt_initial.append({
@@ -194,18 +206,54 @@ class ApplyView(LoginRequiredMixin, View):
             data,
             initial=lt_initial or None,
             prefix='lt',
-            form_kwargs={
-                'lock_lt_start_time': self._is_schedule_locked(participation),
-            },
         )
+        for form in formset:
+            form.can_organizer_delete = True
+        if participation:
+            presentations = list(participation.presentations.order_by('order', 'id'))
+            for form, presentation in zip(formset.forms, presentations):
+                form.can_organizer_delete = not presentation.is_organizer_delete_locked
+
         if not permissions.can_edit_lt:
             self._disable_formset(formset)
+            return formset
+
+        if self._is_lt_time_globally_locked(collaboration, user):
+            for form in formset:
+                form.fields['lt_start_time'].disabled = True
+            return formset
+
+        if not self._is_privileged_user(user) and participation:
+            for form, presentation in zip(formset.forms, presentations):
+                if self._is_presentation_time_locked(presentation):
+                    form.fields['lt_start_time'].disabled = True
         return formset
 
     @staticmethod
     def _is_schedule_locked(participation: VketParticipation | None) -> bool:
-        """主催者向けの日程・LT開始時刻を固定する状態なら True を返す"""
+        """主催者向けの参加日程を固定する状態なら True を返す"""
         return bool(participation and participation.is_schedule_confirmed)
+
+    @staticmethod
+    def _is_privileged_user(user) -> bool:
+        """運営管理者なら True を返す。"""
+        return user.is_superuser or user.is_staff
+
+    @classmethod
+    def _is_lt_time_globally_locked(cls, collaboration: VketCollaboration, user) -> bool:
+        """発表情報締切後に非管理者の時刻編集を止める。"""
+        return (
+            not cls._is_privileged_user(user)
+            and timezone.localdate() > collaboration.lt_deadline
+        )
+
+    @staticmethod
+    def _is_presentation_time_locked(presentation: VketPresentation) -> bool:
+        """確定または公開済みの発表時刻を固定する。"""
+        return (
+            presentation.status == VketPresentation.Status.CONFIRMED
+            or presentation.published_event_detail_id is not None
+        )
 
     @staticmethod
     def _is_late_lt_submission(
@@ -223,7 +271,7 @@ class ApplyView(LoginRequiredMixin, View):
     ) -> VketApplyPermissions:
         """コラボ権限に参加単位の確定後ロックを反映する"""
         permissions = _apply_permissions_for_user(user, collaboration)
-        if self._is_schedule_locked(participation) and not user.is_superuser and not user.is_staff:
+        if self._is_schedule_locked(participation) and not self._is_privileged_user(user):
             return VketApplyPermissions(
                 can_edit_schedule=False,
                 can_edit_lt=permissions.can_edit_lt,
@@ -286,6 +334,11 @@ class ApplyView(LoginRequiredMixin, View):
         # 備考情報の保存
         if permissions.can_edit_lt:
             participation.organizer_note = cleaned.get('organizer_note', '')
+            participation.lt_slot_minutes = (
+                cleaned.get('lt_slot_minutes')
+                or participation.lt_slot_minutes
+                or 30
+            )
 
         # 初回申請時にapplied_by/applied_atをセット
         if is_new or participation.progress == VketParticipation.Progress.NOT_APPLIED:
@@ -298,97 +351,116 @@ class ApplyView(LoginRequiredMixin, View):
         # プレゼンテーション情報をVketPresentationに保存（formset）
         if permissions.can_edit_lt:
             is_late_lt_submission = self._is_late_lt_submission(collaboration, permissions)
-            if self._is_schedule_locked(participation):
-                self._save_locked_presentations(
-                    participation,
-                    formset_data,
-                    is_late_lt_submission=is_late_lt_submission,
-                )
-            else:
-                self._save_editable_presentations(
-                    participation,
-                    formset_data,
-                    is_late_lt_submission=is_late_lt_submission,
-                )
+            self._save_presentations(
+                participation,
+                formset_data,
+                is_late_lt_submission=is_late_lt_submission,
+                lock_lt_times=self._is_lt_time_globally_locked(collaboration, request.user),
+                allow_privileged_time_edits=self._is_privileged_user(request.user),
+            )
 
         return participation
 
-    def _save_editable_presentations(
+    def _save_presentations(
         self,
         participation: VketParticipation,
         formset_data: list[dict],
         *,
         is_late_lt_submission: bool = False,
+        lock_lt_times: bool = False,
+        allow_privileged_time_edits: bool = False,
     ) -> None:
-        """確定前のLT情報を通常どおり保存する"""
-        saved_orders = set()
-        order = 0
-        for row in formset_data:
-            if row.get('DELETE'):
-                continue
-            speaker = (row.get('speaker') or '').strip()
-            theme = (row.get('theme') or '').strip()
-            if not speaker and not theme:
-                continue
-            defaults = {
-                'speaker': speaker,
-                'theme': theme,
-                'requested_start_time': row.get('lt_start_time'),
-            }
-            if is_late_lt_submission:
-                defaults['status'] = VketPresentation.Status.DRAFT
-            VketPresentation.objects.update_or_create(
-                participation=participation,
-                order=order,
-                defaults=defaults,
-            )
-            saved_orders.add(order)
-            order += 1
-        # formsetで保存されなかったorderの既存レコードを削除
-        VketPresentation.objects.filter(
-            participation=participation,
-        ).exclude(order__in=saved_orders).delete()
-
-    def _save_locked_presentations(
-        self,
-        participation: VketParticipation,
-        formset_data: list[dict],
-        *,
-        is_late_lt_submission: bool = False,
-    ) -> None:
-        """確定後は既存LTの削除と開始時刻変更を拒否して保存する"""
-        existing_by_order = {
-            pres.order: pres
-            for pres in participation.presentations.order_by('order', 'id')
-        }
-        next_order = max(existing_by_order.keys(), default=-1) + 1
+        """行ごとの時刻・削除ロックを保ちながらLT情報を保存する。"""
+        existing = list(participation.presentations.order_by('order', 'id'))
+        saved: list[VketPresentation] = []
+        locked_presentation_ids: set[int] = set()
 
         for index, row in enumerate(formset_data):
+            presentation = existing[index] if index < len(existing) else None
             if row.get('DELETE'):
+                if presentation and not presentation.is_organizer_delete_locked:
+                    presentation.delete()
+                elif presentation:
+                    if (
+                        not allow_privileged_time_edits
+                        and self._is_presentation_time_locked(presentation)
+                    ):
+                        locked_presentation_ids.add(presentation.pk)
+                    saved.append(presentation)
                 continue
 
             speaker = (row.get('speaker') or '').strip()
             theme = (row.get('theme') or '').strip()
             if not speaker and not theme:
+                if presentation and presentation.is_organizer_delete_locked:
+                    if (
+                        not allow_privileged_time_edits
+                        and self._is_presentation_time_locked(presentation)
+                    ):
+                        locked_presentation_ids.add(presentation.pk)
+                    saved.append(presentation)
+                elif presentation:
+                    presentation.delete()
                 continue
 
-            existing = existing_by_order.get(index)
-            if existing:
-                existing.speaker = speaker
-                existing.theme = theme
+            requested_start_time = row.get('lt_start_time')
+            if presentation:
+                presentation.speaker = speaker
+                presentation.theme = theme
                 update_fields = ['speaker', 'theme', 'updated_at']
+                time_locked = lock_lt_times or (
+                    not allow_privileged_time_edits
+                    and self._is_presentation_time_locked(presentation)
+                )
+                if time_locked:
+                    locked_presentation_ids.add(presentation.pk)
+                if not time_locked:
+                    presentation.requested_start_time = requested_start_time
+                    update_fields.append('requested_start_time')
                 if is_late_lt_submission:
-                    existing.status = VketPresentation.Status.DRAFT
+                    presentation.status = VketPresentation.Status.DRAFT
                     update_fields.append('status')
-                existing.save(update_fields=update_fields)
+                presentation.save(update_fields=update_fields)
+                saved.append(presentation)
                 continue
 
-            VketPresentation.objects.create(
+            presentation = VketPresentation.objects.create(
                 participation=participation,
-                order=next_order,
+                order=max((item.order for item in existing + saved), default=-1) + 1,
                 speaker=speaker,
                 theme=theme,
-                requested_start_time=row.get('lt_start_time'),
+                requested_start_time=None if lock_lt_times else requested_start_time,
                 status=VketPresentation.Status.DRAFT,
             )
-            next_order += 1
+            saved.append(presentation)
+
+        if not lock_lt_times:
+            self._fill_missing_lt_start_times(
+                participation,
+                saved,
+                locked_presentation_ids=locked_presentation_ids,
+            )
+
+    @staticmethod
+    def _fill_missing_lt_start_times(
+        participation: VketParticipation,
+        presentations: list[VketPresentation],
+        *,
+        locked_presentation_ids: set[int],
+    ) -> None:
+        """未入力の開始時刻を前行または参加枠の開始時刻から補う。"""
+        previous_time = None
+        for presentation in sorted(presentations, key=lambda item: (item.order, item.id)):
+            current_time = presentation.requested_start_time
+            if current_time is None and presentation.pk not in locked_presentation_ids:
+                base_time = previous_time or participation.requested_start_time
+                if base_time is not None:
+                    candidate = datetime.combine(timezone.localdate(), base_time)
+                    if previous_time is not None:
+                        candidate += timedelta(minutes=participation.lt_slot_minutes)
+                    if candidate.date() == timezone.localdate():
+                        presentation.requested_start_time = candidate.time()
+                        presentation.save(update_fields=['requested_start_time', 'updated_at'])
+                        current_time = presentation.requested_start_time
+            if current_time is not None:
+                previous_time = current_time

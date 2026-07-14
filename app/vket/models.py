@@ -106,6 +106,11 @@ class VketParticipation(models.Model):
     requested_date = models.DateField("希望日程", null=True, blank=True)
     requested_start_time = models.TimeField("希望開始時刻", null=True, blank=True)
     requested_duration = models.PositiveIntegerField("希望開催時間（分）", null=True, blank=True)
+    lt_slot_minutes = models.PositiveIntegerField(
+        "1人あたり持ち時間（分）",
+        default=30,
+        help_text="発表と質疑応答を含む1人あたりの時間枠です。",
+    )
 
     # 運営が確定した内容
     confirmed_date = models.DateField("確定日程", null=True, blank=True)

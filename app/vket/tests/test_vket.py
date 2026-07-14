@@ -359,7 +359,7 @@ class VketApplyFlowTests(TestCase):
                         'speaker': '更新後登壇者',
                         'theme': '更新後テーマ',
                         'lt_start_time': '23:30',
-                    }
+                    },
                 ],
                 initial_forms=1,
             )
@@ -679,8 +679,8 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(len(presentations), 1)
         self.assertEqual(presentations[0].speaker, '残す登壇者')
 
-    def test_confirmed_participation_post_keeps_schedule_and_lt_start_time(self):
-        """日程確定後の主催者POSTでは日程と既存LT開始時刻が変わらない"""
+    def test_confirmed_participation_post_allows_unlocked_lt_start_time(self):
+        """日程確定後も締切内なら未確定LTの開始時刻を更新できる"""
         self.client.login(username='owner_user', password='testpass123')
         self._set_active_community()
 
@@ -703,7 +703,7 @@ class VketApplyFlowTests(TestCase):
             speaker='確定前登壇者',
             theme='確定前テーマ',
             requested_start_time=time(21, 30),
-            status=VketPresentation.Status.CONFIRMED,
+            status=VketPresentation.Status.DRAFT,
         )
 
         post_data = {
@@ -711,6 +711,7 @@ class VketApplyFlowTests(TestCase):
             'requested_start_time': '23:00',
             'requested_duration': '90',
             'organizer_note': '確定後も備考は更新',
+            'lt_slot_minutes': '20',
         }
         post_data.update(
             self._make_formset_data(
@@ -719,7 +720,12 @@ class VketApplyFlowTests(TestCase):
                         'speaker': '更新後登壇者',
                         'theme': '更新後テーマ',
                         'lt_start_time': '23:30',
-                    }
+                    },
+                    {
+                        'speaker': '追加登壇者',
+                        'theme': '追加テーマ',
+                        'lt_start_time': '23:50',
+                    },
                 ],
                 initial_forms=1,
             )
@@ -738,9 +744,14 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(participation.requested_start_time, time(21, 0))
         self.assertEqual(participation.requested_duration, 60)
         self.assertEqual(participation.organizer_note, '確定後も備考は更新')
+        self.assertEqual(participation.lt_slot_minutes, 20)
         self.assertEqual(presentation.speaker, '更新後登壇者')
         self.assertEqual(presentation.theme, '更新後テーマ')
-        self.assertEqual(presentation.requested_start_time, time(21, 30))
+        self.assertEqual(presentation.requested_start_time, time(23, 30))
+        self.assertEqual(
+            VketPresentation.objects.get(participation=participation, order=1).requested_start_time,
+            time(23, 50),
+        )
 
     def test_confirmed_participation_post_does_not_delete_existing_lt(self):
         """日程確定後はformset DELETEでも既存LTを削除しない"""
@@ -795,8 +806,8 @@ class VketApplyFlowTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertTrue(VketPresentation.objects.filter(pk=presentation.pk).exists())
 
-    def test_confirmed_participation_apply_get_shows_locked_message(self):
-        """日程確定後の参加フォームに編集不可の文言が出る"""
+    def test_confirmed_participation_apply_get_shows_lt_editable_message(self):
+        """日程確定後も締切内のLT時刻編集可否を案内する"""
         self.client.login(username='owner_user', password='testpass123')
         self._set_active_community()
         VketParticipation.objects.create(
@@ -815,7 +826,118 @@ class VketApplyFlowTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '参加日程（Step 1）は運営が確定済みのため編集できません。')
-        self.assertContains(response, '発表開始時刻は日程確定済みのため編集できません。')
+        self.assertContains(response, '発表開始時刻は発表情報の締切まで変更できます')
+
+    def test_lt_start_time_is_rejected_after_deadline_but_text_updates(self):
+        """締切後はLT時刻を保持し、登壇者名とテーマは更新できる"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+        self.collaboration.lt_deadline = timezone.localdate() - timedelta(days=1)
+        self.collaboration.save(update_fields=['lt_deadline'])
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration, community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time=time(21, 0), requested_duration=60,
+        )
+        presentation = VketPresentation.objects.create(
+            participation=participation, order=0, speaker='変更前登壇者',
+            theme='変更前テーマ', requested_start_time=time(21, 30),
+        )
+        post_data = {
+            'requested_date': self.collaboration.period_start.isoformat(),
+            'requested_start_time': '21:00', 'requested_duration': '60',
+            'organizer_note': '', 'lt_slot_minutes': '45',
+        }
+        post_data.update(self._make_formset_data([
+            {'speaker': '変更後登壇者', 'theme': '変更後テーマ', 'lt_start_time': '23:30'},
+        ], initial_forms=1))
+
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}), post_data
+        )
+
+        self.assertEqual(response.status_code, 302)
+        presentation.refresh_from_db()
+        self.assertEqual(presentation.speaker, '変更後登壇者')
+        self.assertEqual(presentation.theme, '変更後テーマ')
+        self.assertEqual(presentation.requested_start_time, time(21, 30))
+
+    def test_confirmed_or_published_lt_time_ignores_post_value(self):
+        """確定済みまたは公開済みLTの時刻はPOST値で上書きできない"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration, community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time=time(21, 0), requested_duration=60,
+        )
+        confirmed = VketPresentation.objects.create(
+            participation=participation, order=0, speaker='確定済み', theme='テーマ',
+            requested_start_time=time(21, 30), status=VketPresentation.Status.CONFIRMED,
+        )
+        published_detail = EventDetail.objects.create(
+            event=Event.objects.get(community=self.community),
+            speaker='公開済み', theme='テーマ', start_time=time(22, 0),
+        )
+        published = VketPresentation.objects.create(
+            participation=participation, order=1, speaker='公開済み', theme='テーマ',
+            requested_start_time=time(22, 0), published_event_detail=published_detail,
+        )
+        post_data = {
+            'requested_date': self.collaboration.period_start.isoformat(),
+            'requested_start_time': '21:00', 'requested_duration': '60',
+            'organizer_note': '', 'lt_slot_minutes': '30',
+        }
+        post_data.update(self._make_formset_data([
+            {'speaker': '確定済み更新', 'theme': '更新', 'lt_start_time': '23:00'},
+            {'speaker': '公開済み更新', 'theme': '更新', 'lt_start_time': '23:30'},
+        ], initial_forms=2))
+
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}), post_data
+        )
+
+        self.assertEqual(response.status_code, 302)
+        confirmed.refresh_from_db()
+        published.refresh_from_db()
+        self.assertEqual(confirmed.requested_start_time, time(21, 30))
+        self.assertEqual(published.requested_start_time, time(22, 0))
+
+    def test_missing_lt_start_times_are_assigned_from_slot_minutes(self):
+        """未入力LT時刻は参加枠の開始時刻から持ち時間ごとに補完する"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+        post_data = {
+            'requested_date': self.collaboration.period_start.isoformat(),
+            'requested_start_time': '21:00', 'requested_duration': '60',
+            'organizer_note': '', 'lt_slot_minutes': '20',
+        }
+        post_data.update(self._make_formset_data([
+            {'speaker': '登壇者1', 'theme': 'テーマ1'},
+            {'speaker': '登壇者2', 'theme': 'テーマ2'},
+            {'speaker': '登壇者3', 'theme': 'テーマ3'},
+        ]))
+
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}), post_data
+        )
+
+        self.assertEqual(response.status_code, 302)
+        participation = VketParticipation.objects.get(
+            collaboration=self.collaboration, community=self.community
+        )
+        self.assertEqual(participation.lt_slot_minutes, 20)
+        self.assertEqual(
+            list(participation.presentations.values_list('requested_start_time', flat=True)),
+            [time(21, 0), time(21, 20), time(21, 40)],
+        )
+
+    def test_lt_slot_minutes_defaults_to_30(self):
+        """参加枠の持ち時間は30分を既定値にする"""
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration, community=self.community,
+        )
+        self.assertEqual(participation.lt_slot_minutes, 30)
 
     def test_apply_get_prefills_multiple_presentations(self):
         """既存の複数LTがGETでformsetにプリフィルされる"""

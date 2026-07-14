@@ -108,6 +108,12 @@ class VketApplyForm(forms.Form):
         label='希望開催時間（分）',
         coerce=int,
     )
+    lt_slot_minutes = forms.TypedChoiceField(
+        label='1人あたりの持ち時間（分）',
+        coerce=int,
+        choices=[(minutes, f'{minutes}分') for minutes in (15, 20, 30, 45, 60)],
+        required=False,
+    )
     organizer_note = forms.CharField(
         label='備考',
         required=False,
@@ -135,6 +141,9 @@ class VketApplyForm(forms.Form):
         self.fields['requested_duration'].choices = _build_duration_choices(
             default_minutes=community.duration
         )
+        self.fields['lt_slot_minutes'].initial = (
+            participation.lt_slot_minutes if participation else 30
+        )
 
         # 日程編集不可の場合はスケジュール関連フィールドを無効化
         if not permissions.can_edit_schedule:
@@ -145,6 +154,7 @@ class VketApplyForm(forms.Form):
         # LT情報編集不可の場合は備考フィールドを無効化
         if not permissions.can_edit_lt:
             self.fields['organizer_note'].disabled = True
+            self.fields['lt_slot_minutes'].disabled = True
 
     def clean(self):
         cleaned = super().clean()
