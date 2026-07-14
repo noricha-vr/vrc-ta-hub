@@ -110,6 +110,7 @@ class EventDetailForm(EventDetailMediaFormMixin, forms.ModelForm):
             self.fields['start_time'].disabled = True
             self.fields['duration'].disabled = True
 
+        # request がない直接利用ではロックせず、呼び出し側で権限判定済みであることを前提とする。
         if self.instance.pk and self.request:
             # views.helpers は views パッケージ初期化時にこのフォームを import するため、
             # 循環 import を避けてフォーム生成時に読み込む。
