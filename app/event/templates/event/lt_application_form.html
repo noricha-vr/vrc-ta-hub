@@ -31,6 +31,7 @@
                             <li>承認または却下の結果はメールでお知らせします</li>
                             <li>発表内容の詳細（スライドや動画）は承認後に編集できます</li>
                         </ul>
+                        <p class="mb-2">1人あたりの持ち時間は {{ community.default_lt_duration }}分（発表+質疑応答を含む）が目安です。発表開始時刻は申請順に自動で割り当てられます。</p>
                         <p class="mb-0">発表後にスライドの登録にご協力をお願いします。</p>
                     </div>
 
@@ -45,6 +46,7 @@
                             </a>
                         </div>
                     {% else %}
+                        {{ next_start_times|json_script:"next-start-times" }}
                         <form method="post">
                             {% csrf_token %}
 
@@ -57,6 +59,7 @@
                                 {% if form.event.help_text %}
                                     <small class="form-text text-muted">{{ form.event.help_text }}</small>
                                 {% endif %}
+                                <div id="next-start-time-hint" class="form-text text-muted" aria-live="polite"></div>
                                 {% if form.event.errors %}
                                     <div class="invalid-feedback d-block">
                                         {% for error in form.event.errors %}{{ error }}{% endfor %}
@@ -173,4 +176,29 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    (() => {
+        const eventSelect = document.getElementById('id_event');
+        const hint = document.getElementById('next-start-time-hint');
+        const startTimesElement = document.getElementById('next-start-times');
+
+        if (!eventSelect || !hint || !startTimesElement) {
+            return;
+        }
+
+        const startTimes = JSON.parse(startTimesElement.textContent);
+        const updateHint = () => {
+            const startTime = startTimes[eventSelect.value];
+            hint.textContent = startTime
+                ? `あなたの発表開始予定: ${startTime} 頃（申請状況により前後します）`
+                : '';
+        };
+
+        eventSelect.addEventListener('change', updateHint);
+        updateHint();
+    })();
+</script>
 {% endblock %}

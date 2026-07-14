@@ -13,6 +13,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 from event.tests.tweet_generation import TweetGenerationPatchMixin
+from event.views.lt_application import _calc_next_lt_start_time
 from tests.factories import make_community, make_event, make_event_detail
 from user_account.tests.utils import create_discord_linked_user
 
@@ -67,6 +68,14 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '発表を申請')
         self.assertContains(response, 'Test Community')
+        self.assertContains(
+            response,
+            '1人あたりの持ち時間は 30分（発表+質疑応答を含む）が目安です。',
+        )
+        self.assertContains(
+            response,
+            '発表と質疑応答を含む持ち時間を分単位で入力してください（5〜60分）',
+        )
 
     def test_lt_application_form_requires_login(self):
         """未ログインユーザーはログインページにリダイレクトされる"""
@@ -213,6 +222,168 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
 
         event_detail = EventDetail.objects.get(event=self.future_event, theme='Offset0')
         self.assertEqual(event_detail.start_time, time(22, 0))
+
+    @patch('event.notifications.send_mail')
+    def test_lt_application_assigns_start_time_after_pending_lt(self, mock_send_mail):
+        """承認待ちLTの終了時刻を次のLTの開始時刻にする。"""
+        mock_send_mail.return_value = 1
+        make_event_detail(
+            self.future_event,
+            theme='First LT',
+            start_time=time(22, 30),
+            duration=15,
+            status='pending',
+        )
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
+
+        self.client.post(url, {
+            'event': self.future_event.pk,
+            'theme': 'Second LT',
+            'speaker': 'Speaker',
+            'duration': 15,
+        })
+        second_lt = EventDetail.objects.get(event=self.future_event, theme='Second LT')
+        self.assertEqual(second_lt.start_time, time(22, 45))
+
+        self.client.post(url, {
+            'event': self.future_event.pk,
+            'theme': 'Third LT',
+            'speaker': 'Speaker',
+            'duration': 15,
+        })
+        third_lt = EventDetail.objects.get(event=self.future_event, theme='Third LT')
+        self.assertEqual(third_lt.start_time, time(23, 0))
+
+    @patch('event.notifications.send_mail')
+    def test_lt_application_ignores_rejected_lt_for_start_time(self, mock_send_mail):
+        """却下済みLTは次の開始時刻の計算対象から除外する。"""
+        mock_send_mail.return_value = 1
+        make_event_detail(
+            self.future_event,
+            theme='Rejected LT',
+            start_time=time(23, 0),
+            duration=15,
+            status='rejected',
+        )
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
+
+        self.client.post(url, {
+            'event': self.future_event.pk,
+            'theme': 'New LT',
+            'speaker': 'Speaker',
+            'duration': 15,
+        })
+
+        new_lt = EventDetail.objects.get(event=self.future_event, theme='New LT')
+        self.assertEqual(new_lt.start_time, time(22, 30))
+
+    @patch('event.notifications.send_mail')
+    def test_lt_application_uses_latest_existing_lt_end_time(self, mock_send_mail):
+        """LT間に空きがあっても最も遅い終了時刻の後に割り当てる。"""
+        mock_send_mail.return_value = 1
+        make_event_detail(
+            self.future_event,
+            theme='Early LT',
+            start_time=time(22, 30),
+            duration=15,
+            status='approved',
+        )
+        make_event_detail(
+            self.future_event,
+            theme='Late LT',
+            start_time=time(23, 20),
+            duration=10,
+            status='approved',
+        )
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
+
+        self.client.post(url, {
+            'event': self.future_event.pk,
+            'theme': 'New LT',
+            'speaker': 'Speaker',
+            'duration': 15,
+        })
+
+        new_lt = EventDetail.objects.get(event=self.future_event, theme='New LT')
+        self.assertEqual(new_lt.start_time, time(23, 30))
+
+    @patch('event.notifications.send_mail')
+    def test_lt_application_handles_start_time_across_midnight(self, mock_send_mail):
+        """日付をまたぐLTでもイベント開始時刻からの経過時間で順序付ける。"""
+        mock_send_mail.return_value = 1
+        overnight_event = make_event(
+            self.community,
+            event_date=date.today() + timedelta(days=8),
+            start_time=time(23, 50),
+        )
+        make_event_detail(
+            overnight_event,
+            theme='Overnight LT',
+            start_time=time(23, 50),
+            duration=30,
+            status='pending',
+        )
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
+
+        self.client.post(url, {
+            'event': overnight_event.pk,
+            'theme': 'After Midnight LT',
+            'speaker': 'Speaker',
+            'duration': 15,
+        })
+
+        new_lt = EventDetail.objects.get(event=overnight_event, theme='After Midnight LT')
+        self.assertEqual(new_lt.start_time, time(0, 20))
+
+    def test_lt_application_context_includes_next_start_times(self):
+        """画面用コンテキストに開催日ごとの開始予定時刻を含める。"""
+        make_event_detail(
+            self.future_event,
+            theme='Existing LT',
+            start_time=time(22, 30),
+            duration=15,
+            status='approved',
+        )
+        self.client.login(username='TestUser', password='testpass123')
+        url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.context['next_start_times'][self.future_event.pk], '22:45')
+        self.assertContains(response, 'id="next-start-times"')
+
+    def test_calc_next_lt_start_time_uses_offset_without_existing_lt(self):
+        """既存LTがない場合は従来どおりオフセット後を返す。"""
+        self.assertEqual(
+            _calc_next_lt_start_time(time(22, 0), [], 30),
+            time(22, 30),
+        )
+
+    def test_calc_next_lt_start_time_ignores_lt_ending_before_event_offset(self):
+        """開始前に終了する手動配置LTでもオフセットを下回らない。"""
+        self.assertEqual(
+            _calc_next_lt_start_time(
+                time(21, 0),
+                [(time(20, 0), 30)],
+                30,
+            ),
+            time(21, 30),
+        )
+
+    def test_calc_next_lt_start_time_floors_early_existing_lt_at_offset(self):
+        """既存LTの終了がオフセットより早い場合はオフセットから開始する。"""
+        self.assertEqual(
+            _calc_next_lt_start_time(
+                time(21, 0),
+                [(time(21, 5), 10)],
+                30,
+            ),
+            time(21, 30),
+        )
 
 
 class LTApplicationReviewTest(TweetGenerationPatchMixin, TestCase):
