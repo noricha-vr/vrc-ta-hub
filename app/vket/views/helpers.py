@@ -229,7 +229,7 @@ def _build_schedule_context(
 
         lt_mins = [to_minutes(t) for t in lt_times]
         lt_min = min(lt_mins)
-        lt_end_max = max(min(m + slot_minutes, day_minutes) for m in lt_mins)
+        lt_end_max = max(min(m + p.lt_slot_minutes, day_minutes) for m in lt_mins)
 
         candidate_min = min(start_min, lt_min)
         candidate_max = max(end_min, lt_end_max)

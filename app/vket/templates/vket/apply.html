@@ -37,9 +37,9 @@
             </div>
         {% endif %}
         {% if participation.is_schedule_confirmed and permissions.can_edit_lt %}
-            <div class="alert alert-warning">
-                <i class="fas fa-lock me-1"></i>
-                発表開始時刻は日程確定済みのため編集できません。登壇者名・テーマ・備考は発表情報の受付期間中に更新できます。
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-1"></i>
+                参加日程は確定済みです。発表開始時刻は発表情報の締切まで変更できますが、確定済み・公開済みの発表は変更できません。
             </div>
         {% endif %}
         {% if is_late_lt_submission %}
@@ -95,6 +95,15 @@
 
                 <h2 class="h5 fw-bold mb-3">発表情報（{{ collaboration.lt_deadline|date:"n/j" }} 締切・今入力しなくてもOK）</h2>
 
+                <div class="row g-3 align-items-end mb-2">
+                    <div class="col-12 col-md-4">
+                        {% bootstrap_field form.lt_slot_minutes %}
+                    </div>
+                </div>
+                <p class="text-muted small mb-3">
+                    1人あたりの持ち時間は<span id="lt-slot-minutes-display">{{ form.lt_slot_minutes.value|default:30 }}</span>分（発表+質疑応答を含む）です。開始時刻は前の発表から自動で割り当てられます（変更可）。
+                </p>
+
                 {{ formset.management_form }}
                 <div id="lt-formset-container">
                     {% for lt_form in formset %}
@@ -112,7 +121,7 @@
                                 <label class="form-label">{{ lt_form.lt_start_time.label }}</label>
                                 {{ lt_form.lt_start_time }}
                             </div>
-                            {% if permissions.can_edit_lt %}
+                            {% if permissions.can_edit_lt and lt_form.can_organizer_delete %}
                             <div class="col-12 col-md-1 d-flex align-items-end">
                                 <button type="button" class="btn btn-outline-danger btn-sm lt-delete-btn" title="削除">
                                     <i class="fas fa-times"></i>
@@ -168,10 +177,28 @@
         var addBtn = document.getElementById('add-lt-btn');
         if (!addBtn) return;
 
+        var slotMinutes = document.getElementById('id_lt_slot_minutes');
+        var slotMinutesDisplay = document.getElementById('lt-slot-minutes-display');
+        if (slotMinutes && slotMinutesDisplay) {
+            slotMinutes.addEventListener('change', function() {
+                slotMinutesDisplay.textContent = slotMinutes.value;
+            });
+        }
+
+        function addMinutes(timeValue, minutes) {
+            if (!timeValue) return '';
+            var parts = timeValue.split(':');
+            var totalMinutes = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10) + minutes;
+            if (totalMinutes >= 24 * 60) return '';
+            var hours = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+            var mins = String(totalMinutes % 60).padStart(2, '0');
+            return hours + ':' + mins;
+        }
+
         addBtn.addEventListener('click', function() {
             var container = document.getElementById('lt-formset-container');
-            var rows = container.querySelectorAll('.lt-row');
-            var lastRow = rows[rows.length - 1];
+            var visibleRows = container.querySelectorAll('.lt-row:not(.d-none)');
+            var lastRow = visibleRows[visibleRows.length - 1];
             var newRow = lastRow.cloneNode(true);
             var totalForms = document.getElementById('id_lt-TOTAL_FORMS');
             var newIndex = parseInt(totalForms.value);
@@ -189,6 +216,17 @@
                     el.value = '';
                 }
             });
+            var previousTimeInput = lastRow.querySelector('input[name$="-lt_start_time"]');
+            var startTimeInput = document.getElementById('id_requested_start_time');
+            var newTimeInput = newRow.querySelector('input[name$="-lt_start_time"]');
+            if (newTimeInput) {
+                newTimeInput.disabled = false;
+                newTimeInput.removeAttribute('disabled');
+                var baseTime = previousTimeInput && previousTimeInput.value;
+                if (!baseTime && startTimeInput) baseTime = startTimeInput.value;
+                var minutes = slotMinutes ? parseInt(slotMinutes.value, 10) : 30;
+                newTimeInput.value = addMinutes(baseTime, minutes);
+            }
             newRow.classList.remove('d-none');
             newRow.dataset.ltIndex = newIndex;
 
