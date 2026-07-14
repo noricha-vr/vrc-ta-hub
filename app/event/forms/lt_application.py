@@ -99,7 +99,7 @@ class LTApplicationForm(forms.Form):
         min_value=5,
         max_value=60,
         widget=forms.NumberInput(attrs={'class': 'form-control'}),
-        help_text='希望する発表時間を分単位で入力してください（5〜60分）'
+        help_text='発表と質疑応答を含む持ち時間を分単位で入力してください（5〜60分）'
     )
 
     x_account = forms.CharField(

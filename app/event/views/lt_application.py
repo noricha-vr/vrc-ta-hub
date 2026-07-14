@@ -1,5 +1,6 @@
 import logging
-from datetime import datetime, timedelta
+from collections.abc import Iterable
+from datetime import datetime, time, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -10,12 +11,12 @@ from django.views.generic import FormView, TemplateView, View
 
 from community.models import Community
 from event.forms import LTApplicationForm, LTApplicationReviewForm
-from event.models import EventDetail
+from event.models import Event, EventDetail
 
 logger = logging.getLogger(__name__)
 
 
-def _calc_lt_start_time(event_start_time, offset_minutes):
+def _calc_lt_start_time(event_start_time: time, offset_minutes: int) -> time:
     """集会の start_time に offset(分) を加算した time を返す。
 
     datetime.time は加算非対応のため、datetime.combine で日付を仮置きして演算する。
@@ -23,6 +24,25 @@ def _calc_lt_start_time(event_start_time, offset_minutes):
     """
     base = datetime.combine(datetime.today(), event_start_time)
     return (base + timedelta(minutes=offset_minutes)).time()
+
+
+def _calc_next_lt_start_time(
+    event_start_time: time,
+    existing_lt_slots: Iterable[tuple[time, int]],
+    offset_minutes: int,
+) -> time:
+    """既存LTの終了後、またはオフセット後の次の開始時刻を返す。"""
+    slots = list(existing_lt_slots)
+    if not slots:
+        return _calc_lt_start_time(event_start_time, offset_minutes)
+
+    event_start_minutes = event_start_time.hour * 60 + event_start_time.minute
+    latest_end_minutes = max(
+        ((start_time.hour * 60 + start_time.minute - event_start_minutes) % (24 * 60))
+        + duration
+        for start_time, duration in slots
+    )
+    return _calc_lt_start_time(event_start_time, latest_end_minutes)
 
 
 class LTApplicationCreateView(LoginRequiredMixin, FormView):
@@ -43,17 +63,40 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['community'] = self.community
+        event_queryset = context['form'].fields['event'].queryset
+        offset = self.community.lt_start_offset_minutes or 0
+        context['next_start_times'] = {
+            event.pk: _calc_next_lt_start_time(
+                event.start_time,
+                EventDetail.objects.filter(
+                    event=event,
+                    detail_type='LT',
+                    status__in=['pending', 'approved'],
+                ).values_list('start_time', 'duration'),
+                offset,
+            ).strftime('%H:%M')
+            for event in event_queryset
+        }
         return context
 
     def form_valid(self, form):
-        # EventDetailを作成
         event = form.cleaned_data['event']
         offset = self.community.lt_start_offset_minutes or 0
-        lt_start = _calc_lt_start_time(event.start_time, offset)
         speaker = form.cleaned_data['speaker']
         x_account = form.cleaned_data.get('x_account', '')
 
         with transaction.atomic():
+            event = Event.objects.select_for_update().get(pk=event.pk)
+            lt_start = _calc_next_lt_start_time(
+                event.start_time,
+                EventDetail.objects.filter(
+                    event=event,
+                    detail_type='LT',
+                    status__in=['pending', 'approved'],
+                ).values_list('start_time', 'duration'),
+                offset,
+            )
+
             # speaker / x_account を user 側にも反映（LT 申込フォームをプロフィール更新の経路として扱う）
             user = self.request.user
             update_fields = []
