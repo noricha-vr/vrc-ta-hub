@@ -19,6 +19,9 @@ from event.services.content_generation_service import (
     apply_blog_output_to_event_detail,
     generate_blog,
     get_transcript,
+    _copy_uploaded_file_to_temp_path,
+    _extract_pdf_text,
+    _limit_source_text,
 )
 from event.services.media_service import ensure_pdf_thumbnail
 from event.models import Event, EventDetail
@@ -37,6 +40,65 @@ def _has_non_dummy_env(name: str) -> bool:
 
 HAS_OPENROUTER_API_KEY = _has_non_dummy_env("OPENROUTER_API_KEY")
 HAS_GOOGLE_API_KEY = _has_non_dummy_env("GOOGLE_API_KEY")
+
+
+class ContentGenerationMemoryGuardTest(TestCase):
+    def test_copy_uploaded_file_uses_chunks_without_reading_all(self):
+        class ChunkOnlyFile:
+            def __init__(self):
+                self.opened = False
+                self.closed = False
+
+            def open(self, mode):
+                self.opened = mode == "rb"
+
+            def chunks(self):
+                yield b"%PDF-1.4\n"
+                yield b"%%EOF"
+
+            def read(self):
+                raise AssertionError("read() should not be used for uploaded PDF copies")
+
+            def close(self):
+                self.closed = True
+
+        uploaded_file = ChunkOnlyFile()
+        temp_file_path = _copy_uploaded_file_to_temp_path(uploaded_file)
+        try:
+            with open(temp_file_path, "rb") as copied:
+                self.assertEqual(copied.read(), b"%PDF-1.4\n%%EOF")
+        finally:
+            os.unlink(temp_file_path)
+
+        self.assertTrue(uploaded_file.opened)
+        self.assertTrue(uploaded_file.closed)
+
+    def test_extract_pdf_text_limits_pages_and_chars(self):
+        class FakePage:
+            def __init__(self, text):
+                self.text = text
+
+            def extract_text(self):
+                return self.text
+
+        fake_reader = type(
+            "FakeReader",
+            (),
+            {"pages": [FakePage(f"page-{index}") for index in range(35)]},
+        )
+
+        with (
+            patch("event.services.content_generation_service.PdfReader", return_value=fake_reader),
+            patch("event.services.content_generation_service.MAX_PDF_TEXT_PAGES", 5),
+            patch("event.services.content_generation_service.MAX_SOURCE_TEXT_CHARS", 18),
+        ):
+            text = _extract_pdf_text("/tmp/example.pdf")
+
+        self.assertEqual(text, "page-0\npage-1\npage")
+        self.assertNotIn("page-5", text)
+
+    def test_limit_source_text_truncates_long_transcripts(self):
+        self.assertEqual(_limit_source_text("abcdef", max_chars=3), "abc")
 
 
 @tag('external_api')
