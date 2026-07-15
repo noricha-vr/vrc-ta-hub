@@ -98,7 +98,7 @@ class LTApplicationForm(forms.Form):
             'placeholder': 'noricha_vr',
             'autocomplete': 'off',
         }),
-        help_text='任意。@ や https://x.com/ のURLでもOK。アカウント情報にも保存されます。'
+        help_text='発表が登録されると、Hub の X アカウントから告知を自動投稿します。告知にあなたの X ID（@ID）を含めるため、入力にご協力ください。https://x.com/ の URL でも OK。アカウント情報にも保存され、次回以降の入力は不要です。'
     )
 
     additional_info = forms.CharField(
