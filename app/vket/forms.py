@@ -12,6 +12,15 @@ from event.models import Event
 from .models import VketCollaboration, VketParticipation
 
 
+def _format_participation_date_choice(value: date) -> tuple[str, str]:
+    """参加希望日のフォーム選択肢を表示用ラベル付きで返す"""
+    weekday_jp = ['月', '火', '水', '木', '金', '土', '日']
+    return (
+        value.isoformat(),
+        f'{value.month}/{value.day}({weekday_jp[value.weekday()]})',
+    )
+
+
 def _build_participation_date_choices(
     collaboration: VketCollaboration, community: Community
 ) -> list[tuple[str, str]]:
@@ -29,11 +38,7 @@ def _build_participation_date_choices(
     if not event_dates:
         return []
 
-    weekday_jp = ['月', '火', '水', '木', '金', '土', '日']
-    return [
-        (d.isoformat(), f'{d.month}/{d.day}({weekday_jp[d.weekday()]})')
-        for d in event_dates
-    ]
+    return [_format_participation_date_choice(event_date) for event_date in event_dates]
 
 
 def _build_duration_choices(default_minutes: int) -> list[tuple[int, str]]:
@@ -135,9 +140,20 @@ class VketApplyForm(forms.Form):
         self.participation = participation
         self.permissions = permissions
 
-        self.fields['requested_date'].choices = _build_participation_date_choices(
+        requested_date_choices = _build_participation_date_choices(
             collaboration, community
         )
+        if (
+            not permissions.can_edit_schedule
+            and participation
+            and participation.requested_date
+        ):
+            requested_date_value = participation.requested_date.isoformat()
+            if requested_date_value not in {value for value, _ in requested_date_choices}:
+                requested_date_choices.append(
+                    _format_participation_date_choice(participation.requested_date)
+                )
+        self.fields['requested_date'].choices = requested_date_choices
         self.fields['requested_duration'].choices = _build_duration_choices(
             default_minutes=community.duration
         )

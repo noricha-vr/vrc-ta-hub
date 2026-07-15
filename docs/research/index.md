@@ -4,6 +4,7 @@
 
 ## レポート一覧
 
+- [Issue #499 disabled の参加希望日バリデーション調査](issue-499-disabled-vket-date-validation.md) — Event がない確定済み参加で発表・備考更新が失敗する原因と回帰テスト
 - [Issue #500 Campaign UTM validator migration](issue-500-analytics-campaign-migration.md) — `Campaign.utm_source` / `utm_medium` の validator 定義と migration 履歴の差分、および `AlterField` migration の安全性確認
 - [Issue #356 OpenRouter HTTP-Referer 調査](issue-356-openrouter-http-referer.md) — preview/staging URL が OpenRouter の `HTTP-Referer` に漏れないようにする調査と検証方針
 - [Issue #343 LT申請「追加情報」テンプレート初期値化](issue-343-lt-application-additional-info-initial.md) — LT申請フォームのテンプレート表示を placeholder から initial に変更する調査と検証方針

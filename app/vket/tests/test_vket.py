@@ -753,6 +753,66 @@ class VketApplyFlowTests(TestCase):
             time(23, 50),
         )
 
+    def test_confirmed_participation_without_event_can_update_lt_and_note(self):
+        """Eventがない確定済み参加でも発表と備考を更新できる"""
+        Event.objects.filter(community=self.community).delete()
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            requested_date=self.collaboration.period_start,
+            requested_start_time=time(21, 0),
+            requested_duration=60,
+            confirmed_date=self.collaboration.period_start,
+            confirmed_start_time=time(21, 0),
+            confirmed_duration=60,
+            schedule_confirmed_at=timezone.now(),
+            progress=VketParticipation.Progress.REHEARSAL,
+            applied_by=self.owner,
+        )
+        presentation = VketPresentation.objects.create(
+            participation=participation,
+            order=0,
+            speaker='更新前登壇者',
+            theme='更新前テーマ',
+            requested_start_time=time(21, 30),
+            status=VketPresentation.Status.CONFIRMED,
+        )
+
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+        post_data = {
+            'requested_date': self.collaboration.period_start.isoformat(),
+            'requested_start_time': '23:00',
+            'requested_duration': '90',
+            'organizer_note': 'Eventなしでも更新できる備考',
+        }
+        post_data.update(
+            self._make_formset_data(
+                [{'speaker': '更新後登壇者', 'theme': '更新後テーマ'}],
+                initial_forms=1,
+            )
+        )
+
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}),
+            data=post_data,
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        participation.refresh_from_db()
+        presentation.refresh_from_db()
+        self.assertEqual(participation.requested_date, self.collaboration.period_start)
+        self.assertEqual(participation.requested_start_time, time(21, 0))
+        self.assertEqual(participation.requested_duration, 60)
+        self.assertEqual(participation.confirmed_date, self.collaboration.period_start)
+        self.assertEqual(participation.confirmed_start_time, time(21, 0))
+        self.assertEqual(participation.confirmed_duration, 60)
+        self.assertEqual(participation.organizer_note, 'Eventなしでも更新できる備考')
+        self.assertEqual(presentation.speaker, '更新後登壇者')
+        self.assertEqual(presentation.theme, '更新後テーマ')
+        self.assertEqual(presentation.requested_start_time, time(21, 30))
+
     def test_confirmed_participation_post_does_not_delete_existing_lt(self):
         """日程確定後はformset DELETEでも既存LTを削除しない"""
         self.client.login(username='owner_user', password='testpass123')
