@@ -2743,6 +2743,8 @@ class TweetGeneratorTest(TestCase):
             "event_name": "Generator Test Community",
             "date": "2026年4月13日(月)",
             "time": "22:00",
+            "group_url": "https://vrc.group/TEST.1234",
+            "hashtag": "#TestMeetup",
             "details": "22:00 - テストテーマ (テスト太郎)",
         })
 
@@ -2752,6 +2754,8 @@ class TweetGeneratorTest(TestCase):
         self.assertNotIn("ツイート", system_prompt)
         self.assertIn("過去のポスト", user_prompt)
         self.assertIn("告知ポスト", user_prompt)
+        self.assertIn("https://vrc.group/TEST.1234", user_prompt)
+        self.assertIn("#TestMeetup", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
 
     @patch("twitter.tweet_generator._call_llm")
