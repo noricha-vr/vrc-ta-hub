@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import os
+import sys
+from importlib import reload
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
+import website
 from website.runtime_env import sanitize_sentry_dsn_environment
 
 
@@ -37,3 +40,11 @@ class SentryDsnEnvironmentTests(SimpleTestCase):
             sanitize_sentry_dsn_environment()
 
             self.assertNotIn('SENTRY_DSN', os.environ)
+
+    def test_package_import_removes_blank_sentry_dsn_before_settings_import(self):
+        with patch.dict(os.environ, {'SENTRY_DSN': '  \n\t  '}, clear=False):
+            reload(sys.modules['website'])
+
+            self.assertNotIn('SENTRY_DSN', os.environ)
+
+        reload(website)
