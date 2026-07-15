@@ -43,3 +43,15 @@ class CloudBuildConfigTest(SimpleTestCase):
             self.assertIn("'--memory'", config)
             self.assertIn("'1Gi'", config)
             self.assertNotIn("'512Mi'", config)
+
+    def test_cloud_build_does_not_run_django_migrations(self):
+        """Cloud Build は Django migration を自動実行しない。
+
+        本番 schema の変更は人間が影響を確認し、デプロイ前に手動で適用する。
+        判断記録: docs/research/issue-464-cloud-run-job-migration.md
+        """
+        for cloudbuild in self.cloudbuild_configs:
+            self.assertNotIn('manage.py,migrate', cloudbuild)
+            self.assertNotIn('manage.py migrate', cloudbuild)
+            self.assertNotIn('jobs execute vrc-ta-hub-migrate', cloudbuild)
+            self.assertNotIn('jobs deploy vrc-ta-hub-migrate', cloudbuild)
