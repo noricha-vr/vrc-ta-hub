@@ -776,6 +776,20 @@ class LTSettingsTest(TestCase):
         self.community.refresh_from_db()
         self.assertEqual(self.community.lt_start_offset_minutes, 45)
 
+    def test_settings_page_explains_first_presentation_timing_without_offset_jargon(self):
+        """発表開始タイミングを専門用語なしの文章として表示する。"""
+        self.client.login(username='主催者ユーザー', password='testpass123')
+
+        response = self.client.get(reverse('community:settings'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '最初の発表を始めるタイミング')
+        self.assertContains(response, '<span>集会開始から</span>', html=True)
+        self.assertContains(response, '<span>分後</span>', html=True)
+        self.assertContains(response, '例：集会開始が22:00の場合、15分後なら発表開始は22:15です。')
+        self.assertContains(response, 'aria-describedby="lt_start_offset_help"')
+        self.assertNotContains(response, 'オフセット')
+
     def test_update_lt_settings_offset_invalid_falls_back_to_30(self):
         """非数値のオフセット入力は 30 にフォールバックされる"""
         self.client.login(username='主催者ユーザー', password='testpass123')

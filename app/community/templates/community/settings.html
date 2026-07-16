@@ -165,15 +165,17 @@
                         </small>
                     </div>
                     <div class="mb-3">
-                        <label for="lt_start_offset_minutes" class="form-label fw-medium">LT開始までのオフセット</label>
-                        <div class="d-flex align-items-center gap-2">
+                        <label for="lt_start_offset_minutes" class="form-label fw-medium">最初の発表を始めるタイミング</label>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span>集会開始から</span>
                             <input type="number" name="lt_start_offset_minutes" id="lt_start_offset_minutes"
                                    class="form-control" style="width: 100px;" min="0"
+                                   aria-describedby="lt_start_offset_help"
                                    value="{{ community.lt_start_offset_minutes }}">
-                            <span>分</span>
+                            <span>分後</span>
                         </div>
-                        <small class="form-text text-muted">
-                            集会開始時刻から何分後にLT発表を開始するか。例: 集会開始22:00、オフセット30分 → LT開始22:30。
+                        <small id="lt_start_offset_help" class="form-text text-muted">
+                            例：集会開始が22:00の場合、15分後なら発表開始は22:15です。
                         </small>
                     </div>
                 </div>
