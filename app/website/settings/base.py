@@ -121,6 +121,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
     'user_account.middleware.DiscordAuthRequiredMiddleware',
+    'api_v1.middleware.APIRequestLogMiddleware',
 ]
 
 ROOT_URLCONF = 'website.urls'
