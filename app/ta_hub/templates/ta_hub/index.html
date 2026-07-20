@@ -110,17 +110,11 @@
         /* イベントカード用のスタイル */
         .event-card {
             height: 200px;
-            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
             border: none;
             background: #ffffff;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             position: relative;
             overflow: hidden;
-        }
-
-        .event-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
         }
 
         .today-event-card {
@@ -226,12 +220,7 @@
             object-fit: contain;
             object-position: center;
             padding: 0.5rem;
-            transition: transform 0.3s ease;
             background: rgba(255, 255, 255, 0.5);
-        }
-
-        .event-card:hover .event-image-container img {
-            transform: scale(1.05);
         }
 
         .event-image-container .no-image {
@@ -287,14 +276,6 @@
 
         .weekday-sat {
             color: #5b21b6;
-        }
-
-        .card-hover-container {
-            transition: transform 0.2s ease;
-        }
-
-        .card-hover-container:hover {
-            transform: translateY(-5px);
         }
 
         .calendar-add-button {
