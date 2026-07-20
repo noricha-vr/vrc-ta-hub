@@ -3,6 +3,8 @@ name: Activity monitor debug
 on:
   push:
     branches: [agent/community-activity-monitor]
+  pull_request:
+    branches: [main]
 
 jobs:
   focused-test:
