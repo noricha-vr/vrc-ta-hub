@@ -26,19 +26,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          set +e
+          set -e
           git clone --quiet --depth 1 \
             --branch agent/community-activity-monitor \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
-          clone_status=$?
-          if [ "$clone_status" -ne 0 ]; then
-            echo "git clone failed: $clone_status"
-            exit "$clone_status"
-          fi
           cd repo
-          python3 -m pip install --quiet uv
-          uv pip sync --system requirements.lock >/dev/null 2>&1
+          python3 -m pip install --quiet -r requirements.txt
           cd app
+          set +e
           python manage.py test community.tests.test_activity_monitor --noinput > /tmp/activity-monitor-test.log 2>&1
           status=$?
           tail -n 70 /tmp/activity-monitor-test.log
