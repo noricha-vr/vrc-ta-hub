@@ -72,8 +72,58 @@ jobs:
           # 新規テストを追加した時に「CI で実行されない」事故を防ぐため、
           # 除外モジュールを列挙するのではなくタグで一括除外する方式に統一している
           # coverage 設定は ../pyproject.toml の [tool.coverage] を参照
-          coverage run --rcfile=../pyproject.toml manage.py test --exclude-tag=external_api --noinput
+          coverage run --rcfile=../pyproject.toml manage.py test --exclude-tag=external_api --exclude-tag=e2e --noinput
           coverage report --rcfile=../pyproject.toml
+
+  e2e:
+    needs: test
+    runs-on: ubuntu-latest
+
+    env:
+      SECRET_KEY: "test-secret-key-for-ci"
+      DEBUG: "True"
+      TESTING: "1"
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+      CSRF_TRUSTED_ORIGIN: "https://localhost"
+      GOOGLE_API_KEY: "dummy-google-api-key"
+      GOOGLE_CALENDAR_ID: "dummy-calendar-id@group.calendar.google.com"
+      GEMINI_API_KEY: "dummy-gemini-api-key"
+      OPENAI_API_KEY: "dummy-openai-api-key"
+      REQUEST_TOKEN: "dummy-request-token"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "requirements*.lock"
+
+      - name: Install dependencies (locked)
+        run: uv pip sync --system requirements.lock requirements-e2e.lock
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run browser E2E tests
+        working-directory: app
+        run: python manage.py test website.tests.e2e.test_user_journeys --tag=e2e --noinput --verbosity=2
+
+      - name: Upload E2E failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts
+          path: test-results/e2e/
+          if-no-files-found: warn
+          retention-days: 14
 
   mypy:
     needs: lint
