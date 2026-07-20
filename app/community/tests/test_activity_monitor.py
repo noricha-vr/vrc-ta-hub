@@ -1,5 +1,6 @@
 import json
 from datetime import date, datetime, timedelta
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
@@ -369,7 +370,7 @@ class XaiActivityClientTest(TestCase):
         self.assertEqual(extract_x_handle("https://example.com/example_vrc"), "")
 
     def test_parses_structured_output_and_verified_citation(self):
-        community = MagicMock(
+        community = SimpleNamespace(
             pk=1,
             name="テスト集会",
             organizers="主催者",
