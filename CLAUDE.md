@@ -126,7 +126,11 @@ docker compose run --rm --service-ports -e DEBUG_LOGIN_SKIP=true vrc-ta-hub \
 ## 開発時の注意点
 - 外部ネットワーク `my_network` を使用
 - Supervisorでプロセス管理
-- 本番環境はGoogle Cloud Build（cloudbuild.yaml）でデプロイ
+- **デプロイ**: `main` への push で Cloud Build トリガー（`asia-northeast1`）が発火し、以下を自動実行する
+  - 本番 (`vrc-ta-hub` / `cloudbuild.yaml`): イメージビルド + Cloud Run リビジョン作成まで自動、**トラフィック切替は手動**（`--no-traffic` 指定）。切替は `gcloud run services update-traffic vrc-ta-hub --region=asia-northeast1 --to-revisions=<REV>=100` または skill `deploy-watch` を使う
+  - 開発 (`vrc-ta-hub-dev` / `cloudbuild-dev.yaml`): 完全自動（`--no-traffic` なし、`latestRevision` に 100% トラフィック）
+- Cloud Build 実行状況: `gcloud builds list --project=vrc-ta-hub --region=asia-northeast1`（**`--region` 必須**。省略すると global を見て空扱いになる）
+- Cloud Build トリガー確認: `gcloud builds triggers list --project=vrc-ta-hub --region=asia-northeast1`
 - テストは実際のAPIを使用するため環境変数の設定が必須
 - **テストファイルは各Djangoアプリの`tests`ディレクトリ内に配置すること**（例: `app/event/tests/`、`app/community/tests/`）
 - プロジェクトルートや`app/`直下にテストファイルを配置しない
