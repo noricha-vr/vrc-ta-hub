@@ -1,0 +1,21 @@
+# VRC技術学術ハブ
+
+> VRChat内で開催される技術・学術系イベントの情報を集約するハブサイトです。集会・イベント・発表・特別企画を横断して探せます。
+
+## 主要ページ
+
+- [トップページ（Markdown版）](/index.md): 今週の集会・発表一覧
+- [集会一覧](/community/): 承認済みコミュニティのリスト
+- [イベント一覧](/event/list/): 今後の開催予定
+- [ニュース](/news/): 運営からのお知らせ
+
+## 構造化データAPI
+
+- [OpenAPIスキーマ](/api/schema/): JSON形式の全データ仕様
+- [集会一覧API](/api/v1/community/): JSON
+- [イベント一覧API](/api/v1/event/): JSON
+- [発表詳細API](/api/v1/event_detail/): JSON
+
+## Optional
+
+- [DeepWiki](https://deepwiki.com/noricha-vr/vrc-ta-hub): プロジェクト概要
