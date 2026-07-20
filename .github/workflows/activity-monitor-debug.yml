@@ -1,0 +1,38 @@
+name: Activity monitor debug
+
+on:
+  push:
+    branches: [agent/community-activity-monitor]
+
+jobs:
+  focused-test:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: "test-secret-key-for-ci"
+      DEBUG: "True"
+      TESTING: "1"
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+      CSRF_TRUSTED_ORIGIN: "https://localhost"
+      GOOGLE_API_KEY: "dummy-google-api-key"
+      GOOGLE_CALENDAR_ID: "dummy-calendar-id@group.calendar.google.com"
+      GEMINI_API_KEY: "dummy-gemini-api-key"
+      OPENAI_API_KEY: "dummy-openai-api-key"
+      REQUEST_TOKEN: "dummy-request-token"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v7
+      - name: Install dependencies
+        run: uv pip sync --system requirements.lock >/dev/null
+      - name: Run focused tests and print only the tail
+        env:
+          EMAIL_FILE_PATH: "/tmp/emails"
+        run: |
+          set +e
+          cd app
+          python manage.py test community.tests.test_activity_monitor --noinput > /tmp/activity-monitor-test.log 2>&1
+          status=$?
+          tail -n 100 /tmp/activity-monitor-test.log
+          exit "$status"
