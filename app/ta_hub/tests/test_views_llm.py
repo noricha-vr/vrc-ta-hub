@@ -9,6 +9,9 @@ from django.urls import reverse
 
 from community.models import Community
 from event.models import Event, EventDetail
+from ta_hub.index_cache import build_index_database_context
+from ta_hub.views import build_index_database_context as index_view_database_context
+from ta_hub.views_llm import build_index_database_context as markdown_view_database_context
 
 
 def _create_test_image():
@@ -78,6 +81,10 @@ class LlmMarkdownViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'text/markdown; charset=utf-8')
 
+    def test_index_views_share_the_module_level_database_context_builder(self):
+        self.assertIs(index_view_database_context, build_index_database_context)
+        self.assertIs(markdown_view_database_context, build_index_database_context)
+
     def test_llms_txt_body_contains_landmark_sections(self):
         response = self.client.get(reverse('ta_hub:llms_txt'))
 
@@ -85,6 +92,8 @@ class LlmMarkdownViewTest(TestCase):
         self.assertContains(response, '## 主要ページ')
         self.assertContains(response, '## 構造化データAPI')
         self.assertContains(response, '## Optional')
+        self.assertContains(response, '[集会一覧](http://testserver/community/)')
+        self.assertContains(response, '[発表詳細API](http://testserver/api/v1/event_detail/)')
 
     @patch('ta_hub.views_llm.get_vrchat_today')
     def test_index_md_returns_markdown_content_type(self, mock_get_vrchat_today):

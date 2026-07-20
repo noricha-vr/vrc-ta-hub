@@ -5,7 +5,6 @@ from django.db.models import Prefetch
 from django.utils import timezone
 
 from event.models import Event, EventDetail
-from event.views import EventListView
 from event_calendar.calendar_utils import generate_google_calendar_url
 from utils.vrchat_time import get_vrchat_today
 from website.constants import CACHE_TTL_HOUR
@@ -83,10 +82,6 @@ def build_index_database_context(request, today, cache_key):
     ).exclude(
         event__community__poster_image=''
     ).select_related('event', 'event__community').order_by('-event__date', '-start_time')[:10]
-
-    # Google Calendar URLを生成
-    event_list_view = EventListView()
-    event_list_view.request = request
 
     # イベントとイベント詳細のGoogle Calendar URLを生成
     events_with_urls = []
