@@ -20,21 +20,26 @@ jobs:
       GEMINI_API_KEY: "dummy-gemini-api-key"
       OPENAI_API_KEY: "dummy-openai-api-key"
       REQUEST_TOKEN: "dummy-request-token"
+      EMAIL_FILE_PATH: "/tmp/emails"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-      - uses: astral-sh/setup-uv@v7
-      - name: Install dependencies
-        run: uv pip sync --system requirements.lock >/dev/null
-      - name: Run focused tests and print only the tail
+      - name: Clone, install, run focused tests, and print only the tail
         env:
-          EMAIL_FILE_PATH: "/tmp/emails"
+          GH_TOKEN: ${{ github.token }}
         run: |
           set +e
+          git clone --quiet --depth 1 \
+            --branch agent/community-activity-monitor \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repo
+          clone_status=$?
+          if [ "$clone_status" -ne 0 ]; then
+            echo "git clone failed: $clone_status"
+            exit "$clone_status"
+          fi
+          cd repo
+          python3 -m pip install --quiet uv
+          uv pip sync --system requirements.lock >/dev/null 2>&1
           cd app
           python manage.py test community.tests.test_activity_monitor --noinput > /tmp/activity-monitor-test.log 2>&1
           status=$?
-          tail -n 100 /tmp/activity-monitor-test.log
+          tail -n 70 /tmp/activity-monitor-test.log
           exit "$status"
