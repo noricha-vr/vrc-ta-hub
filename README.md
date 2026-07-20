@@ -402,4 +402,4 @@ uv pip sync requirements.lock
 
 ## ライセンス
 
-MITライセンスの下で公開されています。詳細はLICENSEファイルを参照してください。
+Apache License 2.0 の下で公開されています。詳細は LICENSE ファイルを参照してください。
