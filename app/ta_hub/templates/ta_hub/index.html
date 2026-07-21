@@ -323,6 +323,39 @@
         .vket-achievement-card:hover .card-img-top {
             transform: scale(1.05);
         }
+
+        .vket-notice-heading {
+            display: inline-grid;
+            grid-template-columns: auto minmax(0, auto) auto;
+            align-items: center;
+            column-gap: 0.75rem;
+            max-width: 100%;
+        }
+
+        .vket-notice-sunflower {
+            font-size: 2.5rem;
+            line-height: 1;
+        }
+
+        @media (max-width: 991.98px) {
+            .vket-notice-heading h3 {
+                font-size: 1.5rem;
+            }
+
+            .vket-notice-sunflower {
+                font-size: 2rem;
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            .vket-notice-heading {
+                column-gap: 0.4rem;
+            }
+
+            .vket-notice-heading h3 {
+                font-size: 1.25rem;
+            }
+        }
     </style>
     <link rel="stylesheet" href="https://petipeti-object-storage.work/dist/style.css">
 
@@ -467,10 +500,10 @@
                  style="background: linear-gradient(135deg, #ffb37a 0%, #ff6b9d 100%); border-bottom: 3px solid #ff6b9d;">
             <div class="container">
                 <div class="text-center">
-                    <div class="d-flex align-items-center justify-content-center mb-2 flex-wrap">
-                        <span class="fs-1 me-3">🌻</span>
+                    <div class="vket-notice-heading mb-2">
+                        <span class="vket-notice-sunflower" aria-hidden="true">🌻</span>
                         <h3 class="mb-0 fw-bold text-dark">7月11日〜7月25日はVket2026Summer 技術学術WEEK！</h3>
-                        <span class="fs-1 ms-3">🌻</span>
+                        <span class="vket-notice-sunflower" aria-hidden="true">🌻</span>
                     </div>
                     <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap mb-2">
                         <a href="https://x.com/hashtag/Vketステージ" target="_blank"
