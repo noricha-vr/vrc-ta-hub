@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.vrc-ta-hub.community-activity-monitor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__REPOSITORY_PATH__/scripts/run_community_activity_monitor.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- 14日 = 1,209,600秒 -->
+    <key>StartInterval</key>
+    <integer>1209600</integer>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/Library/Logs/vrc-ta-hub-community-activity-monitor.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/vrc-ta-hub-community-activity-monitor.error.log</string>
+</dict>
+</plist>
