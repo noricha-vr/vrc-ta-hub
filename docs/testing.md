@@ -27,6 +27,56 @@ docker compose exec vrc-ta-hub python manage.py test event.tests.test_notificati
 
 外部 API 依存テストは `@tag('external_api')` でマークされており、CI からは除外される。
 
+## ブラウザ E2E テスト
+
+Python Playwright と Django の `StaticLiveServerTestCase` を組み合わせ、実際の
+Chromium で次の主要ユーザー導線を検証する。
+
+1. トップページから集会一覧・集会詳細・公開済み発表を閲覧する
+2. 公開フォームでログインし、アカウント設定を確認してログアウトする
+3. 発表者が発表を申請し、主催者が承認した後、匿名状態で公開発表を閲覧する
+
+### 依存関係の更新と導入
+
+E2E 専用依存は `requirements-e2e.txt` に追加する。本体依存との整合を保つため、
+`requirements.lock` を制約として専用 lock を生成する。
+
+```bash
+# E2E 専用 lock を再生成
+uv pip compile requirements-e2e.txt --constraint requirements.lock -o requirements-e2e.lock
+```
+
+CI は `uv pip sync --system requirements.lock requirements-e2e.lock` で本体と
+E2E の依存を同時に導入し、`python -m playwright install --with-deps chromium`
+で Chromium とシステム依存を導入する。
+
+### 実行
+
+```bash
+docker compose -f docker-compose.test.yml run --rm --build test /bin/sh -c \
+  "pip install --no-deps -r /app/requirements-e2e.lock && \
+   python -m playwright install --with-deps chromium && \
+   python manage.py test website.tests.e2e.test_user_journeys \
+     --tag=e2e --noinput --verbosity=2"
+```
+
+E2E テストには `@tag('e2e')` を付ける。通常のテスト job は
+`--exclude-tag=e2e` で除外し、Chromium を導入する CI 専用の `e2e` job で実行する。
+
+各テストはブラウザコンテキストを分離する。Django のライブサーバー以外への HTTP
+通信は、GET かつ resource type が stylesheet / script / font / image で、次の
+バージョン固定 prefix に一致する UI 資産だけを許可する。
+
+- Font Awesome 6.5.1 / 6.0.0-beta3（`cdnjs.cloudflare.com`）
+- Bootstrap 5.3.3 / Bootstrap Icons 1.11.3（`cdn.jsdelivr.net`）
+
+Google Fonts、PetiPeti、上記以外の外部画像、外部 API、Google Analytics、外部ページ
+への通信は遮断する。テスト用画像は `TemporaryDirectory` と `FileSystemStorage` で
+ローカル一時ストレージへ隔離する。許可した UI 資産の失敗記録は全画面スクリーンショット
+の保存後にも再検査し、読み込み失敗時はテストを失敗させる。スクリーンショットと
+Playwright trace は `test-results/e2e/` に保存され、CI 失敗時に artifact として
+アップロードされる。
+
 ## 共有ヘルパー (`app/tests/factories.py`)
 
 User / Community / Event / EventDetail を `setUp` で毎回手書きする重複を削減する
