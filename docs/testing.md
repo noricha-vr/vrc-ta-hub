@@ -63,8 +63,17 @@ docker compose -f docker-compose.test.yml run --rm --build test /bin/sh -c \
 E2E テストには `@tag('e2e')` を付ける。通常のテスト job は
 `--exclude-tag=e2e` で除外し、Chromium を導入する CI 専用の `e2e` job で実行する。
 
-各テストはブラウザコンテキストを分離し、Django のライブサーバー
-（`localhost` / `127.0.0.1`）以外への HTTP 通信を遮断する。スクリーンショットと
+各テストはブラウザコンテキストを分離する。Django のライブサーバー以外への HTTP
+通信は、GET かつ resource type が stylesheet / script / font / image で、次の
+バージョン固定 prefix に一致する UI 資産だけを許可する。
+
+- Font Awesome 6.5.1 / 6.0.0-beta3（`cdnjs.cloudflare.com`）
+- Bootstrap 5.3.3 / Bootstrap Icons 1.11.3（`cdn.jsdelivr.net`）
+
+Google Fonts、PetiPeti、上記以外の外部画像、外部 API、Google Analytics、外部ページ
+への通信は遮断する。テスト用画像は `TemporaryDirectory` と `FileSystemStorage` で
+ローカル一時ストレージへ隔離する。許可した UI 資産の失敗記録は全画面スクリーンショット
+の保存後にも再検査し、読み込み失敗時はテストを失敗させる。スクリーンショットと
 Playwright trace は `test-results/e2e/` に保存され、CI 失敗時に artifact として
 アップロードされる。
 
