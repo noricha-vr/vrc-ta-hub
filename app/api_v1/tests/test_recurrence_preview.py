@@ -1,8 +1,8 @@
 """api_v1.recurrence_preview の単体テスト
 
-既存 event/tests/test_recurrence_preview_api.py は @tag('external_api') で
-CI 除外されている。本ファイルは RecurrenceService をモック化して
-バリデーションとエラーハンドリングを CI 内でカバーする。
+event/tests/test_recurrence_preview_api.py の live smoke と分離し、
+RecurrenceService をモック化してバリデーションとエラーハンドリングを
+通常の offline suite でカバーする。
 """
 from datetime import date, time
 from unittest.mock import patch

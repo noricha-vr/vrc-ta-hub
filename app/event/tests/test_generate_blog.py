@@ -2,14 +2,13 @@ import json
 import logging
 import os
 import tempfile
-import unittest
 from io import BytesIO
 from datetime import date, datetime
 from unittest.mock import patch
 
 from django.core.files.base import ContentFile
 from django.core.files import File
-from django.test import TestCase, tag
+from django.test import TestCase
 from PIL import Image
 
 from user_account.models import CustomUser
@@ -25,22 +24,9 @@ from event.services.content_generation_service import (
 )
 from event.services.media_service import ensure_pdf_thumbnail
 from event.models import Event, EventDetail
+from tests.live_smoke import require_live_smoke
 
 logger = logging.getLogger(__name__)
-
-RUN_EXTERNAL_API_TESTS = os.environ.get("RUN_EXTERNAL_API_TESTS") == "1"
-
-
-def _has_non_dummy_env(name: str) -> bool:
-    value = (os.environ.get(name) or "").strip()
-    if not value:
-        return False
-    return value.lower() not in {"dummy", "changeme", "test"}
-
-
-HAS_OPENROUTER_API_KEY = _has_non_dummy_env("OPENROUTER_API_KEY")
-HAS_GOOGLE_API_KEY = _has_non_dummy_env("GOOGLE_API_KEY")
-
 
 class ContentGenerationMemoryGuardTest(TestCase):
     def test_copy_uploaded_file_uses_chunks_without_reading_all(self):
@@ -101,7 +87,6 @@ class ContentGenerationMemoryGuardTest(TestCase):
         self.assertEqual(_limit_source_text("abcdef", max_chars=3), "abc")
 
 
-@tag('external_api')
 class TestGenerateBlog(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -159,10 +144,7 @@ class TestGenerateBlog(TestCase):
                 # APIキー自体は表示せず、設定されていることだけを記録
                 logger.info(f"環境変数 {var} は設定されています")
 
-    @unittest.skipUnless(
-        RUN_EXTERNAL_API_TESTS and HAS_OPENROUTER_API_KEY,
-        "外部APIテストのため RUN_EXTERNAL_API_TESTS=1 と OPENROUTER_API_KEY が必要です",
-    )
+    @require_live_smoke("OPENROUTER_API_KEY", "GOOGLE_API_KEY")
     def test_generate_blog_video_and_pdf(self):
         # 実際のAPIを使用するため、環境変数が設定されていることを確認
         self._check_environment_variables()
@@ -244,10 +226,7 @@ class TestGenerateBlog(TestCase):
                                 f"5回中{success_count}回しか成功しませんでした。安定性に問題があります。\n" +
                                 "\n".join(failure_details))
 
-    @unittest.skipUnless(
-        RUN_EXTERNAL_API_TESTS and HAS_OPENROUTER_API_KEY,
-        "外部APIテストのため RUN_EXTERNAL_API_TESTS=1 と OPENROUTER_API_KEY が必要です",
-    )
+    @require_live_smoke("OPENROUTER_API_KEY", "GOOGLE_API_KEY")
     def test_generate_blog_video_only(self):
         # 実際のAPIを使用するため、環境変数が設定されていることを確認
         self._check_environment_variables()
@@ -287,10 +266,7 @@ class TestGenerateBlog(TestCase):
         self.assertGreaterEqual(success_count, 3,
                                 f"動画のみテスト: 5回中{success_count}回しか成功しませんでした")
 
-    @unittest.skipUnless(
-        RUN_EXTERNAL_API_TESTS and HAS_OPENROUTER_API_KEY,
-        "外部APIテストのため RUN_EXTERNAL_API_TESTS=1 と OPENROUTER_API_KEY が必要です",
-    )
+    @require_live_smoke("OPENROUTER_API_KEY")
     def test_generate_blog_pdf_only(self):
         # 実際のAPIを使用するため、環境変数が設定されていることを確認
         self._check_environment_variables()
@@ -486,10 +462,7 @@ class TestGenerateBlog(TestCase):
         self.assertEqual(event_detail.meta_description, "生成ディスクリプション")
         mock_ensure_pdf_thumbnail.assert_called_once_with(event_detail)
 
-    @unittest.skipUnless(
-        RUN_EXTERNAL_API_TESTS and HAS_GOOGLE_API_KEY,
-        "外部APIテストのため RUN_EXTERNAL_API_TESTS=1 と GOOGLE_API_KEY が必要です",
-    )
+    @require_live_smoke("GOOGLE_API_KEY")
     def test_get_transcript(self):
         # 実際のAPIを使用するため、環境変数が設定されていることを確認
         self._check_environment_variables()
@@ -505,10 +478,7 @@ class TestGenerateBlog(TestCase):
         self.assertGreater(len(result), 0)
         logger.info(f"取得した文字起こしの長さ: {len(result)} 文字")
 
-    @unittest.skipUnless(
-        RUN_EXTERNAL_API_TESTS and HAS_OPENROUTER_API_KEY,
-        "外部APIテストのため RUN_EXTERNAL_API_TESTS=1 と OPENROUTER_API_KEY が必要です",
-    )
+    @require_live_smoke("OPENROUTER_API_KEY", "GOOGLE_API_KEY")
     def test_generate_blog_format_stability(self):
         """出力フォーマットの安定性を詳細にテストする"""
         self._check_environment_variables()

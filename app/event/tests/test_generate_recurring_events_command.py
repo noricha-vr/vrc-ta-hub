@@ -12,7 +12,7 @@ from event.tests.tweet_generation import TweetGenerationPatchMixin
 from user_account.models import CustomUser
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
     def setUp(self):
         """テストデータのセットアップ"""

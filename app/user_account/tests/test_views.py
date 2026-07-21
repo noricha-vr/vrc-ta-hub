@@ -5,32 +5,16 @@ from django.test import Client, TestCase, override_settings, tag
 from django.urls import reverse
 
 from community.models import Community, CommunityMember
-from user_account.tests.utils import create_discord_linked_user
+from user_account.tests.utils import (
+    TEST_SOCIALACCOUNT_PROVIDERS,
+    TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS,
+    create_discord_linked_user,
+)
 
 User = get_user_model()
 
-TEST_SOCIALACCOUNT_PROVIDERS = {
-    'discord': {
-        'SCOPE': ['identify', 'email'],
-    }
-}
-
-TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS = {
-    'discord': {
-        'SCOPE': ['identify', 'email'],
-        'APPS': [
-            {
-                'client_id': 'test-client-id',
-                'secret': 'test-secret',
-                'key': '',
-            }
-        ],
-    }
-}
-
-
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
-@tag('external_api')
+@tag('offline_external_api')
 class CustomLoginViewTests(TestCase):
     """CustomLoginViewのテストクラス."""
 
@@ -156,7 +140,7 @@ class CustomLoginViewTests(TestCase):
         self.assertEqual(response.url, settings.LOGIN_REDIRECT_URL)
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class SettingsViewTests(TestCase):
     """SettingsViewのテストクラス."""
 
@@ -406,7 +390,7 @@ class SettingsViewTests(TestCase):
         self.assertNotContains(response, '承認待集会一覧')
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class UserUpdateViewTests(TestCase):
     """UserUpdateViewのテストクラス."""
 
@@ -454,7 +438,7 @@ class UserUpdateViewTests(TestCase):
 
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
-@tag('external_api')
+@tag('offline_external_api')
 class RegisterViewTests(TestCase):
     """RegisterViewのテストクラス."""
 
@@ -543,7 +527,7 @@ class RegisterViewTests(TestCase):
         self.assertContains(response, 'アカウントを作成しました。ログインしてください。')
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class AllauthSignupRedirectTests(TestCase):
     """allauthのsignupページからカスタムregisterページへのリダイレクトテスト."""
 
@@ -579,7 +563,7 @@ class AllauthSignupRedirectTests(TestCase):
         self.assertIn('next=/foo/', response.url)
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class LoginPageRegisterLinkTests(TestCase):
     """ログインページの登録リンクテストクラス."""
 
@@ -595,7 +579,7 @@ class LoginPageRegisterLinkTests(TestCase):
         self.assertContains(response, reverse('account:register'))
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class HeaderDropdownMenuTests(TestCase):
     """ヘッダーのドロップダウンメニューテストクラス."""
 

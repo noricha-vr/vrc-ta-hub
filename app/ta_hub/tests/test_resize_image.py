@@ -15,7 +15,7 @@ from ta_hub.libs import (
 from ta_hub.models import ImageFile
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class ImageFileTestCase(TestCase):
     def setUp(self):
         # テストデータのパスを設定
@@ -54,7 +54,7 @@ class ImageFileTestCase(TestCase):
         self.assertTrue(image_file.image.name.endswith('.png'))
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class ResizeAndConvertImageTestCase(TestCase):
     """resize_and_convert_image関数の単体テスト"""
 

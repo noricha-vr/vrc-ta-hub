@@ -1,0 +1,15 @@
+services:
+  live-smoke:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    environment:
+      SECRET_KEY: live-smoke-test-secret
+      DEBUG: "True"
+      TESTING: "1"
+      GOOGLE_API_KEY: dummy-google-api-key
+      GOOGLE_CALENDAR_ID: dummy-calendar-id
+      GOOGLE_CALENDAR_CREDENTIALS: /run/secrets/missing-google-calendar-credentials.json
+      GEMINI_API_KEY: dummy-gemini-api-key
+      REQUEST_TOKEN: dummy-request-token

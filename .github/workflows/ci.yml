@@ -43,6 +43,12 @@ jobs:
       GOOGLE_CALENDAR_ID: "dummy-calendar-id@group.calendar.google.com"
       GEMINI_API_KEY: "dummy-gemini-api-key"
       OPENAI_API_KEY: "dummy-openai-api-key"
+      OPENROUTER_API_KEY: "dummy-openrouter-api-key"
+      X_API_KEY: "dummy-x-api-key"
+      X_API_SECRET: "dummy-x-api-secret"
+      X_ACCESS_TOKEN: "dummy-x-access-token"
+      X_ACCESS_TOKEN_SECRET: "dummy-x-access-token-secret"
+      DISCORD_WEBHOOK_URL: "https://discord.invalid/offline-test"
       REQUEST_TOKEN: "dummy-request-token"
 
     steps:
@@ -68,11 +74,14 @@ jobs:
         env:
           EMAIL_FILE_PATH: "/tmp/emails"
         run: |
-          # 外部API / 環境依存テストは @tag('external_api') で除外する
-          # 新規テストを追加した時に「CI で実行されない」事故を防ぐため、
-          # 除外モジュールを列挙するのではなくタグで一括除外する方式に統一している
+          # 実サービスへ接続する live smoke とブラウザE2Eだけを除外する。
+          # OfflineNetworkDiscoverRunner が loopback 以外への接続を拒否するため、
+          # dummy credentialを渡しても通常suiteから外向き通信は発生しない。
           # coverage 設定は ../pyproject.toml の [tool.coverage] を参照
-          coverage run --rcfile=../pyproject.toml manage.py test --exclude-tag=external_api --exclude-tag=e2e --noinput
+          coverage run --rcfile=../pyproject.toml -m tests.offline_manage test \
+            --exclude-tag=live_smoke --exclude-tag=e2e \
+            --testrunner=website.tests.offline_runner.OfflineNetworkDiscoverRunner \
+            --noinput
           coverage report --rcfile=../pyproject.toml
 
   e2e:

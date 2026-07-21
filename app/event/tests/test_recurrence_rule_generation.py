@@ -5,6 +5,7 @@ from community.models import Community
 from event.models import Event, RecurrenceRule
 from event.recurrence_service import RecurrenceService
 from unittest.mock import patch
+from tests.live_smoke import require_live_smoke
 
 User = get_user_model()
 
@@ -19,7 +20,7 @@ class FakeEventDateLlmService:
         return self.dates
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class TestRecurrenceRuleGeneration(TestCase):
     """定期ルール生成の週計算テスト"""
     
@@ -297,6 +298,7 @@ class TestRecurrenceRuleGeneration(TestCase):
             ]
         )
     
+    @require_live_smoke("OPENROUTER_API_KEY")
     def test_recurrence_preview_api_for_custom_rule(self):
         """RecurrencePreviewAPIでカスタムルールのプレビューをテスト"""
         from rest_framework.test import APIClient

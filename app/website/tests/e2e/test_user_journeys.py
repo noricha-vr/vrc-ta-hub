@@ -217,7 +217,7 @@ class PlaywrightLiveServerTestCase(StaticLiveServerTestCase):
         self.page.wait_for_load_state('domcontentloaded')
 
 
-@tag('e2e')
+@tag('e2e', 'browser')
 @skipUnless(PLAYWRIGHT_AVAILABLE, 'Playwright E2E dependencies are not installed')
 @override_settings(
     DEBUG_LOGIN_SKIP=False,
