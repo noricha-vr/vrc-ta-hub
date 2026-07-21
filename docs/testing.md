@@ -76,6 +76,9 @@ live smokeでは必要なサービスのcredentialだけを渡す。全プロジ
 `.env` を読み込ませず、Google CalendarならCalendar IDとcredentialファイル、
 OpenRouterなら `OPENROUTER_API_KEY` のようにテスト対象単位で限定する。
 
+`scripts/run_tests.sh` はテスト名などの引数を渡した場合もoffline境界を適用する。
+実疎通だけは `scripts/run_tests.sh --live-smoke [test label]` と明示し、通常実行と分離する。
+
 ## ブラウザ E2E テスト
 
 Python Playwright と Django の `StaticLiveServerTestCase` を組み合わせ、実際の
