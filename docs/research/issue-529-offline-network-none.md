@@ -11,8 +11,8 @@
 
 | 操作 | offline runner | Docker `--network none` |
 | --- | --- | --- |
-| 外向き TCP / UDP / `sendmsg` | `ExternalNetworkBlockedError` | `OSError`、`errno.ENETUNREACH` (101) |
-| 外向き名前解決 | `ExternalNetworkBlockedError` | `socket.EAI_AGAIN` または `socket.herror` の `h_errno` 2 (`TRY_AGAIN`) |
+| 外向き TCP / UDP / `sendmsg` | `ExternalNetworkBlockedError` | `OSError` かその派生型、かつ `errno == errno.ENETUNREACH` (101) |
+| 外向き名前解決 | `ExternalNetworkBlockedError` | `socket.gaierror` かつ `errno == socket.EAI_AGAIN` (-3)、または `socket.herror` かつ `errno == 2` (`TRY_AGAIN`) |
 | IPv4 loopback | 許可 | 許可して疎通する |
 | IPv6 loopback | 許可 | IPv6 loopback が利用可能な場合に疎通する |
 | Unix datagram socket | 許可 | ネットワーク namespace に依存せず疎通する |
@@ -24,37 +24,34 @@ IPv6 は `socket.has_ipv6` が真でも namespace 側で利用できない環境
 ## 採用方針
 
 回帰テストは操作種別ごとに、runner の独自例外と network namespace が返す限定した errno
-だけを遮断成功として扱う。任意の `OSError` を許容しないため、アドレス形式や socket の
+だけを遮断成功として扱う。DNS は例外型と errno の組み合わせまで照合するため、同じ数値 2 の
+`FileNotFoundError(errno.ENOENT)` は成功扱いしない。TCP / UDP / `sendmsg` も任意の
+`OSError` ではなく `errno.ENETUNREACH` だけを許容する。これにより、アドレス形式や socket の
 利用方法を壊した場合はテスト失敗のままである。遮断実装そのものは変更せず、DNS/TCP/UDP/
 `sendmsg` の fail-closed 契約を維持する。
 
 ## 検証方法
 
-次の使い捨てコンテナで、通常の offline runner と Docker `--network none` の両方を実行する。
+通常の offline runner は標準のテスト入口で実行する。
 
 ```bash
-docker run --rm -v "$PWD/app:/app" \
-  -e SECRET_KEY=test-secret-key-for-ci -e DEBUG=True -e TESTING=1 \
-  -e ALLOWED_HOSTS=localhost,127.0.0.1 -e CSRF_TRUSTED_ORIGIN=https://localhost \
-  -e GOOGLE_API_KEY=dummy -e GOOGLE_CALENDAR_ID=dummy-calendar-id@group.calendar.google.com \
-  -e GEMINI_API_KEY=dummy -e OPENAI_API_KEY=dummy -e OPENROUTER_API_KEY=dummy \
-  -e X_API_KEY=dummy -e X_API_SECRET=dummy -e X_ACCESS_TOKEN=dummy -e X_ACCESS_TOKEN_SECRET=dummy \
-  -e DISCORD_WEBHOOK_URL=https://discord.invalid/offline-test -e REQUEST_TOKEN=dummy \
-  -e EMAIL_FILE_PATH=/tmp/emails --entrypoint /bin/sh \
-  vrc-ta-hub-offline-tests:issue-527 \
-  -c 'cd /app && python -m tests.offline_manage test website.tests.test_offline_runner --testrunner=website.tests.offline_runner.OfflineNetworkDiscoverRunner --noinput'
+scripts/run_tests.sh website.tests.test_offline_runner
+```
 
-docker run --rm --network none -v "$PWD/app:/app" \
-  -e SECRET_KEY=test-secret-key-for-ci -e DEBUG=True -e TESTING=1 \
-  -e ALLOWED_HOSTS=localhost,127.0.0.1 -e CSRF_TRUSTED_ORIGIN=https://localhost \
-  -e GOOGLE_API_KEY=dummy -e GOOGLE_CALENDAR_ID=dummy-calendar-id@group.calendar.google.com \
-  -e GEMINI_API_KEY=dummy -e OPENAI_API_KEY=dummy -e OPENROUTER_API_KEY=dummy \
-  -e X_API_KEY=dummy -e X_API_SECRET=dummy -e X_ACCESS_TOKEN=dummy -e X_ACCESS_TOKEN_SECRET=dummy \
-  -e DISCORD_WEBHOOK_URL=https://discord.invalid/offline-test -e REQUEST_TOKEN=dummy \
-  -e EMAIL_FILE_PATH=/tmp/emails --entrypoint /bin/sh \
-  vrc-ta-hub-offline-tests:issue-527 \
+OS 側の分岐は、現在の checkout から使い捨て image を build し、Docker network namespace
+だけで外向き通信を遮断して実行する。
+
+```bash
+docker build -t vrc-ta-hub-offline-tests:issue-529 .
+
+docker run --rm --network none \
+  -e SECRET_KEY=offline-boundary-test -e DEBUG=True -e TESTING=1 \
+  -e GOOGLE_API_KEY=dummy -e GOOGLE_CALENDAR_ID=dummy \
+  -e GEMINI_API_KEY=dummy -e REQUEST_TOKEN=dummy \
+  --entrypoint /bin/sh vrc-ta-hub-offline-tests:issue-529 \
   -c 'cd /app && python manage.py test website.tests.test_offline_runner --testrunner=django.test.runner.DiscoverRunner --noinput'
 ```
 
-2本目はoffline monkeypatchを意図的に使わず、Docker network namespaceが返す限定errnoの
-分岐を直接検証する。通常CIと1本目は引き続き`OfflineNetworkDiscoverRunner`を使う。
+raw コマンドは `tests.offline_manage` と `OfflineNetworkDiscoverRunner` を意図的に使わず、
+Docker network namespace が返す型・errno の分岐を直接検証する。通常 CI と標準入口は
+引き続き両方の Python 側遮断を使う。
