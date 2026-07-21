@@ -65,19 +65,39 @@ Live smoke は通常suiteから除外し、`RUN_LIVE_SMOKE_TESTS=1` と対象サ
 実credentialを明示した場合だけ実行する。dummy / test / placeholder 値や、
 Google Calendar credentialファイルがない場合はskipする。
 
+live smoke は必ず固定profileを指定する。値は現在のshell環境を優先し、未設定なら
+git管理外の `.env.local` からprofileのallowlistにあるキーだけを読む。別ファイルを
+使う場合は `LIVE_SMOKE_ENV_FILE` で指定する。
+
+| Profile | 渡すcredential | 既定の対象 |
+|---------|------------------|------------|
+| `openrouter` | `OPENROUTER_API_KEY` | 定期日生成、PDFのみの記事生成 |
+| `youtube` | `GOOGLE_API_KEY` | YouTube文字起こし取得 |
+| `blog-generation` | `OPENROUTER_API_KEY`, `GOOGLE_API_KEY` | 動画を含む記事生成 |
+| `google-calendar` | `GOOGLE_CALENDAR_ID`, `GOOGLE_CALENDAR_CREDENTIALS` | Calendar CRUD |
+
 ```bash
-# 例: 実credentialをgit管理外の環境から限定的に注入して実行
-RUN_LIVE_SMOKE_TESTS=1 \
-OPENROUTER_API_KEY="..." \
-python manage.py test --tag=live_smoke --noinput
+# profileの既定テストを実行
+scripts/run_tests.sh --live-smoke openrouter
+
+# 任意のtest labelへ絞る場合
+scripts/run_tests.sh --live-smoke youtube \
+  event.tests.test_generate_blog.TestGenerateBlog.test_get_transcript
+
+# credential sourceを明示する場合
+LIVE_SMOKE_ENV_FILE="$HOME/.config/vrc-ta-hub/live-smoke.env" \
+  scripts/run_tests.sh --live-smoke google-calendar
 ```
 
-live smokeでは必要なサービスのcredentialだけを渡す。全プロジェクトの
-`.env` を読み込ませず、Google CalendarならCalendar IDとcredentialファイル、
-OpenRouterなら `OPENROUTER_API_KEY` のようにテスト対象単位で限定する。
+専用の `docker-compose.live-smoke.yml` は既存app containerを再利用せず、別の
+Compose project・networkでsecret非同梱のイメージを再ビルドする。serviceには
+`env_file` やhost source volumeを設定しない。credential値はshell argvに載せず、
+profileで許可した環境変数名だけを渡す。Google CalendarのJSON鍵は指定ファイル1個だけを
+read-only mountする。未知profile、missing / dummy credential、存在しないJSON鍵は
+container起動前に拒否する。
 
 `scripts/run_tests.sh` はテスト名などの引数を渡した場合もoffline境界を適用する。
-実疎通だけは `scripts/run_tests.sh --live-smoke [test label]` と明示し、通常実行と分離する。
+実疎通だけを上記 `--live-smoke <profile> [test label]` で明示し、通常実行と分離する。
 
 ## ブラウザ E2E テスト
 
