@@ -1,9 +1,12 @@
-from django.test import SimpleTestCase, override_settings, tag
-from django.core.mail import send_mail
-from django.conf import settings
 import logging
-import sys
 import os
+import sys
+import tempfile
+from pathlib import Path
+
+from django.conf import settings
+from django.core.mail import send_mail
+from django.test import SimpleTestCase, override_settings, tag
 
 # ロガーの設定
 logger = logging.getLogger(__name__)
@@ -14,20 +17,19 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-# メール保存用のディレクトリを設定
-EMAIL_FILE_PATH = '/app/test-emails'
-
-
-@override_settings(
-    EMAIL_BACKEND='django.core.mail.backends.filebased.EmailBackend',
-    EMAIL_FILE_PATH=EMAIL_FILE_PATH
-)
 @tag('offline_external_api')
 class EmailTest(SimpleTestCase):
     def setUp(self):
         super().setUp()
-        # メール保存用ディレクトリの作成
-        os.makedirs(EMAIL_FILE_PATH, exist_ok=True)
+        self.email_directory = tempfile.TemporaryDirectory(prefix='vrc-ta-hub-email-')
+        self.email_path = Path(self.email_directory.name)
+        self.settings_override = override_settings(
+            EMAIL_BACKEND='django.core.mail.backends.filebased.EmailBackend',
+            EMAIL_FILE_PATH=str(self.email_path),
+        )
+        self.settings_override.enable()
+        self.addCleanup(self.email_directory.cleanup)
+        self.addCleanup(self.settings_override.disable)
         print("\nTest setup completed")
         print(f"Email backend: {settings.EMAIL_BACKEND}")
         print(f"Email file path: {settings.EMAIL_FILE_PATH}")
@@ -35,8 +37,8 @@ class EmailTest(SimpleTestCase):
     def tearDown(self):
         # テスト終了後にメールファイルを表示
         print("\nGenerated email files:")
-        for file in os.listdir(EMAIL_FILE_PATH):
-            file_path = os.path.join(EMAIL_FILE_PATH, file)
+        for file in os.listdir(self.email_path):
+            file_path = self.email_path / file
             print(f"\nReading email file: {file}")
             try:
                 # Try UTF-8 first
@@ -53,6 +55,12 @@ class EmailTest(SimpleTestCase):
                         print("Binary content (hex):")
                         print(f.read().hex())
         super().tearDown()
+
+    def test_email_path_is_a_writable_temporary_directory(self):
+        """非root環境でも書き込めるテスト固有ディレクトリを使用する。"""
+        self.assertTrue(self.email_path.is_dir())
+        self.assertTrue(os.access(self.email_path, os.W_OK))
+        self.assertNotEqual(self.email_path, Path('/app/test-emails'))
 
     def test_send_welcome_email(self):
         """ウェルカムメールのテスト"""
