@@ -15,9 +15,15 @@ TEST_APPS=(
     "website.tests"
 )
 
-# 引数があればそれを使う、なければ全アプリ
-if [ $# -gt 0 ]; then
-    docker compose exec vrc-ta-hub python manage.py test "$@"
+# 実疎通は明示モードに分離し、通常の引数あり実行にもoffline境界を適用する。
+if [ "${1:-}" = "--live-smoke" ]; then
+    shift
+    docker compose exec vrc-ta-hub python manage.py test --tag=live_smoke "$@"
+elif [ $# -gt 0 ]; then
+    docker compose exec vrc-ta-hub python -m tests.offline_manage test "$@" \
+        --exclude-tag=live_smoke \
+        --exclude-tag=e2e \
+        --testrunner=website.tests.offline_runner.OfflineNetworkDiscoverRunner
 else
     docker compose exec vrc-ta-hub python -m tests.offline_manage test "${TEST_APPS[@]}" \
         --exclude-tag=live_smoke \
