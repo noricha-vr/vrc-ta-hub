@@ -18,8 +18,8 @@ class LiveSmokeExecutionTest(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
-        self.repo_root = Path(self.temp_dir.name)
-        (self.repo_root / "app").mkdir()
+        self.repo_root = Path(self.temp_dir.name) / "repo"
+        (self.repo_root / "app").mkdir(parents=True)
         self.base_env = {
             "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
             "HOME": self.temp_dir.name,
@@ -96,13 +96,12 @@ class LiveSmokeExecutionTest(unittest.TestCase):
         self.assertNotIn("real-from-file", command)
 
     def test_google_calendar_mounts_only_configured_credential_file(self):
-        credential_path = self.repo_root / "app" / "secret" / "credentials.json"
-        credential_path.parent.mkdir()
+        credential_path = Path(self.temp_dir.name) / "credentials.json"
         credential_path.write_text("{}", encoding="utf-8")
         environ = {
             **self.base_env,
             "GOOGLE_CALENDAR_ID": "real-calendar-id",
-            "GOOGLE_CALENDAR_CREDENTIALS": "/app/secret/credentials.json",
+            "GOOGLE_CALENDAR_CREDENTIALS": str(credential_path),
             "OPENROUTER_API_KEY": "must-not-leak",
         }
 
@@ -150,11 +149,91 @@ class LiveSmokeExecutionTest(unittest.TestCase):
         environ = {
             **self.base_env,
             "GOOGLE_CALENDAR_ID": "real-calendar-id",
-            "GOOGLE_CALENDAR_CREDENTIALS": "/app/secret/missing.json",
+            "GOOGLE_CALENDAR_CREDENTIALS": str(
+                Path(self.temp_dir.name) / "missing.json"
+            ),
         }
         with self.assertRaisesRegex(
             LiveSmokeConfigurationError,
             "credential file does not exist",
+        ):
+            build_execution(
+                "google-calendar",
+                (),
+                environ=environ,
+                repo_root=self.repo_root,
+            )
+
+    def test_repository_credential_file_is_rejected(self):
+        credential_path = self.repo_root / "app" / "credentials.json"
+        credential_path.write_text("{}", encoding="utf-8")
+        environ = {
+            **self.base_env,
+            "GOOGLE_CALENDAR_ID": "real-calendar-id",
+            "GOOGLE_CALENDAR_CREDENTIALS": str(credential_path),
+        }
+
+        with self.assertRaisesRegex(
+            LiveSmokeConfigurationError,
+            "outside the repository build context",
+        ):
+            build_execution(
+                "google-calendar",
+                (),
+                environ=environ,
+                repo_root=self.repo_root,
+            )
+
+    def test_symlink_to_repository_credential_file_is_rejected(self):
+        credential_path = self.repo_root / "app" / "credentials.json"
+        credential_path.write_text("{}", encoding="utf-8")
+        symlink_path = Path(self.temp_dir.name) / "external-link.json"
+        symlink_path.symlink_to(credential_path)
+        environ = {
+            **self.base_env,
+            "GOOGLE_CALENDAR_ID": "real-calendar-id",
+            "GOOGLE_CALENDAR_CREDENTIALS": str(symlink_path),
+        }
+
+        with self.assertRaisesRegex(
+            LiveSmokeConfigurationError,
+            "outside the repository build context",
+        ):
+            build_execution(
+                "google-calendar",
+                (),
+                environ=environ,
+                repo_root=self.repo_root,
+            )
+
+    def test_relative_calendar_credential_path_is_rejected(self):
+        environ = {
+            **self.base_env,
+            "GOOGLE_CALENDAR_ID": "real-calendar-id",
+            "GOOGLE_CALENDAR_CREDENTIALS": "credentials.json",
+        }
+
+        with self.assertRaisesRegex(
+            LiveSmokeConfigurationError,
+            "must be an absolute path outside the repository",
+        ):
+            build_execution(
+                "google-calendar",
+                (),
+                environ=environ,
+                repo_root=self.repo_root,
+            )
+
+    def test_container_app_credential_path_is_rejected(self):
+        environ = {
+            **self.base_env,
+            "GOOGLE_CALENDAR_ID": "real-calendar-id",
+            "GOOGLE_CALENDAR_CREDENTIALS": "/app/credentials.json",
+        }
+
+        with self.assertRaisesRegex(
+            LiveSmokeConfigurationError,
+            "cannot use the container /app path",
         ):
             build_execution(
                 "google-calendar",

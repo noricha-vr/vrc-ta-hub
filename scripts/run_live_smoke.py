@@ -120,13 +120,22 @@ def _load_profile_values(
 
 def _resolve_credential_file(value: str, repo_root: Path) -> Path:
     configured_path = Path(value).expanduser()
-    if configured_path.is_absolute() and configured_path.parts[:2] == ("/", "app"):
-        configured_path = repo_root / "app" / Path(*configured_path.parts[2:])
-    elif not configured_path.is_absolute():
-        configured_path = repo_root / "app" / configured_path
+    if not configured_path.is_absolute():
+        raise LiveSmokeConfigurationError(
+            "Google Calendar credential file must be an absolute path outside the repository"
+        )
+    if configured_path.parts[:2] == ("/", "app"):
+        raise LiveSmokeConfigurationError(
+            "Google Calendar credential file cannot use the container /app path"
+        )
     resolved = configured_path.resolve()
     if not resolved.is_file():
         raise LiveSmokeConfigurationError("Google Calendar credential file does not exist")
+    resolved_repo_root = repo_root.resolve()
+    if resolved == resolved_repo_root or resolved.is_relative_to(resolved_repo_root):
+        raise LiveSmokeConfigurationError(
+            "Google Calendar credential file must be outside the repository build context"
+        )
     return resolved
 
 
