@@ -76,7 +76,7 @@ jobs:
           coverage report --rcfile=../pyproject.toml
 
   e2e:
-    needs: test
+    needs: lint
     runs-on: ubuntu-latest
 
     env:
