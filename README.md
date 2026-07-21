@@ -295,36 +295,39 @@ uv pip sync requirements.lock
 
 ### テスト環境のセットアップ
 
-本プロジェクトでは実際のAPIを使用したテストを実行します。
+通常suiteは外向き通信を遮断するため、実credentialなしで実行できます。実サービスへ接続する
+テストは通常suiteから除外し、固定 `live_smoke` profileを明示した場合だけ専用containerで
+実行します。
 
-1. **テスト用環境変数の設定:**
-
-   `.env.local` に以下の環境変数が設定されていることを確認します：
-   ```
-   GOOGLE_API_KEY=your_api_key
-   GEMINI_API_KEY=your_api_key
-   GOOGLE_CALENDAR_ID=your_calendar_id@group.calendar.google.com
-   OPENAI_API_KEY=your_api_key
-   REQUEST_TOKEN=your_request_token
-   OPENROUTER_API_KEY=your_api_key  # 外部APIテストを回す場合
-   GEMINI_MODEL=google/gemini-2.5-flash-lite-preview-06-17
-   ```
-
-2. **テストの実行:**
+1. **通常suiteの実行:**
 
    ```bash
-   docker compose exec vrc-ta-hub python manage.py test
+   # 全通常テスト。live smoke / browser E2Eを除外し、外向き通信を拒否する
+   scripts/run_tests.sh
+
+   # 特定のテストも同じoffline境界で実行する
+   scripts/run_tests.sh event.tests.test_generate_blog
+   scripts/run_tests.sh api_v1.tests.test_event_detail_api
    ```
 
-   特定のテストを実行する場合：
+2. **live smokeの実行（必要な場合のみ）:**
+
+   実credentialは固定profileが要求するキーだけを現在のshell、またはgit管理外の
+   `.env.local` / `LIVE_SMOKE_ENV_FILE` から読み、clean-envの専用Composeへ渡します。
+
    ```bash
-   docker compose exec vrc-ta-hub python manage.py test event.tests.test_generate_blog
+   scripts/run_tests.sh --live-smoke openrouter
+
+   LIVE_SMOKE_ENV_FILE="$HOME/.config/vrc-ta-hub/live-smoke.env" \
+     scripts/run_tests.sh --live-smoke google-calendar
    ```
 
-   API認証のテストを実行する場合：
-   ```bash
-   docker compose exec vrc-ta-hub python manage.py test api_v1.tests.test_event_detail_api
-   ```
+   `google-calendar` profileのJSON鍵はrepositoryとDocker build contextの外に置き、
+   `GOOGLE_CALENDAR_CREDENTIALS` にabsolute pathを設定します。鍵は専用containerへread-only
+   mountされ、imageには含まれません。
+
+利用可能なprofile、必要credential、既定test label、通信遮断の仕様は
+[テスト方針](docs/testing.md)を参照してください。
 
 ## データモデル
 
@@ -374,13 +377,13 @@ uv pip sync requirements.lock
 
 ### テスト戦略
 
-1. **統合テスト**:
-   - 実際のAPIを使用したエンドツーエンドのテスト
-   - 環境変数が適切に設定されている場合のみ実行
+1. **Live smoke**:
+   - 実際のAPIを使用する疎通テストは通常suiteから分離
+   - 固定profileと必要最小限のcredentialを明示した専用containerでのみ実行
 
-2. **単体テスト**:
+2. **Offline contract / 単体テスト**:
    - 基本的な機能の検証
-   - 外部依存性のないコンポーネントのテスト
+   - mock / fakeで外部連携の契約を検証し、外向き通信を遮断
 
 3. **例外処理に重点**:
    - APIエラーに対する適切な処理
