@@ -17,7 +17,7 @@ from event.tests.tweet_generation import TweetGenerationPatchMixin
 from user_account.models import CustomUser
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class RecurrenceIdempotencyTest(TweetGenerationPatchMixin, TestCase):
     """generate_recurring_events を二度実行しても重複しないことを保証する。"""
 

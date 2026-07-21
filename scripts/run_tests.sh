@@ -19,5 +19,9 @@ TEST_APPS=(
 if [ $# -gt 0 ]; then
     docker compose exec vrc-ta-hub python manage.py test "$@"
 else
-    docker compose exec vrc-ta-hub python manage.py test "${TEST_APPS[@]}" --verbosity=1
+    docker compose exec vrc-ta-hub python -m tests.offline_manage test "${TEST_APPS[@]}" \
+        --exclude-tag=live_smoke \
+        --exclude-tag=e2e \
+        --testrunner=website.tests.offline_runner.OfflineNetworkDiscoverRunner \
+        --verbosity=1
 fi

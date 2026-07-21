@@ -21,7 +21,7 @@ from twitter.scheduling import default_scheduled_at, scheduled_at_for_date
 CustomUser = get_user_model()
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class EventTestPatchScopeTest(TestCase):
     """event.tests import が twitter signal を汚染しないことを確認する。"""
 
@@ -57,7 +57,7 @@ class EventTestPatchScopeTest(TestCase):
         self.assertIs(signals._start_tweet_generation, original)
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class TweetGenerationThreadGuardTest(TestCase):
     """テスト実行時の本文生成スレッド起動ガードを検証する。"""
 
@@ -89,7 +89,7 @@ class TweetGenerationThreadGuardTest(TestCase):
         mock_start.assert_not_called()
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class DBReconnectHelperTest(TestCase):
     """MySQL 接続断の再試行ヘルパーのテスト"""
 
@@ -125,7 +125,7 @@ class DBReconnectHelperTest(TestCase):
         mock_close_all.assert_not_called()
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class AutoTweetTestBase(TestCase):
     """テスト共通のセットアップ"""
 
@@ -171,7 +171,7 @@ class AutoTweetTestBase(TestCase):
         return timezone.now() - datetime.timedelta(hours=25)
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class TweetSchedulingTest(TestCase):
     """tweet_type ごとのデフォルト予約時刻のテスト"""
 
@@ -1682,7 +1682,7 @@ class RetryGenerationTest(AutoTweetTestBase):
         mock_close_all.assert_called_once()
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class LLMConnectionManagementTest(TransactionTestCase):
     """LLM 呼び出し時の DB 接続管理テスト"""
 
@@ -1745,7 +1745,7 @@ class LLMConnectionManagementTest(TransactionTestCase):
         self.assertEqual(community.description, "after")
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class GetGeneratorHelperTest(TestCase):
     """get_generator ヘルパー関数のテスト"""
 
@@ -1783,7 +1783,7 @@ class GetGeneratorHelperTest(TestCase):
         self.assertIsNone(generator)
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class GetPosterImageUrlHelperTest(TestCase):
     """get_poster_image_url ヘルパー関数のテスト"""
 
@@ -1906,7 +1906,7 @@ class GetPosterImageUrlHelperTest(TestCase):
         self.assertIn("community/1/poster.webp", result)
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class PostTweetFunctionTest(TestCase):
     """X API 投稿関数の単体テスト（OAuth 1.0a）"""
 
@@ -2029,7 +2029,7 @@ class PostTweetFunctionTest(TestCase):
         mock_post.assert_not_called()
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class UploadMediaFunctionTest(TestCase):
     """upload_media 関数のテスト"""
 
@@ -2042,8 +2042,10 @@ class UploadMediaFunctionTest(TestCase):
     }
     ALLOWED_IMAGE_URL = "https://data.vrc-ta-hub.com/community/1/poster.webp"
 
-    def _make_stream_response(self, data=b"fake-image-data", content_type="image/webp"):
+    def _make_stream_response(self, data=None, content_type="image/webp"):
         """stream=True のレスポンスモックを生成するヘルパー"""
+        if data is None:
+            data = b"RIFF\x04\x00\x00\x00WEBP"
         mock_response = MagicMock()
         mock_response.headers = {"Content-Type": content_type}
         mock_response.raise_for_status = MagicMock()
@@ -2226,7 +2228,7 @@ class UploadMediaFunctionTest(TestCase):
     @patch("twitter.x_api.requests.get")
     def test_upload_media_accepts_exactly_5mb(self, mock_get, mock_post):
         """ちょうど5MBの画像は受け入れられる"""
-        exactly_5mb = b"x" * (5 * 1024 * 1024)
+        exactly_5mb = b"\x89PNG\r\n\x1a\n" + b"x" * (5 * 1024 * 1024 - 8)
         mock_get.return_value = self._make_stream_response(data=exactly_5mb)
 
         mock_upload_response = MagicMock()
@@ -2241,7 +2243,7 @@ class UploadMediaFunctionTest(TestCase):
         self.assertEqual(result, "media_5mb")
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class TweetGeneratorTest(TestCase):
     """告知文生成関数のテスト"""
 
@@ -2793,7 +2795,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("改行 入り テーマ", user_prompt)
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class TweetQueueConstraintTest(TestCase):
     """TweetQueue の一意制約テスト"""
 
@@ -2831,7 +2833,7 @@ class TweetQueueConstraintTest(TestCase):
             )
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class SanitizeForPromptTest(TestCase):
     """_sanitize_for_prompt 関数の単体テスト"""
 
@@ -2867,7 +2869,7 @@ class SanitizeForPromptTest(TestCase):
         self.assertEqual(_sanitize_for_prompt("hello   world"), "hello world")
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class PostTweetValidationTest(TestCase):
     """post_tweet 関数の入力バリデーションテスト"""
 
@@ -2978,7 +2980,10 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertIn("event/detail", payload["embeds"][0]["fields"][2]["value"])
         self.assertIn("event/detail", payload["embeds"][0]["url"])
 
-    @override_settings(AWS_S3_CUSTOM_DOMAIN="data.vrc-ta-hub.com")
+    @override_settings(
+        AWS_S3_CUSTOM_DOMAIN="data.vrc-ta-hub.com",
+        MEDIA_URL="https://data.vrc-ta-hub.com/",
+    )
     @patch("event.notifications.requests.post")
     @patch("twitter.signals.threading.Thread")
     def test_slide_share_webhook_uses_event_detail_thumbnail_image(
@@ -2998,7 +3003,10 @@ class SlideShareSignalTest(AutoTweetTestBase):
         image_url = payload["embeds"][0]["image"]["url"]
         self.assertEqual(image_url, "https://data.vrc-ta-hub.com/thumbnail/generated.jpg")
 
-    @override_settings(AWS_S3_CUSTOM_DOMAIN="data.vrc-ta-hub.com")
+    @override_settings(
+        AWS_S3_CUSTOM_DOMAIN="data.vrc-ta-hub.com",
+        MEDIA_URL="https://data.vrc-ta-hub.com/",
+    )
     @patch("event.notifications.requests.post")
     @patch("twitter.signals.threading.Thread")
     def test_slide_share_webhook_falls_back_to_community_poster_image(

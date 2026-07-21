@@ -22,7 +22,7 @@ EMAIL_FILE_PATH = '/app/test-emails'
     EMAIL_BACKEND='django.core.mail.backends.filebased.EmailBackend',
     EMAIL_FILE_PATH=EMAIL_FILE_PATH
 )
-@tag('external_api')
+@tag('offline_external_api')
 class EmailTest(SimpleTestCase):
     def setUp(self):
         super().setUp()
