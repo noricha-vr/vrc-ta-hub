@@ -73,9 +73,8 @@ def _build_markdown_context(database_context, today):
     }
 
 
-class LlmsTxtView(TemplateView):
-    template_name = 'ta_hub/llms.txt'
-    content_type = 'text/markdown; charset=utf-8'
+class MarkdownTemplateView(TemplateView):
+    """Provide an absolute site URL to Markdown templates."""
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -83,7 +82,12 @@ class LlmsTxtView(TemplateView):
         return context
 
 
-class IndexMarkdownView(TemplateView):
+class LlmsTxtView(MarkdownTemplateView):
+    template_name = 'ta_hub/llms.txt'
+    content_type = 'text/markdown; charset=utf-8'
+
+
+class IndexMarkdownView(MarkdownTemplateView):
     template_name = 'ta_hub/index.md'
     content_type = 'text/markdown; charset=utf-8'
 
@@ -91,7 +95,6 @@ class IndexMarkdownView(TemplateView):
         context = super().get_context_data(**kwargs)
         today = get_vrchat_today()
         context['current_date'] = timezone.localdate()
-        context['site_base'] = self.request.build_absolute_uri('/')
         context['database_degraded'] = False
         context['upcoming_events'] = []
         context['upcoming_event_details'] = []
