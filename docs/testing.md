@@ -89,6 +89,11 @@ LIVE_SMOKE_ENV_FILE="$HOME/.config/vrc-ta-hub/live-smoke.env" \
   scripts/run_tests.sh --live-smoke google-calendar
 ```
 
+`google-calendar` の `GOOGLE_CALENDAR_CREDENTIALS` には、repository/build context
+外に置いたJSON鍵の絶対パス（例: `$HOME/.config/vrc-ta-hub/credentials.json`）を指定する。
+`/app/...`、相対パス、repository内のファイル、外部symlinkからrepository内を指すパスは
+image layerへの混入防止のため拒否する。
+
 専用の `docker-compose.live-smoke.yml` は既存app containerを再利用せず、別の
 Compose project・networkでsecret非同梱のイメージを再ビルドする。serviceには
 `env_file` やhost source volumeを設定しない。credential値はshell argvに載せず、
