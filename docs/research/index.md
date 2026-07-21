@@ -4,6 +4,7 @@
 
 ## レポート一覧
 
+- [Issue #522 X-Forwarded-Proto 調査](issue-522-x-forwarded-proto.md) — Cloud Run の TLS 終端値を nginx から Django へ透過し、絶対 URL が HTTP へ戻る回帰を防ぐ
 - [Issue #513 LLM 向け Markdown エンドポイント](issue-513-llm-markdown-endpoints.md) — `/llms.txt` と `/index.md` のキャッシュ共有・縮退・検証方針
 - [Issue #499 disabled の参加希望日バリデーション調査](issue-499-disabled-vket-date-validation.md) — Event がない確定済み参加で発表・備考更新が失敗する原因と回帰テスト
 - [Issue #500 Campaign UTM validator migration](issue-500-analytics-campaign-migration.md) — `Campaign.utm_source` / `utm_medium` の validator 定義と migration 履歴の差分、および `AlterField` migration の安全性確認
