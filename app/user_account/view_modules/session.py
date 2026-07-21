@@ -23,6 +23,12 @@ class CustomLoginView(LoginView):
     template_name = 'account/login.html'
     form_class = BootstrapAuthenticationForm
 
+    def dispatch(self, request, *args, **kwargs):
+        """認証済みユーザーをイベント管理ページへ移動させる."""
+        if request.user.is_authenticated:
+            return redirect('event:my_list')
+        return super().dispatch(request, *args, **kwargs)
+
     def form_valid(self, form):
         """ログイン成功時に remember 設定からセッション期限を決める."""
         remember = form.cleaned_data.get('remember')

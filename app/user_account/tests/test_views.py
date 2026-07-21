@@ -25,7 +25,7 @@ class CustomLoginViewTests(TestCase):
         """テスト用のデータを準備."""
         self.client = Client()
         self.login_url = reverse('account:login')
-        self.test_user = User.objects.create_user(
+        self.test_user = create_discord_linked_user(
             user_name='test_community',
             email='test@example.com',
             password='testpass123',
@@ -36,6 +36,30 @@ class CustomLoginViewTests(TestCase):
         response = self.client.get(self.login_url)
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'account/login.html')
+
+    @override_settings(DISCORD_AUTH_REQUIRED=True)
+    def test_authenticated_user_redirects_to_my_list(self):
+        """ログイン済みならnext指定に関係なくマイリストへ遷移すること."""
+        self.client.force_login(self.test_user)
+
+        for login_url in (self.login_url, f'{self.login_url}?next=/account/settings/'):
+            with self.subTest(login_url=login_url):
+                response = self.client.get(login_url)
+                self.assertRedirects(response, reverse('event:my_list'), fetch_redirect_response=False)
+
+    @override_settings(DISCORD_AUTH_REQUIRED=True)
+    def test_authenticated_user_without_discord_keeps_link_requirement(self):
+        """Discord未連携ユーザーには既存の連携必須ポリシーを維持すること."""
+        unlinked_user = User.objects.create_user(
+            user_name='unlinked_user',
+            email='unlinked@example.com',
+            password='testpass123',
+        )
+        self.client.force_login(unlinked_user)
+
+        response = self.client.get(self.login_url)
+
+        self.assertRedirects(response, reverse('account:discord_required'), fetch_redirect_response=False)
 
     def test_login_page_sets_csrf_cookie(self):
         """GETリクエスト時にCSRFクッキーが発行されること（ensure_csrf_cookie確認）."""
