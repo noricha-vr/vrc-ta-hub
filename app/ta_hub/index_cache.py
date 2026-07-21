@@ -5,6 +5,7 @@ from django.db.models import Prefetch
 from django.utils import timezone
 
 from event.models import Event, EventDetail
+from event.views import EventListView
 from event_calendar.calendar_utils import generate_google_calendar_url
 from utils.vrchat_time import get_vrchat_today
 from website.constants import CACHE_TTL_HOUR
@@ -30,9 +31,6 @@ def build_index_database_context(request, today, cache_key):
     IndexView と IndexMarkdownView から同一の関数を呼ぶため module-level 化している。
     request は Google Calendar URL 生成にのみ使用する。
     """
-    # EventListView は ta_hub.utils を参照するため関数内 import で循環を避ける
-    from event.views import EventListView
-
     cached_data = cache.get(cache_key)
     if cached_data is not None:
         return cached_data

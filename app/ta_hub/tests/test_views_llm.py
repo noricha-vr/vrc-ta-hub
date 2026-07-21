@@ -215,6 +215,11 @@ class LlmMarkdownViewTest(TestCase):
         self.assertEqual(response.context['upcoming_event_details'], [])
         self.assertEqual(response.context['special_events'], [])
         self.assertContains(response, 'データベース障害のため一時的に一覧を表示できません')
+        body = response.content.decode('utf-8')
+        # 縮退表示の誘導リンクも絶対 URL であること（LLM が site_base に依存せず参照できるように）
+        self.assertIn('http://testserver/api/v1/', body)
+        # 相対パス `/api/v1/` が誘導文言直後に残っていないこと
+        self.assertNotIn('できません。/api/v1/', body)
 
     @patch('ta_hub.views_llm.get_vrchat_today')
     def test_index_md_uses_absolute_urls(self, mock_get_vrchat_today):
