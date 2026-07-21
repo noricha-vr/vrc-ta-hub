@@ -29,12 +29,14 @@ from .views import (
     AdminCommunityCleanupView,
     CommunityReportView,
     PosterDownloadView,
+    CommunityActivityMonitorView,
 )
 
 app_name = 'community'
 urlpatterns = [
     path('list/', CommunityListView.as_view(), name='list'),
     path('archive/', ArchivedCommunityListView.as_view(), name='archive_list'),
+    path('activity-monitor/', CommunityActivityMonitorView.as_view(), name='activity_monitor'),
     path('calendar_update/', CalendarEntryUpdateView.as_view(), name='calendar_update'),
     path('waiting_list/', WaitingCommunityListView.as_view(), name='waiting_list'),
     path('switch/', SwitchCommunityView.as_view(), name='switch'),
