@@ -53,5 +53,8 @@ docker run --rm --network none -v "$PWD/app:/app" \
   -e DISCORD_WEBHOOK_URL=https://discord.invalid/offline-test -e REQUEST_TOKEN=dummy \
   -e EMAIL_FILE_PATH=/tmp/emails --entrypoint /bin/sh \
   vrc-ta-hub-offline-tests:issue-527 \
-  -c 'cd /app && python -m tests.offline_manage test website.tests.test_offline_runner --testrunner=website.tests.offline_runner.OfflineNetworkDiscoverRunner --noinput'
+  -c 'cd /app && python manage.py test website.tests.test_offline_runner --testrunner=django.test.runner.DiscoverRunner --noinput'
 ```
+
+2本目はoffline monkeypatchを意図的に使わず、Docker network namespaceが返す限定errnoの
+分岐を直接検証する。通常CIと1本目は引き続き`OfflineNetworkDiscoverRunner`を使う。

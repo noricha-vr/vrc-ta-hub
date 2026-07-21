@@ -19,7 +19,9 @@ class OfflineNetworkRunnerTest(SimpleTestCase):
     """CIのrunnerが外向き通信を拒否しloopbackを維持することを確認する。"""
 
     def assert_external_operation_is_blocked(
-        self, operation: Callable[[], object], accepted_os_errnos: frozenset[int]
+        self,
+        operation: Callable[[], object],
+        accepted_os_errors: tuple[tuple[type[OSError], frozenset[int]], ...],
     ) -> None:
         """Python遮断またはnetwork namespace遮断を外向き通信の失敗として受け入れる。"""
         try:
@@ -27,29 +29,33 @@ class OfflineNetworkRunnerTest(SimpleTestCase):
         except ExternalNetworkBlockedError:
             return
         except OSError as exc:
-            if exc.errno in accepted_os_errnos:
-                return
+            for exception_type, accepted_errnos in accepted_os_errors:
+                if isinstance(exc, exception_type) and exc.errno in accepted_errnos:
+                    return
             raise
         self.fail("external network operation unexpectedly succeeded")
 
     def test_external_dns_lookup_is_blocked(self):
         self.assert_external_operation_is_blocked(
             lambda: socket.getaddrinfo("example.com", 443),
-            frozenset((socket.EAI_AGAIN, H_ERRNO_TRY_AGAIN)),
+            (
+                (socket.gaierror, frozenset((socket.EAI_AGAIN,))),
+                (socket.herror, frozenset((H_ERRNO_TRY_AGAIN,))),
+            ),
         )
 
     def test_external_ip_connection_is_blocked(self):
         with socket.socket() as client:
             self.assert_external_operation_is_blocked(
                 lambda: client.connect(("203.0.113.1", 443)),
-                frozenset((errno.ENETUNREACH,)),
+                ((OSError, frozenset((errno.ENETUNREACH,))),),
             )
 
     def test_external_udp_send_is_blocked(self):
         with socket.socket(type=socket.SOCK_DGRAM) as client:
             self.assert_external_operation_is_blocked(
                 lambda: client.sendto(b"blocked", ("203.0.113.1", 53)),
-                frozenset((errno.ENETUNREACH,)),
+                ((OSError, frozenset((errno.ENETUNREACH,))),),
             )
 
     def test_external_sendmsg_is_blocked(self):
@@ -58,7 +64,7 @@ class OfflineNetworkRunnerTest(SimpleTestCase):
         with socket.socket(type=socket.SOCK_DGRAM) as client:
             self.assert_external_operation_is_blocked(
                 lambda: client.sendmsg([b"blocked"], [], 0, ("203.0.113.1", 53)),
-                frozenset((errno.ENETUNREACH,)),
+                ((OSError, frozenset((errno.ENETUNREACH,))),),
             )
 
     def test_alternate_external_dns_lookups_are_blocked(self):
@@ -72,8 +78,25 @@ class OfflineNetworkRunnerTest(SimpleTestCase):
             with self.subTest(lookup=lookup):
                 self.assert_external_operation_is_blocked(
                     lookup,
-                    frozenset((socket.EAI_AGAIN, H_ERRNO_TRY_AGAIN)),
+                    (
+                        (socket.gaierror, frozenset((socket.EAI_AGAIN,))),
+                        (socket.herror, frozenset((H_ERRNO_TRY_AGAIN,))),
+                    ),
                 )
+
+    def test_unrelated_enoent_is_not_treated_as_dns_blocking(self):
+        """同じerrno値でもDNS例外でないFileNotFoundErrorは再送出する。"""
+        def raise_enoent():
+            raise FileNotFoundError(errno.ENOENT, "missing")
+
+        with self.assertRaises(FileNotFoundError):
+            self.assert_external_operation_is_blocked(
+                raise_enoent,
+                (
+                    (socket.gaierror, frozenset((socket.EAI_AGAIN,))),
+                    (socket.herror, frozenset((H_ERRNO_TRY_AGAIN,))),
+                ),
+            )
 
     def test_loopback_connection_is_allowed(self):
         server = socket.socket()
