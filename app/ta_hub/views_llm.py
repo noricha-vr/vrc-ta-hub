@@ -5,13 +5,13 @@ from django.db.utils import OperationalError
 from django.utils import timezone
 from django.views.generic import TemplateView
 
-from ta_hub.index_cache import get_index_view_cache_key
-from ta_hub.views import IndexView
+from ta_hub.index_cache import build_index_database_context, get_index_view_cache_key
 from utils.vrchat_time import get_vrchat_today
 
 logger = logging.getLogger(__name__)
 
-_MARKDOWN_SPECIAL_CHARACTERS = re.compile(r"([\\\\`*_{}\[\]<>()#+\-.!|])")
+# Markdown 構文に効く特殊文字。ユーザー入力から見出し・リンク・強調・打消し等を生成させないようエスケープする
+_MARKDOWN_SPECIAL_CHARACTERS = re.compile(r"([\\`*_{}\[\]<>()#+\-.!|~])")
 
 
 def _escape_markdown_text(value):
@@ -32,7 +32,15 @@ def _build_markdown_event(event):
 
 
 def _build_markdown_context(database_context, today):
-    """Limit cached records to this week and escape Markdown display fields."""
+    """Escape Markdown display fields for cached records.
+
+    week 絞り込みは以下の方針:
+    - upcoming_event_details: DB クエリは event__date__lte を持たないため、ここで week_end を適用する
+    - upcoming_events: DB クエリ側で date__lte=end_date 済みだが、キャッシュ寿命との兼ね合いで
+      境界日をまたいだ古いエントリが残る可能性に備え、防御的に week_end を適用する
+    - special_events: DB クエリ側は上限日を持たず「今日以降」のみ絞る。Markdown 面でも上限を設けず
+      表示する（LLM が特別企画の存在を把握できるようにする方針。PR #515 のフォローアップ）
+    """
     week_end = today + timezone.timedelta(days=7)
     markdown_events = [
         _build_markdown_event(event)
@@ -57,7 +65,6 @@ def _build_markdown_context(database_context, today):
             "theme": _escape_markdown_text(special["theme"]),
         }
         for special in database_context["special_events"]
-        if special["event"]["date"] <= week_end
     ]
     return {
         "markdown_events": markdown_events,
@@ -70,6 +77,11 @@ class LlmsTxtView(TemplateView):
     template_name = 'ta_hub/llms.txt'
     content_type = 'text/markdown; charset=utf-8'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['site_base'] = self.request.build_absolute_uri('/')
+        return context
+
 
 class IndexMarkdownView(TemplateView):
     template_name = 'ta_hub/index.md'
@@ -79,14 +91,18 @@ class IndexMarkdownView(TemplateView):
         context = super().get_context_data(**kwargs)
         today = get_vrchat_today()
         context['current_date'] = timezone.localdate()
+        context['site_base'] = self.request.build_absolute_uri('/')
         context['database_degraded'] = False
         context['upcoming_events'] = []
         context['upcoming_event_details'] = []
         context['special_events'] = []
+        context['markdown_events'] = []
+        context['markdown_event_details'] = []
+        context['markdown_special_events'] = []
 
         try:
-            database_context = IndexView._build_database_context(
-                self,
+            database_context = build_index_database_context(
+                self.request,
                 today,
                 get_index_view_cache_key(today),
             )
