@@ -41,3 +41,13 @@ class NginxConfigTest(SimpleTestCase):
 
     def test_nginx_does_not_forward_raw_cloud_run_host(self):
         self.assertNotIn('proxy_set_header Host $http_host;', self.nginx_config)
+
+    def test_nginx_preserves_upstream_forwarded_proto(self):
+        self.assertIn(
+            'proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;',
+            self.nginx_config,
+        )
+        self.assertNotIn(
+            'proxy_set_header X-Forwarded-Proto $scheme;',
+            self.nginx_config,
+        )
