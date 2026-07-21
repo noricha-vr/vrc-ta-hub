@@ -1,38 +1,65 @@
 """外向き通信を遮断するtest runner境界の回帰テスト。"""
 
+import errno
 import socket
 import tempfile
 import threading
+from collections.abc import Callable
 from pathlib import Path
 
 from django.test import SimpleTestCase
 
 from website.tests.offline_runner import ExternalNetworkBlockedError
 
+# socket.herror exposes h_errno=2 but not the legacy TRY_AGAIN constant.
+H_ERRNO_TRY_AGAIN = 2
+
 
 class OfflineNetworkRunnerTest(SimpleTestCase):
     """CIのrunnerが外向き通信を拒否しloopbackを維持することを確認する。"""
 
+    def assert_external_operation_is_blocked(
+        self, operation: Callable[[], object], accepted_os_errnos: frozenset[int]
+    ) -> None:
+        """Python遮断またはnetwork namespace遮断を外向き通信の失敗として受け入れる。"""
+        try:
+            operation()
+        except ExternalNetworkBlockedError:
+            return
+        except OSError as exc:
+            if exc.errno in accepted_os_errnos:
+                return
+            raise
+        self.fail("external network operation unexpectedly succeeded")
+
     def test_external_dns_lookup_is_blocked(self):
-        with self.assertRaises(ExternalNetworkBlockedError):
-            socket.getaddrinfo("example.com", 443)
+        self.assert_external_operation_is_blocked(
+            lambda: socket.getaddrinfo("example.com", 443),
+            frozenset((socket.EAI_AGAIN, H_ERRNO_TRY_AGAIN)),
+        )
 
     def test_external_ip_connection_is_blocked(self):
         with socket.socket() as client:
-            with self.assertRaises(ExternalNetworkBlockedError):
-                client.connect(("203.0.113.1", 443))
+            self.assert_external_operation_is_blocked(
+                lambda: client.connect(("203.0.113.1", 443)),
+                frozenset((errno.ENETUNREACH,)),
+            )
 
     def test_external_udp_send_is_blocked(self):
         with socket.socket(type=socket.SOCK_DGRAM) as client:
-            with self.assertRaises(ExternalNetworkBlockedError):
-                client.sendto(b"blocked", ("203.0.113.1", 53))
+            self.assert_external_operation_is_blocked(
+                lambda: client.sendto(b"blocked", ("203.0.113.1", 53)),
+                frozenset((errno.ENETUNREACH,)),
+            )
 
     def test_external_sendmsg_is_blocked(self):
         if not hasattr(socket.socket, "sendmsg"):
             self.skipTest("socket.sendmsg is unavailable")
         with socket.socket(type=socket.SOCK_DGRAM) as client:
-            with self.assertRaises(ExternalNetworkBlockedError):
-                client.sendmsg([b"blocked"], [], 0, ("203.0.113.1", 53))
+            self.assert_external_operation_is_blocked(
+                lambda: client.sendmsg([b"blocked"], [], 0, ("203.0.113.1", 53)),
+                frozenset((errno.ENETUNREACH,)),
+            )
 
     def test_alternate_external_dns_lookups_are_blocked(self):
         lookups = (
@@ -43,8 +70,10 @@ class OfflineNetworkRunnerTest(SimpleTestCase):
         )
         for lookup in lookups:
             with self.subTest(lookup=lookup):
-                with self.assertRaises(ExternalNetworkBlockedError):
-                    lookup()
+                self.assert_external_operation_is_blocked(
+                    lookup,
+                    frozenset((socket.EAI_AGAIN, H_ERRNO_TRY_AGAIN)),
+                )
 
     def test_loopback_connection_is_allowed(self):
         server = socket.socket()
