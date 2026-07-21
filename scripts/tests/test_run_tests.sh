@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+CALLS_FILE="$TMP_DIR/calls.log"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -23,14 +24,13 @@ assert_not_contains() {
   fi
 }
 
-cat > "$TMP_DIR/docker" <<'EOF'
+cat > "$TMP_DIR/docker" <<EOF
 #!/usr/bin/env bash
-printf '%s\n' "$*" >> "$CALLS_FILE"
+printf '%s\n' "\$*" >> "$CALLS_FILE"
 EOF
 chmod +x "$TMP_DIR/docker"
 
 export PATH="$TMP_DIR:$PATH"
-export CALLS_FILE="$TMP_DIR/calls.log"
 
 : > "$CALLS_FILE"
 "$REPO_ROOT/scripts/run_tests.sh" twitter.tests.test_x_api
@@ -41,9 +41,17 @@ assert_contains "--testrunner=website.tests.offline_runner.OfflineNetworkDiscove
 assert_not_contains "python manage.py test twitter.tests.test_x_api"
 
 : > "$CALLS_FILE"
-"$REPO_ROOT/scripts/run_tests.sh" --live-smoke event.tests.test_google_calendar
-assert_contains "python manage.py test --tag=live_smoke event.tests.test_google_calendar"
+OPENROUTER_API_KEY=real-openrouter-secret \
+  "$REPO_ROOT/scripts/run_tests.sh" --live-smoke openrouter
+assert_contains "compose --project-name vrc-ta-hub-live-smoke"
+assert_contains "run --rm --no-deps --build"
+assert_contains "-e RUN_LIVE_SMOKE_TESTS -e OPENROUTER_API_KEY"
+assert_contains "live-smoke python manage.py test"
+assert_contains "--tag=live_smoke"
 assert_not_contains "tests.offline_manage"
 assert_not_contains "--exclude-tag=live_smoke"
+assert_not_contains "real-openrouter-secret"
+
+(cd "$REPO_ROOT" && python3 -m unittest scripts.tests.test_run_live_smoke)
 
 printf 'PASS: run_tests.sh\n'

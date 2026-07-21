@@ -144,7 +144,7 @@ class TestGenerateBlog(TestCase):
                 # APIキー自体は表示せず、設定されていることだけを記録
                 logger.info(f"環境変数 {var} は設定されています")
 
-    @require_live_smoke("OPENROUTER_API_KEY")
+    @require_live_smoke("OPENROUTER_API_KEY", "GOOGLE_API_KEY")
     def test_generate_blog_video_and_pdf(self):
         # 実際のAPIを使用するため、環境変数が設定されていることを確認
         self._check_environment_variables()
@@ -226,7 +226,7 @@ class TestGenerateBlog(TestCase):
                                 f"5回中{success_count}回しか成功しませんでした。安定性に問題があります。\n" +
                                 "\n".join(failure_details))
 
-    @require_live_smoke("OPENROUTER_API_KEY")
+    @require_live_smoke("OPENROUTER_API_KEY", "GOOGLE_API_KEY")
     def test_generate_blog_video_only(self):
         # 実際のAPIを使用するため、環境変数が設定されていることを確認
         self._check_environment_variables()
@@ -478,7 +478,7 @@ class TestGenerateBlog(TestCase):
         self.assertGreater(len(result), 0)
         logger.info(f"取得した文字起こしの長さ: {len(result)} 文字")
 
-    @require_live_smoke("OPENROUTER_API_KEY")
+    @require_live_smoke("OPENROUTER_API_KEY", "GOOGLE_API_KEY")
     def test_generate_blog_format_stability(self):
         """出力フォーマットの安定性を詳細にテストする"""
         self._check_environment_variables()

@@ -40,3 +40,19 @@ class LiveSmokeGateTest(SimpleTestCase):
                 return None
 
         self.assertFalse(getattr(target, "__unittest_skip__", False))
+
+    def test_all_required_credentials_must_be_real(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "RUN_LIVE_SMOKE_TESTS": "1",
+                "FIRST_API_KEY": "real-key",
+                "SECOND_API_KEY": "dummy-key",
+            },
+            clear=True,
+        ):
+            @require_live_smoke("FIRST_API_KEY", "SECOND_API_KEY")
+            def target():
+                return None
+
+        self.assertTrue(target.__unittest_skip__)

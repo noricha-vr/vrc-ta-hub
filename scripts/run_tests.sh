@@ -18,7 +18,7 @@ TEST_APPS=(
 # 実疎通は明示モードに分離し、通常の引数あり実行にもoffline境界を適用する。
 if [ "${1:-}" = "--live-smoke" ]; then
     shift
-    docker compose exec vrc-ta-hub python manage.py test --tag=live_smoke "$@"
+    python3 "$(dirname "$0")/run_live_smoke.py" "$@"
 elif [ $# -gt 0 ]; then
     docker compose exec vrc-ta-hub python -m tests.offline_manage test "$@" \
         --exclude-tag=live_smoke \
