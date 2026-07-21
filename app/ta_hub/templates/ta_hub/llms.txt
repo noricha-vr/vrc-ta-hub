@@ -4,17 +4,17 @@
 
 ## 主要ページ
 
-- [トップページ（Markdown版）](/index.md): 今週の集会・発表一覧
-- [集会一覧](/community/): 承認済みコミュニティのリスト
-- [イベント一覧](/event/list/): 今後の開催予定
-- [ニュース](/news/): 運営からのお知らせ
+- [トップページ（Markdown版）]({{ site_base }}index.md): 今週の集会・発表一覧
+- [集会一覧]({{ site_base }}community/): 承認済みコミュニティのリスト
+- [イベント一覧]({{ site_base }}event/list/): 今後の開催予定
+- [ニュース]({{ site_base }}news/): 運営からのお知らせ
 
 ## 構造化データAPI
 
-- [OpenAPIスキーマ](/api/schema/): JSON形式の全データ仕様
-- [集会一覧API](/api/v1/community/): JSON
-- [イベント一覧API](/api/v1/event/): JSON
-- [発表詳細API](/api/v1/event_detail/): JSON
+- [OpenAPIスキーマ]({{ site_base }}api/schema/): JSON形式の全データ仕様
+- [集会一覧API]({{ site_base }}api/v1/community/): JSON
+- [イベント一覧API]({{ site_base }}api/v1/event/): JSON
+- [発表詳細API]({{ site_base }}api/v1/event_detail/): JSON
 
 ## Optional
 

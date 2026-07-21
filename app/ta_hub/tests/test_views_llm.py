@@ -104,12 +104,14 @@ class LlmMarkdownViewTest(TestCase):
         self.assertContains(response, '## 今週の発表 (1件)')
         self.assertContains(response, '「Markdown 発表」 by Markdown Speaker')
         self.assertContains(response, '## 今週の集会 (1件)')
-        self.assertContains(response, '[Markdown 検証集会](/community/')
+        # PR #516: リンクは絶対 URL 化されている
+        self.assertContains(response, '[Markdown 検証集会](http://testserver/community/')
         self.assertContains(response, '## 特別企画')
-        self.assertContains(response, '[Markdown 特別企画](/event/detail/')
+        self.assertContains(response, '[Markdown 特別企画](http://testserver/event/detail/')
 
     @patch('ta_hub.views_llm.get_vrchat_today')
-    def test_index_md_excludes_records_after_this_week(self, mock_get_vrchat_today):
+    def test_index_md_excludes_lt_records_after_this_week(self, mock_get_vrchat_today):
+        """LT（発表）と集会は今週内に絞る（特別企画は別テストで週外表示を確認）。"""
         mock_get_vrchat_today.return_value = self.today
         future_event = Event.objects.create(
             community=self.community,
@@ -126,6 +128,22 @@ class LlmMarkdownViewTest(TestCase):
             status='approved',
             start_time=time(21, 15),
         )
+
+        response = self.client.get(reverse('ta_hub:index_md'))
+
+        self.assertNotContains(response, 'Future 発表')
+
+    @patch('ta_hub.views_llm.get_vrchat_today')
+    def test_index_md_includes_special_events_beyond_this_week(self, mock_get_vrchat_today):
+        """特別企画は週内フィルタを外し、10件上限（DB側）まで表示する。"""
+        mock_get_vrchat_today.return_value = self.today
+        future_event = Event.objects.create(
+            community=self.community,
+            date=date(2026, 7, 29),
+            start_time=time(21, 0),
+            duration=60,
+            weekday='Wed',
+        )
         EventDetail.objects.create(
             event=future_event,
             detail_type='SPECIAL',
@@ -136,8 +154,7 @@ class LlmMarkdownViewTest(TestCase):
 
         response = self.client.get(reverse('ta_hub:index_md'))
 
-        self.assertNotContains(response, 'Future 発表')
-        self.assertNotContains(response, 'Future 特別企画')
+        self.assertContains(response, 'Future 特別企画')
 
     @patch('ta_hub.views_llm.get_vrchat_today')
     def test_index_md_escapes_user_content_from_markdown_syntax(self, mock_get_vrchat_today):
@@ -145,7 +162,7 @@ class LlmMarkdownViewTest(TestCase):
         self.community.name = '安全な集会](https://attacker.example)'
         self.community.save(update_fields=['name'])
         self.detail.theme = '通常の題名\n## 偽見出し'
-        self.detail.speaker = '発表者 [偽リンク](https://attacker.example)'
+        self.detail.speaker = '発表者 [偽リンク](https://attacker.example) ~~削除線~~'
         self.detail.save(update_fields=['theme', 'speaker'])
 
         response = self.client.get(reverse('ta_hub:index_md'))
@@ -155,6 +172,8 @@ class LlmMarkdownViewTest(TestCase):
         self.assertIn('通常の題名 \\#\\# 偽見出し', body)
         self.assertIn('安全な集会\\]\\(https://attacker\\.example\\)', body)
         self.assertIn('発表者 \\[偽リンク\\]\\(https://attacker\\.example\\)', body)
+        # ~ を GFM の打消し線として解釈されないようエスケープすること
+        self.assertIn('\\~\\~削除線\\~\\~', body)
 
     @patch('ta_hub.views_llm.get_vrchat_today')
     @patch('ta_hub.views.get_vrchat_today')
@@ -178,7 +197,7 @@ class LlmMarkdownViewTest(TestCase):
         self.assertEqual(markdown_response.status_code, 200)
         self.assertContains(markdown_response, 'Markdown 発表')
 
-    @patch('ta_hub.views.Event.objects.filter')
+    @patch('ta_hub.index_cache.Event.objects.filter')
     @patch('ta_hub.views_llm.get_vrchat_today')
     def test_index_md_degrades_gracefully_on_db_error(
         self,
@@ -195,6 +214,42 @@ class LlmMarkdownViewTest(TestCase):
         self.assertEqual(response.context['upcoming_events'], [])
         self.assertEqual(response.context['upcoming_event_details'], [])
         self.assertEqual(response.context['special_events'], [])
+        self.assertContains(response, 'データベース障害のため一時的に一覧を表示できません')
+        body = response.content.decode('utf-8')
+        # 縮退表示の誘導リンクも絶対 URL であること（LLM が site_base に依存せず参照できるように）
+        self.assertIn('http://testserver/api/v1/', body)
+        # 相対パス `/api/v1/` が誘導文言直後に残っていないこと
+        self.assertNotIn('できません。/api/v1/', body)
+
+    @patch('ta_hub.views_llm.get_vrchat_today')
+    def test_index_md_uses_absolute_urls(self, mock_get_vrchat_today):
+        """Markdown 内のパスリンクを絶対 URL に統一する（LLM が site_base に依存せず参照できるように）。"""
+        mock_get_vrchat_today.return_value = self.today
+
+        response = self.client.get(reverse('ta_hub:index_md'))
+        body = response.content.decode('utf-8')
+
+        self.assertIn('http://testserver/community/', body)
+        self.assertIn('http://testserver/event/detail/', body)
+        # 自己参照リンクも絶対 URL 化されていること
+        self.assertIn('[http://testserver/](http://testserver/)', body)
+        # 相対パスの残骸がないこと（"](/community/" のような形式が残っていないこと）
+        self.assertNotIn('](/community/', body)
+        self.assertNotIn('](/event/detail/', body)
+
+    def test_llms_txt_uses_absolute_urls(self):
+        """llms.txt 内のサイト内リンクを絶対 URL に統一する。"""
+        response = self.client.get(reverse('ta_hub:llms_txt'))
+        body = response.content.decode('utf-8')
+
+        self.assertIn('http://testserver/index.md', body)
+        self.assertIn('http://testserver/community/', body)
+        self.assertIn('http://testserver/api/v1/community/', body)
+        # 外部の絶対 URL はそのまま
+        self.assertIn('https://deepwiki.com/noricha-vr/vrc-ta-hub', body)
+        # 相対パスの残骸がないこと
+        self.assertNotIn('](/community/', body)
+        self.assertNotIn('](/index.md', body)
 
     def test_robots_explicitly_allows_markdown_endpoints(self):
         response = self.client.get('/robots.txt')

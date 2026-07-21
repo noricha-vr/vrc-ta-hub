@@ -45,7 +45,7 @@ class IndexViewDegradedModeTest(TestCase):
     def tearDown(self):
         cache.clear()
 
-    @patch("ta_hub.views.Event.objects.filter")
+    @patch("ta_hub.index_cache.Event.objects.filter")
     @patch("ta_hub.views.Post.objects.filter")
     def test_index_view_returns_static_page_when_database_is_unavailable(
         self, mock_post_filter, mock_event_filter
@@ -68,7 +68,7 @@ class IndexViewDegradedModeTest(TestCase):
         self.assertEqual(response.context["special_events"], [])
         self.assertContains(response, "Googleカレンダーと連携して予定を管理")
 
-    @patch("ta_hub.views.Event.objects.filter")
+    @patch("ta_hub.index_cache.Event.objects.filter")
     def test_index_view_degraded_mode_logs_warning_without_error_report(self, mock_event_filter):
         mock_event_filter.side_effect = OperationalError(
             2013,
