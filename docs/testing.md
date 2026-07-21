@@ -25,7 +25,56 @@ docker compose exec vrc-ta-hub python manage.py test event.tests.test_notificati
 docker compose exec vrc-ta-hub python manage.py test event.tests.test_notifications.NotifyOwnersOfNewApplicationTest.test_sends_email_to_each_owner
 ```
 
-外部 API 依存テストは `@tag('external_api')` でマークされており、CI からは除外される。
+通常テストは `OfflineNetworkDiscoverRunner` で実行し、Unix socket と loopback
+（`localhost` / `127.0.0.0/8` / `::1`）以外への DNS・socket 接続を拒否する。
+CI には dummy credential だけを渡し、外向き通信が発生した時点でテストを失敗させる。
+
+```bash
+docker compose exec vrc-ta-hub python -m tests.offline_manage test \
+  --exclude-tag=live_smoke --exclude-tag=e2e \
+  --testrunner=website.tests.offline_runner.OfflineNetworkDiscoverRunner
+```
+
+### 外部連携テストの分類
+
+| 分類 | タグ | 通信 | 対象 |
+|------|------|------|------|
+| Offline contract | `offline_external_api` またはタグなし | mock / fake / locmem / file backend のみ | X API、OpenRouter、Discord、OAuth、メール、画像、定期イベント、retry / idempotency |
+| Live smoke | `live_smoke` + `external_api` | 実サービスへ接続 | Google Calendar、OpenRouter、YouTube / Google API |
+| Browser E2E | `e2e` + `browser` | Django live serverと固定CDN | Playwrightの主要ユーザー導線 |
+
+`tests.offline_manage` はDjango初期化前に通信遮断を開始し、test runnerでも
+同じ境界を維持する。`external_api` は既存の実行環境との後方互換用で、実疎通の選択には
+`live_smoke` を使う。旧 `external_api` 対象のうち、mock / fake / locmem /
+file backend だけで完結するテストは `offline_external_api` へ移し、通常CIに含める。
+
+主な分類は次のファイルから追跡できる。
+
+- Offline contract: `twitter/tests/test_auto_tweet.py`,
+  `event/tests/test_recurrence_rule_generation.py`,
+  `event/tests/test_recurrence_idempotency.py`,
+  `event/tests/test_generate_recurring_events_command.py`,
+  `user_account/tests/`, `ta_hub/tests/test_resize_image.py`
+- Live smoke: `event/tests/test_google_calendar.py`,
+  `event/tests/test_recurrence_llm_generation.py`,
+  `event/tests/test_generate_blog.py` の `@require_live_smoke` 対象メソッド、
+  recurrence previewの自由記述ルール実疎通
+- Browser E2E: `website/tests/e2e/test_user_journeys.py`
+
+Live smoke は通常suiteから除外し、`RUN_LIVE_SMOKE_TESTS=1` と対象サービスの
+実credentialを明示した場合だけ実行する。dummy / test / placeholder 値や、
+Google Calendar credentialファイルがない場合はskipする。
+
+```bash
+# 例: 実credentialをgit管理外の環境から限定的に注入して実行
+RUN_LIVE_SMOKE_TESTS=1 \
+OPENROUTER_API_KEY="..." \
+python manage.py test --tag=live_smoke --noinput
+```
+
+live smokeでは必要なサービスのcredentialだけを渡す。全プロジェクトの
+`.env` を読み込ませず、Google CalendarならCalendar IDとcredentialファイル、
+OpenRouterなら `OPENROUTER_API_KEY` のようにテスト対象単位で限定する。
 
 ## ブラウザ E2E テスト
 
@@ -60,7 +109,7 @@ docker compose -f docker-compose.test.yml run --rm --build test /bin/sh -c \
      --tag=e2e --noinput --verbosity=2"
 ```
 
-E2E テストには `@tag('e2e')` を付ける。通常のテスト job は
+E2E テストには `@tag('e2e', 'browser')` を付ける。通常のテスト job は
 `--exclude-tag=e2e` で除外し、Chromium を導入する CI 専用の `e2e` job で実行する。
 
 各テストはブラウザコンテキストを分離する。Django のライブサーバー以外への HTTP
@@ -154,5 +203,7 @@ wrapper 経由ではなく `make_*` を直接 import すること。
 - [ ] テストファイルは対象アプリの `tests/` ディレクトリ配下に置いたか
 - [ ] `setUp` で User/Community/Event/EventDetail を作るなら `tests.factories` を使ったか
 - [ ] factories で足りない場合、本ファイルを拡張したか（個別ヘルパーを増やさない）
-- [ ] 外部 API を叩くテストは `@tag('external_api')` を付けたか
+- [ ] mock / fakeだけで完結する外部連携テストは通常suiteで実行されるか
+- [ ] 実サービスへ接続するテストは `@require_live_smoke(...)` を付けたか
+- [ ] live smokeに必要なcredentialを対象サービスだけに限定したか
 - [ ] Discord OAuth 必須画面のテストでは `make_discord_linked_user` を使ったか
