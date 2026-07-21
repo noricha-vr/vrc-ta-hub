@@ -37,4 +37,5 @@ from .settings import (  # noqa: F401
     LTApplicationListView,
     UpdateLTSettingsView,
 )
+from .activity_monitor import CommunityActivityMonitorView  # noqa: F401
 from .report import CommunityReportView  # noqa: F401
