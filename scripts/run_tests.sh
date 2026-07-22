@@ -10,7 +10,8 @@ elif [ $# -gt 0 ]; then
     docker compose exec vrc-ta-hub python -m tests.offline_manage test "$@" \
         --exclude-tag=live_smoke \
         --exclude-tag=e2e \
-        --testrunner=website.tests.offline_runner.OfflineNetworkDiscoverRunner
+        --testrunner=website.tests.offline_runner.OfflineNetworkDiscoverRunner \
+        --noinput
 else
     docker compose exec vrc-ta-hub python -m tests.offline_manage test \
         --exclude-tag=live_smoke \
