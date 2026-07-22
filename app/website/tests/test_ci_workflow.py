@@ -9,24 +9,11 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 CI_WORKFLOW_PATH = PROJECT_ROOT / ".github" / "workflows" / "ci.yml"
-HEAD_JOB_EVENT_FILTER = """
-github.event_name != 'pull_request' ||
-!contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
-github.event.label.name == 'safe-to-test'
-"""
-CONCURRENCY_CANCEL_CONDITION = """
-${{ github.event_name == 'pull_request' &&
-(!contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
-github.event.label.name == 'safe-to-test') }}
-"""
-CONCURRENCY_GROUP = """
-${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}-${{
-github.event_name == 'pull_request' &&
-contains(fromJSON('["labeled","unlabeled"]'), github.event.action) &&
-github.event.label.name != 'safe-to-test' &&
-github.run_id || 'head-code'
-}}
-"""
+CONCURRENCY_CANCEL_CONDITION = "${{ github.event_name == 'pull_request' }}"
+CONCURRENCY_GROUP = (
+    "${{ github.workflow }}-"
+    "${{ github.event.pull_request.number || github.run_id }}"
+)
 
 
 def _load_workflow() -> dict[str, object]:
@@ -66,21 +53,15 @@ def _jobs_without_direct_isolation_gate(jobs: dict[str, object]) -> set[str]:
     return missing_gate
 
 
-def _jobs_without_head_event_filter(jobs: dict[str, object]) -> set[str]:
-    """label event用のhead-code実行条件がないjob名を返す."""
-    expected = _normalize_expression(HEAD_JOB_EVENT_FILTER)
-    missing_filter: set[str] = set()
+def _jobs_with_job_condition(jobs: dict[str, object]) -> set[str]:
+    """gate後の実行をskipできるjob-level条件を持つjob名を返す."""
+    conditional_jobs: set[str] = set()
     for job_name, raw_job in jobs.items():
         if job_name == "isolation-gate":
             continue
-        if not isinstance(raw_job, dict):
-            missing_filter.add(job_name)
-            continue
-
-        condition = raw_job.get("if")
-        if not isinstance(condition, str) or _normalize_expression(condition) != expected:
-            missing_filter.add(job_name)
-    return missing_filter
+        if isinstance(raw_job, dict) and "if" in raw_job:
+            conditional_jobs.add(job_name)
+    return conditional_jobs
 
 
 class IsolationCiGateTests(unittest.TestCase):
@@ -122,20 +103,12 @@ class IsolationCiGateTests(unittest.TestCase):
         self.assertIn("exit 1", blocking_step["run"])
         self.assertTrue(all("${{" not in step.get("run", "") for step in steps))
 
-    def test_safe_to_test_label_add_and_remove_retrigger_head_jobs(self) -> None:
+    def test_all_label_events_restart_full_ci_through_gate(self) -> None:
         workflow = _load_workflow()
         self.assertEqual(workflow["permissions"], {"contents": "read"})
         pull_request = workflow["on"]["pull_request"]
         self.assertIn("labeled", pull_request["types"])
         self.assertIn("unlabeled", pull_request["types"])
-        self.assertEqual(
-            _normalize_expression(workflow["concurrency"]["cancel-in-progress"]),
-            _normalize_expression(CONCURRENCY_CANCEL_CONDITION),
-        )
-        self.assertEqual(_jobs_without_head_event_filter(workflow["jobs"]), set())
-
-    def test_other_label_does_not_restart_or_cancel_head_jobs(self) -> None:
-        workflow = _load_workflow()
         concurrency = workflow["concurrency"]
         self.assertEqual(
             _normalize_expression(concurrency["group"]),
@@ -145,23 +118,23 @@ class IsolationCiGateTests(unittest.TestCase):
             _normalize_expression(concurrency["cancel-in-progress"]),
             _normalize_expression(CONCURRENCY_CANCEL_CONDITION),
         )
-        self.assertEqual(_jobs_without_head_event_filter(workflow["jobs"]), set())
+        self.assertEqual(_jobs_with_job_condition(workflow["jobs"]), set())
 
     def test_all_non_gate_jobs_directly_need_isolation_gate(self) -> None:
         jobs = _load_workflow()["jobs"]
         self.assertEqual(_jobs_without_direct_isolation_gate(jobs), set())
-        self.assertEqual(_jobs_without_head_event_filter(jobs), set())
+        self.assertEqual(_jobs_with_job_condition(jobs), set())
 
     def test_future_job_without_required_guards_is_rejected(self) -> None:
         jobs = dict(_load_workflow()["jobs"])
         jobs["future-job-without-gate"] = {
             "needs": "lint",
-            "if": HEAD_JOB_EVENT_FILTER,
             "runs-on": "ubuntu-latest",
             "steps": [{"uses": "actions/checkout@v5"}],
         }
-        jobs["future-job-without-filter"] = {
+        jobs["future-job-with-skip-condition"] = {
             "needs": "isolation-gate",
+            "if": "github.event.action != 'labeled'",
             "runs-on": "ubuntu-latest",
             "steps": [{"uses": "actions/checkout@v5"}],
         }
@@ -171,6 +144,6 @@ class IsolationCiGateTests(unittest.TestCase):
             {"future-job-without-gate"},
         )
         self.assertEqual(
-            _jobs_without_head_event_filter(jobs),
-            {"future-job-without-filter"},
+            _jobs_with_job_condition(jobs),
+            {"future-job-with-skip-condition"},
         )

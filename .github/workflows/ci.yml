@@ -11,18 +11,8 @@ permissions:
   contents: read
 
 concurrency:
-  # 無関係なlabel eventは固有groupに分け、進行中・pendingのCIへ干渉させない。
-  group: >-
-    ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}-${{
-      github.event_name == 'pull_request' &&
-      contains(fromJSON('["labeled","unlabeled"]'), github.event.action) &&
-      github.event.label.name != 'safe-to-test' &&
-      github.run_id || 'head-code'
-    }}
-  cancel-in-progress: >-
-    ${{ github.event_name == 'pull_request' &&
-      (!contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
-      github.event.label.name == 'safe-to-test') }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   isolation-gate:
@@ -43,10 +33,6 @@ jobs:
         run: echo "CI execution is allowed."
 
   lint:
-    if: >-
-      github.event_name != 'pull_request' ||
-      !contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
-      github.event.label.name == 'safe-to-test'
     needs: isolation-gate
     runs-on: ubuntu-latest
     steps:
@@ -69,10 +55,6 @@ jobs:
           ruff check app/
 
   test:
-    if: >-
-      github.event_name != 'pull_request' ||
-      !contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
-      github.event.label.name == 'safe-to-test'
     needs: [isolation-gate, lint]
     runs-on: ubuntu-latest
 
@@ -129,10 +111,6 @@ jobs:
           coverage report --rcfile=../pyproject.toml
 
   e2e:
-    if: >-
-      github.event_name != 'pull_request' ||
-      !contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
-      github.event.label.name == 'safe-to-test'
     needs: [isolation-gate, lint]
     runs-on: ubuntu-latest
 
@@ -183,10 +161,6 @@ jobs:
           retention-days: 14
 
   mypy:
-    if: >-
-      github.event_name != 'pull_request' ||
-      !contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
-      github.event.label.name == 'safe-to-test'
     needs: [isolation-gate, lint]
     runs-on: ubuntu-latest
     # warn-only: 型エラーがあっても CI は失敗させない (docs/mypy.md 参照)
