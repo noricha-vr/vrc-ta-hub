@@ -165,7 +165,7 @@ pip install pre-commit==4.0.1
 pre-commit install
 ```
 
-これで `git commit` 実行時に ruff check / ruff format / 末尾改行などが自動チェックされ、
+これで `git commit` 実行時に ruff check / 行末空白 / 末尾改行 / YAML 構文 / マージコンフリクト / 巨大ファイルなどが自動チェックされ、
 CI lint 失敗をローカルで先に検出できます。全ファイルに対する手動実行は以下:
 
 ```bash

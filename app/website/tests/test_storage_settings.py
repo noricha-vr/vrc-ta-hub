@@ -1,47 +1,28 @@
-"""ストレージ設定のテスト
+"""ストレージ設定の回帰テスト.
 
-DEBUG環境でも本番環境でもメディアファイルはR2を使用し、
-静的ファイルのみDEBUGで分岐することを確認する。
+ローカルの .env.local に R2 認証（AWS_STORAGE_BUCKET_NAME 等）が設定されていても、
+テスト実行時は FileSystemStorage にフォールバックする必要がある。offline runner が
+外部接続を遮断するため、S3Boto3Storage のままだと head_object 等で通信が発生して失敗する。
+参照: app/website/settings/storage.py の _IS_TEST 判定。
 """
-
-import os
-import unittest
-
-from django.test import TestCase
 from django.conf import settings
+from django.test import SimpleTestCase
 
 
-@unittest.skipUnless(
-    os.environ.get('AWS_STORAGE_BUCKET_NAME'),
-    'R2 not configured'
-)
-class StorageSettingsTest(TestCase):
-    """ストレージ設定のテスト"""
+class StorageSettingsTest(SimpleTestCase):
+    """テスト実行時のストレージ設定を検証する。"""
 
-    def test_media_storage_uses_s3_backend(self):
-        """メディアストレージはS3バックエンド(R2)を使用する"""
+    def test_default_storage_uses_filesystem_during_tests(self) -> None:
+        # テスト中は R2 認証の有無に関わらず FileSystemStorage が選ばれること
         self.assertEqual(
             settings.STORAGES['default']['BACKEND'],
-            'storages.backends.s3boto3.S3Boto3Storage'
+            'django.core.files.storage.FileSystemStorage',
         )
 
-    def test_media_url_points_to_r2(self):
-        """MEDIA_URLはR2のエンドポイントを指す"""
-        # R2のエンドポイントURLが含まれていることを確認
-        self.assertIn('r2.cloudflarestorage.com', settings.MEDIA_URL)
-
-    def test_s3_file_overwrite_is_disabled(self):
-        """ファイル上書きは無効になっている"""
-        self.assertFalse(settings.AWS_S3_FILE_OVERWRITE)
-
-    def test_querystring_auth_is_disabled(self):
-        """認証付きURLは生成しない設定になっている"""
-        self.assertFalse(settings.AWS_QUERYSTRING_AUTH)
-
-    def test_staticfiles_storage_in_debug_mode(self):
-        """DEBUG=Trueの場合、静的ファイルはローカルストレージを使用"""
+    def test_staticfiles_storage_in_debug_mode(self) -> None:
+        """DEBUG=True の場合、静的ファイルはローカルストレージを使用する。"""
         if settings.DEBUG:
             self.assertEqual(
                 settings.STORAGES['staticfiles']['BACKEND'],
-                'django.contrib.staticfiles.storage.StaticFilesStorage'
+                'django.contrib.staticfiles.storage.StaticFilesStorage',
             )

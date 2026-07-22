@@ -95,6 +95,10 @@ jobs:
       - name: Install dependencies (locked)
         run: uv pip sync --system requirements.lock
 
+      - name: Check for missing migrations
+        working-directory: app
+        run: python manage.py makemigrations --check --dry-run
+
       - name: Run tests with coverage
         working-directory: app
         env:
@@ -163,8 +167,28 @@ jobs:
   mypy:
     needs: [isolation-gate, lint]
     runs-on: ubuntu-latest
-    # warn-only: 型エラーがあっても CI は失敗させない (docs/mypy.md 参照)
+    # warn-only は continue-on-error で維持しつつ、型エラーは job 単位の失敗として可視化する (docs/mypy.md 参照)
     continue-on-error: true
+
+    # django-stubs プラグインが settings を読み込むため、test job と同じ dummy env が必要
+    # （TESTING=1 で DB が sqlite に差し替わり、DB_NAME 未設定でも settings 読み込みが通る）
+    env:
+      SECRET_KEY: "test-secret-key-for-ci"
+      DEBUG: "True"
+      TESTING: "1"
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+      CSRF_TRUSTED_ORIGIN: "https://localhost"
+      GOOGLE_API_KEY: "dummy-google-api-key"
+      GOOGLE_CALENDAR_ID: "dummy-calendar-id@group.calendar.google.com"
+      GEMINI_API_KEY: "dummy-gemini-api-key"
+      OPENAI_API_KEY: "dummy-openai-api-key"
+      OPENROUTER_API_KEY: "dummy-openrouter-api-key"
+      X_API_KEY: "dummy-x-api-key"
+      X_API_SECRET: "dummy-x-api-secret"
+      X_ACCESS_TOKEN: "dummy-x-access-token"
+      X_ACCESS_TOKEN_SECRET: "dummy-x-access-token-secret"
+      DISCORD_WEBHOOK_URL: "https://discord.invalid/offline-test"
+      REQUEST_TOKEN: "dummy-request-token"
 
     steps:
       - name: Checkout code
@@ -187,5 +211,6 @@ jobs:
       - name: Run mypy (warn-only, app/event/services/)
         working-directory: app
         run: |
-          # Phase 1: event/services/ のみ。docs/mypy.md の段階導入計画参照
-          mypy event/services/ --config-file ../pyproject.toml || true
+          # Phase 1: event/services/ のみ。job 全体の continue-on-error で warn-only を維持しつつ、
+          # 型エラーはこの step の失敗として可視化する（|| true で握り潰さない）。docs/mypy.md の段階導入計画参照
+          mypy event/services/ --config-file ../pyproject.toml
