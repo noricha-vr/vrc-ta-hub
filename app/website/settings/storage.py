@@ -5,8 +5,13 @@ django-storages の STORAGES 構成を扱う。R2 が無い環境（テスト等
 ローカルファイルにフォールバックする。
 """
 import os
+import sys
 
-from .base import BASE_DIR, DEBUG
+from .base import BASE_DIR, DEBUG, TESTING
+
+# テスト実行時は R2 認証があってもローカルストレージを使う。
+# offline runner が外部接続を遮断するため、CI（R2未設定）とローカルの実行条件を揃える。
+_IS_TEST = 'test' in sys.argv or TESTING
 
 # Cloudflare R2の設定
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
@@ -18,7 +23,7 @@ AWS_S3_URL_PROTOCOL = os.getenv('AWS_S3_URL_PROTOCOL', 'https:')
 AWS_S3_SECURE_URLS = AWS_S3_URL_PROTOCOL == 'https:'
 
 # ファイルストレージ（メディア）
-if AWS_STORAGE_BUCKET_NAME:
+if AWS_STORAGE_BUCKET_NAME and not _IS_TEST:
     # R2を使用（本番・開発環境）
     MEDIA_URL = f'{AWS_S3_ENDPOINT_URL}/{AWS_STORAGE_BUCKET_NAME}/'
     AWS_S3_FILE_OVERWRITE = False
