@@ -19,6 +19,28 @@ def _load_workflow() -> dict[str, object]:
     return payload
 
 
+def _jobs_without_direct_isolation_gate(jobs: dict[str, object]) -> set[str]:
+    """隔離gateへの直接依存がないjob名を返す."""
+    missing_gate: set[str] = set()
+    for job_name, raw_job in jobs.items():
+        if job_name == "isolation-gate":
+            continue
+        if not isinstance(raw_job, dict):
+            missing_gate.add(job_name)
+            continue
+
+        needs = raw_job.get("needs", [])
+        if isinstance(needs, str):
+            dependencies = {needs}
+        elif isinstance(needs, list):
+            dependencies = set(needs)
+        else:
+            dependencies = set()
+        if "isolation-gate" not in dependencies:
+            missing_gate.add(job_name)
+    return missing_gate
+
+
 class IsolationCiGateTests(unittest.TestCase):
     """隔離PRのhead codeがhuman approval前に実行されないことを保証する."""
 
@@ -65,17 +87,19 @@ class IsolationCiGateTests(unittest.TestCase):
             },
         )
 
-    def test_all_head_code_jobs_need_isolation_gate(self) -> None:
+    def test_all_non_gate_jobs_directly_need_isolation_gate(self) -> None:
         jobs = _load_workflow()["jobs"]
-        expected_needs = {
-            "lint": {"isolation-gate"},
-            "test": {"isolation-gate", "lint"},
-            "e2e": {"isolation-gate", "lint"},
-            "mypy": {"isolation-gate", "lint"},
+        self.assertEqual(_jobs_without_direct_isolation_gate(jobs), set())
+
+    def test_future_job_without_direct_gate_is_rejected(self) -> None:
+        jobs = dict(_load_workflow()["jobs"])
+        jobs["future-head-code-job"] = {
+            "needs": "lint",
+            "runs-on": "ubuntu-latest",
+            "steps": [{"uses": "actions/checkout@v5"}],
         }
-        for job_name, expected in expected_needs.items():
-            job = jobs[job_name]
-            needs = job["needs"]
-            actual = {needs} if isinstance(needs, str) else set(needs)
-            self.assertEqual(actual, expected)
-            self.assertTrue(any(step.get("uses") == "actions/checkout@v5" for step in job["steps"]))
+
+        self.assertEqual(
+            _jobs_without_direct_isolation_gate(jobs),
+            {"future-head-code-job"},
+        )

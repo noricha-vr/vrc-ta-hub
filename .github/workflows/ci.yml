@@ -19,6 +19,7 @@ jobs:
     name: isolation-gate
     runs-on: ubuntu-latest
     steps:
+      # safe-to-testはSHAに紐づかないため、publisher有効化前にrulesetで対象branchの更新を禁止する。
       - name: Block unapproved isolation PR
         if: >-
           github.event_name == 'pull_request' &&
