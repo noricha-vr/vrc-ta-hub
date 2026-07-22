@@ -14,6 +14,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   isolation-gate:
     name: isolation-gate
@@ -95,6 +99,10 @@ jobs:
       - name: Install dependencies (locked)
         run: uv pip sync --system requirements.lock
 
+      - name: Check for missing migrations
+        working-directory: app
+        run: python manage.py makemigrations --check --dry-run
+
       - name: Run tests with coverage
         working-directory: app
         env:
@@ -163,7 +171,7 @@ jobs:
   mypy:
     needs: [isolation-gate, lint]
     runs-on: ubuntu-latest
-    # warn-only: 型エラーがあっても CI は失敗させない (docs/mypy.md 参照)
+    # warn-only は continue-on-error で維持しつつ、型エラーは job 単位の失敗として可視化する (docs/mypy.md 参照)
     continue-on-error: true
 
     steps:
@@ -187,5 +195,6 @@ jobs:
       - name: Run mypy (warn-only, app/event/services/)
         working-directory: app
         run: |
-          # Phase 1: event/services/ のみ。docs/mypy.md の段階導入計画参照
-          mypy event/services/ --config-file ../pyproject.toml || true
+          # Phase 1: event/services/ のみ。job 全体の continue-on-error で warn-only を維持しつつ、
+          # 型エラーはこの step の失敗として可視化する（|| true で握り潰さない）。docs/mypy.md の段階導入計画参照
+          mypy event/services/ --config-file ../pyproject.toml

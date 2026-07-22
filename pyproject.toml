@@ -32,8 +32,8 @@ omit = [
 precision = 1
 show_missing = false
 skip_covered = false
-# 強制しない (将来 70 に引き上げる)。閾値の理由は docs/coverage.md を参照
-fail_under = 0
+# 実測カバレッジ（約82%）に対し2ポイントのバッファ。理由は docs/coverage.md 参照
+fail_under = 80
 
 # mypy + django-stubs を warn-only で段階導入する。
 # 段階導入方針と既知のエラー対処は docs/mypy.md を参照。
