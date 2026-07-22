@@ -5,9 +5,35 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  isolation-gate:
+    name: isolation-gate
+    runs-on: ubuntu-latest
+    steps:
+      # safe-to-testはSHAに紐づかないため、publisher有効化前にrulesetで対象branchの更新を禁止する。
+      - name: Block unapproved isolation PR
+        if: >-
+          github.event_name == 'pull_request' &&
+          startsWith(github.event.pull_request.head.ref, 'fix-flow/isolation-task-') &&
+          !contains(github.event.pull_request.labels.*.name, 'safe-to-test')
+        run: |
+          echo "::error::Isolation PR requires the safe-to-test label from a trusted reviewer."
+          exit 1
+
+      - name: Confirm CI execution is allowed
+        run: echo "CI execution is allowed."
+
   lint:
+    needs: isolation-gate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -29,7 +55,7 @@ jobs:
           ruff check app/
 
   test:
-    needs: lint
+    needs: [isolation-gate, lint]
     runs-on: ubuntu-latest
 
     env:
@@ -85,7 +111,7 @@ jobs:
           coverage report --rcfile=../pyproject.toml
 
   e2e:
-    needs: lint
+    needs: [isolation-gate, lint]
     runs-on: ubuntu-latest
 
     env:
@@ -135,7 +161,7 @@ jobs:
           retention-days: 14
 
   mypy:
-    needs: lint
+    needs: [isolation-gate, lint]
     runs-on: ubuntu-latest
     # warn-only: 型エラーがあっても CI は失敗させない (docs/mypy.md 参照)
     continue-on-error: true
