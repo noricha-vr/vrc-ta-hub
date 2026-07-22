@@ -2,6 +2,22 @@
 
 VRC技術学術ハブのデプロイ運用メモ。Cloud Run / Cloud Build を前提とする。
 
+## Cloud Build Trigger のbranch filter
+
+`cloudbuild.yaml` / `cloudbuild-dev.yaml` にbranch filterは定義できない。実行対象は
+Google Cloud側のBuild Trigger設定で限定する。GitHub Actionsの`safe-to-test` labelは
+テスト実行の承認だけで、build / deployの承認には使わない。
+
+- production Triggerのbranch filterはexact `^main$` とする
+- dev TriggerをGitHub pushに接続する場合も、レビュー済みの専用branchだけをexact matchで
+  allowlistする。専用branchがない場合はmanual buildとし、wildcard Triggerを作らない
+- `fix-flow/isolation-task-*`、PR head、その他のfeature branchをCloud Build Triggerにmatchさせない
+- Trigger作成・変更後はGoogle Cloud側のbranch regexを読み戻し、isolation branchの
+  pushでbuildが作られないことを確認する
+
+GitHub Actionsの隔離PRゲートは[テスト方針](testing.md#github-actions-の隔離pr承認ゲート)を参照。
+必要なTrigger filterを確認できない環境では、自動deployを有効化しない。
+
 ## ヘルスチェック {#health}
 
 Cloud Run の readiness / liveness probe 用に `/health` エンドポイントを提供する。
