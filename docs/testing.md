@@ -30,7 +30,8 @@ scripts/run_tests.sh \
 （`localhost` / `127.0.0.0/8` / `::1`）以外への DNS・socket 接続を拒否する。
 CI には dummy credential だけを渡し、外向き通信が発生した時点でテストを失敗させる。
 
-通常実行の正本は `scripts/run_tests.sh`。引数を指定した場合も内部で
+通常実行の正本は `scripts/run_tests.sh`。引数なしで実行すると CI (`.github/workflows/ci.yml`) と
+同じ全探索でテストを収集する。引数を指定した場合も内部で
 `tests.offline_manage`、`OfflineNetworkDiscoverRunner`、`live_smoke` / `e2e` の除外を必ず付ける。
 生の `python manage.py test` はこれらを省略できるため、通常テストの標準手順にはしない。
 
