@@ -353,3 +353,30 @@ class EventUpdateViewTweetQueueResetTest(EventUpdateViewBaseMixin, TestCase):
         self.assertEqual(posted.generated_text, 'POSTED TEXT')
         self.assertEqual(failed.status, 'failed')
         self.assertEqual(failed.generated_text, 'FAILED TEXT')
+
+
+class EventUpdateViewNoOpSaveTest(EventUpdateViewBaseMixin, TestCase):
+    """時刻を変えない保存では副作用を走らせない（PR #544 Cursor 指摘）。"""
+
+    def test_noop_save_keeps_queue_and_skips_gcal(self):
+        queue = TweetQueue.objects.create(
+            tweet_type='daily_reminder',
+            community=self.community,
+            event=self.event,
+            generated_text='READY TEXT with 22:00',
+            status='ready',
+            scheduled_at=timezone.now() + timedelta(days=1),
+        )
+        self.event.google_calendar_event_id = 'gcal-abc'
+        self.event.save(update_fields=['google_calendar_event_id'])
+
+        self.client.force_login(self.owner)
+        with mock.patch('event.views.crud.GoogleCalendarService') as service_cls:
+            # 現在値と同じ 22:00 のまま保存
+            response = self.client.post(self.url, {'start_time': '22:00'})
+
+        self.assertEqual(response.status_code, 302)
+        queue.refresh_from_db()
+        self.assertEqual(queue.status, 'ready')
+        self.assertEqual(queue.generated_text, 'READY TEXT with 22:00')
+        service_cls.assert_not_called()

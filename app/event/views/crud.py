@@ -76,12 +76,16 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
         old_start_time = old_event.start_time
         new_start_time = form.cleaned_data['start_time']
 
+        time_changed = new_start_time != old_start_time
+
         try:
             with transaction.atomic():
                 self.object = form.save()
 
-                # 旧→新 delta で配下 EventDetail の start_time を同量シフト
-                if new_start_time != old_start_time:
+                # 時刻が変わらない保存では副作用（詳細シフト・キャッシュ無効化・
+                # TweetQueue 再生成・GCal patch）を一切走らせない
+                if time_changed:
+                    # 旧→新 delta で配下 EventDetail の start_time を同量シフト
                     old_dt = datetime.combine(self.object.date, old_start_time)
                     new_dt = datetime.combine(self.object.date, new_start_time)
                     delta = new_dt - old_dt
@@ -92,37 +96,37 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
                         detail.start_time = detail_dt.time()
                         detail.save(update_fields=['start_time', 'updated_at'])
 
-                # キャッシュ無効化
-                cache.delete(f'google_calendar_url_{self.object.id}')
-                # VRCイベントカレンダー投稿URLは start_time を埋め込むため両バリアントを消す
-                cache.delete(f'calendar_entry_url_{self.object.id}_True')
-                cache.delete(f'calendar_entry_url_{self.object.id}_False')
-                # lru_cache のクリア（request, event キーで cache されている可能性）
-                generate_google_calendar_url.cache_clear()
-                # IndexView のキャッシュキーは get_vrchat_today() ベース。
-                # event.date を渡すと別キーを消してしまい実キャッシュが残るため引数なしで呼ぶ。
-                clear_index_view_cache()
+                    # キャッシュ無効化
+                    cache.delete(f'google_calendar_url_{self.object.id}')
+                    # VRCイベントカレンダー投稿URLは start_time を埋め込むため両バリアントを消す
+                    cache.delete(f'calendar_entry_url_{self.object.id}_True')
+                    cache.delete(f'calendar_entry_url_{self.object.id}_False')
+                    # lru_cache のクリア（request, event キーで cache されている可能性）
+                    generate_google_calendar_url.cache_clear()
+                    # IndexView のキャッシュキーは get_vrchat_today() ベース。
+                    # event.date を渡すと別キーを消してしまい実キャッシュが残るため引数なしで呼ぶ。
+                    clear_index_view_cache()
 
-                # 未投稿の TweetQueue は generated_text に旧時刻が焼き込まれているため、
-                # 再生成対象に戻す（status='generation_failed' + generated_text='' で
-                # 既存の retry_generation フローが拾って新時刻で再生成する。scheduled_at は
-                # 日付基準のため変更不要）。posted / failed / skipped は触らない。
-                from twitter.models import TweetQueue
-                TweetQueue.objects.filter(
-                    event=self.object,
-                    status__in=('generating', 'generation_failed', 'ready'),
-                ).update(
-                    status='generation_failed',
-                    generated_text='',
-                    error_message='開始時刻変更により再生成',
-                )
+                    # 未投稿の TweetQueue は generated_text に旧時刻が焼き込まれているため、
+                    # 再生成対象に戻す（status='generation_failed' + generated_text='' で
+                    # 既存の retry_generation フローが拾って新時刻で再生成する。scheduled_at は
+                    # 日付基準のため変更不要）。posted / failed / skipped は触らない。
+                    from twitter.models import TweetQueue
+                    TweetQueue.objects.filter(
+                        event=self.object,
+                        status__in=('generating', 'generation_failed', 'ready'),
+                    ).update(
+                        status='generation_failed',
+                        generated_text='',
+                        error_message='開始時刻変更により再生成',
+                    )
         except IntegrityError:
             # UniqueConstraint (community, date, start_time) 競合をフォームエラーへ
             form.add_error('start_time', '同じ日時にすでにイベントが登録されています。')
             return self.form_invalid(form)
 
         # atomic を抜けた後で Google カレンダーを patch（DB はコミット済み）
-        if self.object.google_calendar_event_id:
+        if time_changed and self.object.google_calendar_event_id:
             try:
                 start_datetime = datetime.combine(self.object.date, self.object.start_time)
                 tz = timezone.get_current_timezone()
