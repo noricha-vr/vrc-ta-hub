@@ -8,6 +8,7 @@ from datetime import date
 from typing import List
 
 from event.models import Event, RecurrenceRule
+from event.services.recurrence_override import exclude_tombstoned_dates
 
 
 def create_recurring_events(
@@ -30,6 +31,7 @@ def create_recurring_events(
         作成された Event のリスト（マスター + インスタンス群）
     """
     created_events: List[Event] = []
+    dates = exclude_tombstoned_dates(community, dates)
 
     if not dates:
         return created_events
