@@ -646,3 +646,78 @@ class VketBannerTests(TweetGenerationPatchMixin, TestCase):
         banner = response.context['vket_banner']
         self.assertIsNotNone(banner)
         self.assertIn('受付中', banner['message'])
+
+
+class EventMyListEditButtonTest(TweetGenerationPatchMixin, TestCase):
+    """my_list テンプレートの開始時刻編集ボタン表示テスト。"""
+
+    def setUp(self):
+        self.client = Client()
+        self.owner = User.objects.create_user(
+            user_name='EB Owner', email='eb_owner@example.com', password='ownerpass',
+        )
+        self.community = Community.objects.create(
+            name='EB Community',
+            start_time=time(22, 0),
+            duration=60,
+            weekdays=['Sat'],
+            frequency='Every week',
+            organizers='EB',
+            status='approved',
+        )
+        CommunityMember.objects.create(
+            community=self.community, user=self.owner, role=CommunityMember.Role.OWNER,
+        )
+
+    def test_pencil_button_shown_for_future_event(self):
+        future = timezone.now().date() + timedelta(days=14)
+        event = Event.objects.create(
+            community=self.community, date=future, start_time=time(22, 0),
+            duration=60, weekday='SAT',
+        )
+        self.client.login(username='EB Owner', password='ownerpass')
+        response = self.client.get(reverse('event:my_list'))
+        self.assertEqual(response.status_code, 200)
+        update_url = reverse('event:update', kwargs={'pk': event.pk})
+        self.assertContains(response, update_url)
+
+    def test_pencil_button_hidden_for_past_event(self):
+        past = timezone.now().date() - timedelta(days=14)
+        event = Event.objects.create(
+            community=self.community, date=past, start_time=time(22, 0),
+            duration=60, weekday='SAT',
+        )
+        self.client.login(username='EB Owner', password='ownerpass')
+        response = self.client.get(reverse('event:my_list'))
+        self.assertEqual(response.status_code, 200)
+        update_url = reverse('event:update', kwargs={'pk': event.pk})
+        self.assertNotContains(response, update_url)
+
+    def test_pencil_button_disabled_during_vket_lock(self):
+        today = timezone.localdate()
+        future = today + timedelta(days=2)
+        event = Event.objects.create(
+            community=self.community, date=future, start_time=time(22, 0),
+            duration=60, weekday='SAT',
+        )
+        collab = VketCollaboration.objects.create(
+            slug='eb-vket',
+            name='EB Vket',
+            phase=VketCollaboration.Phase.LOCKED,
+            period_start=future - timedelta(days=1),
+            period_end=future + timedelta(days=1),
+            registration_deadline=today - timedelta(days=5),
+            lt_deadline=today - timedelta(days=3),
+        )
+        VketParticipation.objects.create(
+            collaboration=collab,
+            community=self.community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+        self.client.login(username='EB Owner', password='ownerpass')
+        response = self.client.get(reverse('event:my_list'))
+        self.assertEqual(response.status_code, 200)
+        update_url = reverse('event:update', kwargs={'pk': event.pk})
+        # 有効なリンクとしては表示されない（disabled ラップ）
+        self.assertNotContains(response, f'href="{update_url}"')
+        self.assertContains(response, 'Vketコラボ期間中は編集できません')
