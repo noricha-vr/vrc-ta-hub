@@ -1,0 +1,39 @@
+{% extends 'ta_hub/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block main %}
+<div class="container my-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-7 col-lg-5">
+            <h2 class="fw-bold keiko_yellow mb-4">開催日を変更</h2>
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <p class="mb-1">{{ object.community.name }}</p>
+                    <p class="text-muted mb-2">
+                        現在の開催日時: {{ object.date }} {{ object.start_time }}
+                    </p>
+                    <p class="text-muted">開始時刻 {{ object.start_time }} は変更されません。</p>
+                    {% if is_recurring_child %}
+                        <div class="alert alert-info">
+                            この開催回だけを変更します。以後の定期開催スケジュールは変更されません。
+                        </div>
+                    {% elif is_recurring_master %}
+                        <div class="alert alert-warning">
+                            この親イベントの開催日だけを変更します。登録済みの子開催回と定期ルールは変更されません。
+                        </div>
+                    {% endif %}
+                    <form method="post">
+                        {% csrf_token %}
+                        {% bootstrap_form form %}
+                        <p class="form-text">開催日は本日以降のみ指定できます。</p>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">変更する</button>
+                            <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">戻る</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

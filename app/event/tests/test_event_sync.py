@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from community.models import Community
 from event.models import Event
+from event.sync_to_google import DatabaseToGoogleSync
 from event.tests.tweet_generation import TweetGenerationPatchMixin
 from event.views import delete_outdated_events, register_calendar_events
 from website.settings import REQUEST_TOKEN
@@ -153,6 +154,35 @@ class EventSyncTest(TweetGenerationPatchMixin, TestCase):
         self.assertTrue(Event.objects.filter(id=self.event1.id).exists())
         self.assertTrue(Event.objects.filter(id=self.event2.id).exists())
         self.assertTrue(Event.objects.filter(id=self.event3.id).exists())
+
+    @patch('event.sync_to_google.GoogleCalendarService')
+    def test_database_sync_skips_already_updated_date_and_id(
+        self,
+        calendar_service_class,
+    ):
+        """日付移動後に日時とIDが一致すればGoogleを再更新しない"""
+        self.event2.delete()
+        self.event3.delete()
+        self.event1.refresh_from_db()
+        start_at = timezone.make_aware(
+            datetime.combine(self.event1.date, self.event1.start_time)
+        )
+        calendar_service_class.return_value.list_events.return_value = [{
+            'id': self.event1.google_calendar_event_id,
+            'summary': self.community1.name,
+            'start': {'dateTime': start_at.isoformat()},
+            'end': {
+                'dateTime': (
+                    start_at + timedelta(minutes=self.event1.duration)
+                ).isoformat(),
+            },
+        }]
+
+        stats = DatabaseToGoogleSync().sync_all_communities(months_ahead=2)
+
+        self.assertEqual(stats['skipped'], 1)
+        self.assertEqual(stats['updated'], 0)
+        calendar_service_class.return_value.update_event.assert_not_called()
 
     @patch("event.views.sync.DatabaseToGoogleSync")
     def test_sync_calendar_events_respects_months_query(self, mock_sync_cls):

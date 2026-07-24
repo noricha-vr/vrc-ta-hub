@@ -18,6 +18,7 @@ from event.views.list import (  # noqa: F401
 from event.views.my_list import EventMyList  # noqa: F401
 from event.views.detail import EventDetailView  # noqa: F401
 from event.views.crud import (  # noqa: F401
+    EventDateUpdateView,
     EventDeleteView,
     EventDetailCreateView,
     EventDetailDeleteView,

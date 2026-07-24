@@ -149,6 +149,22 @@ class VketScheduleLockServiceTests(TestCase):
         )
         self.assertFalse(is_event_locked_by_vket(self.event_outside_period))
 
+    def test_lock_info_can_evaluate_proposed_date(self):
+        """保存前の移動先日付もキーワード引数で判定できる"""
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+
+        locked, message = get_vket_lock_info(
+            self.event_outside_period,
+            date=self.event_in_period.date,
+        )
+
+        self.assertTrue(locked)
+        self.assertIn('Vket Lock Test', message)
+
     def test_declined_participation_not_locked(self):
         """不参加の場合はロックされない"""
         VketParticipation.objects.create(

@@ -7,7 +7,7 @@ from django.utils import timezone
 from io import StringIO
 
 from community.models import Community
-from event.models import Event, RecurrenceRule
+from event.models import Event, EventOccurrenceTombstone, RecurrenceRule
 from event.tests.tweet_generation import TweetGenerationPatchMixin
 from user_account.models import CustomUser
 
@@ -451,4 +451,54 @@ class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
                 date=first_expected_date,
             ).exists(),
             "未来に正しいイベントが残っている場合でも手前の欠損月を補完できていません"
+        )
+
+    def test_tombstone_skips_generation_and_removal_restores_occurrence(self):
+        """tombstone中は生成せず、解除後はdeterministicルールが欠損を自己回復する"""
+        community = Community.objects.create(
+            name='Tombstone自己回復集会',
+            start_time=time(22, 0),
+            duration=60,
+            status='approved',
+        )
+        rule = RecurrenceRule.objects.create(
+            community=community,
+            frequency='OTHER',
+            custom_rule='毎月11日',
+        )
+        today = timezone.localdate()
+        expected_date = today.replace(day=11)
+        if expected_date < today:
+            expected_date = self._shift_month(expected_date, 1)
+        master = Event.objects.create(
+            community=community,
+            date=self._shift_month(expected_date, -1),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='MON',
+            is_recurring_master=True,
+            recurrence_rule=rule,
+        )
+        tombstone = EventOccurrenceTombstone.objects.create(
+            community=community,
+            date=expected_date,
+            original_start_time=time(22, 0),
+            reason=EventOccurrenceTombstone.Reason.DELETED,
+        )
+
+        call_command('generate_recurring_events', '--months=2')
+        self.assertFalse(
+            Event.objects.filter(
+                recurring_master=master,
+                date=expected_date,
+            ).exists()
+        )
+
+        tombstone.delete()
+        call_command('generate_recurring_events', '--months=2')
+        self.assertTrue(
+            Event.objects.filter(
+                recurring_master=master,
+                date=expected_date,
+            ).exists()
         )

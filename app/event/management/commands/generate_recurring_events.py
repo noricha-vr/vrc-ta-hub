@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from event.models import Event
 from event.recurrence_service import RecurrenceService
+from event.services.recurrence_override import exclude_tombstoned_dates
 
 
 class Command(BaseCommand):
@@ -152,6 +153,7 @@ class Command(BaseCommand):
                 months=months,
                 community=community
             )
+            dates = exclude_tombstoned_dates(community, dates)
             
             # 既存のイベントを除外
             new_dates = []

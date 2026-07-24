@@ -252,7 +252,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
                 temperature=0.3,  # 温度を下げて出力の安定性を向上
                 max_tokens=5000,
                 tools=[{"type": "function", "function": blog_output_schema}],
-                tool_choice={"type": "function", "function": {"name": "generate_blog_post"}}
+                tool_choice={"type": "function", "function": {"name": "generate_blog_post"}},  # type: ignore[call-overload]
             )
 
             # デバッグ用：APIリクエスト終了時刻とかかった時間を記録

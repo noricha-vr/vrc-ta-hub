@@ -149,6 +149,10 @@
                                         </div>
                                         <div class="mt-2">
                                             {% now "Y-m-d" as current_date %}
+                                            <a href="{% url 'event:date_update' event.pk %}"
+                                               class="btn btn-outline-secondary mb-1">
+                                                <i class="bi bi-calendar-event"></i> 開催日を変更
+                                            </a>
                                             {% if event.twitter_button_active %}
                                                 {% with templates=event.community.twitter_template.all %}
                                                     {% if templates %}

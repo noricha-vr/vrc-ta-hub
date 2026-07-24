@@ -3,7 +3,7 @@ from django.views.generic import TemplateView
 
 from .views import EventListView, EventDetailView, sync_calendar_events, EventDetailUpdateView, EventDetailCreateView, \
     EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailPastList, \
-    EventDeleteView, GoogleCalendarEventCreateView, EventLogListView, LTApplicationCreateView, LTApplicationReviewView, \
+    EventDateUpdateView, EventDeleteView, GoogleCalendarEventCreateView, EventLogListView, LTApplicationCreateView, LTApplicationReviewView, \
     LTApplicationApproveView, LTApplicationCompleteView, LTApplicationRejectView
 from .views.material_upload_reminder import send_material_upload_reminders_view
 from .views.slide_reminder import send_slide_reminders
@@ -12,6 +12,7 @@ from .views_llm_generate import generate_llm_events
 app_name = 'event'
 urlpatterns = [
     path('list/', EventListView.as_view(), name='list'),
+    path('<int:pk>/date/update/', EventDateUpdateView.as_view(), name='date_update'),
     path('delete/<int:pk>/', EventDeleteView.as_view(), name='delete'),
     path('my_list/', EventMyList.as_view(), name='my_list'),
     path('sync/', sync_calendar_events, name='sync_calendar_events'),
