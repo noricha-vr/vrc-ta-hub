@@ -86,6 +86,9 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
 
                 # キャッシュ無効化
                 cache.delete(f'google_calendar_url_{self.object.id}')
+                # VRCイベントカレンダー投稿URLは start_time を埋め込むため両バリアントを消す
+                cache.delete(f'calendar_entry_url_{self.object.id}_True')
+                cache.delete(f'calendar_entry_url_{self.object.id}_False')
                 # lru_cache のクリア（request, event キーで cache されている可能性）
                 generate_google_calendar_url.cache_clear()
                 clear_index_view_cache(self.object.date)
@@ -111,8 +114,15 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
                     end_time=end_datetime,
                 )
             except Exception:
+                # silent failure: DB 保存は成功扱いのまま進めるため、Sentry で連発検知
+                # できるよう is_silent=True の構造化ログに揃える（同ファイルの記事生成失敗と同規約）。
                 logger.exception(
-                    "Google カレンダー更新失敗: event_id=%s", self.object.id,
+                    "silent_failure",
+                    extra={
+                        "event_type": "google_calendar_update_failed",
+                        "target_event_id": self.object.id,
+                        "is_silent": True,
+                    },
                 )
                 messages.error(
                     self.request,
