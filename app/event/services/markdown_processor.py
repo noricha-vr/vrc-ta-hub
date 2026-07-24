@@ -8,11 +8,12 @@ from __future__ import annotations
 import copy
 import logging
 import re
+from typing import cast
 from urllib.parse import urlparse
 
-import bleach
-import markdown
-from bleach.css_sanitizer import CSSSanitizer
+import bleach  # type: ignore[import-untyped]
+import markdown  # type: ignore[import-untyped]
+from bleach.css_sanitizer import CSSSanitizer  # type: ignore[import-untyped]
 from bs4 import BeautifulSoup
 
 from event.services.content_sanitizer import (
@@ -219,11 +220,14 @@ def _remove_disallowed_iframes(soup: BeautifulSoup) -> None:
 def _sanitize_html(html: str) -> str:
     """bleach を使って許可タグ・属性・CSS のみの HTML に整える."""
     css_sanitizer = CSSSanitizer(allowed_css_properties=_ALLOWED_CSS_PROPERTIES)
-    return bleach.clean(
-        html,
-        tags=_ALLOWED_TAGS,
-        attributes=_build_allowed_attributes(),
-        css_sanitizer=css_sanitizer,
+    return cast(
+        str,
+        bleach.clean(
+            html,
+            tags=_ALLOWED_TAGS,
+            attributes=_build_allowed_attributes(),
+            css_sanitizer=css_sanitizer,
+        ),
     )
 
 
