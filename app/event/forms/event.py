@@ -29,6 +29,35 @@ class EventSearchForm(forms.Form):
     )
 
 
+class EventUpdateForm(forms.ModelForm):
+    """開始時刻のみを編集するフォーム。
+
+    date / community は変更不可（UniqueConstraint (community, date, start_time) と
+    Google カレンダー連携の副作用範囲を最小化するため、フィールドを start_time に限定）。
+    """
+
+    class Meta:
+        model = Event
+        fields = ['start_time']
+        widgets = {
+            'start_time': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+        }
+
+    def clean_start_time(self):
+        start_time = self.cleaned_data.get('start_time')
+        if start_time is None or self.instance is None or self.instance.pk is None:
+            return start_time
+        # UniqueConstraint (community, date, start_time) 対応
+        conflict = Event.objects.filter(
+            community=self.instance.community,
+            date=self.instance.date,
+            start_time=start_time,
+        ).exclude(pk=self.instance.pk).exists()
+        if conflict:
+            raise forms.ValidationError('同じ日時にすでにイベントが登録されています。')
+        return start_time
+
+
 class EventCreateForm(forms.ModelForm):
     class Meta:
         model = Event
