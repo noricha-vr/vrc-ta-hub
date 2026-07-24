@@ -309,6 +309,7 @@ class EventUpdateViewTweetQueueResetTest(EventUpdateViewBaseMixin, TestCase):
             event=self.event,
             generated_text='OLD TEXT with 22:00',
             status=status,
+            generation_token='oldtoken123',
             scheduled_at=timezone.now() + timedelta(days=1),
         )
 
@@ -322,6 +323,8 @@ class EventUpdateViewTweetQueueResetTest(EventUpdateViewBaseMixin, TestCase):
         ready.refresh_from_db()
         self.assertEqual(ready.status, 'generation_failed')
         self.assertEqual(ready.generated_text, '')
+        # in-flight 生成の write-back を無効化するためトークンも空になる
+        self.assertEqual(ready.generation_token, '')
 
     def test_posted_queue_not_touched(self):
         posted = TweetQueue.objects.create(
@@ -380,3 +383,9 @@ class EventUpdateViewNoOpSaveTest(EventUpdateViewBaseMixin, TestCase):
         self.assertEqual(queue.status, 'ready')
         self.assertEqual(queue.generated_text, 'READY TEXT with 22:00')
         service_cls.assert_not_called()
+
+        # 変更が無いのに「変更しました」と出さない
+        from django.contrib.messages import get_messages
+        message_texts = [str(m) for m in get_messages(response.wsgi_request)]
+        self.assertIn('開始時刻に変更はありません。', message_texts)
+        self.assertNotIn('開始時刻を変更しました。', message_texts)

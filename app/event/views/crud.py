@@ -119,6 +119,9 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
                         status='generation_failed',
                         generated_text='',
                         error_message='開始時刻変更により再生成',
+                        # in-flight の非同期生成が旧時刻スナップショットで ready に戻すのを防ぐ
+                        # （write-back は generation_token の compare-and-set で守られている）
+                        generation_token='',
                     )
         except IntegrityError:
             # UniqueConstraint (community, date, start_time) 競合をフォームエラーへ
@@ -164,7 +167,10 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
                 )
                 return redirect(self.get_success_url())
 
-        messages.success(self.request, "開始時刻を変更しました。")
+        if time_changed:
+            messages.success(self.request, "開始時刻を変更しました。")
+        else:
+            messages.info(self.request, "開始時刻に変更はありません。")
         return redirect(self.get_success_url())
 
 
