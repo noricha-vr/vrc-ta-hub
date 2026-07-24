@@ -136,6 +136,33 @@ class EventMyList(LoginRequiredMixin, ListView):
             event.twitter_button_active = today <= twitter_display_until
         return events
 
+    def _attach_edit_flags(self, events):
+        """各イベントに開始時刻編集用のフラグを付与する。
+
+        - can_edit_event: 集会の管理者（owner/staff）または superuser
+        - vket_locked: Vket コラボ期間中で編集不可（superuser/is_staff は False）
+        """
+        from vket.services import get_vket_lock_info
+
+        user = self.request.user
+        today = get_vrchat_today()
+        # community 単位で権限判定を1回にまとめる（N+1回避）
+        community_edit_cache = {}
+        for event in events:
+            community_id = event.community_id
+            if community_id not in community_edit_cache:
+                community_edit_cache[community_id] = (
+                    user.is_superuser or event.community.can_edit(user)
+                )
+            event.can_edit_event = community_edit_cache[community_id] and event.date >= today
+
+            if user.is_superuser or user.is_staff:
+                event.vket_locked = False
+            else:
+                locked, _ = get_vket_lock_info(event)
+                event.vket_locked = locked
+        return events
+
     def _attach_event_details(self, events):
         """イベントごとにイベント詳細情報を取得・設定する
 
@@ -212,6 +239,9 @@ class EventMyList(LoginRequiredMixin, ListView):
 
         # イベント詳細情報を取得・設定
         events = self._attach_event_details(events)
+
+        # 開始時刻編集ボタン表示用のフラグを設定
+        events = self._attach_edit_flags(events)
 
         # 更新されたイベントリストをコンテキストに再設定
         context['events'] = events

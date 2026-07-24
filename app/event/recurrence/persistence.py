@@ -49,10 +49,10 @@ def create_recurring_events(
     # 残りのインスタンスを作成
     for event_date in dates[1:]:
         # 既存のイベントがあるかチェック
+        # 開始時刻を編集済みのイベントを重複生成しないため date 単位で判定
         existing = Event.objects.filter(
             community=community,
             date=event_date,
-            start_time=start_time,
         ).first()
 
         if not existing:

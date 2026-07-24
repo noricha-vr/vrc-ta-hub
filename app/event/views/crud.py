@@ -1,20 +1,138 @@
 import logging
+from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.cache import cache
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views.generic import CreateView, UpdateView, DeleteView
 
-from event.forms import EventDetailForm
+from event.forms import EventDetailForm, EventUpdateForm
 from event.services.content_generation_service import apply_blog_output_to_event_detail, generate_blog
 from event.models import Event, EventDetail
 from event.views.helpers import can_manage_event_detail
+from event_calendar.calendar_utils import generate_google_calendar_url
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
+from ta_hub.index_cache import clear_index_view_cache
 from website.settings import GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, GEMINI_MODEL
 from event.google_calendar import GoogleCalendarService
 
 logger = logging.getLogger(__name__)
+
+
+class EventUpdateView(LoginRequiredMixin, UpdateView):
+    """イベントの開始時刻のみを編集するビュー。
+
+    date/duration などは変更不可。編集を許すのは所属集会の管理者（owner/staff）と
+    superuser のみ。Vket コラボ期間中はロックする（superuser/is_staff は免除）。
+    """
+
+    model = Event
+    form_class = EventUpdateForm
+    template_name = 'event/event_form.html'
+    success_url = reverse_lazy('event:my_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        # 認証は LoginRequiredMixin が先に処理する
+        if not request.user.is_authenticated:
+            return super().dispatch(request, *args, **kwargs)
+
+        event = get_object_or_404(Event, pk=kwargs.get('pk'))
+
+        # 権限チェック（superuser は許可）
+        if not (request.user.is_superuser or event.community.can_edit(request.user)):
+            messages.error(request, "このイベントを編集する権限がありません。")
+            return redirect('event:my_list')
+
+        # Vket ロック（superuser/is_staff は免除）
+        if not (request.user.is_superuser or request.user.is_staff):
+            from vket.services import get_vket_lock_info
+            locked, message = get_vket_lock_info(event)
+            if locked:
+                messages.error(request, message)
+                return redirect('event:my_list')
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['event'] = self.object
+        return context
+
+    def form_valid(self, form):
+        # 旧 start_time を退避（EventDetail の delta シフトに使用）
+        old_event = Event.objects.get(pk=self.object.pk)
+        old_start_time = old_event.start_time
+        new_start_time = form.cleaned_data['start_time']
+
+        try:
+            with transaction.atomic():
+                self.object = form.save()
+
+                # 旧→新 delta で配下 EventDetail の start_time を同量シフト
+                if new_start_time != old_start_time:
+                    old_dt = datetime.combine(self.object.date, old_start_time)
+                    new_dt = datetime.combine(self.object.date, new_start_time)
+                    delta = new_dt - old_dt
+                    # soft delete 除外は EventDetail.objects の既定挙動（EventDetailManager）
+                    for detail in EventDetail.objects.filter(event=self.object):
+                        detail_dt = datetime.combine(self.object.date, detail.start_time) + delta
+                        # 日跨ぎになる場合は time 部分のみ採用（日付は event.date のまま維持）
+                        detail.start_time = detail_dt.time()
+                        detail.save(update_fields=['start_time', 'updated_at'])
+
+                # キャッシュ無効化
+                cache.delete(f'google_calendar_url_{self.object.id}')
+                # VRCイベントカレンダー投稿URLは start_time を埋め込むため両バリアントを消す
+                cache.delete(f'calendar_entry_url_{self.object.id}_True')
+                cache.delete(f'calendar_entry_url_{self.object.id}_False')
+                # lru_cache のクリア（request, event キーで cache されている可能性）
+                generate_google_calendar_url.cache_clear()
+                clear_index_view_cache(self.object.date)
+        except IntegrityError:
+            # UniqueConstraint (community, date, start_time) 競合をフォームエラーへ
+            form.add_error('start_time', '同じ日時にすでにイベントが登録されています。')
+            return self.form_invalid(form)
+
+        # atomic を抜けた後で Google カレンダーを patch（DB はコミット済み）
+        if self.object.google_calendar_event_id:
+            try:
+                start_datetime = datetime.combine(self.object.date, self.object.start_time)
+                tz = timezone.get_current_timezone()
+                start_datetime = timezone.make_aware(start_datetime, tz)
+                end_datetime = start_datetime + timedelta(minutes=self.object.duration)
+                calendar_service = GoogleCalendarService(
+                    calendar_id=GOOGLE_CALENDAR_ID,
+                    credentials_path=GOOGLE_CALENDAR_CREDENTIALS,
+                )
+                calendar_service.update_event(
+                    event_id=self.object.google_calendar_event_id,
+                    start_time=start_datetime,
+                    end_time=end_datetime,
+                )
+            except Exception:
+                # silent failure: DB 保存は成功扱いのまま進めるため、Sentry で連発検知
+                # できるよう is_silent=True の構造化ログに揃える（同ファイルの記事生成失敗と同規約）。
+                logger.exception(
+                    "silent_failure",
+                    extra={
+                        "event_type": "google_calendar_update_failed",
+                        "target_event_id": self.object.id,
+                        "is_silent": True,
+                    },
+                )
+                messages.error(
+                    self.request,
+                    "Googleカレンダーの更新に失敗しました（変更自体は保存済み。"
+                    "次回同期時に自動反映されます）",
+                )
+                return redirect(self.get_success_url())
+
+        messages.success(self.request, "開始時刻を変更しました。")
+        return redirect(self.get_success_url())
 
 
 class EventDeleteView(LoginRequiredMixin, DeleteView):

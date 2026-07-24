@@ -3,7 +3,7 @@
 既存の `from event.forms import EventDetailForm` 等を後方互換で動作させる。
 """
 from event.forms.mixins import EventDetailMediaFormMixin  # noqa: F401
-from event.forms.event import EventSearchForm, EventCreateForm  # noqa: F401
+from event.forms.event import EventSearchForm, EventCreateForm, EventUpdateForm  # noqa: F401
 from event.forms.recurrence import (  # noqa: F401
     RecurringEventForm,
     RECURRENCE_CHOICES,

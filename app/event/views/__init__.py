@@ -22,6 +22,7 @@ from event.views.crud import (  # noqa: F401
     EventDetailCreateView,
     EventDetailDeleteView,
     EventDetailUpdateView,
+    EventUpdateView,
 )
 from event.views.calendar_create import GoogleCalendarEventCreateView  # noqa: F401
 from event.views.blog import GenerateBlogView  # noqa: F401
