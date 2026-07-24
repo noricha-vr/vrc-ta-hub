@@ -15,6 +15,27 @@ from community.models import Community
 logger = logging.getLogger(__name__)
 
 
+def build_google_event_description(event: Event) -> str:
+    """Googleカレンダーのイベント説明文を生成する（同期/単発更新で共用）。
+
+    EventUpdateView など単発の時刻変更でも同じ文面になるよう module 関数として公開する
+    （description が旧時刻のまま残ると同期処理が日時+ID一致で skipped 扱いにし恒久矛盾になる）。
+    """
+    lines = [
+        f"集会: {event.community.name}",
+        f"開催日時: {event.date.strftime('%Y年%m月%d日')} {event.start_time.strftime('%H:%M')}",
+        f"開催時間: {event.duration}分",
+    ]
+
+    if event.community.description:
+        lines.append(f"\n{event.community.description}")
+
+    if event.community.group_url:
+        lines.append(f"\nURL: {event.community.group_url}")
+
+    return "\n".join(lines)
+
+
 class DatabaseToGoogleSync:
     """データベースを主体としたGoogleカレンダー同期"""
     
@@ -364,20 +385,8 @@ class DatabaseToGoogleSync:
             raise
     
     def _generate_description(self, event: Event) -> str:
-        """イベントの説明文を生成"""
-        lines = [
-            f"集会: {event.community.name}",
-            f"開催日時: {event.date.strftime('%Y年%m月%d日')} {event.start_time.strftime('%H:%M')}",
-            f"開催時間: {event.duration}分",
-        ]
-        
-        if event.community.description:
-            lines.append(f"\n{event.community.description}")
-        
-        if event.community.group_url:
-            lines.append(f"\nURL: {event.community.group_url}")
-        
-        return "\n".join(lines)
+        """イベントの説明文を生成（module 関数へ委譲。挙動不変）。"""
+        return build_google_event_description(event)
     
     def delete_orphaned_google_events(self, all_google_events: List[Dict], start_date: datetime.date, end_date: datetime.date) -> int:
         """DBに存在しないGoogleカレンダーイベントを削除

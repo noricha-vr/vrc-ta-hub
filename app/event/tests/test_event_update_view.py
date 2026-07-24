@@ -9,8 +9,11 @@ from django.utils import timezone
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from event.sync_to_google import build_google_event_description
 from event.tests.tweet_generation import TweetGenerationPatchMixin
+from twitter.models import TweetQueue
 from user_account.models import CustomUser
+from utils.vrchat_time import get_vrchat_today
 
 
 class EventUpdateViewBaseMixin(TweetGenerationPatchMixin):
@@ -229,3 +232,124 @@ class EventUpdateViewVketLockTest(EventUpdateViewBaseMixin, TestCase):
         self.assertEqual(response.url, reverse('event:my_list'))
         self.event.refresh_from_db()
         self.assertEqual(self.event.start_time, time(20, 0))
+
+
+class EventUpdateViewPastEventTest(EventUpdateViewBaseMixin, TestCase):
+    """過去イベントは URL 直叩きでも編集不可（PR #544 Cursor 指摘）。"""
+
+    def setUp(self):
+        super().setUp()
+        # yesterday（VRChat today より確実に過去）に付け替え
+        yesterday = get_vrchat_today() - timedelta(days=1)
+        # 一意制約回避のため時刻を変える
+        self.event.date = yesterday
+        self.event.start_time = time(20, 0)
+        self.event.save(update_fields=['date', 'start_time'])
+
+    def test_owner_post_to_past_event_blocked(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(self.url, {'start_time': '19:00'})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('event:my_list'))
+        self.event.refresh_from_db()
+        # DB 不変
+        self.assertEqual(self.event.start_time, time(20, 0))
+
+    def test_owner_get_to_past_event_blocked(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('event:my_list'))
+
+
+class EventUpdateViewIndexCacheTest(EventUpdateViewBaseMixin, TestCase):
+    """clear_index_view_cache が実キャッシュキー（get_vrchat_today ベース）で呼ばれる。"""
+
+    def test_clear_index_view_cache_called_without_args(self):
+        self.client.force_login(self.owner)
+        with mock.patch('event.views.crud.clear_index_view_cache') as mock_clear:
+            response = self.client.post(self.url, {'start_time': '21:00'})
+        self.assertEqual(response.status_code, 302)
+        mock_clear.assert_called_once_with()
+
+
+class EventUpdateViewGoogleCalendarDescriptionTest(EventUpdateViewBaseMixin, TestCase):
+    """GCal patch に description（sync 側と同じ生成関数の出力）が渡る。"""
+
+    def test_update_event_receives_description(self):
+        self.event.google_calendar_event_id = 'gcal-abc'
+        self.event.save(update_fields=['google_calendar_event_id'])
+
+        self.client.force_login(self.owner)
+        with mock.patch('event.views.crud.GoogleCalendarService') as MockService:
+            instance = MockService.return_value
+            response = self.client.post(self.url, {'start_time': '20:00'})
+
+        self.assertEqual(response.status_code, 302)
+        instance.update_event.assert_called_once()
+        call_kwargs = instance.update_event.call_args.kwargs
+
+        # description は sync 側の生成関数と同一出力
+        self.event.refresh_from_db()
+        expected = build_google_event_description(self.event)
+        self.assertEqual(call_kwargs['description'], expected)
+        # 新時刻が description 本文に反映されている
+        self.assertIn('20:00', call_kwargs['description'])
+        # summary は渡さない（community 名で不変のため）
+        self.assertNotIn('summary', call_kwargs)
+
+
+class EventUpdateViewTweetQueueResetTest(EventUpdateViewBaseMixin, TestCase):
+    """開始時刻変更で未投稿 TweetQueue を再生成対象に戻す（PR #544 Cursor 指摘）。"""
+
+    def _make_queue(self, status: str) -> TweetQueue:
+        return TweetQueue.objects.create(
+            tweet_type='daily_reminder',
+            community=self.community,
+            event=self.event,
+            generated_text='OLD TEXT with 22:00',
+            status=status,
+            scheduled_at=timezone.now() + timedelta(days=1),
+        )
+
+    def test_unposted_queue_reset_to_regeneration(self):
+        ready = self._make_queue('ready')
+
+        self.client.force_login(self.owner)
+        response = self.client.post(self.url, {'start_time': '21:00'})
+        self.assertEqual(response.status_code, 302)
+
+        ready.refresh_from_db()
+        self.assertEqual(ready.status, 'generation_failed')
+        self.assertEqual(ready.generated_text, '')
+
+    def test_posted_queue_not_touched(self):
+        posted = TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            event=self.event,
+            generated_text='POSTED TEXT',
+            status='posted',
+            scheduled_at=timezone.now() - timedelta(hours=1),
+            posted_at=timezone.now() - timedelta(hours=1),
+        )
+        failed = TweetQueue.objects.create(
+            tweet_type='lt',
+            community=self.community,
+            event=self.event,
+            generated_text='FAILED TEXT',
+            status='failed',
+            scheduled_at=timezone.now() - timedelta(hours=1),
+        )
+
+        self.client.force_login(self.owner)
+        response = self.client.post(self.url, {'start_time': '21:00'})
+        self.assertEqual(response.status_code, 302)
+
+        posted.refresh_from_db()
+        failed.refresh_from_db()
+        # posted / failed は不変
+        self.assertEqual(posted.status, 'posted')
+        self.assertEqual(posted.generated_text, 'POSTED TEXT')
+        self.assertEqual(failed.status, 'failed')
+        self.assertEqual(failed.generated_text, 'FAILED TEXT')

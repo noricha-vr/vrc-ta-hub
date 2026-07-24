@@ -13,10 +13,12 @@ from django.views.generic import CreateView, UpdateView, DeleteView
 from event.forms import EventDetailForm, EventUpdateForm
 from event.services.content_generation_service import apply_blog_output_to_event_detail, generate_blog
 from event.models import Event, EventDetail
+from event.sync_to_google import build_google_event_description
 from event.views.helpers import can_manage_event_detail
 from event_calendar.calendar_utils import generate_google_calendar_url
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from ta_hub.index_cache import clear_index_view_cache
+from utils.vrchat_time import get_vrchat_today
 from website.settings import GOOGLE_CALENDAR_CREDENTIALS, GOOGLE_CALENDAR_ID, GEMINI_MODEL
 from event.google_calendar import GoogleCalendarService
 
@@ -45,6 +47,12 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
         # 権限チェック（superuser は許可）
         if not (request.user.is_superuser or event.community.can_edit(request.user)):
             messages.error(request, "このイベントを編集する権限がありません。")
+            return redirect('event:my_list')
+
+        # 過去イベントの編集はブロック（UI で鉛筆非表示のため URL 直叩き対策）。
+        # my_list の _attach_edit_flags と同じ VRChat today 基準に揃える。
+        if event.date < get_vrchat_today():
+            messages.error(request, "過去のイベントは編集できません。")
             return redirect('event:my_list')
 
         # Vket ロック（superuser/is_staff は免除）
@@ -91,7 +99,23 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
                 cache.delete(f'calendar_entry_url_{self.object.id}_False')
                 # lru_cache のクリア（request, event キーで cache されている可能性）
                 generate_google_calendar_url.cache_clear()
-                clear_index_view_cache(self.object.date)
+                # IndexView のキャッシュキーは get_vrchat_today() ベース。
+                # event.date を渡すと別キーを消してしまい実キャッシュが残るため引数なしで呼ぶ。
+                clear_index_view_cache()
+
+                # 未投稿の TweetQueue は generated_text に旧時刻が焼き込まれているため、
+                # 再生成対象に戻す（status='generation_failed' + generated_text='' で
+                # 既存の retry_generation フローが拾って新時刻で再生成する。scheduled_at は
+                # 日付基準のため変更不要）。posted / failed / skipped は触らない。
+                from twitter.models import TweetQueue
+                TweetQueue.objects.filter(
+                    event=self.object,
+                    status__in=('generating', 'generation_failed', 'ready'),
+                ).update(
+                    status='generation_failed',
+                    generated_text='',
+                    error_message='開始時刻変更により再生成',
+                )
         except IntegrityError:
             # UniqueConstraint (community, date, start_time) 競合をフォームエラーへ
             form.add_error('start_time', '同じ日時にすでにイベントが登録されています。')
@@ -108,10 +132,15 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
                     calendar_id=GOOGLE_CALENDAR_ID,
                     credentials_path=GOOGLE_CALENDAR_CREDENTIALS,
                 )
+                # description も更新する（本文内「開催日時」が旧時刻のまま残ると、
+                # 後続の DB→Google 同期が日時+ID 一致で skipped 判定になり恒久的に矛盾する）。
+                # sync 側と同じ生成関数を使うことで文面のドリフトを防ぐ。summary は community 名で
+                # 不変のため渡さない。
                 calendar_service.update_event(
                     event_id=self.object.google_calendar_event_id,
                     start_time=start_datetime,
                     end_time=end_datetime,
+                    description=build_google_event_description(self.object),
                 )
             except Exception:
                 # silent failure: DB 保存は成功扱いのまま進めるため、Sentry で連発検知
