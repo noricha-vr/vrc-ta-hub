@@ -25,11 +25,7 @@ from event.views.crud import (  # noqa: F401
 )
 from event.views.calendar_create import GoogleCalendarEventCreateView  # noqa: F401
 from event.views.blog import GenerateBlogView  # noqa: F401
-from event.views.sync import (  # noqa: F401
-    delete_outdated_events,
-    register_calendar_events,
-    sync_calendar_events,
-)
+from event.views.sync import sync_calendar_events  # noqa: F401
 from event.views.lt_application import (  # noqa: F401
     LTApplicationApproveView,
     LTApplicationCompleteView,

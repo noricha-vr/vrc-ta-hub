@@ -199,10 +199,10 @@ result = self.service.create_event(
 ```bash
 # 手動同期（要REQUEST_TOKEN）
 curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" \
-  https://vrc-ta-hub.com/event/update/
+  https://vrc-ta-hub.com/event/sync/
 
 # Dockerコンテナから実行
-docker compose exec vrc-ta-hub python manage.py sync_to_google
+docker compose exec vrc-ta-hub python manage.py sync_calendar
 ```
 
 ## 運用管理
