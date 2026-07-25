@@ -298,7 +298,7 @@ class EventDetailAPIViewSet(DatabaseReconnectListMixin, viewsets.ModelViewSet):
             locked, message = get_vket_lock_info(instance.event)
             if locked:
                 return Response(
-                    {"detail": message},
+                    {"detail": message, "code": "vket_locked"},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
@@ -306,7 +306,10 @@ class EventDetailAPIViewSet(DatabaseReconnectListMixin, viewsets.ModelViewSet):
         if not request.user.is_superuser:
             if not instance.event.community.is_manager(request.user):
                 return Response(
-                    {"エラー": "このイベント詳細を削除する権限がありません。"},
+                    {
+                        "detail": "このイベント詳細を削除する権限がありません。",
+                        "code": "permission_denied",
+                    },
                     status=status.HTTP_403_FORBIDDEN
                 )
 
@@ -410,8 +413,17 @@ class RecurrenceRuleViewSet(DatabaseReconnectListMixin, viewsets.ReadOnlyModelVi
                 'message': f'{deleted_count}件のイベントを削除しました。'
             })
         
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+        # 既存クライアント互換のためフィールド別エラーはそのまま残し、
+        # 機械可読な detail/code を追加する。
+        return Response(
+            {
+                **serializer.errors,
+                'detail': 'リクエストの内容が不正です。',
+                'code': 'validation_error',
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     def destroy(self, request, *args, **kwargs):
         """定期ルールを削除（未来のイベントも削除）"""
         instance = self.get_object()

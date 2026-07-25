@@ -89,6 +89,8 @@ REST_FRAMEWORK = {
         'user': '100/minute'
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # エラーレスポンスに機械可読な code を必ず載せる（既存フィールドは維持し追加のみ）
+    'EXCEPTION_HANDLER': 'api_v1.exception_handler.api_exception_handler',
 }
 
 SPECTACULAR_SETTINGS = {

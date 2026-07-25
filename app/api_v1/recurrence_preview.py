@@ -1,8 +1,11 @@
 """定期イベントプレビューAPI
 
 request body validation は Pydantic (api_v1.input_schemas.RecurrencePreviewInput) に統一。
-既存応答形式 {"success": bool, "error": str, "dates": [...], "count": int} は維持する。
+既存応答形式 {"success": bool, "error": str, "dates": [...], "count": int} は維持しつつ、
+機械可読な {"detail": str, "code": str} を追加する（既存クライアント互換のため追加のみ）。
 """
+import logging
+
 from pydantic import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -15,6 +18,14 @@ from .input_schemas import (
     ERROR_DATE_FORMAT_PREFIX,
     RecurrencePreviewInput,
 )
+
+logger = logging.getLogger(__name__)
+
+# クライアントへ返すエラーコード。内部例外の文字列はレスポンスに載せない。
+CODE_VALIDATION_ERROR = 'validation_error'
+CODE_PREVIEW_FAILED = 'preview_failed'
+CODE_INTERNAL_ERROR = 'internal_error'
+INTERNAL_ERROR_MESSAGE = '予期しないエラーが発生しました。'
 
 
 def _extract_error_message(exc: ValidationError) -> str:
@@ -53,12 +64,16 @@ class RecurrencePreviewAPIView(APIView):
                 return Response({
                     'success': False,
                     'error': message,
+                    'detail': message,
+                    'code': CODE_VALIDATION_ERROR,
                     'dates': [],
                     'count': 0,
                 }, status=status.HTTP_400_BAD_REQUEST)
             return Response({
                 'success': False,
                 'error': message,
+                'detail': message,
+                'code': CODE_VALIDATION_ERROR,
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # コミュニティを取得（オプション）
@@ -98,14 +113,20 @@ class RecurrencePreviewAPIView(APIView):
             return Response({
                 'success': False,
                 'error': error_msg,
+                'detail': error_msg,
+                'code': CODE_PREVIEW_FAILED,
                 'dates': [],
                 'count': 0,
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        except Exception as exc:
+        except Exception:
+            # 例外の生文字列はレスポンスに載せず、スタックトレースはログにのみ残す。
+            logger.exception('Unexpected error in recurrence preview')
             return Response({
                 'success': False,
-                'error': f'予期しないエラーが発生しました: {str(exc)}',
+                'error': INTERNAL_ERROR_MESSAGE,
+                'detail': INTERNAL_ERROR_MESSAGE,
+                'code': CODE_INTERNAL_ERROR,
                 'dates': [],
                 'count': 0,
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
