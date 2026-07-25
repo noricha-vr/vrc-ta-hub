@@ -1,15 +1,23 @@
 """外向き通信を遮断するtest runner境界の回帰テスト。"""
 
+import contextlib
 import errno
+import io
 import socket
 import tempfile
 import threading
 from collections.abc import Callable
 from pathlib import Path
+from unittest.mock import patch
 
 from django.test import SimpleTestCase
+from django.test.runner import DiscoverRunner
 
-from website.tests.offline_runner import ExternalNetworkBlockedError
+from website.tests.offline_runner import (
+    ExternalNetworkBlockedError,
+    OfflineNetworkDiscoverRunner,
+    blocked_network_recorder,
+)
 
 # socket.herror exposes h_errno=2 but not the legacy TRY_AGAIN constant.
 H_ERRNO_TRY_AGAIN = 2
@@ -23,9 +31,13 @@ class OfflineNetworkRunnerTest(SimpleTestCase):
         operation: Callable[[], object],
         accepted_os_errors: tuple[tuple[type[OSError], frozenset[int]], ...],
     ) -> None:
-        """Python遮断またはnetwork namespace遮断を外向き通信の失敗として受け入れる。"""
+        """Python遮断またはnetwork namespace遮断を外向き通信の失敗として受け入れる。
+
+        遮断はこのテストの期待動作なので、suite の遮断件数には数えない。
+        """
         try:
-            operation()
+            with blocked_network_recorder.suppressed():
+                operation()
         except ExternalNetworkBlockedError:
             return
         except OSError as exc:
@@ -149,3 +161,65 @@ class OfflineNetworkRunnerTest(SimpleTestCase):
                 with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as client:
                     client.sendto(b"allowed", socket_path)
                 self.assertEqual(server.recvfrom(32)[0], b"allowed")
+
+
+class BlockedNetworkDetectionTest(SimpleTestCase):
+    """遮断イベントが suite の終了コードとレポートに反映されることを確認する。"""
+
+    def setUp(self):
+        self._outer_events = blocked_network_recorder.snapshot()
+        self.addCleanup(self._restore_outer_events)
+
+    def _restore_outer_events(self):
+        """外側の suite が集めていた記録を元に戻す。"""
+        blocked_network_recorder.reset()
+        blocked_network_recorder.events.extend(self._outer_events)
+
+    @staticmethod
+    def _swallowing_suite(_self, _test_labels, **_kwargs):
+        """アプリと同様に接続エラーを握りつぶす「緑の」suiteを模擬する。"""
+        try:
+            socket.getaddrinfo("discord.com", 443)
+        except OSError:
+            pass
+        return 0
+
+    def _run_suite_with(self, suite_body):
+        """OfflineNetworkDiscoverRunner 経由で疑似suiteを実行し、失敗数とstderrを返す。"""
+        stderr = io.StringIO()
+        runner = OfflineNetworkDiscoverRunner(verbosity=0, interactive=False)
+        with patch.object(DiscoverRunner, "run_tests", suite_body), \
+                contextlib.redirect_stderr(stderr):
+            failures = runner.run_tests([])
+        return failures, stderr.getvalue()
+
+    def test_swallowed_external_call_fails_the_suite(self):
+        """アプリ側が例外を握りつぶしても遮断件数が失敗数に加算される。"""
+        failures, report = self._run_suite_with(self._swallowing_suite)
+
+        self.assertEqual(failures, 1)
+        self.assertIn("外向き通信が 1 件遮断されました", report)
+        self.assertIn("discord.com", report)
+        self.assertIn("test_offline_runner.py", report)
+
+    def test_clean_suite_keeps_original_failure_count(self):
+        """遮断が起きなければ元の失敗数をそのまま返す。"""
+        failures, report = self._run_suite_with(lambda _self, _labels, **_kw: 2)
+
+        self.assertEqual(failures, 2)
+        self.assertEqual(report, "")
+
+    def test_suppressed_block_is_not_counted(self):
+        """意図的に遮断を起こすテストは件数に数えない。"""
+        def suppressed_suite(_self, _labels, **_kwargs):
+            with blocked_network_recorder.suppressed():
+                try:
+                    socket.getaddrinfo("discord.com", 443)
+                except OSError:
+                    pass
+            return 0
+
+        failures, report = self._run_suite_with(suppressed_suite)
+
+        self.assertEqual(failures, 0)
+        self.assertEqual(report, "")
