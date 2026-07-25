@@ -172,8 +172,7 @@ class BlockedNetworkDetectionTest(SimpleTestCase):
 
     def _restore_outer_events(self):
         """外側の suite が集めていた記録を元に戻す。"""
-        blocked_network_recorder.reset()
-        blocked_network_recorder.events.extend(self._outer_events)
+        blocked_network_recorder.restore(self._outer_events)
 
     @staticmethod
     def _swallowing_suite(_self, _test_labels, **_kwargs):
@@ -194,13 +193,45 @@ class BlockedNetworkDetectionTest(SimpleTestCase):
         return failures, stderr.getvalue()
 
     def test_swallowed_external_call_fails_the_suite(self):
-        """アプリ側が例外を握りつぶしても遮断件数が失敗数に加算される。"""
+        """アプリ側が例外を握りつぶしても suite が失敗になる。"""
         failures, report = self._run_suite_with(self._swallowing_suite)
 
         self.assertEqual(failures, 1)
         self.assertIn("外向き通信が 1 件遮断されました", report)
         self.assertIn("discord.com", report)
         self.assertIn("test_offline_runner.py", report)
+
+    def test_multiple_blocks_add_one_failure_and_report_the_count(self):
+        """遮断が複数件でも失敗数への加算は1件（件数はレポートで示す）。"""
+        def repeatedly_swallowing_suite(_self, _labels, **_kwargs):
+            for _ in range(3):
+                try:
+                    socket.getaddrinfo("discord.com", 443)
+                except OSError:
+                    pass
+            return 0
+
+        failures, report = self._run_suite_with(repeatedly_swallowing_suite)
+
+        self.assertEqual(failures, 1)
+        self.assertIn("外向き通信が 3 件遮断されました", report)
+
+    def test_report_does_not_include_source_lines(self):
+        """レポートにソース行を出さない（webhook URL 等のリテラル漏洩防止）。"""
+        secret_marker = "webhook-token-must-not-appear"
+
+        def suite_with_literal(_self, _labels, **_kwargs):
+            try:
+                # 遮断が起きる行そのものに秘密値リテラルを置く（旧実装ならこの行が出力された）。
+                socket.getaddrinfo("discord.example.invalid", 443, 0, 0, 0, 0)  # webhook-token-must-not-appear
+            except OSError:
+                pass
+            return 0
+
+        _, report = self._run_suite_with(suite_with_literal)
+
+        self.assertIn("test_offline_runner.py", report)
+        self.assertNotIn(secret_marker, report)
 
     def test_clean_suite_keeps_original_failure_count(self):
         """遮断が起きなければ元の失敗数をそのまま返す。"""

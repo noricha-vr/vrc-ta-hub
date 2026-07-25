@@ -1,11 +1,12 @@
 """通常テストから外向きネットワーク接続を遮断するtest runner。"""
 
 import ipaddress
+import os
 import socket
 import sys
 import threading
 import traceback
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -47,6 +48,7 @@ def _summarize_call_stack() -> tuple[str, ...]:
 
     urllib3 等のライブラリ内フレームだけだとどのテストか分からないため、
     プロジェクト内 (PROJECT_ROOT 配下、本ファイル除く) の直近フレームを先頭に置く。
+    ソース行そのものは出さない。webhook URL などのリテラルがCIログへ漏れるため。
     """
     frames = [
         frame for frame in traceback.extract_stack()
@@ -54,12 +56,12 @@ def _summarize_call_stack() -> tuple[str, ...]:
     ]
     project_frames = [
         frame for frame in frames
-        if frame.filename.startswith(PROJECT_ROOT)
+        if frame.filename.startswith(PROJECT_ROOT + os.sep)
     ]
     selected = project_frames[-2:] + frames[-BLOCKED_STACK_FRAME_LIMIT:]
-    lines = []
+    lines: list[str] = []
     for frame in selected:
-        line = f'{frame.filename}:{frame.lineno} in {frame.name} | {(frame.line or "").strip()}'
+        line = f"{frame.filename}:{frame.lineno} in {frame.name}"
         if line not in lines:
             lines.append(line)
     return tuple(lines)
@@ -103,6 +105,11 @@ class BlockedNetworkRecorder:
         with self._lock:
             return list(self.events)
 
+    def restore(self, events: Sequence[BlockedNetworkEvent]) -> None:
+        """snapshot で退避した記録を書き戻す（入れ子でrunnerを動かすテスト用）。"""
+        with self._lock:
+            self.events[:] = list(events)
+
 
 blocked_network_recorder = BlockedNetworkRecorder()
 
@@ -113,7 +120,7 @@ def _block(operation: str, target: object, message: str) -> NoReturn:
     raise ExternalNetworkBlockedError(message)
 
 
-def format_blocked_network_report(events: list[BlockedNetworkEvent]) -> str:
+def format_blocked_network_report(events: Sequence[BlockedNetworkEvent]) -> str:
     """遮断イベント一覧を stderr 向けのレポート文字列に整形する。"""
     header = (
         f"外向き通信が {len(events)} 件遮断されました "
@@ -174,17 +181,19 @@ class OfflineNetworkDiscoverRunner(DiscoverRunner):
     def run_tests(self, test_labels, **kwargs):
         """外向き通信を遮断した状態でDjango test suiteを実行する。
 
-        遮断が発生したら失敗数に加算する。アプリ側が requests の例外を握りつぶすと
+        遮断が発生したら失敗数に1加算する。アプリ側が requests の例外を握りつぶすと
         テストは緑のまま通るため、suite の終了コードで検出できるようにする。
+        件数は加算せず stderr レポート側に出す（失敗テスト数と混ざると誤読を招くため）。
         """
         blocked_network_recorder.reset()
         with block_external_network():
             failures = super().run_tests(test_labels, **kwargs)
 
         events = blocked_network_recorder.snapshot()
-        if events:
-            print(format_blocked_network_report(events), file=sys.stderr)
-        return failures + len(events)
+        if not events:
+            return failures
+        print(format_blocked_network_report(events), file=sys.stderr)
+        return failures + 1
 
 
 @contextmanager
