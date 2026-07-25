@@ -8,6 +8,7 @@
 """
 
 import os
+import tempfile
 from pathlib import Path
 
 from django.conf import settings
@@ -104,23 +105,37 @@ class Command(BaseCommand):
         return Path(settings.BASE_DIR) / DEFAULT_TOKEN_FILENAME
 
     def _write_token_file(self, path: Path, tokens: dict) -> None:
-        """トークンを 0600 のファイルへ書き出す。
+        """トークンを 0600 のファイルへ atomic に書き出す。
 
-        既存ファイルのパーミッションを引き継がないよう、書き込み前に
-        os.open(O_CREAT) のモード指定と chmod の両方で 0600 を保証する。
+        同一ディレクトリに 0600 の一時ファイルを作って書き切ってから os.replace で
+        差し替える。これにより
+        - 平文トークンが一瞬でも緩いパーミッションのファイルに載らない
+          （既存ファイルが 0644 でも、書き込み中の中身は一時ファイル側にある）
+        - 書き込み途中で失敗しても既存のトークンファイルを壊さない
+        の両方を満たす。
         """
         content = (
             f"X_ACCESS_TOKEN={tokens['oauth_token']}\n"
             f"X_ACCESS_TOKEN_SECRET={tokens['oauth_token_secret']}\n"
         )
+        tmp_fd, tmp_name = None, None
         try:
-            fd = os.open(
-                path,
-                os.O_WRONLY | os.O_CREAT | os.O_TRUNC,
-                TOKEN_FILE_MODE,
+            tmp_fd, tmp_name = tempfile.mkstemp(
+                dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
             )
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
+            # mkstemp は 0600 で作るが、環境差異に依存しないよう明示する
+            os.fchmod(tmp_fd, TOKEN_FILE_MODE)
+            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                tmp_fd = None  # fd の所有権は file object へ移る
                 f.write(content)
-            os.chmod(path, TOKEN_FILE_MODE)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_name, path)
+            tmp_name = None
         except OSError as e:
             raise CommandError(f"トークンの書き出しに失敗: {path}: {e}")
+        finally:
+            if tmp_fd is not None:
+                os.close(tmp_fd)
+            if tmp_name is not None and os.path.exists(tmp_name):
+                os.unlink(tmp_name)

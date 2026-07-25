@@ -177,10 +177,15 @@ class GenerateXTokenCommandTest(TestCase):
     @patch(
         "twitter.management.commands.generate_x_token.OAuth1Session"
     )
-    def test_existing_file_permissions_are_tightened(self, mock_session_cls, mock_input):
-        """既存ファイルが緩いパーミッションでも 0600 に強制される。"""
+    def test_existing_0644_file_is_replaced_not_written_in_place(self, mock_session_cls, mock_input):
+        """既存 0644 ファイルへ書き込まず、0600 の別 inode に差し替えること。
+
+        in-place 書き込みだと chmod するまでの間トークンが他ユーザーから読めるため、
+        「同じ inode を書き換えていない」ことまで確認する。
+        """
         self.output_path.write_text("stale", encoding="utf-8")
         os.chmod(self.output_path, 0o644)
+        old_inode = os.stat(self.output_path).st_ino
 
         mock_session_cls.side_effect = self._mock_oauth_sessions({
             "oauth_token": "token-no-name",
@@ -190,6 +195,56 @@ class GenerateXTokenCommandTest(TestCase):
         out, _ = self._call_command()
 
         self.assertIn("認証成功", out)
-        mode = stat.S_IMODE(os.stat(self.output_path).st_mode)
-        self.assertEqual(mode, 0o600)
         self.assertNotIn("token-no-name", out)
+        new_stat = os.stat(self.output_path)
+        self.assertEqual(stat.S_IMODE(new_stat.st_mode), 0o600)
+        self.assertNotEqual(new_stat.st_ino, old_inode)
+        self.assertIn(
+            "X_ACCESS_TOKEN=token-no-name",
+            self.output_path.read_text(encoding="utf-8"),
+        )
+
+    @patch.dict("os.environ", OAUTH1_ENV, clear=False)
+    @patch("builtins.input", return_value="654321")
+    @patch(
+        "twitter.management.commands.generate_x_token.OAuth1Session"
+    )
+    def test_write_failure_keeps_existing_token_file(self, mock_session_cls, mock_input):
+        """書き出しに失敗しても既存トークンファイルを壊さない。"""
+        self.output_path.write_text("X_ACCESS_TOKEN=previous\n", encoding="utf-8")
+        os.chmod(self.output_path, 0o600)
+
+        mock_session_cls.side_effect = self._mock_oauth_sessions({
+            "oauth_token": "new-token",
+            "oauth_token_secret": "new-secret",
+        })
+
+        with patch("os.replace", side_effect=OSError("disk full")):
+            with self.assertRaises(CommandError) as ctx:
+                self._call_command()
+
+        self.assertIn("トークンの書き出しに失敗", str(ctx.exception))
+        self.assertEqual(
+            self.output_path.read_text(encoding="utf-8"),
+            "X_ACCESS_TOKEN=previous\n",
+        )
+        self.assertNotIn("new-token", self.output_path.read_text(encoding="utf-8"))
+
+    @patch.dict("os.environ", OAUTH1_ENV, clear=False)
+    @patch("builtins.input", return_value="654321")
+    @patch(
+        "twitter.management.commands.generate_x_token.OAuth1Session"
+    )
+    def test_write_failure_does_not_leave_temp_file(self, mock_session_cls, mock_input):
+        """失敗時に平文トークンを含む一時ファイルを残さない。"""
+        mock_session_cls.side_effect = self._mock_oauth_sessions({
+            "oauth_token": "leaked-token",
+            "oauth_token_secret": "leaked-secret",
+        })
+
+        with patch("os.replace", side_effect=OSError("disk full")):
+            with self.assertRaises(CommandError):
+                self._call_command()
+
+        leftovers = list(Path(self._tmpdir.name).iterdir())
+        self.assertEqual(leftovers, [], f"一時ファイルが残っている: {leftovers}")
