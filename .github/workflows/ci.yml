@@ -105,12 +105,11 @@ jobs:
           EMAIL_FILE_PATH: "/tmp/emails"
         run: |
           # 実サービスへ接続する live smoke とブラウザE2Eだけを除外する。
-          # OfflineNetworkDiscoverRunner が loopback 以外への接続を拒否するため、
-          # dummy credentialを渡しても通常suiteから外向き通信は発生しない。
+          # 遮断runner (OfflineNetworkDiscoverRunner) は settings の TEST_RUNNER 既定で有効になるため、
+          # ここでCLI指定しない（ローカルとCIで同じ遮断条件にする）。
           # coverage 設定は ../pyproject.toml の [tool.coverage] を参照
           coverage run --rcfile=../pyproject.toml -m tests.offline_manage test \
             --exclude-tag=live_smoke --exclude-tag=e2e \
-            --testrunner=website.tests.offline_runner.OfflineNetworkDiscoverRunner \
             --noinput
           coverage report --rcfile=../pyproject.toml
 
@@ -153,7 +152,12 @@ jobs:
 
       - name: Run browser E2E tests
         working-directory: app
-        run: python manage.py test website.tests.e2e.test_user_journeys --tag=e2e --noinput --verbosity=2
+        # Playwright driver との通信経路が socket patch の影響を受けないことを確認できていないため、
+        # settings 既定の遮断 runner ではなく Django 標準 runner を明示する。
+        # E2E はブラウザ経由で loopback のテストサーバにしかアクセスしない前提。
+        run: |
+          python manage.py test website.tests.e2e.test_user_journeys --tag=e2e --noinput --verbosity=2 \
+            --testrunner=django.test.runner.DiscoverRunner
 
       - name: Upload E2E failure artifacts
         if: failure()

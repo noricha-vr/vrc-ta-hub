@@ -159,6 +159,9 @@ def build_execution(
     values = _load_profile_values(profile, environ, repo_root)
     child_env = {name: environ[name] for name in _SAFE_HOST_ENV if environ.get(name)}
     child_env["RUN_LIVE_SMOKE_TESTS"] = "1"
+    # settings 既定の遮断runnerを解除する。live smokeは実サービスへの疎通確認が目的で、
+    # 外向き通信を止めると全滅する（通常テストは既定のまま遮断される）。
+    child_env["ALLOW_EXTERNAL_TEST_NETWORK"] = "1"
     child_env.update(values)
 
     command = [
@@ -176,6 +179,8 @@ def build_execution(
         "--build",
         "-e",
         "RUN_LIVE_SMOKE_TESTS",
+        "-e",
+        "ALLOW_EXTERNAL_TEST_NETWORK",
     ]
 
     for name in profile.required_env:

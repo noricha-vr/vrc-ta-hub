@@ -182,6 +182,13 @@ if 'test' in sys.argv or TESTING:
         from cryptography.fernet import Fernet as _Fernet
         FERNET_KEY = _Fernet.generate_key().decode()
 
+    # ローカルの `manage.py test` も既定で外向き通信を遮断する。
+    # モック漏れがあると .env.local の実 DISCORD_WEBHOOK_URL などへ本物のリクエストが飛び、
+    # 管理者に偽の通知が届く事故が起きるため（Issue #547）。
+    # live_smoke タグのテストを実サービス相手に流す時だけ ALLOW_EXTERNAL_TEST_NETWORK=1 で解除する。
+    if os.environ.get('ALLOW_EXTERNAL_TEST_NETWORK', '').strip().lower() not in {'1', 'true', 'yes', 'on'}:
+        TEST_RUNNER = 'website.tests.offline_runner.OfflineNetworkDiscoverRunner'
+
 _settings_logger.info('DB_NAME: %s', _mask(DATABASES['default']['NAME']))
 
 # Cache settings
