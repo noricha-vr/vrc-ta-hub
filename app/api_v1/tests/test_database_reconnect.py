@@ -89,7 +89,10 @@ class DatabaseReconnectListMixinTest(SimpleTestCase):
         response = view(request)
 
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.data, {'detail': 'Database temporarily unavailable.'})
+        self.assertEqual(
+            response.data,
+            {'detail': 'Database temporarily unavailable.', 'code': 'database_unavailable'},
+        )
 
     def test_list_returns_503_when_mysql_handshake_failure_persists(self):
         view = HandshakeFailureRetryingListViewSet.as_view({'get': 'list'})
@@ -98,7 +101,10 @@ class DatabaseReconnectListMixinTest(SimpleTestCase):
         response = view(request)
 
         self.assertEqual(response.status_code, 503)
-        self.assertEqual(response.data, {'detail': 'Database temporarily unavailable.'})
+        self.assertEqual(
+            response.data,
+            {'detail': 'Database temporarily unavailable.', 'code': 'database_unavailable'},
+        )
 
     def test_list_does_not_retry_non_disconnect_operational_error(self):
         view = NonRetryableListViewSet.as_view({'get': 'list'})

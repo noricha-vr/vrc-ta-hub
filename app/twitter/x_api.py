@@ -62,9 +62,10 @@ def _is_valid_image_bytes(data: bytes) -> bool:
     return False
 
 
-# ログに出す X API エラー body の上限。全量（1000B）出力はトークン・ユーザー入力を
-# 含みうるうえログを膨らませるため、原因特定に必要な先頭部分 + errorCode だけに絞る。
-ERROR_BODY_LOG_MAX_LENGTH = 200
+# ログに出す X API エラー body の上限（UTF-8 バイト数）。全量（1000B）出力はトークン・
+# ユーザー入力を含みうるうえログを膨らませるため、原因特定に必要な先頭部分 + errorCode
+# だけに絞る。日本語・絵文字を含む body でも上限を超えないよう文字数ではなくバイト数で切る。
+ERROR_BODY_LOG_MAX_BYTES = 200
 
 
 def _extract_error_code(body: str | None) -> str | None:
@@ -96,13 +97,22 @@ def _extract_error_code(body: str | None) -> str | None:
     return None
 
 
+def _truncate_utf8(text: str, max_bytes: int) -> str:
+    """UTF-8 エンコード時に max_bytes を超えないよう文字境界で切り詰める。"""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+    # 途中で切れたマルチバイト列は捨てる（errors="ignore"）
+    return encoded[:max_bytes].decode("utf-8", errors="ignore")
+
+
 def _summarize_error_body(body: str | None) -> str:
-    """ログ出力用にエラー body を先頭 200B + errorCode へ縮小する。"""
-    snippet = (body or "")[:ERROR_BODY_LOG_MAX_LENGTH]
+    """ログ出力用にエラー body を先頭 200 バイト + errorCode へ縮小する。"""
+    snippet = _truncate_utf8(body or "", ERROR_BODY_LOG_MAX_BYTES)
     code = _extract_error_code(body)
     if code:
-        return f"errorCode={code} body[:{ERROR_BODY_LOG_MAX_LENGTH}]={snippet}"
-    return f"body[:{ERROR_BODY_LOG_MAX_LENGTH}]={snippet}"
+        return f"errorCode={code} body[:{ERROR_BODY_LOG_MAX_BYTES}B]={snippet}"
+    return f"body[:{ERROR_BODY_LOG_MAX_BYTES}B]={snippet}"
 
 
 def _should_block_x_api_in_tests() -> bool:

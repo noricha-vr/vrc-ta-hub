@@ -14,9 +14,50 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from rest_framework.exceptions import NotFound, ValidationError
+
+from api_v1.exception_handler import api_exception_handler
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 from user_account.models import APIKey, CustomUser
+
+
+class ExceptionHandlerTest(TestCase):
+    """共通例外ハンドラの code / detail 決定ロジック"""
+
+    def _handle(self, exc):
+        return api_exception_handler(exc, {})
+
+    def test_field_validation_error_uses_unified_validation_code(self):
+        """フィールド別 ValidationError も top-level は validation_error に統一"""
+        response = self._handle(ValidationError({'start_time': ['開始時刻が不正です。']}))
+
+        self.assertEqual(response.data['code'], 'validation_error')
+
+    def test_non_field_validation_error_uses_unified_validation_code(self):
+        """非フィールドの ValidationError（リスト形式）も同じ code"""
+        response = self._handle(ValidationError(['入力が不正です。']))
+
+        self.assertEqual(response.data['code'], 'validation_error')
+
+    def test_field_validation_detail_uses_field_message_not_english_default(self):
+        """detail は英語 default_detail ではなくフィールドの日本語メッセージを使う"""
+        response = self._handle(ValidationError({'start_time': ['開始時刻が不正です。']}))
+
+        self.assertEqual(response.data['detail'], '開始時刻が不正です。')
+        self.assertEqual(response.data['start_time'], ['開始時刻が不正です。'])
+
+    def test_field_validation_detail_ignores_injected_code_value(self):
+        """detail 決定に、追記した code の値を拾わない"""
+        response = self._handle(ValidationError({'event': ['イベントが存在しません。']}))
+
+        self.assertEqual(response.data['detail'], 'イベントが存在しません。')
+
+    def test_non_validation_error_keeps_drf_code(self):
+        """ValidationError 以外は DRF の code をそのまま使う"""
+        response = self._handle(NotFound())
+
+        self.assertEqual(response.data['code'], 'not_found')
 
 
 class APIKeyAuthErrorFormatTest(TestCase):
