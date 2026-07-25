@@ -74,6 +74,20 @@ class LiveSmokeExecutionTest(unittest.TestCase):
         self.assertTrue(any("test_generate_blog_video_and_pdf" in item for item in command))
         self.assertFalse(any("test_generate_blog_pdf_only" in item for item in command))
 
+    def test_external_network_is_allowed_in_the_live_smoke_container(self):
+        """settings 既定の遮断runnerを解除する環境変数がcontainerへ渡る。"""
+        environ = {**self.base_env, "OPENROUTER_API_KEY": "real-openrouter-secret"}
+
+        command, child_env = build_execution(
+            "openrouter",
+            (),
+            environ=environ,
+            repo_root=self.repo_root,
+        )
+
+        self.assertEqual(child_env["ALLOW_EXTERNAL_TEST_NETWORK"], "1")
+        self.assertIn("ALLOW_EXTERNAL_TEST_NETWORK", command)
+
     def test_env_file_reads_only_profile_allowlist(self):
         env_file = self.repo_root / ".env.local"
         env_file.write_text(
