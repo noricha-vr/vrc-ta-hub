@@ -37,7 +37,8 @@ export PATH="$TMP_DIR:$PATH"
 assert_contains "python -m tests.offline_manage test twitter.tests.test_x_api"
 assert_contains "--exclude-tag=live_smoke"
 assert_contains "--exclude-tag=e2e"
-assert_contains "--testrunner=website.tests.offline_runner.OfflineNetworkDiscoverRunner"
+# 遮断runnerは settings (TEST_RUNNER) が正本。CLI指定を復活させない。
+assert_not_contains "--testrunner="
 assert_not_contains "python manage.py test twitter.tests.test_x_api"
 
 : > "$CALLS_FILE"
@@ -45,7 +46,7 @@ OPENROUTER_API_KEY=real-openrouter-secret \
   "$REPO_ROOT/scripts/run_tests.sh" --live-smoke openrouter
 assert_contains "compose --project-name vrc-ta-hub-live-smoke"
 assert_contains "run --rm --no-deps --build"
-assert_contains "-e RUN_LIVE_SMOKE_TESTS -e OPENROUTER_API_KEY"
+assert_contains "-e RUN_LIVE_SMOKE_TESTS -e ALLOW_EXTERNAL_TEST_NETWORK -e OPENROUTER_API_KEY"
 assert_contains "live-smoke python manage.py test"
 assert_contains "--tag=live_smoke"
 assert_not_contains "tests.offline_manage"
