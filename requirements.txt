@@ -38,5 +38,8 @@ structlog==25.1.0
 mypy==1.14.1
 django-stubs==5.1.2
 djangorestframework-stubs==3.15.2
+# mypy 用の型スタブ（bleach / markdown 本体には型情報が同梱されていない）
+types-bleach==6.4.0.20260607
+types-Markdown==3.10.2.20260712
 sentry-sdk[django]==2.21.0
 cryptography==48.0.0

@@ -11,6 +11,12 @@ from typing import Optional
 
 from googleapiclient.discovery import build
 from openai import OpenAI
+from openai.types.chat import (
+    ChatCompletionMessageParam,
+    ChatCompletionNamedToolChoiceParam,
+    ChatCompletionToolParam,
+)
+from openai.types.shared_params import FunctionDefinition
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -233,26 +239,33 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
 
         try:
             # BlogOutputスキーマを関数定義形式に変換
-            blog_output_schema = {
+            blog_output_schema: FunctionDefinition = {
                 "name": "generate_blog_post",
                 "description": "VRChatイベントの発表内容に基づいてブログ記事を生成する",
                 "parameters": BlogOutput.model_json_schema(),
-                "required": ["title", "meta_description", "text"]
+            }
+            messages: list[ChatCompletionMessageParam] = [
+                {"role": "system",
+                 "content": "あなたはVRChatの技術イベントに関するブログ記事を生成する専門のライターです。必ず指定されたJSON形式で出力してください。"},
+                {"role": "user", "content": prompt_text},
+            ]
+            tools: list[ChatCompletionToolParam] = [
+                {"type": "function", "function": blog_output_schema}
+            ]
+            tool_choice: ChatCompletionNamedToolChoiceParam = {
+                "type": "function",
+                "function": {"name": "generate_blog_post"},
             }
 
             # Function Callingを使用したリクエスト
             completion = client.chat.completions.create(
                 extra_headers=build_openrouter_extra_headers(),
                 model=model,
-                messages=[
-                    {"role": "system",
-                     "content": "あなたはVRChatの技術イベントに関するブログ記事を生成する専門のライターです。必ず指定されたJSON形式で出力してください。"},
-                    {"role": "user", "content": prompt_text}
-                ],
+                messages=messages,
                 temperature=0.3,  # 温度を下げて出力の安定性を向上
                 max_tokens=5000,
-                tools=[{"type": "function", "function": blog_output_schema}],
-                tool_choice={"type": "function", "function": {"name": "generate_blog_post"}}
+                tools=tools,
+                tool_choice=tool_choice,
             )
 
             # デバッグ用：APIリクエスト終了時刻とかかった時間を記録
@@ -300,6 +313,10 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
 
             # レスポンスからテキストを取得（Function Calling未対応の場合のフォールバック）
             response_text = message.content
+            # content が空なら tool_calls も content も無い異常応答なので、後段で
+            # 曖昧に落ちる前にここで失敗させる
+            if not response_text:
+                raise ValueError("OpenRouter response has neither tool_calls nor content")
             logger.info(f"Raw response from OpenRouter:\n{response_text[:500]}...")
 
             # 以下はJSON抽出の既存コード
