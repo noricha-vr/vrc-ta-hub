@@ -252,7 +252,7 @@ def convert_markdown(markdown_text: str, auto_format: bool = False) -> str:
     logger.debug("Normalized markdown text:")
     logger.debug(markdown_text)
 
-    html = markdown.markdown(markdown_text, extensions=_MARKDOWN_EXTENSIONS)
+    html: str = markdown.markdown(markdown_text, extensions=_MARKDOWN_EXTENSIONS)
     logger.debug("Generated HTML before BeautifulSoup:")
     logger.debug(html)
 
