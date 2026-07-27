@@ -301,6 +301,69 @@ class EventDeleteViewPermissionTest(TweetGenerationPatchMixin, TestCase):
         calendar_service_class.return_value.delete_event.assert_not_called()
         self.assertContains(response, '親イベントを含む削除を中止しました')
 
+    @patch('event.views.crud.GoogleCalendarService')
+    def test_cascade_abort_does_not_skip_unlocked_child(
+        self,
+        calendar_service_class,
+    ):
+        """親削除がロックで中止されても、ロック外の子は個別に削除される
+
+        中止した cascade の開催回を processed 済み扱いにすると、同一リクエストの
+        後続ループで未削除の子がスキップされ「消えたはずが残る」不整合になるため。
+        """
+        rule = RecurrenceRule.objects.create(
+            community=self.community,
+            frequency='WEEKLY',
+        )
+        self.event.is_recurring_master = True
+        self.event.recurrence_rule = rule
+        self.event.save(update_fields=['is_recurring_master', 'recurrence_rule'])
+
+        # ロック期間内の子（この子のせいで親の cascade 削除が中止される）
+        locked_date = date.today() + timedelta(days=1)
+        locked_child = Event.objects.create(
+            community=self.community,
+            date=locked_date,
+            start_time=self.event.start_time,
+            duration=60,
+            recurring_master=self.event,
+        )
+        # ロック期間外の子（親の cascade には含まれるが、単体では削除可能）
+        unlocked_date = date.today() + timedelta(days=30)
+        unlocked_child = Event.objects.create(
+            community=self.community,
+            date=unlocked_date,
+            start_time=self.event.start_time,
+            duration=60,
+            recurring_master=self.event,
+        )
+        collaboration = VketCollaboration.objects.create(
+            slug='cascade-abort-child',
+            name='Vket子開催回ロック',
+            period_start=locked_date,
+            period_end=locked_date,
+            registration_deadline=locked_date,
+            lt_deadline=locked_date,
+        )
+        VketParticipation.objects.create(
+            collaboration=collaboration,
+            community=self.community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+        self.client.login(username='Owner User', password='ownerpass123')
+
+        self.client.post(
+            reverse('event:delete', kwargs={'pk': self.event.pk}),
+            {'delete_subsequent': 'on'},
+            follow=True,
+        )
+
+        # 親とロック中の子は残る（cascade 中止）
+        self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
+        self.assertTrue(Event.objects.filter(pk=locked_child.pk).exists())
+        # ロック外の子は後続ループで個別に削除される
+        self.assertFalse(Event.objects.filter(pk=unlocked_child.pk).exists())
+
     def test_staff_cannot_delete_event(self):
         """スタッフはイベントを削除できない"""
         self.client.login(username='Staff User', password='staffpass123')

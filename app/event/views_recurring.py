@@ -15,6 +15,10 @@ from .models import RecurrenceRule
 from .recurrence_service import RecurrenceService
 
 
+class RecurrenceGenerationError(Exception):
+    """定期イベントを1件も生成できなかったことを示す（atomic をロールバックさせる）。"""
+
+
 @login_required
 def create_recurring_event(request, community_id):
     """定期イベントの作成"""
@@ -51,12 +55,20 @@ def create_recurring_event(request, community_id):
                         months=3  # デフォルト3ヶ月分生成
                     )
                     
-                    if events:
-                        messages.success(request, f'{len(events)}件の定期イベントを作成しました。')
-                        # 最初のイベントの詳細ページへリダイレクト
-                        return redirect('event:detail', event_id=events[0].id)
-                    else:
-                        messages.error(request, 'イベントの作成に失敗しました。')
+                    if not events:
+                        # 全候補日が tombstone / 既存イベントで埋まっている場合。
+                        # ここで raise しないと RecurrenceRule だけが
+                        # イベントなしの孤児として commit される。
+                        raise RecurrenceGenerationError(
+                            '生成対象の開催日がありません（削除済み・既存イベントと重複）。'
+                        )
+
+                    messages.success(request, f'{len(events)}件の定期イベントを作成しました。')
+                    # 最初のイベントの詳細ページへリダイレクト
+                    return redirect('event:detail', event_id=events[0].id)
+
+            except RecurrenceGenerationError as exc:
+                messages.error(request, f'イベントの作成に失敗しました。{exc}')
             
             except Exception:
                 logger.exception("定期イベント処理中にエラーが発生")

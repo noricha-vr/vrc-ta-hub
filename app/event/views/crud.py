@@ -350,9 +350,11 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
             if event_to_delete.pk in processed_event_ids:
                 continue
             occurrences = get_cascade_occurrences(event_to_delete)
-            processed_event_ids.update(occurrence.pk for occurrence in occurrences)
             lock_message = self._get_cascade_lock_message(request, occurrences)
             if lock_message:
+                # 削除を中止した開催回は processed に入れない。
+                # 入れると後続ループで未削除の兄弟がスキップされ、
+                # 「親とロック中の子だけ残り以降が消える」不整合になる。
                 messages.warning(
                     request,
                     f"{lock_message} 親イベントを含む削除を中止しました。",
@@ -371,6 +373,11 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
                     occurrences,
                 )
                 success_count += deleted_count
+                # 実際に削除できた開催回だけを processed に記録する
+                # （CASCADE で消えた子を後続ループが再処理しないため）。
+                processed_event_ids.update(
+                    occurrence.pk for occurrence in occurrences
+                )
                 logger.info(
                     "データベースからの削除成功: root_id=%s count=%s",
                     root_event_id,
