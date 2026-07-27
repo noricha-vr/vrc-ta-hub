@@ -62,14 +62,11 @@ def _create_google_event(self, event: Event):
 ### 1. HTTPエンドポイント経由
 ```bash
 # カレンダー更新エンドポイント
-curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/update/
+curl -X GET -H "Request-Token: YOUR_REQUEST_TOKEN" https://vrc-ta-hub.com/event/sync/
 ```
-- **ファイル**: `app/event/views.py`の`update_google_calendar()`関数
+- **ファイル**: `app/event/views/sync.py`の`sync_calendar_events()`関数
 - **認証**: REQUEST_TOKENヘッダーが必要
-- **処理内容**: 
-  1. Googleカレンダーからイベントを取得
-  2. DBにイベントを保存
-  3. DBからGoogleカレンダーへの逆同期を実行
+- **処理内容**: `DatabaseToGoogleSync` に委譲して、DBのイベントをGoogleカレンダーへ同期する。Googleカレンダー側の変更はDBへ取り込まない。
 
 ### 2. 管理コマンド
 ```bash
