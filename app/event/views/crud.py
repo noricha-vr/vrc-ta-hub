@@ -51,6 +51,16 @@ class EventDateUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             return redirect('event:my_list')
         return super().handle_no_permission()
 
+    def dispatch(self, request, *args, **kwargs):
+        # 過去イベントの変更はブロック（URL 直叩き対策）。
+        # 判定基準は EventUpdateView.dispatch と my_list の _attach_edit_flags に揃える。
+        if request.user.is_authenticated:
+            event = get_object_or_404(Event, pk=kwargs.get('pk'))
+            if event.date < get_vrchat_today():
+                messages.error(request, '過去のイベントは開催日を変更できません。')
+                return redirect('event:my_list')
+        return super().dispatch(request, *args, **kwargs)
+
     def get_form_kwargs(self):
         """ModelFormがinstanceを書き換える前の開催日を保持する。"""
         self.original_date = self.object.date
@@ -129,6 +139,10 @@ class EventDateUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             event_id=event.google_calendar_event_id,
             start_time=start_at,
             end_time=start_at + timedelta(minutes=event.duration),
+            # description も更新する（本文内「開催日時」が旧日付のまま残ると、
+            # 後続の DB→Google 同期が日時+ID 一致で skipped 判定になり恒久的に矛盾する）。
+            # sync 側と同じ生成関数を使って文面のドリフトを防ぐ。EventUpdateView と同規約。
+            description=build_google_event_description(event),
         )
 
 

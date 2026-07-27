@@ -1,9 +1,9 @@
 """イベント検索・作成フォーム。"""
 
 from django import forms
-from django.utils import timezone
 
 from community.models import WEEKDAY_CHOICES, TAGS
+from utils.vrchat_time import get_vrchat_today
 from ..models import Event
 
 
@@ -101,13 +101,15 @@ class EventDateUpdateForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['date'].widget.attrs['min'] = (
-            timezone.localdate().isoformat()
+            get_vrchat_today().isoformat()
         )
 
     def clean_date(self):
         """当日以降かつ同時刻の重複がない開催日を返す。"""
         new_date = self.cleaned_data['date']
-        if new_date < timezone.localdate():
+        # 「今日」の基準は my_list の編集可否判定・EventUpdateView と揃える
+        # （深夜0-4時の開催回を過去扱いして編集不能にしないため）
+        if new_date < get_vrchat_today():
             raise forms.ValidationError('開催日は本日以降を指定してください。')
 
         duplicate = Event.objects.filter(

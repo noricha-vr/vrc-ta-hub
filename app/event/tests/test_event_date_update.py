@@ -217,6 +217,49 @@ class EventDateUpdateViewTests(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(self.event.date, new_date)
 
     @patch('event.views.crud.GoogleCalendarService')
+    def test_google_update_includes_new_date_in_description(
+        self,
+        calendar_service_class,
+    ):
+        """description も新日付で再生成する（旧日付が残ると同期が skipped で矛盾固定される）"""
+        self.event.google_calendar_event_id = 'calendar-id'
+        self.event.save(update_fields=['google_calendar_event_id'])
+        new_date = self.original_date + timedelta(days=1)
+        self.client.force_login(self.owner)
+
+        self._post_date(new_date)
+
+        call_kwargs = (
+            calendar_service_class.return_value.update_event.call_args.kwargs
+        )
+        self.assertIn('description', call_kwargs)
+        self.assertIn(
+            new_date.strftime('%Y年%m月%d日'),
+            call_kwargs['description'],
+        )
+        self.assertNotIn(
+            self.original_date.strftime('%Y年%m月%d日'),
+            call_kwargs['description'],
+        )
+
+    def test_past_event_cannot_be_opened(self):
+        """過去イベントの開催日変更は URL 直叩きでもブロックする（鉛筆と同基準）"""
+        past_event = Event.objects.create(
+            community=self.community,
+            date=self.today - timedelta(days=3),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='MON',
+        )
+        self.client.force_login(self.owner)
+
+        response = self.client.get(
+            reverse('event:date_update', kwargs={'pk': past_event.pk}),
+        )
+
+        self.assertRedirects(response, reverse('event:my_list'))
+
+    @patch('event.views.crud.GoogleCalendarService')
     def test_google_update_failure_keeps_database_move(
         self,
         calendar_service_class,
@@ -331,8 +374,7 @@ class EventDateUpdateViewTests(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(queue.status, 'posted')
 
     def test_past_rescheduled_reminder_is_skipped(self):
-        self.event.date = self.today - timedelta(days=2)
-        self.event.save(update_fields=['date'])
+        """移動後の予約日時が既に過ぎているリマインドは skipped にする"""
         queue = TweetQueue.objects.create(
             tweet_type='daily_reminder',
             community=self.community,
@@ -341,6 +383,7 @@ class EventDateUpdateViewTests(TweetGenerationPatchMixin, TestCase):
             scheduled_at=scheduled_at_for_date(self.event.date),
         )
         self.client.force_login(self.owner)
+        # 当日へ移動する。移動先の予約時刻を過ぎた時点を now とみなす
         after_schedule = timezone.make_aware(
             datetime.combine(self.today, time(20, 0)),
             timezone.get_current_timezone(),
