@@ -412,9 +412,7 @@ https://youtu.be/5CW4LqaRkmY
 
 https://youtu.be/VWJCk4A46-w
 
-## 7月27日（日）- ML集会
-
-<!-- 当初7月15日（水）21:30予定から7月27日（日）に変更。開始時間・動画URLはYouTube公開後に概要欄で確定する -->
+## 7月27日（日）21:30 - ML集会
 
 ### vrcpilot: VRChatにAIアバターを生み出すツール
 
@@ -422,7 +420,7 @@ https://youtu.be/VWJCk4A46-w
 
 [イベント詳細](/event/detail/796/)
 
-<!-- 動画URL待ち: 2026-07-27時点で未公開（ML集会チャンネル・Hubチャンネルとも配信予約なし） -->
+https://youtu.be/w-eQyvRPbZM
 
 ## 🔗 関連リンク
 
