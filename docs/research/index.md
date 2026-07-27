@@ -4,6 +4,7 @@
 
 ## レポート一覧
 
+- [Issue #542 Google→DB 同期デッドコード削除](issue-542-google-to-db-sync-removal.md) — DB→Google の正規経路を維持し、旧方向の未使用実装・参照・テストを削除した判断記録
 - [Issue #529 offline runner と Docker network-none の遮断結果](issue-529-offline-network-none.md) — Python の遮断例外と network namespace の errno を分けた回帰テスト方針
 - [Issue #522 X-Forwarded-Proto 調査](issue-522-x-forwarded-proto.md) — Cloud Run の TLS 終端値を nginx から Django へ透過し、絶対 URL が HTTP へ戻る回帰を防ぐ
 - [Issue #513 LLM 向け Markdown エンドポイント](issue-513-llm-markdown-endpoints.md) — `/llms.txt` と `/index.md` のキャッシュ共有・縮退・検証方針

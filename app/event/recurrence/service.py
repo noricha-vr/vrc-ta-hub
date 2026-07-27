@@ -11,6 +11,7 @@
     - create_recurring_events(community, rule, base_date, start_time, duration, months=3)
 """
 import datetime
+import logging
 from datetime import date
 from typing import TYPE_CHECKING, Dict, List, Optional
 
@@ -24,6 +25,8 @@ from event.recurrence import persistence as _persistence
 
 if TYPE_CHECKING:
     from community.models import Community
+
+logger = logging.getLogger(__name__)
 
 
 class RecurrenceService:
@@ -116,10 +119,12 @@ class RecurrenceService:
                 'dates': [d.strftime('%Y-%m-%d') for d in dates],
                 'count': len(dates),
             }
-        except Exception as e:
+        except Exception:
+            # 例外の生文字列は API レスポンスまで伝播するため返さない（内部情報漏洩防止）。
+            logger.exception('Unexpected error in preview_dates')
             return {
                 'success': False,
-                'error': str(e),
+                'error': '日付の生成に失敗しました',
                 'dates': [],
                 'count': 0,
             }

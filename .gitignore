@@ -88,6 +88,8 @@ local_settings.py
 .env
 .env.local
 .env.production.local
+# generate_x_token が書き出す X アクセストークン（0600）
+.x-token.env
 db.sqlite3
 test_db.sqlite3
 app/test_db.sqlite3

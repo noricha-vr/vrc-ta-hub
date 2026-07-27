@@ -4,6 +4,7 @@ OAuth 1.0a User Context で @vrc_ta_hub 公式アカウントにツイートを�
 トークンは環境変数で管理（無期限のため DB 保存・リフレッシュ不要）。
 """
 
+import json
 import logging
 import os
 from typing import TypedDict
@@ -59,6 +60,59 @@ def _is_valid_image_bytes(data: bytes) -> bool:
     if len(data) >= 12 and data[0:4] == b"RIFF" and data[8:12] == b"WEBP":
         return True
     return False
+
+
+# ログに出す X API エラー body の上限（UTF-8 バイト数）。全量（1000B）出力はトークン・
+# ユーザー入力を含みうるうえログを膨らませるため、原因特定に必要な先頭部分 + errorCode
+# だけに絞る。日本語・絵文字を含む body でも上限を超えないよう文字数ではなくバイト数で切る。
+ERROR_BODY_LOG_MAX_BYTES = 200
+
+
+def _extract_error_code(body: str | None) -> str | None:
+    """X API のエラー body から機械可読な errorCode を抽出する。
+
+    v2 形式 ``{"title": ..., "type": ...}`` と v1.1 形式
+    ``{"errors": [{"code": 187, ...}]}`` の双方に対応する。抽出できなければ None。
+    """
+    if not body:
+        return None
+    try:
+        data = json.loads(body)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    errors = data.get("errors")
+    if isinstance(errors, list) and errors and isinstance(errors[0], dict):
+        for key in ("code", "type", "title"):
+            value = errors[0].get(key)
+            if value is not None:
+                return str(value)
+
+    for key in ("type", "title", "code"):
+        value = data.get(key)
+        if value is not None:
+            return str(value)
+    return None
+
+
+def _truncate_utf8(text: str, max_bytes: int) -> str:
+    """UTF-8 エンコード時に max_bytes を超えないよう文字境界で切り詰める。"""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return text
+    # 途中で切れたマルチバイト列は捨てる（errors="ignore"）
+    return encoded[:max_bytes].decode("utf-8", errors="ignore")
+
+
+def _summarize_error_body(body: str | None) -> str:
+    """ログ出力用にエラー body を先頭 200 バイト + errorCode へ縮小する。"""
+    snippet = _truncate_utf8(body or "", ERROR_BODY_LOG_MAX_BYTES)
+    code = _extract_error_code(body)
+    if code:
+        return f"errorCode={code} body[:{ERROR_BODY_LOG_MAX_BYTES}B]={snippet}"
+    return f"body[:{ERROR_BODY_LOG_MAX_BYTES}B]={snippet}"
 
 
 def _should_block_x_api_in_tests() -> bool:
@@ -156,9 +210,9 @@ def upload_media(image_url: str) -> str | None:
         logger.error("Failed to upload media: %s", e)
         if hasattr(e, "response") and e.response is not None:
             logger.error(
-                "Response status: %s body: %s",
+                "Response status: %s %s",
                 e.response.status_code,
-                e.response.text[:1000],
+                _summarize_error_body(e.response.text),
             )
         return None
 
@@ -212,7 +266,7 @@ def post_tweet(text: str, media_ids: list[str] | None = None) -> PostTweetResult
         if not tweet_id:
             logger.error(
                 "Tweet post returned 2xx but response has no tweet id: %s",
-                response.text[:1000],
+                _summarize_error_body(response.text),
             )
             return _failure_result(
                 status_code=response.status_code,
@@ -226,10 +280,11 @@ def post_tweet(text: str, media_ids: list[str] | None = None) -> PostTweetResult
         error_body = str(e)
         if hasattr(e, "response") and e.response is not None:
             status_code = e.response.status_code
+            # 通知（Discord）用の error_body は従来どおり 1000B 保持し、ログだけ縮小する。
             error_body = e.response.text[:1000]
             logger.error(
-                "Response status: %s body: %s",
+                "Response status: %s %s",
                 status_code,
-                error_body,
+                _summarize_error_body(e.response.text),
             )
         return _failure_result(status_code=status_code, error_body=error_body)

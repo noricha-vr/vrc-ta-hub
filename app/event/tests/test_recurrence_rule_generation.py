@@ -326,3 +326,24 @@ class TestRecurrenceRuleGeneration(TestCase):
         self.assertIn('dates', response.data)
         self.assertIn('success', response.data)
         self.assertIn('count', response.data)
+
+
+class TestPreviewDatesErrorSanitization(TestCase):
+    """preview_dates が予期しない例外の生文字列をレスポンスに載せないこと（内部情報漏洩防止）"""
+
+    def test_unexpected_exception_returns_generic_error(self):
+        service = RecurrenceService(llm_service=FakeEventDateLlmService())
+
+        # base_date=None は generate_dates 内で AttributeError を起こす（予期しない例外の代表）
+        result = service.preview_dates(
+            frequency='WEEKLY',
+            custom_rule='',
+            base_date=None,
+            base_time=time(22, 0),
+        )
+
+        self.assertFalse(result['success'])
+        self.assertEqual(result['error'], '日付の生成に失敗しました')
+        self.assertNotIn('NoneType', result['error'])
+        self.assertEqual(result['dates'], [])
+        self.assertEqual(result['count'], 0)

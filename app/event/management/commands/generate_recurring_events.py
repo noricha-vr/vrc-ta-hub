@@ -156,13 +156,13 @@ class Command(BaseCommand):
             dates = exclude_tombstoned_dates(community, dates)
             
             # 既存のイベントを除外
+            # 開始時刻を編集済みのイベントを重複生成しないため date 単位で判定
             new_dates = []
             for date in dates:
                 if date >= base_date and date <= end_date:
                     exists = Event.objects.filter(
                         community=community,
                         date=date,
-                        start_time=community.start_time
                     ).exists()
                     if not exists:
                         new_dates.append(date)

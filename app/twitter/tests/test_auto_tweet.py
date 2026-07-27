@@ -8,6 +8,7 @@ import datetime
 from django.db import DatabaseError, IntegrityError, OperationalError, transaction
 from unittest.mock import MagicMock, Mock, patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, TransactionTestCase, override_settings, tag
 from django.urls import reverse
@@ -943,9 +944,11 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertEqual(first.status, "posted")
         self.assertEqual(second.status, "ready")
 
+    @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
+    @patch("twitter.notifications.requests.post")
     @patch("twitter.views.post_tweet")
-    def test_post_scheduled_tweets_post_failure(self, mock_post):
-        """X API 投稿失敗時の処理"""
+    def test_post_scheduled_tweets_post_failure(self, mock_post, mock_webhook_post):
+        """X API 投稿失敗時にキューが failed になり管理者へ通知が送られる"""
         mock_post.return_value = {"ok": False, "data": None, "status_code": 403, "error_body": "You are not permitted to perform this action."}
 
         TweetQueue.objects.create(
@@ -969,6 +972,12 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
 
         queue = TweetQueue.objects.first()
         self.assertEqual(queue.status, "failed")
+
+        mock_webhook_post.assert_called_once()
+        self.assertEqual(
+            mock_webhook_post.call_args.args[0],
+            settings.DISCORD_WEBHOOK_URL,
+        )
 
     def test_post_scheduled_tweets_empty_queue(self):
         """キューが空の場合の処理"""

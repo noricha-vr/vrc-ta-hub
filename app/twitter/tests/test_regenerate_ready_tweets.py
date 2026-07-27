@@ -9,6 +9,7 @@ from io import StringIO
 from unittest.mock import patch
 
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
 from community.models import Community
@@ -45,6 +46,13 @@ class RegenerateReadyTweetsCommandTest(TestCase):
         out = StringIO()
         call_command("regenerate_ready_tweets", *args, stdout=out)
         return out.getvalue()
+
+    def _call_expecting_failure(self, *args):
+        """失敗時に CommandError（exit code 1）で終わることを前提に呼ぶ。"""
+        out = StringIO()
+        with self.assertRaises(CommandError) as ctx:
+            call_command("regenerate_ready_tweets", *args, stdout=out)
+        return str(ctx.exception)
 
     def test_dry_run_does_not_update_db(self):
         """--dry-run では DB が更新されない"""
@@ -128,11 +136,11 @@ class RegenerateReadyTweetsCommandTest(TestCase):
 
         with patch("twitter.management.commands.regenerate_ready_tweets.get_generator") as mock_get:
             mock_get.return_value = lambda qi: None
-            output = self._call()
+            message = self._call_expecting_failure()
 
         item.refresh_from_db()
         self.assertEqual(item.generated_text, over_limit)
-        self.assertIn("失敗=1", output)
+        self.assertIn("失敗=1", message)
 
     def test_unknown_tweet_type_is_skipped(self):
         """get_generator が None を返した場合はスキップし失敗扱いになる"""
@@ -141,11 +149,11 @@ class RegenerateReadyTweetsCommandTest(TestCase):
 
         with patch("twitter.management.commands.regenerate_ready_tweets.get_generator") as mock_get:
             mock_get.return_value = None
-            output = self._call()
+            message = self._call_expecting_failure()
 
         item.refresh_from_db()
         self.assertEqual(item.generated_text, over_limit)
-        self.assertIn("失敗=1", output)
+        self.assertIn("失敗=1", message)
 
     def test_non_ready_queues_are_ignored(self):
         """ready 以外の status は対象外"""
@@ -208,3 +216,51 @@ class RegenerateReadyTweetsCommandTest(TestCase):
 
         item.refresh_from_db()
         self.assertEqual(item.status, "ready")
+
+    def test_generator_exception_raises_command_error(self):
+        """生成関数が例外を投げた場合も CommandError で異常終了する"""
+        over_limit = "行1\n行2\n行3\n行4\nhttps://example.com"
+        item = self._create_queue(over_limit)
+
+        def _raise(_queue_item):
+            raise RuntimeError("LLM error")
+
+        with patch("twitter.management.commands.regenerate_ready_tweets.get_generator") as mock_get:
+            mock_get.return_value = _raise
+            message = self._call_expecting_failure()
+
+        item.refresh_from_db()
+        self.assertEqual(item.generated_text, over_limit)
+        self.assertIn("失敗=1", message)
+
+    def test_partial_failure_still_raises_command_error(self):
+        """一部だけ失敗した場合も見逃さず異常終了する"""
+        over_limit = "行1\n行2\n行3\n行4\nhttps://example.com"
+        ok_item = self._create_queue(over_limit)
+        ng_item = self._create_queue(over_limit)
+        new_text = "新A\n新B\nhttps://example.com"
+
+        def _generator(queue_item):
+            return None if queue_item.pk == ng_item.pk else new_text
+
+        with patch("twitter.management.commands.regenerate_ready_tweets.get_generator") as mock_get:
+            mock_get.return_value = _generator
+            message = self._call_expecting_failure()
+
+        ok_item.refresh_from_db()
+        ng_item.refresh_from_db()
+        self.assertEqual(ok_item.generated_text, new_text)
+        self.assertEqual(ng_item.generated_text, over_limit)
+        self.assertIn("更新=1", message)
+        self.assertIn("失敗=1", message)
+
+    def test_all_success_does_not_raise(self):
+        """全件成功なら正常終了し、完了メッセージを出す"""
+        over_limit = "行1\n行2\n行3\n行4\nhttps://example.com"
+        self._create_queue(over_limit)
+
+        with patch("twitter.management.commands.regenerate_ready_tweets.get_generator") as mock_get:
+            mock_get.return_value = lambda qi: "新A\n新B\nhttps://example.com"
+            output = self._call()
+
+        self.assertIn("完了: 更新=1 件, 失敗=0 件", output)

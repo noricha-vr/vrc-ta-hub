@@ -7,6 +7,7 @@ from event.forms.event import (  # noqa: F401
     EventCreateForm,
     EventDateUpdateForm,
     EventSearchForm,
+    EventUpdateForm,
 )
 from event.forms.recurrence import (  # noqa: F401
     RecurringEventForm,
