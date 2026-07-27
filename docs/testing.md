@@ -29,10 +29,17 @@ scripts/run_tests.sh \
 通常テストは `OfflineNetworkDiscoverRunner` で実行し、Unix socket と loopback
 （`localhost` / `127.0.0.0/8` / `::1`）以外への DNS・socket 接続を拒否する。
 CI には dummy credential だけを渡し、外向き通信が発生した時点でテストを失敗させる。
+遮断が発生すると、接続先と発生箇所を stderr に出したうえで suite 全体を失敗扱いにする
+（アプリ側が `except requests.RequestException` で握りつぶしてもモック漏れを検出できる）。
+
+この runner の指定は `website/settings/base.py` の `TEST_RUNNER` が正本で、
+テスト実行時（`TESTING=1` または `manage.py test`）に自動で有効になる。
+CLI の `--testrunner=...` は付けない。実サービスへ疎通する live smoke だけが
+`ALLOW_EXTERNAL_TEST_NETWORK=1` で遮断を解除する（`scripts/run_live_smoke.py` が自動設定）。
 
 通常実行の正本は `scripts/run_tests.sh`。引数なしで実行すると CI (`.github/workflows/ci.yml`) と
 同じ全探索でテストを収集する。引数を指定した場合も内部で
-`tests.offline_manage`、`OfflineNetworkDiscoverRunner`、`live_smoke` / `e2e` の除外を必ず付ける。
+`tests.offline_manage` と `live_smoke` / `e2e` の除外を必ず付ける。
 生の `python manage.py test` はこれらを省略できるため、通常テストの標準手順にはしない。
 
 ### GitHub Actions の隔離PR承認ゲート

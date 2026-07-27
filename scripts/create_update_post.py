@@ -1,40 +1,47 @@
 #!/usr/bin/env python
-import os
+"""アップデート記事を作成するスクリプト
+
+カテゴリ不在・fixture 不在などの失敗時は非ゼロ終了する。
+"""
+from __future__ import annotations
+
+import logging
 import sys
-import django
 from datetime import datetime, timezone
+from pathlib import Path
 
-# Djangoのセットアップ
-sys.path.append('/app')
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ta_hub.settings')
-django.setup()
+from _script_bootstrap import app_dir, setup_django
 
-from news.models import Post, Category
-from django.utils.text import slugify
+logger = logging.getLogger(__name__)
 
-def create_update_post():
-    """アップデート記事を作成"""
-    
-    # アップデートカテゴリーを取得
+MARKDOWN_FILENAME = "2025-01-10-ui-improvements.md"
+
+
+def create_update_post() -> int:
+    """アップデート記事を作成する。戻り値は exit code。"""
+    from news.models import Category, Post
+
     try:
         update_category = Category.objects.get(slug='update')
     except Category.DoesNotExist:
-        print("アップデートカテゴリーが見つかりません")
-        return
-    
-    # 記事データ
+        logger.error("アップデートカテゴリーが見つかりません")
+        return 1
+
     title = "サイトのUI/UX改善とGoogleカレンダー連携機能を追加しました"
     slug = "2025-01-10-ui-improvements"
-    
-    # 既存記事をチェック
+
+    # 既存記事があるのは正常系（冪等に再実行できる）
     if Post.objects.filter(slug=slug).exists():
-        print(f"記事は既に存在します: {slug}")
-        return
-    
-    # Markdownファイルを読み込み
-    with open('/app/news/fixtures/2025-01-10-ui-improvements.md', 'r') as f:
-        body_markdown = f.read()
-    
+        logger.info("記事は既に存在します: %s", slug)
+        return 0
+
+    markdown_path = Path(app_dir()) / "news" / "fixtures" / MARKDOWN_FILENAME
+    try:
+        body_markdown = markdown_path.read_text(encoding="utf-8")
+    except OSError as e:
+        logger.error("Markdownファイルの読み込みに失敗: %s: %s", markdown_path, e)
+        return 1
+
     post = Post.objects.create(
         title=title,
         slug=slug,
@@ -44,7 +51,18 @@ def create_update_post():
         is_published=True,
         published_at=datetime.now(timezone.utc)
     )
-    print(f"記事を作成しました: {post.title}")
+    logger.info("記事を作成しました: %s", post.title)
+    return 0
+
+
+def main() -> int:
+    setup_django()
+    try:
+        return create_update_post()
+    except Exception:
+        logger.exception("アップデート記事の作成に失敗しました")
+        return 1
+
 
 if __name__ == '__main__':
-    create_update_post()
+    sys.exit(main())

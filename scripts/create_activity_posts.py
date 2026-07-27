@@ -1,27 +1,30 @@
 #!/usr/bin/env python
-import os
+"""活動記事を作成するスクリプト
+
+カテゴリ不在などの失敗時は非ゼロ終了する。
+"""
+from __future__ import annotations
+
+import logging
 import sys
-import django
 from datetime import datetime, timezone
 
-# Djangoのセットアップ
-sys.path.append('/app')
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ta_hub.settings')
-django.setup()
+from _script_bootstrap import setup_django
 
-from news.models import Post, Category
-from django.utils.text import slugify
+logger = logging.getLogger(__name__)
 
-def create_activity_posts():
-    """3つの活動記事を作成"""
-    
+
+def create_activity_posts() -> int:
+    """3つの活動記事を作成する。戻り値は exit code。"""
+    from news.models import Category, Post
+
     # 活動カテゴリーを取得
     try:
         activity_category = Category.objects.get(slug='activity')
     except Category.DoesNotExist:
-        print("活動カテゴリーが見つかりません")
-        return
-    
+        logger.error("活動カテゴリーが見つかりません")
+        return 1
+
     # 記事データ
     posts_data = [
         {
@@ -139,9 +142,10 @@ Web APIと連携し、最新のイベント情報をリアルタイムで取得�
     for data in posts_data:
         # 既存の記事をチェック
         if Post.objects.filter(slug=data['slug']).exists():
-            print(f"記事 '{data['title']}' は既に存在します")
+            logger.info("記事 '%s' は既に存在します", data['title'])
             continue
-        
+
+
         post = Post.objects.create(
             title=data['title'],
             slug=data['slug'],
@@ -151,9 +155,20 @@ Web APIと連携し、最新のイベント情報をリアルタイムで取得�
             is_published=data['is_published'],
             published_at=data['published_at']
         )
-        print(f"記事 '{post.title}' を作成しました")
-    
-    print("\n活動記事の作成が完了しました")
+        logger.info("記事 '%s' を作成しました", post.title)
+
+    logger.info("活動記事の作成が完了しました")
+    return 0
+
+
+def main() -> int:
+    setup_django()
+    try:
+        return create_activity_posts()
+    except Exception:
+        logger.exception("活動記事の作成に失敗しました")
+        return 1
+
 
 if __name__ == '__main__':
-    create_activity_posts()
+    sys.exit(main())

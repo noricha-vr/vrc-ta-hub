@@ -6,7 +6,7 @@ X のスパムフィルタを避ける「本文3行以内」制約は以降の�
 """
 import logging
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from twitter.models import TweetQueue
 from twitter.tweet_generator import (
@@ -163,10 +163,15 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(f"  {prefix} -> 新weighted={new_weighted} 新行数={new_lines} (OK)")
 
-        self.stdout.write("")
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"完了: 更新={updated} 件, 失敗={failed} 件, "
-                f"再生成後も制約超過={still_over_limit} 件"
-            )
+        summary = (
+            f"更新={updated} 件, 失敗={failed} 件, "
+            f"再生成後も制約超過={still_over_limit} 件"
         )
+        self.stdout.write("")
+
+        # 1件でも再生成に失敗したら異常終了させる。
+        # cron / 手動実行のどちらでも「一部だけ失敗」を見落とさないため。
+        if failed:
+            raise CommandError(f"再生成に失敗したキューがある: {summary}")
+
+        self.stdout.write(self.style.SUCCESS(f"完了: {summary}"))
