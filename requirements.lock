@@ -297,15 +297,22 @@ tqdm==4.68.2
     # via
     #   google-generativeai
     #   openai
+types-bleach==6.4.0.20260607
+    # via -r requirements.txt
+types-html5lib==1.1.11.20260518
+    # via types-bleach
+types-markdown==3.10.2.20260712
+    # via -r requirements.txt
 types-pyyaml==6.0.12.20260518
     # via
     #   django-stubs
     #   djangorestframework-stubs
 types-requests==2.33.0.20260518
     # via djangorestframework-stubs
+types-webencodings==0.5.0.20260408
+    # via types-html5lib
 typing-extensions==4.15.0
     # via
-    #   anyio
     #   django-stubs
     #   django-stubs-ext
     #   djangorestframework-stubs
@@ -315,7 +322,6 @@ typing-extensions==4.15.0
     #   openai
     #   pydantic
     #   pydantic-core
-    #   referencing
 uritemplate==4.2.0
     # via
     #   drf-spectacular
