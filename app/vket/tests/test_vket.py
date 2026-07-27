@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from community.models import Community, CommunityMember
-from event.models import Event, EventDetail
+from event.models import Event, EventDetail, EventOccurrenceTombstone
 from ta_hub.index_cache import get_index_view_cache_key
 from vket.models import (
     VketCollaboration,
@@ -1459,6 +1459,22 @@ class VketManageViewsTests(TestCase):
         self.assertEqual(Event.objects.filter(community=community).count(), 1)
         self.assertEqual(presentation.published_event_detail.event_id, existing_event.pk)
         self.assertEqual(presentation.published_event_detail.start_time.strftime('%H:%M'), '22:30')
+
+    def test_publication_sync_date_update_does_not_create_tombstone(self):
+        """Vket運営同期の日付更新はユーザー例外として記録しない"""
+        new_date = self.collaboration.period_start + timedelta(days=1)
+        self.participation1.confirmed_date = new_date
+        self.participation1.save(update_fields=['confirmed_date'])
+
+        sync_participation_publication(self.participation1)
+
+        self.event1.refresh_from_db()
+        self.assertEqual(self.event1.date, new_date)
+        self.assertFalse(
+            EventOccurrenceTombstone.objects.filter(
+                community=self.community1,
+            ).exists()
+        )
 
     def test_sync_participation_publication_sets_applicant_on_new_detail(self):
         """公開同期で新規EventDetailへVket申請者を設定する。"""

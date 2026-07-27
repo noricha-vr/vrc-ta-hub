@@ -250,6 +250,37 @@ class Event(models.Model):
         return datetime.combine(self.date, datetime.min.time())
 
 
+class EventOccurrenceTombstone(models.Model):
+    """ユーザーが削除・移動した定期イベントの開催日を記録する。"""
+
+    class Reason(models.TextChoices):
+        DELETED = 'deleted', '削除'
+        RESCHEDULED = 'rescheduled', '日付移動'
+
+    community = models.ForeignKey(
+        Community,
+        on_delete=models.CASCADE,
+        related_name='event_occurrence_tombstones',
+        verbose_name='集会',
+    )
+    date = models.DateField('元の開催日')
+    original_start_time = models.TimeField('元の開始時刻')
+    reason = models.CharField('理由', max_length=16, choices=Reason.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'event_occurrence_tombstone'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['community', 'date'],
+                name='event_tombstone_unique_community_date',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.community.name} - {self.date} ({self.get_reason_display()})"
+
+
 class EventDetailQuerySet(models.QuerySet):
     """QuerySet レベルで ``.delete()`` を soft delete に倒す。
 

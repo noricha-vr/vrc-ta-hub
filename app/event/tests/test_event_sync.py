@@ -1,8 +1,13 @@
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
+from community.models import Community
+from event.models import Event
+from event.sync_to_google import DatabaseToGoogleSync
 from website.settings import REQUEST_TOKEN
 
 
@@ -38,3 +43,47 @@ class EventSyncTest(TestCase):
 
         self.assertEqual(response.status_code, 400)
         mock_sync_cls.assert_not_called()
+
+
+class DatabaseToGoogleSyncSkipTest(TestCase):
+    """日付移動後の DB→Google 同期のスキップ判定"""
+
+    @patch('event.sync_to_google.GoogleCalendarService')
+    def test_database_sync_skips_already_updated_date_and_id(
+        self,
+        calendar_service_class,
+    ):
+        """日付移動後に日時とIDが一致すればGoogleを再更新しない"""
+        community = Community.objects.create(
+            name="個人開発集会",
+            status="approved",
+        )
+        future_date = timezone.now().date() + timedelta(days=30)
+        event = Event.objects.create(
+            community=community,
+            date=future_date,
+            start_time="21:00:00",
+            duration=60,
+            weekday=future_date.strftime("%a"),
+            google_calendar_event_id="event1_id",
+        )
+        event.refresh_from_db()
+        start_at = timezone.make_aware(
+            datetime.combine(event.date, event.start_time)
+        )
+        calendar_service_class.return_value.list_events.return_value = [{
+            'id': event.google_calendar_event_id,
+            'summary': community.name,
+            'start': {'dateTime': start_at.isoformat()},
+            'end': {
+                'dateTime': (
+                    start_at + timedelta(minutes=event.duration)
+                ).isoformat(),
+            },
+        }]
+
+        stats = DatabaseToGoogleSync().sync_all_communities(months_ahead=2)
+
+        self.assertEqual(stats['skipped'], 1)
+        self.assertEqual(stats['updated'], 0)
+        calendar_service_class.return_value.update_event.assert_not_called()
