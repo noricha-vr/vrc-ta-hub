@@ -1,38 +1,36 @@
 #!/usr/bin/env python
+"""本文内のH1タグをH2に変換するスクリプト
+
+EventDetailのcontents内にある # をすべて ## に変換する。
+失敗時は非ゼロ終了して自動化から検知できるようにする。
 """
-本文内のH1タグをH2に変換するスクリプト
-EventDetailのcontents内にある # をすべて ## に変換
-"""
-import os
+from __future__ import annotations
+
+import logging
 import sys
-import django
 
-# Djangoのセットアップ
-sys.path.append('/app')
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ta_hub.settings')
-django.setup()
+from _script_bootstrap import setup_django
 
-from event.models import EventDetail
+logger = logging.getLogger(__name__)
 
 
-def fix_inner_h1_tags():
-    """EventDetailの本文内のH1をH2に変換"""
-    
-    print("=== 本文内のH1タグ修正開始 ===\n")
-    
-    # EventDetailの本文内のH1をH2に変換
-    print("EventDetailの本文内H1をH2に変換...")
+def fix_inner_h1_tags() -> int:
+    """EventDetailの本文内のH1をH2に変換する。戻り値は exit code。"""
+    from event.models import EventDetail
+
+    logger.info("=== 本文内のH1タグ修正開始 ===")
+
     fixed_count = 0
     event_details = EventDetail.objects.exclude(contents='').exclude(contents__isnull=True)
-    
+
     for ed in event_details:
         if not ed.contents:
             continue
-            
+
         lines = ed.contents.split('\n')
         new_lines = []
         has_h1 = False
-        
+
         for line in lines:
             # 行頭の # で始まる行（H1）を検出
             if line.strip().startswith('# '):
@@ -41,20 +39,29 @@ def fix_inner_h1_tags():
                 new_lines.append(new_line)
                 has_h1 = True
                 if fixed_count == 0:  # 最初の1件だけ詳細を表示
-                    print(f"  変換例: {line[:50]}... -> {new_line[:50]}...")
+                    logger.info("変換例: %s -> %s", line[:50], new_line[:50])
             else:
                 new_lines.append(line)
-        
+
         if has_h1:
             ed.contents = '\n'.join(new_lines)
             ed.save()
-            print(f"  Fixed EventDetail ID {ed.id}: {ed.title[:30]}...")
+            logger.info("Fixed EventDetail ID %s: %s", ed.id, ed.title[:30])
             fixed_count += 1
-    
-    print(f"\nEventDetail: {fixed_count}件の本文内H1をH2に変換")
-    
-    print(f"\n=== 修正完了 ===")
+
+    logger.info("EventDetail: %d件の本文内H1をH2に変換", fixed_count)
+    logger.info("=== 修正完了 ===")
+    return 0
+
+
+def main() -> int:
+    setup_django()
+    try:
+        return fix_inner_h1_tags()
+    except Exception:
+        logger.exception("本文内H1タグの変換に失敗しました")
+        return 1
 
 
 if __name__ == '__main__':
-    fix_inner_h1_tags()
+    sys.exit(main())

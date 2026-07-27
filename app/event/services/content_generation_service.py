@@ -315,10 +315,10 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
 
             # レスポンスからテキストを取得（Function Calling未対応の場合のフォールバック）
             response_text = message.content
+            # content が空なら tool_calls も content も無い異常応答なので、後段で
+            # 曖昧に落ちる前にここで失敗させる
             if not response_text:
-                # 従来は None のまま添字アクセスして TypeError になっていた。
-                # 同じ except（空 BlogOutput フォールバック）に落ちるが理由が分かるようにする。
-                raise ValueError("OpenRouter response has no tool_calls and no message content")
+                raise ValueError("OpenRouter response has neither tool_calls nor content")
             logger.info(f"Raw response from OpenRouter:\n{response_text[:500]}...")
 
             # 以下はJSON抽出の既存コード
