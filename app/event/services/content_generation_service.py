@@ -238,7 +238,9 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
         logger.info(f"Starting API request at {request_start_time}")
 
         try:
-            # BlogOutputスキーマを関数定義形式に変換
+            # BlogOutputスキーマを関数定義形式に変換。
+            # 必須フィールドは model_json_schema() の parameters.required に含まれるため、
+            # 関数定義トップレベルの "required" は持たせない（OpenAI の関数定義スキーマにない冗長キー）。
             blog_output_schema: FunctionDefinition = {
                 "name": "generate_blog_post",
                 "description": "VRChatイベントの発表内容に基づいてブログ記事を生成する",

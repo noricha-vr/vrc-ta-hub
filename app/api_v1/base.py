@@ -10,6 +10,9 @@ from rest_framework.response import Response
 
 logger = logging.getLogger(__name__)
 
+# DB 再接続にも失敗した 503 のエラーコード。
+DATABASE_UNAVAILABLE_CODE = "database_unavailable"
+
 
 class DatabaseReconnectListMixin:
     """MySQL の切断系エラー時に読み取り list API を一度だけ再試行する。"""
@@ -47,8 +50,13 @@ class DatabaseReconnectListMixin:
                     self.__class__.__name__,
                     retry_exc,
                 )
+                # EXCEPTION_HANDLER を通らない直接返却なので、code はここで付ける
+                # （API v1 の「全エラーに code」契約を list API でも満たすため）
                 return Response(
-                    {"detail": "Database temporarily unavailable."},
+                    {
+                        "detail": "Database temporarily unavailable.",
+                        "code": DATABASE_UNAVAILABLE_CODE,
+                    },
                     status=status.HTTP_503_SERVICE_UNAVAILABLE,
                 )
 
