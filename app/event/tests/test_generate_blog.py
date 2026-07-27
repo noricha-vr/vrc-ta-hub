@@ -4,7 +4,7 @@ import os
 import tempfile
 from io import BytesIO
 from datetime import date, datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.core.files.base import ContentFile
 from django.core.files import File
@@ -313,6 +313,39 @@ class TestGenerateBlog(TestCase):
         self.assertEqual(result.title, '')
         self.assertEqual(result.meta_description, '')
         self.assertEqual(result.text, '')
+
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=False)
+    @patch("event.services.content_generation_service.OpenAI")
+    def test_generate_blog_returns_empty_output_when_response_content_is_none(
+        self,
+        mock_openai_class,
+    ):
+        """通常レスポンスの本文がない場合は内部エラーを記録して空出力を返す."""
+        mock_client = MagicMock()
+        mock_completion = MagicMock()
+        mock_completion.choices = [
+            MagicMock(message=MagicMock(content=None, tool_calls=None))
+        ]
+        mock_client.chat.completions.create.return_value = mock_completion
+        mock_openai_class.return_value = mock_client
+        event_detail = self.create_event_detail(youtube_url="invalid")
+
+        with self.assertLogs(
+            "event.services.content_generation_service",
+            level="ERROR",
+        ) as log_context:
+            result = generate_blog(event_detail, model="test-model")
+
+        self.assertEqual(
+            result,
+            BlogOutput(title="", meta_description="", text=""),
+        )
+        self.assertTrue(
+            any(
+                "OpenRouter response has neither tool_calls nor content" in entry
+                for entry in log_context.output
+            )
+        )
 
     def test_blog_output_basic(self):
         """BlogOutputモデルの基本的な動作をテスト"""
