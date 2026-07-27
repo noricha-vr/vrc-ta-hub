@@ -1,8 +1,8 @@
-2026年7月11日〜26日に開催された「Vket 2026 Summer 技術学術WEEK」の各集会の発表動画をまとめました。24団体・40発表が参加した、VRChatの技術・学術コミュニティによる動画アーカイブです。
+2026年7月11日〜27日に開催された「Vket 2026 Summer 技術学術WEEK」の各集会の発表動画をまとめました。24団体・40発表以上が参加した、VRChatの技術・学術コミュニティによる動画アーカイブです。
 
 ## 📺 プレイリスト
 
-<!-- プレイリストURL待ち -->
+<!-- プレイリストURL待ち: 2026-07-27時点でHubチャンネルに2026夏プレイリスト未作成（2025冬・2025夏のみ存在） -->
 
 ## 7月11日（土）20:00 - セキュリティ集会
 
@@ -108,25 +108,15 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/683/)
 
-## 7月15日（水）21:30 - ML集会
-
-### vrcpilot: VRChatにAIアバターを生み出すツール
-
-登壇者: GesonAnkoさん
-
-[イベント詳細](/event/detail/796/)
-
-<!-- 動画URL待ち -->
-
 ## 7月16日（木）21:00 - 組み込みエンジニア集会
 
-### 組み込みの面白いお話
+### RaspberryPi Picoの表現力の拡張～アナログコンピュータとの出会い～
 
 登壇者: すぎうりさん
 
-[イベント詳細](/event/detail/797/)
+[イベント詳細](/event/detail/786/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/zV6PhhC9SZ8
 
 ### 3Dスキャンを使ってロボットを動かしてみた話
 
@@ -134,7 +124,7 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/777/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/g2YFrbzrMOs
 
 ## 7月16日（木）22:00 - 個人開発集会
 
@@ -144,9 +134,9 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/826/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/QDF23i7C324
 
-## 7月17日（金）21:30 - VRC微分音集会
+## 7月17日（金）22:00 - VRC微分音集会
 
 ### 徹底解剖！31平均律
 
@@ -154,7 +144,7 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/759/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/i_7B3k94hYE
 
 ## 7月18日（土）22:00 - ITインフラ集会
 
@@ -164,27 +154,27 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/779/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/6m6kh-y-DuM
 
 ## 7月18日（土）22:30 - 「計算と自然」集会
 
 ### LLM呼び出しの自動化のためのペトリネットワークフローとプライバシーレベルを考慮した知識共有の枠組み
 
-登壇者: 「計算と自然」集会
+登壇者: nconcさん
 
 [イベント詳細](/event/detail/787/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/SwwZMjURrq4
 
 ## 7月19日（日）21:00 - VR核融合コミュニティ Virtual Fusion Nexus
 
 ### 核融合エネルギーはどこから生まれ、どこへ向かうのか
 
-登壇者: ：トリカさん
+登壇者: トリカさん
 
 [イベント詳細](/event/detail/783/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/A5VuMiigGQU
 
 ### 日本の核融合原型炉の研究開発計画 - 2030年代の早期発電実証を目指して-
 
@@ -192,7 +182,7 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/784/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/b8qzyJq8Pqk
 
 ### 核融合装置の遠隔保守と各国のR&D
 
@@ -200,7 +190,7 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/785/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/EP-C517PHq8
 
 ## 7月19日（日）22:00 - VRC脳波技術集会
 
@@ -210,7 +200,7 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/716/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/t2HkStzm8sE
 
 ## 7月20日（月）22:00 - 化学のおはなし会
 
@@ -220,9 +210,9 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/798/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/sQlwlT8_8V0
 
-## 7月20日（月）22:00 - SW_Arch ソフトウェアアーキテクチャ集会
+## 7月20日（月）22:30 - SW_Arch ソフトウェアアーキテクチャ集会
 
 ### アーキテクチャ雑談議
 
@@ -230,7 +220,7 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/799/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/vL_vHaGFXeo
 
 ## 7月21日（火）21:00 - C# Tokyo VRもくもく会
 
@@ -240,7 +230,7 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/800/)
 
-<!-- 動画URL待ち -->
+<!-- 動画URL待ち: 7/21収録の生データをC# Tokyo側へ受け渡し済み（7/25確認完了）。C# TokyoチャンネルはVket分を未公開 -->
 
 ### C# Tokyo コミュニティ YouTube チャンネルを支える技術
 
@@ -248,7 +238,7 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/801/)
 
-<!-- 動画URL待ち -->
+<!-- 動画URL待ち: 同上 -->
 
 ## 7月21日（火）22:00 - VRChat.rb
 
@@ -258,7 +248,15 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/802/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/7loH512r5Ig
+
+### Rubyは高級な電卓
+
+登壇者: skytomoさん
+
+[イベント詳細](/event/detail/829/)
+
+https://youtu.be/SWTVRiZUiRo
 
 ### RubyでDiscordBotつくってみた
 
@@ -266,15 +264,15 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/803/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/Wnkpna_NCtk
 
-### Ruby初学者が関西Ruby会議を振り返る
+### 非Rubyエンジニア、Rubyistの集いに潜入
 
-登壇者: isoshigiさん
+登壇者: KAGU3さん
 
-[イベント詳細](/event/detail/804/)
+[イベント詳細](/event/detail/806/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/I3AMlZzm2_M
 
 ### assets:precompileを眺める w/ propshaft
 
@@ -282,33 +280,73 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/805/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/U-HASeHJHDI
 
-### KAGU3
+### Rubyのマニアックな機能を10個紹介するよ
 
-登壇者: お楽しみさん
+登壇者: Kirika_K2さん
 
-[イベント詳細](/event/detail/806/)
+[イベント詳細](/event/detail/831/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/bfmONjhe5EA
+
+### （Fizz)BuzzるRockstarになろう
+
+登壇者: kanatanoyuuyakeさん
+
+[イベント詳細](/event/detail/830/)
+
+https://youtu.be/Kwhw7qHwFYQ
+
+### Rubyの演算子風メソッド図鑑
+
+登壇者: すぎうりさん
+
+[イベント詳細](/event/detail/824/)
+
+https://youtu.be/OGgdZtG39KQ
+
+### Ruby初学者が関西Ruby会議を振り返る
+
+登壇者: isoshigiさん
+
+[イベント詳細](/event/detail/804/)
+
+https://youtu.be/ERm_CdDnTSE
+
+### 今川焼、大判焼き、御座候、その他多様な名称があることで知られる食品の名称を適切に取り扱うためのgem imagawayaki util
+
+登壇者: isoshigiさん
+
+[イベント詳細](/event/detail/823/)
+
+https://youtu.be/-Rqbgw2EdEk
+
+### Ridgepoleの紹介
+
+登壇者: ito845さん
+
+[イベント詳細](/event/detail/832/)
+
+https://youtu.be/iOFBLIfNqx0
 
 ## 7月22日（水）21:30 - VRC競プロ部(ABC感想会)
 
-### 「競プロ」って何？ (仮)
+### 競プロって何？
 
 登壇者: cleanttedさん
 
 [イベント詳細](/event/detail/807/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/7TZJ6UARbnM
 
-### 包除原理の数え方(仮)
+### 包除原理の数え方
 
 登壇者: Mizar_みざーさん
 
 [イベント詳細](/event/detail/808/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/tBFTP2XT75Q
 
 ### FPSで殴る二項係数の畳み込み
 
@@ -316,7 +354,7 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/809/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/Vdl17fCUsaM
 
 ### スマホで始める競技プログラミング (Android 編)
 
@@ -324,15 +362,15 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/810/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/-_KOc31wVtA
 
-### みんなの日常を競プロで爆発させよう
+### 日常を競プロで爆発させよう～初心者でも作問はできる～
 
 登壇者: あめんばー／りふぉげんさん
 
 [イベント詳細](/event/detail/811/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/YoeSzeKSn84
 
 ## 7月23日（木）21:00 - データサイエンティスト集会
 
@@ -342,17 +380,17 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/812/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/EfoFmMVd6oQ
 
 ## 7月24日（金）21:00 - VRC海洋学研究会
 
-### 海洋学
+### 海の学問－海洋学－とは？
 
-登壇者: cramer6114さん
+登壇者: Cramerさん
 
 [イベント詳細](/event/detail/813/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/UaoI97x1rgs
 
 ## 7月24日（金）22:00 - 仮想学生集会
 
@@ -362,17 +400,29 @@ https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
 [イベント詳細](/event/detail/814/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/5CW4LqaRkmY
 
 ## 7月25日（土）21:00 - マネジメント集会
 
-### 同人ノベルゲーム作ってみた Extends!
+### 同人ノベルゲーム作ってみた！Extends ～企画から販売までを動かす『面白そう駆動開発』～
 
 登壇者: wakazu9nさん
 
 [イベント詳細](/event/detail/815/)
 
-<!-- 動画URL待ち -->
+https://youtu.be/VWJCk4A46-w
+
+## 7月27日（日）- ML集会
+
+<!-- 当初7月15日（水）21:30予定から7月27日（日）に変更。開始時間・動画URLはYouTube公開後に概要欄で確定する -->
+
+### vrcpilot: VRChatにAIアバターを生み出すツール
+
+登壇者: GesonAnkoさん
+
+[イベント詳細](/event/detail/796/)
+
+<!-- 動画URL待ち: 2026-07-27時点で未公開（ML集会チャンネル・Hubチャンネルとも配信予約なし） -->
 
 ## 🔗 関連リンク
 
