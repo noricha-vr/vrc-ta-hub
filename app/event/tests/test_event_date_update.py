@@ -17,6 +17,7 @@ from event_calendar.calendar_utils import generate_google_calendar_url
 from ta_hub.index_cache import get_index_view_cache_key
 from twitter.models import TweetQueue
 from twitter.scheduling import scheduled_at_for_date
+from utils.vrchat_time import get_vrchat_today
 from vket.models import VketCollaboration, VketParticipation
 
 
@@ -54,7 +55,9 @@ class EventDateUpdateViewTests(TweetGenerationPatchMixin, TestCase):
             user=self.owner,
             role=CommunityMember.Role.OWNER,
         )
-        self.today = timezone.localdate()
+        # 実装の「今日」は VRChat 時間（04:00 JST 境界）。localdate()（00:00 境界）を
+        # 使うと 00:00-04:00 JST の実行時だけ1日ズレてフレークする（Issue #555）
+        self.today = get_vrchat_today()
         self.original_date = self.today + timedelta(days=7)
         self.event = Event.objects.create(
             community=self.community,
@@ -171,6 +174,16 @@ class EventDateUpdateViewTests(TweetGenerationPatchMixin, TestCase):
         self.assertContains(response, '本日以降')
         self.event.refresh_from_db()
         self.assertEqual(self.event.date, self.original_date)
+
+    def test_min_date_uses_vrchat_boundary_in_late_night_window(self):
+        """00:00-04:00 JST では前日が「今日」として提示される（Issue #555 の再発防止）。"""
+        self.client.force_login(self.owner)
+        frozen_now = timezone.make_aware(datetime(2026, 7, 29, 1, 0))
+
+        with patch('utils.vrchat_time.timezone.now', return_value=frozen_now):
+            response = self.client.get(self.url)
+
+        self.assertContains(response, 'min="2026-07-28"')
 
     def test_non_member_cannot_update(self):
         self.client.force_login(self.other_user)
