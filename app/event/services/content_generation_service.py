@@ -196,34 +196,13 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
             pdf_url=pdf_url or "なし",
             format_instructions=""  # 不要
         )
-        # プロンプトにJSON出力指示を追加
+        # Function Calling 未対応モデルのフォールバック用。フィールド制約は
+        # BlogOutput の Field description（= function schema）が正本なのでここでは繰り返さない
         prompt_text += """
 
-# 重要な出力形式の指示
-必ず以下のフォーマットで出力してください。
-
-1. 最初に```jsonと書く
-2. 次の行からJSONオブジェクトを開始
-3. 3つのフィールド（title, meta_description, text）を必ず含める
-4. 最後に```で閉じる
-5. それ以外のテキストは一切含めない
-
-出力例:
-```json
-{
-  "title": "40文字以内のSEOを意識した魅力的なタイトル",
-  "meta_description": "120文字以内のコンテンツ要約",
-  "text": "マークダウン形式の1000〜2300文字の本文"
-}
-```
-
-注意事項:
-- titleは必ず40文字以内
-- meta_descriptionは必ず120文字以内
-- textは必ず1000文字以上2300文字以内
-- 各フィールドは空にしない
-- JSON内のダブルクォート文字は\"でエスケープする
-- 改行は\nで表現する"""
+# 出力形式
+関数呼び出しが使えない場合は、title / meta_description / text の3フィールドを持つ
+JSONオブジェクトだけを```json ... ```ブロックで出力してください。"""
 
         logger.info(f'Prompt for OpenRouter:\n{prompt_text[:500]}...')  # 長すぎるので一部表示
 
