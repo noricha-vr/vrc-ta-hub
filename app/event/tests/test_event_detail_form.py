@@ -458,3 +458,56 @@ class EventDetailFormCleanTest(TweetGenerationPatchMixin, TestCase):
         self.assertTrue(form.is_valid(), msg=f"Form errors: {form.errors}")
         self.assertEqual(form.cleaned_data['start_time'], time(22, 0))
         self.assertEqual(form.cleaned_data['duration'], 30)
+
+
+class GenerateBlogArticleCheckboxDefaultTest(TweetGenerationPatchMixin, TestCase):
+    """記事生成チェックボックスの初期値のテスト"""
+
+    def setUp(self):
+        self.community = Community.objects.create(
+            name='Checkbox Community',
+            start_time=time(22, 0),
+            duration=60,
+            weekdays=['Mon'],
+            frequency='Every week',
+            organizers='Test Organizer',
+            status='approved',
+        )
+        self.event = Event.objects.create(
+            community=self.community,
+            date=date.today() + timedelta(days=7),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='Mon',
+        )
+
+    def _create_detail(self, **kwargs):
+        return EventDetail.objects.create(
+            event=self.event,
+            detail_type='LT',
+            theme='Theme',
+            speaker='Speaker',
+            start_time=time(22, 0),
+            duration=30,
+            **kwargs,
+        )
+
+    def test_generate_checkbox_default_off_when_contents_exist(self):
+        """meta_description が空でも手書き本文があれば再生成をデフォルトOFFにする."""
+        detail = self._create_detail(contents='手書きの本文です', meta_description='')
+
+        event_detail_form = EventDetailForm(instance=detail)
+        lt_form = LTApplicationEditForm(instance=detail)
+
+        self.assertFalse(event_detail_form.fields['generate_blog_article'].initial)
+        self.assertFalse(lt_form.initial['generate_blog_article'])
+
+    def test_generate_checkbox_default_on_when_article_is_empty(self):
+        """記事が未生成なら再生成をデフォルトONにする."""
+        detail = self._create_detail()
+
+        event_detail_form = EventDetailForm(instance=detail)
+        lt_form = LTApplicationEditForm(instance=detail)
+
+        self.assertTrue(event_detail_form.fields['generate_blog_article'].initial)
+        self.assertTrue(lt_form.initial['generate_blog_article'])

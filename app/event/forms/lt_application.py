@@ -54,8 +54,13 @@ class LTApplicationEditForm(EventDetailMediaFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # 記事未生成ならON、生成済みならOFF
-        has_article = self.instance and self.instance.pk and self.instance.meta_description
+        # 記事未生成ならON、生成済みならOFF。
+        # meta_description だけで判定すると手書きの contents / h1 を上書き再生成してしまう。
+        has_article = bool(
+            self.instance
+            and self.instance.pk
+            and (self.instance.meta_description or self.instance.contents or self.instance.h1)
+        )
         self.initial['generate_blog_article'] = not has_article
 
 

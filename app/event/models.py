@@ -367,6 +367,13 @@ class EventDetail(models.Model):
     meta_description = models.CharField(
         'メタディスクリプション', max_length=255, blank=True, default='')
 
+    cached_transcript = models.TextField(
+        blank=True,
+        default='',
+        help_text='YouTube字幕のキャッシュ（ブログ再生成時のAPI再取得防止）',
+    )
+    cached_transcript_video_id = models.CharField(max_length=32, blank=True, default='')
+
     # LT申請関連フィールド
     status = models.CharField(
         '申請状態', max_length=10, choices=STATUS_CHOICES, default='approved', db_index=True

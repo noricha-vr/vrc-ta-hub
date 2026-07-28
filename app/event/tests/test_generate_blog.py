@@ -14,6 +14,8 @@ from PIL import Image
 from user_account.models import CustomUser
 from community.models import Community
 from event.services.content_generation_service import (
+    MAX_COMBINED_SOURCE_CHARS,
+    MAX_SOURCE_TEXT_CHARS,
     BlogOutput,
     apply_blog_output_to_event_detail,
     generate_blog,
@@ -76,9 +78,8 @@ class ContentGenerationMemoryGuardTest(TestCase):
         with (
             patch("event.services.content_generation_service.PdfReader", return_value=fake_reader),
             patch("event.services.content_generation_service.MAX_PDF_TEXT_PAGES", 5),
-            patch("event.services.content_generation_service.MAX_SOURCE_TEXT_CHARS", 18),
         ):
-            text = _extract_pdf_text("/tmp/example.pdf")
+            text = _extract_pdf_text("/tmp/example.pdf", max_chars=18)
 
         self.assertEqual(text, "page-0\npage-1\npage")
         self.assertNotIn("page-5", text)
@@ -627,3 +628,126 @@ class TestGenerateBlog(TestCase):
         success_rate = len(success_results) / 5
         self.assertGreaterEqual(success_rate, 0.6,
                                 f"成功率が低すぎます: {success_rate * 100:.0f}% (成功: {len(success_results)}/5)")
+
+
+class TranscriptCacheTest(TestCase):
+    """YouTube字幕キャッシュの振る舞いのテスト"""
+
+    VIDEO_URL = "https://www.youtube.com/watch?v=rrKl0s23E0M"
+    VIDEO_ID = "rrKl0s23E0M"
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.community = Community.objects.create(name="キャッシュ集会")
+        cls.event = Event.objects.create(date=date(2024, 5, 24), community=cls.community)
+
+    def _create_detail(self, **kwargs):
+        return EventDetail.objects.create(
+            theme="テーマ",
+            speaker="のりちゃん",
+            event=self.event,
+            youtube_url=self.VIDEO_URL,
+            status="pending",
+            **kwargs,
+        )
+
+    def _patch_openrouter(self):
+        """OpenRouter クライアントを差し替え、生成された prompt を返せるようにする."""
+        mock_client = MagicMock()
+        mock_completion = MagicMock()
+        tool_call = MagicMock()
+        tool_call.function.arguments = json.dumps(
+            {"title": "t", "meta_description": "m", "text": "本文"}
+        )
+        mock_completion.choices = [MagicMock(message=MagicMock(tool_calls=[tool_call]))]
+        mock_client.chat.completions.create.return_value = mock_completion
+        return mock_client
+
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=False)
+    @patch("event.services.content_generation_service.OpenAI")
+    @patch("event.services.content_generation_service.get_transcript")
+    def test_transcript_cache_hit_skips_api(self, mock_get_transcript, mock_openai_class):
+        """キャッシュがあり video_id が一致すればYouTube APIを呼ばない."""
+        mock_openai_class.return_value = self._patch_openrouter()
+        detail = self._create_detail(
+            cached_transcript="キャッシュされた字幕",
+            cached_transcript_video_id=self.VIDEO_ID,
+        )
+
+        generate_blog(detail, model="test-model")
+
+        mock_get_transcript.assert_not_called()
+
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=False)
+    @patch("event.services.content_generation_service.OpenAI")
+    @patch("event.services.content_generation_service.get_transcript", return_value="新しい字幕")
+    def test_transcript_cached_after_successful_fetch(self, mock_get_transcript, mock_openai_class):
+        """取得成功時にキャッシュが保存される."""
+        mock_openai_class.return_value = self._patch_openrouter()
+        detail = self._create_detail()
+
+        generate_blog(detail, model="test-model")
+
+        detail.refresh_from_db()
+        self.assertEqual(detail.cached_transcript, "新しい字幕")
+        self.assertEqual(detail.cached_transcript_video_id, self.VIDEO_ID)
+
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=False)
+    @patch("event.services.content_generation_service.OpenAI")
+    @patch("event.services.content_generation_service.get_transcript", return_value=None)
+    def test_transcript_fetch_failure_is_not_cached(self, mock_get_transcript, mock_openai_class):
+        """取得失敗時はキャッシュを書かない（恒久的な字幕なし扱いを避ける）."""
+        mock_openai_class.return_value = self._patch_openrouter()
+        detail = self._create_detail()
+
+        generate_blog(detail, model="test-model")
+
+        detail.refresh_from_db()
+        self.assertEqual(detail.cached_transcript, "")
+        self.assertEqual(detail.cached_transcript_video_id, "")
+
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=False)
+    @patch("event.services.content_generation_service.OpenAI")
+    @patch("event.services.content_generation_service._extract_pdf_text")
+    @patch("event.services.content_generation_service._copy_uploaded_file_to_temp_path", return_value="/tmp/dummy.pdf")
+    @patch("event.services.content_generation_service.get_transcript")
+    def test_combined_source_limit(
+        self,
+        mock_get_transcript,
+        mock_copy,
+        mock_extract_pdf_text,
+        mock_openai_class,
+    ):
+        """文字起こしとPDFの合算がMAX_COMBINED_SOURCE_CHARS以内に収まる."""
+        # プロンプトテンプレート由来の文字と混ざらないよう、出現しない記号を目印に使う
+        transcript_marker = "①"
+        pdf_marker = "②"
+        mock_get_transcript.return_value = transcript_marker * 100_000
+        mock_client = self._patch_openrouter()
+        mock_openai_class.return_value = mock_client
+
+        # PDF 側は与えられた残り予算いっぱいのテキストを返す
+        mock_extract_pdf_text.side_effect = lambda path, *, max_chars: pdf_marker * max_chars
+
+        detail = self._create_detail()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+            temp_file.write(b"%PDF-1.4\n%%EOF")
+            pdf_path = temp_file.name
+        try:
+            with open(pdf_path, "rb") as pdf:
+                detail.slide_file.save("cache-test.pdf", File(pdf))
+        finally:
+            os.unlink(pdf_path)
+
+        generate_blog(detail, model="test-model")
+
+        prompt_text = mock_client.chat.completions.create.call_args.kwargs["messages"][1]["content"]
+        embedded_transcript_chars = prompt_text.count(transcript_marker)
+        embedded_pdf_chars = prompt_text.count(pdf_marker)
+
+        self.assertEqual(embedded_transcript_chars, MAX_SOURCE_TEXT_CHARS)
+        self.assertLessEqual(
+            embedded_transcript_chars + embedded_pdf_chars,
+            MAX_COMBINED_SOURCE_CHARS,
+        )
+        self.assertGreater(embedded_pdf_chars, 0)

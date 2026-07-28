@@ -45,7 +45,8 @@ def _call_generate_fn(
 def _generate_with_retry(
     generate_fn: Callable[..., Optional[str]],
     *args: Any,
-    max_retries: int = 3,
+    # LLM 呼び出しを最大4回→2回に削減。違反が続いても決定的フォールバックが完成させるため品質影響は限定的。
+    max_retries: int = 1,
     fallback_fn: Optional[Callable[..., Optional[str]]] = None,
     **kwargs: Any,
 ) -> Optional[str]:
