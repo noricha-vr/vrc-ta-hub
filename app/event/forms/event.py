@@ -2,7 +2,8 @@
 
 from django import forms
 
-from community.models import WEEKDAY_CHOICES, TAGS
+from community.constants import WEEKDAY_CHOICES
+from community.models import TAGS
 from utils.vrchat_time import get_vrchat_today
 from ..models import Event
 

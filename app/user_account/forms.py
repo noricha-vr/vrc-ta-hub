@@ -7,8 +7,9 @@ from django.core.validators import FileExtensionValidator
 
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 
+from community.constants import WEEKDAY_CHOICES
 from community.models import Community
-from community.models import TAGS, PLATFORM_CHOICES, WEEKDAY_CHOICES
+from community.models import TAGS, PLATFORM_CHOICES
 from .models import CustomUser
 from .vrchat import normalize_vrchat_user_id
 

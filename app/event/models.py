@@ -10,7 +10,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
-from community.models import Community, WEEKDAY_CHOICES
+from community.constants import WEEKDAY_CHOICES
+from community.models import Community
 
 logger = logging.getLogger(__name__)
 
@@ -366,6 +367,13 @@ class EventDetail(models.Model):
     contents = models.TextField('内容', blank=True, default='')
     meta_description = models.CharField(
         'メタディスクリプション', max_length=255, blank=True, default='')
+
+    cached_transcript = models.TextField(
+        blank=True,
+        default='',
+        help_text='YouTube字幕のキャッシュ（ブログ再生成時のAPI再取得防止）',
+    )
+    cached_transcript_video_id = models.CharField(max_length=32, blank=True, default='')
 
     # LT申請関連フィールド
     status = models.CharField(

@@ -5,7 +5,7 @@ from django.db.models import Q
 
 from event.services.media_service import ensure_pdf_thumbnail
 from event.models import EventDetail
-from twitter.signals import sync_slide_share_queue_image
+from twitter.services.tweet_generation import sync_slide_share_queue_image
 
 logger = logging.getLogger(__name__)
 

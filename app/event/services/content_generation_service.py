@@ -1,4 +1,4 @@
-"""ブログ記事生成・YouTube字幕取得を担うモジュール."""
+"""ブログ記事生成を担うモジュール."""
 from __future__ import annotations
 
 import json
@@ -9,7 +9,6 @@ import tempfile
 from datetime import datetime
 from typing import Optional
 
-from googleapiclient.discovery import build
 from openai import OpenAI
 from openai.types.chat import (
     ChatCompletionMessageParam,
@@ -19,21 +18,22 @@ from openai.types.chat import (
 from openai.types.shared_params import FunctionDefinition
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
-from youtube_transcript_api import YouTubeTranscriptApi
-from youtube_transcript_api._errors import NoTranscriptFound
 
 from event.models import EventDetail
 from event.prompts import BLOG_GENERATION_TEMPLATE
 from event.services.media_service import ensure_pdf_thumbnail
+from event.services.youtube_service import get_transcript
 from website.constants import (
     OPENROUTER_BASE_URL,
     build_openrouter_extra_headers,
 )
-from website.settings import GOOGLE_API_KEY
 
 logger = logging.getLogger(__name__)
 
-MAX_SOURCE_TEXT_CHARS = 120_000
+# LT1本(15-30分)の要約用途に対し従来の 120k字 x 2 は過大で、入力トークンの支配要因だった。
+MAX_SOURCE_TEXT_CHARS = 40_000
+# 文字起こし + PDF の合算上限。文字起こしを優先し、PDF は残り予算だけ使う。
+MAX_COMBINED_SOURCE_CHARS = 60_000
 MAX_PDF_TEXT_PAGES = 30
 
 
@@ -94,8 +94,19 @@ def _limit_source_text(text: str, *, max_chars: int = MAX_SOURCE_TEXT_CHARS) -> 
     return text[:max_chars]
 
 
-def _extract_pdf_text(temp_file_path: str) -> str:
-    """Extract bounded text from a PDF file for blog generation."""
+def _extract_pdf_text(temp_file_path: str, *, max_chars: int = MAX_SOURCE_TEXT_CHARS) -> str:
+    """Extract bounded text from a PDF file for blog generation.
+
+    Args:
+        temp_file_path: 読み込む PDF の一時ファイルパス
+        max_chars: 抽出テキストの合計文字数上限（呼び出し側の残り予算）
+
+    Returns:
+        上限内に切り詰めた抽出テキスト
+    """
+    if max_chars <= 0:
+        return ""
+
     reader = PdfReader(temp_file_path)
     page_count = len(reader.pages)
     if page_count > MAX_PDF_TEXT_PAGES:
@@ -115,7 +126,7 @@ def _extract_pdf_text(temp_file_path: str) -> str:
         if not text:
             continue
 
-        remaining_chars = MAX_SOURCE_TEXT_CHARS - current_chars
+        remaining_chars = max_chars - current_chars
         if remaining_chars <= 0:
             break
 
@@ -123,6 +134,42 @@ def _extract_pdf_text(temp_file_path: str) -> str:
         current_chars += min(len(text), remaining_chars) + 1
 
     return "\n".join(page_texts)
+
+
+def _get_transcript_with_cache(event_detail: EventDetail) -> Optional[str]:
+    """YouTube字幕をキャッシュ優先で取得する.
+
+    同一動画のキャッシュがあれば YouTube API を呼ばずに再利用し、
+    取得に成功した時だけキャッシュを更新する（失敗を「字幕なし」として
+    恒久化しないため、None のときは書き込まない）。
+
+    Args:
+        event_detail: 対象のイベント詳細
+
+    Returns:
+        字幕テキスト。取得できなかった場合は None（video_id 未設定時は空文字）
+    """
+    video_id = event_detail.video_id
+
+    if event_detail.cached_transcript and event_detail.cached_transcript_video_id == video_id:
+        logger.info(f"Using cached transcript for video {video_id}: {len(event_detail.cached_transcript)} chars")
+        return event_detail.cached_transcript
+
+    transcript = get_transcript(video_id, "ja")
+    if transcript:
+        logger.info(f"Retrieved transcript for video {video_id}: {len(transcript)} chars")
+        event_detail.cached_transcript = transcript
+        event_detail.cached_transcript_video_id = video_id or ''
+        # save() だと post_save シグナル（twitter の daily_reminder 再同期等）が発火し、
+        # 既投稿 TweetQueue を上書き破壊するため、シグナル非発火の update() で書き込む
+        EventDetail.objects.filter(pk=event_detail.pk).update(
+            cached_transcript=transcript,
+            cached_transcript_video_id=video_id or '',
+        )
+    else:
+        logger.warning(f"No transcript found for video {video_id}")
+
+    return transcript
 
 
 def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
@@ -158,12 +205,12 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
 
         logger.info(f"Using OpenRouter with model: {model}")
 
-        # YouTube動画から文字起こしを取得
-        transcript = get_transcript(event_detail.video_id, "ja")
-        if transcript:
-            logger.info(f"Retrieved transcript for video {event_detail.video_id}: {len(transcript)} chars")
-        else:
-            logger.warning(f"No transcript found for video {event_detail.video_id}")
+        # YouTube動画から文字起こしを取得（再生成時のAPI再取得を避けてキャッシュを優先）
+        transcript = _get_transcript_with_cache(event_detail)
+
+        # プロンプトに埋め込む文字起こしを先に確定させ、PDF は合算上限の残り予算だけ使う
+        limited_transcript = _limit_source_text(transcript) if transcript else ""
+        pdf_budget = max(MAX_COMBINED_SOURCE_CHARS - len(limited_transcript), 0)
 
         # PDFの内容とURLを取得
         pdf_content = ""
@@ -174,7 +221,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
             try:
                 temp_file_path = _copy_uploaded_file_to_temp_path(event_detail.slide_file)
                 # PyPDFを使用してPDFの内容を抽出
-                pdf_content = _extract_pdf_text(temp_file_path)
+                pdf_content = _extract_pdf_text(temp_file_path, max_chars=pdf_budget)
                 logger.info(f"Extracted PDF content: {len(pdf_content)} chars")
             except Exception as e:
                 logger.warning(f"Error loading PDF for EventDetail {event_detail.pk}: {e}")
@@ -185,7 +232,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
 
         # プロンプトテンプレートを作成
         prompt_text = BLOG_GENERATION_TEMPLATE.format(
-            transcript=_limit_source_text(transcript) if transcript else "文字起こしはありません。",
+            transcript=limited_transcript or "文字起こしはありません。",
             pdf_content=pdf_content or "PDFコンテンツはありません。",
             date=event_detail.event.date.strftime('%Y年%m月%d日') if hasattr(event_detail.event.date,
                                                                              'strftime') else event_detail.event.date,
@@ -196,34 +243,13 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
             pdf_url=pdf_url or "なし",
             format_instructions=""  # 不要
         )
-        # プロンプトにJSON出力指示を追加
+        # Function Calling 未対応モデルのフォールバック用。フィールド制約は
+        # BlogOutput の Field description（= function schema）が正本なのでここでは繰り返さない
         prompt_text += """
 
-# 重要な出力形式の指示
-必ず以下のフォーマットで出力してください。
-
-1. 最初に```jsonと書く
-2. 次の行からJSONオブジェクトを開始
-3. 3つのフィールド（title, meta_description, text）を必ず含める
-4. 最後に```で閉じる
-5. それ以外のテキストは一切含めない
-
-出力例:
-```json
-{
-  "title": "40文字以内のSEOを意識した魅力的なタイトル",
-  "meta_description": "120文字以内のコンテンツ要約",
-  "text": "マークダウン形式の1000〜2300文字の本文"
-}
-```
-
-注意事項:
-- titleは必ず40文字以内
-- meta_descriptionは必ず120文字以内
-- textは必ず1000文字以上2300文字以内
-- 各フィールドは空にしない
-- JSON内のダブルクォート文字は\"でエスケープする
-- 改行は\nで表現する"""
+# 出力形式
+関数呼び出しが使えない場合は、title / meta_description / text の3フィールドを持つ
+JSONオブジェクトだけを```json ... ```ブロックで出力してください。"""
 
         logger.info(f'Prompt for OpenRouter:\n{prompt_text[:500]}...')  # 長すぎるので一部表示
 
@@ -437,55 +463,3 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
             },
         )
         return BlogOutput(title='', meta_description='', text='')
-
-
-def get_transcript(video_id, language='ja') -> Optional[str]:
-    """YouTube動画から文字起こしを取得する関数
-
-    Args:
-      video_id: YouTube動画のID
-      language: 文字起こしの言語のリスト。デフォルトは日本語
-
-    Returns:
-      文字起こしテキスト
-    """
-    if not video_id:
-        return ''
-
-    try:
-        # APIキーを設定
-        youtube = build('youtube', 'v3', developerKey=GOOGLE_API_KEY)
-
-        # 動画の詳細情報を取得
-        video_response = youtube.videos().list(
-            part='snippet',
-            id=video_id
-        ).execute()
-
-        if not video_response['items']:
-            raise ValueError('動画が見つかりませんでした')
-
-        # 字幕を取得 (認証不要)
-        transcript_list = YouTubeTranscriptApi.list_transcripts(
-            video_id)
-
-        # 日本語字幕を優先的に取得し、なければ英語字幕を取得して翻訳。
-        try:
-            transcript = transcript_list.find_transcript(['ja'])
-        except NoTranscriptFound:
-            logger.exception(
-                "日本語字幕が見つからないため英語字幕の翻訳へ"
-                "フォールバックします: video_id=%s",
-                video_id,
-            )
-            transcript = transcript_list.find_transcript(
-                ['en']).translate('ja')
-
-        # 字幕テキストを結合
-        captions_text = "\n".join([entry['text']
-                                   for entry in transcript.fetch()])
-        return captions_text
-
-    except Exception as e:
-        logger.error(f"Youtubeから文字起こしを取得するときにエラーが発生しました: {str(e)}")
-        return None

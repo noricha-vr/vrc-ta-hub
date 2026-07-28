@@ -16,8 +16,10 @@ from django.utils import timezone
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from twitter import signals
 from twitter.models import TweetQueue
 from twitter.scheduling import default_scheduled_at, scheduled_at_for_date
+from twitter.services import daily_reminder
 
 CustomUser = get_user_model()
 
@@ -29,40 +31,90 @@ class EventTestPatchScopeTest(TestCase):
     def test_event_tests_import_does_not_patch_tweet_generation_globally(self):
         """event.tests の import だけでは本文生成起動関数をモックしない。"""
         import event.tests  # noqa: F401
-        from twitter import signals
+        from twitter.services import tweet_generation
 
-        self.assertNotIsInstance(signals._start_tweet_generation, Mock)
+        self.assertNotIsInstance(tweet_generation._start_tweet_generation, Mock)
+        # 呼び出し側（signals / daily_reminder）も素の関数を参照している
+        self.assertNotIsInstance(signals.tweet_generation._start_tweet_generation, Mock)
+        self.assertNotIsInstance(
+            daily_reminder.tweet_generation._start_tweet_generation, Mock,
+        )
 
     def test_tweet_generation_patch_mixin_scopes_patch_to_class_lifecycle(self):
-        """TweetGenerationPatchMixin が setUpClass〜tearDownClass の間だけモック化することを検証する。"""
-        from event.tests.tweet_generation import TweetGenerationPatchMixin
-        from twitter import signals
+        """TweetGenerationPatchMixin が setUpClass〜tearDownClass の間だけモック化することを検証する。
 
-        original = signals._start_tweet_generation
+        定義元モジュールだけでなく、呼び出し側 (twitter.signals /
+        twitter.services.daily_reminder) が参照する関数まで patch が届くことを確認する。
+        値渡し import に戻ると呼び出し側は素の関数を掴んだままになり、このテストが落ちる。
+        """
+        from event.tests.tweet_generation import TweetGenerationPatchMixin
+        from twitter.services import tweet_generation
+
+        original = tweet_generation._start_tweet_generation
 
         class _DummyCase(TweetGenerationPatchMixin, TestCase):
             pass
 
         # setUpClass 実行前は素のシグナルが残っている
-        self.assertIs(signals._start_tweet_generation, original)
+        self.assertIs(tweet_generation._start_tweet_generation, original)
+        self.assertIs(signals.tweet_generation._start_tweet_generation, original)
+        self.assertIs(daily_reminder.tweet_generation._start_tweet_generation, original)
 
         _DummyCase.setUpClass()
         try:
             # mixin 適用中はモック化される
-            self.assertIsNot(signals._start_tweet_generation, original)
-            self.assertIsInstance(signals._start_tweet_generation, Mock)
+            mock_target = tweet_generation._start_tweet_generation
+            self.assertIsNot(mock_target, original)
+            self.assertIsInstance(mock_target, Mock)
+            # 呼び出し側から見えている関数も同じ Mock であること（= patch が届く）
+            self.assertIs(signals.tweet_generation._start_tweet_generation, mock_target)
+            self.assertIs(
+                daily_reminder.tweet_generation._start_tweet_generation, mock_target,
+            )
         finally:
             _DummyCase.tearDownClass()
 
         # tearDownClass 後は元の関数に戻る
-        self.assertIs(signals._start_tweet_generation, original)
+        self.assertIs(tweet_generation._start_tweet_generation, original)
+        self.assertIs(signals.tweet_generation._start_tweet_generation, original)
+        self.assertIs(daily_reminder.tweet_generation._start_tweet_generation, original)
+
+    def test_tweet_generation_patch_mixin_intercepts_signal_call(self):
+        """mixin 適用下では signal 経由の本文生成起動が Mock に到達する。"""
+        from event.tests.tweet_generation import TweetGenerationPatchMixin
+
+        class _DummyCase(TweetGenerationPatchMixin, TestCase):
+            pass
+
+        _DummyCase.setUpClass()
+        try:
+            mock_start = signals.tweet_generation._start_tweet_generation
+            mock_start.reset_mock()
+            community = Community.objects.create(
+                name="Patch Reach Community",
+                start_time=datetime.time(22, 0),
+                duration=60,
+                weekdays=["Mon"],
+                frequency="毎週",
+                organizers="Test Organizer",
+                status="pending",
+            )
+            community.status = "approved"
+            community.save()
+
+            queue = TweetQueue.objects.get(
+                community=community, tweet_type="new_community",
+            )
+            mock_start.assert_called_once_with(queue)
+        finally:
+            _DummyCase.tearDownClass()
 
 
 @tag('offline_external_api')
 class TweetGenerationThreadGuardTest(TestCase):
     """テスト実行時の本文生成スレッド起動ガードを検証する。"""
 
-    @patch("twitter.signals.threading.Thread.start")
+    @patch("twitter.services.tweet_generation.threading.Thread.start")
     def test_testing_mode_saves_generation_token_without_starting_thread(self, mock_start):
         """manage.py test では generation_token を保存しつつスレッドを起動しない。"""
         community = Community.objects.create(
@@ -80,10 +132,10 @@ class TweetGenerationThreadGuardTest(TestCase):
             status="generating",
         )
 
-        from twitter import signals
+        from twitter.services import tweet_generation
 
-        with patch.object(signals.sys, "argv", ["manage.py", "test"]):
-            signals._start_tweet_generation(queue)
+        with patch.object(tweet_generation.sys, "argv", ["manage.py", "test"]):
+            tweet_generation._start_tweet_generation(queue)
 
         queue.refresh_from_db()
         self.assertTrue(queue.generation_token)
@@ -235,7 +287,7 @@ class TweetSchedulingTest(TestCase):
 class CommunityApprovalSignalTest(AutoTweetTestBase):
     """Community 承認時のシグナルテスト"""
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_community_approval_creates_queue(self, mock_thread_cls):
         """Community が pending -> approved に変更されたらキューが generating で作成される"""
         mock_thread = MagicMock()
@@ -257,7 +309,7 @@ class CommunityApprovalSignalTest(AutoTweetTestBase):
         mock_thread_cls.assert_called_once()
         mock_thread.start.assert_called_once()
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_duplicate_community_queue_prevention(self, mock_thread_cls):
         """同一 community の重複キューは作成されない"""
         mock_thread_cls.return_value = MagicMock()
@@ -271,7 +323,7 @@ class CommunityApprovalSignalTest(AutoTweetTestBase):
         self.community.save()
         self.assertEqual(TweetQueue.objects.count(), 1)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_rejected_community_does_not_create_queue(self, mock_thread_cls):
         """rejected への変更ではキューは作成されない"""
         self.community.status = "rejected"
@@ -279,7 +331,7 @@ class CommunityApprovalSignalTest(AutoTweetTestBase):
 
         self.assertEqual(TweetQueue.objects.count(), 0)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_already_approved_community_does_not_create_queue(self, mock_thread_cls):
         """既に approved だった community の再保存ではキューは作成されない"""
         mock_thread_cls.return_value = MagicMock()
@@ -299,14 +351,14 @@ class EventDetailSignalTest(AutoTweetTestBase):
     def setUp(self):
         super().setUp()
         # community を approved にしておく (LT テスト用)
-        with patch("twitter.signals.threading.Thread") as mock_thread_cls:
+        with patch("twitter.services.tweet_generation.threading.Thread") as mock_thread_cls:
             mock_thread_cls.return_value = MagicMock()
             self.community.status = "approved"
             self.community.save()
         # community 承認時のキューをクリア
         TweetQueue.objects.all().delete()
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_lt_approval_creates_queue(self, mock_thread_cls):
         """LT タイプの EventDetail 承認時にキューが作成される"""
         mock_thread_cls.return_value = MagicMock()
@@ -333,7 +385,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(reminder.scheduled_at, scheduled_at_for_date(self.event.date))
         self.assertEqual(timezone.localtime(reminder.scheduled_at).hour, 19)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_special_event_creates_queue(self, mock_thread_cls):
         """SPECIAL タイプの EventDetail 承認時にキューが作成される"""
         mock_thread_cls.return_value = MagicMock()
@@ -355,7 +407,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(timezone.localtime(queue.scheduled_at).hour, 12)
         self.assertEqual(reminder.scheduled_at, scheduled_at_for_date(self.event.date))
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_blog_type_does_not_create_queue(self, mock_thread_cls):
         """BLOG タイプではキューが作成されない"""
         EventDetail.objects.create(
@@ -369,7 +421,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
 
         self.assertEqual(TweetQueue.objects.count(), 0)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_pending_detail_does_not_create_queue(self, mock_thread_cls):
         """status=pending の EventDetail ではキューが作成されない"""
         EventDetail.objects.create(
@@ -383,7 +435,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
 
         self.assertEqual(TweetQueue.objects.count(), 0)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_duplicate_event_detail_queue_prevention_on_initial_approval(self, mock_thread_cls):
         """初回承認時、同一 event_detail の重複キューは作成されない"""
         mock_thread_cls.return_value = MagicMock()
@@ -412,7 +464,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.count(), 2)
         self.assertTrue(TweetQueue.objects.filter(tweet_type="daily_reminder", event=self.event).exists())
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_pending_to_approved_creates_queue(self, mock_thread_cls):
         """EventDetail が pending -> approved に更新されたらキューが作成される"""
         mock_thread_cls.return_value = MagicMock()
@@ -436,7 +488,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.tweet_type, "lt")
         self.assertEqual(queue.event_detail, detail)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_approved_detail_no_content_change_keeps_existing_tweet(self, mock_thread_cls):
         """既に approved の EventDetail を内容変更なしで再保存してもキューは追加されない"""
         mock_thread_cls.return_value = MagicMock()
@@ -457,7 +509,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
         self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder").count(), 1)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_approved_detail_content_change_regenerates_tweet(self, mock_thread_cls):
         """approved 状態で speaker/theme が変更されたらツイートを再生成する"""
         mock_thread_cls.return_value = MagicMock()
@@ -484,7 +536,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertNotEqual(new_queue.pk, old_queue_id)
         self.assertEqual(new_queue.status, "generating")
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_approved_detail_theme_change_regenerates_tweet(self, mock_thread_cls):
         """approved 状態で theme が変更されたらツイートを再生成する"""
         mock_thread_cls.return_value = MagicMock()
@@ -508,7 +560,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         queue = TweetQueue.objects.get(tweet_type="lt")
         self.assertEqual(queue.status, "generating")
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_approved_detail_posted_tweet_not_deleted_on_change(self, mock_thread_cls):
         """投稿済みツイートは削除されず、新しいキューが追加される"""
         mock_thread_cls.return_value = MagicMock()
@@ -536,7 +588,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.filter(tweet_type="lt", status="generating").count(), 1)
         self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder", status="generating").count(), 1)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_approved_detail_creates_tweet_if_none_exists_on_content_change(self, mock_thread_cls):
         """approved 状態でツイート未作成 + コンテンツ変更時に新規作成する"""
         mock_thread_cls.return_value = MagicMock()
@@ -558,7 +610,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 1)
         self.assertEqual(TweetQueue.objects.filter(tweet_type="daily_reminder").count(), 1)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_past_event_does_not_create_lt_queue(self, mock_thread_cls):
         """過去のイベントにLTが承認されてもキューは作成されない"""
         mock_thread_cls.return_value = MagicMock()
@@ -579,7 +631,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         )
         self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 0)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_past_event_content_change_does_not_create_queue(self, mock_thread_cls):
         """過去のイベントのLT内容を変更してもキューは作成されない"""
         mock_thread_cls.return_value = MagicMock()
@@ -604,7 +656,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         detail.save()
         self.assertEqual(TweetQueue.objects.filter(tweet_type="lt").count(), 0)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_today_event_creates_skipped_lt_and_daily_reminder_queue(self, mock_thread_cls):
         """当日のイベントでは個別告知は skipped、daily_reminder が非同期生成される"""
         mock_thread_cls.return_value = MagicMock()
@@ -637,7 +689,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(mock_thread_cls.call_args.kwargs["args"], (reminder_queue.pk, reminder_queue.generation_token))
         mock_thread_cls.return_value.start.assert_called_once()
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_today_event_theme_change_regenerates_same_daily_reminder_queue(self, mock_thread_cls):
         """当日の LT 内容変更では same-day daily_reminder を同じキューIDのまま非同期再生成する"""
         mock_thread_cls.return_value = MagicMock()
@@ -672,7 +724,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(mock_thread_cls.call_count, 2)
         self.assertEqual(mock_thread_cls.call_args.kwargs["args"], (reminder_queue.pk, reminder_queue.generation_token))
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_future_event_start_time_change_regenerates_daily_reminder_queue(self, mock_thread_cls):
         """future イベントの開始時刻変更でも daily_reminder を同じキューIDのまま非同期再生成する"""
         mock_thread_cls.return_value = MagicMock()
@@ -700,7 +752,7 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(mock_thread_cls.call_count, 3)
         self.assertEqual(mock_thread_cls.call_args.kwargs["args"], (reminder_queue.pk, reminder_queue.generation_token))
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_today_event_unapprove_skips_daily_reminder(self, mock_thread_cls):
         """当日の approved 発表がなくなったら daily_reminder は skipped になる"""
         mock_thread_cls.return_value = MagicMock()
@@ -746,7 +798,7 @@ class GenerateTweetAsyncTest(AutoTweetTestBase):
         mock_generate.return_value = "新しい集会の告知テスト"
         queue_item = self._create_queue()
 
-        from twitter.signals import _generate_tweet_async
+        from twitter.services.tweet_generation import _generate_tweet_async
         _generate_tweet_async(queue_item.pk)
 
         queue_item.refresh_from_db()
@@ -760,7 +812,7 @@ class GenerateTweetAsyncTest(AutoTweetTestBase):
         mock_generate.return_value = None
         queue_item = self._create_queue()
 
-        from twitter.signals import _generate_tweet_async
+        from twitter.services.tweet_generation import _generate_tweet_async
         _generate_tweet_async(queue_item.pk)
 
         queue_item.refresh_from_db()
@@ -777,7 +829,7 @@ class GenerateTweetAsyncTest(AutoTweetTestBase):
         queue_item.generation_token = "current-token"
         queue_item.save(update_fields=["generated_text", "status", "generation_token"])
 
-        from twitter.signals import _generate_tweet_async
+        from twitter.services.tweet_generation import _generate_tweet_async
         _generate_tweet_async(queue_item.pk, "stale-token")
 
         queue_item.refresh_from_db()
@@ -791,22 +843,22 @@ class GenerateTweetAsyncTest(AutoTweetTestBase):
         mock_generate.side_effect = RuntimeError("LLM API error")
         queue_item = self._create_queue()
 
-        from twitter.signals import _generate_tweet_async
+        from twitter.services.tweet_generation import _generate_tweet_async
         _generate_tweet_async(queue_item.pk)
 
         queue_item.refresh_from_db()
         self.assertEqual(queue_item.status, "generation_failed")
         self.assertIn("LLM API error", queue_item.error_message)
 
-    @patch("twitter.signals._save_generation_failure", side_effect=DatabaseError("db write failed"))
+    @patch("twitter.services.tweet_generation._save_generation_failure", side_effect=DatabaseError("db write failed"))
     @patch("twitter.tweet_generator.generate_new_community_tweet")
     def test_generate_async_logs_failure_persistence_error(self, mock_generate, mock_save_failure):
         """失敗状態の保存にも失敗した場合は例外情報をログに残す"""
         mock_generate.side_effect = RuntimeError("LLM API error")
         queue_item = self._create_queue()
 
-        from twitter.signals import _generate_tweet_async
-        with self.assertLogs("twitter.signals", level="ERROR") as log_ctx:
+        from twitter.services.tweet_generation import _generate_tweet_async
+        with self.assertLogs("twitter.services.tweet_generation", level="ERROR") as log_ctx:
             _generate_tweet_async(queue_item.pk)
 
         mock_save_failure.assert_called_once()
@@ -819,7 +871,7 @@ class GenerateTweetAsyncTest(AutoTweetTestBase):
 
     def test_generate_async_nonexistent_queue(self):
         """存在しないキューIDでもエラーにならない"""
-        from twitter.signals import _generate_tweet_async
+        from twitter.services.tweet_generation import _generate_tweet_async
         # Should not raise
         _generate_tweet_async(99999)
 
@@ -830,7 +882,7 @@ class GenerateTweetAsyncTest(AutoTweetTestBase):
         mock_generate.return_value = "告知テスト"
         queue_item = self._create_queue()
 
-        from twitter.signals import _generate_tweet_async
+        from twitter.services.tweet_generation import _generate_tweet_async
         _generate_tweet_async(queue_item.pk)
 
         mock_close_all.assert_called_once()
@@ -849,7 +901,7 @@ class GenerateTweetAsyncTest(AutoTweetTestBase):
 
         queue_item = self._create_queue()
 
-        from twitter.signals import _generate_tweet_async
+        from twitter.services.tweet_generation import _generate_tweet_async
         _generate_tweet_async(queue_item.pk)
 
         queue_item.refresh_from_db()
@@ -1058,7 +1110,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertEqual(queue.generated_text, "")
         mock_post.assert_not_called()
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_post_scheduled_tweets_ignores_non_approved_or_non_lt_details(self, mock_thread_cls):
         """approved な LT/SPECIAL がなくてもスケジューラは新規キューを作らない"""
         mock_thread_cls.return_value = MagicMock()
@@ -1103,7 +1155,7 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertFalse(TweetQueue.objects.filter(tweet_type="daily_reminder").exists())
 
     @patch("twitter.views.post_tweet")
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_post_scheduled_tweets_does_not_create_missing_daily_reminder(self, mock_thread_cls, mock_post):
         """daily_reminder が未作成ならスケジューラは補完作成しない"""
         mock_thread_cls.return_value = MagicMock()
@@ -1406,7 +1458,7 @@ class PostScheduledTweetsExpiredEventTest(AutoTweetTestBase):
 
     def setUp(self):
         super().setUp()
-        with patch("twitter.signals.threading.Thread") as mock_thread_cls:
+        with patch("twitter.services.tweet_generation.threading.Thread") as mock_thread_cls:
             mock_thread_cls.return_value = MagicMock()
             self.community.status = "approved"
             self.community.save()
@@ -1797,7 +1849,7 @@ class GetPosterImageUrlHelperTest(TestCase):
     """get_poster_image_url ヘルパー関数のテスト"""
 
     def setUp(self):
-        with patch("twitter.signals.threading.Thread"):
+        with patch("twitter.services.tweet_generation.threading.Thread"):
             self.community = Community.objects.create(
                 name="Poster Test Community",
                 start_time=datetime.time(22, 0),
@@ -2257,7 +2309,7 @@ class TweetGeneratorTest(TestCase):
     """告知文生成関数のテスト"""
 
     def setUp(self):
-        with patch("twitter.signals.threading.Thread"):
+        with patch("twitter.services.tweet_generation.threading.Thread"):
             self.community = Community.objects.create(
                 name="Generator Test Community",
                 start_time=datetime.time(22, 0),
@@ -2277,7 +2329,7 @@ class TweetGeneratorTest(TestCase):
             duration=60,
         )
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_new_community_tweet(self, mock_llm, _mock_thread):
         """新規集会の告知文が生成��れる"""
@@ -2298,7 +2350,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("告知ポスト", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_lt_tweet(self, mock_llm, _mock_thread):
         """LT 告知文が生成される"""
@@ -2326,7 +2378,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("告知ポスト", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_lt_tweet_includes_applicant_x_account(self, mock_llm, _mock_thread):
         """LT 告知のプロンプトに申請者の X アカウントを含める"""
@@ -2354,7 +2406,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("発表者: テスト太郎さん（@speaker_vr）", user_prompt)
         self.assertIn("発表者（「テスト太郎さん（@speaker_vr）」をそのまま記載）", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_lt_tweet_uses_name_only_without_applicant_x_account(self, mock_llm, _mock_thread):
         """申請者や X アカウントがない LT 告知は従来どおり名前だけを使う"""
@@ -2375,7 +2427,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("発表者: テスト太郎さん", user_prompt)
         self.assertNotIn("@", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_lt_generator_fallback_includes_applicant_x_account(self, mock_llm, _mock_thread):
         """LLM 生成失敗時の LT fallback に申請者の X アカウントを含める"""
@@ -2408,7 +2460,7 @@ class TweetGeneratorTest(TestCase):
 
         self.assertIn("テスト太郎さん（@fallback_vr）", result)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_lt_generator_fallback_fits_long_theme_under_weighted_limit(self, mock_llm, _mock_thread):
         """LLM が長い本文を返し続けても LT 告知を決定的に280以内へ収める"""
@@ -2449,7 +2501,7 @@ class TweetGeneratorTest(TestCase):
         self.assertLessEqual(count_tweet_length(result), 280)
         self.assertNotIn("自律型エージェントの実装", result)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_special_event_tweet(self, mock_llm, _mock_thread):
         """特別回告知文が生成される"""
@@ -2476,7 +2528,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("告知ポスト", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_daily_reminder_tweet(self, mock_llm, _mock_thread):
         """当日リマインド生成時に開催情報と発表情報をプロンプトへ含める"""
@@ -2511,7 +2563,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("リマインダーポスト", user_prompt)
         self.assertNotIn("リマインダーツイート", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_daily_reminder_tweet_includes_applicant_x_account(self, mock_llm, _mock_thread):
         """当日リマインドの発表一覧に申請者の X アカウントを含める"""
@@ -2544,7 +2596,7 @@ class TweetGeneratorTest(TestCase):
         _, user_prompt = mock_llm.call_args[0]
         self.assertIn("- 発表: リマインド太郎さん（@reminder_vr）「今日の見どころ」", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_generate_daily_reminder_tweet_returns_none_without_approved_details(self, _mock_thread):
         """approved な LT/SPECIAL がない場合は daily reminder を生成しない"""
         today_event = Event.objects.create(
@@ -2567,7 +2619,7 @@ class TweetGeneratorTest(TestCase):
 
         self.assertIsNone(result)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_slide_share_tweet_with_slide(self, mock_llm, _mock_thread):
         """スライド共有ツイートが生成される（slide_url のみ）"""
@@ -2600,7 +2652,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("スライド", user_prompt)
         self.assertNotIn("動画", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_slide_share_tweet_with_youtube(self, mock_llm, _mock_thread):
         """スライド共有ツイートが生成される（youtube_url のみ）"""
@@ -2630,7 +2682,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("動画", user_prompt)
         self.assertNotIn("スライド", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_slide_share_tweet_with_both(self, mock_llm, _mock_thread):
         """スライド共有ツイートが生成される（slide_url + youtube_url 両方）"""
@@ -2659,7 +2711,7 @@ class TweetGeneratorTest(TestCase):
         self.assertNotIn("ツイート", user_prompt)
         self.assertIn("スライド・動画", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_slide_share_tweet_includes_applicant_x_account(self, mock_llm, _mock_thread):
         """スライド共有告知のプロンプトに申請者の X アカウントを含める"""
@@ -2688,7 +2740,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("発表者: テスト太郎さん（@speaker_vr）", user_prompt)
         self.assertIn("発表者（「テスト太郎さん（@speaker_vr）」をそのまま記載）", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_generate_slide_share_tweet_uses_name_only_without_applicant_x_account(self, mock_llm, _mock_thread):
         """申請者や X アカウントがないスライド告知は従来どおり名前だけを使う"""
@@ -2710,7 +2762,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("発表者: テスト太郎さん", user_prompt)
         self.assertNotIn("@", user_prompt)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_slide_share_generator_fallback_includes_applicant_x_account(self, mock_llm, _mock_thread):
         """LLM 生成失敗時のスライド共有 fallback に申請者の X アカウントを含める"""
@@ -2779,7 +2831,7 @@ class TweetGeneratorTest(TestCase):
 
         self.assertIsNone(result)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
     def test_sanitize_strips_newlines_in_prompt(self, mock_llm, _mock_thread):
         """ユーザー入力の改行・制御文字がサニタイズされてプロンプトに渡される"""
@@ -2924,7 +2976,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
     def setUp(self):
         super().setUp()
         # community を approved にしておく
-        with patch("twitter.signals.threading.Thread") as mock_thread_cls:
+        with patch("twitter.services.tweet_generation.threading.Thread") as mock_thread_cls:
             mock_thread_cls.return_value = MagicMock()
             self.community.status = "approved"
             self.community.save()
@@ -2938,7 +2990,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
             duration=60,
         )
         # 承認済みの EventDetail を作成（slide_url/youtube_url なし）
-        with patch("twitter.signals.threading.Thread") as mock_thread_cls:
+        with patch("twitter.services.tweet_generation.threading.Thread") as mock_thread_cls:
             mock_thread_cls.return_value = MagicMock()
             self.detail = EventDetail.objects.create(
                 event=self.past_event,
@@ -2951,7 +3003,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         # LT承認時のキューをクリア
         TweetQueue.objects.all().delete()
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_url_first_set_creates_queue(self, mock_thread_cls):
         """slide_url が初めて設定され、発表日が過去ならキューが作成される"""
         mock_thread_cls.return_value = MagicMock()
@@ -2969,7 +3021,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         mock_thread_cls.assert_called_once()
 
     @patch("event.notifications.requests.post")
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_share_sends_community_webhook(self, mock_thread_cls, mock_post):
         """資料公開時は集会に設定したWebhookへ通知を送る"""
         mock_thread_cls.return_value = MagicMock()
@@ -2994,7 +3046,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         MEDIA_URL="https://data.vrc-ta-hub.com/",
     )
     @patch("event.notifications.requests.post")
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_share_webhook_uses_event_detail_thumbnail_image(
         self, mock_thread_cls, mock_post,
     ):
@@ -3017,7 +3069,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         MEDIA_URL="https://data.vrc-ta-hub.com/",
     )
     @patch("event.notifications.requests.post")
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_share_webhook_falls_back_to_community_poster_image(
         self, mock_thread_cls, mock_post,
     ):
@@ -3036,7 +3088,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(image_url, "https://data.vrc-ta-hub.com/poster/community.webp")
 
     @patch("event.notifications.requests.post")
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_share_without_webhook_does_not_send_notification(self, mock_thread_cls, mock_post):
         """Webhook未設定なら資料公開通知は送らない"""
         mock_thread_cls.return_value = MagicMock()
@@ -3047,7 +3099,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         mock_post.assert_not_called()
 
     @patch("event.notifications.requests.post", side_effect=Exception("timeout"))
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_share_webhook_failure_does_not_block_queue_creation(
         self, mock_thread_cls, mock_post,
     ):
@@ -3062,7 +3114,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.count(), 1)
         mock_post.assert_called_once()
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_youtube_url_first_set_creates_queue(self, mock_thread_cls):
         """youtube_url が初めて設定され、発表日が過去ならキューが作成される"""
         mock_thread_cls.return_value = MagicMock()
@@ -3075,7 +3127,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.tweet_type, "slide_share")
 
     @patch("event.notifications.requests.post")
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_youtube_only_does_not_send_slide_webhook(self, mock_thread_cls, mock_post):
         """YouTubeのみ追加した場合はスライドWebhook通知を送らない"""
         mock_thread_cls.return_value = MagicMock()
@@ -3090,7 +3142,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.tweet_type, "slide_share")
         mock_post.assert_not_called()
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_future_event_does_not_create_queue(self, mock_thread_cls):
         """発表日が未来の場合はキューが作成されない"""
         mock_thread_cls.return_value = MagicMock()
@@ -3102,7 +3154,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
             start_time=datetime.time(22, 0),
             duration=60,
         )
-        with patch("twitter.signals.threading.Thread") as mt:
+        with patch("twitter.services.tweet_generation.threading.Thread") as mt:
             mt.return_value = MagicMock()
             future_detail = EventDetail.objects.create(
                 event=future_event,
@@ -3119,7 +3171,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
 
         self.assertEqual(TweetQueue.objects.count(), 0)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_duplicate_slide_share_prevention(self, mock_thread_cls):
         """同じ event_detail の slide_share キューは重複作成されない"""
         mock_thread_cls.return_value = MagicMock()
@@ -3134,7 +3186,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.count(), 1)
 
     @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_existing_unposted_slide_share_queue_syncs_thumbnail_image(self, mock_thread_cls):
         """既存の未投稿slide_shareキューはサムネイルURLへ再同期される"""
         mock_thread_cls.return_value = MagicMock()
@@ -3159,7 +3211,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertNotIn("poster/community.webp", queue.image_url)
 
     @override_settings(AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com')
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_posted_slide_share_queue_image_is_not_changed(self, mock_thread_cls):
         """投稿済みslide_shareキューの画像URLは履歴として保持する"""
         mock_thread_cls.return_value = MagicMock()
@@ -3186,7 +3238,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(queue.image_url, poster_url)
 
     @patch("event.notifications.requests.post")
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_webhook_still_sent_when_youtube_queue_already_exists(
         self, mock_thread_cls, mock_post,
     ):
@@ -3207,7 +3259,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.count(), 1)
         mock_post.assert_called_once()
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_url_update_does_not_create_queue(self, mock_thread_cls):
         """既に slide_url があるものを更新してもキューは作成されない"""
         mock_thread_cls.return_value = MagicMock()
@@ -3223,12 +3275,12 @@ class SlideShareSignalTest(AutoTweetTestBase):
 
         self.assertEqual(TweetQueue.objects.count(), 0)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_blog_type_does_not_create_slide_share_queue(self, mock_thread_cls):
         """BLOG タイプではスライド共有キューが作成されない"""
         mock_thread_cls.return_value = MagicMock()
 
-        with patch("twitter.signals.threading.Thread") as mt:
+        with patch("twitter.services.tweet_generation.threading.Thread") as mt:
             mt.return_value = MagicMock()
             blog_detail = EventDetail.objects.create(
                 event=self.past_event,
@@ -3245,12 +3297,12 @@ class SlideShareSignalTest(AutoTweetTestBase):
 
         self.assertEqual(TweetQueue.objects.count(), 0)
 
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_pending_detail_does_not_create_slide_share_queue(self, mock_thread_cls):
         """未承認の EventDetail ではスライド共有キューが作成されない"""
         mock_thread_cls.return_value = MagicMock()
 
-        with patch("twitter.signals.threading.Thread") as mt:
+        with patch("twitter.services.tweet_generation.threading.Thread") as mt:
             mt.return_value = MagicMock()
             pending_detail = EventDetail.objects.create(
                 event=self.past_event,
@@ -3268,7 +3320,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.count(), 0)
 
     @patch("event.services.media_service.ensure_pdf_thumbnail", return_value=False)
-    @patch("twitter.signals.threading.Thread")
+    @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_file_first_set_creates_queue(self, mock_thread_cls, _mock_ensure_pdf_thumbnail):
         """slide_file が初めて設定され、発表日が過去ならキューが作成される"""
         mock_thread_cls.return_value = MagicMock()
@@ -3290,7 +3342,7 @@ class SignalErrorHandlingTest(AutoTweetTestBase):
     def setUp(self):
         super().setUp()
         # community を approved にしておく
-        with patch("twitter.signals.threading.Thread") as mock_thread_cls:
+        with patch("twitter.services.tweet_generation.threading.Thread") as mock_thread_cls:
             mock_thread_cls.return_value = MagicMock()
             self.community.status = "approved"
             self.community.save()
@@ -3330,7 +3382,7 @@ class SignalErrorHandlingTest(AutoTweetTestBase):
     @patch("twitter.signals._queue_slide_share_tweet", side_effect=Exception("DB error"))
     def test_event_detail_update_succeeds_on_signal_error(self, mock_queue):
         """シグナルが例外を投げても EventDetail の更新は成功する"""
-        with patch("twitter.signals.threading.Thread") as mock_thread_cls:
+        with patch("twitter.services.tweet_generation.threading.Thread") as mock_thread_cls:
             mock_thread_cls.return_value = MagicMock()
             detail = EventDetail.objects.create(
                 event=self.event,

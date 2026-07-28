@@ -3,7 +3,7 @@
 from unittest.mock import patch
 
 
-_TWEET_GENERATION_TARGET = 'twitter.signals._start_tweet_generation'
+_TWEET_GENERATION_TARGET = 'twitter.services.tweet_generation._start_tweet_generation'
 
 
 class TweetGenerationPatchMixin:

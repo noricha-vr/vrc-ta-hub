@@ -45,7 +45,8 @@ def _call_generate_fn(
 def _generate_with_retry(
     generate_fn: Callable[..., Optional[str]],
     *args: Any,
-    max_retries: int = 3,
+    # LLM 呼び出しを最大4回→2回に削減。違反が続いても決定的フォールバックが完成させるため品質影響は限定的。
+    max_retries: int = 1,
     fallback_fn: Optional[Callable[..., Optional[str]]] = None,
     **kwargs: Any,
 ) -> Optional[str]:
@@ -98,17 +99,24 @@ def _generate_with_retry(
     if fallback_fn is None:
         return None
 
+    generator_name = getattr(generate_fn, "__qualname__", repr(generate_fn))
     fallback_result = fallback_fn(*args)
     if fallback_result and is_tweet_text_valid(fallback_result):
-        logger.info(
-            "Tweet deterministic fallback succeeded (weighted=%d, body_lines=%d)",
+        # LLM 本文が全リトライで不採用だった事実を運用側で検知できるよう warning で残す。
+        logger.warning(
+            "Tweet body finalized by deterministic fallback "
+            "(generator=%s, fallback=%s, retries=%d, weighted=%d, body_lines=%d)",
+            generator_name,
+            getattr(fallback_fn, "__qualname__", repr(fallback_fn)),
+            max_retries + 1,
             count_tweet_length(fallback_result),
             count_body_lines(fallback_result),
         )
         return fallback_result
 
     logger.error(
-        "Tweet deterministic fallback failed after generation retries: %s",
+        "Tweet deterministic fallback failed after generation retries (generator=%s): %s",
+        generator_name,
         validate_tweet_text(fallback_result or ""),
     )
     return None

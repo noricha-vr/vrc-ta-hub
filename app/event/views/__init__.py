@@ -17,13 +17,15 @@ from event.views.list import (  # noqa: F401
 )
 from event.views.my_list import EventMyList  # noqa: F401
 from event.views.detail import EventDetailView  # noqa: F401
-from event.views.crud import (  # noqa: F401
+from event.views.crud_event import (  # noqa: F401
     EventDateUpdateView,
     EventDeleteView,
+    EventUpdateView,
+)
+from event.views.crud_event_detail import (  # noqa: F401
     EventDetailCreateView,
     EventDetailDeleteView,
     EventDetailUpdateView,
-    EventUpdateView,
 )
 from event.views.calendar_create import GoogleCalendarEventCreateView  # noqa: F401
 from event.views.blog import GenerateBlogView  # noqa: F401

@@ -116,7 +116,7 @@ class NotifyOwnersOfNewApplicationTest(TweetGenerationPatchMixin, TestCase):
         notify_owners_of_new_application(self.event_detail)
         mock_send_mail.assert_called_once()
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_calls_discord_webhook_when_url_set(self, mock_post):
         """webhook_url 設定済みなら Discord 通知が呼ばれる"""
         self.community.notification_webhook_url = WEBHOOK_URL
@@ -197,7 +197,7 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
         self.event = _make_event(self.community)
         self.event_detail = _make_event_detail(self.event, applicant=self.applicant)
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_posts_to_webhook_when_url_set(self, mock_post):
         """webhook_url 設定時に POST される"""
         mock_post.return_value = MagicMock(ok=True, status_code=200)
@@ -209,7 +209,7 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
         self.assertIn("content", kwargs["json"])
         self.assertIn("embeds", kwargs["json"])
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_skipped_when_webhook_url_empty(self, mock_post):
         """webhook_url 空なら POST されない"""
         self.community.notification_webhook_url = ""
@@ -217,7 +217,7 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
         _send_discord_notification_for_new_application(self.event_detail, "https://example.com/review/1")
         mock_post.assert_not_called()
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_truncates_long_additional_info(self, mock_post):
         """additional_info が 1000 文字超なら切り詰め + ... サフィックス"""
         long_text = "a" * 1500
@@ -235,7 +235,7 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
         self.assertTrue(additional_field["value"].endswith("..."))
         self.assertEqual(len(additional_field["value"]), 1003)
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_swallows_request_exception(self, mock_post):
         """requests 例外時もクラッシュしない（silent failure 検出）.
 
@@ -243,20 +243,20 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
         「例外を吸い込んで完了する」ことを検証する。
         テスト中はバックオフ待機を 0 秒化して高速化する。
         """
-        from event.notifications import _post_discord_webhook
+        from website.discord_webhook import post_discord_webhook
 
         mock_post.side_effect = requests.RequestException("network down")
-        original_sleep = _post_discord_webhook.retry.sleep
-        _post_discord_webhook.retry.sleep = lambda *args, **kwargs: None
+        original_sleep = post_discord_webhook.retry.sleep
+        post_discord_webhook.retry.sleep = lambda *args, **kwargs: None
         try:
             # 例外を投げずに完了する
             _send_discord_notification_for_new_application(self.event_detail, "https://example.com/review/1")
         finally:
-            _post_discord_webhook.retry.sleep = original_sleep
+            post_discord_webhook.retry.sleep = original_sleep
         # 3 回再試行された（初回 + リトライ2回）
         self.assertEqual(mock_post.call_count, 3)
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_handles_non_ok_response(self, mock_post):
         """4xx/5xx 応答時もクラッシュしない（log warning のみ）"""
         mock_post.return_value = MagicMock(ok=False, status_code=500)
@@ -273,7 +273,7 @@ class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
         self.community = _make_community(owner=self.owner, webhook_url=WEBHOOK_URL)
         self.event = _make_event(self.community)
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_approved_uses_green_color(self, mock_post):
         """承認時の embed color が緑 (5763719)"""
         event_detail = _make_event_detail(self.event, applicant=self.applicant, status="approved")
@@ -283,7 +283,7 @@ class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(payload["embeds"][0]["color"], 5763719)
         self.assertIn("✅", payload["embeds"][0]["title"])
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_rejected_uses_red_color_and_includes_reason(self, mock_post):
         """却下時の embed color が赤 (15548997)、却下理由が fields に含まれる"""
         event_detail = _make_event_detail(self.event, applicant=self.applicant, status="rejected")
@@ -301,7 +301,7 @@ class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
         self.assertIsNotNone(reason_field)
         self.assertEqual(reason_field["value"], "テーマが要件に合致しません")
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_skipped_when_webhook_url_empty(self, mock_post):
         """webhook_url 空なら POST されない"""
         self.community.notification_webhook_url = ""
@@ -315,7 +315,7 @@ class DiscordWebhookRetryTest(TweetGenerationPatchMixin, TestCase):
     """tenacity リトライ機構の挙動検証
 
     一過性ネットワーク失敗で webhook が永遠に失われる問題を解消するため、
-    `_post_discord_webhook` に tenacity による 3 回まで指数バックオフリトライを
+    `post_discord_webhook` に tenacity による 3 回まで指数バックオフリトライを
     導入した。本テストはその振る舞いを mock で検証する。
     """
 
@@ -327,8 +327,8 @@ class DiscordWebhookRetryTest(TweetGenerationPatchMixin, TestCase):
         self.event_detail = _make_event_detail(self.event, applicant=self.applicant)
 
         # tenacity 内部の sleep を 0 秒化（テスト高速化）
-        from event.notifications import _post_discord_webhook
-        self._wrapped = _post_discord_webhook
+        from website.discord_webhook import post_discord_webhook
+        self._wrapped = post_discord_webhook
         self._original_sleep = self._wrapped.retry.sleep
         self._wrapped.retry.sleep = lambda *args, **kwargs: None
 
@@ -336,7 +336,7 @@ class DiscordWebhookRetryTest(TweetGenerationPatchMixin, TestCase):
         # sleep を元に戻す（他テストへの副作用を防ぐ）
         self._wrapped.retry.sleep = self._original_sleep
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_retries_until_success_on_second_attempt(self, mock_post):
         """1 回目失敗 → 2 回目成功でリトライが動作する"""
         success_response = MagicMock(ok=True, status_code=200)
@@ -351,7 +351,7 @@ class DiscordWebhookRetryTest(TweetGenerationPatchMixin, TestCase):
         # 2 回呼ばれた（1 回目失敗 + 2 回目成功）
         self.assertEqual(mock_post.call_count, 2)
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_silent_failure_after_three_consecutive_failures(self, mock_post):
         """3 回連続失敗で例外を吸い込み silent failure になる"""
         mock_post.side_effect = requests.RequestException("network down")
@@ -362,7 +362,7 @@ class DiscordWebhookRetryTest(TweetGenerationPatchMixin, TestCase):
         # 3 回再試行された（初回 + リトライ2回）
         self.assertEqual(mock_post.call_count, 3)
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_no_retry_on_first_success(self, mock_post):
         """1 回成功時の挙動が変わらない（後方互換性: リトライ無し）"""
         mock_post.return_value = MagicMock(ok=True, status_code=200)
@@ -372,7 +372,7 @@ class DiscordWebhookRetryTest(TweetGenerationPatchMixin, TestCase):
         # 成功なら 1 回しか呼ばれない（リトライしない）
         self.assertEqual(mock_post.call_count, 1)
 
-    @patch("event.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_retries_on_timeout_exception(self, mock_post):
         """requests.Timeout もリトライ対象になる"""
         mock_post.side_effect = [

@@ -123,10 +123,10 @@ class EventDetailForm(EventDetailMediaFormMixin, forms.ModelForm):
                 self.fields['start_time'].disabled = True
                 self.fields['duration'].disabled = True
 
-        # 既存の記事がある場合（更新時）は自動生成チェックボックスをOFFにする
+        # 既存の記事がある場合（更新時）は自動生成チェックボックスをOFFにする。
+        # meta_description だけで判定すると手書きの contents / h1 を上書き再生成してしまう。
         if self.instance and self.instance.pk:
-            # meta_descriptionが存在する場合は記事が既に生成されていると判断
-            if self.instance.meta_description:
+            if self.instance.meta_description or self.instance.contents or self.instance.h1:
                 self.fields['generate_blog_article'].initial = False
 
 

@@ -152,7 +152,7 @@ class EventDeleteViewPermissionTest(TweetGenerationPatchMixin, TestCase):
             {self.event.date, *subsequent_dates},
         )
 
-    @patch('event.views.crud.GoogleCalendarService')
+    @patch('event.views.crud_event.GoogleCalendarService')
     def test_google_delete_failure_keeps_database_delete(
         self,
         calendar_service_class,
@@ -180,7 +180,7 @@ class EventDeleteViewPermissionTest(TweetGenerationPatchMixin, TestCase):
         self.assertContains(response, 'Googleカレンダー削除に失敗しました')
         self.assertContains(response, '後続の同期で再反映します')
 
-    @patch('event.views.crud.GoogleCalendarService')
+    @patch('event.views.crud_event.GoogleCalendarService')
     def test_partial_google_failure_does_not_restore_cascade(
         self,
         calendar_service_class,
@@ -246,7 +246,7 @@ class EventDeleteViewPermissionTest(TweetGenerationPatchMixin, TestCase):
         )
         self.assertContains(response, '1件のGoogleカレンダー削除に失敗しました')
 
-    @patch('event.views.crud.GoogleCalendarService')
+    @patch('event.views.crud_event.GoogleCalendarService')
     def test_master_delete_rejects_locked_child_cascade(
         self,
         calendar_service_class,
@@ -301,7 +301,7 @@ class EventDeleteViewPermissionTest(TweetGenerationPatchMixin, TestCase):
         calendar_service_class.return_value.delete_event.assert_not_called()
         self.assertContains(response, '親イベントを含む削除を中止しました')
 
-    @patch('event.views.crud.GoogleCalendarService')
+    @patch('event.views.crud_event.GoogleCalendarService')
     def test_cascade_abort_does_not_skip_unlocked_child(
         self,
         calendar_service_class,

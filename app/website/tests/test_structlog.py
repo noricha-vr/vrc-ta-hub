@@ -14,7 +14,7 @@ import logging
 import structlog
 from django.test import SimpleTestCase
 
-from website.settings import base as settings_base
+from website.settings import logging_config as settings_logging
 
 
 def _build_formatter(*, json_mode: bool) -> logging.Formatter:
@@ -31,7 +31,7 @@ def _build_formatter(*, json_mode: bool) -> logging.Formatter:
     )
     return structlog.stdlib.ProcessorFormatter(
         processor=renderer,
-        foreign_pre_chain=settings_base._foreign_pre_chain,
+        foreign_pre_chain=settings_logging._foreign_pre_chain,
     )
 
 

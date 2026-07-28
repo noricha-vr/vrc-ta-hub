@@ -1,22 +1,13 @@
 from django import template
 
+from community.constants import WEEKDAY_ABBR, WEEKDAY_JP
+
 register = template.Library()
 
 
 @register.filter
 def get_item(dictionary, key):
     return dictionary.get(key)
-
-
-WEEKDAY_JP = {
-    'Sun': '日曜日', 'Mon': '月曜日', 'Tue': '火曜日', 'Wed': '水曜日',
-    'Thu': '木曜日', 'Fri': '金曜日', 'Sat': '土曜日', 'Other': 'その他',
-}
-
-WEEKDAY_ABBR = {
-    'Sun': '日', 'Mon': '月', 'Tue': '火', 'Wed': '水',
-    'Thu': '木', 'Fri': '金', 'Sat': '土', 'Other': '他',
-}
 
 
 @register.filter

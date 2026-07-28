@@ -164,15 +164,29 @@ class GenerateWithRetryTest(TestCase):
         def fake_generator(target_chars=140):
             nonlocal call_count
             call_count += 1
-            if call_count < 3:
-                # 最初の2回: 長すぎるテキスト（日本語280文字 ≈ 560 weighted）
+            if call_count < 2:
+                # 初回: 長すぎるテキスト（日本語280文字 ≈ 560 weighted）
                 return "あ" * 200
-            # 3回目: 短いテキスト
+            # 2回目: 短いテキスト
             return "OK" * 10
 
         result = _generate_with_retry(fake_generator)
         self.assertEqual(result, "OK" * 10)
-        self.assertEqual(call_count, 3)
+        self.assertEqual(call_count, 2)
+
+    def test_llm_retry_limited_to_one(self):
+        """バリデーション違反が続いてもLLM呼び出しは2回で打ち切りfallbackへ切り替える"""
+        call_count = 0
+
+        def fake_generator(target_chars=140):
+            nonlocal call_count
+            call_count += 1
+            return "あ" * 200  # 常に長すぎる
+
+        result = _generate_with_retry(fake_generator, fallback_fn=lambda: "短い告知")
+
+        self.assertEqual(call_count, 2)
+        self.assertEqual(result, "短い告知")
 
     def test_returns_none_after_all_retries_without_fallback(self):
         """全リトライ後も超過し、fallback がなければ None を返す"""
