@@ -4,173 +4,27 @@
 """
 
 import logging
-import sys
-import threading
-import uuid
 
-from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist
-from django.db import DatabaseError
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
 from community.models import Community
 from event.models import EventDetail
-from twitter.db import run_with_db_reconnect
 from twitter.scheduling import default_scheduled_at
+from twitter.services.daily_reminder import (
+    PRESENTATION_DETAIL_TYPES,
+    _ensure_same_day_individual_queue_skipped,
+    _is_active_presentation,
+    _sync_daily_reminder_for_event,
+    _sync_daily_reminders_for_instance,
+)
+from twitter.services.tweet_generation import (
+    _start_tweet_generation,
+    sync_slide_share_queue_image,
+)
 
 logger = logging.getLogger(__name__)
-
-PRESENTATION_DETAIL_TYPES = ("LT", "SPECIAL")
-SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個別告知は投稿しません'
-NO_APPROVED_PRESENTATIONS_SKIP_REASON = '承認済みの当日発表がないため投稿対象外'
-
-
-def _should_skip_tweet_generation_thread() -> bool:
-    """テスト実行時は TweetQueue 生成後のバックグラウンドスレッドだけ抑制する。"""
-    if getattr(settings, 'ENABLE_TWEET_GENERATION_THREADS_IN_TESTS', False):
-        return False
-
-    is_test_run = getattr(settings, 'TESTING', False) or 'test' in sys.argv
-    if not is_test_run:
-        return False
-
-    # Thread を明示 patch するテストは、この経路自体を検証している。
-    return getattr(threading.Thread, '__module__', 'threading') == 'threading'
-
-
-def _save_generation_failure(queue_id: int, generation_token: str, error_message: str) -> None:
-    from twitter.models import TweetQueue
-
-    if generation_token:
-        updated = run_with_db_reconnect(
-            lambda: TweetQueue.objects.filter(
-                pk=queue_id,
-                generation_token=generation_token,
-            ).update(status='generation_failed', error_message=error_message),
-            context=f"generate_tweet_failed queue={queue_id}",
-        )
-        if not updated:
-            logger.info("Ignored stale failed tweet generation for queue %d", queue_id)
-        return
-
-    item = run_with_db_reconnect(
-        lambda: TweetQueue.objects.get(pk=queue_id),
-        context=f"generate_tweet_failed_fetch queue={queue_id}",
-    )
-    item.status = 'generation_failed'
-    item.error_message = error_message
-    run_with_db_reconnect(
-        item.save,
-        context=f"generate_tweet_failed queue={queue_id}",
-    )
-
-
-def _generate_tweet_async(queue_id: int, generation_token: str = "") -> None:
-    """バックグラウンドスレッドでツイートテキストを生成する。"""
-    from django.db import connections
-
-    try:
-        from twitter.models import TweetQueue
-        from twitter.tweet_generator import get_generator, get_tweet_image_url
-
-        try:
-            queue_item = run_with_db_reconnect(
-                lambda: TweetQueue.objects.select_related(
-                    'community', 'event', 'event_detail',
-                ).get(pk=queue_id),
-                context=f"generate_tweet_fetch queue={queue_id}",
-            )
-        except TweetQueue.DoesNotExist:
-            logger.error("TweetQueue %d not found", queue_id)
-            return
-
-        generator = get_generator(queue_item.tweet_type)
-        text = generator(queue_item) if generator else None
-
-        if not text:
-            _save_generation_failure(queue_id, generation_token, 'テキスト生成に失敗')
-            return
-
-        image_url = get_tweet_image_url(queue_item)
-
-        if generation_token:
-            update_values = {
-                'generated_text': text,
-                'status': 'ready',
-                'error_message': '',
-            }
-            if image_url:
-                update_values['image_url'] = image_url
-            updated = run_with_db_reconnect(
-                lambda: TweetQueue.objects.filter(
-                    pk=queue_id,
-                    generation_token=generation_token,
-                ).update(**update_values),
-                context=f"generate_tweet_success queue={queue_id}",
-            )
-            if not updated:
-                logger.info("Ignored stale tweet generation for queue %d", queue_id)
-                return
-        else:
-            queue_item.generated_text = text
-            if image_url:
-                queue_item.image_url = image_url
-            queue_item.status = 'ready'
-            queue_item.error_message = ''
-            run_with_db_reconnect(
-                queue_item.save,
-                context=f"generate_tweet_success queue={queue_id}",
-            )
-        logger.info("Tweet text generated for queue %d", queue_id)
-
-    except Exception as e:
-        logger.exception("Async tweet generation failed for queue %d", queue_id)
-        try:
-            _save_generation_failure(queue_id, generation_token, str(e)[:500])
-        except (DatabaseError, ObjectDoesNotExist):
-            logger.exception(
-                "Failed to persist async tweet generation failure for queue %d",
-                queue_id,
-            )
-    finally:
-        connections.close_all()
-
-
-def _start_tweet_generation(queue_item) -> None:
-    """TweetQueue の本文生成をバックグラウンドで開始する。"""
-    generation_token = uuid.uuid4().hex
-    queue_item.generation_token = generation_token
-    queue_item.save(update_fields=['generation_token'])
-
-    if _should_skip_tweet_generation_thread():
-        logger.debug("Skipped tweet generation thread in tests for queue %d", queue_item.pk)
-        return
-
-    thread = threading.Thread(
-        target=_generate_tweet_async, args=(queue_item.pk, generation_token), daemon=True,
-    )
-    thread.start()
-
-
-def sync_slide_share_queue_image(event_detail) -> None:
-    """未投稿のスライド共有キュー画像を現在のサムネイル優先URLへ同期する。"""
-    from twitter.models import TweetQueue
-    from twitter.tweet_generator import get_tweet_image_url
-
-    existing_queue = TweetQueue.objects.select_related(
-        'community', 'event', 'event_detail',
-    ).filter(
-        event_detail=event_detail, tweet_type="slide_share",
-    ).order_by('created_at', 'pk').first()
-    if not existing_queue or existing_queue.status == 'posted':
-        return
-
-    image_url = get_tweet_image_url(existing_queue)
-    if image_url and existing_queue.image_url != image_url:
-        existing_queue.image_url = image_url
-        existing_queue.save(update_fields=['image_url'])
 
 
 @receiver(pre_save, sender=Community)
@@ -219,155 +73,6 @@ def track_event_detail_status_change(sender, instance, **kwargs):
         except EventDetail.DoesNotExist:
             # 削除直後など旧値が存在しない正常系では差分なしとして続行する。
             pass
-
-
-def _is_active_presentation(detail_type, event_date) -> bool:
-    return detail_type in PRESENTATION_DETAIL_TYPES and event_date >= timezone.localdate()
-
-
-def _should_refresh_daily_reminder(instance, created: bool) -> bool:
-    if created:
-        return True
-
-    return any((
-        getattr(instance, "_old_status", None) != instance.status,
-        getattr(instance, "_old_speaker", "") != (instance.speaker or ""),
-        getattr(instance, "_old_theme", "") != (instance.theme or ""),
-        getattr(instance, "_old_start_time", None) != instance.start_time,
-        getattr(instance, "_old_detail_type", None) != instance.detail_type,
-        getattr(instance, "_old_event_id", None) != instance.event_id,
-    ))
-
-
-def _iter_event_ids_to_sync(instance):
-    event_ids = set()
-
-    if _is_active_presentation(instance.detail_type, instance.event.date):
-        event_ids.add(instance.event_id)
-
-    old_detail_type = getattr(instance, "_old_detail_type", None)
-    old_event_id = getattr(instance, "_old_event_id", None)
-    old_event_date = getattr(instance, "_old_event_date", None)
-    if old_event_id and _is_active_presentation(old_detail_type, old_event_date):
-        event_ids.add(old_event_id)
-
-    return sorted(event_ids)
-
-
-def _ensure_same_day_individual_queue_skipped(instance, tweet_type: str) -> None:
-    from twitter.models import TweetQueue
-
-    existing_qs = TweetQueue.objects.filter(
-        event_detail=instance, tweet_type=tweet_type,
-    ).order_by('created_at', 'pk')
-    primary = existing_qs.first()
-
-    if primary is None:
-        TweetQueue.objects.create(
-            tweet_type=tweet_type,
-            community=instance.event.community,
-            event=instance.event,
-            event_detail=instance,
-            scheduled_at=default_scheduled_at(tweet_type=tweet_type, event=instance.event),
-            status='skipped',
-            error_message=SAME_DAY_INDIVIDUAL_SKIP_REASON,
-        )
-        logger.info(
-            "Queued skipped same-day %s tweet: %s - %s",
-            tweet_type,
-            instance.speaker,
-            instance.theme,
-        )
-        return
-
-    update_fields = []
-    if primary.community_id != instance.event.community_id:
-        primary.community = instance.event.community
-        update_fields.append('community')
-    if primary.event_id != instance.event_id:
-        primary.event = instance.event
-        update_fields.append('event')
-    scheduled_at = default_scheduled_at(tweet_type=tweet_type, event=instance.event)
-    if primary.scheduled_at != scheduled_at:
-        primary.scheduled_at = scheduled_at
-        update_fields.append('scheduled_at')
-    if primary.status != 'posted' and primary.status != 'skipped':
-        primary.status = 'skipped'
-        update_fields.append('status')
-    if primary.error_message != SAME_DAY_INDIVIDUAL_SKIP_REASON:
-        primary.error_message = SAME_DAY_INDIVIDUAL_SKIP_REASON
-        update_fields.append('error_message')
-    if primary.generated_text:
-        primary.generated_text = ''
-        update_fields.append('generated_text')
-
-    if update_fields:
-        primary.save(update_fields=update_fields)
-
-    existing_qs.exclude(pk=primary.pk).exclude(status='posted').delete()
-
-
-def _sync_daily_reminder_for_event(event_id: int) -> None:
-    from event.models import Event
-    from twitter.models import TweetQueue
-
-    try:
-        event = Event.objects.select_related('community').get(pk=event_id)
-    except Event.DoesNotExist:
-        return
-
-    if event.date < timezone.localdate():
-        return
-
-    queue = TweetQueue.objects.filter(
-        event=event, tweet_type='daily_reminder',
-    ).first()
-    has_presentations = event.details.filter(
-        status='approved', detail_type__in=PRESENTATION_DETAIL_TYPES,
-    ).exists()
-
-    if not has_presentations:
-        if queue and queue.status != 'posted':
-            queue.status = 'skipped'
-            queue.error_message = NO_APPROVED_PRESENTATIONS_SKIP_REASON
-            queue.generated_text = ''
-            queue.save(update_fields=['status', 'error_message', 'generated_text'])
-            logger.info(
-                "Skipped daily reminder tweet for event %d because no approved presentations remain",
-                event.pk,
-            )
-        return
-
-    if queue and queue.status == 'posted':
-        return
-
-    if queue is None:
-        queue = TweetQueue.objects.create(
-            tweet_type='daily_reminder',
-            community=event.community,
-            event=event,
-            scheduled_at=default_scheduled_at(tweet_type='daily_reminder', event=event),
-            status='generating',
-        )
-    else:
-        queue.community = event.community
-        queue.scheduled_at = default_scheduled_at(tweet_type='daily_reminder', event=event)
-        queue.status = 'generating'
-        queue.error_message = ''
-        queue.generated_text = ''
-        queue.save(update_fields=['community', 'scheduled_at', 'status', 'error_message', 'generated_text'])
-
-    _start_tweet_generation(queue)
-    logger.info("Synced daily reminder tweet for event %d", event.pk)
-
-
-def _sync_daily_reminders_for_instance(instance, created: bool) -> None:
-    if not _should_refresh_daily_reminder(instance, created):
-        return
-
-    for event_id in _iter_event_ids_to_sync(instance):
-        _sync_daily_reminder_for_event(event_id)
-
 
 @receiver(post_save, sender=Community)
 def queue_new_community_tweet(sender, instance, created, **kwargs):
