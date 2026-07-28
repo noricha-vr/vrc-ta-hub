@@ -160,7 +160,12 @@ def _get_transcript_with_cache(event_detail: EventDetail) -> Optional[str]:
         logger.info(f"Retrieved transcript for video {video_id}: {len(transcript)} chars")
         event_detail.cached_transcript = transcript
         event_detail.cached_transcript_video_id = video_id or ''
-        event_detail.save(update_fields=['cached_transcript', 'cached_transcript_video_id'])
+        # save() だと post_save シグナル（twitter の daily_reminder 再同期等）が発火し、
+        # 既投稿 TweetQueue を上書き破壊するため、シグナル非発火の update() で書き込む
+        EventDetail.objects.filter(pk=event_detail.pk).update(
+            cached_transcript=transcript,
+            cached_transcript_video_id=video_id or '',
+        )
     else:
         logger.warning(f"No transcript found for video {video_id}")
 

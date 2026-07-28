@@ -708,6 +708,51 @@ class TranscriptCacheTest(TestCase):
 
     @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=False)
     @patch("event.services.content_generation_service.OpenAI")
+    @patch("event.services.content_generation_service.get_transcript", return_value="新しい字幕")
+    def test_cache_write_does_not_disturb_posted_tweet_queue(self, mock_get_transcript, mock_openai_class):
+        """字幕キャッシュの保存が post_save シグナル経由で既投稿キューを壊さない.
+
+        save() でキャッシュを書くと当日開催の承認済み発表では daily_reminder
+        再同期が走り、投稿済み TweetQueue の generated_text が消える退行があった。
+        """
+        from django.utils import timezone
+        from twitter.models import TweetQueue
+
+        same_day_event = Event.objects.create(
+            date=timezone.localdate(), community=self.community
+        )
+        detail = EventDetail.objects.create(
+            theme="当日発表",
+            speaker="のりちゃん",
+            event=same_day_event,
+            youtube_url=self.VIDEO_URL,
+            status="approved",
+            detail_type="LT",
+        )
+        # detail 作成時のシグナルが skip 用 lt キューを自動作成する。primary は
+        # created_at 最古が選ばれるため、それを消して投稿済みキューを primary にする
+        TweetQueue.objects.filter(event_detail=detail, tweet_type="lt").delete()
+        queue = TweetQueue.objects.create(
+            tweet_type="lt",
+            community=self.community,
+            event=same_day_event,
+            event_detail=detail,
+            generated_text="published text",
+            status="posted",
+        )
+        mock_openai_class.return_value = self._patch_openrouter()
+
+        generate_blog(detail, model="test-model")
+
+        queue.refresh_from_db()
+        self.assertEqual(queue.generated_text, "published text")
+        self.assertEqual(queue.status, "posted")
+        self.assertEqual(queue.error_message, "")
+        detail.refresh_from_db()
+        self.assertEqual(detail.cached_transcript, "新しい字幕")
+
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=False)
+    @patch("event.services.content_generation_service.OpenAI")
     @patch("event.services.content_generation_service._extract_pdf_text")
     @patch("event.services.content_generation_service._copy_uploaded_file_to_temp_path", return_value="/tmp/dummy.pdf")
     @patch("event.services.content_generation_service.get_transcript")
