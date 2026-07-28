@@ -118,12 +118,12 @@ class NotifyNewCommunityRegistrationTest(TestCase):
     @override_settings(DISCORD_WEBHOOK_URL="")
     def test_skipped_when_webhook_url_empty(self):
         """DISCORD_WEBHOOK_URL 空で何もしない"""
-        with patch("community.forms_processor.requests.post") as mock_post:
+        with patch("website.discord_webhook.requests.post") as mock_post:
             notify_new_community_registration(self.community, self.request)
             mock_post.assert_not_called()
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/123/abc")
-    @patch("community.forms_processor.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_posts_to_webhook_when_url_set(self, mock_post):
         """DISCORD_WEBHOOK_URL 設定時に POST される"""
         mock_post.return_value = MagicMock(ok=True, status_code=200)
@@ -135,7 +135,7 @@ class NotifyNewCommunityRegistrationTest(TestCase):
         self.assertIn(self.community.name, kwargs["json"]["content"])
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/123/abc")
-    @patch("community.forms_processor.requests.post")
+    @patch("website.discord_webhook.requests.post")
     def test_swallows_request_exception(self, mock_post):
         """requests 例外時もクラッシュしない (silent failure).
 
@@ -143,17 +143,17 @@ class NotifyNewCommunityRegistrationTest(TestCase):
         「例外を吸い込んで完了する」ことと「実際にリトライが行われた」ことを検証する。
         テスト中はバックオフ待機を 0 秒化して高速化する。
         """
-        from community.forms_processor import _post_discord_webhook
+        from website.discord_webhook import post_discord_webhook
 
         mock_post.side_effect = requests.RequestException("network down")
         # tenacity のラップド関数経由でリトライ間 sleep を 0 秒に上書き
-        original_sleep = _post_discord_webhook.retry.sleep
-        _post_discord_webhook.retry.sleep = lambda *args, **kwargs: None
+        original_sleep = post_discord_webhook.retry.sleep
+        post_discord_webhook.retry.sleep = lambda *args, **kwargs: None
         try:
             # 例外を投げずに完了する
             notify_new_community_registration(self.community, self.request)
         finally:
-            _post_discord_webhook.retry.sleep = original_sleep
+            post_discord_webhook.retry.sleep = original_sleep
         # 3 回再試行された（初回 + リトライ2回）
         self.assertEqual(mock_post.call_count, 3)
 
