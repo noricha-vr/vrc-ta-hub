@@ -137,7 +137,7 @@ class EventDateUpdateViewTests(TweetGenerationPatchMixin, TestCase):
         self.assertTrue(self.event.is_recurring_master)
         self.assertEqual(self.event.recurrence_rule, rule)
 
-    @patch('event.views.crud.GoogleCalendarService')
+    @patch('event.views.crud_event.GoogleCalendarService')
     def test_duplicate_date_is_rejected_before_google_update(
         self,
         calendar_service_class,
@@ -181,7 +181,7 @@ class EventDateUpdateViewTests(TweetGenerationPatchMixin, TestCase):
         self.event.refresh_from_db()
         self.assertEqual(self.event.date, self.original_date)
 
-    @patch('event.views.crud.GoogleCalendarService')
+    @patch('event.views.crud_event.GoogleCalendarService')
     def test_google_update_runs_after_database_move(
         self,
         calendar_service_class,
@@ -216,7 +216,7 @@ class EventDateUpdateViewTests(TweetGenerationPatchMixin, TestCase):
         self.event.refresh_from_db()
         self.assertEqual(self.event.date, new_date)
 
-    @patch('event.views.crud.GoogleCalendarService')
+    @patch('event.views.crud_event.GoogleCalendarService')
     def test_google_update_includes_new_date_in_description(
         self,
         calendar_service_class,
@@ -259,7 +259,7 @@ class EventDateUpdateViewTests(TweetGenerationPatchMixin, TestCase):
 
         self.assertRedirects(response, reverse('event:my_list'))
 
-    @patch('event.views.crud.GoogleCalendarService')
+    @patch('event.views.crud_event.GoogleCalendarService')
     def test_google_update_failure_keeps_database_move(
         self,
         calendar_service_class,

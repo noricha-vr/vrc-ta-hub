@@ -149,7 +149,7 @@ class EventUpdateViewGoogleCalendarTest(EventUpdateViewBaseMixin, TestCase):
         self.event.save(update_fields=['google_calendar_event_id'])
 
         self.client.force_login(self.owner)
-        with mock.patch('event.views.crud.GoogleCalendarService') as MockService:
+        with mock.patch('event.views.crud_event.GoogleCalendarService') as MockService:
             instance = MockService.return_value
             response = self.client.post(self.url, {'start_time': '20:00'})
 
@@ -165,7 +165,7 @@ class EventUpdateViewGoogleCalendarTest(EventUpdateViewBaseMixin, TestCase):
     def test_google_calendar_skipped_when_no_event_id(self):
         # google_calendar_event_id なし → update_event 呼ばれない
         self.client.force_login(self.owner)
-        with mock.patch('event.views.crud.GoogleCalendarService') as MockService:
+        with mock.patch('event.views.crud_event.GoogleCalendarService') as MockService:
             response = self.client.post(self.url, {'start_time': '20:00'})
         self.assertEqual(response.status_code, 302)
         MockService.assert_not_called()
@@ -175,7 +175,7 @@ class EventUpdateViewGoogleCalendarTest(EventUpdateViewBaseMixin, TestCase):
         self.event.save(update_fields=['google_calendar_event_id'])
 
         self.client.force_login(self.owner)
-        with mock.patch('event.views.crud.GoogleCalendarService') as MockService:
+        with mock.patch('event.views.crud_event.GoogleCalendarService') as MockService:
             instance = MockService.return_value
             instance.update_event.side_effect = Exception('gcal error')
             response = self.client.post(self.url, {'start_time': '20:00'}, follow=False)
@@ -267,7 +267,7 @@ class EventUpdateViewIndexCacheTest(EventUpdateViewBaseMixin, TestCase):
 
     def test_clear_index_view_cache_called_without_args(self):
         self.client.force_login(self.owner)
-        with mock.patch('event.views.crud.clear_index_view_cache') as mock_clear:
+        with mock.patch('event.views.crud_event.clear_index_view_cache') as mock_clear:
             response = self.client.post(self.url, {'start_time': '21:00'})
         self.assertEqual(response.status_code, 302)
         mock_clear.assert_called_once_with()
@@ -281,7 +281,7 @@ class EventUpdateViewGoogleCalendarDescriptionTest(EventUpdateViewBaseMixin, Tes
         self.event.save(update_fields=['google_calendar_event_id'])
 
         self.client.force_login(self.owner)
-        with mock.patch('event.views.crud.GoogleCalendarService') as MockService:
+        with mock.patch('event.views.crud_event.GoogleCalendarService') as MockService:
             instance = MockService.return_value
             response = self.client.post(self.url, {'start_time': '20:00'})
 
@@ -374,7 +374,7 @@ class EventUpdateViewNoOpSaveTest(EventUpdateViewBaseMixin, TestCase):
         self.event.save(update_fields=['google_calendar_event_id'])
 
         self.client.force_login(self.owner)
-        with mock.patch('event.views.crud.GoogleCalendarService') as service_cls:
+        with mock.patch('event.views.crud_event.GoogleCalendarService') as service_cls:
             # 現在値と同じ 22:00 のまま保存
             response = self.client.post(self.url, {'start_time': '22:00'})
 

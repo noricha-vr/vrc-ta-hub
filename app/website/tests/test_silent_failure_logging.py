@@ -216,7 +216,7 @@ class SentryBeforeSendFilterTests(SimpleTestCase):
     def test_is_silent_extra_passes(self):
         """extra['is_silent']=True が立っているログは drop されない."""
         event = {
-            "logger": "event.views.crud",
+            "logger": "event.views.crud_event_detail",
             "logentry": {"message": "any message"},
             "extra": {"is_silent": True, "event_type": "blog_generation_failed_on_create"},
         }

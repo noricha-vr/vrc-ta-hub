@@ -23,7 +23,7 @@ class EventDetailMediaFormMixin:
         instance = super().save(commit=commit)
         if commit:
             from event.services.media_service import ensure_pdf_thumbnail
-            from twitter.signals import sync_slide_share_queue_image
+            from twitter.services.tweet_generation import sync_slide_share_queue_image
 
             ensure_pdf_thumbnail(instance, save=True)
             sync_slide_share_queue_image(instance)
