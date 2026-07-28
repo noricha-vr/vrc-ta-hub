@@ -17,13 +17,14 @@ import structlog
 from django.test import SimpleTestCase
 
 from website.settings import base as settings_base
+from website.settings import logging_config as settings_logging
 
 
 def _json_formatter() -> logging.Formatter:
     """settings/base.py と同じ pre_chain で JSON フォーマッタを構築する."""
     return structlog.stdlib.ProcessorFormatter(
         processor=structlog.processors.JSONRenderer(),
-        foreign_pre_chain=settings_base._foreign_pre_chain,
+        foreign_pre_chain=settings_logging._foreign_pre_chain,
     )
 
 
