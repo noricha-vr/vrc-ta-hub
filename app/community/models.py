@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from ta_hub.libs import DEFAULT_MAX_SIZE, resize_and_convert_image
 
+from .constants import WEEKDAY_CHOICES  # noqa: F401  既存の import 経路を維持する
 from .encrypted_fields import EncryptedTextField
 
 
@@ -20,17 +21,6 @@ def poster_upload_path(instance, filename):
     return f'poster/{instance.pk}/{uuid.uuid4().hex[:12]}.{ext}'
 
 # Create your models here.
-WEEKDAY_CHOICES = (
-    ('Sun', '日曜日'),
-    ('Mon', '月曜日'),
-    ('Tue', '火曜日'),
-    ('Wed', '水曜日'),
-    ('Thu', '木曜日'),
-    ('Fri', '金曜日'),
-    ('Sat', '土曜日'),
-    ('Other', 'その他')
-)
-
 PLATFORM_CHOICES = (
     ('PC', 'PC'),
     ('All', 'PC / モバイル (Meta Quest 単体)'),
