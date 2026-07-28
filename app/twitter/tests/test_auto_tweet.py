@@ -16,8 +16,10 @@ from django.utils import timezone
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from twitter import signals
 from twitter.models import TweetQueue
 from twitter.scheduling import default_scheduled_at, scheduled_at_for_date
+from twitter.services import daily_reminder
 
 CustomUser = get_user_model()
 
@@ -32,9 +34,19 @@ class EventTestPatchScopeTest(TestCase):
         from twitter.services import tweet_generation
 
         self.assertNotIsInstance(tweet_generation._start_tweet_generation, Mock)
+        # 呼び出し側（signals / daily_reminder）も素の関数を参照している
+        self.assertNotIsInstance(signals.tweet_generation._start_tweet_generation, Mock)
+        self.assertNotIsInstance(
+            daily_reminder.tweet_generation._start_tweet_generation, Mock,
+        )
 
     def test_tweet_generation_patch_mixin_scopes_patch_to_class_lifecycle(self):
-        """TweetGenerationPatchMixin が setUpClass〜tearDownClass の間だけモック化することを検証する。"""
+        """TweetGenerationPatchMixin が setUpClass〜tearDownClass の間だけモック化することを検証する。
+
+        定義元モジュールだけでなく、呼び出し側 (twitter.signals /
+        twitter.services.daily_reminder) が参照する関数まで patch が届くことを確認する。
+        値渡し import に戻ると呼び出し側は素の関数を掴んだままになり、このテストが落ちる。
+        """
         from event.tests.tweet_generation import TweetGenerationPatchMixin
         from twitter.services import tweet_generation
 
@@ -45,17 +57,57 @@ class EventTestPatchScopeTest(TestCase):
 
         # setUpClass 実行前は素のシグナルが残っている
         self.assertIs(tweet_generation._start_tweet_generation, original)
+        self.assertIs(signals.tweet_generation._start_tweet_generation, original)
+        self.assertIs(daily_reminder.tweet_generation._start_tweet_generation, original)
 
         _DummyCase.setUpClass()
         try:
             # mixin 適用中はモック化される
-            self.assertIsNot(tweet_generation._start_tweet_generation, original)
-            self.assertIsInstance(tweet_generation._start_tweet_generation, Mock)
+            mock_target = tweet_generation._start_tweet_generation
+            self.assertIsNot(mock_target, original)
+            self.assertIsInstance(mock_target, Mock)
+            # 呼び出し側から見えている関数も同じ Mock であること（= patch が届く）
+            self.assertIs(signals.tweet_generation._start_tweet_generation, mock_target)
+            self.assertIs(
+                daily_reminder.tweet_generation._start_tweet_generation, mock_target,
+            )
         finally:
             _DummyCase.tearDownClass()
 
         # tearDownClass 後は元の関数に戻る
         self.assertIs(tweet_generation._start_tweet_generation, original)
+        self.assertIs(signals.tweet_generation._start_tweet_generation, original)
+        self.assertIs(daily_reminder.tweet_generation._start_tweet_generation, original)
+
+    def test_tweet_generation_patch_mixin_intercepts_signal_call(self):
+        """mixin 適用下では signal 経由の本文生成起動が Mock に到達する。"""
+        from event.tests.tweet_generation import TweetGenerationPatchMixin
+
+        class _DummyCase(TweetGenerationPatchMixin, TestCase):
+            pass
+
+        _DummyCase.setUpClass()
+        try:
+            mock_start = signals.tweet_generation._start_tweet_generation
+            mock_start.reset_mock()
+            community = Community.objects.create(
+                name="Patch Reach Community",
+                start_time=datetime.time(22, 0),
+                duration=60,
+                weekdays=["Mon"],
+                frequency="毎週",
+                organizers="Test Organizer",
+                status="pending",
+            )
+            community.status = "approved"
+            community.save()
+
+            queue = TweetQueue.objects.get(
+                community=community, tweet_type="new_community",
+            )
+            mock_start.assert_called_once_with(queue)
+        finally:
+            _DummyCase.tearDownClass()
 
 
 @tag('offline_external_api')

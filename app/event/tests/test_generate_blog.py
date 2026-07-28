@@ -19,11 +19,11 @@ from event.services.content_generation_service import (
     BlogOutput,
     apply_blog_output_to_event_detail,
     generate_blog,
-    get_transcript,
     _copy_uploaded_file_to_temp_path,
     _extract_pdf_text,
     _limit_source_text,
 )
+from event.services.youtube_service import get_transcript
 from event.services.media_service import ensure_pdf_thumbnail
 from event.models import Event, EventDetail
 from tests.live_smoke import require_live_smoke

@@ -10,7 +10,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
-from community.models import Community, WEEKDAY_CHOICES
+from community.constants import WEEKDAY_CHOICES
+from community.models import Community
 
 logger = logging.getLogger(__name__)
 

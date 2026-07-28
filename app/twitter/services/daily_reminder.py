@@ -9,7 +9,7 @@ import logging
 from django.utils import timezone
 
 from twitter.scheduling import default_scheduled_at
-from twitter.services.tweet_generation import _start_tweet_generation
+from twitter.services import tweet_generation
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +154,7 @@ def _sync_daily_reminder_for_event(event_id: int) -> None:
         queue.generated_text = ''
         queue.save(update_fields=['community', 'scheduled_at', 'status', 'error_message', 'generated_text'])
 
-    _start_tweet_generation(queue)
+    tweet_generation._start_tweet_generation(queue)
     logger.info("Synced daily reminder tweet for event %d", event.pk)
 
 

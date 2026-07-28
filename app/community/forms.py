@@ -2,8 +2,9 @@ from django import forms
 from django.forms.widgets import CheckboxSelectMultiple
 
 
+from .constants import WEEKDAY_CHOICES
 from .libs import resolve_vrc_group_url
-from .models import Community, WEEKDAY_CHOICES, TAGS, FORM_TAGS
+from .models import Community, TAGS, FORM_TAGS
 
 POSTER_REQUIREMENTS_HELP_TEXT = (
     "推奨サイズ: A4比率・縦4096px。"

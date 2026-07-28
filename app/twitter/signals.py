@@ -19,10 +19,8 @@ from twitter.services.daily_reminder import (
     _sync_daily_reminder_for_event,
     _sync_daily_reminders_for_instance,
 )
-from twitter.services.tweet_generation import (
-    _start_tweet_generation,
-    sync_slide_share_queue_image,
-)
+from twitter.services import tweet_generation
+from twitter.services.tweet_generation import sync_slide_share_queue_image
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +106,7 @@ def _queue_new_community_tweet(instance, created):
     )
     logger.info("Queued new community tweet: %s", instance.name)
 
-    _start_tweet_generation(queue_item)
+    tweet_generation._start_tweet_generation(queue_item)
 
 
 @receiver(post_save, sender=EventDetail)
@@ -175,7 +173,7 @@ def _queue_slide_share_tweet(instance, created):
         "Queued slide share tweet: %s - %s", instance.speaker, instance.theme,
     )
 
-    _start_tweet_generation(queue_item)
+    tweet_generation._start_tweet_generation(queue_item)
 
 
 @receiver(post_save, sender=EventDetail)
@@ -244,7 +242,7 @@ def _queue_event_detail_tweet(instance, created):
 
     _sync_daily_reminders_for_instance(instance, created)
 
-    _start_tweet_generation(queue_item)
+    tweet_generation._start_tweet_generation(queue_item)
 
 
 @receiver(post_delete, sender=EventDetail)

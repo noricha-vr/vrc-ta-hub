@@ -1,6 +1,6 @@
 from django import template
 
-from community.constants import WEEKDAY_ABBR, WEEKDAY_JP  # noqa: F401  既存の参照名を維持する
+from community.constants import WEEKDAY_ABBR, WEEKDAY_JP
 
 register = template.Library()
 

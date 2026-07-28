@@ -8,7 +8,6 @@ from django.utils import timezone
 
 from ta_hub.libs import DEFAULT_MAX_SIZE, resize_and_convert_image
 
-from .constants import WEEKDAY_CHOICES  # noqa: F401  既存の import 経路を維持する
 from .encrypted_fields import EncryptedTextField
 
 
