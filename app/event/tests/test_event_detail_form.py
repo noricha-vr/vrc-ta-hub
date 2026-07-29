@@ -10,13 +10,12 @@ from django.contrib.auth import get_user_model
 from community.models import Community, CommunityMember
 from event.forms import EventDetailForm, LTApplicationEditForm
 from event.models import Event, EventDetail
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from twitter.models import TweetQueue
 from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
 
-class EventDetailFormCleanTest(TweetGenerationPatchMixin, TestCase):
+class EventDetailFormCleanTest(TestCase):
     """EventDetailForm.clean()のテスト"""
 
     def setUp(self):
@@ -460,7 +459,7 @@ class EventDetailFormCleanTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(form.cleaned_data['duration'], 30)
 
 
-class GenerateBlogArticleCheckboxDefaultTest(TweetGenerationPatchMixin, TestCase):
+class GenerateBlogArticleCheckboxDefaultTest(TestCase):
     """記事生成チェックボックスの初期値のテスト"""
 
     def setUp(self):

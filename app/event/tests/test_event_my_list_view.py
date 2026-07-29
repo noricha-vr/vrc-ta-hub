@@ -11,7 +11,6 @@ from django.utils import timezone
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
@@ -31,7 +30,7 @@ def create_test_image():
 
 
 
-class EventMyListDashboardTest(TweetGenerationPatchMixin, TestCase):
+class EventMyListDashboardTest(TestCase):
     """EventMyListダッシュボード機能のテスト"""
 
     def setUp(self):
@@ -374,7 +373,7 @@ class EventMyListDashboardTest(TweetGenerationPatchMixin, TestCase):
         self.assertNotContains(response, 'rejectModal')
 
 
-class VketBannerTests(TweetGenerationPatchMixin, TestCase):
+class VketBannerTests(TestCase):
     """EventMyListのVketコラボバナーテスト"""
 
     def setUp(self):
@@ -648,7 +647,7 @@ class VketBannerTests(TweetGenerationPatchMixin, TestCase):
         self.assertIn('受付中', banner['message'])
 
 
-class EventMyListEditButtonTest(TweetGenerationPatchMixin, TestCase):
+class EventMyListEditButtonTest(TestCase):
     """my_list テンプレートの開始時刻編集ボタン表示テスト。"""
 
     def setUp(self):

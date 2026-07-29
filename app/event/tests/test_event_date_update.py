@@ -13,7 +13,6 @@ from django.utils.formats import date_format, time_format
 from community.constants import weekday_code
 from community.models import Community, CommunityMember
 from event.models import Event, EventOccurrenceTombstone, RecurrenceRule
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from event_calendar.calendar_utils import generate_google_calendar_url
 from ta_hub.index_cache import get_index_view_cache_key
 from twitter.models import TweetQueue
@@ -25,7 +24,7 @@ from vket.models import VketCollaboration, VketParticipation
 User = get_user_model()
 
 
-class EventDateUpdateViewTests(TweetGenerationPatchMixin, TestCase):
+class EventDateUpdateViewTests(TestCase):
     def setUp(self):
         cache.clear()
         generate_google_calendar_url.cache_clear()

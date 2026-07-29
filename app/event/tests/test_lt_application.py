@@ -12,7 +12,6 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from event.views.lt_application import _calc_next_lt_start_time
 from tests.factories import make_community, make_event, make_event_detail
 from user_account.tests.utils import create_discord_linked_user
@@ -32,7 +31,7 @@ def create_test_image():
     )
 
 
-class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
+class LTApplicationFormTest(TestCase):
     """LT申請フォームのテスト"""
 
     def setUp(self):
@@ -399,7 +398,7 @@ class LTApplicationFormTest(TweetGenerationPatchMixin, TestCase):
         )
 
 
-class LTApplicationReviewTest(TweetGenerationPatchMixin, TestCase):
+class LTApplicationReviewTest(TestCase):
     """LT申請の承認/却下テスト"""
 
     def setUp(self):
@@ -566,7 +565,7 @@ class LTApplicationReviewTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(self.pending_application.status, 'approved')
 
 
-class LTApplicationListTest(TweetGenerationPatchMixin, TestCase):
+class LTApplicationListTest(TestCase):
     """LT申請一覧のテスト"""
 
     def setUp(self):
@@ -631,7 +630,7 @@ class LTApplicationListTest(TweetGenerationPatchMixin, TestCase):
         self.assertIn('my_list', response.url)
 
 
-class LTApplicationApproveRejectViewTest(TweetGenerationPatchMixin, TestCase):
+class LTApplicationApproveRejectViewTest(TestCase):
     """LT申請の承認/却下ビュー（新API）のテスト"""
 
     def setUp(self):
@@ -880,7 +879,7 @@ class LTApplicationApproveRejectViewTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(self.pending_application.status, 'approved')
 
 
-class CommunityDetailFilterTest(TweetGenerationPatchMixin, TestCase):
+class CommunityDetailFilterTest(TestCase):
     """コミュニティ詳細ページでのEventDetailフィルタリングテスト"""
 
     def setUp(self):
@@ -945,7 +944,7 @@ class CommunityDetailFilterTest(TweetGenerationPatchMixin, TestCase):
         self.assertNotContains(response, 'Pending Theme')
 
 
-class EventModelTest(TweetGenerationPatchMixin, TestCase):
+class EventModelTest(TestCase):
     """Eventモデルのテスト"""
 
     def setUp(self):
@@ -979,7 +978,7 @@ class EventModelTest(TweetGenerationPatchMixin, TestCase):
         self.assertTrue(event.accepts_lt_application)
 
 
-class EventDetailModelTest(TweetGenerationPatchMixin, TestCase):
+class EventDetailModelTest(TestCase):
     """EventDetailモデルのテスト"""
 
     def setUp(self):
@@ -1045,7 +1044,7 @@ class EventDetailModelTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(detail.additional_info, '')
 
 
-class LTApplicationAdditionalInfoTest(TweetGenerationPatchMixin, TestCase):
+class LTApplicationAdditionalInfoTest(TestCase):
     """LT申請の追加情報フィールドのテスト"""
 
     def setUp(self):
@@ -1238,7 +1237,7 @@ class LTApplicationAdditionalInfoTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(event_detail.additional_info, '事前共有したい補足情報です。')
 
 
-class LTApplicationReviewAdditionalInfoTest(TweetGenerationPatchMixin, TestCase):
+class LTApplicationReviewAdditionalInfoTest(TestCase):
     """LT申請レビュー画面での追加情報表示テスト"""
 
     def setUp(self):

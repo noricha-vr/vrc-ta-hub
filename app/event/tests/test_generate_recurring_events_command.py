@@ -9,12 +9,11 @@ from io import StringIO
 from community.constants import weekday_code
 from community.models import Community
 from event.models import Event, EventOccurrenceTombstone, RecurrenceRule
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from user_account.models import CustomUser
 
 
 @tag('offline_external_api')
-class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
+class GenerateRecurringEventsCommandTest(TestCase):
     def setUp(self):
         """テストデータのセットアップ"""
         # ユーザーとコミュニティを作成

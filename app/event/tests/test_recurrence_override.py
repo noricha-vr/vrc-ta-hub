@@ -10,10 +10,9 @@ from community.models import Community
 from event.models import Event, EventOccurrenceTombstone, RecurrenceRule
 from event.recurrence.persistence import create_recurring_events
 from event.services.recurrence_override import exclude_tombstoned_dates
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 
 
-class EventOccurrenceTombstoneTests(TweetGenerationPatchMixin, TestCase):
+class EventOccurrenceTombstoneTests(TestCase):
     def setUp(self):
         self.community = Community.objects.create(
             name='Tombstone集会',
