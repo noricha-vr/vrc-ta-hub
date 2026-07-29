@@ -18,7 +18,6 @@ from event.notifications import (
     _send_discord_notification_for_new_application,
     _send_discord_notification_for_result,
 )
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from tests.factories import (
     make_community as _make_community_factory,
     make_event,
@@ -56,7 +55,7 @@ def _make_event_detail(event, applicant=None, status="pending"):
 
 
 @override_settings(DEFAULT_FROM_EMAIL="noreply@example.com")
-class NotifyOwnersOfNewApplicationTest(TweetGenerationPatchMixin, TestCase):
+class NotifyOwnersOfNewApplicationTest(TestCase):
     """notify_owners_of_new_application の通知送信パス"""
 
     def setUp(self):
@@ -130,7 +129,7 @@ class NotifyOwnersOfNewApplicationTest(TweetGenerationPatchMixin, TestCase):
 
 
 @override_settings(DEFAULT_FROM_EMAIL="noreply@example.com")
-class NotifyApplicantOfResultTest(TweetGenerationPatchMixin, TestCase):
+class NotifyApplicantOfResultTest(TestCase):
     """notify_applicant_of_result の承認/却下分岐"""
 
     def setUp(self):
@@ -188,7 +187,7 @@ class NotifyApplicantOfResultTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(len(mail.outbox), 0)
 
 
-class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCase):
+class DiscordNotificationForNewApplicationTest(TestCase):
     """_send_discord_notification_for_new_application の Webhook 送信"""
 
     def setUp(self):
@@ -259,7 +258,7 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
         mock_post.assert_called_once()
 
 
-class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
+class DiscordNotificationForResultTest(TestCase):
     """_send_discord_notification_for_result の承認/却下分岐"""
 
     def setUp(self):
@@ -306,7 +305,7 @@ class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
         mock_post.assert_not_called()
 
 
-class DiscordWebhookSafeLoggingTest(TweetGenerationPatchMixin, TestCase):
+class DiscordWebhookSafeLoggingTest(TestCase):
     """event.notifications の3つのWebhook経路で安全な最終ログを検証する."""
 
     def setUp(self):

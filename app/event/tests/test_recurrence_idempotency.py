@@ -13,12 +13,11 @@ from django.utils import timezone
 
 from community.models import Community
 from event.models import Event, RecurrenceRule
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from user_account.models import CustomUser
 
 
 @tag('offline_external_api')
-class RecurrenceIdempotencyTest(TweetGenerationPatchMixin, TestCase):
+class RecurrenceIdempotencyTest(TestCase):
     """generate_recurring_events を二度実行しても重複しないことを保証する。"""
 
     def setUp(self):

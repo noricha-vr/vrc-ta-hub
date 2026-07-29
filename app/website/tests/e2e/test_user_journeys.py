@@ -20,7 +20,6 @@ from django.test import override_settings, tag
 from django.urls import reverse
 
 from event.models import EventDetail
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from tests.factories import (
     make_community,
     make_discord_linked_user,
@@ -224,7 +223,7 @@ class PlaywrightLiveServerTestCase(StaticLiveServerTestCase):
     DISCORD_AUTH_REQUIRED=True,
     EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
 )
-class UserJourneysE2ETests(TweetGenerationPatchMixin, PlaywrightLiveServerTestCase):
+class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
     """公開閲覧・認証・発表申請の主要3導線を検証する."""
 
     media_root: tempfile.TemporaryDirectory[str] | None = None

@@ -9,7 +9,6 @@ from django.urls import reverse
 
 from community.models import Community
 from event.models import Event, EventDetail, RecurrenceRule
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 
 
 def _create_test_image():
@@ -29,7 +28,7 @@ def _create_test_image():
     return signature + _chunk(b"IHDR", ihdr_data) + _chunk(b"IDAT", idat_data) + _chunk(b"IEND", b"")
 
 
-class EventVisibilityFilterRegressionTest(TweetGenerationPatchMixin, TestCase):
+class EventVisibilityFilterRegressionTest(TestCase):
     """終了済み/非承認コミュニティのイベントが公開面に出ないことを確認する。"""
 
     def setUp(self):
@@ -150,7 +149,7 @@ class EventVisibilityFilterRegressionTest(TweetGenerationPatchMixin, TestCase):
         self.assertNotIn("Ended Speaker", returned_speakers)
 
 
-class PurgeCommunityEventsCommandTest(TweetGenerationPatchMixin, TestCase):
+class PurgeCommunityEventsCommandTest(TestCase):
     """purge_community_events コマンドの回帰テスト。"""
 
     def setUp(self):

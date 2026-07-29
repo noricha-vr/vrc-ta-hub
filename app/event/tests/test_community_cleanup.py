@@ -7,10 +7,9 @@ from googleapiclient.errors import HttpError
 from community.models import Community
 from event.community_cleanup import cleanup_community_future_data
 from event.models import Event, RecurrenceRule
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 
 
-class CommunityCleanupServiceTest(TweetGenerationPatchMixin, TestCase):
+class CommunityCleanupServiceTest(TestCase):
     def setUp(self):
         self.community = Community.objects.create(
             name='Cleanup Test Community',

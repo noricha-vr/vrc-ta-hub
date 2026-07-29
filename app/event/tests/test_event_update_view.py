@@ -10,13 +10,12 @@ from django.utils import timezone
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 from event.sync_to_google import build_google_event_description
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from twitter.models import TweetQueue
 from user_account.models import CustomUser
 from utils.vrchat_time import get_vrchat_today
 
 
-class EventUpdateViewBaseMixin(TweetGenerationPatchMixin):
+class EventUpdateViewBaseMixin:
     """テスト共通のセットアップ。"""
 
     def setUp(self):

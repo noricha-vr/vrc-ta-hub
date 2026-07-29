@@ -6,12 +6,11 @@ from django.contrib.auth import get_user_model
 
 from community.models import Community
 from event.models import Event, RecurrenceRule
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from user_account.models import APIKey
 
 User = get_user_model()
 
-class RecurrenceRuleDeletionTest(TweetGenerationPatchMixin, TestCase):
+class RecurrenceRuleDeletionTest(TestCase):
     """RecurrenceRuleの削除に関するテスト"""
     
     def setUp(self):
@@ -128,7 +127,7 @@ class RecurrenceRuleDeletionTest(TweetGenerationPatchMixin, TestCase):
         self.assertFalse(RecurrenceRule.objects.filter(id=self.rule.id).exists())
 
 
-class RecurrenceRuleAdminTest(TweetGenerationPatchMixin, TestCase):
+class RecurrenceRuleAdminTest(TestCase):
     """RecurrenceRule管理画面のテスト"""
     
     def setUp(self):
@@ -197,7 +196,7 @@ class RecurrenceRuleAdminTest(TweetGenerationPatchMixin, TestCase):
         self.assertFalse(RecurrenceRule.objects.filter(id=self.rule.id).exists())
 
 
-class RecurrenceRuleAPITest(TweetGenerationPatchMixin, TestCase):
+class RecurrenceRuleAPITest(TestCase):
     """RecurrenceRule APIのテスト"""
     
     def setUp(self):

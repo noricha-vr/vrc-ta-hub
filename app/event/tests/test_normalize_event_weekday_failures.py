@@ -10,7 +10,6 @@ from django.test import TestCase, TransactionTestCase, tag
 
 from community.models import Community
 from event.models import Event
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 
 
 _FAILURE_TRIGGER_NAME = 'test_event_weekday_db_cache_failure'
@@ -54,7 +53,6 @@ class NormalizeEventWeekdayCacheFailureTests(TestCase):
 @tag('offline_external_api')
 @skipUnless(connection.vendor == 'mysql', 'MySQL trigger is required')
 class NormalizeEventWeekdayDualFailureTests(
-    TweetGenerationPatchMixin,
     TransactionTestCase,
 ):
     """DB失敗をキャッシュ破棄失敗より優先して通知する。"""

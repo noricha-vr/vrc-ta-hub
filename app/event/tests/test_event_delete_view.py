@@ -8,12 +8,11 @@ from django.contrib.auth import get_user_model
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventOccurrenceTombstone, RecurrenceRule
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
 
-class EventDeleteViewPermissionTest(TweetGenerationPatchMixin, TestCase):
+class EventDeleteViewPermissionTest(TestCase):
     """EventDeleteViewの権限チェックテスト"""
 
     def setUp(self):
@@ -403,7 +402,7 @@ class EventDeleteViewPermissionTest(TweetGenerationPatchMixin, TestCase):
         self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
 
 
-class EventDeleteViewMultipleOwnersTest(TweetGenerationPatchMixin, TestCase):
+class EventDeleteViewMultipleOwnersTest(TestCase):
     """複数主催者がいる場合のEventDeleteViewテスト"""
 
     def setUp(self):

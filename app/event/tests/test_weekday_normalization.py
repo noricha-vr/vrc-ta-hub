@@ -34,7 +34,6 @@ from event.admin import EventAdmin
 from event.models import Event, RecurrenceRule
 from event.recurrence.persistence import create_recurring_events
 from event.services.recurrence_override import move_event_occurrence
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from ta_hub.index_cache import (
     build_index_database_context,
     get_index_view_cache_key,
@@ -50,7 +49,7 @@ _FAILURE_TRIGGER_NAME = 'test_event_weekday_batch_failure'
 
 
 @tag('offline_external_api')
-class EventWeekdayWriterTests(TweetGenerationPatchMixin, TestCase):
+class EventWeekdayWriterTests(TestCase):
     """Event を保存する各境界が date 由来の曜日を使うことを検証する。"""
 
     def setUp(self) -> None:
@@ -152,7 +151,7 @@ class EventWeekdayWriterTests(TweetGenerationPatchMixin, TestCase):
 
 
 @tag('offline_external_api')
-class NormalizeEventWeekdaysCommandTests(TweetGenerationPatchMixin, TestCase):
+class NormalizeEventWeekdaysCommandTests(TestCase):
     """正規化コマンドの分類、適用、冪等性を検証する。"""
 
     def setUp(self) -> None:
@@ -295,7 +294,6 @@ class NormalizeEventWeekdaysCommandTests(TweetGenerationPatchMixin, TestCase):
 
 @tag('offline_external_api')
 class NormalizeEventWeekdaysLockingTests(
-    TweetGenerationPatchMixin,
     TransactionTestCase,
 ):
     """apply が競合する日付更新後も曜日整合性を維持する。"""
@@ -403,7 +401,6 @@ class NormalizeEventWeekdaysLockingTests(
 @tag('offline_external_api')
 @skipUnless(connection.vendor == 'mysql', 'MySQL trigger is required')
 class NormalizeEventWeekdaysBatchCommitTests(
-    TweetGenerationPatchMixin,
     TransactionTestCase,
 ):
     """失敗済みバッチを再実行で収束させる公開契約を検証する。"""

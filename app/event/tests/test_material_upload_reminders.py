@@ -16,7 +16,6 @@ from event.material_upload_reminders import (
     send_material_upload_reminders,
 )
 from event.models import Event, EventDetail, MaterialUploadReminderLog
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
 
 User = get_user_model()
@@ -42,7 +41,7 @@ class StubDecisionService:
         )
 
 
-class MaterialUploadReminderTest(TweetGenerationPatchMixin, TestCase):
+class MaterialUploadReminderTest(TestCase):
     def setUp(self):
         self.target_date = date(2026, 6, 4)
         self.community = Community.objects.create(
