@@ -22,6 +22,23 @@ _COMMAND_LOGGER = 'event.management.commands.normalize_event_weekdays'
 class NormalizeEventWeekdayCacheFailureTests(TestCase):
     """正常なapply後はキャッシュ破棄失敗を呼出元へ通知する。"""
 
+    def test_keyboard_interrupt_survives_cache_clear_error(self) -> None:
+        with self.assertLogs(_COMMAND_LOGGER, level='ERROR') as captured:
+            with patch(
+                'event.management.commands.normalize_event_weekdays.Command._apply',
+                side_effect=KeyboardInterrupt,
+            ):
+                with patch(
+                    'ta_hub.index_cache.cache.delete',
+                    side_effect=RuntimeError(_CACHE_FAILURE_DETAIL),
+                ):
+                    with self.assertRaises(KeyboardInterrupt):
+                        call_command('normalize_event_weekdays', '--apply')
+
+        logs = '\n'.join(captured.output)
+        self.assertIn('キャッシュ破棄にも失敗しました', logs)
+        self.assertNotIn(_CACHE_FAILURE_DETAIL, logs)
+
     def test_successful_apply_propagates_cache_clear_failure(self) -> None:
         with patch(
             'ta_hub.index_cache.cache.delete',
