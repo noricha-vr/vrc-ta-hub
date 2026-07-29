@@ -18,8 +18,8 @@ SQLite テスト DB ではこの別スレッドが同じテーブルへアクセ
 - 既知の影響箇所である `app/user_account/tests/test_lt_application_views.py` と
   `app/ta_hub/tests/test_index_view_degraded_mode.py` は、承認済み `Community` / `EventDetail` を保存し、
   テスト対象外の TweetQueue 本文生成を副作用として起動していた。
-- `event.tests.tweet_generation.TweetGenerationPatchMixin` は event テスト内の明示的な抑制には有効だが、
-  他アプリのテストへ適用漏れが起きる。
+- 当時は `event.tests.tweet_generation.TweetGenerationPatchMixin` で event テスト内のスレッドを
+  明示的に抑制していたが、他アプリのテストへ適用漏れが起きたため Issue #539 で撤去した。
 
 ## 原因
 
@@ -30,19 +30,19 @@ SQLite テスト DB ではこの別スレッドが同じテーブルへアクセ
 ## 改善案と採用方針
 
 `_start_tweet_generation()` で `generation_token` の保存までは従来通り行い、
-`settings.TESTING=True` または `manage.py test` 実行時だけスレッド起動前に返すようにした。
+global な `_should_skip_tweet_generation_thread()` により、`settings.TESTING=True` または
+`manage.py test` 実行時だけスレッド起動前に返すようにした。
 
-この方針は、全アプリのテストに横断的に効き、個別テストへ mixin を追加し忘れるリスクを減らせる。
+この方針は全アプリのテストに横断的に効くため、Issue #539 以降は個別テスト用 mixin を使わない。
 一方で、Twitter シグナル自体のテストは `twitter.signals.threading.Thread` を明示的に
 patch しているため、従来通り本番相当のスレッド起動経路を検証できる。
 
 ## 検証手順
 
-- `twitter.tests.test_generation_guard.TweetGenerationThreadGuardTest` で、`manage.py test` 判定時は
+- `python manage.py test twitter.tests.test_generation_guard.TweetGenerationThreadGuardTest` で、
   `generation_token` が保存され、`threading.Thread.start()` が呼ばれないことを確認する。
-- `user_account.tests.test_lt_application_views` と
-  `ta_hub.tests.test_index_view_degraded_mode` で、既知の他アプリテストが副作用スレッドなしで通ることを確認する。
-- `twitter.tests.test_signal_community`、`twitter.tests.test_signal_event_detail`、
-  `twitter.tests.test_signal_slide_share` のシグナル系テストで、`threading.Thread` を明示 patch した場合は従来通り
-  `threading.Thread.start()` 経路を検証できることを確認する。
+- `python manage.py test user_account.tests.test_lt_application_views ta_hub.tests.test_index_view_degraded_mode`
+  で、既知の他アプリテストが副作用スレッドなしで通ることを確認する。
+- `python manage.py test twitter.tests.test_signal_community twitter.tests.test_signal_event_detail twitter.tests.test_signal_slide_share`
+  で、`threading.Thread` を明示 patch したシグナル系テストが従来通り起動経路を検証できることを確認する。
 - `python manage.py test` 全体で `database table is locked` が出ないことを確認する。
