@@ -135,7 +135,7 @@ def post_tweet_queue_item(
     upload_media_func: UploadMediaCallable = upload_media_to_x,
     notify_failure_func: FailureNotifier = notify_tweet_post_failure,
 ) -> dict[str, object]:
-    """TweetQueue 1件を X API に投稿し、保存前の結果を返す."""
+    """TweetQueue 1件を X API に投稿し、失敗状態を通知前に保存する."""
     media_ids = None
     if queue_item.image_url:
         media_id = upload_media_func(queue_item.image_url)
@@ -159,8 +159,16 @@ def post_tweet_queue_item(
     queue_item.error_message = (
         f'X API投稿に失敗 (status={status_code})' if status_code else 'X API投稿に失敗'
     )
-    if result.get("error_body"):
-        queue_item.error_message = f"{queue_item.error_message}: {result['error_body'][:300]}"
+    error_body = result.get("error_body")
+    if error_body:
+        queue_item.error_message = f"{queue_item.error_message}: {error_body[:300]}"
+    failure_update_fields = ['error_message']
+    if failure_status is not None:
+        failure_update_fields.append('status')
+    run_with_db_reconnect(
+        lambda: queue_item.save(update_fields=failure_update_fields),
+        context=f"post_tweet_queue_item_save_failure queue={queue_item.pk}",
+    )
     notify_failure_func(queue_item, result)
     return {
         "id": queue_item.pk, "status": "failed", "error": "post_failed",

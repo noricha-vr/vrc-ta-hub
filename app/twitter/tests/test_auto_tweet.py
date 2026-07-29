@@ -997,11 +997,12 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertEqual(second.status, "ready")
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
-    @patch("twitter.notifications.requests.post")
+    @patch("website.discord_webhook.requests.post")
     @patch("twitter.views.post_tweet")
     def test_post_scheduled_tweets_post_failure(self, mock_post, mock_webhook_post):
         """X API 投稿失敗時にキューが failed になり管理者へ通知が送られる"""
         mock_post.return_value = {"ok": False, "data": None, "status_code": 403, "error_body": "You are not permitted to perform this action."}
+        mock_webhook_post.return_value = MagicMock(status_code=204)
 
         TweetQueue.objects.create(
             tweet_type="new_community",

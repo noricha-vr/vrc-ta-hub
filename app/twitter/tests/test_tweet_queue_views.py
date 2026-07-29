@@ -384,13 +384,14 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         self.assertIsNotNone(self.queue_item.posted_at)
 
     @override_settings(DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/test/token')
-    @patch('twitter.notifications.requests.post')
+    @patch('website.discord_webhook.requests.post')
     @patch('twitter.views.post_tweet')
     @patch('twitter.views.upload_media')
     def test_post_now_failure(self, mock_upload, mock_post, mock_webhook_post):
         """手動投稿が失敗した場合は元ステータスを維持し管理者へ通知する"""
         mock_post.return_value = {'ok': False, 'data': None, 'status_code': 403, 'error_body': 'Forbidden'}
         mock_upload.return_value = None
+        mock_webhook_post.return_value = MagicMock(status_code=204)
 
         self.client.login(username='admin_user', password='testpassword')
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})

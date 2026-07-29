@@ -11,6 +11,7 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
+from website.discord_webhook import post_discord_webhook
 
 from ..models import Community, CommunityMember, CommunityInvitation, INVITATION_EXPIRATION_DAYS
 
@@ -276,19 +277,17 @@ class TestWebhookView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
                        "このメッセージはテスト送信です。Webhook設定が正しく動作しています。"
         }
 
-        webhook_timeout_seconds = 10
         try:
-            response = requests.post(
+            post_discord_webhook(
                 community.notification_webhook_url,
-                json=test_message,
-                timeout=webhook_timeout_seconds
+                test_message,
             )
-            if response.status_code == 204:
-                messages.success(request, 'テスト通知を送信しました。Discordを確認してください。')
-            else:
-                messages.error(request, f'通知の送信に失敗しました。(ステータスコード: {response.status_code})')
+            messages.success(request, 'テスト通知を送信しました。Discordを確認してください。')
         except requests.Timeout:
             messages.error(request, '通知の送信がタイムアウトしました。')
+        except requests.HTTPError as e:
+            status_code = e.response.status_code if e.response is not None else '不明'
+            messages.error(request, f'通知の送信に失敗しました。(ステータスコード: {status_code})')
         except requests.RequestException as e:
             # ユーザーが入力した Webhook URL の不備など想定内の失敗のため
             # WARNING に降格 (docs/logging.md 規約: ユーザー操作で直せるものは WARNING)

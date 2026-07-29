@@ -258,10 +258,20 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
 
     @patch("website.discord_webhook.requests.post")
     def test_handles_non_ok_response(self, mock_post):
-        """4xx/5xx 応答時もクラッシュしない（log warning のみ）"""
+        """4xx/5xx 応答を3回試行後も呼び出し元は継続する."""
+        from website.discord_webhook import post_discord_webhook
+
         mock_post.return_value = MagicMock(ok=False, status_code=500)
-        _send_discord_notification_for_new_application(self.event_detail, "https://example.com/review/1")
-        mock_post.assert_called_once()
+        original_sleep = post_discord_webhook.retry.sleep
+        post_discord_webhook.retry.sleep = lambda _seconds: None
+        try:
+            _send_discord_notification_for_new_application(
+                self.event_detail,
+                "https://example.com/review/1",
+            )
+        finally:
+            post_discord_webhook.retry.sleep = original_sleep
+        self.assertEqual(mock_post.call_count, 3)
 
 
 class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):

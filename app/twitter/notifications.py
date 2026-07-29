@@ -4,15 +4,14 @@
 """
 import logging
 
-import requests
 from django.conf import settings
 
 from twitter.x_api import PostTweetResult
 from website.constants import build_site_url
+from website.discord_webhook import post_discord_webhook
 
 logger = logging.getLogger(__name__)
 
-DISCORD_TIMEOUT_SECONDS = 10
 DISCORD_FIELD_MAX_LENGTH = 1024
 DISCORD_DESC_MAX_LENGTH = 4000
 COLOR_RED = 15548997
@@ -61,19 +60,10 @@ def notify_tweet_post_failure(queue_item, result: PostTweetResult) -> None:
     }
 
     try:
-        response = requests.post(
-            webhook_url, json=message, timeout=DISCORD_TIMEOUT_SECONDS,
+        post_discord_webhook(webhook_url, message)
+        logger.info(
+            "Admin Webhook通知成功（投稿失敗）: queue #%s", queue_item.pk,
         )
-        if response.ok:
-            logger.info(
-                "Admin Webhook通知成功（投稿失敗）: queue #%s", queue_item.pk,
-            )
-        else:
-            logger.warning(
-                "Admin Webhook通知失敗（投稿失敗）: queue #%s, status=%s",
-                queue_item.pk,
-                response.status_code,
-            )
     except Exception:
         logger.exception(
             "Admin Webhook通知エラー（投稿失敗）: queue #%s", queue_item.pk,

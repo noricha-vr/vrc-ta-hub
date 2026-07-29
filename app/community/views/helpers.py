@@ -5,11 +5,10 @@ import requests
 from django.conf import settings
 
 from website.constants import build_site_url
+from website.discord_webhook import post_discord_webhook
 
 logger = logging.getLogger(__name__)
 
-# Discord Webhook 送信タイムアウト（秒）
-DISCORD_REPORT_TIMEOUT_SECONDS = 10
 # 重複通報ブロック期間（秒）= 30日
 REPORT_DUPLICATE_TTL_SECONDS = 30 * 24 * 60 * 60
 # 同一IPからの月間通報上限（全集会合計）
@@ -43,16 +42,9 @@ def _send_report_webhook(community, report_count):
     }
 
     try:
-        response = requests.post(
-            webhook_url, json=message, timeout=DISCORD_REPORT_TIMEOUT_SECONDS
+        post_discord_webhook(webhook_url, message)
+        logger.info(
+            f"通報Webhook送信成功: Community={community.name}"
         )
-        if response.ok:
-            logger.info(
-                f"通報Webhook送信成功: Community={community.name}"
-            )
-        else:
-            logger.warning(
-                f"通報Webhook送信失敗: status={response.status_code}"
-            )
     except requests.RequestException:
         logger.exception("通報Webhook送信で例外が発生")
