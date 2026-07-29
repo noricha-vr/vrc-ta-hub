@@ -21,6 +21,38 @@ from ._vket_test_bases import VketApplyFlowBase
 
 
 class VketApplyFlowTests(VketApplyFlowBase):
+    def test_new_apply_shows_organizer_note_template(self):
+        """新規申請GETで organizer_note の初期値テンプレートが表示される"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        response = self.client.get(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        form = response.context['form']
+        self.assertIn('当日サポートが欲しい', form.initial.get('organizer_note', ''))
+
+    def test_existing_participation_preserves_organizer_note(self):
+        """既存参加者のGETで organizer_note が初期テンプレートで上書きされない"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        # 先に参加を作成（副作用でDBレコードを作成）
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            organizer_note='カスタム備考',
+            progress=VketParticipation.Progress.APPLIED,
+        )
+
+        response = self.client.get(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+        form = response.context['form']
+        self.assertEqual(form.initial.get('organizer_note'), 'カスタム備考')
+
     def test_apply_get_allows_staff(self):
         """スタッフもapplyページにアクセスできる"""
         self.client.login(username='other_user', password='testpass123')

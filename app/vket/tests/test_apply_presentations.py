@@ -20,6 +20,37 @@ from ._vket_test_bases import VketApplyFlowBase
 
 
 class VketApplyFlowTests(VketApplyFlowBase):
+    def test_lt_start_time_saved_to_presentation(self):
+        """LT開始時刻が VketPresentation.requested_start_time に保存される"""
+        self.client.login(username='owner_user', password='testpass123')
+        self._set_active_community()
+
+        target_date = self.collaboration.period_start
+        response = self.client.post(
+            reverse('vket:apply', kwargs={'pk': self.collaboration.pk}),
+            data={
+                'requested_date': target_date.isoformat(),
+                'requested_start_time': '21:00',
+                'requested_duration': '60',
+                'organizer_note': '備考テスト',
+                'lt-TOTAL_FORMS': '1',
+                'lt-INITIAL_FORMS': '0',
+                'lt-MIN_NUM_FORMS': '0',
+                'lt-MAX_NUM_FORMS': '20',
+                'lt-0-speaker': 'テスト登壇者',
+                'lt-0-theme': 'テストテーマ',
+                'lt-0-lt_start_time': '21:30',
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+
+        participation = VketParticipation.objects.get(
+            collaboration=self.collaboration, community=self.community
+        )
+        pres = VketPresentation.objects.get(participation=participation, order=0)
+        self.assertEqual(pres.requested_start_time.strftime('%H:%M'), '21:30')
+
     def test_apply_creates_multiple_presentations(self):
         """複数LTを送信するとDBに複数件作成される"""
         self.client.login(username='owner_user', password='testpass123')

@@ -16,7 +16,7 @@ from vket.models import (
 User = get_user_model()
 
 
-class VketPublicPagesTests(TestCase):
+class CollaborationPublicPagesTests(TestCase):
     def setUp(self):
         today = timezone.localdate()
         self.collaboration = VketCollaboration.objects.create(
