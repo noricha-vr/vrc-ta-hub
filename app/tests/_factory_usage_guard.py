@@ -1,4 +1,8 @@
-"""core model fixtureの直接生成をimport解決して集計する。"""
+"""各test fileの明示importからcore model直接生成を集計する。
+
+canonical modelのdirect/aliased ImportFrom、module import、相対import、
+get_user_model aliasを解決する。プロジェクト内moduleからのre-exportは対象外。
+"""
 
 from __future__ import annotations
 
@@ -25,6 +29,7 @@ CORE_MODEL_PATHS = {
     ('user_account', 'models', 'CustomUser'): 'CustomUser',
     ('django', 'contrib', 'auth', 'models', 'User'): 'User',
 }
+CORE_MODEL_MODULES = frozenset(path[:-1] for path in CORE_MODEL_PATHS)
 GET_USER_MODEL_PATH = ('django', 'contrib', 'auth', 'get_user_model')
 DIRECT_MANAGER_METHODS = frozenset({'create', 'create_user'})
 
@@ -32,8 +37,8 @@ Symbol: TypeAlias = tuple[str, str | tuple[str, ...]] | None
 Scope: TypeAlias = tuple[str, dict[str, Symbol]]
 
 
-def _is_test_source(path: Path, repository_root: Path) -> bool:
-    relative_path = path.relative_to(repository_root)
+def _is_test_source(path: Path) -> bool:
+    relative_path = path.relative_to(REPOSITORY_ROOT)
     if relative_path == FACTORY_MODULE_PATH:
         return False
     if GENERATED_PATH_PARTS.intersection(relative_path.parts):
@@ -41,9 +46,9 @@ def _is_test_source(path: Path, repository_root: Path) -> bool:
     return 'tests' in relative_path.parts or path.name == 'tests.py' or path.name.startswith('test_')
 
 
-def _iter_test_sources(app_root: Path, repository_root: Path) -> Iterator[Path]:
+def _iter_test_sources() -> Iterator[Path]:
     """factory本体と生成物を除くrepo内Pythonテストソースを返す。"""
-    return (path for path in app_root.rglob('*.py') if _is_test_source(path, repository_root))
+    return (path for path in APP_ROOT.rglob('*.py') if _is_test_source(path))
 
 
 def _attribute_parts(node: ast.AST) -> tuple[str, ...] | None:
@@ -140,11 +145,10 @@ class _FunctionLocalCollector(ast.NodeVisitor):
 class _CoreCreateVisitor(ast.NodeVisitor):
     """import解決済みのcore model manager callを収集する。"""
 
-    def __init__(self, model_paths: dict[tuple[str, ...], str] | None = None):
+    def __init__(self, package_path: tuple[str, ...] = ()):
         self.identities: list[tuple[str, str]] = []
         self.scopes: list[Scope] = [('module', {})]
-        self.model_paths = model_paths or CORE_MODEL_PATHS
-        self.model_modules = frozenset(path[:-1] for path in self.model_paths)
+        self.package_path = package_path
 
     def _lookup(self, name: str) -> Symbol:
         crossed_function = False
@@ -178,7 +182,7 @@ class _CoreCreateVisitor(ast.NodeVisitor):
         qualified_path = self._resolve_qualified_path(node)
         if qualified_path is None:
             return None
-        return self.model_paths.get(qualified_path)
+        return CORE_MODEL_PATHS.get(qualified_path)
 
     def _is_get_user_model_call(self, node: ast.AST) -> bool:
         if not isinstance(node, ast.Call):
@@ -203,15 +207,30 @@ class _CoreCreateVisitor(ast.NodeVisitor):
             self._bind(target_name, symbol if len(target_names) == 1 else None)
 
     def _symbol_for_path(self, path: tuple[str, ...]) -> Symbol:
-        if path in self.model_paths:
-            return 'model', self.model_paths[path]
+        if path in CORE_MODEL_PATHS:
+            return 'model', CORE_MODEL_PATHS[path]
         if path == GET_USER_MODEL_PATH:
             return 'get_user_model', 'get_user_model'
-        if path in self.model_modules or any(
-            model_path[:len(path)] == path for model_path in self.model_paths
+        if path in CORE_MODEL_MODULES or any(
+            model_path[:len(path)] == path for model_path in CORE_MODEL_PATHS
         ) or GET_USER_MODEL_PATH[:len(path)] == path:
             return 'module', path
         return None
+
+    def _import_from_module_path(self, node: ast.ImportFrom) -> tuple[str, ...] | None:
+        module_parts = tuple((node.module or '').split('.')) if node.module else ()
+        if not node.level:
+            return module_parts
+
+        levels_up = node.level - 1
+        if levels_up > len(self.package_path):
+            return None
+        base_path = (
+            self.package_path[:len(self.package_path) - levels_up]
+            if levels_up
+            else self.package_path
+        )
+        return (*base_path, *module_parts)
 
     def visit_Import(self, node: ast.Import):
         for imported in node.names:
@@ -222,12 +241,12 @@ class _CoreCreateVisitor(ast.NodeVisitor):
                 self._bind(full_path[0], self._symbol_for_path((full_path[0],)))
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
-        if node.level:
+        module_path = self._import_from_module_path(node)
+        if module_path is None:
             for imported in node.names:
                 if imported.name != '*':
                     self._bind(imported.asname or imported.name, None)
             return
-        module_path = tuple((node.module or '').split('.'))
         for imported in node.names:
             if imported.name == '*':
                 continue
@@ -380,59 +399,27 @@ class _CoreCreateVisitor(ast.NodeVisitor):
 
 def find_direct_core_creates(
     tree: ast.AST,
-    model_paths: dict[tuple[str, ...], str] | None = None,
+    package_path: tuple[str, ...] = (),
 ) -> list[tuple[str, str]]:
-    """ASTからimport解決できるcore model直接生成を返す。"""
-    visitor = _CoreCreateVisitor(model_paths)
+    """ASTから明示importで解決できるcore model直接生成を返す。"""
+    visitor = _CoreCreateVisitor(package_path)
     visitor.visit(tree)
     return visitor.identities
 
 
-def _module_path(path: Path, app_root: Path) -> tuple[str, ...]:
-    relative_path = path.relative_to(app_root).with_suffix('')
-    parts = relative_path.parts
-    return parts[:-1] if parts[-1] == '__init__' else parts
+def _package_path(path: Path) -> tuple[str, ...]:
+    relative_path = path.relative_to(APP_ROOT).with_suffix('')
+    return relative_path.parts[:-1]
 
 
-def _discover_project_model_paths(
-    app_root: Path,
-    repository_root: Path,
-) -> dict[tuple[str, ...], str]:
-    """プロジェクト内moduleが再公開するcore model aliasを解決する。"""
-    parsed_modules = {
-        _module_path(path, app_root): ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
-        for path in app_root.rglob('*.py')
-        if not GENERATED_PATH_PARTS.intersection(path.relative_to(repository_root).parts)
-    }
-    model_paths = dict(CORE_MODEL_PATHS)
-
-    changed = True
-    while changed:
-        changed = False
-        for module_path, tree in parsed_modules.items():
-            visitor = _CoreCreateVisitor(model_paths)
-            visitor.visit(tree)
-            for exported_name, symbol in visitor.scopes[0][1].items():
-                if symbol is None or symbol[0] != 'model':
-                    continue
-                exported_path = (*module_path, exported_name)
-                model_name = str(symbol[1])
-                if model_paths.get(exported_path) == model_name:
-                    continue
-                model_paths[exported_path] = model_name
-                changed = True
-    return model_paths
-
-
-def count_direct_core_creates(
-    repository_root: Path = REPOSITORY_ROOT,
-    app_root: Path = APP_ROOT,
-) -> Counter[str]:
-    """repo内テストのcore model直接生成をモデル別に集計する。"""
+def count_direct_core_creates() -> Counter[str]:
+    """各test fileの明示importからcore model直接生成を集計する。"""
     counts: Counter[str] = Counter()
-    model_paths = _discover_project_model_paths(app_root, repository_root)
-    for path in _iter_test_sources(app_root, repository_root):
+    for path in _iter_test_sources():
         tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
-        for model_name, _manager_method in find_direct_core_creates(tree, model_paths):
+        for model_name, _manager_method in find_direct_core_creates(
+            tree,
+            package_path=_package_path(path),
+        ):
             counts[model_name] += 1
     return counts
