@@ -38,10 +38,11 @@ patch しているため、従来通り本番相当のスレッド起動経路�
 
 ## 検証手順
 
-- `twitter.tests.test_auto_tweet.TweetGenerationThreadGuardTest` で、`manage.py test` 判定時は
+- `twitter.tests.test_generation_guard.TweetGenerationThreadGuardTest` で、`manage.py test` 判定時は
   `generation_token` が保存され、`threading.Thread.start()` が呼ばれないことを確認する。
 - `user_account.tests.test_lt_application_views` と
   `ta_hub.tests.test_index_view_degraded_mode` で、既知の他アプリテストが副作用スレッドなしで通ることを確認する。
-- `twitter.tests.test_auto_tweet` のシグナル系テストで、`threading.Thread` を明示 patch した場合は従来通り
+- `twitter.tests.test_signal_community`、`twitter.tests.test_signal_event_detail`、
+  `twitter.tests.test_signal_slide_share` のシグナル系テストで、`threading.Thread` を明示 patch した場合は従来通り
   `threading.Thread.start()` 経路を検証できることを確認する。
 - `python manage.py test` 全体で `database table is locked` が出ないことを確認する。

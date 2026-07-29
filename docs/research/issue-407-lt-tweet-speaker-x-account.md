@@ -37,4 +37,5 @@
 - applicant なしの場合は `テスト太郎さん` のみになり、X アカウント表記が混入しないことをテストする。
 - 当日リマインダーの発表一覧に X アカウントが含まれることをテストする。
 - LLM が X 投稿制約違反の本文を返し続けた場合の fallback にも X アカウントが含まれることをテストする。
-- 既存の weighted length 制限テストを含む `twitter.tests.test_auto_tweet` を実行する。
+- Xアカウント表示と fallback の `twitter.tests.test_generator_event`、
+  weighted length 制限の `twitter.tests.test_tweet_length` を実行する。
