@@ -11,9 +11,8 @@ from twitter.tests._auto_tweet_test_base import TweetGeneratorTestBase
 class TweetGeneratorCommunityTest(TweetGeneratorTestBase):
     """新規集会の告知文生成を検証する。"""
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_new_community_tweet(self, mock_llm, _mock_thread):
+    def test_generate_new_community_tweet(self, mock_llm):
         """新規集会の告知文が生成��れる"""
         mock_llm.return_value = "新しい集会がはじまります！"
 

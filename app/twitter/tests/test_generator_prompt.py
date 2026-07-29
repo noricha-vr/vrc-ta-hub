@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from django.test import tag
 
-from event.models import EventDetail
+from tests.factories import make_event_detail
 
 from twitter.tests._auto_tweet_test_base import TweetGeneratorTestBase
 
@@ -48,14 +48,13 @@ class TweetGeneratorPromptTest(TweetGeneratorTestBase):
 
         self.assertIsNone(result)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_sanitize_strips_newlines_in_prompt(self, mock_llm, _mock_thread):
+    def test_sanitize_strips_newlines_in_prompt(self, mock_llm):
         """ユーザー入力の改行・制御文字がサニタイズされてプロンプトに渡される"""
         mock_llm.return_value = "サニタイズテスト"
 
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="テスト\n太郎\r\n",

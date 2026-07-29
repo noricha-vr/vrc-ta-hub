@@ -5,23 +5,22 @@ from unittest.mock import patch
 
 from django.test import tag
 
-from event.models import EventDetail
+from tests.factories import make_event_detail, make_user
 from twitter.models import TweetQueue
 
-from twitter.tests._auto_tweet_test_base import CustomUser, TweetGeneratorTestBase
+from twitter.tests._auto_tweet_test_base import TweetGeneratorTestBase
 
 @tag('offline_external_api')
 class TweetGeneratorSlideShareTest(TweetGeneratorTestBase):
     """資料共有の告知文生成を検証する。"""
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_slide_share_tweet_with_slide(self, mock_llm, _mock_thread):
+    def test_generate_slide_share_tweet_with_slide(self, mock_llm):
         """スライド共有ツイートが生成される（slide_url のみ）"""
         mock_llm.return_value = "スライド公開しました！"
 
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="テスト太郎",
@@ -47,14 +46,13 @@ class TweetGeneratorSlideShareTest(TweetGeneratorTestBase):
         self.assertIn("スライド", user_prompt)
         self.assertNotIn("動画", user_prompt)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_slide_share_tweet_with_youtube(self, mock_llm, _mock_thread):
+    def test_generate_slide_share_tweet_with_youtube(self, mock_llm):
         """スライド共有ツイートが生成される（youtube_url のみ）"""
         mock_llm.return_value = "動画公開しました！"
 
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="テスト太郎",
@@ -77,14 +75,13 @@ class TweetGeneratorSlideShareTest(TweetGeneratorTestBase):
         self.assertIn("動画", user_prompt)
         self.assertNotIn("スライド", user_prompt)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_slide_share_tweet_with_both(self, mock_llm, _mock_thread):
+    def test_generate_slide_share_tweet_with_both(self, mock_llm):
         """スライド共有ツイートが生成される（slide_url + youtube_url 両方）"""
         mock_llm.return_value = "スライドと動画公開！"
 
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="テスト太郎",
@@ -106,19 +103,18 @@ class TweetGeneratorSlideShareTest(TweetGeneratorTestBase):
         self.assertNotIn("ツイート", user_prompt)
         self.assertIn("スライド・動画", user_prompt)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_slide_share_tweet_includes_applicant_x_account(self, mock_llm, _mock_thread):
+    def test_generate_slide_share_tweet_includes_applicant_x_account(self, mock_llm):
         """スライド共有告知のプロンプトに申請者の X アカウントを含める"""
         mock_llm.return_value = "スライド公開テスト"
-        applicant = CustomUser.objects.create_user(
+        applicant = make_user(
             user_name="slide_speaker",
             email="slide_speaker@example.com",
             password="testpassword",
             x_account="speaker_vr",
         )
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="テスト太郎",
@@ -135,13 +131,12 @@ class TweetGeneratorSlideShareTest(TweetGeneratorTestBase):
         self.assertIn("発表者: テスト太郎さん（@speaker_vr）", user_prompt)
         self.assertIn("発表者（「テスト太郎さん（@speaker_vr）」をそのまま記載）", user_prompt)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_slide_share_tweet_uses_name_only_without_applicant_x_account(self, mock_llm, _mock_thread):
+    def test_generate_slide_share_tweet_uses_name_only_without_applicant_x_account(self, mock_llm):
         """申請者や X アカウントがないスライド告知は従来どおり名前だけを使う"""
         mock_llm.return_value = "スライド公開テスト"
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="テスト太郎",
@@ -157,19 +152,18 @@ class TweetGeneratorSlideShareTest(TweetGeneratorTestBase):
         self.assertIn("発表者: テスト太郎さん", user_prompt)
         self.assertNotIn("@", user_prompt)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_slide_share_generator_fallback_includes_applicant_x_account(self, mock_llm, _mock_thread):
+    def test_slide_share_generator_fallback_includes_applicant_x_account(self, mock_llm):
         """LLM 生成失敗時のスライド共有 fallback に申請者の X アカウントを含める"""
         mock_llm.return_value = "\n".join(["長い本文"] * 20)
-        applicant = CustomUser.objects.create_user(
+        applicant = make_user(
             user_name="slide_fallback_speaker",
             email="slide_fallback_speaker@example.com",
             password="testpassword",
             x_account="fallback_vr",
         )
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="テスト太郎",

@@ -6,23 +6,22 @@ from unittest.mock import patch
 from django.test import tag
 from django.utils import timezone
 
-from event.models import Event, EventDetail
+from tests.factories import make_event, make_event_detail, make_user
 from twitter.models import TweetQueue
 
-from twitter.tests._auto_tweet_test_base import CustomUser, TweetGeneratorTestBase
+from twitter.tests._auto_tweet_test_base import TweetGeneratorTestBase
 
 @tag('offline_external_api')
 class TweetGeneratorEventTest(TweetGeneratorTestBase):
     """発表と当日リマインドの告知文生成を検証する。"""
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_lt_tweet(self, mock_llm, _mock_thread):
+    def test_generate_lt_tweet(self, mock_llm):
         """LT 告知文が生成される"""
         mock_llm.return_value = "LT告知テスト"
 
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="テスト太郎",
@@ -44,19 +43,18 @@ class TweetGeneratorEventTest(TweetGeneratorTestBase):
         self.assertIn("告知ポスト", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_lt_tweet_includes_applicant_x_account(self, mock_llm, _mock_thread):
+    def test_generate_lt_tweet_includes_applicant_x_account(self, mock_llm):
         """LT 告知のプロンプトに申請者の X アカウントを含める"""
         mock_llm.return_value = "LT告知テスト"
-        applicant = CustomUser.objects.create_user(
+        applicant = make_user(
             user_name="lt_speaker",
             email="lt_speaker@example.com",
             password="testpassword",
             x_account="speaker_vr",
         )
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="テスト太郎",
@@ -72,13 +70,12 @@ class TweetGeneratorEventTest(TweetGeneratorTestBase):
         self.assertIn("発表者: テスト太郎さん（@speaker_vr）", user_prompt)
         self.assertIn("発表者（「テスト太郎さん（@speaker_vr）」をそのまま記載）", user_prompt)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_lt_tweet_uses_name_only_without_applicant_x_account(self, mock_llm, _mock_thread):
+    def test_generate_lt_tweet_uses_name_only_without_applicant_x_account(self, mock_llm):
         """申請者や X アカウントがない LT 告知は従来どおり名前だけを使う"""
         mock_llm.return_value = "LT告知テスト"
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="テスト太郎",
@@ -93,19 +90,18 @@ class TweetGeneratorEventTest(TweetGeneratorTestBase):
         self.assertIn("発表者: テスト太郎さん", user_prompt)
         self.assertNotIn("@", user_prompt)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_lt_generator_fallback_includes_applicant_x_account(self, mock_llm, _mock_thread):
+    def test_lt_generator_fallback_includes_applicant_x_account(self, mock_llm):
         """LLM 生成失敗時の LT fallback に申請者の X アカウントを含める"""
         mock_llm.return_value = "\n".join(["長い本文"] * 20)
-        applicant = CustomUser.objects.create_user(
+        applicant = make_user(
             user_name="fallback_speaker",
             email="fallback_speaker@example.com",
             password="testpassword",
             x_account="fallback_vr",
         )
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="テスト太郎",
@@ -126,9 +122,8 @@ class TweetGeneratorEventTest(TweetGeneratorTestBase):
 
         self.assertIn("テスト太郎さん（@fallback_vr）", result)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_lt_generator_fallback_fits_long_theme_under_weighted_limit(self, mock_llm, _mock_thread):
+    def test_lt_generator_fallback_fits_long_theme_under_weighted_limit(self, mock_llm):
         """LLM が長い本文を返し続けても LT 告知を決定的に280以内へ収める"""
         mock_llm.return_value = (
             "5/16(土) 22:00~ 「計算と自然」集会\n\n"
@@ -144,8 +139,8 @@ class TweetGeneratorEventTest(TweetGeneratorTestBase):
         self.event.date = datetime.date(2026, 5, 16)
         self.event.start_time = datetime.time(22, 0)
         self.event.save(update_fields=["date", "start_time"])
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="LT",
             status="approved",
             speaker="nconc",
@@ -167,14 +162,13 @@ class TweetGeneratorEventTest(TweetGeneratorTestBase):
         self.assertLessEqual(count_tweet_length(result), 280)
         self.assertNotIn("自律型エージェントの実装", result)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_special_event_tweet(self, mock_llm, _mock_thread):
+    def test_generate_special_event_tweet(self, mock_llm):
         """特別回告知文が生成される"""
         mock_llm.return_value = "特別回告知テスト"
 
-        detail = EventDetail.objects.create(
-            event=self.event,
+        detail = make_event_detail(
+            self.event,
             detail_type="SPECIAL",
             status="approved",
             speaker="ゲスト講師",
@@ -195,20 +189,21 @@ class TweetGeneratorEventTest(TweetGeneratorTestBase):
         self.assertIn("告知ポスト", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_daily_reminder_tweet(self, mock_llm, _mock_thread):
+    def test_generate_daily_reminder_tweet(self, mock_llm):
         """当日リマインド生成時に開催情報と発表情報をプロンプトへ含める"""
         mock_llm.return_value = "今日開催のリマインド"
 
-        today_event = Event.objects.create(
-            community=self.community,
-            date=timezone.localdate(),
+        today_event = make_event(
+            self.community,
+            event_date=timezone.localdate(),
             start_time=datetime.time(20, 0),
             duration=60,
+            weekday="",
+            accepts_lt_application=True,
         )
-        EventDetail.objects.create(
-            event=today_event,
+        make_event_detail(
+            today_event,
             detail_type="LT",
             status="approved",
             speaker="リマインド太郎",
@@ -230,25 +225,26 @@ class TweetGeneratorEventTest(TweetGeneratorTestBase):
         self.assertIn("リマインダーポスト", user_prompt)
         self.assertNotIn("リマインダーツイート", user_prompt)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
     @patch("twitter.tweet_generator._call_llm")
-    def test_generate_daily_reminder_tweet_includes_applicant_x_account(self, mock_llm, _mock_thread):
+    def test_generate_daily_reminder_tweet_includes_applicant_x_account(self, mock_llm):
         """当日リマインドの発表一覧に申請者の X アカウントを含める"""
         mock_llm.return_value = "今日開催のリマインド"
-        applicant = CustomUser.objects.create_user(
+        applicant = make_user(
             user_name="reminder_speaker",
             email="reminder_speaker@example.com",
             password="testpassword",
             x_account="reminder_vr",
         )
-        today_event = Event.objects.create(
-            community=self.community,
-            date=timezone.localdate(),
+        today_event = make_event(
+            self.community,
+            event_date=timezone.localdate(),
             start_time=datetime.time(20, 0),
             duration=60,
+            weekday="",
+            accepts_lt_application=True,
         )
-        EventDetail.objects.create(
-            event=today_event,
+        make_event_detail(
+            today_event,
             detail_type="LT",
             status="approved",
             speaker="リマインド太郎",
@@ -263,17 +259,18 @@ class TweetGeneratorEventTest(TweetGeneratorTestBase):
         _, user_prompt = mock_llm.call_args[0]
         self.assertIn("- 発表: リマインド太郎さん（@reminder_vr）「今日の見どころ」", user_prompt)
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
-    def test_generate_daily_reminder_tweet_returns_none_without_approved_details(self, _mock_thread):
+    def test_generate_daily_reminder_tweet_returns_none_without_approved_details(self):
         """approved な LT/SPECIAL がない場合は daily reminder を生成しない"""
-        today_event = Event.objects.create(
-            community=self.community,
-            date=timezone.localdate(),
+        today_event = make_event(
+            self.community,
+            event_date=timezone.localdate(),
             start_time=datetime.time(20, 0),
             duration=60,
+            weekday="",
+            accepts_lt_application=True,
         )
-        EventDetail.objects.create(
-            event=today_event,
+        make_event_detail(
+            today_event,
             detail_type="BLOG",
             status="approved",
             speaker="ブロガー",

@@ -2,45 +2,38 @@
 
 from datetime import timedelta
 
-from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import Client, TestCase
 from django.utils import timezone
 
-from community.models import Community, CommunityMember
-from event.models import Event
+from community.models import CommunityMember
+from tests.factories import make_community, make_event, make_user
 from vket.models import (
     VketCollaboration,
     VketParticipation,
 )
 
-
-User = get_user_model()
-
-
 class VketApplyFlowBase(TestCase):
     def setUp(self):
         self.client = Client()
-        self.owner = User.objects.create_user(
+        self.owner = make_user(
             user_name='owner_user',
             email='owner@example.com',
             password='testpass123',
         )
-        self.other_user = User.objects.create_user(
+        self.other_user = make_user(
             user_name='other_user',
             email='other@example.com',
             password='testpass123',
         )
 
-        self.community = Community.objects.create(
+        self.community = make_community(
             name='個人開発集会',
+            owner=self.owner,
             status='approved',
             frequency='毎週',
-        )
-        CommunityMember.objects.create(
-            community=self.community,
-            user=self.owner,
-            role=CommunityMember.Role.OWNER,
+            weekdays=[],
+            organizers='',
         )
         CommunityMember.objects.create(
             community=self.community,
@@ -60,11 +53,13 @@ class VketApplyFlowBase(TestCase):
         )
 
         # 日付選択肢の元になるイベントを作成
-        Event.objects.create(
-            community=self.community,
-            date=today,
+        make_event(
+            self.community,
+            event_date=today,
             start_time='22:00',
             duration=60,
+            weekday='',
+            accepts_lt_application=True,
         )
 
     def _set_active_community(self):
@@ -95,26 +90,32 @@ class VketManageViewsBase(TestCase):
     def setUp(self):
         self.client = Client()
         cache.clear()
-        self.superuser = User.objects.create_superuser(
+        self.superuser = make_user(
             user_name='admin_user',
             email='admin@example.com',
             password='adminpass123',
+            is_staff=True,
+            is_superuser=True,
         )
-        self.normal_user = User.objects.create_user(
+        self.normal_user = make_user(
             user_name='normal_user',
             email='normal@example.com',
             password='testpass123',
         )
 
-        self.community1 = Community.objects.create(
+        self.community1 = make_community(
             name='集会A',
             status='approved',
             frequency='毎週',
+            weekdays=[],
+            organizers='',
         )
-        self.community2 = Community.objects.create(
+        self.community2 = make_community(
             name='集会B',
             status='approved',
             frequency='毎週',
+            weekdays=[],
+            organizers='',
         )
 
         today = timezone.localdate()
@@ -129,19 +130,21 @@ class VketManageViewsBase(TestCase):
         )
 
         # 公開済みイベント（published_event）を使う
-        self.event1 = Event.objects.create(
-            community=self.community1,
-            date=today,
+        self.event1 = make_event(
+            self.community1,
+            event_date=today,
             start_time='21:00',
             duration=60,
             weekday='Tue',
+            accepts_lt_application=True,
         )
-        self.event2 = Event.objects.create(
-            community=self.community2,
-            date=today,
+        self.event2 = make_event(
+            self.community2,
+            event_date=today,
             start_time='21:30',
             duration=60,
             weekday='Tue',
+            accepts_lt_application=True,
         )
 
         self.participation1 = VketParticipation.objects.create(

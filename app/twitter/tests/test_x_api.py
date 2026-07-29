@@ -164,8 +164,13 @@ class UploadMediaErrorHandlingTest(TestCase):
         mock_post_response.raise_for_status.side_effect = requests.HTTPError(response=mock_post_response)
         mock_post.return_value = mock_post_response
 
-        result = upload_media("https://data.vrc-ta-hub.com/x.png")
+        with self.assertLogs("twitter.x_api", level="ERROR") as log_context:
+            result = upload_media("https://data.vrc-ta-hub.com/x.png")
+
         self.assertIsNone(result)
+        combined_logs = "\n".join(log_context.output)
+        self.assertIn("401", combined_logs)
+        self.assertIn('"code":89', combined_logs)
 
     @patch.dict("os.environ", {
         "X_API_KEY": "",
@@ -232,6 +237,7 @@ class PostTweetSuccessPathTest(TestCase):
         result = post_tweet("hello")
         self.assertTrue(result["ok"])
         self.assertEqual(result["data"]["id"], "999")
+        self.assertIsNotNone(mock_post.call_args.kwargs["auth"])
 
     @patch.dict("os.environ", VALID_CREDS_ENV, clear=False)
     @patch("twitter.x_api.validate_tweet_text", return_value=[])
@@ -397,7 +403,12 @@ class PostTweetErrorHandlingTest(TestCase):
         http_error = requests.HTTPError(response=err_response)
         mock_post.side_effect = http_error
 
-        result = post_tweet("hello")
+        with self.assertLogs("twitter.x_api", level="ERROR") as log_context:
+            result = post_tweet("hello")
+
         self.assertFalse(result["ok"])
         self.assertEqual(result["status_code"], 429)
         self.assertIn("Rate limit", result["error_body"])
+        combined_logs = "\n".join(log_context.output)
+        self.assertIn("429", combined_logs)
+        self.assertIn("Rate limit", combined_logs)

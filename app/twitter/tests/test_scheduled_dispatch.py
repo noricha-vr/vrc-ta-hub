@@ -214,11 +214,8 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertEqual(queue.generated_text, "")
         mock_post.assert_not_called()
 
-    @patch("twitter.services.tweet_generation.threading.Thread")
-    def test_post_scheduled_tweets_ignores_non_approved_or_non_lt_details(self, mock_thread_cls):
+    def test_post_scheduled_tweets_ignores_non_approved_or_non_lt_details(self):
         """approved な LT/SPECIAL がなくてもスケジューラは新規キューを作らない"""
-        mock_thread_cls.return_value = MagicMock()
-
         pending_event = Event.objects.create(
             community=self.community,
             date=timezone.localdate(),
@@ -259,11 +256,8 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertFalse(TweetQueue.objects.filter(tweet_type="daily_reminder").exists())
 
     @patch("twitter.views.post_tweet")
-    @patch("twitter.services.tweet_generation.threading.Thread")
-    def test_post_scheduled_tweets_does_not_create_missing_daily_reminder(self, mock_thread_cls, mock_post):
+    def test_post_scheduled_tweets_does_not_create_missing_daily_reminder(self, mock_post):
         """daily_reminder が未作成ならスケジューラは補完作成しない"""
-        mock_thread_cls.return_value = MagicMock()
-
         today_event = Event.objects.create(
             community=self.community,
             date=timezone.localdate(),
