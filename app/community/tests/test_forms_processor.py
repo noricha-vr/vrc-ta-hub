@@ -118,51 +118,38 @@ class NotifyNewCommunityRegistrationTest(TestCase):
     @override_settings(DISCORD_WEBHOOK_URL="")
     def test_skipped_when_webhook_url_empty(self):
         """DISCORD_WEBHOOK_URL 空で何もしない"""
-        with patch("website.discord_webhook.requests.post") as mock_post:
+        with patch("community.forms_processor.post_discord_webhook") as mock_post:
             notify_new_community_registration(self.community, self.request)
             mock_post.assert_not_called()
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/123/abc")
-    @patch("website.discord_webhook.requests.post")
+    @patch("community.forms_processor.post_discord_webhook")
     def test_posts_to_webhook_when_url_set(self, mock_post):
         """DISCORD_WEBHOOK_URL 設定時に POST される"""
         mock_post.return_value = MagicMock(ok=True, status_code=200)
         notify_new_community_registration(self.community, self.request)
         mock_post.assert_called_once()
-        args, kwargs = mock_post.call_args
+        args = mock_post.call_args.args
         self.assertEqual(args[0], "https://discord.com/api/webhooks/123/abc")
-        self.assertIn("content", kwargs["json"])
-        self.assertIn(self.community.name, kwargs["json"]["content"])
+        self.assertIn("content", args[1])
+        self.assertIn(self.community.name, args[1]["content"])
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/123/abc")
-    @patch("website.discord_webhook.requests.post")
+    @patch("community.forms_processor.post_discord_webhook")
     def test_swallows_request_exception(self, mock_post):
-        """requests 例外を安全にlogし、呼び出し元へ伝播しない.
-
-        tenacity リトライ導入後は 3 回まで再試行されるため、回数ではなく
-        「例外を吸い込んで完了する」ことと「実際にリトライが行われた」ことを検証する。
-        テスト中はバックオフ待機を 0 秒化して高速化する。
-        """
-        from website.discord_webhook import post_discord_webhook
-
+        """gateway最終失敗を安全にlogし、呼び出し元へ伝播しない."""
         sensitive_url = "https://discord.com/api/webhooks/123456789/secret-token"
         mock_post.side_effect = requests.RequestException(
             f"network down for {sensitive_url}",
         )
-        # tenacity のラップド関数経由でリトライ間 sleep を 0 秒に上書き
-        original_sleep = post_discord_webhook.retry.sleep
-        post_discord_webhook.retry.sleep = lambda *args, **kwargs: None
-        try:
-            with self.assertLogs(
-                "community.forms_processor",
-                level="WARNING",
-            ) as log_context:
-                notify_new_community_registration(self.community, self.request)
-        finally:
-            post_discord_webhook.retry.sleep = original_sleep
-        # 3 回再試行された（初回 + リトライ2回）
-        self.assertEqual(mock_post.call_count, 3)
+        with self.assertLogs(
+            "community.forms_processor",
+            level="WARNING",
+        ) as log_context:
+            notify_new_community_registration(self.community, self.request)
+        mock_post.assert_called_once()
         logs = "\n".join(log_context.output)
+        self.assertIn(f"community_id={self.community.pk}", logs)
         self.assertIn("error_type=RequestException", logs)
         self.assertIn("status_code=None", logs)
         self.assertNotIn(sensitive_url, logs)

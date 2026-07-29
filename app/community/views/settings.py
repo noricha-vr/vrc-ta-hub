@@ -11,8 +11,10 @@ from django.views import View
 from django.views.generic import TemplateView
 
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
-from website.discord_webhook import post_discord_webhook
-from website.retry import get_webhook_error_context
+from website.discord_webhook import (
+    get_webhook_error_context,
+    post_discord_webhook,
+)
 
 from ..models import Community, CommunityMember, CommunityInvitation, INVITATION_EXPIRATION_DAYS
 
@@ -287,7 +289,9 @@ class TestWebhookView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
         except requests.Timeout as error:
             error_type, status_code = get_webhook_error_context(error)
             logger.warning(
-                "Webhookテスト送信失敗: error_type=%s status_code=%s",
+                "Webhookテスト送信失敗: community_id=%s "
+                "error_type=%s status_code=%s",
+                community.pk,
                 error_type,
                 status_code,
             )
@@ -295,7 +299,9 @@ class TestWebhookView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
         except requests.HTTPError as error:
             error_type, status_code = get_webhook_error_context(error)
             logger.warning(
-                "Webhookテスト送信失敗: error_type=%s status_code=%s",
+                "Webhookテスト送信失敗: community_id=%s "
+                "error_type=%s status_code=%s",
+                community.pk,
                 error_type,
                 status_code,
             )
@@ -309,7 +315,9 @@ class TestWebhookView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
             # WARNING に降格 (docs/logging.md 規約: ユーザー操作で直せるものは WARNING)
             error_type, status_code = get_webhook_error_context(error)
             logger.warning(
-                "Webhookテスト送信失敗: error_type=%s status_code=%s",
+                "Webhookテスト送信失敗: community_id=%s "
+                "error_type=%s status_code=%s",
+                community.pk,
                 error_type,
                 status_code,
             )

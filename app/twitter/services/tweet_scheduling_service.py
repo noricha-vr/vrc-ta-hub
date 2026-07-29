@@ -135,7 +135,7 @@ def post_tweet_queue_item(
     upload_media_func: UploadMediaCallable = upload_media_to_x,
     notify_failure_func: FailureNotifier = notify_tweet_post_failure,
 ) -> dict[str, object]:
-    """TweetQueue 1件を X API に投稿し、失敗状態を通知前に保存する."""
+    """TweetQueue 1件を X API に投稿し、結果を保存してから返す."""
     media_ids = None
     if queue_item.image_url:
         media_id = upload_media_func(queue_item.image_url)
@@ -149,6 +149,12 @@ def post_tweet_queue_item(
         queue_item.tweet_id = (result["data"] or {}).get('id', '')
         queue_item.posted_at = timezone.now()
         queue_item.error_message = ''
+        run_with_db_reconnect(
+            lambda: queue_item.save(
+                update_fields=['status', 'tweet_id', 'posted_at', 'error_message'],
+            ),
+            context=f"post_tweet_queue_item_save_success queue={queue_item.pk}",
+        )
         return {
             "id": queue_item.pk, "status": "posted", "tweet_id": queue_item.tweet_id,
         }
@@ -296,10 +302,6 @@ def process_scheduled_tweets(
         else:
             logger.warning("Tweet post failed for queue %d", queue_item.pk)
 
-        run_with_db_reconnect(
-            queue_item.save,
-            context=f"post_scheduled_tweets_save_result queue={queue_item.pk}",
-        )
         posted_attempted = True
         break
 

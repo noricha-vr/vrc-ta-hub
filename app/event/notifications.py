@@ -9,8 +9,10 @@ from django.urls import reverse
 
 from event.models import EventDetail
 from website.constants import build_site_url
-from website.discord_webhook import post_discord_webhook
-from website.retry import get_webhook_error_context
+from website.discord_webhook import (
+    get_webhook_error_context,
+    post_discord_webhook,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +252,7 @@ def _send_discord_notification_for_new_application(
             f"status={response.status_code}"
         )
     except requests.RequestException as error:
-        # tenacity が 3 回まで再試行した上での最終失敗のみここに到達する
+        # gateway で回復できなかった最終失敗のみここに到達する
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
             "Discord Webhook通知エラー（新規申請、リトライ後）: "
@@ -320,7 +322,7 @@ def _send_discord_notification_for_result(event_detail: EventDetail) -> None:
             f"status={event_detail.status}"
         )
     except requests.RequestException as error:
-        # tenacity が 3 回まで再試行した上での最終失敗のみここに到達する
+        # gateway で回復できなかった最終失敗のみここに到達する
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
             "Discord Webhook通知エラー（申請結果、リトライ後）: "
@@ -407,7 +409,7 @@ def notify_slide_material_published(event_detail: EventDetail) -> None:
             event_detail.pk,
         )
     except requests.RequestException as error:
-        # tenacity が 3 回まで再試行した上での最終失敗のみここに到達する
+        # gateway で回復できなかった最終失敗のみここに到達する
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
             "Discord Webhook通知エラー（資料公開、リトライ後）: "

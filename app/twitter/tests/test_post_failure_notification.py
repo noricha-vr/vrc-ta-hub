@@ -13,7 +13,6 @@ from community.models import Community
 from twitter.models import TweetQueue
 from twitter.notifications import notify_tweet_post_failure
 from twitter.services.tweet_scheduling_service import post_tweet_queue_item
-from website.discord_webhook import post_discord_webhook
 
 
 class NotifyTweetPostFailureTest(TestCase):
@@ -39,7 +38,7 @@ class NotifyTweetPostFailureTest(TestCase):
         )
 
     @override_settings(DISCORD_WEBHOOK_URL="")
-    @patch("website.discord_webhook.requests.post")
+    @patch("twitter.notifications.post_discord_webhook")
     def test_no_notification_when_webhook_url_not_set(self, mock_post):
         """DISCORD_WEBHOOK_URL 未設定時は通知しない"""
         result = {
@@ -50,9 +49,9 @@ class NotifyTweetPostFailureTest(TestCase):
         mock_post.assert_not_called()
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
-    @patch("website.discord_webhook.requests.post")
+    @patch("twitter.notifications.post_discord_webhook")
     def test_notification_sent_with_correct_payload(self, mock_post):
-        """Webhook URL 設定時は requests.post が正しいペイロードで呼ばれる"""
+        """Webhook URL 設定時はgatewayが正しいペイロードで呼ばれる."""
         mock_response = MagicMock(status_code=204)
         mock_post.return_value = mock_response
 
@@ -64,13 +63,12 @@ class NotifyTweetPostFailureTest(TestCase):
         notify_tweet_post_failure(self.queue_item, result)
 
         mock_post.assert_called_once()
-        args, kwargs = mock_post.call_args
+        args = mock_post.call_args.args
         self.assertEqual(args[0], "https://discord.com/api/webhooks/test/token")
-        self.assertIn("json", kwargs)
-        self.assertIn("timeout", kwargs)
+        self.assertIn("embeds", args[1])
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
-    @patch("website.discord_webhook.requests.post")
+    @patch("twitter.notifications.post_discord_webhook")
     def test_description_contains_generated_text(self, mock_post):
         """description にツイート本文が含まれる"""
         mock_response = MagicMock(status_code=204)
@@ -82,13 +80,13 @@ class NotifyTweetPostFailureTest(TestCase):
         }
         notify_tweet_post_failure(self.queue_item, result)
 
-        payload = mock_post.call_args.kwargs["json"]
+        payload = mock_post.call_args.args[1]
         description = payload["embeds"][0]["description"]
         self.assertIn("テストツイート本文です", description)
         self.assertIn("#VRChat", description)
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
-    @patch("website.discord_webhook.requests.post")
+    @patch("twitter.notifications.post_discord_webhook")
     def test_fields_contain_status_code_and_error_body(self, mock_post):
         """fields に status_code と error_body と詳細URLが含まれる"""
         mock_response = MagicMock(status_code=204)
@@ -101,7 +99,7 @@ class NotifyTweetPostFailureTest(TestCase):
         }
         notify_tweet_post_failure(self.queue_item, result)
 
-        payload = mock_post.call_args.kwargs["json"]
+        payload = mock_post.call_args.args[1]
         fields = payload["embeds"][0]["fields"]
 
         field_values_by_name = {f["name"]: f["value"] for f in fields}
@@ -121,7 +119,7 @@ class NotifyTweetPostFailureTest(TestCase):
         self.assertEqual(field_values_by_name["集会"], self.community.name)
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
-    @patch("website.discord_webhook.requests.post")
+    @patch("twitter.notifications.post_discord_webhook")
     def test_long_error_body_is_truncated(self, mock_post):
         """長いエラーボディは 1024 文字制限で切り詰められる"""
         mock_response = MagicMock(status_code=204)
@@ -134,14 +132,14 @@ class NotifyTweetPostFailureTest(TestCase):
         }
         notify_tweet_post_failure(self.queue_item, result)
 
-        payload = mock_post.call_args.kwargs["json"]
+        payload = mock_post.call_args.args[1]
         fields = payload["embeds"][0]["fields"]
         error_value = next(f["value"] for f in fields if f["name"] == "エラー内容")
         self.assertLessEqual(len(error_value), 1024)
         self.assertTrue(error_value.endswith("..."))
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
-    @patch("website.discord_webhook.requests.post")
+    @patch("twitter.notifications.post_discord_webhook")
     def test_none_status_code_rendered_as_na(self, mock_post):
         """status_code が None のときは N/A と表示される"""
         mock_response = MagicMock(status_code=204)
@@ -153,14 +151,14 @@ class NotifyTweetPostFailureTest(TestCase):
         }
         notify_tweet_post_failure(self.queue_item, result)
 
-        payload = mock_post.call_args.kwargs["json"]
+        payload = mock_post.call_args.args[1]
         fields = payload["embeds"][0]["fields"]
         field_values_by_name = {f["name"]: f["value"] for f in fields}
         self.assertEqual(field_values_by_name["HTTPステータス"], "N/A")
         self.assertEqual(field_values_by_name["エラー内容"], "(なし)")
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
-    @patch("website.discord_webhook.requests.post")
+    @patch("twitter.notifications.post_discord_webhook")
     def test_request_exception_does_not_propagate(self, mock_post):
         """最終失敗を安全にlogし、呼び出し元に伝播しない."""
         sensitive_url = "https://discord.com/api/webhooks/123456789/secret-token"
@@ -182,7 +180,7 @@ class NotifyTweetPostFailureTest(TestCase):
         self.assertNotIn("Traceback", logs)
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
-    @patch("website.discord_webhook.requests.post")
+    @patch("twitter.notifications.post_discord_webhook")
     def test_final_notification_failure_keeps_saved_queue_state(self, mock_post):
         """通知が最終失敗しても、その前に失敗状態がDBへ保存される."""
         self.queue_item.status = "ready"
@@ -196,24 +194,38 @@ class NotifyTweetPostFailureTest(TestCase):
             raise requests.ConnectionError("network error")
 
         mock_post.side_effect = fail_after_reading_saved_state
-        original_sleep = post_discord_webhook.retry.sleep
-        post_discord_webhook.retry.sleep = lambda _seconds: None
-        try:
-            result = post_tweet_queue_item(
-                self.queue_item,
-                post_tweet_func=lambda *_args, **_kwargs: {
-                    "ok": False,
-                    "data": None,
-                    "status_code": 503,
-                    "error_body": "service unavailable",
-                },
-                notify_failure_func=notify_tweet_post_failure,
-            )
-        finally:
-            post_discord_webhook.retry.sleep = original_sleep
+        result = post_tweet_queue_item(
+            self.queue_item,
+            post_tweet_func=lambda *_args, **_kwargs: {
+                "ok": False,
+                "data": None,
+                "status_code": 503,
+                "error_body": "service unavailable",
+            },
+            notify_failure_func=notify_tweet_post_failure,
+        )
 
         self.queue_item.refresh_from_db()
         self.assertEqual(result["status"], "failed")
         self.assertEqual(self.queue_item.status, "failed")
         self.assertIn("service unavailable", self.queue_item.error_message)
-        self.assertEqual(observed_statuses, ["failed", "failed", "failed"])
+        self.assertEqual(observed_statuses, ["failed"])
+
+    def test_success_state_is_persisted_by_application_service(self):
+        """成功時もapplication serviceが投稿結果をDBへ保存する."""
+        result = post_tweet_queue_item(
+            self.queue_item,
+            post_tweet_func=lambda *_args, **_kwargs: {
+                "ok": True,
+                "data": {"id": "posted-by-service"},
+                "status_code": None,
+                "error_body": None,
+            },
+        )
+
+        self.queue_item.refresh_from_db()
+        self.assertEqual(result["status"], "posted")
+        self.assertEqual(self.queue_item.status, "posted")
+        self.assertEqual(self.queue_item.tweet_id, "posted-by-service")
+        self.assertIsNotNone(self.queue_item.posted_at)
+        self.assertEqual(self.queue_item.error_message, "")

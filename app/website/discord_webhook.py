@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import requests
 
-from website.retry import retry_webhook_post
+from website.retry import get_webhook_error_context, retry_webhook_post
+
+__all__ = ["get_webhook_error_context", "post_discord_webhook"]
 
 # Discord Webhook送信タイムアウト（秒）
 DISCORD_TIMEOUT_SECONDS = 10

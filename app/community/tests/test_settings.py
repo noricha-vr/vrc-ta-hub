@@ -468,7 +468,7 @@ class WebhookSettingsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'テスト送信')
 
-    @patch('website.discord_webhook.requests.post')
+    @patch('community.views.settings.post_discord_webhook')
     def test_test_webhook_success(self, mock_post):
         """Webhookテスト送信は任意の2xxで成功する"""
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
@@ -487,58 +487,45 @@ class WebhookSettingsTest(TestCase):
         self.assertContains(response, 'テスト通知を送信しました。Discordを確認してください。')
         mock_post.assert_called_once()
         # 送信されたJSONにテスト通知のメッセージが含まれていることを確認
-        call_kwargs = mock_post.call_args[1]
-        self.assertIn('テスト通知', call_kwargs['json']['content'])
+        payload = mock_post.call_args.args[1]
+        self.assertIn('テスト通知', payload['content'])
 
-    @patch('website.discord_webhook.requests.post')
+    @patch('community.views.settings.post_discord_webhook')
     def test_test_webhook_failure(self, mock_post):
         """HTTP失敗はステータスコード付きメッセージを表示する"""
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
         self.community.save()
 
-        mock_response = MagicMock()
-        mock_response.status_code = 400
-        mock_post.return_value = mock_response
+        mock_post.side_effect = requests.HTTPError(
+            "bad request",
+            response=MagicMock(status_code=400),
+        )
 
         self.client.login(username='主催者ユーザー', password='testpass123')
-        from website.discord_webhook import post_discord_webhook
-
-        original_sleep = post_discord_webhook.retry.sleep
-        post_discord_webhook.retry.sleep = lambda _seconds: None
-        try:
-            response = self.client.post(
-                reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
-                follow=True,
-            )
-        finally:
-            post_discord_webhook.retry.sleep = original_sleep
+        response = self.client.post(
+            reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
+            follow=True,
+        )
 
         self.assertContains(response, '通知の送信に失敗しました。(ステータスコード: 400)')
-        self.assertEqual(mock_post.call_count, 3)
+        mock_post.assert_called_once()
 
-    @patch('website.discord_webhook.requests.post')
+    @patch('community.views.settings.post_discord_webhook')
     def test_test_webhook_timeout_message(self, mock_post):
         """タイムアウトは専用メッセージを表示する."""
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
         self.community.save()
         mock_post.side_effect = requests.Timeout("timed out")
         self.client.login(username='主催者ユーザー', password='testpass123')
-        from website.discord_webhook import post_discord_webhook
-
-        original_sleep = post_discord_webhook.retry.sleep
-        post_discord_webhook.retry.sleep = lambda _seconds: None
-        try:
-            response = self.client.post(
-                reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
-                follow=True,
-            )
-        finally:
-            post_discord_webhook.retry.sleep = original_sleep
+        response = self.client.post(
+            reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
+            follow=True,
+        )
 
         self.assertContains(response, '通知の送信がタイムアウトしました。')
-        self.assertEqual(mock_post.call_count, 3)
+        mock_post.assert_called_once()
 
-    @patch('website.discord_webhook.requests.post')
+    @patch('community.views.settings.post_discord_webhook')
     def test_test_webhook_request_error_message(self, mock_post):
         """接続エラーは安全にlogし、汎用メッセージを表示する."""
         sensitive_url = 'https://discord.com/api/webhooks/123456789/secret-token'
@@ -548,25 +535,19 @@ class WebhookSettingsTest(TestCase):
             f"connection failed for {sensitive_url}",
         )
         self.client.login(username='主催者ユーザー', password='testpass123')
-        from website.discord_webhook import post_discord_webhook
-
-        original_sleep = post_discord_webhook.retry.sleep
-        post_discord_webhook.retry.sleep = lambda _seconds: None
-        try:
-            with self.assertLogs(
-                'community.views.settings',
-                level='WARNING',
-            ) as log_context:
-                response = self.client.post(
-                    reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
-                    follow=True,
-                )
-        finally:
-            post_discord_webhook.retry.sleep = original_sleep
+        with self.assertLogs(
+            'community.views.settings',
+            level='WARNING',
+        ) as log_context:
+            response = self.client.post(
+                reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
+                follow=True,
+            )
 
         self.assertContains(response, '通知の送信中にエラーが発生しました。')
-        self.assertEqual(mock_post.call_count, 3)
+        mock_post.assert_called_once()
         logs = '\n'.join(log_context.output)
+        self.assertIn(f'community_id={self.community.pk}', logs)
         self.assertIn('error_type=ConnectionError', logs)
         self.assertIn('status_code=None', logs)
         self.assertNotIn(sensitive_url, logs)

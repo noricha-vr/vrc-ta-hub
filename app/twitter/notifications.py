@@ -8,8 +8,10 @@ from django.conf import settings
 
 from twitter.x_api import PostTweetResult
 from website.constants import build_site_url
-from website.discord_webhook import post_discord_webhook
-from website.retry import get_webhook_error_context
+from website.discord_webhook import (
+    get_webhook_error_context,
+    post_discord_webhook,
+)
 
 logger = logging.getLogger(__name__)
 

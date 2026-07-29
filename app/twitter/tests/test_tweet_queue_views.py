@@ -384,7 +384,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         self.assertIsNotNone(self.queue_item.posted_at)
 
     @override_settings(DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/test/token')
-    @patch('website.discord_webhook.requests.post')
+    @patch('twitter.notifications.post_discord_webhook')
     @patch('twitter.views.post_tweet')
     @patch('twitter.views.upload_media')
     def test_post_now_failure(self, mock_upload, mock_post, mock_webhook_post):

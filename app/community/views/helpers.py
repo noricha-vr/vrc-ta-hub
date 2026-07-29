@@ -5,8 +5,10 @@ import requests
 from django.conf import settings
 
 from website.constants import build_site_url
-from website.discord_webhook import post_discord_webhook
-from website.retry import get_webhook_error_context
+from website.discord_webhook import (
+    get_webhook_error_context,
+    post_discord_webhook,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +52,8 @@ def _send_report_webhook(community, report_count):
     except requests.RequestException as error:
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
-            "通報Webhook送信失敗: error_type=%s status_code=%s",
+            "通報Webhook送信失敗: community_id=%s error_type=%s status_code=%s",
+            community.pk,
             error_type,
             status_code,
         )
