@@ -8,13 +8,23 @@ from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.core.management import CommandError, call_command
 from django.db import DatabaseError
-from django.test import Client, RequestFactory, TestCase, tag
+from django.test import (
+    Client,
+    RequestFactory,
+    SimpleTestCase,
+    TestCase,
+    TransactionTestCase,
+    tag,
+)
 from django.urls import reverse
 from django.utils import timezone
 
 from community.constants import weekday_code
 from community.models import Community, CommunityMember
 from event.admin import EventAdmin
+from event.management.commands.normalize_event_weekdays import (
+    _classify_weekday,
+)
 from event.models import Event, RecurrenceRule
 from event.recurrence.persistence import create_recurring_events
 from event.services.recurrence_override import move_event_occurrence
@@ -22,6 +32,33 @@ from event.tests.tweet_generation import TweetGenerationPatchMixin
 
 
 User = get_user_model()
+
+
+class WeekdayClassificationTests(SimpleTestCase):
+    """旧値を日付との関係に応じて分類する。"""
+
+    def test_classifies_supported_and_invalid_values(self):
+        cases = (
+            ('canonical match', 'Mon', 'Mon', None),
+            ('canonical mismatch', 'Tue', 'Mon', 'valid_mismatch'),
+            ('lowercase alias match', 'mon', 'Mon', 'format_only'),
+            ('uppercase alias match', 'MON', 'Mon', 'format_only'),
+            ('lowercase alias mismatch', 'tue', 'Mon', 'outside_choices'),
+            ('uppercase alias mismatch', 'TUE', 'Mon', 'outside_choices'),
+            ('Japanese alias match', '月曜日', 'Mon', 'format_only'),
+            ('Japanese alias mismatch', '火曜日', 'Mon', 'outside_choices'),
+            ('Other', 'Other', 'Mon', 'other'),
+            ('empty', '', 'Mon', 'empty'),
+            ('whitespace', ' ', 'Mon', 'outside_choices'),
+            ('unknown', 'Funday', 'Mon', 'outside_choices'),
+        )
+
+        for label, value, expected, category in cases:
+            with self.subTest(label=label):
+                self.assertEqual(
+                    _classify_weekday(value, expected),
+                    category,
+                )
 
 
 @tag('offline_external_api')
@@ -258,3 +295,39 @@ class NormalizeEventWeekdaysCommandTests(TweetGenerationPatchMixin, TestCase):
         second.refresh_from_db()
         self.assertEqual(first.weekday, 'MON')
         self.assertEqual(second.weekday, '火曜日')
+
+
+@tag('offline_external_api')
+class NormalizeEventWeekdaysLockingTests(
+    TweetGenerationPatchMixin,
+    TransactionTestCase,
+):
+    """apply がロック取得後の日付から曜日を確定する境界を検証する。"""
+
+    def test_apply_selects_for_update_before_normalizing(self):
+        community = Community.objects.create(
+            name='曜日ロック境界テスト集会',
+            frequency='不定期',
+        )
+        event = Event.objects.create(
+            community=community,
+            date=date(2026, 8, 3),
+            start_time=time(21, 0),
+            weekday='TUE',
+        )
+        manager = Event.objects
+
+        with patch.object(
+            manager,
+            'select_for_update',
+            wraps=manager.select_for_update,
+        ) as select_for_update:
+            call_command(
+                'normalize_event_weekdays',
+                '--apply',
+                stdout=StringIO(),
+            )
+
+        select_for_update.assert_called_once_with()
+        event.refresh_from_db()
+        self.assertEqual(event.weekday, weekday_code(event.date))

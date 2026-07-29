@@ -1,7 +1,5 @@
 """Event.weekday を開催日由来の固定コードへ正規化する。"""
 
-from collections.abc import Iterable
-
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
@@ -44,8 +42,8 @@ def _empty_counts() -> dict[str, int]:
     return {category: 0 for category in _CATEGORY_KEYS}
 
 
-def _collect_changes(events: Iterable[Event]) -> tuple[list[Event], dict[str, int]]:
-    changed_events = []
+def _count_mismatches(events) -> tuple[int, dict[str, int]]:
+    changed_count = 0
     counts = _empty_counts()
     for event in events:
         expected = weekday_code(event.date)
@@ -53,9 +51,8 @@ def _collect_changes(events: Iterable[Event]) -> tuple[list[Event], dict[str, in
         if category is None:
             continue
         counts[category] += 1
-        event.weekday = expected
-        changed_events.append(event)
-    return changed_events, counts
+        changed_count += 1
+    return changed_count, counts
 
 
 class Command(BaseCommand):
@@ -73,40 +70,63 @@ class Command(BaseCommand):
         mode.add_argument(
             '--apply',
             action='store_true',
-            help='不整合をトランザクション内で一括補正する',
+            help='行ロックを取得し、不整合をトランザクション内で一括補正する',
         )
 
     def handle(self, *args, **options):
         if options['apply']:
-            changed_events, counts = self._apply()
-            self._write_summary(counts, len(changed_events), applied=True)
+            changed_count, counts = self._apply()
+            self._write_summary(counts, changed_count, applied=True)
             return
 
-        changed_events, counts = _collect_changes(
+        changed_count, counts = _count_mismatches(
             Event.objects.only('id', 'date', 'weekday').iterator(
                 chunk_size=_BATCH_SIZE,
             )
         )
-        self._write_summary(counts, len(changed_events), applied=False)
-        if changed_events:
+        self._write_summary(counts, changed_count, applied=False)
+        if changed_count:
             raise CommandError(
-                f'{len(changed_events)}件のEvent.weekday不整合があります'
+                f'{changed_count}件のEvent.weekday不整合があります'
             )
 
-    def _apply(self) -> tuple[list[Event], dict[str, int]]:
+    def _apply(self) -> tuple[int, dict[str, int]]:
+        counts = _empty_counts()
+        changed_count = 0
+        batch = []
         with transaction.atomic():
-            changed_events, counts = _collect_changes(
-                Event.objects.only('id', 'date', 'weekday').iterator(
+            events = (
+                Event.objects.select_for_update()
+                .only('id', 'date', 'weekday')
+                .order_by('id')
+                .iterator(
                     chunk_size=_BATCH_SIZE,
                 )
             )
-            if changed_events:
-                Event.objects.bulk_update(
-                    changed_events,
-                    ['weekday'],
-                    batch_size=_BATCH_SIZE,
-                )
-        return changed_events, counts
+            for event in events:
+                expected = weekday_code(event.date)
+                category = _classify_weekday(event.weekday, expected)
+                if category is None:
+                    continue
+                counts[category] += 1
+                changed_count += 1
+                event.weekday = expected
+                batch.append(event)
+                if len(batch) == _BATCH_SIZE:
+                    self._bulk_update(batch)
+                    batch.clear()
+            self._bulk_update(batch)
+        return changed_count, counts
+
+    @staticmethod
+    def _bulk_update(events: list[Event]) -> None:
+        if not events:
+            return
+        Event.objects.bulk_update(
+            events,
+            ['weekday'],
+            batch_size=_BATCH_SIZE,
+        )
 
     def _write_summary(
         self,
