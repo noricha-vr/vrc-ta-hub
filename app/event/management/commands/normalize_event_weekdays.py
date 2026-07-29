@@ -1,5 +1,6 @@
 """Event.weekday を開催日由来の固定コードへバッチ単位で正規化する。"""
 
+import logging
 from collections.abc import Iterable
 
 from django.core.management.base import BaseCommand, CommandError
@@ -10,6 +11,7 @@ from event.models import Event
 from ta_hub.index_cache import clear_index_view_cache
 
 
+logger = logging.getLogger(__name__)
 _CATEGORY_KEYS = (
     'format_only',
     'valid_mismatch',
@@ -51,6 +53,15 @@ def _merge_counts(
 ) -> None:
     for category in _CATEGORY_KEYS:
         destination[category] += source[category]
+
+
+def _clear_index_cache_after_apply_failure() -> None:
+    try:
+        clear_index_view_cache()
+    except Exception:
+        logger.error(
+            '曜日正規化失敗後のトップページキャッシュ破棄にも失敗しました'
+        )
 
 
 def _count_mismatches(
@@ -101,8 +112,10 @@ class Command(BaseCommand):
             try:
                 changed_count, counts = self._apply()
                 self._write_summary(counts, changed_count, applied=True)
-            finally:
-                clear_index_view_cache()
+            except BaseException:
+                _clear_index_cache_after_apply_failure()
+                raise
+            clear_index_view_cache()
             return
 
         changed_count, counts = _count_mismatches(
