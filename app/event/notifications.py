@@ -254,7 +254,9 @@ def _send_discord_notification_for_new_application(
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
             "Discord Webhook通知エラー（新規申請、リトライ後）: "
-            "error_type=%s status_code=%s",
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
             error_type,
             status_code,
         )
@@ -262,7 +264,9 @@ def _send_discord_notification_for_new_application(
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
             "Discord Webhook通知エラー（新規申請）: "
-            "error_type=%s status_code=%s",
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
             error_type,
             status_code,
         )
@@ -320,7 +324,9 @@ def _send_discord_notification_for_result(event_detail: EventDetail) -> None:
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
             "Discord Webhook通知エラー（申請結果、リトライ後）: "
-            "error_type=%s status_code=%s",
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
             error_type,
             status_code,
         )
@@ -328,7 +334,9 @@ def _send_discord_notification_for_result(event_detail: EventDetail) -> None:
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
             "Discord Webhook通知エラー（申請結果）: "
-            "error_type=%s status_code=%s",
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
             error_type,
             status_code,
         )
@@ -403,7 +411,9 @@ def notify_slide_material_published(event_detail: EventDetail) -> None:
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
             "Discord Webhook通知エラー（資料公開、リトライ後）: "
-            "error_type=%s status_code=%s",
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
             error_type,
             status_code,
         )
@@ -411,7 +421,9 @@ def notify_slide_material_published(event_detail: EventDetail) -> None:
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
             "Discord Webhook通知エラー（資料公開）: "
-            "error_type=%s status_code=%s",
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
             error_type,
             status_code,
         )

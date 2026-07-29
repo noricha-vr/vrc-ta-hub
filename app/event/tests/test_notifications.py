@@ -379,6 +379,8 @@ class DiscordWebhookSafeLoggingTest(TweetGenerationPatchMixin, TestCase):
 
                     logs = "\n".join(log_context.output)
                     self.assertEqual(mock_post.call_count, 3)
+                    self.assertIn(f"community_id={self.community.pk}", logs)
+                    self.assertIn(f"event_detail_id={self.event_detail.pk}", logs)
                     self.assertIn("error_type=RequestException", logs)
                     self.assertIn("status_code=None", logs)
                     self.assertNotIn(sensitive_url, logs)
