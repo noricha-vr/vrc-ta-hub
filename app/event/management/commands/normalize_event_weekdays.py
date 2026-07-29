@@ -1,5 +1,7 @@
 """Event.weekday を開催日由来の固定コードへ正規化する。"""
 
+from collections.abc import Iterable
+
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
@@ -42,7 +44,9 @@ def _empty_counts() -> dict[str, int]:
     return {category: 0 for category in _CATEGORY_KEYS}
 
 
-def _count_mismatches(events) -> tuple[int, dict[str, int]]:
+def _count_mismatches(
+    events: Iterable[Event],
+) -> tuple[int, dict[str, int]]:
     changed_count = 0
     counts = _empty_counts()
     for event in events:
@@ -93,40 +97,44 @@ class Command(BaseCommand):
     def _apply(self) -> tuple[int, dict[str, int]]:
         counts = _empty_counts()
         changed_count = 0
-        batch = []
+        last_pk = 0
         with transaction.atomic():
-            events = (
-                Event.objects.select_for_update()
-                .only('id', 'date', 'weekday')
-                .order_by('id')
-                .iterator(
-                    chunk_size=_BATCH_SIZE,
-                )
-            )
-            for event in events:
-                expected = weekday_code(event.date)
-                category = _classify_weekday(event.weekday, expected)
-                if category is None:
-                    continue
-                counts[category] += 1
-                changed_count += 1
-                event.weekday = expected
-                batch.append(event)
-                if len(batch) == _BATCH_SIZE:
-                    self._bulk_update(batch)
-                    batch.clear()
-            self._bulk_update(batch)
+            while events := self._locked_batch(last_pk):
+                last_pk = events[-1].pk
+                changed_count += self._normalize_batch(events, counts)
         return changed_count, counts
 
     @staticmethod
-    def _bulk_update(events: list[Event]) -> None:
-        if not events:
-            return
+    def _locked_batch(last_pk: int) -> list[Event]:
+        return list(
+            Event.objects.select_for_update()
+            .filter(pk__gt=last_pk)
+            .only('id', 'date', 'weekday')
+            .order_by('pk')[:_BATCH_SIZE]
+        )
+
+    @staticmethod
+    def _normalize_batch(
+        events: list[Event],
+        counts: dict[str, int],
+    ) -> int:
+        changed_events = []
+        for event in events:
+            expected = weekday_code(event.date)
+            category = _classify_weekday(event.weekday, expected)
+            if category is None:
+                continue
+            counts[category] += 1
+            event.weekday = expected
+            changed_events.append(event)
+        if not changed_events:
+            return 0
         Event.objects.bulk_update(
-            events,
+            changed_events,
             ['weekday'],
             batch_size=_BATCH_SIZE,
         )
+        return len(changed_events)
 
     def _write_summary(
         self,

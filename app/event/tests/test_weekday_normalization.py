@@ -2,18 +2,21 @@
 
 from datetime import date, time, timedelta
 from io import StringIO
-from unittest.mock import patch
+from queue import Empty, Queue
+from threading import Event as ThreadEvent
+from threading import Thread
 
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.core.management import CommandError, call_command
-from django.db import DatabaseError
+from django.db import close_old_connections, transaction
 from django.test import (
     Client,
     RequestFactory,
     SimpleTestCase,
     TestCase,
     TransactionTestCase,
+    skipUnlessDBFeature,
     tag,
 )
 from django.urls import reverse
@@ -32,6 +35,9 @@ from event.tests.tweet_generation import TweetGenerationPatchMixin
 
 
 User = get_user_model()
+_KEYSET_TEST_EVENT_COUNT = 1001
+_THREAD_TIMEOUT_SECONDS = 10
+_LOCK_WAIT_OBSERVATION_SECONDS = 0.25
 
 
 class WeekdayClassificationTests(SimpleTestCase):
@@ -65,7 +71,7 @@ class WeekdayClassificationTests(SimpleTestCase):
 class EventWeekdayWriterTests(TweetGenerationPatchMixin, TestCase):
     """Event を保存する各境界が date 由来の曜日を使うことを検証する。"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.community = Community.objects.create(
             name='曜日書込テスト集会',
             status='approved',
@@ -165,9 +171,9 @@ class EventWeekdayWriterTests(TweetGenerationPatchMixin, TestCase):
 
 @tag('offline_external_api')
 class NormalizeEventWeekdaysCommandTests(TweetGenerationPatchMixin, TestCase):
-    """正規化コマンドの分類、適用、冪等性、rollbackを検証する。"""
+    """正規化コマンドの分類、適用、冪等性を検証する。"""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.community = Community.objects.create(
             name='曜日正規化テスト集会',
             status='approved',
@@ -274,27 +280,36 @@ class NormalizeEventWeekdaysCommandTests(TweetGenerationPatchMixin, TestCase):
                 '--apply',
             )
 
-    def test_apply_rolls_back_partial_update_on_database_error(self):
-        first = self._create_event(date(2026, 8, 3), 'MON')
-        second = self._create_event(date(2026, 8, 4), '火曜日')
+    def test_apply_normalizes_rows_beyond_first_keyset_batch(self):
+        start_date = date(2026, 1, 1)
+        Event.objects.bulk_create(
+            [
+                Event(
+                    community=self.community,
+                    date=start_date + timedelta(days=offset),
+                    start_time=time(21, 0),
+                    weekday='Other',
+                )
+                for offset in range(_KEYSET_TEST_EVENT_COUNT)
+            ]
+        )
+        stdout = StringIO()
 
-        def update_one_then_fail(events, _fields, **_kwargs):
-            Event.objects.filter(pk=events[0].pk).update(
-                weekday=events[0].weekday,
+        call_command(
+            'normalize_event_weekdays',
+            '--apply',
+            stdout=stdout,
+        )
+
+        self.assertIn(
+            f'changed: {_KEYSET_TEST_EVENT_COUNT}',
+            stdout.getvalue(),
+        )
+        for event in Event.objects.all():
+            self.assertEqual(
+                event.weekday,
+                weekday_code(event.date),
             )
-            raise DatabaseError('forced bulk update failure')
-
-        with patch(
-            'django.db.models.query.QuerySet.bulk_update',
-            side_effect=update_one_then_fail,
-        ):
-            with self.assertRaises(DatabaseError):
-                call_command('normalize_event_weekdays', '--apply')
-
-        first.refresh_from_db()
-        second.refresh_from_db()
-        self.assertEqual(first.weekday, 'MON')
-        self.assertEqual(second.weekday, '火曜日')
 
 
 @tag('offline_external_api')
@@ -302,32 +317,103 @@ class NormalizeEventWeekdaysLockingTests(
     TweetGenerationPatchMixin,
     TransactionTestCase,
 ):
-    """apply がロック取得後の日付から曜日を確定する境界を検証する。"""
+    """apply が競合する日付更新後も曜日整合性を維持する。"""
 
-    def test_apply_selects_for_update_before_normalizing(self):
+    def setUp(self) -> None:
         community = Community.objects.create(
             name='曜日ロック境界テスト集会',
             frequency='不定期',
         )
-        event = Event.objects.create(
+        self.event = Event.objects.create(
             community=community,
             date=date(2026, 8, 3),
             start_time=time(21, 0),
             weekday='TUE',
         )
-        manager = Event.objects
+        self.writer_locked = ThreadEvent()
+        self.release_writer = ThreadEvent()
+        self.normalizer_started = ThreadEvent()
+        self.normalizer_finished = ThreadEvent()
+        self.errors: Queue[Exception] = Queue()
+        self.writer = Thread(target=self._run_writer)
+        self.normalizer = Thread(target=self._run_normalizer)
 
-        with patch.object(
-            manager,
-            'select_for_update',
-            wraps=manager.select_for_update,
-        ) as select_for_update:
+    def _run_writer(self) -> None:
+        close_old_connections()
+        try:
+            with transaction.atomic():
+                event = Event.objects.select_for_update().get(
+                    pk=self.event.pk,
+                )
+                event.date = date(2026, 8, 5)
+                event.weekday = weekday_code(event.date)
+                event.save(update_fields=['date', 'weekday'])
+                self.writer_locked.set()
+                if not self.release_writer.wait(_THREAD_TIMEOUT_SECONDS):
+                    raise TimeoutError('writer lock release timed out')
+        except Exception as exc:
+            self.errors.put(exc)
+            self.writer_locked.set()
+        finally:
+            close_old_connections()
+
+    def _run_normalizer(self) -> None:
+        close_old_connections()
+        self.normalizer_started.set()
+        try:
             call_command(
                 'normalize_event_weekdays',
                 '--apply',
                 stdout=StringIO(),
             )
+        except Exception as exc:
+            self.errors.put(exc)
+        finally:
+            self.normalizer_finished.set()
+            close_old_connections()
 
-        select_for_update.assert_called_once_with()
-        event.refresh_from_db()
-        self.assertEqual(event.weekday, weekday_code(event.date))
+    def _drain_errors(self) -> list[Exception]:
+        found = []
+        while True:
+            try:
+                found.append(self.errors.get_nowait())
+            except Empty:
+                return found
+
+    def _release_and_join_threads(self) -> None:
+        self.release_writer.set()
+        for thread in (self.writer, self.normalizer):
+            if thread.ident is not None:
+                thread.join(_THREAD_TIMEOUT_SECONDS)
+
+    @skipUnlessDBFeature('has_select_for_update')
+    def test_apply_waits_for_concurrent_date_update_and_stays_consistent(self):
+        self.writer.start()
+        try:
+            self.assertTrue(
+                self.writer_locked.wait(_THREAD_TIMEOUT_SECONDS),
+                'writer did not acquire the row lock',
+            )
+            self.assertEqual(self._drain_errors(), [])
+            self.normalizer.start()
+            self.assertTrue(
+                self.normalizer_started.wait(_THREAD_TIMEOUT_SECONDS),
+                'normalizer did not start',
+            )
+            self.assertFalse(
+                self.normalizer_finished.wait(
+                    _LOCK_WAIT_OBSERVATION_SECONDS
+                ),
+                'normalizer finished while the writer held the row lock',
+            )
+        finally:
+            self._release_and_join_threads()
+
+        self.assertFalse(self.writer.is_alive())
+        self.assertFalse(self.normalizer.is_alive())
+        self.assertEqual(self._drain_errors(), [])
+        self.event.refresh_from_db()
+        self.assertEqual(
+            self.event.weekday,
+            weekday_code(self.event.date),
+        )
