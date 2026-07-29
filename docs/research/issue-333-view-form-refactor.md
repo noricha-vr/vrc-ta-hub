@@ -22,5 +22,5 @@
 
 ## 検証手順
 
-- `docker compose exec -T vrc-ta-hub python manage.py test twitter.tests.test_auto_tweet twitter.tests.test_tweet_queue_views twitter.tests.test_x_api_guard event.tests.test_pdf_validation event.tests.test_event_detail_form community.tests.test_views community.tests.test_community_create community.tests.test_switch_community user_account.tests.test_views user_account.tests.test_api_key_views user_account.tests.test_lt_application_views -v 2`
+- `docker compose exec -T vrc-ta-hub python manage.py test twitter.tests event.tests.test_pdf_validation event.tests.test_event_detail_form community.tests.test_views community.tests.test_community_create community.tests.test_switch_community user_account.tests.test_views user_account.tests.test_api_key_views user_account.tests.test_lt_application_views -v 2`
 - 既存テストの patch パス互換性を守るため、`twitter.views.post_tweet` / `twitter.views.upload_media` と `community.views.manage.cleanup_community_future_data` は互換エントリとして残す。

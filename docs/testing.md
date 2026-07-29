@@ -94,7 +94,7 @@ file backend だけで完結するテストは `offline_external_api` へ移し�
 
 主な分類は次のファイルから追跡できる。
 
-- Offline contract: `twitter/tests/test_auto_tweet.py`,
+- Offline contract: `twitter/tests/`,
   `event/tests/test_recurrence_rule_generation.py`,
   `event/tests/test_recurrence_idempotency.py`,
   `event/tests/test_generate_recurring_events_command.py`,

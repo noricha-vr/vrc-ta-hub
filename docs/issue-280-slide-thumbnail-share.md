@@ -26,4 +26,4 @@
 - `event.tests.test_event_detail_form` でフォーム保存時にPDFサムネイル補完が呼ばれることを確認する。
 - `event.tests.test_generate_blog` でPDF先頭ページから16:9 JPEGが作られることを確認する。
 - `event.tests.test_event_detail_template` で `og:image` / `twitter:image` と本文上部画像が `thumbnail_image` を参照することを確認する。
-- `twitter.tests.test_auto_tweet.GetPosterImageUrlHelperTest` でX投稿画像が `EventDetail.thumbnail_image` を優先し、未設定時は集会ポスターへフォールバックすることを確認する。
+- `twitter.tests.test_generator_helpers.GetPosterImageUrlHelperTest` でX投稿画像が `EventDetail.thumbnail_image` を優先し、未設定時は集会ポスターへフォールバックすることを確認する。
