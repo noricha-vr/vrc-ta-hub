@@ -33,6 +33,15 @@ class CommunityApprovalSignalTest(AutoTweetTestBase):
         mock_thread_cls.assert_called_once()
         mock_thread.start.assert_called_once()
 
+    @patch("twitter.services.tweet_generation.start_tweet_generation")
+    def test_definition_patch_reaches_signal_handler(self, mock_start):
+        """定義元の生成開始 patch が signals の呼び出しへ届く。"""
+        self.community.status = "approved"
+        self.community.save()
+
+        queue = TweetQueue.objects.get(tweet_type="new_community")
+        mock_start.assert_called_once_with(queue)
+
     @patch("twitter.services.tweet_generation.threading.Thread")
     def test_duplicate_community_queue_prevention(self, mock_thread_cls):
         """同一 community の重複キューは作成されない"""

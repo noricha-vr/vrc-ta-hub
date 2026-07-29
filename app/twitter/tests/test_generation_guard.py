@@ -35,7 +35,7 @@ class TweetGenerationThreadGuardTest(TestCase):
         from twitter.services import tweet_generation
 
         with patch.object(tweet_generation.sys, "argv", ["manage.py", "test"]):
-            tweet_generation._start_tweet_generation(queue)
+            tweet_generation.start_tweet_generation(queue)
 
         queue.refresh_from_db()
         self.assertTrue(queue.generation_token)
