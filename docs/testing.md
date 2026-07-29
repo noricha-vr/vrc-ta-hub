@@ -216,6 +216,14 @@ User / Community / Event / EventDetail を `setUp` で毎回手書きする重�
 | `make_event(...)` | Event。`event_date` 未指定で `today + 7 days`（未来イベント） |
 | `make_event_detail(...)` | EventDetail。`start_time` 未指定で親 event の `start_time` を引き継ぐ |
 
+### 直接生成件数の ratchet
+
+共有 factory 外の直接生成は、Community 258件、CustomUser 119件、Event 160件、
+EventDetail 157件、User 107件（合計801件）を exact snapshot として固定する。
+増加・減少のどちらでも意図を確認し、移行内容に合わせて snapshot を更新する。
+集計対象は canonical model の明示 import（直接・alias・module・相対 import と
+`get_user_model`）に限り、プロジェクト内 module からの re-export は対象外とする。
+
 ### 使用例
 
 ```python
