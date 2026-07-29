@@ -19,7 +19,7 @@ NO_APPROVED_PRESENTATIONS_SKIP_REASON = '承認済みの当日発表がないた
 
 
 def is_active_presentation(detail_type, event_date) -> bool:
-    """発表が当日リマインドの同期対象か判定する。"""
+    """発表種別が LT/SPECIAL かつ開催日が今日以降か判定する。"""
     return detail_type in PRESENTATION_DETAIL_TYPES and event_date >= timezone.localdate()
 
 
@@ -162,7 +162,7 @@ def sync_daily_reminder_for_event(event_id: int) -> None:
 
 
 def sync_daily_reminders_for_instance(instance, created: bool) -> None:
-    """EventDetail の変更に応じて当日リマインドを同期する。"""
+    """pre_save で _old_* 旧値を記録済みの EventDetail に対し、当日リマインドを同期する。"""
     if not _should_refresh_daily_reminder(instance, created):
         return
 
