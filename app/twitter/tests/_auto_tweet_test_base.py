@@ -12,6 +12,8 @@ from event.models import Event
 
 CustomUser = get_user_model()
 
+
+@tag('offline_external_api')
 class AutoTweetTestBase(TestCase):
     """テスト共通のセットアップ"""
 
