@@ -14,10 +14,10 @@ from event.models import EventDetail
 from twitter.scheduling import default_scheduled_at
 from twitter.services.daily_reminder import (
     PRESENTATION_DETAIL_TYPES,
-    _ensure_same_day_individual_queue_skipped,
-    _is_active_presentation,
-    _sync_daily_reminder_for_event,
-    _sync_daily_reminders_for_instance,
+    ensure_same_day_individual_queue_skipped,
+    is_active_presentation,
+    sync_daily_reminder_for_event,
+    sync_daily_reminders_for_instance,
 )
 from twitter.services import tweet_generation
 from twitter.services.tweet_generation import sync_slide_share_queue_image
@@ -106,7 +106,7 @@ def _queue_new_community_tweet(instance, created):
     )
     logger.info("Queued new community tweet: %s", instance.name)
 
-    tweet_generation._start_tweet_generation(queue_item)
+    tweet_generation.start_tweet_generation(queue_item)
 
 
 @receiver(post_save, sender=EventDetail)
@@ -173,7 +173,7 @@ def _queue_slide_share_tweet(instance, created):
         "Queued slide share tweet: %s - %s", instance.speaker, instance.theme,
     )
 
-    tweet_generation._start_tweet_generation(queue_item)
+    tweet_generation.start_tweet_generation(queue_item)
 
 
 @receiver(post_save, sender=EventDetail)
@@ -189,23 +189,23 @@ def _queue_event_detail_tweet(instance, created):
     from twitter.models import TweetQueue
 
     if instance.detail_type not in PRESENTATION_DETAIL_TYPES:
-        _sync_daily_reminders_for_instance(instance, created)
+        sync_daily_reminders_for_instance(instance, created)
         return
 
     if instance.status != "approved":
-        _sync_daily_reminders_for_instance(instance, created)
+        sync_daily_reminders_for_instance(instance, created)
         return
 
     if instance.event.date < timezone.localdate():
-        _sync_daily_reminders_for_instance(instance, created)
+        sync_daily_reminders_for_instance(instance, created)
         return
 
     old_status = getattr(instance, "_old_status", None)
     tweet_type = "lt" if instance.detail_type == "LT" else "special"
 
     if instance.event.date == timezone.localdate():
-        _ensure_same_day_individual_queue_skipped(instance, tweet_type)
-        _sync_daily_reminders_for_instance(instance, created)
+        ensure_same_day_individual_queue_skipped(instance, tweet_type)
+        sync_daily_reminders_for_instance(instance, created)
         return
 
     if not created and old_status == "approved":
@@ -215,7 +215,7 @@ def _queue_event_detail_tweet(instance, created):
         new_theme = instance.theme or ""
 
         if old_speaker == new_speaker and old_theme == new_theme:
-            _sync_daily_reminders_for_instance(instance, created)
+            sync_daily_reminders_for_instance(instance, created)
             return
 
         deleted, _ = TweetQueue.objects.filter(
@@ -228,7 +228,7 @@ def _queue_event_detail_tweet(instance, created):
 
     else:
         if TweetQueue.objects.filter(event_detail=instance, tweet_type=tweet_type).exists():
-            _sync_daily_reminders_for_instance(instance, created)
+            sync_daily_reminders_for_instance(instance, created)
             return
 
     queue_item = TweetQueue.objects.create(
@@ -240,16 +240,16 @@ def _queue_event_detail_tweet(instance, created):
     )
     logger.info("Queued %s tweet: %s - %s", tweet_type, instance.speaker, instance.theme)
 
-    _sync_daily_reminders_for_instance(instance, created)
+    sync_daily_reminders_for_instance(instance, created)
 
-    tweet_generation._start_tweet_generation(queue_item)
+    tweet_generation.start_tweet_generation(queue_item)
 
 
 @receiver(post_delete, sender=EventDetail)
 def sync_daily_reminder_on_event_detail_delete(sender, instance, **kwargs):
     """当日発表の削除後に daily_reminder を同期する。"""
     try:
-        if _is_active_presentation(instance.detail_type, instance.event.date):
-            _sync_daily_reminder_for_event(instance.event_id)
+        if is_active_presentation(instance.detail_type, instance.event.date):
+            sync_daily_reminder_for_event(instance.event_id)
     except Exception:
         logger.exception("Failed to sync daily reminder after EventDetail delete %s", instance.pk)

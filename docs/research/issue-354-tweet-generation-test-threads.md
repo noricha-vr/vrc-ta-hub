@@ -3,13 +3,13 @@
 ## 概要
 
 `Community(status="approved")` や承認済み `EventDetail` の保存で `TweetQueue` が作成されると、
-`twitter.services.tweet_generation._start_tweet_generation()` が本文生成用のバックグラウンドスレッドを起動していた。
+`twitter.services.tweet_generation.start_tweet_generation()` が本文生成用のバックグラウンドスレッドを起動していた。
 SQLite テスト DB ではこの別スレッドが同じテーブルへアクセスし、`database table is locked` の
 ランダムなログを出す原因になり得る。
 
 ## 観測結果
 
-- `app/twitter/services/tweet_generation.py` の `_start_tweet_generation()` は、
+- `app/twitter/services/tweet_generation.py` の `start_tweet_generation()` は、
   `threading.Thread.start()` で非同期生成を開始する。
 - `app/website/settings/base.py` は `TESTING` または `sys.argv` の `test` で SQLite テスト DB へ切り替える。
   `TESTING` 変数自体は環境変数由来のため、保護対象の設定ファイルは変更せず、
@@ -28,7 +28,7 @@ SQLite テスト DB ではこの別スレッドが同じテーブルへアクセ
 
 ## 改善案と採用方針
 
-`_start_tweet_generation()` で `generation_token` の保存までは従来通り行い、
+`start_tweet_generation()` で `generation_token` の保存までは従来通り行い、
 global な `_should_skip_tweet_generation_thread()` により、`settings.TESTING=True` または
 `manage.py test` 実行時だけスレッド起動前に返すようにした。
 

@@ -355,6 +355,27 @@ class EventDetailSignalTest(AutoTweetTestBase):
         self.assertEqual(mock_thread_cls.call_args.kwargs["args"], (reminder_queue.pk, reminder_queue.generation_token))
         mock_thread_cls.return_value.start.assert_called_once()
 
+    @patch("twitter.services.tweet_generation.start_tweet_generation")
+    def test_definition_patch_reaches_daily_reminder_sync(self, mock_start):
+        """定義元の生成開始 patch が daily_reminder の呼び出しへ届く。"""
+        today_event = Event.objects.create(
+            community=self.community,
+            date=timezone.localdate(),
+            start_time=datetime.time(22, 0),
+            duration=60,
+        )
+        EventDetail.objects.create(
+            event=today_event,
+            detail_type="LT",
+            status="approved",
+            speaker="テスト太郎",
+            theme="当日のLT",
+            start_time=datetime.time(22, 15),
+        )
+
+        reminder_queue = TweetQueue.objects.get(tweet_type="daily_reminder", event=today_event)
+        mock_start.assert_called_once_with(reminder_queue)
+
     @patch("twitter.services.tweet_generation.threading.Thread")
     def test_today_event_theme_change_regenerates_same_daily_reminder_queue(self, mock_thread_cls):
         """当日の LT 内容変更では same-day daily_reminder を同じキューIDのまま非同期再生成する"""

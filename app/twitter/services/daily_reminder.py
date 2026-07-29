@@ -18,7 +18,8 @@ SAME_DAY_INDIVIDUAL_SKIP_REASON = '当日リマインドに統合したため個
 NO_APPROVED_PRESENTATIONS_SKIP_REASON = '承認済みの当日発表がないため投稿対象外'
 
 
-def _is_active_presentation(detail_type, event_date) -> bool:
+def is_active_presentation(detail_type, event_date) -> bool:
+    """発表種別が LT/SPECIAL かつ開催日が今日以降か判定する。"""
     return detail_type in PRESENTATION_DETAIL_TYPES and event_date >= timezone.localdate()
 
 
@@ -39,19 +40,20 @@ def _should_refresh_daily_reminder(instance, created: bool) -> bool:
 def _iter_event_ids_to_sync(instance):
     event_ids = set()
 
-    if _is_active_presentation(instance.detail_type, instance.event.date):
+    if is_active_presentation(instance.detail_type, instance.event.date):
         event_ids.add(instance.event_id)
 
     old_detail_type = getattr(instance, "_old_detail_type", None)
     old_event_id = getattr(instance, "_old_event_id", None)
     old_event_date = getattr(instance, "_old_event_date", None)
-    if old_event_id and _is_active_presentation(old_detail_type, old_event_date):
+    if old_event_id and is_active_presentation(old_detail_type, old_event_date):
         event_ids.add(old_event_id)
 
     return sorted(event_ids)
 
 
-def _ensure_same_day_individual_queue_skipped(instance, tweet_type: str) -> None:
+def ensure_same_day_individual_queue_skipped(instance, tweet_type: str) -> None:
+    """同日開催の個別告知キューをスキップ状態に揃える。"""
     from twitter.models import TweetQueue
 
     existing_qs = TweetQueue.objects.filter(
@@ -104,7 +106,8 @@ def _ensure_same_day_individual_queue_skipped(instance, tweet_type: str) -> None
     existing_qs.exclude(pk=primary.pk).exclude(status='posted').delete()
 
 
-def _sync_daily_reminder_for_event(event_id: int) -> None:
+def sync_daily_reminder_for_event(event_id: int) -> None:
+    """指定イベントの当日リマインドキューを同期する。"""
     from event.models import Event
     from twitter.models import TweetQueue
 
@@ -154,13 +157,14 @@ def _sync_daily_reminder_for_event(event_id: int) -> None:
         queue.generated_text = ''
         queue.save(update_fields=['community', 'scheduled_at', 'status', 'error_message', 'generated_text'])
 
-    tweet_generation._start_tweet_generation(queue)
+    tweet_generation.start_tweet_generation(queue)
     logger.info("Synced daily reminder tweet for event %d", event.pk)
 
 
-def _sync_daily_reminders_for_instance(instance, created: bool) -> None:
+def sync_daily_reminders_for_instance(instance, created: bool) -> None:
+    """pre_save で _old_* 旧値を記録済みの EventDetail に対し、当日リマインドを同期する。"""
     if not _should_refresh_daily_reminder(instance, created):
         return
 
     for event_id in _iter_event_ids_to_sync(instance):
-        _sync_daily_reminder_for_event(event_id)
+        sync_daily_reminder_for_event(event_id)

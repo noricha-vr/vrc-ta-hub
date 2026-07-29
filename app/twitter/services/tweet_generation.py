@@ -129,7 +129,7 @@ def _generate_tweet_async(queue_id: int, generation_token: str = "") -> None:
         connections.close_all()
 
 
-def _start_tweet_generation(queue_item) -> None:
+def start_tweet_generation(queue_item) -> None:
     """TweetQueue の本文生成をバックグラウンドで開始する。"""
     generation_token = uuid.uuid4().hex
     queue_item.generation_token = generation_token
