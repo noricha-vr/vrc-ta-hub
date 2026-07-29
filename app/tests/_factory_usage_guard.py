@@ -126,6 +126,21 @@ class _FunctionLocalCollector(ast.NodeVisitor):
     def visit_ClassDef(self, node: ast.ClassDef):
         self.names.add(node.name)
 
+    def visit_MatchAs(self, node: ast.MatchAs):
+        if node.name:
+            self.names.add(node.name)
+        self.generic_visit(node)
+
+    def visit_MatchStar(self, node: ast.MatchStar):
+        if node.name:
+            self.names.add(node.name)
+        self.generic_visit(node)
+
+    def visit_MatchMapping(self, node: ast.MatchMapping):
+        if node.rest:
+            self.names.add(node.rest)
+        self.generic_visit(node)
+
     def visit_Lambda(self, node: ast.Lambda):
         return
 

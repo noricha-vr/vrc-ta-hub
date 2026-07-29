@@ -113,6 +113,43 @@ Community.objects.create(name='module-shadow-ignored')
             ],
         )
 
+    def test_match_pattern_captures_shadow_module_models(self):
+        """match patternの全capture形式をローカル束縛として扱う。"""
+        source = """
+from community.models import Community
+from event.models import Event, EventDetail
+from user_account.models import CustomUser
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+def match_as_capture(value):
+    match value:
+        case str() as Community:
+            Community.objects.create(name='ignored')
+
+def match_star_capture(value):
+    match value:
+        case [*Event]:
+            Event.objects.create(name='ignored')
+
+def match_mapping_captures(value):
+    match value:
+        case {'speaker': CustomUser, **EventDetail}:
+            CustomUser.objects.create_user(user_name='ignored')
+            EventDetail.objects.create(name='ignored')
+
+def nested_pattern_capture(value):
+    match value:
+        case {'nested': [str() as User]}:
+            User.objects.create_user(user_name='ignored')
+
+Community.objects.create(name='global-counted')
+"""
+        identities = find_direct_core_creates(ast.parse(source))
+
+        self.assertEqual(identities, [('Community', 'create')])
+
     def test_direct_core_model_fixture_snapshot_matches_exactly(self):
         """共有factory外の直接生成件数が意図したsnapshotと完全一致する。"""
         counts = count_direct_core_creates()
