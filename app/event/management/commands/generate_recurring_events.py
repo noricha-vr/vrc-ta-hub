@@ -4,6 +4,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
+from community.constants import weekday_code
 from event.models import Event
 from event.recurrence_service import RecurrenceService
 from event.services.recurrence_override import exclude_tombstoned_dates
@@ -40,6 +41,7 @@ class Command(BaseCommand):
         # リセットオプションが指定された場合
         if reset_future and not dry_run:
             self.stdout.write('未来のイベントを削除しています...')
+            reset_date = today - timedelta(days=1)
             
             # 定期ルールに紐づく未来のイベントを削除
             deleted_count = Event.objects.filter(
@@ -52,7 +54,10 @@ class Command(BaseCommand):
                 date__gte=today,
                 is_recurring_master=True,
                 recurrence_rule__isnull=False
-            ).update(date=today - timedelta(days=1))  # マスターは過去日付に変更
+            ).update(
+                date=reset_date,
+                weekday=weekday_code(reset_date),
+            )  # マスターは過去日付に変更
             
             self.stdout.write(
                 self.style.WARNING(
@@ -184,7 +189,7 @@ class Command(BaseCommand):
                             date=date,
                             start_time=community.start_time,
                             duration=community.duration,
-                            weekday=date.strftime('%a').upper()[:3],
+                            weekday=weekday_code(date),
                             recurring_master=master
                         )
                         created_count += 1

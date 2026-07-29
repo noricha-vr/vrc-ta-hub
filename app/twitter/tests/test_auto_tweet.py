@@ -2349,6 +2349,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("ポスト", system_prompt)
         self.assertNotIn("ツイート", system_prompt)
         self.assertIn("Generator Test Community", call_args[0][1])
+        self.assertIn("5/1(金)", user_prompt)
         self.assertIn("告知ポスト", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
 
@@ -2377,6 +2378,7 @@ class TweetGeneratorTest(TestCase):
         self.assertNotIn("告知ツイート", system_prompt)
         self.assertIn("テスト太郎", user_prompt)
         self.assertIn("Pythonのテスト技法", user_prompt)
+        self.assertIn("5/1(金)", user_prompt)
         self.assertIn("告知ポスト", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
 
@@ -2527,6 +2529,7 @@ class TweetGeneratorTest(TestCase):
         self.assertIn("告知ポスト", system_prompt)
         self.assertNotIn("告知ツイート", system_prompt)
         self.assertIn("ゲスト講師", user_prompt)
+        self.assertIn("5/1(金)", user_prompt)
         self.assertIn("告知ポスト", user_prompt)
         self.assertNotIn("告知ツイート", user_prompt)
 

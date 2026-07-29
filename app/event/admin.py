@@ -4,6 +4,9 @@ from django.utils.html import format_html
 from django.urls import path
 from django.shortcuts import render, redirect
 from django.utils import timezone
+
+from community.constants import weekday_code
+
 from .models import Event, EventDetail, RecurrenceRule
 
 
@@ -162,7 +165,13 @@ class EventAdmin(admin.ModelAdmin):
     list_filter = ('date', 'is_recurring_master')
     search_fields = ('community__name', 'date')
     inlines = [EventDetailInline]
+    readonly_fields = ('weekday',)
     raw_id_fields = ('recurring_master', 'recurrence_rule')
+
+    def save_model(self, request, obj, form, change):
+        """開催日を正本として曜日を設定し、イベントを保存する。"""
+        obj.weekday = weekday_code(obj.date)
+        super().save_model(request, obj, form, change)
 
     def get_community_name(self, obj):
         return obj.community.name

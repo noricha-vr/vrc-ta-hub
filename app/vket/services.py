@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from community.constants import weekday_code
 from event.models import Event, EventDetail
 from vket.models import VketParticipation, VketPresentation
 
@@ -81,10 +82,6 @@ def get_vket_lock_message(event) -> str:
     return message
 
 
-def _weekday_code(date_value) -> str:
-    return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][date_value.weekday()]
-
-
 def _resolve_publication_event(participation: VketParticipation) -> tuple[Event, bool]:
     existing_event = Event.objects.filter(
         community=participation.community,
@@ -98,7 +95,7 @@ def _resolve_publication_event(participation: VketParticipation) -> tuple[Event,
             participation.save(update_fields=["published_event", "updated_at"])
         return existing_event, changed
 
-    weekday = _weekday_code(participation.confirmed_date)
+    weekday = weekday_code(participation.confirmed_date)
     if participation.published_event_id:
         event = participation.published_event
         changed = (
