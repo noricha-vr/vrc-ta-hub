@@ -14,6 +14,7 @@ from community.models import CommunityMember
 from event.notifications import (
     notify_owners_of_new_application,
     notify_applicant_of_result,
+    notify_slide_material_published,
     _send_discord_notification_for_new_application,
     _send_discord_notification_for_result,
 )
@@ -319,6 +320,73 @@ class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
         event_detail = _make_event_detail(self.event, applicant=self.applicant, status="approved")
         _send_discord_notification_for_result(event_detail)
         mock_post.assert_not_called()
+
+
+class DiscordWebhookSafeLoggingTest(TweetGenerationPatchMixin, TestCase):
+    """event.notifications の3つのWebhook経路で安全な最終ログを検証する."""
+
+    def setUp(self):
+        self.owner = _make_user("owner1", "owner1@example.com")
+        self.applicant = _make_user("applicant1", "applicant1@example.com")
+        self.community = _make_community(
+            owner=self.owner,
+            webhook_url=WEBHOOK_URL,
+        )
+        self.event = _make_event(self.community)
+        self.event_detail = _make_event_detail(
+            self.event,
+            applicant=self.applicant,
+            status="approved",
+        )
+
+    @patch("website.discord_webhook.requests.post")
+    def test_all_webhook_failures_exclude_url_and_exception_message(self, mock_post):
+        """全3経路の最終ログからURL・token・例外本文・tracebackを除外する."""
+        from website.discord_webhook import post_discord_webhook
+
+        sensitive_url = "https://discord.com/api/webhooks/123456789/secret-token"
+        senders = (
+            (
+                "new_application",
+                lambda: _send_discord_notification_for_new_application(
+                    self.event_detail,
+                    "https://example.com/review/1",
+                ),
+            ),
+            (
+                "application_result",
+                lambda: _send_discord_notification_for_result(self.event_detail),
+            ),
+            (
+                "slide_published",
+                lambda: notify_slide_material_published(self.event_detail),
+            ),
+        )
+        original_sleep = post_discord_webhook.retry.sleep
+        post_discord_webhook.retry.sleep = lambda _seconds: None
+        try:
+            for label, send in senders:
+                with self.subTest(label=label):
+                    mock_post.reset_mock()
+                    mock_post.side_effect = requests.RequestException(
+                        f"request failed for {sensitive_url}",
+                    )
+                    with self.assertLogs(
+                        "event.notifications",
+                        level="ERROR",
+                    ) as log_context:
+                        send()
+
+                    logs = "\n".join(log_context.output)
+                    self.assertEqual(mock_post.call_count, 3)
+                    self.assertIn("error_type=RequestException", logs)
+                    self.assertIn("status_code=None", logs)
+                    self.assertNotIn(sensitive_url, logs)
+                    self.assertNotIn("secret-token", logs)
+                    self.assertNotIn("request failed", logs)
+                    self.assertNotIn("Traceback", logs)
+        finally:
+            post_discord_webhook.retry.sleep = original_sleep
 
 
 class DiscordWebhookRetryTest(TweetGenerationPatchMixin, TestCase):

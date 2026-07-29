@@ -137,7 +137,7 @@ class NotifyNewCommunityRegistrationTest(TestCase):
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/123/abc")
     @patch("website.discord_webhook.requests.post")
     def test_swallows_request_exception(self, mock_post):
-        """requests 例外時もクラッシュしない (silent failure).
+        """requests 例外を安全にlogし、呼び出し元へ伝播しない.
 
         tenacity リトライ導入後は 3 回まで再試行されるため、回数ではなく
         「例外を吸い込んで完了する」ことと「実際にリトライが行われた」ことを検証する。
@@ -145,17 +145,30 @@ class NotifyNewCommunityRegistrationTest(TestCase):
         """
         from website.discord_webhook import post_discord_webhook
 
-        mock_post.side_effect = requests.RequestException("network down")
+        sensitive_url = "https://discord.com/api/webhooks/123456789/secret-token"
+        mock_post.side_effect = requests.RequestException(
+            f"network down for {sensitive_url}",
+        )
         # tenacity のラップド関数経由でリトライ間 sleep を 0 秒に上書き
         original_sleep = post_discord_webhook.retry.sleep
         post_discord_webhook.retry.sleep = lambda *args, **kwargs: None
         try:
-            # 例外を投げずに完了する
-            notify_new_community_registration(self.community, self.request)
+            with self.assertLogs(
+                "community.forms_processor",
+                level="WARNING",
+            ) as log_context:
+                notify_new_community_registration(self.community, self.request)
         finally:
             post_discord_webhook.retry.sleep = original_sleep
         # 3 回再試行された（初回 + リトライ2回）
         self.assertEqual(mock_post.call_count, 3)
+        logs = "\n".join(log_context.output)
+        self.assertIn("error_type=RequestException", logs)
+        self.assertIn("status_code=None", logs)
+        self.assertNotIn(sensitive_url, logs)
+        self.assertNotIn("secret-token", logs)
+        self.assertNotIn("network down", logs)
+        self.assertNotIn("Traceback", logs)
 
 
 class CloseCommunityAndCleanupTest(TestCase):
