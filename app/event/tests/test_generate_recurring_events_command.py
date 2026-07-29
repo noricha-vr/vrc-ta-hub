@@ -6,6 +6,7 @@ from django.test import TestCase, tag
 from django.utils import timezone
 from io import StringIO
 
+from community.constants import weekday_code
 from community.models import Community
 from event.models import Event, EventOccurrenceTombstone, RecurrenceRule
 from event.tests.tweet_generation import TweetGenerationPatchMixin
@@ -82,6 +83,7 @@ class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
             self.assertEqual(event.start_time, time(21, 0))
             self.assertEqual(event.duration, 60)
             self.assertEqual(event.community, self.community)
+            self.assertEqual(event.weekday, weekday_code(event.date))
             
     def test_dry_run_option(self):
         """ドライランオプションのテスト"""
@@ -101,6 +103,8 @@ class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
         
     def test_reset_future_option(self):
         """未来のイベントリセットオプションのテスト"""
+        self.master_event.date = timezone.now().date() + timedelta(days=7)
+        self.master_event.save(update_fields=['date'])
         # 先に未来のイベントを作成
         future_date = timezone.now().date() + timedelta(days=14)
         future_event = Event.objects.create(
@@ -130,6 +134,11 @@ class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
             date__gte=timezone.now().date()
         )
         self.assertGreater(generated_events.count(), 0)
+        self.master_event.refresh_from_db()
+        self.assertEqual(
+            self.master_event.weekday,
+            weekday_code(self.master_event.date),
+        )
         
     def test_multiple_months_generation(self):
         """複数月の生成テスト"""

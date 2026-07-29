@@ -10,6 +10,7 @@ from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.generic import UpdateView, DeleteView
 
+from community.constants import weekday_code
 from event.forms import EventDateUpdateForm, EventUpdateForm
 from event.models import Event, EventDetail
 from event.services.recurrence_override import (
@@ -61,7 +62,6 @@ class EventDateUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def get_form_kwargs(self):
         """ModelFormがinstanceを書き換える前の開催日を保持する。"""
         self.original_date = self.object.date
-        self.original_weekday = self.object.weekday
         return super().get_form_kwargs()
 
     def get_context_data(self, **kwargs):
@@ -106,7 +106,7 @@ class EventDateUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     def _restore_original_schedule(self, event: Event) -> None:
         """ModelFormが未保存instanceへ反映した日付を変更前へ戻す。"""
         event.date = self.original_date
-        event.weekday = self.original_weekday
+        event.weekday = weekday_code(self.original_date)
 
     def _get_vket_lock_message(self, event: Event, new_date) -> str:
         """変更前後のどちらかがVketロック対象ならメッセージを返す。"""
@@ -460,4 +460,3 @@ class EventDeleteView(LoginRequiredMixin, DeleteView):
                 )
                 error_count += 1
         return error_count
-

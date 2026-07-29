@@ -7,6 +7,7 @@ import datetime
 from datetime import date
 from typing import List
 
+from community.constants import weekday_code
 from event.models import Event, RecurrenceRule
 from event.services.recurrence_override import exclude_tombstoned_dates
 
@@ -58,7 +59,7 @@ def create_recurring_events(
         date=master_date,
         start_time=start_time,
         duration=duration,
-        weekday=master_date.strftime('%a').upper()[:3],
+        weekday=weekday_code(master_date),
         recurrence_rule=rule,
         is_recurring_master=True,
     )
@@ -81,7 +82,7 @@ def create_recurring_events(
                 date=event_date,
                 start_time=start_time,
                 duration=duration,
-                weekday=event_date.strftime('%a').upper()[:3],
+                weekday=weekday_code(event_date),
                 recurring_master=master_event,
             )
             created_events.append(event)

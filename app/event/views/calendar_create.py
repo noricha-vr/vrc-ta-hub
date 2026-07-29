@@ -1,5 +1,4 @@
 import logging
-from datetime import datetime
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -8,6 +7,7 @@ from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views.generic import FormView
 
+from community.constants import weekday_code
 from event.forms import GoogleCalendarEventForm
 from event.models import Event
 
@@ -85,8 +85,6 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 messages.error(self.request, f'同じ日時（{start_date} {start_time}）にすでにイベントが登録されています。')
                 return self.form_invalid(form)
 
-            # 開始時刻と終了時刻を設定
-            start_datetime = datetime.combine(start_date, start_time)
             duration = form.cleaned_data['duration']
 
             # 新しいイベントをDBに保存
@@ -96,7 +94,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                     date=start_date,
                     start_time=start_time,
                     duration=duration,
-                    weekday=start_datetime.strftime("%a")
+                    weekday=weekday_code(start_date),
                     # google_calendar_event_idは同期時に設定される
                 )
                 logger.info(f'イベントをDBに登録: ID={new_event.id}, 日付={start_date}, 開始時間={start_time}')

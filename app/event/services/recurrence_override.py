@@ -7,6 +7,7 @@ from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 
+from community.constants import weekday_code
 from event.models import Event, EventOccurrenceTombstone
 
 
@@ -82,7 +83,7 @@ def move_event_occurrence(event: Event, new_date: date) -> Event:
             EventOccurrenceTombstone.Reason.RESCHEDULED,
         )
         event.date = new_date
-        event.weekday = new_date.strftime('%a')
+        event.weekday = weekday_code(new_date)
         update_fields = ['date', 'weekday']
         if event.recurring_master_id is not None:
             event.recurring_master = None

@@ -5,6 +5,11 @@ models を import せずに参照できるよう軽量モジュールとして�
 曜日表記の正本はここ 1 箇所。
 """
 
+from datetime import date
+
+
+_WEEKDAY_CODES = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
+
 WEEKDAY_CHOICES = (
     ('Sun', '日曜日'),
     ('Mon', '月曜日'),
@@ -26,3 +31,15 @@ WEEKDAY_ABBR['Other'] = '他'
 
 # 表示順（WEEKDAY_CHOICES の定義順がそのまま並び順）
 WEEKDAY_ORDER = {code: index for index, (code, _label) in enumerate(WEEKDAY_CHOICES)}
+
+
+def weekday_code(value: date) -> str:
+    """開催日からロケール非依存の曜日コードを返す。
+
+    Args:
+        value: 曜日コードへ変換する日付
+
+    Returns:
+        ``Mon`` から ``Sun`` の固定曜日コード
+    """
+    return _WEEKDAY_CODES[value.weekday()]

@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import date_format, time_format
 
+from community.constants import weekday_code
 from community.models import Community, CommunityMember
 from event.models import Event, EventOccurrenceTombstone, RecurrenceRule
 from event.tests.tweet_generation import TweetGenerationPatchMixin
@@ -108,7 +109,7 @@ class EventDateUpdateViewTests(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(self.event.start_time, time(22, 0))
         self.assertEqual(
             self.event.weekday,
-            new_date.strftime('%a'),
+            weekday_code(new_date),
         )
         self.assertIsNone(self.event.recurring_master_id)
         tombstone = EventOccurrenceTombstone.objects.get(

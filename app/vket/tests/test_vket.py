@@ -1470,6 +1470,10 @@ class VketManageViewsTests(TestCase):
 
         self.event1.refresh_from_db()
         self.assertEqual(self.event1.date, new_date)
+        self.assertEqual(
+            self.event1.weekday,
+            ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][new_date.weekday()],
+        )
         self.assertFalse(
             EventOccurrenceTombstone.objects.filter(
                 community=self.community1,
@@ -3231,6 +3235,10 @@ class VketPublishViewTests(TestCase):
         self.assertEqual(event.community, self.community)
         self.assertEqual(event.start_time.strftime('%H:%M'), '21:00')
         self.assertEqual(event.duration, 60)
+        self.assertEqual(
+            event.weekday,
+            ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][event.date.weekday()],
+        )
 
     def test_publish_skips_declined_participation(self):
         """不参加の参加情報は公開同期の対象外になる"""
