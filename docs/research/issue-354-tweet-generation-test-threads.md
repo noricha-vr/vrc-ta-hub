@@ -13,7 +13,7 @@ SQLite テスト DB ではこの別スレッドが同じテーブルへアクセ
   `threading.Thread.start()` で非同期生成を開始する。
 - `app/website/settings/base.py` は `TESTING` または `sys.argv` の `test` で SQLite テスト DB へ切り替える。
   `TESTING` 変数自体は環境変数由来のため、保護対象の設定ファイルは変更せず、
-  シグナル側でも `sys.argv` の `test` をテスト実行判定に含めた。
+  サービス側でも `sys.argv` の `test` をテスト実行判定に含めた。
 - 既知の影響箇所である `app/user_account/tests/test_lt_application_views.py` と
   `app/ta_hub/tests/test_index_view_degraded_mode.py` は、承認済み `Community` / `EventDetail` を保存し、
   テスト対象外の TweetQueue 本文生成を副作用として起動していた。
