@@ -1,4 +1,4 @@
-"""Event.weekday を開催日由来の固定コードへ正規化する。"""
+"""Event.weekday を開催日由来の固定コードへバッチ単位で正規化する。"""
 
 from collections.abc import Iterable
 
@@ -44,6 +44,14 @@ def _empty_counts() -> dict[str, int]:
     return {category: 0 for category in _CATEGORY_KEYS}
 
 
+def _merge_counts(
+    destination: dict[str, int],
+    source: dict[str, int],
+) -> None:
+    for category in _CATEGORY_KEYS:
+        destination[category] += source[category]
+
+
 def _count_mismatches(
     events: Iterable[Event],
 ) -> tuple[int, dict[str, int]]:
@@ -60,21 +68,27 @@ def _count_mismatches(
 
 
 class Command(BaseCommand):
-    """Event.weekday の不整合を検査または一括補正する。"""
+    """Event.weekday を検査し、最大1000件ごとに補正・確定する。
 
-    help = 'Event.weekday を Event.date 由来の Mon..Sun に検査・正規化'
+    中断時は再実行で収束させ、最後に ``--check`` の不整合0件を確認する。
+    """
+
+    help = (
+        'Event.weekdayを最大1000件ずつ確定する。'
+        '再実行後の--check不整合0件が完了条件'
+    )
 
     def add_arguments(self, parser):
         mode = parser.add_mutually_exclusive_group(required=True)
         mode.add_argument(
             '--check',
             action='store_true',
-            help='不整合を分類して表示し、書き込まない',
+            help='完了ゲートとして不整合を分類し、0件なら正常終了する',
         )
         mode.add_argument(
             '--apply',
             action='store_true',
-            help='行ロックを取得し、不整合をトランザクション内で一括補正する',
+            help='最大1000件ごとに行ロック・補正・commitする。中断時は再実行する',
         )
 
     def handle(self, *args, **options):
@@ -98,11 +112,25 @@ class Command(BaseCommand):
         counts = _empty_counts()
         changed_count = 0
         last_pk = 0
+        while True:
+            next_pk, batch_changed, batch_counts = self._apply_batch(last_pk)
+            if next_pk is None:
+                return changed_count, counts
+            last_pk = next_pk
+            changed_count += batch_changed
+            _merge_counts(counts, batch_counts)
+
+    def _apply_batch(
+        self,
+        last_pk: int,
+    ) -> tuple[int | None, int, dict[str, int]]:
         with transaction.atomic():
-            while events := self._locked_batch(last_pk):
-                last_pk = events[-1].pk
-                changed_count += self._normalize_batch(events, counts)
-        return changed_count, counts
+            events = self._locked_batch(last_pk)
+            if not events:
+                return None, 0, _empty_counts()
+            batch_counts = _empty_counts()
+            changed_count = self._normalize_batch(events, batch_counts)
+            return events[-1].pk, changed_count, batch_counts
 
     @staticmethod
     def _locked_batch(last_pk: int) -> list[Event]:

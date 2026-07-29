@@ -5,15 +5,20 @@ from io import StringIO
 from queue import Empty, Queue
 from threading import Event as ThreadEvent
 from threading import Thread
+from unittest import skipUnless
 
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.core.management import CommandError, call_command
-from django.db import close_old_connections, transaction
+from django.db import (
+    DatabaseError,
+    close_old_connections,
+    connection,
+    transaction,
+)
 from django.test import (
     Client,
     RequestFactory,
-    SimpleTestCase,
     TestCase,
     TransactionTestCase,
     skipUnlessDBFeature,
@@ -25,9 +30,6 @@ from django.utils import timezone
 from community.constants import weekday_code
 from community.models import Community, CommunityMember
 from event.admin import EventAdmin
-from event.management.commands.normalize_event_weekdays import (
-    _classify_weekday,
-)
 from event.models import Event, RecurrenceRule
 from event.recurrence.persistence import create_recurring_events
 from event.services.recurrence_override import move_event_occurrence
@@ -38,33 +40,7 @@ User = get_user_model()
 _KEYSET_TEST_EVENT_COUNT = 1001
 _THREAD_TIMEOUT_SECONDS = 10
 _LOCK_WAIT_OBSERVATION_SECONDS = 0.25
-
-
-class WeekdayClassificationTests(SimpleTestCase):
-    """旧値を日付との関係に応じて分類する。"""
-
-    def test_classifies_supported_and_invalid_values(self):
-        cases = (
-            ('canonical match', 'Mon', 'Mon', None),
-            ('canonical mismatch', 'Tue', 'Mon', 'valid_mismatch'),
-            ('lowercase alias match', 'mon', 'Mon', 'format_only'),
-            ('uppercase alias match', 'MON', 'Mon', 'format_only'),
-            ('lowercase alias mismatch', 'tue', 'Mon', 'outside_choices'),
-            ('uppercase alias mismatch', 'TUE', 'Mon', 'outside_choices'),
-            ('Japanese alias match', '月曜日', 'Mon', 'format_only'),
-            ('Japanese alias mismatch', '火曜日', 'Mon', 'outside_choices'),
-            ('Other', 'Other', 'Mon', 'other'),
-            ('empty', '', 'Mon', 'empty'),
-            ('whitespace', ' ', 'Mon', 'outside_choices'),
-            ('unknown', 'Funday', 'Mon', 'outside_choices'),
-        )
-
-        for label, value, expected, category in cases:
-            with self.subTest(label=label):
-                self.assertEqual(
-                    _classify_weekday(value, expected),
-                    category,
-                )
+_FAILURE_TRIGGER_NAME = 'test_event_weekday_batch_failure'
 
 
 @tag('offline_external_api')
@@ -198,18 +174,28 @@ class NormalizeEventWeekdaysCommandTests(TweetGenerationPatchMixin, TestCase):
         )
 
     def _create_classification_examples(self) -> list[Event]:
+        event_date = date(2026, 8, 3)
+        values = (
+            'Mon',
+            'Tue',
+            'mon',
+            'MON',
+            'tue',
+            'TUE',
+            '月曜日',
+            '火曜日',
+            'Other',
+            '',
+            ' ',
+            'Xday',
+        )
         return [
-            self._create_event(date(2026, 8, 3), 'Mon'),
             self._create_event(
-                date(2026, 8, 3),
-                'MON',
-                start_hour=22,
-            ),
-            self._create_event(date(2026, 8, 5), '水曜日'),
-            self._create_event(date(2026, 8, 7), 'Thu'),
-            self._create_event(date(2026, 8, 8), '???'),
-            self._create_event(date(2026, 8, 9), 'Other'),
-            self._create_event(date(2026, 8, 10), ''),
+                event_date,
+                value,
+                start_hour=start_hour,
+            )
+            for start_hour, value in enumerate(values)
         ]
 
     def test_check_classifies_without_writing_and_returns_nonzero(self):
@@ -227,12 +213,12 @@ class NormalizeEventWeekdaysCommandTests(TweetGenerationPatchMixin, TestCase):
                 stdout=stdout,
             )
 
-        self.assertIn('format_only: 2', stdout.getvalue())
+        self.assertIn('format_only: 3', stdout.getvalue())
         self.assertIn('valid_mismatch: 1', stdout.getvalue())
-        self.assertIn('outside_choices: 1', stdout.getvalue())
+        self.assertIn('outside_choices: 5', stdout.getvalue())
         self.assertIn('other: 1', stdout.getvalue())
         self.assertIn('empty: 1', stdout.getvalue())
-        self.assertIn('total_mismatches: 6', stdout.getvalue())
+        self.assertIn('total_mismatches: 11', stdout.getvalue())
         current_values = dict(
             Event.objects.values_list('pk', 'weekday')
         )
@@ -250,7 +236,7 @@ class NormalizeEventWeekdaysCommandTests(TweetGenerationPatchMixin, TestCase):
             stdout=first_apply,
         )
 
-        self.assertIn('changed: 6', first_apply.getvalue())
+        self.assertIn('changed: 11', first_apply.getvalue())
         for event in Event.objects.all():
             self.assertEqual(event.weekday, weekday_code(event.date))
 
@@ -279,38 +265,6 @@ class NormalizeEventWeekdaysCommandTests(TweetGenerationPatchMixin, TestCase):
                 '--check',
                 '--apply',
             )
-
-    def test_apply_normalizes_rows_beyond_first_keyset_batch(self):
-        start_date = date(2026, 1, 1)
-        Event.objects.bulk_create(
-            [
-                Event(
-                    community=self.community,
-                    date=start_date + timedelta(days=offset),
-                    start_time=time(21, 0),
-                    weekday='Other',
-                )
-                for offset in range(_KEYSET_TEST_EVENT_COUNT)
-            ]
-        )
-        stdout = StringIO()
-
-        call_command(
-            'normalize_event_weekdays',
-            '--apply',
-            stdout=stdout,
-        )
-
-        self.assertIn(
-            f'changed: {_KEYSET_TEST_EVENT_COUNT}',
-            stdout.getvalue(),
-        )
-        for event in Event.objects.all():
-            self.assertEqual(
-                event.weekday,
-                weekday_code(event.date),
-            )
-
 
 @tag('offline_external_api')
 class NormalizeEventWeekdaysLockingTests(
@@ -417,3 +371,87 @@ class NormalizeEventWeekdaysLockingTests(
             self.event.weekday,
             weekday_code(self.event.date),
         )
+
+
+@tag('offline_external_api')
+@skipUnless(connection.vendor == 'mysql', 'MySQL trigger is required')
+class NormalizeEventWeekdaysBatchCommitTests(
+    TweetGenerationPatchMixin,
+    TransactionTestCase,
+):
+    """失敗済みバッチを再実行で収束させる公開契約を検証する。"""
+
+    def setUp(self) -> None:
+        community = Community.objects.create(
+            name='曜日バッチ確定テスト集会',
+            frequency='不定期',
+        )
+        start_date = date(2026, 1, 1)
+        Event.objects.bulk_create(
+            [
+                Event(
+                    community=community,
+                    date=start_date + timedelta(days=offset),
+                    start_time=time(21, 0),
+                    weekday='Other',
+                )
+                for offset in range(_KEYSET_TEST_EVENT_COUNT)
+            ]
+        )
+        self.event_pks = list(
+            Event.objects.order_by('pk').values_list('pk', flat=True)
+        )
+
+    def _create_failure_trigger(self) -> None:
+        failed_pk = self.event_pks[-1]
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                CREATE TRIGGER `{_FAILURE_TRIGGER_NAME}`
+                BEFORE UPDATE ON `event`
+                FOR EACH ROW
+                BEGIN
+                    IF NEW.id = {failed_pk} THEN
+                        SIGNAL SQLSTATE '45000'
+                        SET MESSAGE_TEXT = 'forced batch failure';
+                    END IF;
+                END
+                """
+            )
+
+    def _drop_failure_trigger(self) -> None:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f'DROP TRIGGER IF EXISTS `{_FAILURE_TRIGGER_NAME}`'
+            )
+
+    def test_apply_commits_each_batch_and_retry_converges(self):
+        self._create_failure_trigger()
+        try:
+            with self.assertRaises(DatabaseError):
+                call_command('normalize_event_weekdays', '--apply')
+        finally:
+            self._drop_failure_trigger()
+
+        first_batch = Event.objects.filter(
+            pk__lte=self.event_pks[-2],
+        )
+        for event in first_batch:
+            self.assertEqual(event.weekday, weekday_code(event.date))
+        failed_event = Event.objects.get(pk=self.event_pks[-1])
+        self.assertEqual(failed_event.weekday, 'Other')
+
+        retry = StringIO()
+        call_command(
+            'normalize_event_weekdays',
+            '--apply',
+            stdout=retry,
+        )
+        self.assertIn('changed: 1', retry.getvalue())
+        check = StringIO()
+        call_command(
+            'normalize_event_weekdays',
+            '--check',
+            stdout=check,
+        )
+        self.assertIn('total_mismatches: 0', check.getvalue())
