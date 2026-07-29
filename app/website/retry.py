@@ -12,6 +12,7 @@ import logging
 
 import requests
 from tenacity import (
+    RetryCallState,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -30,14 +31,29 @@ WEBHOOK_RETRY_WAIT_MAX_SECONDS = 10
 WEBHOOK_RETRY_WAIT_MULTIPLIER = 1
 
 
-def _log_retry_attempt(retry_state) -> None:
+def get_webhook_error_context(
+    error: BaseException | None,
+) -> tuple[str, int | None]:
+    """Build a log-safe Webhook error type and HTTP status."""
+    if error is None:
+        return "UnknownError", None
+
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    safe_status_code = status_code if type(status_code) is int else None
+    return type(error).__name__, safe_status_code
+
+
+def _log_retry_attempt(retry_state: RetryCallState) -> None:
     """tenacity の before_sleep フック: リトライ直前に warning ログを残す."""
-    exception = retry_state.outcome.exception() if retry_state.outcome else None
+    error = retry_state.outcome.exception() if retry_state.outcome else None
+    error_type, status_code = get_webhook_error_context(error)
     logger.warning(
-        "Webhook retry %s/%s after %s",
+        "Webhook retry attempt=%s/%s error_type=%s status_code=%s",
         retry_state.attempt_number,
         WEBHOOK_RETRY_MAX_ATTEMPTS,
-        exception,
+        error_type,
+        status_code,
     )
 
 

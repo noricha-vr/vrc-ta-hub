@@ -77,3 +77,26 @@ class DiscordWebhookTest(SimpleTestCase):
             post_discord_webhook("https://example.com/webhook", {})
 
         self.assertEqual(waits, [1.0, 2.0])
+
+    @patch("website.discord_webhook.requests.post")
+    def test_retry_logs_exclude_webhook_url_and_exception_message(self, mock_post):
+        """リトライログはURL・token・例外本文・tracebackを出さない."""
+        sensitive_url = "https://discord.com/api/webhooks/123456789/secret-token"
+        response = MagicMock(status_code=429)
+        mock_post.side_effect = requests.HTTPError(
+            f"request failed for {sensitive_url}",
+            response=response,
+        )
+
+        with self.assertLogs("website.retry", level="WARNING") as log_context:
+            with self.assertRaises(requests.HTTPError):
+                post_discord_webhook(sensitive_url, {})
+
+        logs = "\n".join(log_context.output)
+        self.assertIn("attempt=1/3", logs)
+        self.assertIn("error_type=HTTPError", logs)
+        self.assertIn("status_code=429", logs)
+        self.assertNotIn(sensitive_url, logs)
+        self.assertNotIn("secret-token", logs)
+        self.assertNotIn("request failed", logs)
+        self.assertNotIn("Traceback", logs)

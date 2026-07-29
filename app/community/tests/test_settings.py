@@ -540,25 +540,39 @@ class WebhookSettingsTest(TestCase):
 
     @patch('website.discord_webhook.requests.post')
     def test_test_webhook_request_error_message(self, mock_post):
-        """接続エラーは汎用メッセージを表示する."""
+        """接続エラーは安全にlogし、汎用メッセージを表示する."""
+        sensitive_url = 'https://discord.com/api/webhooks/123456789/secret-token'
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
         self.community.save()
-        mock_post.side_effect = requests.ConnectionError("connection failed")
+        mock_post.side_effect = requests.ConnectionError(
+            f"connection failed for {sensitive_url}",
+        )
         self.client.login(username='主催者ユーザー', password='testpass123')
         from website.discord_webhook import post_discord_webhook
 
         original_sleep = post_discord_webhook.retry.sleep
         post_discord_webhook.retry.sleep = lambda _seconds: None
         try:
-            response = self.client.post(
-                reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
-                follow=True,
-            )
+            with self.assertLogs(
+                'community.views.settings',
+                level='WARNING',
+            ) as log_context:
+                response = self.client.post(
+                    reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
+                    follow=True,
+                )
         finally:
             post_discord_webhook.retry.sleep = original_sleep
 
         self.assertContains(response, '通知の送信中にエラーが発生しました。')
         self.assertEqual(mock_post.call_count, 3)
+        logs = '\n'.join(log_context.output)
+        self.assertIn('error_type=ConnectionError', logs)
+        self.assertIn('status_code=None', logs)
+        self.assertNotIn(sensitive_url, logs)
+        self.assertNotIn('secret-token', logs)
+        self.assertNotIn('connection failed', logs)
+        self.assertNotIn('Traceback', logs)
 
     def test_test_webhook_without_url(self):
         """Webhook URLが設定されていない場合はエラー"""

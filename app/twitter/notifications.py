@@ -9,6 +9,7 @@ from django.conf import settings
 from twitter.x_api import PostTweetResult
 from website.constants import build_site_url
 from website.discord_webhook import post_discord_webhook
+from website.retry import get_webhook_error_context
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,12 @@ def notify_tweet_post_failure(queue_item, result: PostTweetResult) -> None:
         logger.info(
             "Admin Webhook通知成功（投稿失敗）: queue #%s", queue_item.pk,
         )
-    except Exception:
-        logger.exception(
-            "Admin Webhook通知エラー（投稿失敗）: queue #%s", queue_item.pk,
+    except Exception as error:
+        error_type, status_code = get_webhook_error_context(error)
+        logger.error(
+            "Admin Webhook通知エラー（投稿失敗）: queue=%s "
+            "error_type=%s status_code=%s",
+            queue_item.pk,
+            error_type,
+            status_code,
         )

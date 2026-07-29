@@ -94,22 +94,36 @@ class CommunityReportViewTest(TestCase):
 
     @override_settings(DISCORD_REPORT_WEBHOOK_URL='https://discord.com/api/webhooks/test')
     def test_webhook_failure_does_not_block_report(self):
-        """Webhook送信失敗でも通報は成功する"""
+        """Webhook送信失敗を安全にlogし、通報は成功する."""
+        sensitive_url = "https://discord.com/api/webhooks/123456789/secret-token"
         with patch(
             'website.discord_webhook.requests.post',
-            side_effect=requests_lib.RequestException("timeout"),
+            side_effect=requests_lib.RequestException(
+                f"timeout for {sensitive_url}",
+            ),
         ) as mock_post:
             from website.discord_webhook import post_discord_webhook
 
             original_sleep = post_discord_webhook.retry.sleep
             post_discord_webhook.retry.sleep = lambda _seconds: None
             try:
-                response = self.client.post(self.url)
+                with self.assertLogs(
+                    "community.views.helpers",
+                    level="ERROR",
+                ) as log_context:
+                    response = self.client.post(self.url)
             finally:
                 post_discord_webhook.retry.sleep = original_sleep
         self.assertEqual(response.status_code, 302)
         self.assertEqual(CommunityReport.objects.count(), 1)
         self.assertEqual(mock_post.call_count, 3)
+        logs = "\n".join(log_context.output)
+        self.assertIn("error_type=RequestException", logs)
+        self.assertIn("status_code=None", logs)
+        self.assertNotIn(sensitive_url, logs)
+        self.assertNotIn("secret-token", logs)
+        self.assertNotIn("timeout for", logs)
+        self.assertNotIn("Traceback", logs)
 
 
 class GetClientIpTest(TestCase):

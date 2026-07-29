@@ -162,15 +162,24 @@ class NotifyTweetPostFailureTest(TestCase):
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
     @patch("website.discord_webhook.requests.post")
     def test_request_exception_does_not_propagate(self, mock_post):
-        """requests.post が例外を投げても呼び出し元に伝播しない"""
-        mock_post.side_effect = Exception("network error")
+        """最終失敗を安全にlogし、呼び出し元に伝播しない."""
+        sensitive_url = "https://discord.com/api/webhooks/123456789/secret-token"
+        mock_post.side_effect = Exception(f"network error: {sensitive_url}")
 
         result = {
             "ok": False, "data": None,
             "status_code": 403, "error_body": "forbidden",
         }
-        # 例外が外に伝播しないことを確認
-        notify_tweet_post_failure(self.queue_item, result)
+        with self.assertLogs("twitter.notifications", level="ERROR") as log_context:
+            notify_tweet_post_failure(self.queue_item, result)
+
+        logs = "\n".join(log_context.output)
+        self.assertIn("error_type=Exception", logs)
+        self.assertIn("status_code=None", logs)
+        self.assertNotIn(sensitive_url, logs)
+        self.assertNotIn("secret-token", logs)
+        self.assertNotIn("network error", logs)
+        self.assertNotIn("Traceback", logs)
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
     @patch("website.discord_webhook.requests.post")

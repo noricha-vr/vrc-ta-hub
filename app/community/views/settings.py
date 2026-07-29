@@ -12,6 +12,7 @@ from django.views.generic import TemplateView
 
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from website.discord_webhook import post_discord_webhook
+from website.retry import get_webhook_error_context
 
 from ..models import Community, CommunityMember, CommunityInvitation, INVITATION_EXPIRATION_DAYS
 
@@ -283,15 +284,35 @@ class TestWebhookView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
                 test_message,
             )
             messages.success(request, 'テスト通知を送信しました。Discordを確認してください。')
-        except requests.Timeout:
+        except requests.Timeout as error:
+            error_type, status_code = get_webhook_error_context(error)
+            logger.warning(
+                "Webhookテスト送信失敗: error_type=%s status_code=%s",
+                error_type,
+                status_code,
+            )
             messages.error(request, '通知の送信がタイムアウトしました。')
-        except requests.HTTPError as e:
-            status_code = e.response.status_code if e.response is not None else '不明'
-            messages.error(request, f'通知の送信に失敗しました。(ステータスコード: {status_code})')
-        except requests.RequestException as e:
+        except requests.HTTPError as error:
+            error_type, status_code = get_webhook_error_context(error)
+            logger.warning(
+                "Webhookテスト送信失敗: error_type=%s status_code=%s",
+                error_type,
+                status_code,
+            )
+            display_status_code = status_code if status_code is not None else '不明'
+            messages.error(
+                request,
+                f'通知の送信に失敗しました。(ステータスコード: {display_status_code})',
+            )
+        except requests.RequestException as error:
             # ユーザーが入力した Webhook URL の不備など想定内の失敗のため
             # WARNING に降格 (docs/logging.md 規約: ユーザー操作で直せるものは WARNING)
-            logger.warning(f'Webhook送信エラー: {e}')
+            error_type, status_code = get_webhook_error_context(error)
+            logger.warning(
+                "Webhookテスト送信失敗: error_type=%s status_code=%s",
+                error_type,
+                status_code,
+            )
             messages.error(request, '通知の送信中にエラーが発生しました。')
 
         return redirect('community:settings')
