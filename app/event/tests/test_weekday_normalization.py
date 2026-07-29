@@ -9,6 +9,7 @@ from unittest import skipUnless
 
 from django.contrib import admin
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.management import CommandError, call_command
 from django.db import (
     DatabaseError,
@@ -34,6 +35,11 @@ from event.models import Event, RecurrenceRule
 from event.recurrence.persistence import create_recurring_events
 from event.services.recurrence_override import move_event_occurrence
 from event.tests.tweet_generation import TweetGenerationPatchMixin
+from ta_hub.index_cache import (
+    build_index_database_context,
+    get_index_view_cache_key,
+)
+from utils.vrchat_time import get_vrchat_today
 
 
 User = get_user_model()
@@ -256,6 +262,27 @@ class NormalizeEventWeekdaysCommandTests(TweetGenerationPatchMixin, TestCase):
         )
         self.assertIn('total_mismatches: 0', check.getvalue())
 
+    def test_apply_invalidates_stale_index_cache(self):
+        today = get_vrchat_today()
+        self.community.poster_image = 'poster/weekday-cache.png'
+        self.community.save(update_fields=['poster_image'])
+        event = self._create_event(today, 'Other')
+        cache_key = get_index_view_cache_key(today)
+        self.addCleanup(cache.delete, cache_key)
+        request = RequestFactory().get('/')
+
+        cached = build_index_database_context(request, today, cache_key)
+        self.assertEqual(cached['upcoming_events'][0]['weekday'], 'Other')
+
+        call_command('normalize_event_weekdays', '--apply')
+
+        self.assertIsNone(cache.get(cache_key))
+        rebuilt = build_index_database_context(request, today, cache_key)
+        self.assertEqual(
+            rebuilt['upcoming_events'][0]['weekday'],
+            weekday_code(event.date),
+        )
+
     def test_requires_exactly_one_mode(self):
         with self.assertRaises(CommandError):
             call_command('normalize_event_weekdays')
@@ -426,12 +453,15 @@ class NormalizeEventWeekdaysBatchCommitTests(
             )
 
     def test_apply_commits_each_batch_and_retry_converges(self):
+        cache_key = get_index_view_cache_key()
+        cache.set(cache_key, {'weekday': 'Other'})
         self._create_failure_trigger()
         try:
             with self.assertRaises(DatabaseError):
                 call_command('normalize_event_weekdays', '--apply')
         finally:
             self._drop_failure_trigger()
+        self.assertIsNone(cache.get(cache_key))
 
         first_batch = Event.objects.filter(
             pk__lte=self.event_pks[-2],

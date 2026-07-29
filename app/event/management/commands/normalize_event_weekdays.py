@@ -7,6 +7,7 @@ from django.db import transaction
 
 from community.constants import WEEKDAY_CHOICES, weekday_code
 from event.models import Event
+from ta_hub.index_cache import clear_index_view_cache
 
 
 _CATEGORY_KEYS = (
@@ -71,6 +72,7 @@ class Command(BaseCommand):
     """Event.weekday を検査し、最大1000件ごとに補正・確定する。
 
     中断時は再実行で収束させ、最後に ``--check`` の不整合0件を確認する。
+    ``--apply`` 終了時は成功・失敗を問わずトップページキャッシュを破棄する。
     """
 
     help = (
@@ -88,13 +90,19 @@ class Command(BaseCommand):
         mode.add_argument(
             '--apply',
             action='store_true',
-            help='最大1000件ごとに行ロック・補正・commitする。中断時は再実行する',
+            help=(
+                '最大1000件ごとに行ロック・補正・commitし、'
+                '終了時にトップページcacheを破棄する。中断時は再実行する'
+            ),
         )
 
     def handle(self, *args, **options):
         if options['apply']:
-            changed_count, counts = self._apply()
-            self._write_summary(counts, changed_count, applied=True)
+            try:
+                changed_count, counts = self._apply()
+                self._write_summary(counts, changed_count, applied=True)
+            finally:
+                clear_index_view_cache()
             return
 
         changed_count, counts = _count_mismatches(
