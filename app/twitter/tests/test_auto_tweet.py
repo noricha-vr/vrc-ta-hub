@@ -8,6 +8,7 @@ import datetime
 from django.db import DatabaseError, IntegrityError, OperationalError, transaction
 from unittest.mock import MagicMock, Mock, patch
 
+import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, TransactionTestCase, override_settings, tag
@@ -997,11 +998,12 @@ class PostScheduledTweetsViewTest(AutoTweetTestBase):
         self.assertEqual(second.status, "ready")
 
     @override_settings(DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/test/token")
-    @patch("twitter.notifications.requests.post")
+    @patch("twitter.notifications.post_discord_webhook")
     @patch("twitter.views.post_tweet")
     def test_post_scheduled_tweets_post_failure(self, mock_post, mock_webhook_post):
         """X API 投稿失敗時にキューが failed になり管理者へ通知が送られる"""
         mock_post.return_value = {"ok": False, "data": None, "status_code": 403, "error_body": "You are not permitted to perform this action."}
+        mock_webhook_post.return_value = MagicMock(status_code=204)
 
         TweetQueue.objects.create(
             tweet_type="new_community",
@@ -3020,12 +3022,12 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(timezone.localtime(queue.scheduled_at).hour, 10)
         mock_thread_cls.assert_called_once()
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_share_sends_community_webhook(self, mock_thread_cls, mock_post):
         """資料公開時は集会に設定したWebhookへ通知を送る"""
         mock_thread_cls.return_value = MagicMock()
-        mock_post.return_value = MagicMock(ok=True)
+        mock_post.return_value = MagicMock(status_code=200)
         self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
         self.community.save(update_fields=["notification_webhook_url"])
 
@@ -3034,7 +3036,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
 
         mock_post.assert_called_once()
         self.assertEqual(mock_post.call_args[0][0], self.community.notification_webhook_url)
-        payload = mock_post.call_args[1]["json"]
+        payload = mock_post.call_args.args[1]
         self.assertEqual(payload["content"], "📚 **資料公開のお知らせ**")
         self.assertEqual(payload["embeds"][0]["title"], "登壇資料が公開されました")
         self.assertEqual(payload["embeds"][0]["description"], f"**{self.detail.theme}**")
@@ -3045,14 +3047,14 @@ class SlideShareSignalTest(AutoTweetTestBase):
         AWS_S3_CUSTOM_DOMAIN="data.vrc-ta-hub.com",
         MEDIA_URL="https://data.vrc-ta-hub.com/",
     )
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_share_webhook_uses_event_detail_thumbnail_image(
         self, mock_thread_cls, mock_post,
     ):
         """資料公開通知にはEventDetailのOGP画像を表示する."""
         mock_thread_cls.return_value = MagicMock()
-        mock_post.return_value = MagicMock(ok=True)
+        mock_post.return_value = MagicMock(status_code=200)
         self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
         self.community.save(update_fields=["notification_webhook_url"])
 
@@ -3060,7 +3062,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.detail.slide_url = "https://example.com/slides"
         self.detail.save()
 
-        payload = mock_post.call_args[1]["json"]
+        payload = mock_post.call_args.args[1]
         image_url = payload["embeds"][0]["image"]["url"]
         self.assertEqual(image_url, "https://data.vrc-ta-hub.com/thumbnail/generated.jpg")
 
@@ -3068,14 +3070,14 @@ class SlideShareSignalTest(AutoTweetTestBase):
         AWS_S3_CUSTOM_DOMAIN="data.vrc-ta-hub.com",
         MEDIA_URL="https://data.vrc-ta-hub.com/",
     )
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_share_webhook_falls_back_to_community_poster_image(
         self, mock_thread_cls, mock_post,
     ):
         """EventDetail画像がない場合は集会ポスターを表示する."""
         mock_thread_cls.return_value = MagicMock()
-        mock_post.return_value = MagicMock(ok=True)
+        mock_post.return_value = MagicMock(status_code=200)
         self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
         self.community.poster_image = "poster/community.webp"
         self.community.save(update_fields=["notification_webhook_url", "poster_image"])
@@ -3083,11 +3085,11 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.detail.slide_url = "https://example.com/slides"
         self.detail.save()
 
-        payload = mock_post.call_args[1]["json"]
+        payload = mock_post.call_args.args[1]
         image_url = payload["embeds"][0]["image"]["url"]
         self.assertEqual(image_url, "https://data.vrc-ta-hub.com/poster/community.webp")
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_share_without_webhook_does_not_send_notification(self, mock_thread_cls, mock_post):
         """Webhook未設定なら資料公開通知は送らない"""
@@ -3098,21 +3100,36 @@ class SlideShareSignalTest(AutoTweetTestBase):
 
         mock_post.assert_not_called()
 
-    @patch("event.notifications.requests.post", side_effect=Exception("timeout"))
+    @patch("event.notifications.post_discord_webhook")
     @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_share_webhook_failure_does_not_block_queue_creation(
         self, mock_thread_cls, mock_post,
     ):
-        """Webhook送信失敗でもslide_shareキュー作成は継続する"""
+        """Webhook失敗を安全にlogし、slide_shareキュー作成は継続する."""
+        sensitive_url = "https://discord.com/api/webhooks/123456789/secret-token"
+        mock_post.side_effect = requests.RequestException(
+            f"timeout for {sensitive_url}",
+        )
         mock_thread_cls.return_value = MagicMock()
         self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
         self.community.save(update_fields=["notification_webhook_url"])
 
-        self.detail.slide_url = "https://example.com/slides"
-        self.detail.save()
+        with self.assertLogs(
+            "event.notifications",
+            level="ERROR",
+        ) as log_context:
+            self.detail.slide_url = "https://example.com/slides"
+            self.detail.save()
 
         self.assertEqual(TweetQueue.objects.count(), 1)
         mock_post.assert_called_once()
+        logs = "\n".join(log_context.output)
+        self.assertIn("error_type=RequestException", logs)
+        self.assertIn("status_code=None", logs)
+        self.assertNotIn(sensitive_url, logs)
+        self.assertNotIn("secret-token", logs)
+        self.assertNotIn("timeout for", logs)
+        self.assertNotIn("Traceback", logs)
 
     @patch("twitter.services.tweet_generation.threading.Thread")
     def test_youtube_url_first_set_creates_queue(self, mock_thread_cls):
@@ -3126,7 +3143,7 @@ class SlideShareSignalTest(AutoTweetTestBase):
         queue = TweetQueue.objects.first()
         self.assertEqual(queue.tweet_type, "slide_share")
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     @patch("twitter.services.tweet_generation.threading.Thread")
     def test_youtube_only_does_not_send_slide_webhook(self, mock_thread_cls, mock_post):
         """YouTubeのみ追加した場合はスライドWebhook通知を送らない"""
@@ -3237,14 +3254,14 @@ class SlideShareSignalTest(AutoTweetTestBase):
         self.assertEqual(TweetQueue.objects.count(), 1)
         self.assertEqual(queue.image_url, poster_url)
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     @patch("twitter.services.tweet_generation.threading.Thread")
     def test_slide_webhook_still_sent_when_youtube_queue_already_exists(
         self, mock_thread_cls, mock_post,
     ):
         """YouTube先行でキュー済みでも、後からスライド追加したらWebhookは送る"""
         mock_thread_cls.return_value = MagicMock()
-        mock_post.return_value = MagicMock(ok=True)
+        mock_post.return_value = MagicMock(status_code=200)
         self.community.notification_webhook_url = "https://discord.com/api/webhooks/123/abc"
         self.community.save(update_fields=["notification_webhook_url"])
 

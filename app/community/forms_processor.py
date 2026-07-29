@@ -17,7 +17,10 @@ from django.urls import reverse
 from django.utils import timezone
 
 from event.community_cleanup import cleanup_community_future_data
-from website.discord_webhook import post_discord_webhook
+from website.discord_webhook import (
+    get_webhook_error_context,
+    post_discord_webhook,
+)
 
 from .models import Community, CommunityMember
 
@@ -58,11 +61,24 @@ def notify_new_community_registration(community: Community, request: HttpRequest
     }
     try:
         post_discord_webhook(settings.DISCORD_WEBHOOK_URL, discord_message)
-    except requests.RequestException as e:
-        # tenacity が 3 回まで再試行した上での最終失敗のみここに到達する
-        logger.warning(f'Discord通知送信失敗（リトライ後）: {e}')
-    except Exception as e:
-        logger.warning(f'Discord通知送信失敗: {e}')
+    except requests.RequestException as error:
+        # gateway で回復できなかった最終失敗のみここに到達する
+        error_type, status_code = get_webhook_error_context(error)
+        logger.warning(
+            'Discord通知送信失敗（リトライ後）: '
+            'community_id=%s error_type=%s status_code=%s',
+            community.pk,
+            error_type,
+            status_code,
+        )
+    except Exception as error:
+        error_type, status_code = get_webhook_error_context(error)
+        logger.warning(
+            'Discord通知送信失敗: community_id=%s error_type=%s status_code=%s',
+            community.pk,
+            error_type,
+            status_code,
+        )
 
 
 def approve_community_registration(community: Community, request: HttpRequest) -> None:

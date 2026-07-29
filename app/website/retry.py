@@ -1,9 +1,9 @@
 """Webhook 等の外部 POST に共有のリトライ戦略を提供する.
 
-`tenacity` を使い、ネットワーク起因の一過性エラー（requests.RequestException /
-requests.Timeout）に対して指数バックオフでリトライする。最終的に失敗した場合は
-例外を呼び出し元に再送出し、既存の try/except による silent failure ハンドリング
-を活かせる設計とする。
+`tenacity` を使い、非2xx応答から変換した HTTPError を含むすべての
+requests.RequestException を最大3回試行し、試行間を1秒・2秒待機する。
+4xx・429も一時的な制限や経路上の問題から回復できるよう意図的に再試行する。
+最終的に失敗した場合は例外を呼び出し元へ再送出する。
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import logging
 
 import requests
 from tenacity import (
+    RetryCallState,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -30,22 +31,39 @@ WEBHOOK_RETRY_WAIT_MAX_SECONDS = 10
 WEBHOOK_RETRY_WAIT_MULTIPLIER = 1
 
 
-def _log_retry_attempt(retry_state) -> None:
+def get_webhook_error_context(
+    error: BaseException | None,
+) -> tuple[str, int | None]:
+    """Build a log-safe Webhook error type and HTTP status."""
+    if error is None:
+        return "UnknownError", None
+
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    safe_status_code = status_code if type(status_code) is int else None
+    return type(error).__name__, safe_status_code
+
+
+def _log_retry_attempt(retry_state: RetryCallState) -> None:
     """tenacity の before_sleep フック: リトライ直前に warning ログを残す."""
-    exception = retry_state.outcome.exception() if retry_state.outcome else None
+    error = retry_state.outcome.exception() if retry_state.outcome else None
+    error_type, status_code = get_webhook_error_context(error)
     logger.warning(
-        "Webhook retry %s/%s after %s",
+        "Webhook retry attempt=%s/%s error_type=%s status_code=%s",
         retry_state.attempt_number,
         WEBHOOK_RETRY_MAX_ATTEMPTS,
-        exception,
+        error_type,
+        status_code,
     )
 
 
 def retry_webhook_post(func):
-    """Discord Webhook 等の POST を 3 回まで指数バックオフでリトライするデコレータ.
+    """Discord Webhook 等の POST を最大3回試行するデコレータ.
 
-    - 対象例外: requests.RequestException / requests.Timeout（一過性のネットワーク失敗）
-    - リトライ間隔: 1s, 2s, 4s（exponential backoff, max 10s）
+    - 対象例外: すべての requests.RequestException（非2xxのHTTPErrorを含む）
+    - 4xx・429も意図的にリトライ対象とする
+    - 試行回数: 初回を含めて最大3回
+    - リトライ間隔: 1秒、2秒
     - 最終失敗時は元の例外を再送出する（reraise=True）
     """
     return retry(

@@ -1,6 +1,7 @@
 """CommunitySettingsViewのテスト"""
 from unittest.mock import patch, MagicMock
 
+import requests
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -467,43 +468,92 @@ class WebhookSettingsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'テスト送信')
 
-    @patch('community.views.settings.requests.post')
+    @patch('community.views.settings.post_discord_webhook')
     def test_test_webhook_success(self, mock_post):
-        """Webhookテスト送信が成功する"""
+        """Webhookテスト送信は任意の2xxで成功する"""
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
         self.community.save()
 
         mock_response = MagicMock()
-        mock_response.status_code = 204
+        mock_response.status_code = 201
         mock_post.return_value = mock_response
 
         self.client.login(username='主催者ユーザー', password='testpass123')
         response = self.client.post(
-            reverse('community:test_webhook', kwargs={'pk': self.community.pk})
+            reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
+            follow=True,
         )
 
-        self.assertRedirects(response, reverse('community:settings'))
+        self.assertContains(response, 'テスト通知を送信しました。Discordを確認してください。')
         mock_post.assert_called_once()
         # 送信されたJSONにテスト通知のメッセージが含まれていることを確認
-        call_kwargs = mock_post.call_args[1]
-        self.assertIn('テスト通知', call_kwargs['json']['content'])
+        payload = mock_post.call_args.args[1]
+        self.assertIn('テスト通知', payload['content'])
 
-    @patch('community.views.settings.requests.post')
+    @patch('community.views.settings.post_discord_webhook')
     def test_test_webhook_failure(self, mock_post):
-        """Webhookテスト送信が失敗した場合のエラーハンドリング"""
+        """HTTP失敗はステータスコード付きメッセージを表示する"""
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
         self.community.save()
 
-        mock_response = MagicMock()
-        mock_response.status_code = 400
-        mock_post.return_value = mock_response
+        mock_post.side_effect = requests.HTTPError(
+            "bad request",
+            response=MagicMock(status_code=400),
+        )
 
         self.client.login(username='主催者ユーザー', password='testpass123')
         response = self.client.post(
-            reverse('community:test_webhook', kwargs={'pk': self.community.pk})
+            reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
+            follow=True,
         )
 
-        self.assertRedirects(response, reverse('community:settings'))
+        self.assertContains(response, '通知の送信に失敗しました。(ステータスコード: 400)')
+        mock_post.assert_called_once()
+
+    @patch('community.views.settings.post_discord_webhook')
+    def test_test_webhook_timeout_message(self, mock_post):
+        """タイムアウトは専用メッセージを表示する."""
+        self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
+        self.community.save()
+        mock_post.side_effect = requests.Timeout("timed out")
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        response = self.client.post(
+            reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
+            follow=True,
+        )
+
+        self.assertContains(response, '通知の送信がタイムアウトしました。')
+        mock_post.assert_called_once()
+
+    @patch('community.views.settings.post_discord_webhook')
+    def test_test_webhook_request_error_message(self, mock_post):
+        """接続エラーは安全にlogし、汎用メッセージを表示する."""
+        sensitive_url = 'https://discord.com/api/webhooks/123456789/secret-token'
+        self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
+        self.community.save()
+        mock_post.side_effect = requests.ConnectionError(
+            f"connection failed for {sensitive_url}",
+        )
+        self.client.login(username='主催者ユーザー', password='testpass123')
+        with self.assertLogs(
+            'community.views.settings',
+            level='WARNING',
+        ) as log_context:
+            response = self.client.post(
+                reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
+                follow=True,
+            )
+
+        self.assertContains(response, '通知の送信中にエラーが発生しました。')
+        mock_post.assert_called_once()
+        logs = '\n'.join(log_context.output)
+        self.assertIn(f'community_id={self.community.pk}', logs)
+        self.assertIn('error_type=ConnectionError', logs)
+        self.assertIn('status_code=None', logs)
+        self.assertNotIn(sensitive_url, logs)
+        self.assertNotIn('secret-token', logs)
+        self.assertNotIn('connection failed', logs)
+        self.assertNotIn('Traceback', logs)
 
     def test_test_webhook_without_url(self):
         """Webhook URLが設定されていない場合はエラー"""
