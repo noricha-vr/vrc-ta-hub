@@ -25,6 +25,27 @@
                     <div class="card-body">
                         {% include 'ta_hub/messages.html' %}
                         {% discord_oauth_available as discord_oauth_enabled %}
+
+                        <div class="alert alert-warning" role="alert">
+                            <div class="d-flex align-items-start">
+                                <i class="bi bi-exclamation-triangle-fill me-2 mt-1" aria-hidden="true"></i>
+                                <div>
+                                    <h5 class="alert-heading mb-2">【重要】ログイン方法変更のお知らせ</h5>
+                                    <p class="mb-2">
+                                        <strong>2026年8月3日以降、ユーザー名でのログインを廃止します。</strong>
+                                    </p>
+                                    <p class="mb-2">
+                                        今後は、<strong>メールアドレス</strong>または<strong>Discord連携</strong>でログインしてください。
+                                    </p>
+                                    <p class="mb-0">
+                                        現在ユーザー名でログインしている方は、<strong>8月3日までに</strong>、ログイン後の
+                                        <a href="{% url 'account:settings' %}" class="alert-link">アカウント設定</a>から
+                                        Discord連携またはメールアドレスの登録をお願いします。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
                         {% if discord_oauth_enabled %}
                         <div class="text-center my-5">
                             <a href="{% provider_login_url 'discord' %}" class="btn btn-lg" style="background-color: #5865F2; color: white;">
