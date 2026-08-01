@@ -14,10 +14,10 @@ from community.models import CommunityMember
 from event.notifications import (
     notify_owners_of_new_application,
     notify_applicant_of_result,
+    notify_slide_material_published,
     _send_discord_notification_for_new_application,
     _send_discord_notification_for_result,
 )
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from tests.factories import (
     make_community as _make_community_factory,
     make_event,
@@ -55,7 +55,7 @@ def _make_event_detail(event, applicant=None, status="pending"):
 
 
 @override_settings(DEFAULT_FROM_EMAIL="noreply@example.com")
-class NotifyOwnersOfNewApplicationTest(TweetGenerationPatchMixin, TestCase):
+class NotifyOwnersOfNewApplicationTest(TestCase):
     """notify_owners_of_new_application の通知送信パス"""
 
     def setUp(self):
@@ -116,7 +116,7 @@ class NotifyOwnersOfNewApplicationTest(TweetGenerationPatchMixin, TestCase):
         notify_owners_of_new_application(self.event_detail)
         mock_send_mail.assert_called_once()
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     def test_calls_discord_webhook_when_url_set(self, mock_post):
         """webhook_url 設定済みなら Discord 通知が呼ばれる"""
         self.community.notification_webhook_url = WEBHOOK_URL
@@ -129,7 +129,7 @@ class NotifyOwnersOfNewApplicationTest(TweetGenerationPatchMixin, TestCase):
 
 
 @override_settings(DEFAULT_FROM_EMAIL="noreply@example.com")
-class NotifyApplicantOfResultTest(TweetGenerationPatchMixin, TestCase):
+class NotifyApplicantOfResultTest(TestCase):
     """notify_applicant_of_result の承認/却下分岐"""
 
     def setUp(self):
@@ -187,7 +187,7 @@ class NotifyApplicantOfResultTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(len(mail.outbox), 0)
 
 
-class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCase):
+class DiscordNotificationForNewApplicationTest(TestCase):
     """_send_discord_notification_for_new_application の Webhook 送信"""
 
     def setUp(self):
@@ -197,19 +197,18 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
         self.event = _make_event(self.community)
         self.event_detail = _make_event_detail(self.event, applicant=self.applicant)
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     def test_posts_to_webhook_when_url_set(self, mock_post):
         """webhook_url 設定時に POST される"""
         mock_post.return_value = MagicMock(ok=True, status_code=200)
         _send_discord_notification_for_new_application(self.event_detail, "https://example.com/review/1")
         mock_post.assert_called_once()
-        kwargs = mock_post.call_args.kwargs
-        self.assertIn("json", kwargs)
+        payload = mock_post.call_args.args[1]
         # content / embeds 構造の最小検証
-        self.assertIn("content", kwargs["json"])
-        self.assertIn("embeds", kwargs["json"])
+        self.assertIn("content", payload)
+        self.assertIn("embeds", payload)
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     def test_skipped_when_webhook_url_empty(self, mock_post):
         """webhook_url 空なら POST されない"""
         self.community.notification_webhook_url = ""
@@ -217,7 +216,7 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
         _send_discord_notification_for_new_application(self.event_detail, "https://example.com/review/1")
         mock_post.assert_not_called()
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     def test_truncates_long_additional_info(self, mock_post):
         """additional_info が 1000 文字超なら切り詰め + ... サフィックス"""
         long_text = "a" * 1500
@@ -225,7 +224,7 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
         self.event_detail.save()
         mock_post.return_value = MagicMock(ok=True, status_code=200)
         _send_discord_notification_for_new_application(self.event_detail, "https://example.com/review/1")
-        payload = mock_post.call_args.kwargs["json"]
+        payload = mock_post.call_args.args[1]
         additional_field = next(
             (f for f in payload["embeds"][0]["fields"] if "追加情報" in f["name"]),
             None,
@@ -235,36 +234,31 @@ class DiscordNotificationForNewApplicationTest(TweetGenerationPatchMixin, TestCa
         self.assertTrue(additional_field["value"].endswith("..."))
         self.assertEqual(len(additional_field["value"]), 1003)
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     def test_swallows_request_exception(self, mock_post):
-        """requests 例外時もクラッシュしない（silent failure 検出）.
-
-        tenacity リトライ導入後は 3 回まで再試行される。回数ではなく
-        「例外を吸い込んで完了する」ことを検証する。
-        テスト中はバックオフ待機を 0 秒化して高速化する。
-        """
-        from event.notifications import _post_discord_webhook
-
+        """gateway最終失敗時も呼び出し元処理を継続する."""
         mock_post.side_effect = requests.RequestException("network down")
-        original_sleep = _post_discord_webhook.retry.sleep
-        _post_discord_webhook.retry.sleep = lambda *args, **kwargs: None
-        try:
-            # 例外を投げずに完了する
-            _send_discord_notification_for_new_application(self.event_detail, "https://example.com/review/1")
-        finally:
-            _post_discord_webhook.retry.sleep = original_sleep
-        # 3 回再試行された（初回 + リトライ2回）
-        self.assertEqual(mock_post.call_count, 3)
+        _send_discord_notification_for_new_application(
+            self.event_detail,
+            "https://example.com/review/1",
+        )
+        mock_post.assert_called_once()
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     def test_handles_non_ok_response(self, mock_post):
-        """4xx/5xx 応答時もクラッシュしない（log warning のみ）"""
-        mock_post.return_value = MagicMock(ok=False, status_code=500)
-        _send_discord_notification_for_new_application(self.event_detail, "https://example.com/review/1")
+        """gatewayのHTTP最終失敗後も呼び出し元は継続する."""
+        mock_post.side_effect = requests.HTTPError(
+            "server error",
+            response=MagicMock(status_code=500),
+        )
+        _send_discord_notification_for_new_application(
+            self.event_detail,
+            "https://example.com/review/1",
+        )
         mock_post.assert_called_once()
 
 
-class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
+class DiscordNotificationForResultTest(TestCase):
     """_send_discord_notification_for_result の承認/却下分岐"""
 
     def setUp(self):
@@ -273,17 +267,17 @@ class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
         self.community = _make_community(owner=self.owner, webhook_url=WEBHOOK_URL)
         self.event = _make_event(self.community)
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     def test_approved_uses_green_color(self, mock_post):
         """承認時の embed color が緑 (5763719)"""
         event_detail = _make_event_detail(self.event, applicant=self.applicant, status="approved")
         mock_post.return_value = MagicMock(ok=True, status_code=200)
         _send_discord_notification_for_result(event_detail)
-        payload = mock_post.call_args.kwargs["json"]
+        payload = mock_post.call_args.args[1]
         self.assertEqual(payload["embeds"][0]["color"], 5763719)
         self.assertIn("✅", payload["embeds"][0]["title"])
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     def test_rejected_uses_red_color_and_includes_reason(self, mock_post):
         """却下時の embed color が赤 (15548997)、却下理由が fields に含まれる"""
         event_detail = _make_event_detail(self.event, applicant=self.applicant, status="rejected")
@@ -291,7 +285,7 @@ class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
         event_detail.save()
         mock_post.return_value = MagicMock(ok=True, status_code=200)
         _send_discord_notification_for_result(event_detail)
-        payload = mock_post.call_args.kwargs["json"]
+        payload = mock_post.call_args.args[1]
         self.assertEqual(payload["embeds"][0]["color"], 15548997)
         self.assertIn("❌", payload["embeds"][0]["title"])
         reason_field = next(
@@ -301,7 +295,7 @@ class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
         self.assertIsNotNone(reason_field)
         self.assertEqual(reason_field["value"], "テーマが要件に合致しません")
 
-    @patch("event.notifications.requests.post")
+    @patch("event.notifications.post_discord_webhook")
     def test_skipped_when_webhook_url_empty(self, mock_post):
         """webhook_url 空なら POST されない"""
         self.community.notification_webhook_url = ""
@@ -311,77 +305,63 @@ class DiscordNotificationForResultTest(TweetGenerationPatchMixin, TestCase):
         mock_post.assert_not_called()
 
 
-class DiscordWebhookRetryTest(TweetGenerationPatchMixin, TestCase):
-    """tenacity リトライ機構の挙動検証
-
-    一過性ネットワーク失敗で webhook が永遠に失われる問題を解消するため、
-    `_post_discord_webhook` に tenacity による 3 回まで指数バックオフリトライを
-    導入した。本テストはその振る舞いを mock で検証する。
-    """
+class DiscordWebhookSafeLoggingTest(TestCase):
+    """event.notifications の3つのWebhook経路で安全な最終ログを検証する."""
 
     def setUp(self):
         self.owner = _make_user("owner1", "owner1@example.com")
         self.applicant = _make_user("applicant1", "applicant1@example.com")
-        self.community = _make_community(owner=self.owner, webhook_url=WEBHOOK_URL)
+        self.community = _make_community(
+            owner=self.owner,
+            webhook_url=WEBHOOK_URL,
+        )
         self.event = _make_event(self.community)
-        self.event_detail = _make_event_detail(self.event, applicant=self.applicant)
-
-        # tenacity 内部の sleep を 0 秒化（テスト高速化）
-        from event.notifications import _post_discord_webhook
-        self._wrapped = _post_discord_webhook
-        self._original_sleep = self._wrapped.retry.sleep
-        self._wrapped.retry.sleep = lambda *args, **kwargs: None
-
-    def tearDown(self):
-        # sleep を元に戻す（他テストへの副作用を防ぐ）
-        self._wrapped.retry.sleep = self._original_sleep
-
-    @patch("event.notifications.requests.post")
-    def test_retries_until_success_on_second_attempt(self, mock_post):
-        """1 回目失敗 → 2 回目成功でリトライが動作する"""
-        success_response = MagicMock(ok=True, status_code=200)
-        # raise_for_status は成功時は何もしない（デフォルト MagicMock 挙動）
-        mock_post.side_effect = [
-            requests.RequestException("transient network error"),
-            success_response,
-        ]
-        _send_discord_notification_for_new_application(
-            self.event_detail, "https://example.com/review/1"
+        self.event_detail = _make_event_detail(
+            self.event,
+            applicant=self.applicant,
+            status="approved",
         )
-        # 2 回呼ばれた（1 回目失敗 + 2 回目成功）
-        self.assertEqual(mock_post.call_count, 2)
 
-    @patch("event.notifications.requests.post")
-    def test_silent_failure_after_three_consecutive_failures(self, mock_post):
-        """3 回連続失敗で例外を吸い込み silent failure になる"""
-        mock_post.side_effect = requests.RequestException("network down")
-        # 例外を投げずに完了する（呼び出し元の try/except が最終失敗をキャッチ）
-        _send_discord_notification_for_new_application(
-            self.event_detail, "https://example.com/review/1"
+    @patch("event.notifications.post_discord_webhook")
+    def test_all_webhook_failures_exclude_url_and_exception_message(self, mock_post):
+        """全3経路の最終ログからURL・token・例外本文・tracebackを除外する."""
+        sensitive_url = "https://discord.com/api/webhooks/123456789/secret-token"
+        senders = (
+            (
+                "new_application",
+                lambda: _send_discord_notification_for_new_application(
+                    self.event_detail,
+                    "https://example.com/review/1",
+                ),
+            ),
+            (
+                "application_result",
+                lambda: _send_discord_notification_for_result(self.event_detail),
+            ),
+            (
+                "slide_published",
+                lambda: notify_slide_material_published(self.event_detail),
+            ),
         )
-        # 3 回再試行された（初回 + リトライ2回）
-        self.assertEqual(mock_post.call_count, 3)
+        for label, send in senders:
+            with self.subTest(label=label):
+                mock_post.reset_mock()
+                mock_post.side_effect = requests.RequestException(
+                    f"request failed for {sensitive_url}",
+                )
+                with self.assertLogs(
+                    "event.notifications",
+                    level="ERROR",
+                ) as log_context:
+                    send()
 
-    @patch("event.notifications.requests.post")
-    def test_no_retry_on_first_success(self, mock_post):
-        """1 回成功時の挙動が変わらない（後方互換性: リトライ無し）"""
-        mock_post.return_value = MagicMock(ok=True, status_code=200)
-        _send_discord_notification_for_new_application(
-            self.event_detail, "https://example.com/review/1"
-        )
-        # 成功なら 1 回しか呼ばれない（リトライしない）
-        self.assertEqual(mock_post.call_count, 1)
-
-    @patch("event.notifications.requests.post")
-    def test_retries_on_timeout_exception(self, mock_post):
-        """requests.Timeout もリトライ対象になる"""
-        mock_post.side_effect = [
-            requests.Timeout("read timeout"),
-            requests.Timeout("read timeout"),
-            MagicMock(ok=True, status_code=200),
-        ]
-        _send_discord_notification_for_new_application(
-            self.event_detail, "https://example.com/review/1"
-        )
-        # 3 回で成功
-        self.assertEqual(mock_post.call_count, 3)
+                logs = "\n".join(log_context.output)
+                mock_post.assert_called_once()
+                self.assertIn(f"community_id={self.community.pk}", logs)
+                self.assertIn(f"event_detail_id={self.event_detail.pk}", logs)
+                self.assertIn("error_type=RequestException", logs)
+                self.assertIn("status_code=None", logs)
+                self.assertNotIn(sensitive_url, logs)
+                self.assertNotIn("secret-token", logs)
+                self.assertNotIn("request failed", logs)
+                self.assertNotIn("Traceback", logs)

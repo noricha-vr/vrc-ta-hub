@@ -26,7 +26,8 @@ from ..forms_processor import (
 )
 from ..forms import CommunitySearchForm, CommunityUpdateForm, CommunityCreateForm
 from ..libs import get_join_type
-from ..models import Community, WEEKDAY_CHOICES
+from ..constants import WEEKDAY_CHOICES
+from ..models import Community
 
 logger = logging.getLogger(__name__)
 

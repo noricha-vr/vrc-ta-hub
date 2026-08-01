@@ -6,11 +6,10 @@ from django.urls import reverse
 
 from community.models import Community
 from event.models import Event, EventDetail
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 
 
 @override_settings(ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
-class EventDetailHistoryRateLimitTest(TweetGenerationPatchMixin, TestCase):
+class EventDetailHistoryRateLimitTest(TestCase):
     def setUp(self):
         cache.clear()
         self.client = Client()
@@ -67,7 +66,7 @@ class EventDetailHistoryRateLimitTest(TweetGenerationPatchMixin, TestCase):
 
 
 @override_settings(ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
-class EventDetailHistoryQueryBloatPreventionTest(TweetGenerationPatchMixin, TestCase):
+class EventDetailHistoryQueryBloatPreventionTest(TestCase):
     def setUp(self):
         cache.clear()
         self.client = Client()

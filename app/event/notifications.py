@@ -9,26 +9,12 @@ from django.urls import reverse
 
 from event.models import EventDetail
 from website.constants import build_site_url
-from website.retry import retry_webhook_post
+from website.discord_webhook import (
+    get_webhook_error_context,
+    post_discord_webhook,
+)
 
 logger = logging.getLogger(__name__)
-
-# Discord Webhook送信タイムアウト（秒）
-DISCORD_TIMEOUT_SECONDS = 10
-
-
-@retry_webhook_post
-def _post_discord_webhook(webhook_url: str, payload: dict) -> requests.Response:
-    """Discord Webhook へ POST する内部ヘルパー（tenacity リトライ付き）.
-
-    HTTP エラー (4xx/5xx) も raise_for_status で例外化し、リトライ対象とする。
-    最終的に失敗した場合は requests.RequestException 系を再送出する。
-    """
-    response = requests.post(
-        webhook_url, json=payload, timeout=DISCORD_TIMEOUT_SECONDS
-    )
-    response.raise_for_status()
-    return response
 
 
 def _build_absolute_url(url: str) -> str:
@@ -259,17 +245,33 @@ def _send_discord_notification_for_new_application(
     }
 
     try:
-        response = _post_discord_webhook(webhook_url, message)
+        response = post_discord_webhook(webhook_url, message)
         # raise_for_status を通っているので response.ok は常に True
         logger.info(
             f"Discord Webhook通知成功（新規申請）: Community={community.name}, "
             f"status={response.status_code}"
         )
-    except requests.RequestException as e:
-        # tenacity が 3 回まで再試行した上での最終失敗のみここに到達する
-        logger.error(f"Discord Webhook通知エラー（新規申請、リトライ後）: {e}")
-    except Exception as e:
-        logger.error(f"Discord Webhook通知エラー（新規申請）: {e}")
+    except requests.RequestException as error:
+        # gateway で回復できなかった最終失敗のみここに到達する
+        error_type, status_code = get_webhook_error_context(error)
+        logger.error(
+            "Discord Webhook通知エラー（新規申請、リトライ後）: "
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
+            error_type,
+            status_code,
+        )
+    except Exception as error:
+        error_type, status_code = get_webhook_error_context(error)
+        logger.error(
+            "Discord Webhook通知エラー（新規申請）: "
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
+            error_type,
+            status_code,
+        )
 
 
 def _send_discord_notification_for_result(event_detail: EventDetail) -> None:
@@ -314,16 +316,32 @@ def _send_discord_notification_for_result(event_detail: EventDetail) -> None:
     }
 
     try:
-        _post_discord_webhook(webhook_url, message)
+        post_discord_webhook(webhook_url, message)
         logger.info(
             f"Discord Webhook通知成功（申請結果）: Community={community.name}, "
             f"status={event_detail.status}"
         )
-    except requests.RequestException as e:
-        # tenacity が 3 回まで再試行した上での最終失敗のみここに到達する
-        logger.error(f"Discord Webhook通知エラー（申請結果、リトライ後）: {e}")
-    except Exception as e:
-        logger.error(f"Discord Webhook通知エラー（申請結果）: {e}")
+    except requests.RequestException as error:
+        # gateway で回復できなかった最終失敗のみここに到達する
+        error_type, status_code = get_webhook_error_context(error)
+        logger.error(
+            "Discord Webhook通知エラー（申請結果、リトライ後）: "
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
+            error_type,
+            status_code,
+        )
+    except Exception as error:
+        error_type, status_code = get_webhook_error_context(error)
+        logger.error(
+            "Discord Webhook通知エラー（申請結果）: "
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
+            error_type,
+            status_code,
+        )
 
 
 def notify_slide_material_published(event_detail: EventDetail) -> None:
@@ -384,22 +402,30 @@ def notify_slide_material_published(event_detail: EventDetail) -> None:
     }
 
     try:
-        _post_discord_webhook(webhook_url, message)
+        post_discord_webhook(webhook_url, message)
         logger.info(
             "Discord Webhook通知成功（資料公開）: Community=%s, EventDetail=%s",
             community.name,
             event_detail.pk,
         )
-    except requests.RequestException as e:
-        # tenacity が 3 回まで再試行した上での最終失敗のみここに到達する
+    except requests.RequestException as error:
+        # gateway で回復できなかった最終失敗のみここに到達する
+        error_type, status_code = get_webhook_error_context(error)
         logger.error(
-            "Discord Webhook通知エラー（資料公開、リトライ後）: EventDetail=%s, error=%s",
+            "Discord Webhook通知エラー（資料公開、リトライ後）: "
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
             event_detail.pk,
-            e,
+            error_type,
+            status_code,
         )
-    except Exception as e:
+    except Exception as error:
+        error_type, status_code = get_webhook_error_context(error)
         logger.error(
-            "Discord Webhook通知エラー（資料公開）: EventDetail=%s, error=%s",
+            "Discord Webhook通知エラー（資料公開）: "
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
             event_detail.pk,
-            e,
+            error_type,
+            status_code,
         )

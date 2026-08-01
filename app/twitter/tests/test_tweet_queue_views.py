@@ -7,8 +7,9 @@
 import datetime
 from unittest.mock import MagicMock, patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -382,12 +383,15 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         self.assertEqual(self.queue_item.tweet_id, '12345678')
         self.assertIsNotNone(self.queue_item.posted_at)
 
+    @override_settings(DISCORD_WEBHOOK_URL='https://discord.com/api/webhooks/test/token')
+    @patch('twitter.notifications.post_discord_webhook')
     @patch('twitter.views.post_tweet')
     @patch('twitter.views.upload_media')
-    def test_post_now_failure(self, mock_upload, mock_post):
-        """手動投稿が失敗した場合は元ステータスを維持する"""
+    def test_post_now_failure(self, mock_upload, mock_post, mock_webhook_post):
+        """手動投稿が失敗した場合は元ステータスを維持し管理者へ通知する"""
         mock_post.return_value = {'ok': False, 'data': None, 'status_code': 403, 'error_body': 'Forbidden'}
         mock_upload.return_value = None
+        mock_webhook_post.return_value = MagicMock(status_code=204)
 
         self.client.login(username='admin_user', password='testpassword')
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
@@ -397,6 +401,12 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         self.queue_item.refresh_from_db()
         self.assertEqual(self.queue_item.status, 'ready')
         self.assertIn('X API', self.queue_item.error_message)
+
+        mock_webhook_post.assert_called_once()
+        self.assertEqual(
+            mock_webhook_post.call_args.args[0],
+            settings.DISCORD_WEBHOOK_URL,
+        )
 
     @patch('twitter.views.post_tweet')
     @patch('twitter.views.upload_media')

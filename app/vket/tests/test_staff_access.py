@@ -9,7 +9,12 @@ from django.utils import timezone
 
 from community.models import Community, CommunityMember
 from event.models import Event
-from vket.models import VketCollaboration, VketParticipation, VketPresentation
+from vket.models import (
+    VketCollaboration,
+    VketNotice,
+    VketParticipation,
+    VketPresentation,
+)
 
 User = get_user_model()
 
@@ -230,3 +235,101 @@ class StaffCollaborationDetailViewTests(StaffAccessTestBase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['can_apply'])
+
+
+class VketStaffAccessTests(TestCase):
+    """is_staff=True, is_superuser=False のユーザーで管理機能にアクセスできることを検証."""
+
+    def setUp(self):
+        self.client = Client()
+        self.staff_user = User.objects.create_user(
+            user_name='staff_user',
+            email='staff@example.com',
+            password='staffpass123',
+            is_staff=True,
+        )
+
+        self.community = Community.objects.create(
+            name='Staff集会',
+            status='approved',
+            frequency='毎週',
+        )
+
+        today = timezone.localdate()
+        self.collaboration = VketCollaboration.objects.create(
+            slug='vket-staff-test',
+            name='Vket Staff Test',
+            period_start=today,
+            period_end=today + timedelta(days=7),
+            registration_deadline=today + timedelta(days=1),
+            lt_deadline=today + timedelta(days=3),
+            phase=VketCollaboration.Phase.ENTRY_OPEN,
+        )
+        self.draft_collaboration = VketCollaboration.objects.create(
+            slug='vket-staff-draft',
+            name='Vket Staff Draft',
+            period_start=today,
+            period_end=today + timedelta(days=7),
+            registration_deadline=today + timedelta(days=1),
+            lt_deadline=today + timedelta(days=3),
+            phase=VketCollaboration.Phase.DRAFT,
+        )
+
+        self.event = Event.objects.create(
+            community=self.community,
+            date=today,
+            start_time='21:00',
+            duration=60,
+        )
+        self.participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            published_event=self.event,
+            confirmed_date=today,
+            confirmed_start_time='21:00',
+            confirmed_duration=60,
+        )
+
+        self.notice = VketNotice.objects.create(
+            collaboration=self.collaboration,
+            title='Staff通知テスト',
+            body='テスト本文',
+            created_by=self.staff_user,
+        )
+
+    def test_staff_can_access_manage_page(self):
+        """staffユーザーが管理画面にアクセスできる"""
+        self.client.login(username='staff_user', password='staffpass123')
+        response = self.client.get(reverse('vket:manage', kwargs={'pk': self.collaboration.pk}))
+        self.assertEqual(response.status_code, 200)
+
+    def test_staff_can_see_draft_collaboration(self):
+        """staffユーザーにDRAFTコラボが表示される"""
+        self.client.login(username='staff_user', password='staffpass123')
+        response = self.client.get(reverse('vket:list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.draft_collaboration.name)
+
+    def test_staff_can_access_manage_notice_list(self):
+        """staffユーザーが管理用お知らせ一覧にアクセスできる"""
+        self.client.login(username='staff_user', password='staffpass123')
+        response = self.client.get(
+            reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_staff_sees_admin_link_on_participation_status(self):
+        """staffユーザーの参加状況ページに管理リンクが表示される"""
+        CommunityMember.objects.create(
+            community=self.community,
+            user=self.staff_user,
+            role=CommunityMember.Role.OWNER,
+        )
+        self.client.login(username='staff_user', password='staffpass123')
+        session = self.client.session
+        session['active_community_id'] = self.community.id
+        session.save()
+
+        response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '管理')

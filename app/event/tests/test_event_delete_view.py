@@ -1,17 +1,18 @@
 """EventDeleteViewの権限テスト"""
-from datetime import date, time
+from datetime import date, time, timedelta
+from unittest.mock import patch
 
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 
 from community.models import Community, CommunityMember
-from event.models import Event
-from event.tests.tweet_generation import TweetGenerationPatchMixin
+from event.models import Event, EventOccurrenceTombstone, RecurrenceRule
+from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
 
-class EventDeleteViewPermissionTest(TweetGenerationPatchMixin, TestCase):
+class EventDeleteViewPermissionTest(TestCase):
     """EventDeleteViewの権限チェックテスト"""
 
     def setUp(self):
@@ -79,6 +80,288 @@ class EventDeleteViewPermissionTest(TweetGenerationPatchMixin, TestCase):
 
         # イベントが削除されたことを確認
         self.assertFalse(Event.objects.filter(pk=self.event.pk).exists())
+        self.assertTrue(
+            EventOccurrenceTombstone.objects.filter(
+                community=self.community,
+                date=self.event.date,
+                reason=EventOccurrenceTombstone.Reason.DELETED,
+            ).exists()
+        )
+
+    def test_master_delete_records_cascade_occurrences(self):
+        """親削除はCASCADEされる子開催回もtombstoneへ記録する"""
+        rule = RecurrenceRule.objects.create(
+            community=self.community,
+            frequency='WEEKLY',
+        )
+        self.event.is_recurring_master = True
+        self.event.recurrence_rule = rule
+        self.event.save(update_fields=['is_recurring_master', 'recurrence_rule'])
+        child_date = self.event.date + timedelta(days=7)
+        child = Event.objects.create(
+            community=self.community,
+            date=child_date,
+            start_time=self.event.start_time,
+            duration=60,
+            recurring_master=self.event,
+        )
+        self.client.login(username='Owner User', password='ownerpass123')
+
+        response = self.client.post(
+            reverse('event:delete', kwargs={'pk': self.event.pk})
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Event.objects.filter(pk=child.pk).exists())
+        self.assertEqual(
+            set(
+                EventOccurrenceTombstone.objects.filter(
+                    community=self.community,
+                ).values_list('date', flat=True)
+            ),
+            {self.event.date, child_date},
+        )
+
+    def test_delete_subsequent_records_each_target_date(self):
+        """以降も削除する場合は各開催日をtombstoneへ記録する"""
+        subsequent_dates = [
+            self.event.date + timedelta(days=7),
+            self.event.date + timedelta(days=14),
+        ]
+        for target_date in subsequent_dates:
+            Event.objects.create(
+                community=self.community,
+                date=target_date,
+                start_time=self.event.start_time,
+                duration=60,
+            )
+        self.client.login(username='Owner User', password='ownerpass123')
+
+        self.client.post(
+            reverse('event:delete', kwargs={'pk': self.event.pk}),
+            {'delete_subsequent': 'on'},
+        )
+
+        self.assertEqual(
+            set(
+                EventOccurrenceTombstone.objects.filter(
+                    community=self.community,
+                ).values_list('date', flat=True)
+            ),
+            {self.event.date, *subsequent_dates},
+        )
+
+    @patch('event.views.crud_event.GoogleCalendarService')
+    def test_google_delete_failure_keeps_database_delete(
+        self,
+        calendar_service_class,
+    ):
+        """Google削除失敗時もDB削除とtombstoneを維持する"""
+        self.event.google_calendar_event_id = 'google-event-id'
+        self.event.save(update_fields=['google_calendar_event_id'])
+        calendar_service_class.return_value.delete_event.side_effect = RuntimeError(
+            'calendar unavailable'
+        )
+        self.client.login(username='Owner User', password='ownerpass123')
+
+        response = self.client.post(
+            reverse('event:delete', kwargs={'pk': self.event.pk}),
+            follow=True,
+        )
+
+        self.assertFalse(Event.objects.filter(pk=self.event.pk).exists())
+        self.assertTrue(
+            EventOccurrenceTombstone.objects.filter(
+                community=self.community,
+                date=self.event.date,
+            ).exists()
+        )
+        self.assertContains(response, 'Googleカレンダー削除に失敗しました')
+        self.assertContains(response, '後続の同期で再反映します')
+
+    @patch('event.views.crud_event.GoogleCalendarService')
+    def test_partial_google_failure_does_not_restore_cascade(
+        self,
+        calendar_service_class,
+    ):
+        """Googleの一部失敗でも親子のDB削除を維持する"""
+        rule = RecurrenceRule.objects.create(
+            community=self.community,
+            frequency='WEEKLY',
+        )
+        self.event.is_recurring_master = True
+        self.event.recurrence_rule = rule
+        self.event.google_calendar_event_id = 'google-master-id'
+        self.event.save(
+            update_fields=[
+                'is_recurring_master',
+                'recurrence_rule',
+                'google_calendar_event_id',
+            ]
+        )
+        child_date = self.event.date + timedelta(days=7)
+        child = Event.objects.create(
+            community=self.community,
+            date=child_date,
+            start_time=self.event.start_time,
+            duration=60,
+            recurring_master=self.event,
+            google_calendar_event_id='google-child-id',
+        )
+
+        def delete_after_database_commit(event_id):
+            self.assertFalse(Event.objects.filter(pk=self.event.pk).exists())
+            self.assertFalse(Event.objects.filter(pk=child.pk).exists())
+            self.assertEqual(
+                EventOccurrenceTombstone.objects.filter(
+                    community=self.community,
+                ).count(),
+                2,
+            )
+            if event_id == 'google-child-id':
+                raise RuntimeError('calendar unavailable')
+
+        calendar_service_class.return_value.delete_event.side_effect = (
+            delete_after_database_commit
+        )
+        self.client.login(username='Owner User', password='ownerpass123')
+
+        response = self.client.post(
+            reverse('event:delete', kwargs={'pk': self.event.pk}),
+            follow=True,
+        )
+
+        self.assertFalse(Event.objects.filter(pk=self.event.pk).exists())
+        self.assertFalse(Event.objects.filter(pk=child.pk).exists())
+        self.assertEqual(
+            EventOccurrenceTombstone.objects.filter(
+                community=self.community,
+            ).count(),
+            2,
+        )
+        self.assertEqual(
+            calendar_service_class.return_value.delete_event.call_count,
+            2,
+        )
+        self.assertContains(response, '1件のGoogleカレンダー削除に失敗しました')
+
+    @patch('event.views.crud_event.GoogleCalendarService')
+    def test_master_delete_rejects_locked_child_cascade(
+        self,
+        calendar_service_class,
+    ):
+        """Vketロック中の子があれば親子とも削除しない"""
+        rule = RecurrenceRule.objects.create(
+            community=self.community,
+            frequency='WEEKLY',
+        )
+        self.event.is_recurring_master = True
+        self.event.recurrence_rule = rule
+        self.event.google_calendar_event_id = 'google-master-id'
+        self.event.save(
+            update_fields=[
+                'is_recurring_master',
+                'recurrence_rule',
+                'google_calendar_event_id',
+            ]
+        )
+        locked_date = date.today() + timedelta(days=1)
+        child = Event.objects.create(
+            community=self.community,
+            date=locked_date,
+            start_time=self.event.start_time,
+            duration=60,
+            recurring_master=self.event,
+            google_calendar_event_id='google-child-id',
+        )
+        collaboration = VketCollaboration.objects.create(
+            slug='locked-child-cascade',
+            name='Vket子開催回ロック',
+            period_start=locked_date,
+            period_end=locked_date,
+            registration_deadline=locked_date,
+            lt_deadline=locked_date,
+        )
+        VketParticipation.objects.create(
+            collaboration=collaboration,
+            community=self.community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+        self.client.login(username='Owner User', password='ownerpass123')
+
+        response = self.client.post(
+            reverse('event:delete', kwargs={'pk': self.event.pk}),
+            follow=True,
+        )
+
+        self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
+        self.assertTrue(Event.objects.filter(pk=child.pk).exists())
+        self.assertFalse(EventOccurrenceTombstone.objects.exists())
+        calendar_service_class.return_value.delete_event.assert_not_called()
+        self.assertContains(response, '親イベントを含む削除を中止しました')
+
+    @patch('event.views.crud_event.GoogleCalendarService')
+    def test_cascade_abort_does_not_skip_unlocked_child(
+        self,
+        calendar_service_class,
+    ):
+        """親削除がロックで中止されても、ロック外の子は個別に削除される
+
+        中止した cascade の開催回を processed 済み扱いにすると、同一リクエストの
+        後続ループで未削除の子がスキップされ「消えたはずが残る」不整合になるため。
+        """
+        rule = RecurrenceRule.objects.create(
+            community=self.community,
+            frequency='WEEKLY',
+        )
+        self.event.is_recurring_master = True
+        self.event.recurrence_rule = rule
+        self.event.save(update_fields=['is_recurring_master', 'recurrence_rule'])
+
+        # ロック期間内の子（この子のせいで親の cascade 削除が中止される）
+        locked_date = date.today() + timedelta(days=1)
+        locked_child = Event.objects.create(
+            community=self.community,
+            date=locked_date,
+            start_time=self.event.start_time,
+            duration=60,
+            recurring_master=self.event,
+        )
+        # ロック期間外の子（親の cascade には含まれるが、単体では削除可能）
+        unlocked_date = date.today() + timedelta(days=30)
+        unlocked_child = Event.objects.create(
+            community=self.community,
+            date=unlocked_date,
+            start_time=self.event.start_time,
+            duration=60,
+            recurring_master=self.event,
+        )
+        collaboration = VketCollaboration.objects.create(
+            slug='cascade-abort-child',
+            name='Vket子開催回ロック',
+            period_start=locked_date,
+            period_end=locked_date,
+            registration_deadline=locked_date,
+            lt_deadline=locked_date,
+        )
+        VketParticipation.objects.create(
+            collaboration=collaboration,
+            community=self.community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+        self.client.login(username='Owner User', password='ownerpass123')
+
+        self.client.post(
+            reverse('event:delete', kwargs={'pk': self.event.pk}),
+            {'delete_subsequent': 'on'},
+            follow=True,
+        )
+
+        # 親とロック中の子は残る（cascade 中止）
+        self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
+        self.assertTrue(Event.objects.filter(pk=locked_child.pk).exists())
+        # ロック外の子は後続ループで個別に削除される
+        self.assertFalse(Event.objects.filter(pk=unlocked_child.pk).exists())
 
     def test_staff_cannot_delete_event(self):
         """スタッフはイベントを削除できない"""
@@ -119,7 +402,7 @@ class EventDeleteViewPermissionTest(TweetGenerationPatchMixin, TestCase):
         self.assertTrue(Event.objects.filter(pk=self.event.pk).exists())
 
 
-class EventDeleteViewMultipleOwnersTest(TweetGenerationPatchMixin, TestCase):
+class EventDeleteViewMultipleOwnersTest(TestCase):
     """複数主催者がいる場合のEventDeleteViewテスト"""
 
     def setUp(self):

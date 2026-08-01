@@ -3,11 +3,14 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path
 from django.views.generic import TemplateView
+from ta_hub.views_llm import IndexMarkdownView, LlmsTxtView
 from ta_hub.views import IndexView, favicon_view, apple_touch_icon_view
 
 app_name = 'ta_hub'
 urlpatterns = [
     path('', IndexView.as_view(), name='index'),
+    path('llms.txt', LlmsTxtView.as_view(), name='llms_txt'),
+    path('index.md', IndexMarkdownView.as_view(), name='index_md'),
                 path('about/', TemplateView.as_view(template_name='ta_hub/about.html'), name='about'),
                 path('privacy/', TemplateView.as_view(template_name='ta_hub/privacy.html'), name='privacy'),
                 path('terms/', TemplateView.as_view(template_name='ta_hub/terms.html'), name='terms'),

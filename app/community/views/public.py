@@ -19,7 +19,8 @@ from url_filters import get_filtered_url
 
 from ..forms import CommunitySearchForm
 from ..libs import get_join_type
-from ..models import Community, WEEKDAY_CHOICES, TAGS
+from ..constants import WEEKDAY_CHOICES
+from ..models import Community, TAGS
 
 logger = logging.getLogger(__name__)
 

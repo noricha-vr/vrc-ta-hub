@@ -9,6 +9,12 @@ services:
       - ./app:/app
       - ./docs:/docs
       - ./cloudbuild.yaml:/cloudbuild.yaml:ro
+      # website.tests.test_ci_workflow が PROJECT_ROOT/.github/workflows/ci.yml を
+      # 静的検証するため、コンテナからも参照できるようにする
+      - ./.github:/.github:ro
+      # website.tests.test_script_exit_codes が PROJECT_ROOT/scripts の exit code 契約を
+      # 検証するため、コンテナからも参照できるようにする
+      - ./scripts:/scripts:ro
       # coverage 設定 (docs/coverage.md 参照)。コンテナ内で coverage コマンドを
       # 実行する際に `--rcfile=/pyproject.toml` で参照する
       - ./pyproject.toml:/pyproject.toml:ro

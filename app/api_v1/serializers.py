@@ -4,7 +4,8 @@ from urllib.parse import urlparse
 from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
-from community.models import Community, WEEKDAY_CHOICES
+from community.constants import WEEKDAY_JP, WEEKDAY_ORDER as WEEKDAY_SORT_ORDER
+from community.models import Community
 from event.models import Event, EventDetail, RecurrenceRule
 
 
@@ -89,17 +90,9 @@ class GatheringListSerializer(GatheringListSchemaSerializer):
         'tech': '技術系',
         'academic': '学術系',
     }
-    WEEKDAY_LABELS = dict(WEEKDAY_CHOICES)
-    WEEKDAY_ORDER = {
-        'Sun': 0,
-        'Mon': 1,
-        'Tue': 2,
-        'Wed': 3,
-        'Thu': 4,
-        'Fri': 5,
-        'Sat': 6,
-        'Other': 7,
-    }
+    # 曜日ラベル・並び順の正本は community.constants
+    WEEKDAY_LABELS = WEEKDAY_JP
+    WEEKDAY_ORDER = WEEKDAY_SORT_ORDER
 
     @classmethod
     def normalize_choice_list(cls, value):

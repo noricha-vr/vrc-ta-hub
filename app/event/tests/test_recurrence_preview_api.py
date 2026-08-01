@@ -5,11 +5,12 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from community.models import Community
 from event.models import Event
+from tests.live_smoke import require_live_smoke
 
 User = get_user_model()
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class TestRecurrencePreviewAPI(TestCase):
     """定期ルールプレビューAPIのテスト"""
     
@@ -42,6 +43,7 @@ class TestRecurrencePreviewAPI(TestCase):
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
     
+    @require_live_smoke("OPENROUTER_API_KEY")
     def test_recurrence_preview_with_custom_rule(self):
         """カスタムルールでのプレビューAPI"""
         response = self.client.post(

@@ -17,7 +17,10 @@ from django.urls import reverse
 from django.utils import timezone
 
 from event.community_cleanup import cleanup_community_future_data
-from website.retry import retry_webhook_post
+from website.discord_webhook import (
+    get_webhook_error_context,
+    post_discord_webhook,
+)
 
 from .models import Community, CommunityMember
 
@@ -25,23 +28,6 @@ logger = logging.getLogger(__name__)
 
 CleanupCommunityFutureData = Callable[..., dict[str, int]]
 UserLike = AbstractBaseUser | AnonymousUser
-
-# Discord Webhook 送信タイムアウト（秒）
-DISCORD_TIMEOUT_SECONDS = 10
-
-
-@retry_webhook_post
-def _post_discord_webhook(webhook_url: str, payload: dict) -> requests.Response:
-    """Discord Webhook へ POST する内部ヘルパー（tenacity リトライ付き）.
-
-    HTTP エラー (4xx/5xx) も raise_for_status で例外化し、リトライ対象とする。
-    最終的に失敗した場合は requests.RequestException 系を再送出する。
-    """
-    response = requests.post(
-        webhook_url, json=payload, timeout=DISCORD_TIMEOUT_SECONDS
-    )
-    response.raise_for_status()
-    return response
 
 
 def refresh_calendar_entry_and_event_cache(community: Community) -> None:
@@ -74,12 +60,25 @@ def notify_new_community_registration(community: Community, request: HttpRequest
                    f"承認ページ: {waiting_list_url}"
     }
     try:
-        _post_discord_webhook(settings.DISCORD_WEBHOOK_URL, discord_message)
-    except requests.RequestException as e:
-        # tenacity が 3 回まで再試行した上での最終失敗のみここに到達する
-        logger.warning(f'Discord通知送信失敗（リトライ後）: {e}')
-    except Exception as e:
-        logger.warning(f'Discord通知送信失敗: {e}')
+        post_discord_webhook(settings.DISCORD_WEBHOOK_URL, discord_message)
+    except requests.RequestException as error:
+        # gateway で回復できなかった最終失敗のみここに到達する
+        error_type, status_code = get_webhook_error_context(error)
+        logger.warning(
+            'Discord通知送信失敗（リトライ後）: '
+            'community_id=%s error_type=%s status_code=%s',
+            community.pk,
+            error_type,
+            status_code,
+        )
+    except Exception as error:
+        error_type, status_code = get_webhook_error_context(error)
+        logger.warning(
+            'Discord通知送信失敗: community_id=%s error_type=%s status_code=%s',
+            community.pk,
+            error_type,
+            status_code,
+        )
 
 
 def approve_community_registration(community: Community, request: HttpRequest) -> None:

@@ -184,7 +184,7 @@ def _post_tweet_queue_item(
     *,
     failure_status: str | None = 'failed',
 ) -> dict[str, object]:
-    """TweetQueue 1件を X API に投稿し、保存前の結果を返す."""
+    """TweetQueue 1件を X API に投稿し、保存済みの結果を返す."""
     return post_tweet_queue_item(
         queue_item,
         failure_status=failure_status,
@@ -444,11 +444,9 @@ class TweetQueueDetailView(TweetQueueViewerMixin, DetailView):
         result = _post_tweet_queue_item(self.object, failure_status=None)
 
         if result["status"] == "posted":
-            self.object.save()
             messages.success(self.request, 'ポストを投稿しました。')
             logger.info("Manual tweet posted for queue %d: %s", self.object.pk, self.object.tweet_id)
         else:
-            self.object.save(update_fields=['error_message'])
             messages.error(self.request, self.object.error_message)
             logger.warning("Manual tweet post failed for queue %d", self.object.pk)
 

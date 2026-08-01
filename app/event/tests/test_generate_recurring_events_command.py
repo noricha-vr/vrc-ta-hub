@@ -6,14 +6,14 @@ from django.test import TestCase, tag
 from django.utils import timezone
 from io import StringIO
 
+from community.constants import weekday_code
 from community.models import Community
-from event.models import Event, RecurrenceRule
-from event.tests.tweet_generation import TweetGenerationPatchMixin
+from event.models import Event, EventOccurrenceTombstone, RecurrenceRule
 from user_account.models import CustomUser
 
 
-@tag('external_api')
-class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
+@tag('offline_external_api')
+class GenerateRecurringEventsCommandTest(TestCase):
     def setUp(self):
         """テストデータのセットアップ"""
         # ユーザーとコミュニティを作成
@@ -82,6 +82,7 @@ class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
             self.assertEqual(event.start_time, time(21, 0))
             self.assertEqual(event.duration, 60)
             self.assertEqual(event.community, self.community)
+            self.assertEqual(event.weekday, weekday_code(event.date))
             
     def test_dry_run_option(self):
         """ドライランオプションのテスト"""
@@ -101,6 +102,8 @@ class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
         
     def test_reset_future_option(self):
         """未来のイベントリセットオプションのテスト"""
+        self.master_event.date = timezone.now().date() + timedelta(days=7)
+        self.master_event.save(update_fields=['date'])
         # 先に未来のイベントを作成
         future_date = timezone.now().date() + timedelta(days=14)
         future_event = Event.objects.create(
@@ -130,6 +133,11 @@ class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
             date__gte=timezone.now().date()
         )
         self.assertGreater(generated_events.count(), 0)
+        self.master_event.refresh_from_db()
+        self.assertEqual(
+            self.master_event.weekday,
+            weekday_code(self.master_event.date),
+        )
         
     def test_multiple_months_generation(self):
         """複数月の生成テスト"""
@@ -181,6 +189,117 @@ class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(first_dates, second_dates, 
                         "同じ日付範囲内で重複生成が発生しました")
         
+    def test_no_duplicate_when_start_time_edited_deterministic_rule(self):
+        """開始時刻を編集済みのイベントを重複生成しない（OTHER deterministic ルート）
+
+        deterministic な OTHER ルールでは base_date=today のため毎回今日以降の期待日リストを
+        再生成する。exists チェックが start_time で絞っていると、編集済みイベントを
+        見落として同日に別スロットが作られる。
+        """
+        today = timezone.now().date()
+
+        # deterministic に解釈できる custom_rule を使う OTHER ルールと集会を用意
+        # 「毎週月曜日」相当。まず deterministic として解釈できるか検証する。
+        det_community = Community.objects.create(
+            name='deterministic-community',
+            description='テスト用',
+            weekdays=['Mon'],
+            start_time=time(21, 0),
+            duration=60,
+            status='approved',
+        )
+        det_rule = RecurrenceRule.objects.create(
+            community=det_community,
+            frequency='OTHER',
+            interval=1,
+            custom_rule='毎週月曜日',
+        )
+
+        from event.recurrence_service import RecurrenceService
+        service = RecurrenceService()
+        if not service.has_deterministic_custom_rule(det_rule):
+            self.skipTest('deterministic parser がこのルールを解釈できないためスキップ')
+
+        # 今日の月曜起点のマスターイベント
+        days_since_monday = today.weekday()  # Monday=0
+        master_date = today - timedelta(days=days_since_monday + 7)
+        det_master = Event.objects.create(
+            community=det_community,
+            date=master_date,
+            start_time=time(21, 0),
+            duration=60,
+            weekday='MON',
+            is_recurring_master=True,
+            recurrence_rule=det_rule,
+        )
+
+        # 最初の生成
+        call_command('generate_recurring_events', '--months=1', stdout=StringIO())
+
+        # 生成済み未来イベントの 1 件を community.start_time (21:00) と別時刻に編集
+        edited_event = Event.objects.filter(
+            recurring_master=det_master,
+            date__gte=today,
+        ).order_by('date').first()
+        self.assertIsNotNone(edited_event, '前提: 未来イベントが生成されている')
+        edited_event.start_time = time(23, 30)
+        edited_event.save(update_fields=['start_time'])
+        edited_date = edited_event.date
+
+        # 再度コマンドを走らせる
+        call_command('generate_recurring_events', '--months=1', stdout=StringIO())
+
+        same_day_count = Event.objects.filter(
+            community=det_community,
+            date=edited_date,
+        ).count()
+        self.assertEqual(
+            same_day_count, 1,
+            '開始時刻を編集した日に別スロットが重複生成された',
+        )
+
+    def test_persistence_create_recurring_events_skips_by_date(self):
+        """persistence.create_recurring_events は日付単位で重複を判定する
+
+        同日にすでにイベントがあれば、start_time が異なっていても新規作成しない。
+        """
+        from event.recurrence.persistence import create_recurring_events
+
+        existing_date = timezone.now().date() + timedelta(days=5)
+        # 既存イベントを community.start_time と異なる時刻で作成
+        Event.objects.create(
+            community=self.community,
+            date=existing_date,
+            start_time=time(23, 30),  # community.start_time=21:00 とは別
+            duration=60,
+            weekday=existing_date.strftime('%a').upper()[:3],
+        )
+
+        # 同じ日付を含む dates リストで recurring 生成
+        new_dates = [
+            existing_date + timedelta(days=7),  # 新規（マスターになる）
+            existing_date,  # 既存日 → スキップされるべき
+        ]
+        created = create_recurring_events(
+            community=self.community,
+            rule=self.weekly_rule,
+            dates=new_dates,
+            start_time=self.community.start_time,
+            duration=60,
+        )
+
+        # 既存日 (existing_date) に別スロットが作られていないこと
+        same_day_count = Event.objects.filter(
+            community=self.community,
+            date=existing_date,
+        ).count()
+        self.assertEqual(
+            same_day_count, 1,
+            '同日に別 start_time のイベントが重複生成された',
+        )
+        # マスター (先頭の new date) は作成されている
+        self.assertEqual(len(created), 1)
+
     def test_biweekly_rule(self):
         """隔週ルールのテスト"""
         # 隔週用の独自Communityを作成（start_time/durationをマスターと変える）
@@ -451,4 +570,54 @@ class GenerateRecurringEventsCommandTest(TweetGenerationPatchMixin, TestCase):
                 date=first_expected_date,
             ).exists(),
             "未来に正しいイベントが残っている場合でも手前の欠損月を補完できていません"
+        )
+
+    def test_tombstone_skips_generation_and_removal_restores_occurrence(self):
+        """tombstone中は生成せず、解除後はdeterministicルールが欠損を自己回復する"""
+        community = Community.objects.create(
+            name='Tombstone自己回復集会',
+            start_time=time(22, 0),
+            duration=60,
+            status='approved',
+        )
+        rule = RecurrenceRule.objects.create(
+            community=community,
+            frequency='OTHER',
+            custom_rule='毎月11日',
+        )
+        today = timezone.localdate()
+        expected_date = today.replace(day=11)
+        if expected_date < today:
+            expected_date = self._shift_month(expected_date, 1)
+        master = Event.objects.create(
+            community=community,
+            date=self._shift_month(expected_date, -1),
+            start_time=time(22, 0),
+            duration=60,
+            weekday='MON',
+            is_recurring_master=True,
+            recurrence_rule=rule,
+        )
+        tombstone = EventOccurrenceTombstone.objects.create(
+            community=community,
+            date=expected_date,
+            original_start_time=time(22, 0),
+            reason=EventOccurrenceTombstone.Reason.DELETED,
+        )
+
+        call_command('generate_recurring_events', '--months=2')
+        self.assertFalse(
+            Event.objects.filter(
+                recurring_master=master,
+                date=expected_date,
+            ).exists()
+        )
+
+        tombstone.delete()
+        call_command('generate_recurring_events', '--months=2')
+        self.assertTrue(
+            Event.objects.filter(
+                recurring_master=master,
+                date=expected_date,
+            ).exists()
         )

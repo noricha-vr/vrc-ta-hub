@@ -8,13 +8,12 @@ from django.urls import reverse
 
 from community.models import Community
 from event.models import EventDetail, Event
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 from user_account.tests.utils import create_discord_linked_user
 
 User = get_user_model()
 
 
-class LTApplicationUserSyncTest(TweetGenerationPatchMixin, TestCase):
+class LTApplicationUserSyncTest(TestCase):
     """LT 申込フォーム送信時に user.display_name / x_account が更新されることを検証."""
 
     def setUp(self):

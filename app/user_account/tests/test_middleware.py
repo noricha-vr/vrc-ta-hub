@@ -4,6 +4,7 @@ from django.test import Client, TestCase, override_settings, tag
 from django.urls import reverse
 
 from allauth.socialaccount.models import SocialAccount
+from user_account.tests.utils import TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS
 
 User = get_user_model()
 
@@ -72,8 +73,11 @@ class DebugLoginSkipMiddlewareTests(TestCase):
         self.assertFalse(User.objects.filter(user_name='ai_agent').exists())
 
 
-@override_settings(DISCORD_AUTH_REQUIRED=True)
-@tag('external_api')
+@override_settings(
+    DISCORD_AUTH_REQUIRED=True,
+    SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS,
+)
+@tag('offline_external_api')
 class DiscordAuthRequiredMiddlewareTests(TestCase):
     """DiscordAuthRequiredMiddlewareのテストクラス.
 

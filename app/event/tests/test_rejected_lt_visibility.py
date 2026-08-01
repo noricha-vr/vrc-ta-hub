@@ -18,11 +18,10 @@ from django.urls import reverse
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
-from event.tests.tweet_generation import TweetGenerationPatchMixin
 
 User = get_user_model()
 
-class EventListViewFilterTest(TweetGenerationPatchMixin, TestCase):
+class EventListViewFilterTest(TestCase):
     """EventListView で承認済みのEventDetailのみ表示されるテスト"""
 
     def setUp(self):
@@ -101,7 +100,7 @@ class EventListViewFilterTest(TweetGenerationPatchMixin, TestCase):
             self.fail('テスト対象のイベントが一覧に見つからない')
 
 
-class EventDetailAPIPublicViewSetFilterTest(TweetGenerationPatchMixin, TestCase):
+class EventDetailAPIPublicViewSetFilterTest(TestCase):
     """公開API (EventDetailViewSet) で承認済みのEventDetailのみ返るテスト"""
 
     def setUp(self):
@@ -188,7 +187,7 @@ class EventDetailAPIPublicViewSetFilterTest(TweetGenerationPatchMixin, TestCase)
         self.assertEqual(response.status_code, 404)
 
 
-class TwitterUtilsFilterTest(TweetGenerationPatchMixin, TestCase):
+class TwitterUtilsFilterTest(TestCase):
     """twitter/utils.py の format_event_info で承認済みのみ取得するテスト"""
 
     def setUp(self):
@@ -266,7 +265,7 @@ class TwitterUtilsFilterTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(event_info['hashtag'], '#VRChat #TechMeetup')
 
 
-class CalendarUtilsFilterTest(TweetGenerationPatchMixin, TestCase):
+class CalendarUtilsFilterTest(TestCase):
     """calendar_utils.py の generate_google_calendar_url で承認済みのみ含むテスト"""
 
     def setUp(self):
@@ -396,7 +395,7 @@ def _create_test_image():
     return signature + _chunk(b'IHDR', ihdr_data) + _chunk(b'IDAT', idat_data) + _chunk(b'IEND', b'')
 
 
-class IndexViewLTFilterTest(TweetGenerationPatchMixin, TestCase):
+class IndexViewLTFilterTest(TestCase):
     """トップページのLT一覧で承認済みのEventDetailのみ表示されるテスト"""
 
     def setUp(self):
@@ -480,7 +479,7 @@ class IndexViewLTFilterTest(TweetGenerationPatchMixin, TestCase):
         self.assertNotIn('Pending Speaker', speakers)
 
 
-class IndexViewSpecialFilterTest(TweetGenerationPatchMixin, TestCase):
+class IndexViewSpecialFilterTest(TestCase):
     """トップページの特別企画で承認済みのEventDetailのみ表示されるテスト"""
 
     def setUp(self):
@@ -550,7 +549,7 @@ class IndexViewSpecialFilterTest(TweetGenerationPatchMixin, TestCase):
         self.assertNotIn('Rejected Special Event', themes)
 
 
-class EventDetailViewAccessTest(TweetGenerationPatchMixin, TestCase):
+class EventDetailViewAccessTest(TestCase):
     """EventDetailView で未認証ユーザーがrejected/pendingの詳細にアクセスすると404になるテスト"""
 
     def setUp(self):
@@ -723,7 +722,7 @@ class EventDetailViewAccessTest(TweetGenerationPatchMixin, TestCase):
         self.assertEqual(response.status_code, 200)
 
 
-class EventDetailPastListFilterTest(TweetGenerationPatchMixin, TestCase):
+class EventDetailPastListFilterTest(TestCase):
     """EventDetailPastList でapprovedのみ表示されるテスト"""
 
     def setUp(self):
@@ -793,7 +792,7 @@ class EventDetailPastListFilterTest(TweetGenerationPatchMixin, TestCase):
         self.assertNotIn(self.pending_detail.id, detail_ids)
 
 
-class EventLogListViewFilterTest(TweetGenerationPatchMixin, TestCase):
+class EventLogListViewFilterTest(TestCase):
     """EventLogListView でapprovedのみ表示されるテスト"""
 
     def setUp(self):
@@ -860,7 +859,7 @@ class EventLogListViewFilterTest(TweetGenerationPatchMixin, TestCase):
         self.assertNotIn(self.pending_special.id, log_ids)
 
 
-class SitemapFilterTest(TweetGenerationPatchMixin, TestCase):
+class SitemapFilterTest(TestCase):
     """サイトマップでapprovedのEventDetailのみ含まれるテスト"""
 
     def setUp(self):
@@ -930,7 +929,7 @@ class SitemapFilterTest(TweetGenerationPatchMixin, TestCase):
         self.assertNotIn(self.pending_detail.id, detail_ids)
 
 
-class RelatedEventDetailsFilterTest(TweetGenerationPatchMixin, TestCase):
+class RelatedEventDetailsFilterTest(TestCase):
     """EventDetailView._fetch_related_event_details で承認済みのみ返るテスト"""
 
     def setUp(self):

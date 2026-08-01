@@ -264,31 +264,16 @@
             opacity: 0.8;
         }
         
-        /* カードの統一ホバー効果 */
-        .card {
+        /* カードのホバー効果は opt-in（.shadow-hover を付けたカードのみ浮き上がる） */
+        .shadow-hover {
             transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
-        
-        .card:hover {
+
+        .shadow-hover:hover {
             transform: translateY(-4px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
-        
-        /* 特定ページのカードはホバー効果を無効化 */
-        .community-detail-card,
-        .community-detail-card:hover,
-        .community-table-card,
-        .community-table-card:hover,
-        .shadow-hover,
-        .shadow-hover.card:hover {
-            transform: none !important;
-        }
-        
-        .community-detail-card.shadow,
-        .community-table-card.shadow {
-            box-shadow: 0 .125rem .25rem rgba(0,0,0,.075) !important;
-        }
-        
+
         /* リストグループアイテムのホバー効果 */
         .list-group-item {
             transition: background-color 0.2s ease, transform 0.2s ease;

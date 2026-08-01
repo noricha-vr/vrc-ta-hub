@@ -4,6 +4,7 @@ LLM 呼び出し本体 (`_call_llm`) は `twitter.tweet_generator` 経由で参�
 これは `@patch("twitter.tweet_generator._call_llm")` を使う既存テストとの後方互換性のため。
 """
 
+from community.constants import weekday_code
 from twitter.generators.common import (
     WEEKDAY_NAMES,
     BODY_LINE_CONSTRAINT,
@@ -18,7 +19,7 @@ from website.constants import build_site_url
 def _fallback_presentation_tweet(event_detail, *, special: bool = False) -> str | None:
     event = event_detail.event
     community = event.community
-    weekday = WEEKDAY_NAMES.get(event.date.strftime("%a"), "")
+    weekday = WEEKDAY_NAMES.get(weekday_code(event.date), "")
     label = " 特別回" if special else ""
     speaker_display = _format_speaker_display(event_detail)
     body_lines = [
@@ -48,7 +49,7 @@ def generate_lt_tweet(event_detail, target_chars=140, validation_feedback="") ->
     community = event.community
     hashtag_suffix = _build_hashtag_suffix(community)
     community_url = build_site_url(f"/community/{community.pk}/")
-    weekday = WEEKDAY_NAMES.get(event.date.strftime("%a"), "")
+    weekday = WEEKDAY_NAMES.get(weekday_code(event.date), "")
 
     name = _sanitize_for_prompt(community.name)
     speaker_display = _format_speaker_display(event_detail)
@@ -113,7 +114,7 @@ def generate_special_event_tweet(event_detail, target_chars=140, validation_feed
     community = event.community
     hashtag_suffix = _build_hashtag_suffix(community)
     community_url = build_site_url(f"/community/{community.pk}/")
-    weekday = WEEKDAY_NAMES.get(event.date.strftime("%a"), "")
+    weekday = WEEKDAY_NAMES.get(weekday_code(event.date), "")
 
     name = _sanitize_for_prompt(community.name)
     speaker = _sanitize_for_prompt(event_detail.speaker)

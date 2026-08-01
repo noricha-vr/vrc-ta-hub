@@ -2,17 +2,20 @@
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory, TestCase, tag
+from django.test import RequestFactory, TestCase, override_settings, tag
 
 from allauth.socialaccount.models import SocialAccount
 from community.models import Community, CommunityMember
 from user_account.adapters import CustomSocialAccountAdapter
-from user_account.tests.utils import create_discord_linked_user
+from user_account.tests.utils import (
+    TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS,
+    create_discord_linked_user,
+)
 
 User = get_user_model()
 
 
-@tag('external_api')
+@tag('offline_external_api')
 class CustomSocialAccountAdapterTests(TestCase):
     """CustomSocialAccountAdapterのテストクラス."""
 
@@ -504,7 +507,8 @@ class CustomSocialAccountAdapterTests(TestCase):
         self.assertEqual(result, '/account/settings/')
 
 
-@tag('external_api')
+@override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
+@tag('offline_external_api')
 class DiscordLoginIntegrationTests(TestCase):
     """Discord OAuth統合テスト."""
 

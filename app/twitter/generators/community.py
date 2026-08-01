@@ -3,6 +3,7 @@
 新しく登録された集会の最初の告知。初回開催日が決まっていれば日程も含める。
 """
 
+from community.constants import weekday_code
 from twitter.generators.common import (
     WEEKDAY_NAMES,
     BODY_LINE_CONSTRAINT,
@@ -21,7 +22,7 @@ def _fallback_new_community_tweet(community, first_event=None) -> str | None:
     hashtag_suffix = _build_hashtag_suffix(community)
 
     if first_event:
-        weekday = WEEKDAY_NAMES.get(first_event.date.strftime("%a"), "")
+        weekday = WEEKDAY_NAMES.get(weekday_code(first_event.date), "")
         schedule = f"{first_event.date.strftime('%-m/%-d')}({weekday}) {first_event.start_time.strftime('%H:%M')}~"
     else:
         schedule = f"{community.frequency} {weekdays_str}曜日 {community.start_time.strftime('%H:%M')}~"
@@ -57,8 +58,9 @@ def generate_new_community_tweet(
 
     event_info = ""
     if first_event:
+        weekday = WEEKDAY_NAMES.get(weekday_code(first_event.date), "")
         event_info = (
-            f"\n初回開催日: {first_event.date.strftime('%-m/%-d')}({WEEKDAY_NAMES.get(first_event.date.strftime('%a'), '')})"
+            f"\n初回開催日: {first_event.date.strftime('%-m/%-d')}({weekday})"
             f" {first_event.start_time.strftime('%H:%M')}~"
         )
 

@@ -9,6 +9,8 @@
 
 import re
 
+from community.constants import WEEKDAY_ABBR
+
 MAX_TWEET_TOKENS = 280
 LLM_TEMPERATURE = 0.7
 SANITIZE_MAX_LENGTH = 200
@@ -19,9 +21,10 @@ RETRY_TARGET_CHARS_STEP = 20
 MAX_BODY_LINES = 3
 TRUNCATION_SUFFIX = "..."
 
+# 曜日略称の正本は community.constants。ツイート本文では 'Other'（その他）を
+# 曜日として表示しないため除外する。
 WEEKDAY_NAMES = {
-    "Sun": "日", "Mon": "月", "Tue": "火", "Wed": "水",
-    "Thu": "木", "Fri": "金", "Sat": "土",
+    code: label for code, label in WEEKDAY_ABBR.items() if code != "Other"
 }
 
 BODY_LINE_CONSTRAINT = (

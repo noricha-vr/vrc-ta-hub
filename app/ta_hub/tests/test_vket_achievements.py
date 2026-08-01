@@ -1,5 +1,8 @@
 """VKETコラボ実績セクションのテスト"""
 
+from datetime import datetime, timezone
+from unittest.mock import patch
+
 from django.test import TestCase, Client
 from django.urls import reverse
 
@@ -90,3 +93,21 @@ class VketAchievementsSectionTest(TestCase):
         self.assertContains(response, '活動履歴をもっと見る')
         activity_url = reverse('news:category_list', args=['activity'])
         self.assertContains(response, activity_url)
+
+
+class VketNoticeLayoutTest(TestCase):
+    """Vket告知見出しの装飾配置テスト"""
+
+    @patch(
+        'ta_hub.views.timezone.now',
+        return_value=datetime(2026, 7, 20, tzinfo=timezone.utc),
+    )
+    def test_sunflowers_use_three_column_heading_layout(self, _mock_now):
+        """ひまわりを見出しの上下ではなく左右に固定する"""
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="vket-notice-heading mb-2"')
+        self.assertContains(response, 'display: inline-grid;')
+        self.assertContains(response, 'grid-template-columns: auto minmax(0, auto) auto;')
+        self.assertContains(response, 'class="vket-notice-sunflower"', count=2)

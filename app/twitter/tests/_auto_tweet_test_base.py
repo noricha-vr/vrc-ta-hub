@@ -1,0 +1,79 @@
+"""自動投稿テストで共有するセットアップを提供する。"""
+
+import datetime
+
+from django.test import Client, TestCase, tag
+from django.utils import timezone
+
+from tests.factories import make_community, make_event, make_user
+
+
+@tag('offline_external_api')
+class AutoTweetTestBase(TestCase):
+    """テスト共通のセットアップ"""
+
+    def setUp(self):
+        self.client = Client()
+        self.owner = make_user(
+            user_name="auto_tweet_owner",
+            email="auto_tweet_owner@example.com",
+            password="testpassword",
+        )
+        # status=pending で作成 (承認前)
+        self.community = make_community(
+            name="Auto Tweet Community",
+            owner=self.owner,
+            start_time=datetime.time(22, 0),
+            duration=60,
+            weekdays=["Mon", "Thu"],
+            frequency="毎週",
+            organizers="Test Organizer",
+            description="テスト用の技術系集会です",
+            platform="All",
+            status="pending",
+            twitter_hashtag="TestMeetup",
+        )
+        self.event = make_event(
+            self.community,
+            event_date=datetime.date(2099, 5, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+            weekday="",
+            accepts_lt_application=True,
+        )
+
+    def due_scheduled_at(self):
+        return timezone.now() - datetime.timedelta(minutes=5)
+
+    def future_scheduled_at(self):
+        return timezone.now() + datetime.timedelta(hours=1)
+
+    def overdue_scheduled_at(self):
+        return timezone.now() - datetime.timedelta(hours=25)
+
+
+@tag('offline_external_api')
+class TweetGeneratorTestBase(TestCase):
+    """告知文生成テストで共有するセットアップを提供する。"""
+
+    def setUp(self):
+        self.community = make_community(
+            name="Generator Test Community",
+            start_time=datetime.time(22, 0),
+            duration=60,
+            weekdays=["Mon"],
+            frequency="毎週",
+            organizers="Test",
+            description="テスト用集会",
+            platform="All",
+            status="approved",
+            twitter_hashtag="GenTest",
+        )
+        self.event = make_event(
+            self.community,
+            event_date=datetime.date(2026, 5, 1),
+            start_time=datetime.time(22, 0),
+            duration=60,
+            weekday="",
+            accepts_lt_application=True,
+        )

@@ -1,6 +1,5 @@
-import os
 from datetime import date, time
-from django.test import TestCase, tag
+from django.test import TestCase
 from django.contrib.auth import get_user_model
 from community.models import Community
 from event.models import Event, RecurrenceRule
@@ -8,11 +7,12 @@ from event.models import Event, RecurrenceRule
 # calculator モジュール関数へ移動したため、モジュール関数を直接使う
 from event.recurrence.calculator import get_japanese_weekday, get_week_of_month
 from event.recurrence_service import RecurrenceService
+from tests.live_smoke import require_live_smoke
 
 User = get_user_model()
 
 
-@tag('external_api')
+@require_live_smoke("OPENROUTER_API_KEY")
 class TestRecurrenceLLMGeneration(TestCase):
     """実際のLLMを使用した定期ルール生成テスト"""
     
@@ -48,10 +48,6 @@ class TestRecurrenceLLMGeneration(TestCase):
     
     def test_real_llm_generation_for_monthly_pattern(self):
         """実際のLLMを使用して月次パターンの定期ルールを生成"""
-        # APIキーが設定されていない場合はスキップ
-        if not os.environ.get('OPENROUTER_API_KEY'):
-            self.skipTest("OPENROUTER_API_KEY not set")
-        
         # RecurrenceRuleを作成
         rule = RecurrenceRule.objects.create(
             community=self.community,

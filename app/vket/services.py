@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from community.constants import weekday_code
 from event.models import Event, EventDetail
 from vket.models import VketParticipation, VketPresentation
 
@@ -14,7 +15,7 @@ class VketPublicationSyncResult:
     changed_index_data: bool
 
 
-def get_vket_lock_info(event) -> tuple[bool, str]:
+def get_vket_lock_info(event, *, date=None) -> tuple[bool, str]:
     """Vketコラボ期間中のイベントかどうかを判定し、ロックメッセージを返す。
 
     イベントの所属Communityがアクティブな VketParticipation を持ち、
@@ -23,18 +24,20 @@ def get_vket_lock_info(event) -> tuple[bool, str]:
 
     Args:
         event: Event インスタンス
+        date: 判定対象日。省略時はイベントの現在日
 
     Returns:
         (ロック中か, メッセージ) のタプル。ロックされていない場合は (False, "")
     """
     # ロック判定に不要な列まで読むと、列追加直後の古いDBスキーマで 500 になりうるため、
     # メッセージ生成に必要な情報だけを取得する（欠損カラム参照による 500 回避）。
+    target_date = date or event.date
     participation = (
         VketParticipation.objects.filter(
             community=event.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
-            collaboration__period_start__lte=event.date,
-            collaboration__period_end__gte=event.date,
+            collaboration__period_start__lte=target_date,
+            collaboration__period_end__gte=target_date,
         )
         .values_list(
             "collaboration__name",
@@ -79,10 +82,6 @@ def get_vket_lock_message(event) -> str:
     return message
 
 
-def _weekday_code(date_value) -> str:
-    return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][date_value.weekday()]
-
-
 def _resolve_publication_event(participation: VketParticipation) -> tuple[Event, bool]:
     existing_event = Event.objects.filter(
         community=participation.community,
@@ -96,7 +95,7 @@ def _resolve_publication_event(participation: VketParticipation) -> tuple[Event,
             participation.save(update_fields=["published_event", "updated_at"])
         return existing_event, changed
 
-    weekday = _weekday_code(participation.confirmed_date)
+    weekday = weekday_code(participation.confirmed_date)
     if participation.published_event_id:
         event = participation.published_event
         changed = (
@@ -106,6 +105,7 @@ def _resolve_publication_event(participation: VketParticipation) -> tuple[Event,
             or event.weekday != weekday
         )
         if changed:
+            # Vket運営同期はユーザーの例外指定ではないため tombstone を作らない。
             event.date = participation.confirmed_date
             event.start_time = participation.confirmed_start_time
             event.duration = participation.confirmed_duration
@@ -113,6 +113,7 @@ def _resolve_publication_event(participation: VketParticipation) -> tuple[Event,
             event.save(update_fields=["date", "start_time", "duration", "weekday"])
         return event, changed
 
+    # Vket運営同期での新規作成は recurrence の例外指定ではない。
     event = Event.objects.create(
         community=participation.community,
         date=participation.confirmed_date,

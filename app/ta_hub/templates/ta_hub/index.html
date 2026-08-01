@@ -110,17 +110,11 @@
         /* イベントカード用のスタイル */
         .event-card {
             height: 200px;
-            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
             border: none;
             background: #ffffff;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             position: relative;
             overflow: hidden;
-        }
-
-        .event-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
         }
 
         .today-event-card {
@@ -226,12 +220,7 @@
             object-fit: contain;
             object-position: center;
             padding: 0.5rem;
-            transition: transform 0.3s ease;
             background: rgba(255, 255, 255, 0.5);
-        }
-
-        .event-card:hover .event-image-container img {
-            transform: scale(1.05);
         }
 
         .event-image-container .no-image {
@@ -289,14 +278,6 @@
             color: #5b21b6;
         }
 
-        .card-hover-container {
-            transition: transform 0.2s ease;
-        }
-
-        .card-hover-container:hover {
-            transform: translateY(-5px);
-        }
-
         .calendar-add-button {
             transition: transform 0.2s ease;
         }
@@ -341,6 +322,39 @@
 
         .vket-achievement-card:hover .card-img-top {
             transform: scale(1.05);
+        }
+
+        .vket-notice-heading {
+            display: inline-grid;
+            grid-template-columns: auto minmax(0, auto) auto;
+            align-items: center;
+            column-gap: 0.75rem;
+            max-width: 100%;
+        }
+
+        .vket-notice-sunflower {
+            font-size: 2.5rem;
+            line-height: 1;
+        }
+
+        @media (max-width: 991.98px) {
+            .vket-notice-heading h3 {
+                font-size: 1.5rem;
+            }
+
+            .vket-notice-sunflower {
+                font-size: 2rem;
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            .vket-notice-heading {
+                column-gap: 0.4rem;
+            }
+
+            .vket-notice-heading h3 {
+                font-size: 1.25rem;
+            }
         }
     </style>
     <link rel="stylesheet" href="https://petipeti-object-storage.work/dist/style.css">
@@ -486,10 +500,10 @@
                  style="background: linear-gradient(135deg, #ffb37a 0%, #ff6b9d 100%); border-bottom: 3px solid #ff6b9d;">
             <div class="container">
                 <div class="text-center">
-                    <div class="d-flex align-items-center justify-content-center mb-2 flex-wrap">
-                        <span class="fs-1 me-3">🌻</span>
+                    <div class="vket-notice-heading mb-2">
+                        <span class="vket-notice-sunflower" aria-hidden="true">🌻</span>
                         <h3 class="mb-0 fw-bold text-dark">7月11日〜7月25日はVket2026Summer 技術学術WEEK！</h3>
-                        <span class="fs-1 ms-3">🌻</span>
+                        <span class="vket-notice-sunflower" aria-hidden="true">🌻</span>
                     </div>
                     <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap mb-2">
                         <a href="https://x.com/hashtag/Vketステージ" target="_blank"
@@ -527,70 +541,6 @@
             </div>
         </section>
     {% endif %}
-
-    <!-- VKET achievements section -->
-    {% if vket_achievements %}
-        <section class="py-5 bg-light">
-            <div class="container">
-                <div class="row featurette text-center text-primary mb-4">
-                    <h2 class="featurette-heading fw-normal lh-1 fw-bold">
-                        <i class="bi bi-trophy-fill me-2"></i>VKETコラボ
-                    </h2>
-                </div>
-                <p class="text-center text-muted mb-5">
-                    <i class="bi bi-stars me-2"></i>
-                    バーチャルマーケットとの大規模コラボレーション
-                </p>
-                <div class="row g-4 justify-content-center">
-                    {% for achievement in vket_achievements %}
-                        <div class="col-12 col-md-6">
-                            <a href="{% url 'news:detail' achievement.news_slug %}" class="text-decoration-none d-block h-100">
-                                <div class="card shadow h-100 vket-achievement-card">
-                                    {% if achievement.image %}
-                                        <div class="card-img-top-container">
-                                            <img src="{{ achievement.image }}"
-                                                 class="card-img-top"
-                                                 alt="{{ achievement.title }}"
-                                                 style="height: 320px; object-fit: cover;">
-                                        </div>
-                                    {% endif %}
-                                    <div class="card-body">
-                                        <h3 class="card-title h5 text-primary fw-bold mb-3">{{ achievement.title }}</h3>
-                                        <div class="mb-3">
-                                            <p class="mb-2 text-muted">
-                                                <i class="bi bi-calendar3 me-2"></i>{{ achievement.period }}
-                                            </p>
-                                            <div class="d-flex gap-3 text-muted">
-                                                <span>
-                                                    <i class="bi bi-calendar-week me-1"></i>{{ achievement.stats.days }}日間
-                                                </span>
-                                                <span>
-                                                    <i class="bi bi-people me-1"></i>{{ achievement.stats.communities }}団体参加
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex flex-wrap gap-2">
-                                            {% for hashtag in achievement.hashtags %}
-                                                <span class="badge" style="background-color: #1DA1F2; font-size: 0.85rem;">
-                                                    {{ hashtag }}
-                                                </span>
-                                            {% endfor %}
-                                        </div>
-                                    </div>
-                                </div>
-                            </a>
-                        </div>
-                    {% endfor %}
-                </div>
-                <div class="text-center mt-4">
-                    <a href="{% url 'news:category_list' 'activity' %}" class="btn btn-outline-primary btn-hover-press">
-                        <i class="bi bi-journal-text me-2"></i>活動履歴をもっと見る
-                    </a>
-                </div>
-            </div>
-        </section>
-    {% endif %}
-    <!-- VKET achievements section end -->
 
     <!-- upcoming event details section -->
     {% if upcoming_event_details %}
@@ -1045,6 +995,69 @@
 
     <!-- 4 icons　end -->
 
+    <!-- VKET achievements section -->
+    {% if vket_achievements %}
+        <section class="py-5 bg-white">
+            <div class="container">
+                <div class="row featurette text-center text-primary mb-4">
+                    <h2 class="featurette-heading fw-normal lh-1 fw-bold">
+                        <i class="bi bi-trophy-fill me-2"></i>VKETコラボ
+                    </h2>
+                </div>
+                <p class="text-center text-muted mb-5">
+                    <i class="bi bi-stars me-2"></i>
+                    バーチャルマーケットとの大規模コラボレーション
+                </p>
+                <div class="row g-4 justify-content-center">
+                    {% for achievement in vket_achievements %}
+                        <div class="col-12 col-md-6">
+                            <a href="{% url 'news:detail' achievement.news_slug %}" class="text-decoration-none d-block h-100">
+                                <div class="card shadow h-100 vket-achievement-card">
+                                    {% if achievement.image %}
+                                        <div class="card-img-top-container">
+                                            <img src="{{ achievement.image }}"
+                                                 class="card-img-top"
+                                                 alt="{{ achievement.title }}"
+                                                 style="height: 320px; object-fit: cover;">
+                                        </div>
+                                    {% endif %}
+                                    <div class="card-body">
+                                        <h3 class="card-title h5 text-primary fw-bold mb-3">{{ achievement.title }}</h3>
+                                        <div class="mb-3">
+                                            <p class="mb-2 text-muted">
+                                                <i class="bi bi-calendar3 me-2"></i>{{ achievement.period }}
+                                            </p>
+                                            <div class="d-flex gap-3 text-muted">
+                                                <span>
+                                                    <i class="bi bi-calendar-week me-1"></i>{{ achievement.stats.days }}日間
+                                                </span>
+                                                <span>
+                                                    <i class="bi bi-people me-1"></i>{{ achievement.stats.communities }}団体参加
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            {% for hashtag in achievement.hashtags %}
+                                                <span class="badge" style="background-color: #1DA1F2; font-size: 0.85rem;">
+                                                    {{ hashtag }}
+                                                </span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="text-center mt-4">
+                    <a href="{% url 'news:category_list' 'activity' %}" class="btn btn-outline-primary btn-hover-press">
+                        <i class="bi bi-journal-text me-2"></i>活動履歴をもっと見る
+                    </a>
+                </div>
+            </div>
+        </section>
+    {% endif %}
+    <!-- VKET achievements section end -->
 
     <!-- メリット -->
 

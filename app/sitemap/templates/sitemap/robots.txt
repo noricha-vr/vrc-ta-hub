@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Allow: /llms.txt
+Allow: /index.md
 
 Sitemap: https://vrc-ta-hub.com/sitemap.xml

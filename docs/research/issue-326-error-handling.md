@@ -38,7 +38,7 @@ docker compose exec -T vrc-ta-hub python manage.py test \
   event.tests.test_convert_markdown \
   event.tests.test_sanitize_event_detail_security_command \
   ta_hub.tests.test_resize_image \
-  twitter.tests.test_auto_tweet \
+  twitter.tests \
   event.tests.test_recurrence_preview_api \
   community.tests.test_optimize_poster_images
 ```

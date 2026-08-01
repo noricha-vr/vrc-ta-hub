@@ -71,11 +71,11 @@ class CommunityReportViewTest(TestCase):
     @override_settings(DISCORD_REPORT_WEBHOOK_URL='https://discord.com/api/webhooks/test')
     def test_webhook_sent_on_report(self):
         """通報時にDiscord Webhookが送信される"""
-        with patch('community.views.helpers.requests.post') as mock_post:
-            mock_post.return_value = MagicMock(ok=True)
+        with patch('community.views.helpers.post_discord_webhook') as mock_post:
+            mock_post.return_value = MagicMock(status_code=204)
             self.client.post(self.url)
         mock_post.assert_called_once()
-        payload = mock_post.call_args[1]['json']
+        payload = mock_post.call_args.args[1]
         self.assertIn('活動停止が通報されました', payload['content'])
         self.assertEqual(payload['embeds'][0]['title'], 'テスト集会')
         self.assertEqual(payload['embeds'][0]['fields'][0]['value'], '1')
@@ -88,17 +88,36 @@ class CommunityReportViewTest(TestCase):
 
     def test_webhook_not_sent_when_url_empty(self):
         """Webhook URLが空の場合は送信しない"""
-        with patch('community.views.helpers.requests.post') as mock_post:
+        with patch('community.views.helpers.post_discord_webhook') as mock_post:
             self.client.post(self.url)
         mock_post.assert_not_called()
 
     @override_settings(DISCORD_REPORT_WEBHOOK_URL='https://discord.com/api/webhooks/test')
     def test_webhook_failure_does_not_block_report(self):
-        """Webhook送信失敗でも通報は成功する"""
-        with patch('community.views.helpers.requests.post', side_effect=requests_lib.RequestException("timeout")):
-            response = self.client.post(self.url)
+        """Webhook送信失敗を安全にlogし、通報は成功する."""
+        sensitive_url = "https://discord.com/api/webhooks/123456789/secret-token"
+        with patch(
+            'community.views.helpers.post_discord_webhook',
+            side_effect=requests_lib.RequestException(
+                f"timeout for {sensitive_url}",
+            ),
+        ) as mock_post:
+            with self.assertLogs(
+                "community.views.helpers",
+                level="ERROR",
+            ) as log_context:
+                response = self.client.post(self.url)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(CommunityReport.objects.count(), 1)
+        mock_post.assert_called_once()
+        logs = "\n".join(log_context.output)
+        self.assertIn(f"community_id={self.community.pk}", logs)
+        self.assertIn("error_type=RequestException", logs)
+        self.assertIn("status_code=None", logs)
+        self.assertNotIn(sensitive_url, logs)
+        self.assertNotIn("secret-token", logs)
+        self.assertNotIn("timeout for", logs)
+        self.assertNotIn("Traceback", logs)
 
 
 class GetClientIpTest(TestCase):

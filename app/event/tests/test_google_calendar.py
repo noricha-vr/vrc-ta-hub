@@ -1,25 +1,20 @@
 from datetime import datetime, timedelta
-import os
-import unittest
 from unittest import TestCase
 
 from django.utils import timezone
 
 from event.google_calendar import GoogleCalendarService
+from tests.live_smoke import require_live_smoke
 from website.settings import GOOGLE_CALENDAR_ID, GOOGLE_CALENDAR_CREDENTIALS
-from django.test import tag
 
 
-RUN_EXTERNAL_API_TESTS = os.environ.get("RUN_EXTERNAL_API_TESTS") == "1"
 CREDENTIALS_PATH = str(GOOGLE_CALENDAR_CREDENTIALS or "")
-HAS_CREDENTIALS_FILE = bool(CREDENTIALS_PATH) and os.path.exists(CREDENTIALS_PATH)
 
 
-@unittest.skipUnless(
-    RUN_EXTERNAL_API_TESTS and HAS_CREDENTIALS_FILE,
-    "外部APIテストのため RUN_EXTERNAL_API_TESTS=1 と GOOGLE_CALENDAR_CREDENTIALS ファイルが必要です",
+@require_live_smoke(
+    "GOOGLE_CALENDAR_ID",
+    required_files=(CREDENTIALS_PATH,),
 )
-@tag('external_api')
 class TestGoogleCalendarService(TestCase):
     def setUp(self):
         """テストの前準備"""
