@@ -410,7 +410,7 @@ https://youtu.be/5CW4LqaRkmY
 
 https://youtu.be/VWJCk4A46-w
 
-## 7月27日（日）21:30 - ML集会
+## 7月27日（月）21:30 - ML集会
 
 ### vrcpilot: VRChatにAIアバターを生み出すツール
 
