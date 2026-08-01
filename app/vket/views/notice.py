@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+from urllib.parse import urlencode
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
+from django.templatetags.static import static
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
+from django.views.decorators.vary import vary_on_cookie
 from django.views import View
 from django.views.generic import TemplateView
 
@@ -24,12 +31,29 @@ from .helpers import (
 )
 
 
+PUBLIC_NOTICE_COLLABORATION_PK = 1
+PUBLIC_NOTICE_OG_IMAGE = 'vket/images/og/vket-2026-summer-notices-v1.png'
+
+
+@method_decorator([never_cache, vary_on_cookie], name='dispatch')
 class NoticeListView(LoginRequiredMixin, View):
     """主催者向け: 自分の参加に届いたお知らせ一覧ビュー"""
 
     template_name = 'vket/notice_list.html'
+    public_template_name = 'vket/notice_public.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if (
+            not request.user.is_authenticated
+            and kwargs['pk'] != PUBLIC_NOTICE_COLLABORATION_PK
+        ):
+            return self.handle_no_permission()
+        return View.dispatch(self, request, *args, **kwargs)
 
     def get(self, request, pk: int):
+        if not request.user.is_authenticated:
+            return self._render_public_shell(request, pk)
+
         collaboration = get_object_or_404(VketCollaboration, pk=pk)
         community, membership = _get_active_membership(request)
 
@@ -52,6 +76,36 @@ class NoticeListView(LoginRequiredMixin, View):
                 'collaboration': collaboration,
                 'receipts': receipts,
                 'community': community,
+            },
+        )
+
+    def _render_public_shell(self, request, pk: int):
+        collaboration = get_object_or_404(
+            VketCollaboration.objects.exclude(phase=VketCollaboration.Phase.DRAFT),
+            pk=pk,
+        )
+        static_path = static(PUBLIC_NOTICE_OG_IMAGE)
+        og_image_url = static_path
+        if not static_path.startswith(('http://', 'https://', '//')):
+            if not static_path.startswith('/'):
+                static_path = f'/{static_path}'
+            og_image_url = request.build_absolute_uri(static_path)
+        description = (
+            f'{collaboration.name}の開催準備や発表に関するお知らせを確認できます。'
+            'お知らせの内容を見るにはログインが必要です。'
+        )
+
+        return render(
+            request,
+            self.public_template_name,
+            {
+                'collaboration_name': collaboration.name,
+                'meta_description': description,
+                'login_url': (
+                    f'{settings.LOGIN_URL}?'
+                    f'{urlencode({"next": request.get_full_path()})}'
+                ),
+                'og_image_url': og_image_url,
             },
         )
 

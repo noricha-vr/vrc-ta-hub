@@ -1,9 +1,15 @@
 """Vketコラボ機能のテスト."""
 
 from datetime import timedelta
+from html import escape
+from urllib.parse import urlencode
+from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import Client, TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -47,6 +53,7 @@ class VketNoticeTests(TestCase):
 
         today = timezone.localdate()
         self.collaboration = VketCollaboration.objects.create(
+            pk=1,
             slug='vket-2026-notice-test',
             name='お知らせテスト',
             period_start=today,
@@ -136,13 +143,121 @@ class VketNoticeTests(TestCase):
         self.assertContains(response, detail_url)
         self.assertContains(response, 'お知らせ一覧で詳細を見る')
 
-    def test_notice_list_view_requires_login(self):
-        """お知らせ一覧はログイン必須"""
+    def test_anonymous_notice_list_redirects_other_pk_without_db_query(self):
+        """公開対象外のpkは存在確認せずログインへリダイレクトする"""
+        url = reverse('vket:notice_list', kwargs={'pk': 9999})
+
+        with self.assertNumQueries(0):
+            response = self.client.get(url)
+
+        self.assertRedirects(
+            response,
+            f'{settings.LOGIN_URL}?next={url}',
+            fetch_redirect_response=False,
+        )
+
+    def test_anonymous_notice_list_is_public_shell_without_private_data_queries(self):
+        """公開シェルは機密データを取得せず表示もしない"""
+        receipt = VketNoticeReceipt.objects.create(
+            notice=self.notice,
+            participation=self.participation,
+            acknowledged_at=timezone.now(),
+        )
+        url = reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(url)
+
+        sql = ' '.join(query['sql'].lower() for query in queries.captured_queries)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'vket/notice_public.html')
+        self.assertNotContains(response, self.notice.title)
+        self.assertNotContains(response, self.notice.body)
+        self.assertNotContains(response, self.community.name)
+        self.assertNotContains(response, str(receipt.ack_token))
+        context_keys = {
+            key for context in response.context for key in context.flatten()
+        }
+        self.assertFalse({'receipts', 'community', 'participation', 'notice'} & context_keys)
+        private_tables = {
+            VketParticipation._meta.db_table,
+            VketNotice._meta.db_table,
+            VketNoticeReceipt._meta.db_table,
+            CommunityMember._meta.db_table,
+        }
+        for table in private_tables:
+            self.assertNotIn(table.lower(), sql)
+
+    def test_anonymous_notice_list_is_404_for_draft(self):
+        """公開対象pkでも下書きコラボは公開しない"""
+        self.collaboration.phase = VketCollaboration.Phase.DRAFT
+        self.collaboration.save(update_fields=['phase'])
+
         response = self.client.get(
             reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
         )
-        # ログイン画面にリダイレクト
-        self.assertEqual(response.status_code, 302)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_anonymous_notice_list_has_page_specific_meta(self):
+        """公開シェルは採用OGPを絶対URLで出力する"""
+        url = reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
+        response = self.client.get(f'{url}?open={self.notice.pk}')
+        image_url = 'http://testserver/static/vket/images/og/vket-2026-summer-notices-v1.png'
+
+        self.assertContains(response, '<meta name="robots" content="noindex,follow">', html=True)
+        for name in ('description', 'twitter:title', 'twitter:description', 'twitter:image', 'twitter:image:alt'):
+            self.assertContains(response, f'<meta name="{name}"')
+        for prop in ('og:title', 'og:description', 'og:image', 'og:image:width', 'og:image:height', 'og:image:alt'):
+            self.assertContains(response, f'<meta property="{prop}"')
+        self.assertContains(response, image_url, count=2)
+        self.assertContains(response, '<meta property="og:image:width" content="1200">', html=True)
+        self.assertContains(response, '<meta property="og:image:height" content="630">', html=True)
+        self.assertContains(response, f'<link rel="canonical" href="https://vrc-ta-hub.com{url}">', html=True)
+        self.assertContains(response, f'<meta property="og:url" content="https://vrc-ta-hub.com{url}">', html=True)
+
+        cdn_url = 'https://cdn.example.com/vket-2026-summer-notices-v1.png'
+        with patch('vket.views.notice.static', return_value=cdn_url):
+            cdn_response = self.client.get(url)
+        self.assertContains(cdn_response, cdn_url, count=2)
+        self.assertNotContains(cdn_response, f'/{cdn_url}')
+
+    def test_anonymous_notice_list_preserves_safe_next_for_any_open_value(self):
+        """open値は公開内容や機密queryを変えず安全にnextへ保持する"""
+        url = reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
+        values = ('42', '\"><script>alert(1)</script>&receipt=secret')
+        query_lists = []
+        shell_contents = []
+
+        for value in values:
+            with self.subTest(value=value):
+                with CaptureQueriesContext(connection) as queries:
+                    response = self.client.get(url, {'open': value})
+                full_path = response.wsgi_request.get_full_path()
+                login_url = f'{settings.LOGIN_URL}?{urlencode({"next": full_path})}'
+                escaped_login_url = escape(login_url, quote=True)
+                self.assertContains(response, f'href="{escaped_login_url}"')
+                self.assertNotContains(response, '<script>alert(1)</script>')
+                query_lists.append([query['sql'] for query in queries.captured_queries])
+                shell_contents.append(
+                    response.content.decode().replace(escaped_login_url, 'LOGIN_URL')
+                )
+
+        self.assertEqual(query_lists[0], query_lists[1])
+        self.assertEqual(shell_contents[0], shell_contents[1])
+
+    def test_notice_list_response_is_private_and_varies_on_cookie(self):
+        """公開・認証済みの両レスポンスを共有キャッシュへ保存させない"""
+        url = reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
+        responses = [self.client.get(url)]
+        self.client.login(username='owner_user2', password='testpass123')
+        responses.append(self.client.get(url))
+
+        for response in responses:
+            with self.subTest(authenticated=response.wsgi_request.user.is_authenticated):
+                self.assertIn('private', response['Cache-Control'])
+                self.assertIn('no-store', response['Cache-Control'])
+                self.assertIn('Cookie', response['Vary'])
 
     def test_notice_list_view_shows_acked_notice_detail(self):
         """参加者側一覧はACK済みでもお知らせ本文を開ける"""
