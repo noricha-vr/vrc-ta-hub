@@ -1,30 +1,28 @@
-2026年7月11日〜27日に開催された「Vket 2026 Summer 技術学術WEEK」の各集会の発表動画をまとめました。24団体・40発表以上が参加した、VRChatの技術・学術コミュニティによる動画アーカイブです。
+2026年7月11日〜27日に開催された「Vket 2026 Summer 技術学術WEEK」の各集会の発表動画をまとめました。24団体・46発表が集まった、VRChatの技術・学術コミュニティによる動画アーカイブです。
 
-## 📺 プレイリスト
+## プレイリスト
 
-全43本の発表動画を日付順にまとめたプレイリストです。通しで見たい方はこちらからどうぞ。
+全45本の発表動画を日付順にまとめたプレイリストです。通しで見たい方はこちらからどうぞ。
 
-[2026夏Vket技術学術WEEKアーカイブ（全43本）](https://www.youtube.com/playlist?list=PLToz7z4Ioaas)
+[2026夏Vket技術学術WEEKアーカイブ（全45本）](https://www.youtube.com/playlist?list=PLToz7z4Ioaas)
 
 ## 7月11日（土）20:00 - セキュリティ集会
 
-<!-- 動画タイトルと現在の発表情報に差異があるため、集会単位で掲載。終了後に対応を再確認する。 -->
-
-https://youtu.be/DfkgPwoiJMk
-
-https://youtu.be/GKF7kAxCc6o
-
-### breaking firefox IPC
-
-登壇者: niaさん
-
-[イベント詳細](/event/detail/789/)
-
-### リッピングの基礎知識
+### VRChatにおけるリッピング対策の現実
 
 登壇者: soisinaさん
 
 [イベント詳細](/event/detail/790/)
+
+https://youtu.be/DfkgPwoiJMk
+
+### AI駆動バグハント入門
+
+登壇者: kumama_nuiさん
+
+[イベント詳細](/event/detail/789/)
+
+https://youtu.be/GKF7kAxCc6o
 
 ## 7月11日（土）21:00 - VRC通信工学集会
 
@@ -76,7 +74,7 @@ https://youtu.be/FHw2O3_fRf0
 
 https://youtu.be/wsWcBboqce0
 
-### 令和に取り残されたPC-9800と一枚のフロッピィ
+### 令和に取り残されたPC-9800と機械語プログラミング
 
 登壇者: KusaReMKNさん
 
@@ -94,11 +92,9 @@ https://youtu.be/810mI62iPRM
 
 ## 7月15日（水）21:00 - VRC数学談話会
 
-<!-- 1本の配信アーカイブに2発表を収録。集会単位で1回だけ掲載する。 -->
-
 https://www.youtube.com/watch?v=Vp1-lFuq0NM
 
-### クォータニオンと姿勢制御
+### 四元数による姿勢制御と被覆空間
 
 登壇者: Metachick-2021さん
 
@@ -226,13 +222,13 @@ https://youtu.be/vL_vHaGFXeo
 
 ## 7月21日（火）21:00 - C# Tokyo VRもくもく会
 
-### MXCやAionやOpenClawで自分用のAIエージェントを便利にしてみる（予定）
+### ローカルで動くAIの今後の姿を試してみる MXCでOpenClaw保護・Aion Instructの用途
 
 登壇者: suusanex（須藤）さん
 
 [イベント詳細](/event/detail/800/)
 
-<!-- 動画URL待ち: C# Tokyo分はHubチャンネル非公開運用の可能性が高い。7/21収録の生データをGigaFileでC# Tokyo側へ受け渡し済み（7/25先方確認完了、「これを元に加工してみます」）。HubのDB・申請備考に非公開設定の記録はなし。前例: 2025-07-22分は約1.5ヶ月後にHubチャンネルで公開、2025-12-09分は当日Hub公開。掲載可否・掲載先は先方に要確認 -->
+https://youtu.be/x9_QFHbgICE
 
 ### C# Tokyo コミュニティ YouTube チャンネルを支える技術
 
@@ -240,7 +236,7 @@ https://youtu.be/vL_vHaGFXeo
 
 [イベント詳細](/event/detail/801/)
 
-<!-- 動画URL待ち: 同上 -->
+https://youtu.be/UHuvT2m7LiE
 
 ## 7月21日（火）22:00 - VRChat.rb
 
@@ -424,7 +420,7 @@ https://youtu.be/VWJCk4A46-w
 
 https://youtu.be/w-eQyvRPbZM
 
-## 🔗 関連リンク
+## 関連リンク
 
 - [VRC技術・学術系イベントHub 公式サイト](https://vrc-ta-hub.com/)
 - [VRC技術・学術系イベントHub YouTubeチャンネル](https://www.youtube.com/@VRC%E6%8A%80%E8%A1%93%E5%AD%A6%E8%A1%93%E7%B3%BB%E3%82%A4%E3%83%99%E3%83%B3%E3%83%88Hub)
