@@ -1,0 +1,49 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}
+    <title>{{ collaboration_name }} お知らせ - VRChat 技術・学術系イベントHub</title>
+    <meta name="robots" content="noindex,follow">
+    <meta name="description" content="{{ meta_description }}">
+    <meta property="og:title" content="{{ collaboration_name }} お知らせ">
+    <meta property="og:description" content="{{ meta_description }}">
+    <meta property="og:image" content="{{ og_image_url }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="{{ collaboration_name }} お知らせ">
+    <meta name="twitter:title" content="{{ collaboration_name }} お知らせ">
+    <meta name="twitter:description" content="{{ meta_description }}">
+    <meta name="twitter:image" content="{{ og_image_url }}">
+    <meta name="twitter:image:alt" content="{{ collaboration_name }} お知らせ">
+{% endblock %}
+{% block main %}
+    <style>
+        .notice-login-cta {
+            background-color: #0b5ed7;
+            border-color: #0b5ed7;
+            color: #fff;
+        }
+        .notice-login-cta:hover,
+        .notice-login-cta:focus {
+            background-color: #094db1;
+            border-color: #084298;
+            color: #fff;
+        }
+        .notice-login-cta:focus-visible {
+            outline: 3px solid #052c65;
+            outline-offset: 2px;
+        }
+    </style>
+    <div class="container my-5" style="max-width: 760px;">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4 p-md-5 text-center">
+                <i class="fas fa-bullhorn fa-3x text-primary mb-4" aria-hidden="true"></i>
+                <h1 class="h2 fw-bold mb-3">{{ collaboration_name }} お知らせ</h1>
+                <p class="text-muted mb-4">
+                    お知らせの内容は参加者向けです。ログインしてご確認ください。
+                </p>
+                <a href="{{ login_url }}" class="btn notice-login-cta fw-bold px-4">
+                    <i class="fas fa-sign-in-alt me-2" aria-hidden="true"></i>ログインしてお知らせを見る
+                </a>
+            </div>
+        </div>
+    </div>
+{% endblock %}
