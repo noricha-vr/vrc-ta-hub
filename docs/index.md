@@ -36,6 +36,7 @@ VRC技術学術ハブの開発、運用、調査メモ、利用ガイドをま�
 - [要件定義・仕様メモ](requirements/index.md)
 - [提案書](proposals/index.md)
 - [Giga Week 2025 Winter 下書き](giga-week-2025-winter/index.md)
+- [Vket 2026 Summer 動画アーカイブ下書き](giga-week-2026-summer/index.md)
 
 ## 分析・調査メモ
 
