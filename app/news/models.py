@@ -1,6 +1,13 @@
 from django.db import models
+from django.http import HttpRequest
+from django.templatetags.static import static
 
 from website.constants import DEFAULT_NEWS_IMAGE_URL, build_site_url
+
+
+STATIC_THUMBNAIL_BY_SLUG = {
+    "vket-2026-summer": "news/images/og/vket-2026-summer-video-archive-v1.png",
+}
 
 
 class Category(models.Model):
@@ -60,24 +67,41 @@ class Post(models.Model):
         
         return clean_text[:max_length]
     
-    def get_absolute_thumbnail_url(self, request=None) -> str:
-        """
-        サムネイルの絶対URLを取得
-        
+    @property
+    def has_detail_thumbnail(self) -> bool:
+        """本文に表示するサムネイルの有無を返す。"""
+        return bool(self.thumbnail or self.uses_static_thumbnail)
+
+    @property
+    def uses_static_thumbnail(self) -> bool:
+        """専用staticサムネイルを使用するか返す。"""
+        return not self.thumbnail and self.slug in STATIC_THUMBNAIL_BY_SLUG
+
+    def get_absolute_thumbnail_url(self, request: HttpRequest | None = None) -> str:
+        """サムネイルの絶対URLを返す。
+
         Args:
-            request: HttpRequestオブジェクト
-        
-        Returns:
-            サムネイルの絶対URL、なければデフォルト画像URL
+            request: 相対URLのホスト解決に使うリクエスト。
         """
         if self.thumbnail:
             thumbnail_url = self.thumbnail.url
-            # すでに絶対URLの場合はそのまま返す
-            if thumbnail_url.startswith(('http://', 'https://')):
-                return thumbnail_url
-            # 相対URLの場合は絶対URLに変換
-            if request:
-                return request.build_absolute_uri(thumbnail_url)
-            # requestがない場合は公開サイトURLを使用
-            return build_site_url(thumbnail_url)
+            return self._build_absolute_thumbnail_url(thumbnail_url, request)
+
+        static_thumbnail = STATIC_THUMBNAIL_BY_SLUG.get(self.slug)
+        if static_thumbnail:
+            return self._build_absolute_thumbnail_url(static(static_thumbnail), request)
+
         return DEFAULT_NEWS_IMAGE_URL
+
+    @staticmethod
+    def _build_absolute_thumbnail_url(
+        thumbnail_url: str,
+        request: HttpRequest | None = None,
+    ) -> str:
+        if thumbnail_url.startswith(("http://", "https://")):
+            return thumbnail_url
+        if request:
+            if not thumbnail_url.startswith("/"):
+                thumbnail_url = f"/{thumbnail_url}"
+            return request.build_absolute_uri(thumbnail_url)
+        return build_site_url(thumbnail_url)
