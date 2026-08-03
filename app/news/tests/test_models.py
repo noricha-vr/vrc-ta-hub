@@ -1,5 +1,5 @@
 """news.models のテスト"""
-from django.test import TestCase
+from django.test import RequestFactory, TestCase, override_settings
 
 from news.models import Category, Post
 
@@ -153,3 +153,68 @@ class PostGetAbsoluteThumbnailUrlTestCase(TestCase):
             result,
             "https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg",
         )
+        self.assertFalse(post.uses_static_thumbnail)
+
+    @override_settings(STATIC_URL="static/")
+    def test_mapped_slug_returns_static_thumbnail(self):
+        """専用slugならstatic画像の公開サイトURLを返す"""
+        post = self._make_post(slug="vket-2026-summer")
+
+        result = post.get_absolute_thumbnail_url()
+
+        self.assertEqual(
+            result,
+            "https://vrc-ta-hub.com/static/news/images/og/"
+            "vket-2026-summer-video-archive-v1.png",
+        )
+        self.assertTrue(post.uses_static_thumbnail)
+
+    @override_settings(STATIC_URL="static/")
+    def test_mapped_slug_uses_request_for_relative_static_url(self):
+        """相対static URLはrequestのホストで絶対URLにする"""
+        post = self._make_post(slug="vket-2026-summer")
+        request = RequestFactory().get("/", HTTP_HOST="localhost:8015")
+
+        result = post.get_absolute_thumbnail_url(request)
+
+        self.assertEqual(
+            result,
+            "http://localhost:8015/static/news/images/og/"
+            "vket-2026-summer-video-archive-v1.png",
+        )
+
+    @override_settings(STATIC_URL="https://data.vrc-ta-hub.com/static/")
+    def test_mapped_slug_preserves_absolute_cdn_static_url(self):
+        """絶対CDNのstatic URLをrequestで作り直さない"""
+        post = self._make_post(slug="vket-2026-summer")
+        request = RequestFactory().get("/", HTTP_HOST="localhost:8015")
+
+        result = post.get_absolute_thumbnail_url(request)
+
+        self.assertEqual(
+            result,
+            "https://data.vrc-ta-hub.com/static/news/images/og/"
+            "vket-2026-summer-video-archive-v1.png",
+        )
+
+    def test_uploaded_thumbnail_takes_priority_over_mapped_slug(self):
+        """アップロード画像を専用slugのstatic画像より優先する"""
+        post = self._make_post(
+            slug="vket-2026-summer",
+            thumbnail="news/uploaded.png",
+        )
+
+        result = post.get_absolute_thumbnail_url()
+
+        self.assertEqual(result, "https://vrc-ta-hub.com/media/news/uploaded.png")
+        self.assertFalse(post.uses_static_thumbnail)
+
+    def _make_post(self, **kwargs):
+        defaults = {
+            "title": "テスト",
+            "slug": "test-thumbnail",
+            "body_markdown": "",
+            "category": self.category,
+        }
+        defaults.update(kwargs)
+        return Post(**defaults)

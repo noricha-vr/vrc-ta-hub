@@ -1,6 +1,8 @@
 """news.views のテスト"""
+import json
+
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -128,6 +130,122 @@ class PostDetailViewTestCase(TestCase):
         url = reverse("news:detail", kwargs={"slug": self.published_post.slug})
         response = self.client.get(url)
         self.assertIn("structured_data_json", response.context)
+
+    @override_settings(STATIC_URL="/static/")
+    def test_detail_displays_mapped_thumbnail(self):
+        """専用画像URLを本文と全メタデータに反映する"""
+        post = self._create_archive_post()
+        expected_url = (
+            "https://vrc-ta-hub.com/static/news/images/og/"
+            "vket-2026-summer-video-archive-v1.png"
+        )
+        response = self.client.get(
+            reverse("news:detail", kwargs={"slug": post.slug}),
+            secure=True,
+            HTTP_HOST="vrc-ta-hub.com",
+        )
+        structured_data = json.loads(response.context["structured_data_json"])
+
+        self.assertContains(response, f'src="{expected_url}"')
+        self.assertContains(
+            response,
+            f'<meta property="og:image" content="{expected_url}">',
+        )
+        self.assertContains(
+            response,
+            f'<meta name="twitter:image" content="{expected_url}">',
+        )
+        self.assertEqual(structured_data["image"], [expected_url])
+
+    @override_settings(STATIC_URL="/static/")
+    def test_detail_mapped_thumbnail_has_accessible_og_metadata(self):
+        """専用画像の代替テキストと実寸をOGPへ反映する"""
+        post = self._create_archive_post()
+        response = self.client.get(
+            reverse("news:detail", kwargs={"slug": post.slug})
+        )
+
+        self.assertContains(
+            response,
+            f'<meta property="og:image:alt" content="{post.title}">',
+        )
+        self.assertContains(
+            response,
+            f'<meta name="twitter:image:alt" content="{post.title}">',
+        )
+        self.assertContains(
+            response,
+            '<meta property="og:image:width" content="1200">',
+        )
+        self.assertContains(
+            response,
+            '<meta property="og:image:height" content="630">',
+        )
+
+    def test_detail_mapped_thumbnail_uses_original_ratio_and_mobile_gutter(self):
+        """専用画像を元比率とBootstrap gutterで表示する"""
+        post = self._create_archive_post()
+        response = self.client.get(
+            reverse("news:detail", kwargs={"slug": post.slug})
+        )
+
+        self.assertContains(
+            response,
+            '<div class="detail-thumbnail-container detail-thumbnail-container--static">',
+        )
+        self.assertContains(response, "padding-bottom: 52.5%;")
+        self.assertContains(response, "object-fit: contain;")
+        self.assertContains(
+            response,
+            "margin-inline: calc(var(--bs-gutter-x) * -0.5);",
+        )
+
+    def test_detail_uploaded_thumbnail_overrides_mapped_thumbnail(self):
+        """アップロード画像を本文と全メタデータで専用画像より優先する"""
+        post = self._create_archive_post(thumbnail="news/uploaded.png")
+        expected_url = "https://vrc-ta-hub.com/media/news/uploaded.png"
+        response = self.client.get(
+            reverse("news:detail", kwargs={"slug": post.slug}),
+            secure=True,
+            HTTP_HOST="vrc-ta-hub.com",
+        )
+        structured_data = json.loads(response.context["structured_data_json"])
+
+        self.assertContains(response, f'src="{expected_url}"')
+        self.assertContains(
+            response,
+            f'<meta property="og:image" content="{expected_url}">',
+        )
+        self.assertContains(
+            response,
+            f'<meta name="twitter:image" content="{expected_url}">',
+        )
+        self.assertContains(
+            response,
+            f'<meta property="og:image:alt" content="{post.title}">',
+        )
+        self.assertContains(
+            response,
+            f'<meta name="twitter:image:alt" content="{post.title}">',
+        )
+        self.assertNotContains(response, 'property="og:image:width"')
+        self.assertNotContains(response, 'property="og:image:height"')
+        self.assertContains(
+            response,
+            '<div class="detail-thumbnail-container">',
+        )
+        self.assertEqual(structured_data["image"], [expected_url])
+
+    def _create_archive_post(self, thumbnail: str = "") -> Post:
+        return Post.objects.create(
+            title="Vket 2026 Summer 動画アーカイブ",
+            slug="vket-2026-summer",
+            body_markdown="動画アーカイブの本文です。",
+            category=self.category,
+            thumbnail=thumbnail,
+            is_published=True,
+            published_at=timezone.now(),
+        )
 
 
 class CategoryListViewTestCase(TestCase):
