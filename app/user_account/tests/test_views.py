@@ -129,39 +129,36 @@ class CustomLoginViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, next_url)
 
-    def test_login_redirects_to_default_url_without_next(self):
-        """nextパラメータがない場合、デフォルトのURLにリダイレクトされること."""
-        from django.conf import settings
+    def test_login_without_membership_redirects_to_my_presentations(self):
+        """集会未所属ユーザーは自分の発表へリダイレクトされること."""
         response = self.client.post(self.login_url, {
             'username': 'test_community',
             'password': 'testpass123',
         })
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, settings.LOGIN_REDIRECT_URL)
+        self.assertEqual(response.url, reverse('event:my_presentations'))
 
     def test_login_does_not_redirect_to_external_url(self):
         """外部URLへのリダイレクトを防止する（オープンリダイレクト対策）."""
-        from django.conf import settings
         external_url = 'https://evil.example.com'
         response = self.client.post(f'{self.login_url}?next={external_url}', {
             'username': 'test_community',
             'password': 'testpass123',
         })
-        # 外部URLにはリダイレクトされず、デフォルトURLにリダイレクトされる
+        # 外部URLにはリダイレクトされず、集会未所属の既定先にリダイレクトされる
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, settings.LOGIN_REDIRECT_URL)
+        self.assertEqual(response.url, reverse('event:my_presentations'))
 
     def test_login_does_not_redirect_to_protocol_relative_url(self):
         """プロトコル相対URLへのリダイレクトを防止する（オープンリダイレクト対策）."""
-        from django.conf import settings
         protocol_relative_url = '//evil.example.com/path'
         response = self.client.post(f'{self.login_url}?next={protocol_relative_url}', {
             'username': 'test_community',
             'password': 'testpass123',
         })
-        # プロトコル相対URLにはリダイレクトされず、デフォルトURLにリダイレクトされる
+        # プロトコル相対URLにはリダイレクトされず、集会未所属の既定先にリダイレクトされる
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, settings.LOGIN_REDIRECT_URL)
+        self.assertEqual(response.url, reverse('event:my_presentations'))
 
 
 @tag('offline_external_api')
@@ -304,6 +301,8 @@ class SettingsViewTests(TestCase):
 
         # ユーザー情報編集が表示されていること
         self.assertContains(response, 'ユーザー情報を編集')
+        self.assertContains(response, '自分の発表')
+        self.assertContains(response, reverse('event:my_presentations'))
         # パスワード変更が表示されていること
         self.assertContains(response, 'パスワードを変更')
         # Discord連携が表示されていること

@@ -15,7 +15,7 @@ from user_account.tests.utils import (
     TEST_SOCIALACCOUNT_PROVIDERS,
     TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS,
 )
-from tests.factories import make_user
+from tests.factories import make_community, make_user
 
 
 class HrefCollector(HTMLParser):
@@ -211,5 +211,60 @@ class SocialSignupDuplicateEmailNextTests(TestCase):
 
         self.assertEqual(get_response.status_code, 200)
         self.assertEqual(post_response.status_code, 302)
-        self.assertEqual(post_response.url, settings.LOGIN_REDIRECT_URL)
+        self.assertEqual(post_response.url, reverse('event:my_presentations'))
         self.assertNotEqual(post_response.url, external_url)
+
+    def test_allauth_login_without_membership_uses_my_presentations(self) -> None:
+        """allauthのログイン後も集会未所属ユーザーは自分の発表へ遷移する。"""
+        user = make_user(
+            user_name='allauth_no_membership_user',
+            email='allauth-no-membership@example.com',
+        )
+
+        response = self.client.post(reverse('account_login'), {
+            'login': user.user_name,
+            'password': 'testpass123',
+        })
+
+        self.assertRedirects(
+            response,
+            reverse('event:my_presentations'),
+            fetch_redirect_response=False,
+        )
+
+    def test_allauth_login_with_membership_uses_existing_default(self) -> None:
+        """allauthのログイン後も集会所属ユーザーは既存の既定先へ遷移する。"""
+        user = make_user(
+            user_name='allauth_membership_user',
+            email='allauth-membership@example.com',
+        )
+        make_community(name='allauth遷移テスト集会', owner=user)
+
+        response = self.client.post(reverse('account_login'), {
+            'login': user.user_name,
+            'password': 'testpass123',
+        })
+
+        self.assertRedirects(
+            response,
+            settings.LOGIN_REDIRECT_URL,
+            fetch_redirect_response=False,
+        )
+
+    def test_allauth_login_prefers_safe_next(self) -> None:
+        """allauthログインでも安全なnextが既定先より優先される。"""
+        user = make_user(
+            user_name='allauth_next_user',
+            email='allauth-next@example.com',
+        )
+        next_url = reverse('account:settings')
+
+        response = self.client.post(
+            f"{reverse('account_login')}?next={next_url}",
+            {
+                'login': user.user_name,
+                'password': 'testpass123',
+            },
+        )
+
+        self.assertRedirects(response, next_url, fetch_redirect_response=False)

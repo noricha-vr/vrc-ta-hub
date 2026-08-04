@@ -1,14 +1,25 @@
 """Discord OAuth用のカスタムアダプター."""
 import logging
 
+from allauth.account.adapter import DefaultAccountAdapter
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 
+from user_account.login_redirect import get_default_login_redirect_url
+
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+
+class CustomAccountAdapter(DefaultAccountAdapter):
+    """ログイン後の既定リダイレクト先を集会所属状況で切り替える。"""
+
+    def get_login_redirect_url(self, request):
+        """ログイン中ユーザーの既定リダイレクト先を返す。"""
+        return get_default_login_redirect_url(request.user)
 
 
 class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):

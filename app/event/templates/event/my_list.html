@@ -17,9 +17,6 @@
         {# ヘッダー部分 - 集会切り替えドロップダウン #}
         <div class="d-flex justify-content-center align-items-center mb-4">
             <h1 class="h2 fw-bold keiko_yellow">
-                {% if not communities and speaker_event_details %}
-                <i class="bi bi-person-video3 me-2" aria-hidden="true"></i>自分の発表
-                {% else %}
                 イベント管理:
                 {% if communities|length > 1 %}
                 <div class="dropdown d-inline-block">
@@ -51,7 +48,6 @@
                 {{ active_community.name }}
                 {% else %}
                 集会未登録
-                {% endif %}
                 {% endif %}
             </h1>
         </div>
@@ -132,39 +128,6 @@
                     {% endfor %}
                 </div>
             </div>
-        {% endif %}
-
-        {% if speaker_event_details %}
-            <section class="row" aria-labelledby="speaker-presentations-heading">
-                <div class="col-12 col-md-10 offset-md-1 mb-4">
-                    <h2 id="speaker-presentations-heading" class="{% if communities %}h4 mb-3{% else %}visually-hidden{% endif %}">
-                        <i class="bi bi-person-video3 me-2" aria-hidden="true"></i>自分の発表
-                    </h2>
-                    <div class="row g-3">
-                        {% for detail in speaker_event_details %}
-                            <div class="col-12 col-lg-6">
-                                <article class="card h-100 shadow-sm">
-                                    <div class="card-body">
-                                        <h3 class="h5 card-title">{{ detail.theme|default:"テーマ未設定" }}</h3>
-                                        <p class="card-text mb-1">発表者: {{ detail.speaker|default:"未設定" }}</p>
-                                        <p class="card-text text-muted mb-3">
-                                            {{ detail.event.community.name }} / {{ detail.event.date }}
-                                        </p>
-                                        <div class="d-flex gap-2">
-                                            <a href="{% url 'event:detail' detail.pk %}" class="btn btn-outline-primary btn-sm">
-                                                <i class="bi bi-eye me-1" aria-hidden="true"></i>詳細
-                                            </a>
-                                            <a href="{% url 'event:detail_update' detail.pk %}" class="btn btn-success btn-sm">
-                                                <i class="bi bi-pencil me-1" aria-hidden="true"></i>編集
-                                            </a>
-                                        </div>
-                                    </div>
-                                </article>
-                            </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </section>
         {% endif %}
 
         {# イベント一覧 #}
@@ -338,7 +301,6 @@
                 </div>
             </div>
         {% empty %}
-            {% if not speaker_event_details %}
             <div class="row">
                 <div class="col-12 col-md-10 offset-md-1">
                     <div class="alert alert-secondary" role="alert">
@@ -346,7 +308,6 @@
                     </div>
                 </div>
             </div>
-            {% endif %}
         {% endfor %}
 
         {% include "ta_hub/pagination.html" %}
