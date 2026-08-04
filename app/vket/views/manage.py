@@ -85,6 +85,19 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
 
         # Discordメンションリスト生成（SocialAccountのDiscord UIDから）
         discord_mentions = self._build_discord_mentions(participations)
+        publication_drift_participations = [
+            participation
+            for participation in participations
+            if (
+                participation.lifecycle == VketParticipation.Lifecycle.ACTIVE
+                and participation.published_event_id
+                and (
+                    participation.confirmed_date != participation.published_event.date
+                    or participation.confirmed_start_time
+                    != participation.published_event.start_time
+                )
+            )
+        ]
 
         context.update(
             {
@@ -96,6 +109,7 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
                 'scheduled_count': scheduled_count,
                 'lt_registered_count': lt_registered_count,
                 'discord_mentions': discord_mentions,
+                'publication_drift_participations': publication_drift_participations,
                 # progressラベルの辞書（テンプレートで参照可能）
                 'progress_choices': dict(VketParticipation.Progress.choices),
                 'lifecycle_choices': dict(VketParticipation.Lifecycle.choices),

@@ -23,6 +23,39 @@
 
         {% include 'vket/includes/manage_tabs.html' with active_tab='speakers' %}
 
+        {% if publication_drift_participations %}
+            <div class="alert alert-warning mt-3" role="alert" data-testid="publication-drift-warning">
+                <h2 class="h6 alert-heading">公開イベントの日程差分があります</h2>
+                <p class="mb-2">
+                    公開イベントを直接変更した可能性があります。自動では修正しないため、意図する日時を確認して、
+                    確定日程を合わせるか、「確定」フェーズで公開同期を再実行して公開イベントを確定日程へ戻してください。
+                </p>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                        <tr>
+                            <th scope="col">集会</th>
+                            <th scope="col">確定日程</th>
+                            <th scope="col">公開イベント</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for p in publication_drift_participations %}
+                            <tr data-participation-id="{{ p.id }}">
+                                <td>{{ p.community.name }}</td>
+                                <td>
+                                    {% if p.confirmed_date %}{{ p.confirmed_date|date:"Y/m/d" }}{% else %}未設定{% endif %}
+                                    {% if p.confirmed_start_time %} {{ p.confirmed_start_time|date:"H:i" }}{% else %} 未設定{% endif %}
+                                </td>
+                                <td>{{ p.published_event.date|date:"Y/m/d" }} {{ p.published_event.start_time|date:"H:i" }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
+
         <div class="table-responsive">
             <table class="table table-sm table-hover align-middle">
                 <thead>
