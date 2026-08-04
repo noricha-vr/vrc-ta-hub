@@ -166,7 +166,7 @@ class CommunityCreateViewTest(TestCase):
         self.assertFormError(
             response.context['form'],
             'guidelines_agreed',
-            '登録するには、掲載・審査基準とガイドラインへの同意が必要です。',
+            '登録するには、掲載・審査基準への同意が必要です。',
         )
         self.assertFalse(Community.objects.filter(name='未同意集会').exists())
 

@@ -56,6 +56,9 @@
                         <div class="card-header fw-bold">登録前の確認</div>
                         <div class="card-body">
                             {% bootstrap_field form.guidelines_agreed %}
+                            <p class="text-muted small mb-0">
+                                同意対象: <a href="{% url 'community:criteria' %}" target="_blank" rel="noopener">掲載・審査基準</a>
+                            </p>
                         </div>
                     </div>
 
