@@ -3,6 +3,7 @@ import logging
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
+from django.db import IntegrityError, transaction
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views.generic import FormView
@@ -72,31 +73,21 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
 
             logger.info(f'イベント登録開始: コミュニティ={community.name}, 日付={start_date}, 開始時間={start_time}')
 
-            # 同じ日時のイベントが存在するかチェック
-            existing_event = Event.objects.filter(
-                date=start_date,
-                start_time=start_time,
-                community=community
-            ).first()
-
-            if existing_event:
-                logger.warning(
-                    f'重複イベント検出: ID={existing_event.id}, コミュニティ={community.name}, 日付={start_date}, 開始時間={start_time}')
-                messages.error(self.request, f'同じ日時（{start_date} {start_time}）にすでにイベントが登録されています。')
-                return self.form_invalid(form)
-
             duration = form.cleaned_data['duration']
 
             # 新しいイベントをDBに保存
             try:
-                new_event = Event.objects.create(
-                    community=community,
-                    date=start_date,
-                    start_time=start_time,
-                    duration=duration,
-                    weekday=weekday_code(start_date),
-                    # google_calendar_event_idは同期時に設定される
-                )
+                # atomic の savepoint で包まないと、外側トランザクション内で
+                # IntegrityError を握った後のクエリが TransactionManagementError になる
+                with transaction.atomic():
+                    new_event = Event.objects.create(
+                        community=community,
+                        date=start_date,
+                        start_time=start_time,
+                        duration=duration,
+                        weekday=weekday_code(start_date),
+                        # google_calendar_event_idは同期時に設定される
+                    )
                 logger.info(f'イベントをDBに登録: ID={new_event.id}, 日付={start_date}, 開始時間={start_time}')
 
                 # イベントの作成が成功した場合、キャッシュをクリア
@@ -104,6 +95,25 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 cache.delete(cache_key)
 
                 messages.success(self.request, 'イベントが正常に登録されました')
+
+            except IntegrityError as e:
+                # 重複判定は事前SELECTではなくunique制約（community, date, start_time）に
+                # 一本化する。SELECT→CREATE間の競合で500 + Error Reporting誤検知になっていた
+                # （exc_info付きerrorログをError Reportingがincident化するためwarningに留める）。
+                # 重複起因かは制約名の文字列ではなく行の実在で判別する（sqlite/MySQLで
+                # エラーメッセージ書式が異なるため）。重複以外の整合性エラー（FK違反等）は
+                # 一般エラー処理へ再送出し、error ログ（Error Reporting 対象）を維持する。
+                if not Event.objects.filter(
+                    community=community,
+                    date=start_date,
+                    start_time=start_time,
+                ).exists():
+                    raise
+                logger.warning(
+                    f'重複イベント検出: コミュニティ={community.name}, 日付={start_date}, '
+                    f'開始時間={start_time}, detail={e}')
+                messages.error(self.request, f'同じ日時（{start_date} {start_time}）にすでにイベントが登録されています。')
+                return self.form_invalid(form)
 
             except Exception as e:
                 logger.error(f'イベントのDB登録でエラー: {str(e)}', exc_info=True)

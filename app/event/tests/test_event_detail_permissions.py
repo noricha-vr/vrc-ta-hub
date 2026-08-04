@@ -116,6 +116,7 @@ class EventDetailPermissionTests(TestCase):
             collaboration=collaboration,
             community=self.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            published_event=self.locked_event,
         )
 
     def test_non_member_cannot_access_event_detail_create_view(self):
