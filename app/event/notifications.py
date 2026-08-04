@@ -344,6 +344,34 @@ def _send_discord_notification_for_result(event_detail: EventDetail) -> None:
         )
 
 
+def notify_speaker_account_linked(event_detail: EventDetail, user) -> None:
+    """発表へのアカウント紐づけを集会のDiscordへ通知する。"""
+    community = event_detail.event.community
+    webhook_url = community.notification_webhook_url
+    if not webhook_url:
+        return
+
+    payload = {
+        "content": (
+            f"{event_detail.theme} に {user.display_label} が"
+            "アカウントを紐づけました"
+        ),
+        "allowed_mentions": {"parse": []},
+    }
+    try:
+        post_discord_webhook(webhook_url, payload)
+    except Exception as error:
+        error_type, status_code = get_webhook_error_context(error)
+        logger.warning(
+            "Discord Webhook通知エラー（発表者紐づけ）: "
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
+            error_type,
+            status_code,
+        )
+
+
 def notify_slide_material_published(event_detail: EventDetail) -> None:
     """資料公開時のDiscord Webhook通知を送信する."""
     community = event_detail.event.community

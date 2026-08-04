@@ -30,7 +30,7 @@
                                     <p class="mb-2 mt-2">
                                         既存のアカウントにログインしてから、Discord連携を行ってください。
                                     </p>
-                                    <a href="{% url 'account_login' %}" class="btn btn-outline-primary">
+                                    <a href="{% url 'account_login' %}{% if redirect_field_value %}?{{ redirect_field_name }}={{ redirect_field_value|urlencode }}{% endif %}" class="btn btn-outline-primary">
                                         <i class="fas fa-sign-in-alt me-2"></i>ログインページへ
                                     </a>
                                 </div>
