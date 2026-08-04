@@ -6,16 +6,28 @@ from urllib.parse import parse_qs, urlparse
 
 from django import forms
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
+from django.contrib.messages.middleware import MessageMiddleware
+from django.contrib.sessions.middleware import SessionMiddleware
 from django.http import HttpResponse
 from django.template.loader import render_to_string
-from django.test import Client, TestCase, override_settings, tag
+from django.test import Client, RequestFactory, TestCase, override_settings, tag
 from django.urls import reverse
+
+from allauth.account.models import EmailAddress
+from allauth.core.context import request_context
+from allauth.socialaccount.internal.flows.signup import process_signup
+from allauth.socialaccount.models import SocialAccount, SocialLogin
 
 from user_account.tests.utils import (
     TEST_SOCIALACCOUNT_PROVIDERS,
     TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS,
 )
 from tests.factories import make_community, make_user
+
+
+User = get_user_model()
 
 
 class HrefCollector(HTMLParser):
@@ -266,5 +278,63 @@ class SocialSignupDuplicateEmailNextTests(TestCase):
                 'password': 'testpass123',
             },
         )
+
+        self.assertRedirects(response, next_url, fetch_redirect_response=False)
+
+
+@tag('offline_external_api')
+class SocialSignupRedirectTests(TestCase):
+    """Discord OAuthの新規登録完了後のリダイレクトを検証する。"""
+
+    def setUp(self) -> None:
+        self.factory = RequestFactory()
+
+    def _complete_social_signup(self, next_url: str = ''):
+        request = self.factory.get('/accounts/discord/login/', {'next': next_url})
+        request.user = AnonymousUser()
+        SessionMiddleware(lambda request: None).process_request(request)
+        request.session.save()
+        MessageMiddleware(lambda request: None).process_request(request)
+
+        user = User(
+            user_name='new_discord_signup_user',
+            display_name='New Discord Signup User',
+            email='new-discord-signup@example.com',
+        )
+        sociallogin = SocialLogin(
+            user=user,
+            account=SocialAccount(
+                provider='discord',
+                uid='new-discord-signup-id',
+                extra_data={
+                    'email': user.email,
+                    'verified': True,
+                },
+            ),
+            email_addresses=[EmailAddress(
+                email=user.email,
+                verified=True,
+                primary=True,
+            )],
+        )
+        with request_context(request):
+            sociallogin.state = SocialLogin.state_from_request(request)
+            return process_signup(request, sociallogin)
+
+    def test_new_social_signup_without_membership_uses_my_presentations(self) -> None:
+        """新規Discord登録の集会未所属ユーザーは自分の発表へ遷移する。"""
+        response = self._complete_social_signup()
+
+        self.assertRedirects(
+            response,
+            reverse('event:my_presentations'),
+            fetch_redirect_response=False,
+        )
+
+    def test_new_social_signup_prefers_safe_next(self) -> None:
+        """新規Discord登録でも安全なnextが既定遷移先より優先される。"""
+        next_url = reverse('account:settings')
+
+        response = self._complete_social_signup(next_url)
 
         self.assertRedirects(response, next_url, fetch_redirect_response=False)

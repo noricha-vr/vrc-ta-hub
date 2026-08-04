@@ -21,6 +21,10 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         """ログイン中ユーザーの既定リダイレクト先を返す。"""
         return get_default_login_redirect_url(request.user)
 
+    def get_signup_redirect_url(self, request):
+        """新規登録後の既定リダイレクト先を返す。"""
+        return get_default_login_redirect_url(request.user)
+
 
 class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     """Discord OAuth認証用のカスタムアダプター.

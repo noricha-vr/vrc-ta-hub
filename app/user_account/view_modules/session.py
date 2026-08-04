@@ -26,9 +26,9 @@ class CustomLoginView(LoginView):
     form_class = BootstrapAuthenticationForm
 
     def dispatch(self, request, *args, **kwargs):
-        """認証済みユーザーをイベント管理ページへ移動させる."""
+        """認証済みユーザーを所属状況に応じた既定ページへ移動させる."""
         if request.user.is_authenticated:
-            return redirect('event:my_list')
+            return redirect(get_default_login_redirect_url(request.user))
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
