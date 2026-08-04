@@ -5,10 +5,24 @@
     <div class="container my-5">
         <div class="row">
             <div class="col-md-10 offset-md-1">
-                <div class="alert alert-info" role="note">
-                    登録前に、掲載対象と審査の考え方をまとめた
-                    <a href="{% url 'community:criteria' %}" class="alert-link">掲載・審査基準</a>
-                    をご確認ください。
+                <div id="criteria-summary" class="alert alert-info" role="note">
+                    <h2 class="h5 alert-heading">登録種別と審査基準</h2>
+                    <p>このフォームでは、登録する集会の主な目的に合う「技術系」または「学術系」のタグを選択してください。</p>
+                    <ul class="mb-3">
+                        <li><strong>技術系:</strong> 実践的な技術の習得・共有・発表を主目的とする集会</li>
+                        <li><strong>学術系:</strong> 学術的な知見や研究成果の学習・議論・発表を主目的とする集会</li>
+                        <li><strong>協力団体:</strong> 技術・学術コミュニティへ具体的・継続的・検証可能な貢献を行う団体</li>
+                    </ul>
+                    <p class="mb-2">
+                        協力団体としての登録を希望する場合は、審査基準を確認のうえ、
+                        <a href="https://github.com/noricha-vr/vrc-ta-hub/issues" class="alert-link">運営へお問い合わせください</a>。
+                        <strong>協力団体は、Hubのポスター・アセット設置や、活動内でのHub紹介・宣伝への協力が必須条件です。</strong>
+                    </p>
+                    <p class="mb-0">
+                        対象例や詳しい条件は
+                        <a href="{% url 'community:criteria' %}" class="alert-link">掲載・審査基準</a>
+                        をご確認ください。
+                    </p>
                 </div>
                 <form method="post" enctype="multipart/form-data">
                     {% csrf_token %}
@@ -35,6 +49,13 @@
                             {% bootstrap_field form.description %}
                             {% bootstrap_field form.platform %}
                             {% bootstrap_field form.tags %}
+                        </div>
+                    </div>
+
+                    <div class="card mb-4">
+                        <div class="card-header fw-bold">登録前の確認</div>
+                        <div class="card-body">
+                            {% bootstrap_field form.guidelines_agreed %}
                         </div>
                     </div>
 

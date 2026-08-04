@@ -42,9 +42,19 @@ class CommunityCriteriaPageTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         soup = BeautifulSoup(response.content, 'html.parser')
-        criteria_alert = soup.select_one('div.alert.alert-info[role="note"]')
+        criteria_alert = soup.select_one('#criteria-summary[role="note"]')
         criteria_link = criteria_alert.select_one(f'a.alert-link[href="{self.criteria_url}"]')
         self.assertEqual(criteria_link.get_text(strip=True), '掲載・審査基準')
+        contact_link = criteria_alert.select_one(
+            'a[href="https://github.com/noricha-vr/vrc-ta-hub/issues"]',
+        )
+        self.assertEqual(contact_link.get_text(strip=True), '運営へお問い合わせください')
+        summary_text = criteria_alert.get_text(' ', strip=True)
+        for category in ('技術系', '学術系', '協力団体'):
+            self.assertIn(category, summary_text)
+        self.assertIn('このフォームでは', summary_text)
+        self.assertIn('運営へお問い合わせください', summary_text)
+        self.assertIn('Hub紹介・宣伝への協力が必須条件', summary_text)
 
     def test_common_footer_links_to_criteria(self):
         response = self.client.get(reverse('ta_hub:about'))

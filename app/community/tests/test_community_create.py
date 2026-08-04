@@ -3,6 +3,7 @@ from unittest.mock import patch, MagicMock
 
 from allauth.socialaccount.models import SocialApp
 from django.contrib.sites.models import Site
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 
@@ -29,7 +30,8 @@ class CommunityCreateFormTest(TestCase):
         required_fields = [
             'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
-            'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags'
+            'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags',
+            'guidelines_agreed',
         ]
         for field in required_fields:
             self.assertIn(field, form.fields)
@@ -43,6 +45,14 @@ class CommunityCreateFormTest(TestCase):
         """tagsが必須であることをテスト."""
         form = CommunityCreateForm()
         self.assertTrue(form.fields['tags'].required)
+
+    def test_guidelines_agreement_is_required_and_not_stored_on_model(self):
+        """ガイドライン同意が必須の非モデルフィールドであることをテスト."""
+        form = CommunityCreateForm()
+
+        self.assertTrue(form.fields['guidelines_agreed'].required)
+        self.assertFalse(bool(form.fields['guidelines_agreed'].initial))
+        self.assertNotIn('guidelines_agreed', [field.name for field in Community._meta.fields])
 
     def test_tags_uses_form_tags_only(self):
         """tagsがFORM_TAGS（技術系・学術系）のみを使用していることをテスト."""
@@ -99,6 +109,37 @@ class CommunityCreateViewTest(TestCase):
         )
         self.create_url = reverse('community:create')
 
+    def _make_post_data(self, *, name='テスト集会名', organizer_url=''):
+        """有効な集会登録データを生成する."""
+        test_image = SimpleUploadedFile(
+            name='test_poster.jpg',
+            content=(
+                b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x00\x00\x00\x21'
+                b'\xf9\x04\x01\x0a\x00\x01\x00\x2c\x00\x00\x00\x00\x01\x00\x01'
+                b'\x00\x00\x02\x02\x4c\x01\x00\x3b'
+            ),
+            content_type='image/gif',
+        )
+        return {
+            'name': name,
+            'start_time': '20:00',
+            'duration': 60,
+            'weekdays': ['Sat'],
+            'frequency': '毎週',
+            'organizers': 'テスト主催者',
+            'group_url': '',
+            'organizer_url': organizer_url,
+            'sns_url': '',
+            'discord': '',
+            'twitter_hashtag': '',
+            'poster_image': test_image,
+            'allow_poster_repost': True,
+            'description': 'テスト説明',
+            'platform': 'All',
+            'tags': ['tech'],
+            'guidelines_agreed': True,
+        }
+
     def test_unauthenticated_user_redirected_to_login(self):
         """未認証ユーザーがログインページにリダイレクトされることをテスト."""
         response = self.client.get(self.create_url)
@@ -112,6 +153,22 @@ class CommunityCreateViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'community/create.html')
         self.assertContains(response, 'A4比率・縦4096px')
+
+    def test_submission_without_guidelines_agreement_is_rejected(self):
+        """ガイドラインに同意しない送信では集会を作成しないことをテスト."""
+        self.client.login(username='テストユーザー', password='testpass123')
+        post_data = self._make_post_data(name='未同意集会')
+        post_data.pop('guidelines_agreed')
+
+        response = self.client.post(self.create_url, post_data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFormError(
+            response.context['form'],
+            'guidelines_agreed',
+            '登録するには、掲載・審査基準とガイドラインへの同意が必要です。',
+        )
+        self.assertFalse(Community.objects.filter(name='未同意集会').exists())
 
     def test_user_with_existing_community_can_access_create_page(self):
         """既に集会を持っているユーザーも集会登録ページにアクセスできることをテスト（複数集会対応）."""
@@ -139,39 +196,13 @@ class CommunityCreateViewTest(TestCase):
 
         nameフィールドを含めて送信し、集会が正常に作成されることを確認する。
         """
-        from django.core.files.uploadedfile import SimpleUploadedFile
-
         # Discord通知のモック
         mock_discord_post.return_value = MagicMock(status_code=200)
 
         self.client.login(username='テストユーザー', password='testpass123')
-
-        # テスト用の画像ファイルを作成
-        test_image = SimpleUploadedFile(
-            name='test_poster.jpg',
-            content=b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x00\x00\x00\x21\xf9\x04\x01\x0a\x00\x01\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x4c\x01\x00\x3b',
-            content_type='image/gif'
+        post_data = self._make_post_data(
+            organizer_url='https://vrchat.com/home/user/usr_01b02b0e-58b5-4558-a6ca-56dd32dafdad',
         )
-
-        # POSTデータ（nameを含む）
-        post_data = {
-            'name': 'テスト集会名',
-            'start_time': '20:00',
-            'duration': 60,
-            'weekdays': ['Sat'],
-            'frequency': '毎週',
-            'organizers': 'テスト主催者',
-            'group_url': '',
-            'organizer_url': 'https://vrchat.com/home/user/usr_01b02b0e-58b5-4558-a6ca-56dd32dafdad',
-            'sns_url': '',
-            'discord': '',
-            'twitter_hashtag': '',
-            'poster_image': test_image,
-            'allow_poster_repost': True,
-            'description': 'テスト説明',
-            'platform': 'All',
-            'tags': ['tech'],
-        }
 
         response = self.client.post(self.create_url, post_data)
 
@@ -201,39 +232,11 @@ class CommunityCreateViewTest(TestCase):
     @patch('community.views.manage.requests.post')
     def test_community_create_creates_owner_membership(self, mock_discord_post):
         """集会作成時にオーナーとしてCommunityMemberが作成されることをテスト."""
-        from django.core.files.uploadedfile import SimpleUploadedFile
-
         # Discord通知のモック
         mock_discord_post.return_value = MagicMock(status_code=200)
 
         self.client.login(username='テストユーザー', password='testpass123')
-
-        # テスト用の画像ファイルを作成
-        test_image = SimpleUploadedFile(
-            name='test_poster.jpg',
-            content=b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x00\x00\x00\x21\xf9\x04\x01\x0a\x00\x01\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x4c\x01\x00\x3b',
-            content_type='image/gif'
-        )
-
-        # POSTデータ
-        post_data = {
-            'name': 'オーナーテスト集会',
-            'start_time': '20:00',
-            'duration': 60,
-            'weekdays': ['Sat'],
-            'frequency': '毎週',
-            'organizers': 'テスト主催者',
-            'group_url': '',
-            'organizer_url': '',
-            'sns_url': '',
-            'discord': '',
-            'twitter_hashtag': '',
-            'poster_image': test_image,
-            'allow_poster_repost': True,
-            'description': 'テスト説明',
-            'platform': 'All',
-            'tags': ['tech'],
-        }
+        post_data = self._make_post_data(name='オーナーテスト集会')
 
         response = self.client.post(self.create_url, post_data)
 
@@ -263,8 +266,6 @@ class CommunityCreateViewTest(TestCase):
     @patch('community.views.manage.requests.post')
     def test_user_with_existing_community_can_create_new_community(self, mock_discord_post):
         """既に集会を持っているユーザーが新しい集会を作成できることをテスト（複数集会対応）."""
-        from django.core.files.uploadedfile import SimpleUploadedFile
-
         # Discord通知のモック
         mock_discord_post.return_value = MagicMock(status_code=200)
 
@@ -282,33 +283,7 @@ class CommunityCreateViewTest(TestCase):
         )
 
         self.client.login(username='テストユーザー', password='testpass123')
-
-        # テスト用の画像ファイルを作成
-        test_image = SimpleUploadedFile(
-            name='test_poster.jpg',
-            content=b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x00\x00\x00\x21\xf9\x04\x01\x0a\x00\x01\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x4c\x01\x00\x3b',
-            content_type='image/gif'
-        )
-
-        # POSTデータ
-        post_data = {
-            'name': '新規集会',
-            'start_time': '20:00',
-            'duration': 60,
-            'weekdays': ['Sat'],
-            'frequency': '毎週',
-            'organizers': 'テスト主催者',
-            'group_url': '',
-            'organizer_url': '',
-            'sns_url': '',
-            'discord': '',
-            'twitter_hashtag': '',
-            'poster_image': test_image,
-            'allow_poster_repost': True,
-            'description': 'テスト説明',
-            'platform': 'All',
-            'tags': ['tech'],
-        }
+        post_data = self._make_post_data(name='新規集会')
 
         response = self.client.post(self.create_url, post_data)
 
