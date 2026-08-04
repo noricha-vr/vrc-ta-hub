@@ -9,8 +9,9 @@ from .base import DEBUG
 
 AUTH_USER_MODEL = 'user_account.CustomUser'
 
+# allauth は ModelBackend 継承で権限チェックも担うため、Django標準 backend は追加しない。
+# LOGIN_METHODS に username がないため、user_name での認証も構造的に無効になる。
 AUTHENTICATION_BACKENDS = [
-    'user_account.backends.EmailBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 

@@ -14,7 +14,7 @@ EXPECTED_DIRECT_CREATES_BY_MODEL = {
     'CustomUser': 119,
     'Event': 160,
     'EventDetail': 157,
-    'User': 106,
+    'User': 112,
 }
 
 

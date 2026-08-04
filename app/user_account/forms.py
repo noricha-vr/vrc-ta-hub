@@ -260,8 +260,10 @@ class LocalSignupForm(UserCreationForm):
 
     def clean_email(self):
         email = self.cleaned_data.get('email')
-        if email and CustomUser.objects.filter(email__iexact=email).exists():
-            raise forms.ValidationError('このメールアドレスは既に登録されています。')
+        if email:
+            email = email.lower()
+            if CustomUser.objects.filter(email__iexact=email).exists():
+                raise forms.ValidationError('このメールアドレスは既に登録されています。')
         return email
 
     def save(self, commit=True):
@@ -318,6 +320,15 @@ class CustomUserChangeForm(forms.ModelForm):
 
     def clean_x_account(self):
         return normalize_x_account(self.cleaned_data.get('x_account', ''))
+
+    def clean_email(self):
+        """メールアドレスを正規化し、他ユーザーとの重複を拒否する。"""
+        email = self.cleaned_data.get('email')
+        if email:
+            email = email.lower()
+            if CustomUser.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
+                raise forms.ValidationError('このメールアドレスは既に登録されています。')
+        return email
 
     def clean_vrchat_user_id(self):
         return normalize_vrchat_user_id(self.cleaned_data.get('vrchat_user_id', ''))
@@ -384,11 +395,13 @@ class CustomSocialSignupForm(SocialSignupForm):
         大文字小文字を区別せずに重複をチェックする。
         """
         email = self.cleaned_data.get('email')
-        if email and CustomUser.objects.filter(email__iexact=email).exists():
-            raise forms.ValidationError(
-                'このメールアドレスは既に登録されています。'
-                '既存のアカウントにログインしてから、Discord連携を行ってください。'
-            )
+        if email:
+            email = email.lower()
+            if CustomUser.objects.filter(email__iexact=email).exists():
+                raise forms.ValidationError(
+                    'このメールアドレスは既に登録されています。'
+                    '既存のアカウントにログインしてから、Discord連携を行ってください。'
+                )
         return email
 
     def clean_user_name(self):

@@ -337,7 +337,6 @@ class CustomSocialAccountAdapterTests(TestCase):
         }
 
         mock_user = MagicMock()
-        mock_user.email = None
         with patch('user_account.adapters.DefaultSocialAccountAdapter.populate_user', return_value=mock_user):
             result = self.adapter.populate_user(request, sociallogin, data)
 
@@ -357,25 +356,14 @@ class CustomSocialAccountAdapterTests(TestCase):
         }
 
         mock_user = MagicMock()
-        mock_user.email = None
         with patch('user_account.adapters.DefaultSocialAccountAdapter.populate_user', return_value=mock_user):
             result = self.adapter.populate_user(request, sociallogin, data)
 
             self.assertEqual(result.user_name, 'discord_987654321')
-            # メール未設定のユーザーを保存する前に、フォーム入力を要求する。
-            self.assertFalse(result.email)
+            self.assertEqual(result.email, '')
 
-    def test_save_user_rejects_missing_email(self):
-        """メール未設定のソーシャルユーザーは保存できないこと."""
-        request = self.factory.get('/accounts/discord/login/callback/')
-        sociallogin = MagicMock()
-        sociallogin.user.email = ''
-
-        with self.assertRaisesMessage(ValueError, 'メールアドレスなしでソーシャルアカウントを保存できません。'):
-            self.adapter.save_user(request, sociallogin, form=None)
-
-    def test_populate_user_does_not_assign_empty_email(self):
-        """メールが取得できない場合、空メールを明示設定しないこと."""
+    def test_populate_user_keeps_empty_email_when_not_provided(self):
+        """メールが取得できない場合、フォーム入力用に空のままとすること."""
         request = self.factory.get('/accounts/discord/login/callback/')
 
         sociallogin = MagicMock()
@@ -387,11 +375,10 @@ class CustomSocialAccountAdapterTests(TestCase):
         }
 
         mock_user = MagicMock()
-        mock_user.email = None
         with patch('user_account.adapters.DefaultSocialAccountAdapter.populate_user', return_value=mock_user):
             result = self.adapter.populate_user(request, sociallogin, data)
 
-            self.assertFalse(result.email)
+            self.assertEqual(result.email, '')
 
     def test_populate_user_uses_real_email_when_provided(self):
         """メールが提供された場合、プレースホルダーではなく実際のメールを使用すること."""

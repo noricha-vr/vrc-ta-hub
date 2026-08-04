@@ -81,7 +81,8 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 
 ## テストユーザー（開発用）
 
-ログインが必要な動作確認時は `.env.local` の `TEST_USER_NAME` と `TEST_USER_PASSWORD` を参照。
+ログインが必要な動作確認時は `.env.local` の `TEST_USER_EMAIL` と `TEST_USER_PASSWORD` を参照。
+ログインは email で行う（ユーザー名ログインは廃止済み。フォームの input name は `username` のまま）。
 
 ### AIエージェント向けログインスキップ
 

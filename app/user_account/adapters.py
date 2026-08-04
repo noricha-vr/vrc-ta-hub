@@ -211,8 +211,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
         user.user_name = user_name
         user.display_name = discord_username or user_name
-        email = data.get('email')
-        user.email = email or None
+        user.email = data.get('email', '')
 
         logger.info(
             f"Populating new user: user_name={user.user_name}, "
@@ -234,10 +233,6 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         Returns:
             User: 保存されたユーザーオブジェクト
         """
-        email = form.cleaned_data.get('email') if form else sociallogin.user.email
-        if not email:
-            raise ValueError('メールアドレスなしでソーシャルアカウントを保存できません。')
-
         user = super().save_user(request, sociallogin, form)
 
         # フォームからuser_nameを取得して設定

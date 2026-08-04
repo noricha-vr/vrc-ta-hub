@@ -338,6 +338,44 @@ class CustomUserChangeFormTests(TestCase):
         )
         self.assertTrue(form.is_valid(), form.errors)
 
+    def test_email_is_normalized_to_lowercase(self):
+        """プロフィール編集時のメールアドレスを小文字に正規化すること."""
+        form = CustomUserChangeForm(
+            instance=self.test_user,
+            data={
+                'display_name': self.test_user.display_name,
+                'user_name': self.test_user.user_name,
+                'email': 'TEST@EXAMPLE.COM',
+                'x_account': '',
+                'vrchat_user_id': '',
+            },
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['email'], 'test@example.com')
+
+    def test_email_case_insensitive_duplicate_is_rejected(self):
+        """他ユーザーの大小文字違いメールアドレスを拒否すること."""
+        User.objects.create_user(
+            email='other@example.com',
+            user_name='other_email_user',
+            password='testpass123',
+        )
+        form = CustomUserChangeForm(
+            instance=self.test_user,
+            data={
+                'display_name': self.test_user.display_name,
+                'user_name': self.test_user.user_name,
+                'email': 'OTHER@EXAMPLE.COM',
+                'x_account': '',
+                'vrchat_user_id': '',
+            },
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('email', form.errors)
+        self.assertIn('このメールアドレスは既に登録されています。', form.errors['email'])
+
 
 class CustomUserCreationFormTests(TestCase):
     """CustomUserCreationFormのX表記テスト."""
