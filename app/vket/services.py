@@ -124,11 +124,20 @@ def _resolve_publication_event(participation: VketParticipation) -> tuple[Event,
         start_time=participation.confirmed_start_time,
     ).first()
     if existing_event:
-        changed = participation.published_event_id != existing_event.pk
-        if changed:
+        duration_changed = (
+            existing_event.duration != participation.confirmed_duration
+        )
+        if duration_changed:
+            existing_event.duration = participation.confirmed_duration
+            existing_event.save(update_fields=["duration"])
+
+        published_event_changed = (
+            participation.published_event_id != existing_event.pk
+        )
+        if published_event_changed:
             participation.published_event = existing_event
             participation.save(update_fields=["published_event", "updated_at"])
-        return existing_event, changed
+        return existing_event, duration_changed or published_event_changed
 
     weekday = weekday_code(participation.confirmed_date)
     if participation.published_event_id:

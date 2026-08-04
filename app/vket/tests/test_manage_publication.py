@@ -69,6 +69,30 @@ class VketManageViewsTests(VketManageViewsBase):
         self.assertContains(response, '21:00')
         self.assertContains(response, '22:00')
 
+    def test_manage_view_shows_active_publication_duration_drift(self):
+        """管理画面は公開イベントと確定開催時間の差分を表示する"""
+        self.event1.duration = 90
+        self.event1.save(update_fields=['duration'])
+        self.client.login(username='admin_user', password='adminpass123')
+
+        response = self.client.get(
+            reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [p.pk for p in response.context['publication_drift_participations']],
+            [self.participation1.pk],
+        )
+        self.assertRegex(
+            response.content.decode(),
+            (
+                rf'(?s)<tr data-participation-id="{self.participation1.pk}">.*?'
+                r'確定: .*?21:00（60分）.*?'
+                r'公開: .*?21:00（90分）.*?</tr>'
+            ),
+        )
+
     def test_manage_view_ignores_non_active_participations(self):
         """管理画面は未関連Eventがない不参加を警告しない"""
         self.participation1.published_event = None
@@ -292,6 +316,18 @@ class VketManageViewsTests(VketManageViewsBase):
         self.assertEqual(Event.objects.filter(community=community).count(), 1)
         self.assertEqual(presentation.published_event_detail.event_id, existing_event.pk)
         self.assertEqual(presentation.published_event_detail.start_time.strftime('%H:%M'), '22:30')
+
+    def test_publication_sync_updates_duration_on_related_existing_event(self):
+        """公開同期は関連済みEventの開催時間差分を更新する。"""
+        self.event1.duration = 90
+        self.event1.save(update_fields=['duration'])
+
+        result = sync_participation_publication(self.participation1)
+
+        self.event1.refresh_from_db()
+        self.assertEqual(self.event1.duration, self.participation1.confirmed_duration)
+        self.assertEqual(result.event.pk, self.event1.pk)
+        self.assertTrue(result.changed_index_data)
 
     def test_publication_sync_date_update_does_not_create_tombstone(self):
         """Vket運営同期の日付更新はユーザー例外として記録しない"""

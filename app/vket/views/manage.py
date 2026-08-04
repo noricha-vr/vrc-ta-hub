@@ -103,6 +103,8 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
                     participation.confirmed_date != participation.published_event.date
                     or participation.confirmed_start_time
                     != participation.published_event.start_time
+                    or participation.confirmed_duration
+                    != participation.published_event.duration
                 )
             )
         ]
