@@ -2,7 +2,9 @@ import shutil
 import tempfile
 from datetime import date, timedelta, time
 from pathlib import Path
+from urllib.parse import quote
 
+from django.conf import settings
 from django.http import QueryDict
 from django.db import connection
 from django.test import TestCase, Client, RequestFactory, override_settings
@@ -533,6 +535,8 @@ class CommunityDetailViewBlogSpecialSectionTest(TestCase):
 class CommunityDetailViewLtApplicationSectionTest(TestCase):
     """CommunityDetailViewのLT申請セクション表示テスト"""
 
+    LOGIN_NOTICE = '申請にはログインが必要です'
+
     def setUp(self):
         self.client = Client()
 
@@ -558,25 +562,37 @@ class CommunityDetailViewLtApplicationSectionTest(TestCase):
             role=CommunityMember.Role.OWNER
         )
 
+        self.detail_url = reverse(
+            'community:detail', kwargs={'pk': self.community.pk}
+        )
+        self.apply_url = reverse(
+            'event:lt_application_create',
+            kwargs={'community_pk': self.community.pk},
+        )
+
     def test_lt_section_shown_when_authenticated_and_approved_and_accepts_lt(self):
         """ログイン済み・承認済み・LT受付ONの場合、LT申請セクションが表示される"""
         self.client.login(username='テストユーザー', password='testpass123')
-        response = self.client.get(
-            reverse('community:detail', kwargs={'pk': self.community.pk})
-        )
+        response = self.client.get(self.detail_url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '発表を申し込む')
-        self.assertContains(response, '発表を申し込む')
+        self.assertContains(response, self.apply_url)
 
-    def test_lt_section_not_shown_when_not_authenticated(self):
-        """未ログインの場合、LT申請セクションは表示されない"""
-        response = self.client.get(
-            reverse('community:detail', kwargs={'pk': self.community.pk})
-        )
+    def test_login_notice_not_shown_when_authenticated(self):
+        """ログイン済みの場合、ログインが必要な旨の補足文は表示されない"""
+        self.client.login(username='テストユーザー', password='testpass123')
+        response = self.client.get(self.detail_url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, '発表を申し込む')
+        self.assertNotContains(response, self.LOGIN_NOTICE)
+
+    def test_lt_section_shown_when_not_authenticated(self):
+        """未ログインでも申請導線と補足文が表示される（Issue #569）"""
+        response = self.client.get(self.detail_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.apply_url)
+        self.assertContains(response, self.LOGIN_NOTICE)
 
     def test_lt_section_not_shown_when_not_approved(self):
         """未承認集会の場合、詳細ページ自体が閲覧できない（superuserのみ閲覧可）"""
@@ -584,25 +600,28 @@ class CommunityDetailViewLtApplicationSectionTest(TestCase):
         self.community.save()
 
         self.client.login(username='テストユーザー', password='testpass123')
-        response = self.client.get(
-            reverse('community:detail', kwargs={'pk': self.community.pk})
-        )
+        response = self.client.get(self.detail_url)
 
         self.assertEqual(response.status_code, 404)
-        self.assertNotContains(response, '発表を申し込む', status_code=404)
 
     def test_lt_section_not_shown_when_accepts_lt_is_false(self):
-        """LT受付OFFの場合、LT申請セクションは表示されない"""
+        """LT受付OFFの場合、未ログインでもLT申請セクションは表示されない"""
         self.community.accepts_lt_application = False
         self.community.save()
 
-        self.client.login(username='テストユーザー', password='testpass123')
-        response = self.client.get(
-            reverse('community:detail', kwargs={'pk': self.community.pk})
-        )
+        response = self.client.get(self.detail_url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, '発表を申し込む')
+        self.assertNotContains(response, self.apply_url)
+        self.assertNotContains(response, self.LOGIN_NOTICE)
+
+    def test_anonymous_apply_redirects_to_login_with_next(self):
+        """未ログインで申請ページへアクセスするとnext付きでログインへ誘導される"""
+        response = self.client.get(self.apply_url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(settings.LOGIN_URL, response.url)
+        self.assertIn(f'next={quote(self.apply_url)}', response.url)
 
 
 class CommunityDetailArchiveNoticeTest(TestCase):

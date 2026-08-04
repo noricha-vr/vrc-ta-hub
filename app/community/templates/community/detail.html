@@ -190,7 +190,7 @@
                         </section>
 
                         <!-- 発表申請 -->
-                        {% if request.user.is_authenticated and community.status == 'approved' and community.accepts_lt_application %}
+                        {% if community.status == 'approved' and community.accepts_lt_application %}
                         <section class="mb-4">
                             <h2 class="fs-5 fw-bold mb-3">
                                 <i class="bi bi-mic me-2"></i>発表を申し込む
@@ -200,6 +200,9 @@
                                class="btn btn-success">
                                 <i class="bi bi-plus-circle me-2"></i>発表を申し込む
                             </a>
+                            {% if not request.user.is_authenticated %}
+                                <p class="text-muted small mt-2 mb-0">申請にはログインが必要です（ログイン画面に移動します）</p>
+                            {% endif %}
                         </section>
                         {% endif %}
 
