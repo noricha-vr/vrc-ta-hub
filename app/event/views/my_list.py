@@ -262,7 +262,7 @@ class EventMyList(LoginRequiredMixin, ListView):
     def _get_vket_banner(self, community):
         """Vketコラボバナーに必要な情報を返す。
 
-        DRAFT/ARCHIVEDを除外した最新のコラボを取得し、
+        DRAFT/ARCHIVEDと終了済みを除外した最新のコラボを取得し、
         フェーズ・日付に基づいて状態メッセージとリンク先を決定する。
 
         Args:
@@ -273,19 +273,20 @@ class EventMyList(LoginRequiredMixin, ListView):
         """
         from vket.models import VketCollaboration, VketParticipation
 
+        today = timezone.localdate()
         collaboration = (
             VketCollaboration.objects
             .exclude(phase__in=[
                 VketCollaboration.Phase.DRAFT,
                 VketCollaboration.Phase.ARCHIVED,
             ])
+            .filter(period_end__gte=today)
             .order_by('-period_start', '-id')
             .first()
         )
         if not collaboration:
             return None
 
-        today = timezone.localdate()
         is_vket_admin = (
             self.request.user.is_authenticated
             and (self.request.user.is_superuser or self.request.user.is_staff)
