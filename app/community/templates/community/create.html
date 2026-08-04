@@ -5,6 +5,11 @@
     <div class="container my-5">
         <div class="row">
             <div class="col-md-10 offset-md-1">
+                <div class="alert alert-info" role="note">
+                    登録前に、掲載対象と審査の考え方をまとめた
+                    <a href="{% url 'community:criteria' %}" class="alert-link">掲載・審査基準</a>
+                    をご確認ください。
+                </div>
                 <form method="post" enctype="multipart/form-data">
                     {% csrf_token %}
 
