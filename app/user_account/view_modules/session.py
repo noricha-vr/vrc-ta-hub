@@ -2,7 +2,6 @@
 
 from urllib.parse import urlencode
 
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView, RedirectURLMixin
@@ -18,6 +17,7 @@ from user_account.forms import (
     BootstrapPasswordChangeForm,
     LocalSignupForm,
 )
+from user_account.login_redirect import get_default_login_redirect_url
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
@@ -26,9 +26,9 @@ class CustomLoginView(LoginView):
     form_class = BootstrapAuthenticationForm
 
     def dispatch(self, request, *args, **kwargs):
-        """認証済みユーザーをイベント管理ページへ移動させる."""
+        """認証済みユーザーを所属状況に応じた既定ページへ移動させる."""
         if request.user.is_authenticated:
-            return redirect('event:my_list')
+            return redirect(get_default_login_redirect_url(request.user))
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
@@ -44,7 +44,7 @@ class CustomLoginView(LoginView):
         redirect_url = self.get_redirect_url()
         if redirect_url:
             return redirect_url
-        return settings.LOGIN_REDIRECT_URL
+        return get_default_login_redirect_url(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

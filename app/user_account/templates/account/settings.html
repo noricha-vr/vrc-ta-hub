@@ -85,6 +85,12 @@
 
                         <!-- アカウントセクション -->
                         <div class="list-group list-group-flush">
+                            <a href="{% url 'event:my_presentations' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                                <span>
+                                    <i class="bi bi-person-video3 me-2" aria-hidden="true"></i>自分の発表
+                                </span>
+                                <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+                            </a>
                             <a href="{% url 'account:user_update' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                 <span>
                                     <i class="fa-solid fa-user me-2"></i>ユーザー情報を編集

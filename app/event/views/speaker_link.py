@@ -228,7 +228,7 @@ class SpeakerLinkConfirmView(SensitiveResponseMixin, View):
 
         request.session.pop(SPEAKER_INVITE_SESSION_KEY, None)
         messages.success(request, "発表とアカウントを紐づけました。")
-        return redirect("event:detail", pk=event_detail.pk)
+        return redirect("event:my_presentations")
 
     def _clear_and_render_error(
         self,

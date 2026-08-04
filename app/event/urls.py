@@ -12,6 +12,7 @@ from .views import (
     EventListView,
     EventLogListView,
     EventMyList,
+    MyPresentationsView,
     EventUpdateView,
     GenerateBlogView,
     GoogleCalendarEventCreateView,
@@ -37,6 +38,7 @@ urlpatterns = [
     path('delete/<int:pk>/', EventDeleteView.as_view(), name='delete'),
     path('update/<int:pk>/', EventUpdateView.as_view(), name='update'),
     path('my_list/', EventMyList.as_view(), name='my_list'),
+    path('my_presentations/', MyPresentationsView.as_view(), name='my_presentations'),
     path('sync/', sync_calendar_events, name='sync_calendar_events'),
     path('calendar/create/', GoogleCalendarEventCreateView.as_view(), name='calendar_create'),
     # detail
