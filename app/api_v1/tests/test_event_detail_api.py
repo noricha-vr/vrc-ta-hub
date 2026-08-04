@@ -7,6 +7,7 @@ from datetime import date, time
 from user_account.models import CustomUser, APIKey
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from tests.factories import make_event
 from vket.models import VketCollaboration, VketParticipation
 
 
@@ -355,6 +356,50 @@ class EventDetailAPITest(TestCase):
         self.assertEqual(self.event_detail1.event_id, self.event1.id)
         self.assertEqual(self.event_detail1.start_time, time(20, 0))
         self.assertEqual(self.event_detail1.duration, 30)
+
+    def test_update_event_detail_cannot_move_out_of_locked_event(self):
+        """ロック中イベントの詳細を兄弟イベントへ移す抜け道（移動→削除）を防ぐ."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
+
+        url = reverse('event-detail-api-detail', kwargs={'pk': self.locked_event_detail.id})
+
+        response = self.client.patch(url, {'event': self.event1.id}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('event', response.data)
+        self.locked_event_detail.refresh_from_db()
+        self.assertEqual(self.locked_event_detail.event_id, self.locked_event.id)
+
+    def test_update_event_detail_allows_move_when_not_locked(self):
+        """ロックされていない詳細のイベント移動は従来どおり許可する."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.raw_api_key1}')
+        unlocked_event = make_event(
+            self.community1,
+            event_date=date(2024, 12, 27),
+            start_time=time(20, 0),
+            duration=120,
+            weekday='fri',
+        )
+
+        url = reverse('event-detail-api-detail', kwargs={'pk': self.event_detail1.id})
+
+        response = self.client.patch(url, {'event': unlocked_event.id}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.event_detail1.refresh_from_db()
+        self.assertEqual(self.event_detail1.event_id, unlocked_event.id)
+
+    def test_superuser_can_move_locked_event_detail(self):
+        """superuser はロック中でも詳細のイベント移動ができる."""
+        self.client.force_authenticate(user=self.superuser)
+
+        url = reverse('event-detail-api-detail', kwargs={'pk': self.locked_event_detail.id})
+
+        response = self.client.patch(url, {'event': self.event1.id}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.locked_event_detail.refresh_from_db()
+        self.assertEqual(self.locked_event_detail.event_id, self.event1.id)
 
     def test_superuser_can_update_locked_event_detail_datetime(self):
         """superuser は Vket 期間中でも日時変更できる."""
