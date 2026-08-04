@@ -467,6 +467,57 @@ class EventDateUpdateViewTests(TestCase):
         self.event.refresh_from_db()
         self.assertEqual(self.event.date, self.original_date)
 
+    def test_vket_lock_checks_old_date_with_confirmed_match(self):
+        """published_event 未設定でも、変更前日付が期間内ならブロックする"""
+        self._create_vket_period(
+            self.original_date,
+            self.original_date + timedelta(days=1),
+            use_confirmed_match=True,
+        )
+        self.client.force_login(self.owner)
+
+        response = self._post_date(self.original_date + timedelta(days=3))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '運営のみ')
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.date, self.original_date)
+
+    def test_vket_lock_checks_new_date_with_confirmed_match(self):
+        """published_event 未設定でも、移動先日付が期間内ならブロックする"""
+        new_date = self.original_date + timedelta(days=3)
+        self._create_vket_period(
+            new_date,
+            new_date + timedelta(days=1),
+            use_confirmed_match=True,
+        )
+        self.client.force_login(self.owner)
+
+        response = self._post_date(new_date)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '運営のみ')
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.date, self.original_date)
+
+    def test_vket_lock_blocks_move_onto_confirmed_date(self):
+        """期間外のイベントを confirmed_date（期間内）へ動かす操作もブロックする"""
+        confirmed_date = self.original_date + timedelta(days=3)
+        self._create_vket_period(
+            confirmed_date,
+            confirmed_date + timedelta(days=1),
+            use_confirmed_match=True,
+            confirmed_date=confirmed_date,
+        )
+        self.client.force_login(self.owner)
+
+        response = self._post_date(confirmed_date)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '運営のみ')
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.date, self.original_date)
+
     def test_superuser_can_bypass_vket_lock(self):
         new_date = self.original_date + timedelta(days=3)
         self._create_vket_period(new_date, new_date + timedelta(days=1))
@@ -478,7 +529,15 @@ class EventDateUpdateViewTests(TestCase):
         self.event.refresh_from_db()
         self.assertEqual(self.event.date, new_date)
 
-    def _create_vket_period(self, period_start, period_end):
+    def _create_vket_period(
+        self, period_start, period_end, *, use_confirmed_match=False, confirmed_date=None,
+    ):
+        """コラボ期間と本体イベントの紐づけを作る。
+
+        use_confirmed_match=True は本番同様に published_event 未設定で、
+        confirmed 日時一致のフォールバック経路を通す。confirmed_date を渡すと
+        イベントの現在日と異なる確定日（未移動状態）を再現できる。
+        """
         collaboration = VketCollaboration.objects.create(
             slug=f'event-date-lock-{period_start.isoformat()}',
             name='Vket日付変更ロック',
@@ -487,10 +546,20 @@ class EventDateUpdateViewTests(TestCase):
             registration_deadline=period_start,
             lt_deadline=period_end,
         )
+        link = (
+            {
+                'confirmed_date': confirmed_date or self.event.date,
+                'confirmed_start_time': self.event.start_time,
+                'confirmed_duration': self.event.duration,
+            }
+            if use_confirmed_match
+            else {'published_event': self.event}
+        )
         return VketParticipation.objects.create(
             collaboration=collaboration,
             community=self.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            **link,
         )
 
     def _make_recurring_master(self):

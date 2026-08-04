@@ -92,6 +92,7 @@ class EventDetailFormCleanTest(TestCase):
             collaboration=self.vket_collaboration,
             community=self.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            published_event=self.locked_event,
         )
 
     def _create_request(self):

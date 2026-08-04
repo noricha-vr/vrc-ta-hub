@@ -286,6 +286,7 @@ class EventDeleteViewPermissionTest(TestCase):
             collaboration=collaboration,
             community=self.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            published_event=child,
         )
         self.client.login(username='Owner User', password='ownerpass123')
 
@@ -348,6 +349,7 @@ class EventDeleteViewPermissionTest(TestCase):
             collaboration=collaboration,
             community=self.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            published_event=locked_child,
         )
         self.client.login(username='Owner User', password='ownerpass123')
 
