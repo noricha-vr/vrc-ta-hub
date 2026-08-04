@@ -37,3 +37,9 @@ from event.views.lt_application import (  # noqa: F401
     LTApplicationRejectView,
     LTApplicationReviewView,
 )
+from event.views.speaker_link import (  # noqa: F401
+    SpeakerInviteIssueView,
+    SpeakerInviteTokenExchangeView,
+    SpeakerLinkConfirmView,
+    SpeakerLinkUnlinkView,
+)

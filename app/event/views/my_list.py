@@ -209,6 +209,18 @@ class EventMyList(LoginRequiredMixin, ListView):
             del query_params['page']
         return query_params.urlencode()
 
+    def _get_speaker_event_details(self):
+        """ログイン中ユーザーが編集できる承認済みの発表を取得する。"""
+        return (
+            EventDetail.objects.filter(
+                applicant=self.request.user,
+                detail_type='LT',
+                status='approved',
+            )
+            .select_related('event', 'event__community')
+            .order_by('-event__date', 'start_time')
+        )
+
     def get_context_data(self, **kwargs):
         """テンプレートに渡すコンテキストデータを準備する
 
@@ -245,6 +257,7 @@ class EventMyList(LoginRequiredMixin, ListView):
 
         # 更新されたイベントリストをコンテキストに再設定
         context['events'] = events
+        context['speaker_event_details'] = self._get_speaker_event_details()
 
         # ページネーション用のパラメータを設定
         context['current_query_params'] = self._prepare_pagination_params()

@@ -152,6 +152,24 @@ def make_community(
     return community
 
 
+def make_community_member(community, user, role: str = CommunityMember.Role.STAFF):
+    """テスト用の集会メンバーを作成する。
+
+    Args:
+        community: 所属先の ``Community``。
+        user: 所属させる ``CustomUser``。
+        role: ``CommunityMember.Role`` の値。
+
+    Returns:
+        作成された ``CommunityMember`` インスタンス。
+    """
+    return CommunityMember.objects.create(
+        community=community,
+        user=user,
+        role=role,
+    )
+
+
 def make_event(
     community,
     event_date: Optional[date] = None,

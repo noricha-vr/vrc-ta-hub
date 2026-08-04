@@ -66,6 +66,8 @@ class HeaderCommunityDropdownTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'マイ集会')
+        self.assertContains(response, 'マイページ')
+        self.assertContains(response, reverse('event:my_list'))
 
     def test_user_sees_all_communities_in_dropdown(self):
         """ユーザーは所属する全ての集会をドロップダウンで見る"""
@@ -77,17 +79,16 @@ class HeaderCommunityDropdownTest(TestCase):
         self.assertContains(response, '個人開発集会')
         self.assertContains(response, '技術共有会')
 
-    def test_my_communities_header_is_link_to_my_list(self):
-        """「マイ集会」ヘッダーはマイページへのリンクになっている"""
+    def test_my_page_link_is_not_duplicated_with_active_community(self):
+        """集会所属ユーザーにもマイページ導線を1件だけ表示する"""
         self.client.login(username='テストユーザー', password='testpass123')
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        # 「マイ集会」がmy_listへのリンクになっていることを確認
         my_list_url = reverse('event:my_list')
-        self.assertContains(response, f'href="{my_list_url}"')
-        # マイ集会テキストがリンク内に含まれていることを確認
-        self.assertContains(response, f'<a href="{my_list_url}" class="text-muted text-decoration-none">マイ集会</a>')
+        self.assertContains(response, f'href="{my_list_url}"', count=1)
+        self.assertContains(response, 'マイページ')
+        self.assertContains(response, 'bi-person-lines-fill me-2" aria-hidden="true"')
 
     def test_active_community_has_checkmark(self):
         """アクティブな集会にはチェックマークが表示される"""

@@ -1,11 +1,31 @@
 from django.urls import path
 from django.views.generic import TemplateView
 
-from .views import EventListView, EventDetailView, sync_calendar_events, EventDetailUpdateView, EventDetailCreateView, \
-    EventDetailDeleteView, EventMyList, GenerateBlogView, EventDetailPastList, \
-    EventDateUpdateView, EventDeleteView, EventUpdateView, GoogleCalendarEventCreateView, EventLogListView, \
-    LTApplicationCreateView, LTApplicationReviewView, LTApplicationApproveView, LTApplicationCompleteView, \
-    LTApplicationRejectView
+from .views import (
+    EventDateUpdateView,
+    EventDeleteView,
+    EventDetailCreateView,
+    EventDetailDeleteView,
+    EventDetailPastList,
+    EventDetailUpdateView,
+    EventDetailView,
+    EventListView,
+    EventLogListView,
+    EventMyList,
+    EventUpdateView,
+    GenerateBlogView,
+    GoogleCalendarEventCreateView,
+    LTApplicationApproveView,
+    LTApplicationCompleteView,
+    LTApplicationCreateView,
+    LTApplicationRejectView,
+    LTApplicationReviewView,
+    SpeakerInviteIssueView,
+    SpeakerInviteTokenExchangeView,
+    SpeakerLinkConfirmView,
+    SpeakerLinkUnlinkView,
+    sync_calendar_events,
+)
 from .views.material_upload_reminder import send_material_upload_reminders_view
 from .views.slide_reminder import send_slide_reminders
 from .views_llm_generate import generate_llm_events
@@ -24,7 +44,11 @@ urlpatterns = [
     path('detail/<int:pk>/', EventDetailView.as_view(), name='detail'),
     path('detail/<int:pk>/update/', EventDetailUpdateView.as_view(), name='detail_update'),
     path('detail/<int:pk>/delete/', EventDetailDeleteView.as_view(), name='detail_delete'),
+    path('detail/<int:pk>/speaker-invite/', SpeakerInviteIssueView.as_view(), name='speaker_invite_issue'),
+    path('detail/<int:pk>/speaker-unlink/', SpeakerLinkUnlinkView.as_view(), name='speaker_link_unlink'),
     path('detail/history/', EventDetailPastList.as_view(), name='detail_history'),
+    path('speaker-link/', SpeakerLinkConfirmView.as_view(), name='speaker_link_confirm'),
+    path('speaker-link/token/', SpeakerInviteTokenExchangeView.as_view(), name='speaker_invite_token_exchange'),
     path('event_log/', EventLogListView.as_view(), name='event_log_list'),
     path('generate_blog/<int:pk>/', GenerateBlogView.as_view(), name='generate_blog'),
     path('send-material-upload-reminders/', send_material_upload_reminders_view, name='send_material_upload_reminders'),

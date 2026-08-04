@@ -363,14 +363,18 @@
                                 <i class="bi bi-person-circle"></i>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" href="{% url 'event:my_list' %}">
+                                    <i class="bi bi-person-lines-fill me-2" aria-hidden="true"></i>マイページ
+                                </a></li>
                                 {% if active_community %}
-                                    <li class="dropdown-header small text-muted"><a href="{% url 'event:my_list' %}" class="text-muted text-decoration-none">マイ集会</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li class="dropdown-header small text-muted">マイ集会</li>
                                     {% for membership in user_communities %}
                                         {% if not membership.community.is_ended %}
                                             {% if membership.community.id == active_community.id %}
-                                                <li><a class="dropdown-item" href="{% url 'event:my_list' %}">
+                                                <li><span class="dropdown-item-text">
                                                     <i class="bi bi-check-lg me-2 text-primary"></i>{{ membership.community.name|truncatechars:12 }}
-                                                </a></li>
+                                                </span></li>
                                             {% else %}
                                                 <li>
                                                     <form action="{% url 'community:switch' %}" method="post" class="d-inline w-100">
