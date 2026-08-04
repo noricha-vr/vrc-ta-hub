@@ -128,6 +128,7 @@ class EventDetailAPITest(TestCase):
             collaboration=collaboration,
             community=self.community1,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            published_event=self.locked_event,
         )
         
         self.client = APIClient()

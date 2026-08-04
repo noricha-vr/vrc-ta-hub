@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from tests.factories import make_event
 from vket.models import VketCollaboration, VketParticipation
 from vket.services import get_vket_lock_info, is_event_locked_by_vket, get_vket_lock_message
 
@@ -127,35 +128,48 @@ class VketScheduleLockServiceTests(TestCase):
             duration=60,
         )
 
+    def _create_participation(self, published_event=None, **kwargs):
+        kwargs.setdefault('lifecycle', VketParticipation.Lifecycle.ACTIVE)
+        return VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            published_event=published_event,
+            **kwargs,
+        )
+
     def test_no_participation_not_locked(self):
         """参加していないCommunityのイベントはロックされない"""
         self.assertFalse(is_event_locked_by_vket(self.event_in_period))
 
     def test_active_participation_in_period_locked(self):
-        """アクティブな参加があり期間内のイベントはロックされる"""
-        VketParticipation.objects.create(
-            collaboration=self.collaboration,
-            community=self.community,
-            lifecycle=VketParticipation.Lifecycle.ACTIVE,
-        )
+        """コラボ本体イベント（published_event）は期間内ならロックされる"""
+        self._create_participation(published_event=self.event_in_period)
         self.assertTrue(is_event_locked_by_vket(self.event_in_period))
 
-    def test_active_participation_outside_period_not_locked(self):
-        """アクティブな参加があっても期間外のイベントはロックされない"""
-        VketParticipation.objects.create(
-            collaboration=self.collaboration,
-            community=self.community,
-            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+    def test_regular_event_of_participating_community_not_locked(self):
+        """コラボ参加集会でも、コラボ本体でない通常イベントはロックされない"""
+        collab_event = make_event(
+            self.community,
+            event_date=self.event_in_period.date,
+            start_time='23:00',
         )
+        self._create_participation(published_event=collab_event)
+
+        self.assertFalse(is_event_locked_by_vket(self.event_in_period))
+
+    def test_participation_without_published_event_not_locked(self):
+        """published_event 未設定の参加だけならロックされない"""
+        self._create_participation(published_event=None)
+        self.assertFalse(is_event_locked_by_vket(self.event_in_period))
+
+    def test_active_participation_outside_period_not_locked(self):
+        """コラボ本体イベントでも期間外ならロックされない"""
+        self._create_participation(published_event=self.event_outside_period)
         self.assertFalse(is_event_locked_by_vket(self.event_outside_period))
 
     def test_lock_info_can_evaluate_proposed_date(self):
         """保存前の移動先日付もキーワード引数で判定できる"""
-        VketParticipation.objects.create(
-            collaboration=self.collaboration,
-            community=self.community,
-            lifecycle=VketParticipation.Lifecycle.ACTIVE,
-        )
+        self._create_participation(published_event=self.event_outside_period)
 
         locked, message = get_vket_lock_info(
             self.event_outside_period,
@@ -167,31 +181,22 @@ class VketScheduleLockServiceTests(TestCase):
 
     def test_declined_participation_not_locked(self):
         """不参加の場合はロックされない"""
-        VketParticipation.objects.create(
-            collaboration=self.collaboration,
-            community=self.community,
+        self._create_participation(
+            published_event=self.event_in_period,
             lifecycle=VketParticipation.Lifecycle.DECLINED,
         )
         self.assertFalse(is_event_locked_by_vket(self.event_in_period))
 
     def test_lock_message_contains_collab_name(self):
         """ロックメッセージにコラボ名が含まれる"""
-        VketParticipation.objects.create(
-            collaboration=self.collaboration,
-            community=self.community,
-            lifecycle=VketParticipation.Lifecycle.ACTIVE,
-        )
+        self._create_participation(published_event=self.event_in_period)
         msg = get_vket_lock_message(self.event_in_period)
         self.assertIn('Vket Lock Test', msg)
         self.assertIn('運営のみ', msg)
 
     def test_get_vket_lock_info_does_not_select_stage_registered_at(self):
         """ロック判定は不要列をSELECTせず、列追加直後の古いDBでも動ける"""
-        VketParticipation.objects.create(
-            collaboration=self.collaboration,
-            community=self.community,
-            lifecycle=VketParticipation.Lifecycle.ACTIVE,
-        )
+        self._create_participation(published_event=self.event_in_period)
 
         with CaptureQueriesContext(connection) as queries:
             locked, msg = get_vket_lock_info(self.event_in_period)
@@ -247,6 +252,7 @@ class VketScheduleLockViewTests(TestCase):
             collaboration=self.collaboration,
             community=self.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            published_event=self.event,
         )
         self.detail = EventDetail.objects.create(
             event=self.event,

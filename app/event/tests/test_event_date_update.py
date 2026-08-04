@@ -491,6 +491,7 @@ class EventDateUpdateViewTests(TestCase):
             collaboration=collaboration,
             community=self.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            published_event=self.event,
         )
 
     def _make_recurring_master(self):

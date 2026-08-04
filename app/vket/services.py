@@ -16,11 +16,12 @@ class VketPublicationSyncResult:
 
 
 def get_vket_lock_info(event, *, date=None) -> tuple[bool, str]:
-    """Vketコラボ期間中のイベントかどうかを判定し、ロックメッセージを返す。
+    """Vketコラボ本体のイベントかどうかを判定し、ロックメッセージを返す。
 
-    イベントの所属Communityがアクティブな VketParticipation を持ち、
+    そのイベント自身がアクティブな VketParticipation の公開先（published_event）で、
     かつイベント日がそのコラボの開催期間内（period_start〜period_end）であれば
-    ロック中と判定する。1クエリで判定とメッセージ取得を行う。
+    ロック中と判定する。同じ集会の通常イベントは期間内でもロックしない。
+    1クエリで判定とメッセージ取得を行う。
 
     Args:
         event: Event インスタンス
@@ -32,8 +33,13 @@ def get_vket_lock_info(event, *, date=None) -> tuple[bool, str]:
     # ロック判定に不要な列まで読むと、列追加直後の古いDBスキーマで 500 になりうるため、
     # メッセージ生成に必要な情報だけを取得する（欠損カラム参照による 500 回避）。
     target_date = date or event.date
+    if not event.pk:
+        return False, ""
     participation = (
         VketParticipation.objects.filter(
+            # コラボ本体のイベントだけをロックする。同じ集会の通常イベントまで
+            # 巻き込むとコラボ無関係の定例回まで編集不能になる（Issue #571）。
+            published_event_id=event.pk,
             community=event.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
             collaboration__period_start__lte=target_date,

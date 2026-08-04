@@ -10,10 +10,13 @@ def is_event_datetime_locked(event, user) -> bool:
     if getattr(user, "is_superuser", False):
         return False
 
-    if not event.community_id or not event.date:
+    if not event.pk or not event.community_id or not event.date:
         return False
 
     return VketParticipation.objects.filter(
+        # コラボ本体のイベントだけをロックする。同じ集会の通常イベントまで
+        # 巻き込むとコラボ無関係の定例回まで編集不能になる（Issue #571）。
+        published_event_id=event.pk,
         community_id=event.community_id,
         lifecycle=VketParticipation.Lifecycle.ACTIVE,
         collaboration__period_start__lte=event.date,
