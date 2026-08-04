@@ -762,6 +762,7 @@ class EventMyListEditButtonTest(TestCase):
             collaboration=collab,
             community=self.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            published_event=event,
         )
         self.client.force_login(self.owner)
         response = self.client.get(reverse('event:my_list'))

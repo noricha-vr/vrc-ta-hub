@@ -208,6 +208,7 @@ class EventUpdateViewVketLockTest(EventUpdateViewBaseMixin, TestCase):
             collaboration=self.collaboration,
             community=self.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            published_event=self.event,
         )
 
     def test_owner_blocked_during_vket_lock(self):

@@ -279,14 +279,18 @@ class EventDetailAPIViewSet(DatabaseReconnectListMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         instance = serializer.instance
         target_event = serializer.validated_data.get('event', instance.event)
+        errors = {}
+        # ロック中イベントからの持ち出しを禁止する。移動を許すと「未ロックの兄弟
+        # イベントへ移してから削除」でロックを迂回できてしまう。
+        if target_event != instance.event and is_event_datetime_locked(instance.event, self.request.user):
+            errors['event'] = [EVENT_DETAIL_DATETIME_LOCK_MESSAGE]
         if is_event_datetime_locked(target_event, self.request.user):
-            errors = {}
             if has_event_detail_start_time_changed(instance, serializer.validated_data.get('start_time')):
                 errors['start_time'] = [EVENT_DETAIL_DATETIME_LOCK_MESSAGE]
             if has_event_detail_duration_changed(instance, serializer.validated_data.get('duration')):
                 errors['duration'] = [EVENT_DETAIL_DATETIME_LOCK_MESSAGE]
-            if errors:
-                raise ValidationError(errors)
+        if errors:
+            raise ValidationError(errors)
         serializer.save()
 
     def destroy(self, request, *args, **kwargs):
