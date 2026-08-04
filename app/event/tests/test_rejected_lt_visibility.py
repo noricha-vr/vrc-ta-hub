@@ -665,49 +665,49 @@ class EventDetailViewAccessTest(TestCase):
 
     def test_superuser_can_access_rejected_detail(self):
         """スーパーユーザーはrejectedの詳細にもアクセスできる"""
-        self.client.login(username='admin_test', password='testpass123')
+        self.client.force_login(self.superuser)
         url = reverse('event:detail', kwargs={'pk': self.rejected_detail.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
     def test_superuser_can_access_pending_detail(self):
         """スーパーユーザーはpendingの詳細にもアクセスできる"""
-        self.client.login(username='admin_test', password='testpass123')
+        self.client.force_login(self.superuser)
         url = reverse('event:detail', kwargs={'pk': self.pending_detail.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
     def test_community_manager_can_access_pending_detail(self):
         """コミュニティ管理者はpendingの詳細にアクセスできる"""
-        self.client.login(username='community_mgr', password='testpass123')
+        self.client.force_login(self.community_manager)
         url = reverse('event:detail', kwargs={'pk': self.pending_detail.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
     def test_community_manager_can_access_rejected_detail(self):
         """コミュニティ管理者はrejectedの詳細にアクセスできる"""
-        self.client.login(username='community_mgr', password='testpass123')
+        self.client.force_login(self.community_manager)
         url = reverse('event:detail', kwargs={'pk': self.rejected_detail.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
     def test_normal_user_cannot_access_pending_detail(self):
         """一般ユーザーはpendingの詳細にアクセスすると404"""
-        self.client.login(username='normal_user', password='testpass123')
+        self.client.force_login(self.normal_user)
         url = reverse('event:detail', kwargs={'pk': self.pending_detail.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
     def test_normal_user_cannot_access_rejected_detail(self):
         """一般ユーザーはrejectedの詳細にアクセスすると404"""
-        self.client.login(username='normal_user', password='testpass123')
+        self.client.force_login(self.normal_user)
         url = reverse('event:detail', kwargs={'pk': self.rejected_detail.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
     def test_applicant_can_access_own_pending_detail(self):
         """申請者本人は自分のpendingの詳細にアクセスできる"""
-        self.client.login(username='applicant_user', password='testpass123')
+        self.client.force_login(self.applicant_user)
         url = reverse('event:detail', kwargs={'pk': self.pending_detail.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -716,7 +716,7 @@ class EventDetailViewAccessTest(TestCase):
         """申請者本人は自分のrejectedの詳細にアクセスできる"""
         self.rejected_detail.applicant = self.applicant_user
         self.rejected_detail.save()
-        self.client.login(username='applicant_user', password='testpass123')
+        self.client.force_login(self.applicant_user)
         url = reverse('event:detail', kwargs={'pk': self.rejected_detail.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)

@@ -32,11 +32,10 @@ class DebugLoginSkipMiddleware:
     def _get_or_create_debug_user(self):
         """デバッグ用 staff ユーザーを取得または作成する."""
         User = get_user_model()
-        user_name = settings.DEBUG_LOGIN_SKIP_USER_NAME
         email = settings.DEBUG_LOGIN_SKIP_USER_EMAIL
 
         try:
-            user = User.objects.get(user_name=user_name)
+            user = User.objects.get(email__iexact=email)
             update_fields = []
             if not user.is_active:
                 user.is_active = True
@@ -49,16 +48,16 @@ class DebugLoginSkipMiddleware:
             return user
         except User.DoesNotExist:
             user = User(
-                user_name=user_name,
+                user_name=settings.DEBUG_LOGIN_SKIP_USER_NAME,
                 email=email,
-                display_name=user_name,
+                display_name=settings.DEBUG_LOGIN_SKIP_USER_NAME,
                 is_active=True,
                 is_staff=True,
                 is_superuser=False,
             )
             user.set_unusable_password()
             user.save()
-            logger.debug('Debug login skip user created: %s', user_name)
+            logger.debug('Debug login skip user created: %s', email)
             return user
 
 

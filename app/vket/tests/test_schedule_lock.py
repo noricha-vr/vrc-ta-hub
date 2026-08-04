@@ -315,13 +315,13 @@ class VketScheduleLockViewTests(TestCase):
         )
 
     def _login_as_owner(self):
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
 
     def _login_as_superuser(self):
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()

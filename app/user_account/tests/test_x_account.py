@@ -179,7 +179,7 @@ class UserUpdateViewTests(TestCase):
             email='viewuser@example.com',
             password='pass12345',
         )
-        self.client.login(username='viewuser', password='pass12345')
+        self.client.login(username='viewuser@example.com', password='pass12345')
 
     def test_update_saves_x_account(self):
         url = reverse('account:user_update')

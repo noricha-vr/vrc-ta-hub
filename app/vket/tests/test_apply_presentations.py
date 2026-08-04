@@ -22,7 +22,7 @@ from ._vket_test_bases import VketApplyFlowBase
 class VketApplyFlowTests(VketApplyFlowBase):
     def test_lt_start_time_saved_to_presentation(self):
         """LT開始時刻が VketPresentation.requested_start_time に保存される"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         target_date = self.collaboration.period_start
@@ -53,7 +53,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_apply_creates_multiple_presentations(self):
         """複数LTを送信するとDBに複数件作成される"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         target_date = self.collaboration.period_start
@@ -93,7 +93,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_apply_deletes_presentation(self):
         """DELETEフラグ付きで送信すると該当レコードが削除される"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         # 先に参加と2件のプレゼンを作成
@@ -142,7 +142,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_missing_lt_start_times_are_assigned_from_slot_minutes(self):
         """未入力LT時刻は参加枠の開始時刻から持ち時間ごとに補完する"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         post_data = {
             'requested_date': self.collaboration.period_start.isoformat(),
@@ -178,7 +178,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_apply_get_prefills_multiple_presentations(self):
         """既存の複数LTがGETでformsetにプリフィルされる"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         participation = VketParticipation.objects.create(
@@ -214,7 +214,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_apply_skips_empty_presentation_rows(self):
         """空行はスキップされる（DBに保存されない）"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         target_date = self.collaboration.period_start
@@ -252,7 +252,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_presentation_delete_by_organizer(self):
         """主催者がLTを削除できる"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
@@ -277,7 +277,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_confirmed_presentation_delete_forbidden_for_organizer(self):
         """確定済みLTは主催者側の個別削除を拒否する"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
@@ -308,7 +308,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_published_presentation_delete_forbidden_for_organizer(self):
         """公開済みLTは主催者側の個別削除を拒否する"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         event = Event.objects.filter(community=self.community).first()
         detail = EventDetail.objects.create(
@@ -344,12 +344,12 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_presentation_delete_forbidden_for_non_member(self):
         """コミュニティに所属しないユーザーはLTを削除できない"""
-        User.objects.create_user(
+        non_member = User.objects.create_user(
             user_name='non_member_user',
             email='nonmember@example.com',
             password='testpass123',
         )
-        self.client.login(username='non_member_user', password='testpass123')
+        self.client.force_login(non_member)
         participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=self.community,

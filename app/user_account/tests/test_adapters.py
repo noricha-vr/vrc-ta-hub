@@ -343,7 +343,7 @@ class CustomSocialAccountAdapterTests(TestCase):
             self.assertEqual(result.user_name, 'discord_user')
             self.assertEqual(result.email, 'discord@example.com')
 
-    def test_populate_user_generates_username_when_not_provided(self):
+    def test_populate_user_generates_user_name_when_not_provided(self):
         """Discordユーザー名がない場合、discord_idからユーザー名を生成すること."""
         request = self.factory.get('/accounts/discord/login/callback/')
 
@@ -360,11 +360,10 @@ class CustomSocialAccountAdapterTests(TestCase):
             result = self.adapter.populate_user(request, sociallogin, data)
 
             self.assertEqual(result.user_name, 'discord_987654321')
-            # メールが空の場合は空文字のまま（フォームで入力を要求）
             self.assertEqual(result.email, '')
 
     def test_populate_user_keeps_empty_email_when_not_provided(self):
-        """メールが取得できない場合、メールは空のままであること（フォームで入力を要求）."""
+        """メールが取得できない場合、フォーム入力用に空のままとすること."""
         request = self.factory.get('/accounts/discord/login/callback/')
 
         sociallogin = MagicMock()
@@ -536,7 +535,7 @@ class DiscordLoginIntegrationTests(TestCase):
             email='test@example.com',
             password='testpass123',
         )
-        self.client.login(username='test_user', password='testpass123')
+        self.client.login(username='test@example.com', password='testpass123')
 
         response = self.client.get('/account/settings/')
 
@@ -551,7 +550,7 @@ class DiscordLoginIntegrationTests(TestCase):
             email='test_conn@example.com',
             password='testpass123',
         )
-        self.client.login(username='test_user_conn', password='testpass123')
+        self.client.login(username='test_conn@example.com', password='testpass123')
 
         response = self.client.get('/accounts/3rdparty/')
 
@@ -572,7 +571,7 @@ class DiscordLoginIntegrationTests(TestCase):
             email='test_get@example.com',
             password='testpass123',
         )
-        self.client.login(username='test_user_get', password='testpass123')
+        self.client.login(username='test_get@example.com', password='testpass123')
 
         account = SocialAccount.objects.get(user=user, provider='discord')
         response = self.client.get(f'/account/social/{account.id}/disconnect/')
@@ -589,7 +588,7 @@ class DiscordLoginIntegrationTests(TestCase):
             email='test_ok@example.com',
             password='testpass123',
         )
-        self.client.login(username='test_user_ok', password='testpass123')
+        self.client.login(username='test_ok@example.com', password='testpass123')
 
         account = SocialAccount.objects.get(user=user, provider='discord')
         response = self.client.post(
@@ -615,7 +614,7 @@ class DiscordLoginIntegrationTests(TestCase):
             email='test_ng@example.com',
             password='testpass123',
         )
-        self.client.login(username='test_user_ng', password='testpass123')
+        self.client.login(username='test_ng@example.com', password='testpass123')
 
         account = SocialAccount.objects.get(user=user, provider='discord')
         response = self.client.post(
@@ -647,7 +646,7 @@ class DiscordLoginIntegrationTests(TestCase):
         )
         owner_account = SocialAccount.objects.get(user=owner, provider='discord')
 
-        self.client.login(username='test_user_attacker', password='testpass123')
+        self.client.login(username='test_attacker@example.com', password='testpass123')
         response = self.client.get(f'/account/social/{owner_account.id}/disconnect/')
 
         self.assertEqual(response.status_code, 404)

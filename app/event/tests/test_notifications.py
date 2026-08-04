@@ -35,6 +35,18 @@ def _make_user(name="user1", email="user1@example.com"):
     return make_user(user_name=name, email=email)
 
 
+def _make_user_without_email(name):
+    """email 未設定ユーザーを作る.
+
+    ``create_user`` は email を必須として弾くため、作成後に queryset.update で
+    空にして「移行前から email が空のまま残っているユーザー」を再現する。
+    """
+    user = make_user(user_name=name, email=f"{name}@example.com")
+    User.objects.filter(pk=user.pk).update(email="")
+    user.refresh_from_db()
+    return user
+
+
 def _make_community(owner=None, webhook_url=""):
     """既存 setUp の呼び出し名互換 wrapper。新規テストは make_community を直接使う。"""
     return _make_community_factory(
@@ -88,9 +100,7 @@ class NotifyOwnersOfNewApplicationTest(TestCase):
 
     def test_skips_owner_without_email(self):
         """email 未設定の主催者は skip される（silent failure 検出）"""
-        owner_no_email = User.objects.create_user(
-            user_name="owner_no_email", email="", password="testpass123"
-        )
+        owner_no_email = _make_user_without_email("owner_no_email")
         CommunityMember.objects.create(
             community=self.community,
             user=owner_no_email,
@@ -177,9 +187,7 @@ class NotifyApplicantOfResultTest(TestCase):
 
     def test_returns_early_when_applicant_email_missing(self):
         """applicant.email が空なら早期 return"""
-        applicant_no_email = User.objects.create_user(
-            user_name="applicant_no_email", email="", password="testpass123"
-        )
+        applicant_no_email = _make_user_without_email("applicant_no_email")
         event_detail = _make_event_detail(
             self.event, applicant=applicant_no_email, status="approved"
         )

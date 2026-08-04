@@ -30,7 +30,7 @@ class LoginRedirectTests(TestCase):
         make_community(name='ローカル遷移テスト集会', owner=user)
 
         response = self.client.post(reverse('account:login'), {
-            'username': user.user_name,
+            'username': user.email,
             'password': 'testpass123',
         })
 

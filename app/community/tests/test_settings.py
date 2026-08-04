@@ -84,7 +84,7 @@ class CommunitySettingsViewTest(TestCase):
 
     def test_owner_can_access_settings_page(self):
         """主催者は集会設定ページにアクセスできる"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -96,7 +96,7 @@ class CommunitySettingsViewTest(TestCase):
 
     def test_staff_can_access_settings_page(self):
         """スタッフも集会設定ページにアクセスできる"""
-        self.client.login(username='スタッフユーザー', password='testpass123')
+        self.client.force_login(self.staff_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -114,7 +114,7 @@ class CommunitySettingsViewTest(TestCase):
 
     def test_user_without_community_redirected(self):
         """集会を持っていないユーザーはリダイレクトされる"""
-        self.client.login(username='その他ユーザー', password='testpass123')
+        self.client.force_login(self.other_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 302)
@@ -122,7 +122,7 @@ class CommunitySettingsViewTest(TestCase):
 
     def test_settings_page_shows_external_links(self):
         """設定ページに外部連携リンクが表示される"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -138,7 +138,7 @@ class CommunitySettingsViewTest(TestCase):
 
     def test_settings_page_shows_weekdays(self):
         """設定ページに開催曜日が表示される"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -147,7 +147,7 @@ class CommunitySettingsViewTest(TestCase):
 
     def test_settings_page_shows_edit_link(self):
         """設定ページに集会編集リンクが表示される"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -169,7 +169,7 @@ class CommunitySettingsViewTest(TestCase):
             role=CommunityMember.Role.OWNER
         )
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
 
         # セッションに2番目の集会を設定
         session = self.client.session
@@ -232,7 +232,7 @@ class CommunitySettingsCloseReopenTest(TestCase):
 
     def test_owner_sees_close_button_for_active_community(self):
         """主催者は活動中の集会に対して閉鎖ボタンを見ることができる"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -251,7 +251,7 @@ class CommunitySettingsCloseReopenTest(TestCase):
         self.community.end_at = timezone.now().date()
         self.community.save()
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -267,7 +267,7 @@ class CommunitySettingsCloseReopenTest(TestCase):
 
     def test_staff_cannot_see_dangerous_operations(self):
         """スタッフは危険な操作セクションを見ることができない"""
-        self.client.login(username='スタッフユーザー', password='testpass123')
+        self.client.force_login(self.staff_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -277,7 +277,7 @@ class CommunitySettingsCloseReopenTest(TestCase):
 
     def test_close_modal_exists(self):
         """閉鎖確認モーダルが存在する"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -293,7 +293,7 @@ class CommunitySettingsCloseReopenTest(TestCase):
         self.community.end_at = timezone.now().date()
         self.community.save()
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -356,7 +356,7 @@ class WebhookSettingsTest(TestCase):
 
     def test_settings_page_shows_webhook_section(self):
         """設定ページにWebhookセクションが表示される"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -371,7 +371,7 @@ class WebhookSettingsTest(TestCase):
 
     def test_update_webhook_url_success(self):
         """Webhook URLを正常に更新できる"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         webhook_url = 'https://discord.com/api/webhooks/123456789/abcdef'
 
         response = self.client.post(
@@ -385,7 +385,7 @@ class WebhookSettingsTest(TestCase):
 
     def test_update_webhook_url_invalid_format(self):
         """無効なWebhook URLの形式はエラーになる"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         invalid_url = 'https://example.com/not-a-discord-webhook'
 
         response = self.client.post(
@@ -404,7 +404,7 @@ class WebhookSettingsTest(TestCase):
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
         self.community.save()
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.post(
             reverse('community:update_webhook', kwargs={'pk': self.community.pk}),
             {'notification_webhook_url': ''}
@@ -416,7 +416,7 @@ class WebhookSettingsTest(TestCase):
 
     def test_staff_can_update_webhook(self):
         """スタッフもWebhookを更新できる"""
-        self.client.login(username='スタッフユーザー', password='testpass123')
+        self.client.force_login(self.staff_user)
         webhook_url = 'https://discord.com/api/webhooks/123456789/abcdef'
 
         response = self.client.post(
@@ -430,7 +430,7 @@ class WebhookSettingsTest(TestCase):
 
     def test_unauthorized_user_cannot_update_webhook(self):
         """権限のないユーザーはWebhookを更新できない"""
-        self.client.login(username='その他ユーザー', password='testpass123')
+        self.client.force_login(self.other_user)
 
         response = self.client.post(
             reverse('community:update_webhook', kwargs={'pk': self.community.pk}),
@@ -454,7 +454,7 @@ class WebhookSettingsTest(TestCase):
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
         self.community.save()
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -462,7 +462,7 @@ class WebhookSettingsTest(TestCase):
 
     def test_test_button_not_shown_when_webhook_not_set(self):
         """Webhook URLが設定されていない場合、テストボタンは表示されない"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -478,7 +478,7 @@ class WebhookSettingsTest(TestCase):
         mock_response.status_code = 201
         mock_post.return_value = mock_response
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.post(
             reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
             follow=True,
@@ -501,7 +501,7 @@ class WebhookSettingsTest(TestCase):
             response=MagicMock(status_code=400),
         )
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.post(
             reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
             follow=True,
@@ -516,7 +516,7 @@ class WebhookSettingsTest(TestCase):
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
         self.community.save()
         mock_post.side_effect = requests.Timeout("timed out")
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.post(
             reverse('community:test_webhook', kwargs={'pk': self.community.pk}),
             follow=True,
@@ -534,7 +534,7 @@ class WebhookSettingsTest(TestCase):
         mock_post.side_effect = requests.ConnectionError(
             f"connection failed for {sensitive_url}",
         )
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         with self.assertLogs(
             'community.views.settings',
             level='WARNING',
@@ -557,7 +557,7 @@ class WebhookSettingsTest(TestCase):
 
     def test_test_webhook_without_url(self):
         """Webhook URLが設定されていない場合はエラー"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.post(
             reverse('community:test_webhook', kwargs={'pk': self.community.pk})
         )
@@ -569,7 +569,7 @@ class WebhookSettingsTest(TestCase):
         self.community.notification_webhook_url = 'https://discord.com/api/webhooks/123/abc'
         self.community.save()
 
-        self.client.login(username='その他ユーザー', password='testpass123')
+        self.client.force_login(self.other_user)
         response = self.client.post(
             reverse('community:test_webhook', kwargs={'pk': self.community.pk})
         )
@@ -629,7 +629,7 @@ class LTSettingsTest(TestCase):
 
     def test_settings_page_shows_lt_settings_section(self):
         """設定ページにLT申請設定セクションが表示される"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -638,7 +638,7 @@ class LTSettingsTest(TestCase):
 
     def test_update_lt_settings_success(self):
         """LT申請設定を正常に更新できる"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         template = '【発表概要】\n\n【対象者】'
 
         response = self.client.post(
@@ -658,7 +658,7 @@ class LTSettingsTest(TestCase):
         self.community.lt_application_template = '【発表概要】'
         self.community.save()
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.post(
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
             {
@@ -672,7 +672,7 @@ class LTSettingsTest(TestCase):
 
     def test_staff_can_update_lt_settings(self):
         """スタッフもLT申請設定を更新できる"""
-        self.client.login(username='スタッフユーザー', password='testpass123')
+        self.client.force_login(self.staff_user)
         template = '【テスト】'
 
         response = self.client.post(
@@ -688,7 +688,7 @@ class LTSettingsTest(TestCase):
 
     def test_unauthorized_user_cannot_update_lt_settings(self):
         """権限のないユーザーはLT申請設定を更新できない"""
-        self.client.login(username='その他ユーザー', password='testpass123')
+        self.client.force_login(self.other_user)
 
         response = self.client.post(
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
@@ -717,7 +717,7 @@ class LTSettingsTest(TestCase):
         self.community.accepts_lt_application = False
         self.community.save()
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
 
         response = self.client.post(
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
@@ -738,7 +738,7 @@ class LTSettingsTest(TestCase):
         self.community.accepts_lt_application = True
         self.community.save()
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
 
         # accepts_lt_applicationを送信しない（チェックボックスがOFFの場合）
         response = self.client.post(
@@ -755,7 +755,7 @@ class LTSettingsTest(TestCase):
 
     def test_settings_page_shows_lt_toggle(self):
         """設定ページにLT申請受付トグルが表示される"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -767,7 +767,7 @@ class LTSettingsTest(TestCase):
         self.community.accepts_lt_application = False
         self.community.save()
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -779,7 +779,7 @@ class LTSettingsTest(TestCase):
         self.community.accepts_lt_application = True
         self.community.save()
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -788,7 +788,7 @@ class LTSettingsTest(TestCase):
 
     def test_toggle_state_persists_after_page_reload(self):
         """トグル状態がページリロード後も維持される"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
 
         # トグルをONにして保存
         response = self.client.post(
@@ -810,7 +810,7 @@ class LTSettingsTest(TestCase):
 
     def test_update_lt_settings_saves_offset(self):
         """LT開始オフセットを保存できる"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
 
         response = self.client.post(
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
@@ -828,7 +828,7 @@ class LTSettingsTest(TestCase):
 
     def test_settings_page_explains_first_presentation_timing_without_offset_jargon(self):
         """発表開始タイミングを専門用語なしの文章として表示する。"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
 
         response = self.client.get(reverse('community:settings'))
 
@@ -842,7 +842,7 @@ class LTSettingsTest(TestCase):
 
     def test_update_lt_settings_offset_invalid_falls_back_to_30(self):
         """非数値のオフセット入力は 30 にフォールバックされる"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
 
         response = self.client.post(
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
@@ -860,7 +860,7 @@ class LTSettingsTest(TestCase):
 
     def test_update_lt_settings_offset_zero_allowed(self):
         """オフセット 0 を許容する（集会開始と同時にLT開始）"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
 
         response = self.client.post(
             reverse('community:update_lt_settings', kwargs={'pk': self.community.pk}),
@@ -885,7 +885,7 @@ class LTSettingsTest(TestCase):
         self.community.lt_start_offset_minutes = 0
         self.community.save(update_fields=['lt_start_offset_minutes'])
 
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
@@ -927,7 +927,7 @@ class LTSettingsUpdateFormTest(TestCase):
 
     def test_update_page_does_not_have_accepts_lt_application(self):
         """集会更新ページにaccepts_lt_applicationフィールドがない"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
 
         # セッションにアクティブな集会を設定
         session = self.client.session
@@ -944,7 +944,7 @@ class LTSettingsUpdateFormTest(TestCase):
 
     def test_update_page_shows_poster_requirements(self):
         """集会更新ページにポスター推奨要件が表示される"""
-        self.client.login(username='主催者ユーザー', password='testpass123')
+        self.client.force_login(self.owner_user)
 
         session = self.client.session
         session['active_community_id'] = self.community.pk

@@ -61,7 +61,7 @@ class VketPublishViewTests(TestCase):
 
     def test_publish_creates_event_and_updates_participation(self):
         """公開処理でEventが作成されpublished_eventが紐づく"""
-        self.client.login(username='admin_pub', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.post(
             reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
             follow=False,
@@ -105,7 +105,7 @@ class VketPublishViewTests(TestCase):
             status=VketPresentation.Status.CONFIRMED,
         )
 
-        self.client.login(username='admin_pub', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.post(
             reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
             follow=False,
@@ -122,7 +122,7 @@ class VketPublishViewTests(TestCase):
         self.collaboration.phase = VketCollaboration.Phase.SCHEDULING
         self.collaboration.save()
 
-        self.client.login(username='admin_pub', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.post(
             reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
         )
@@ -132,7 +132,7 @@ class VketPublishViewTests(TestCase):
         """公開処理を2回実行しても同じEventが使われ、重複作成されない"""
         from event.models import Event
 
-        self.client.login(username='admin_pub', password='adminpass123')
+        self.client.force_login(self.superuser)
         url = reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk})
 
         # 1回目
@@ -161,7 +161,7 @@ class VketPublishViewTests(TestCase):
             status=VketPresentation.Status.CONFIRMED,
         )
 
-        self.client.login(username='admin_pub', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.post(
             reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
             follow=False,
@@ -187,7 +187,7 @@ class VketPublishViewTests(TestCase):
             status=VketPresentation.Status.DRAFT,
         )
 
-        self.client.login(username='admin_pub', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.post(
             reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
             follow=False,
@@ -229,7 +229,7 @@ class VketPublishViewTests(TestCase):
         cache_key = get_index_view_cache_key()
         cache.set(cache_key, {'upcoming_event_details': ['stale']}, 60)
 
-        self.client.login(username='admin_pub', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.post(
             reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
             follow=False,

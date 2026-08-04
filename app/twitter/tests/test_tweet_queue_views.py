@@ -73,14 +73,14 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
 
     def test_normal_user_forbidden(self):
         """一般ユーザーは 403 を返す"""
-        self.client.login(username='normal_user', password='testpassword')
+        self.client.force_login(self.normal_user)
         url = reverse('twitter:tweet_queue_list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 403)
 
     def test_superuser_can_access_list(self):
         """スーパーユーザーは一覧にアクセスできる"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         self._create_queue(generated_text='Test tweet')
         url = reverse('twitter:tweet_queue_list')
         response = self.client.get(url)
@@ -90,7 +90,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
 
     def test_status_filter(self):
         """ステータスフィルタが正しく動作する"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         self._create_queue(generated_text='Ready tweet')
         self._create_queue(tweet_type='lt', generated_text='Posted tweet', status='posted')
 
@@ -104,7 +104,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
 
     def test_skipped_status_filter(self):
         """skipped ステータスでも絞り込みできる"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         self._create_queue(
             tweet_type='lt',
             community=self.community,
@@ -121,7 +121,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
 
     def test_invalid_status_filter_shows_all(self):
         """無効なステータス値ではフィルタされず全件表示される"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         self._create_queue(status='ready')
         self._create_queue(tweet_type='lt', status='posted')
         url = reverse('twitter:tweet_queue_list')
@@ -131,7 +131,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
 
     def test_empty_list(self):
         """キューがない場合は空メッセージが表示される"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -139,7 +139,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
 
     def test_default_sort_is_scheduled_at_desc(self):
         """デフォルトは予約日時の降順で表示される"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         early = self._create_queue(generated_text='early')
         late = self._create_queue(generated_text='late')
         base = timezone.now()
@@ -156,7 +156,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
 
     def test_sort_by_scheduled_at_asc(self):
         """予約日時の昇順ソートができる"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         late = self._create_queue(generated_text='late')
         early = self._create_queue(generated_text='early')
         middle = self._create_queue(generated_text='middle')
@@ -184,7 +184,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
 
     def test_sort_by_posted_at_desc_nulls_last(self):
         """投稿日時の降順ソートでは未投稿キューが後ろに回る"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         unposted = self._create_queue(generated_text='unposted', status='ready')
         older_posted = self._create_queue(generated_text='older posted', status='posted')
         newer_posted = self._create_queue(generated_text='newer posted', status='posted')
@@ -206,7 +206,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
 
     def test_today_scheduled_queue_is_highlighted_by_jst_date(self):
         """予約日時が JST の今日に含まれる行だけ薄い黄色で表示する"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         yesterday = self._create_queue(
             generated_text='yesterday',
             scheduled_at=datetime.datetime(2026, 4, 29, 14, 59, tzinfo=datetime.UTC),
@@ -232,7 +232,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
 
     def test_list_shows_post_now_button_only_for_unposted_queue(self):
         """一覧では未投稿キューだけに今すぐポストボタンを表示する"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         self._create_queue(generated_text='Ready tweet', status='ready')
         self._create_queue(tweet_type='lt', generated_text='Posted tweet', status='posted')
 
@@ -262,14 +262,14 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
 
     def test_normal_user_forbidden(self):
         """一般ユーザーは 403 を返す"""
-        self.client.login(username='normal_user', password='testpassword')
+        self.client.force_login(self.normal_user)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 403)
 
     def test_superuser_can_view_detail(self):
         """スーパーユーザーは詳細を表示できる"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -279,7 +279,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
 
     def test_update_generated_text(self):
         """テキストの編集保存ができる"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.post(url, {
             'action': 'update',
@@ -296,7 +296,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
 
     def test_update_rejects_non_30_minute_schedule(self):
         """予約日時が30分刻みでなければ保存しない"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         original_scheduled_at = self.queue_item.scheduled_at
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.post(url, {
@@ -313,7 +313,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
 
     def test_update_allows_half_hour_schedule(self):
         """予約日時は30分刻みなら保存できる"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.post(url, {
             'action': 'update',
@@ -339,7 +339,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         self.queue_item.error_message = 'Previous error'
         self.queue_item.save()
 
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.post(url, {'action': 'retry'})
         self.assertEqual(response.status_code, 302)
@@ -358,7 +358,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
 
     def test_retry_not_allowed_for_ready(self):
         """ready ステータスからはリトライできない"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.post(url, {'action': 'retry'})
         self.assertEqual(response.status_code, 302)
@@ -373,7 +373,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         mock_post.return_value = {'ok': True, 'data': {'id': '12345678'}, 'status_code': None, 'error_body': None}
         mock_upload.return_value = None
 
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.post(url, {'action': 'post_now'})
         self.assertEqual(response.status_code, 302)
@@ -393,7 +393,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         mock_upload.return_value = None
         mock_webhook_post.return_value = MagicMock(status_code=204)
 
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.post(url, {'action': 'post_now'})
         self.assertEqual(response.status_code, 302)
@@ -418,7 +418,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         mock_post.return_value = {'ok': True, 'data': {'id': 'failed-retry'}, 'status_code': None, 'error_body': None}
         mock_upload.return_value = None
 
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.post(url, {'action': 'post_now'})
         self.assertEqual(response.status_code, 302)
@@ -438,7 +438,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         mock_upload.return_value = 'media_id_123'
         mock_post.return_value = {'ok': True, 'data': {'id': '99999'}, 'status_code': None, 'error_body': None}
 
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.post(url, {'action': 'post_now'})
         self.assertEqual(response.status_code, 302)
@@ -457,7 +457,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         self.queue_item.status = 'posted'
         self.queue_item.save()
 
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.post(url, {'action': 'post_now'})
         self.assertEqual(response.status_code, 302)
@@ -470,7 +470,7 @@ class TweetQueueDetailViewTest(TweetQueueViewTestBase):
         self.queue_item.status = 'posted'
         self.queue_item.save()
 
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.queue_item.pk})
         response = self.client.get(url)
 
@@ -532,21 +532,21 @@ class TweetQueueStaffAccessTest(TweetQueueViewTestBase):
 
     def test_staff_can_access_list(self):
         """スタッフは一覧にアクセスできる"""
-        self.client.login(username='staff_user', password='testpassword')
+        self.client.force_login(self.staff_user)
         url = reverse('twitter:tweet_queue_list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
     def test_owner_can_access_list(self):
         """主催者は一覧にアクセスできる"""
-        self.client.login(username='owner_user', password='testpassword')
+        self.client.force_login(self.owner_user)
         url = reverse('twitter:tweet_queue_list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
     def test_staff_list_only_shows_own_community(self):
         """スタッフの一覧には自分の集会の TweetQueue だけが表示される"""
-        self.client.login(username='staff_user', password='testpassword')
+        self.client.force_login(self.staff_user)
         url = reverse('twitter:tweet_queue_list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -556,7 +556,7 @@ class TweetQueueStaffAccessTest(TweetQueueViewTestBase):
 
     def test_superuser_list_shows_all_communities(self):
         """superuser の一覧には全集会の TweetQueue が表示される"""
-        self.client.login(username='admin_user', password='testpassword')
+        self.client.force_login(self.superuser)
         url = reverse('twitter:tweet_queue_list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -566,7 +566,7 @@ class TweetQueueStaffAccessTest(TweetQueueViewTestBase):
 
     def test_staff_can_view_own_detail(self):
         """スタッフは自分の集会の TweetQueue 詳細を閲覧できる"""
-        self.client.login(username='staff_user', password='testpassword')
+        self.client.force_login(self.staff_user)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.own_queue.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -574,14 +574,14 @@ class TweetQueueStaffAccessTest(TweetQueueViewTestBase):
 
     def test_staff_cannot_view_other_detail(self):
         """スタッフは他の集会の TweetQueue 詳細にアクセスできない（404）"""
-        self.client.login(username='staff_user', password='testpassword')
+        self.client.force_login(self.staff_user)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.other_queue.pk})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 404)
 
     def test_staff_cannot_post_update(self):
         """スタッフは編集系の POST を実行できない（403）"""
-        self.client.login(username='staff_user', password='testpassword')
+        self.client.force_login(self.staff_user)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.own_queue.pk})
         response = self.client.post(url, {
             'action': 'update',
@@ -593,7 +593,7 @@ class TweetQueueStaffAccessTest(TweetQueueViewTestBase):
 
     def test_staff_cannot_post_delete(self):
         """スタッフは削除系 POST を実行できない（403）"""
-        self.client.login(username='staff_user', password='testpassword')
+        self.client.force_login(self.staff_user)
         url = reverse('twitter:tweet_queue_detail', kwargs={'pk': self.own_queue.pk})
         response = self.client.post(url, {'action': 'delete'})
         self.assertEqual(response.status_code, 403)
@@ -601,7 +601,7 @@ class TweetQueueStaffAccessTest(TweetQueueViewTestBase):
 
     def test_user_without_membership_forbidden(self):
         """CommunityMember を持たない一般ユーザーは 403"""
-        self.client.login(username='normal_user', password='testpassword')
+        self.client.force_login(self.normal_user)
         url = reverse('twitter:tweet_queue_list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 403)

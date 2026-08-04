@@ -60,7 +60,7 @@ class LTApplicationFormTest(TestCase):
 
     def test_lt_application_form_displays(self):
         """LT申請フォームが正しく表示される"""
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
         response = self.client.get(url)
 
@@ -88,7 +88,7 @@ class LTApplicationFormTest(TestCase):
 
     def test_lt_application_only_shows_accepting_events(self):
         """LT受付中のイベントのみ選択肢に表示される"""
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
         response = self.client.get(url)
 
@@ -103,7 +103,7 @@ class LTApplicationFormTest(TestCase):
     def test_lt_application_creates_event_detail(self, mock_send_mail):
         """LT申請でEventDetailが作成される"""
         mock_send_mail.return_value = 1
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
 
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
         response = self.client.post(url, {
@@ -142,7 +142,7 @@ class LTApplicationFormTest(TestCase):
         self.community.lt_start_offset_minutes = 30
         self.community.save(update_fields=['lt_start_offset_minutes'])
 
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
         self.client.post(url, {
             'event': self.future_event.pk,
@@ -158,7 +158,7 @@ class LTApplicationFormTest(TestCase):
     def test_lt_application_ignores_posted_duration(self, mock_send_mail):
         """POSTされた持ち時間ではなく集会のデフォルトを保存する。"""
         mock_send_mail.return_value = 1
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
 
         response = self.client.post(url, {
@@ -177,7 +177,7 @@ class LTApplicationFormTest(TestCase):
 
     def test_lt_application_complete_page_displays_slide_video_flow(self):
         """申請完了ページに承認後の発表準備フローが表示される"""
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse(
             'event:lt_application_complete',
             kwargs={'community_pk': self.community.pk},
@@ -210,7 +210,7 @@ class LTApplicationFormTest(TestCase):
         self.community.lt_start_offset_minutes = 45
         self.community.save(update_fields=['lt_start_offset_minutes'])
 
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
         self.client.post(url, {
             'event': self.future_event.pk,
@@ -229,7 +229,7 @@ class LTApplicationFormTest(TestCase):
         self.community.lt_start_offset_minutes = 0
         self.community.save(update_fields=['lt_start_offset_minutes'])
 
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
         self.client.post(url, {
             'event': self.future_event.pk,
@@ -251,7 +251,7 @@ class LTApplicationFormTest(TestCase):
             duration=15,
             status='pending',
         )
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
 
         self.client.post(url, {
@@ -281,7 +281,7 @@ class LTApplicationFormTest(TestCase):
             duration=15,
             status='rejected',
         )
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
 
         self.client.post(url, {
@@ -311,7 +311,7 @@ class LTApplicationFormTest(TestCase):
             duration=10,
             status='approved',
         )
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
 
         self.client.post(url, {
@@ -339,7 +339,7 @@ class LTApplicationFormTest(TestCase):
             duration=30,
             status='pending',
         )
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
 
         self.client.post(url, {
@@ -360,7 +360,7 @@ class LTApplicationFormTest(TestCase):
             duration=15,
             status='approved',
         )
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
 
         response = self.client.get(url)
@@ -445,7 +445,7 @@ class LTApplicationReviewTest(TestCase):
     def test_review_page_requires_permission(self):
         """レビューページは管理者権限が必要"""
         # 申請者（非管理者）でログイン
-        self.client.login(username='Applicant', password='applicantpass123')
+        self.client.force_login(self.applicant)
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
         response = self.client.get(url)
 
@@ -454,7 +454,7 @@ class LTApplicationReviewTest(TestCase):
 
     def test_owner_can_access_review_page(self):
         """主催者はレビューページにアクセスできる"""
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
         response = self.client.get(url)
 
@@ -465,7 +465,7 @@ class LTApplicationReviewTest(TestCase):
     def test_approve_application(self, mock_send_mail):
         """申請を承認できる"""
         mock_send_mail.return_value = 1
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url, {
@@ -484,7 +484,7 @@ class LTApplicationReviewTest(TestCase):
     def test_reject_application(self, mock_send_mail):
         """申請を却下できる"""
         mock_send_mail.return_value = 1
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url, {
@@ -502,7 +502,7 @@ class LTApplicationReviewTest(TestCase):
 
     def test_reject_requires_reason(self):
         """却下時は理由が必要"""
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url, {
@@ -520,7 +520,7 @@ class LTApplicationReviewTest(TestCase):
         self.pending_application.additional_info = 'Discord ID: somnicat#1234\n配信時注意: BGM注意'
         self.pending_application.save()
 
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
         response = self.client.get(url)
 
@@ -537,7 +537,7 @@ class LTApplicationReviewTest(TestCase):
         self.pending_application.rejection_reason = 'テーマが集会の趣旨に合いません'
         self.pending_application.save()
 
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
         response = self.client.get(url)
 
@@ -551,7 +551,7 @@ class LTApplicationReviewTest(TestCase):
         self.pending_application.status = 'approved'
         self.pending_application.save()
 
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url, {
             'action': 'reject',
@@ -622,7 +622,7 @@ class LTApplicationListTest(TestCase):
 
     def test_list_redirects_to_my_list(self):
         """申請一覧URLはマイリストにリダイレクトされる"""
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
         url = reverse('community:lt_application_list', kwargs={'pk': self.community.pk})
         response = self.client.get(url)
 
@@ -693,7 +693,7 @@ class LTApplicationApproveRejectViewTest(TestCase):
     def test_approve_via_new_endpoint(self, mock_send_mail):
         """新しいエンドポイントで申請を承認できる"""
         mock_send_mail.return_value = 1
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_approve', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url)
@@ -709,7 +709,7 @@ class LTApplicationApproveRejectViewTest(TestCase):
     def test_reject_via_new_endpoint(self, mock_send_mail):
         """新しいエンドポイントで申請を却下できる"""
         mock_send_mail.return_value = 1
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url, {
@@ -726,7 +726,7 @@ class LTApplicationApproveRejectViewTest(TestCase):
 
     def test_reject_requires_reason(self):
         """却下時は理由が必要"""
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url, {
@@ -742,7 +742,7 @@ class LTApplicationApproveRejectViewTest(TestCase):
 
     def test_approve_requires_permission(self):
         """承認には管理者権限が必要"""
-        self.client.login(username='Applicant', password='applicantpass123')
+        self.client.force_login(self.applicant)
 
         url = reverse('event:lt_application_approve', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url)
@@ -756,7 +756,7 @@ class LTApplicationApproveRejectViewTest(TestCase):
 
     def test_reject_requires_permission(self):
         """却下には管理者権限が必要"""
-        self.client.login(username='Applicant', password='applicantpass123')
+        self.client.force_login(self.applicant)
 
         url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url, {
@@ -775,7 +775,7 @@ class LTApplicationApproveRejectViewTest(TestCase):
         self.pending_application.status = 'approved'
         self.pending_application.save()
 
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_approve', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url)
@@ -788,7 +788,7 @@ class LTApplicationApproveRejectViewTest(TestCase):
         self.pending_application.status = 'approved'
         self.pending_application.save()
 
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url, {
@@ -806,7 +806,7 @@ class LTApplicationApproveRejectViewTest(TestCase):
     def test_approve_ajax_response(self, mock_send_mail):
         """AJAX経由での承認時にJSONレスポンスが返る"""
         mock_send_mail.return_value = 1
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_approve', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
@@ -822,7 +822,7 @@ class LTApplicationApproveRejectViewTest(TestCase):
     def test_reject_ajax_response(self, mock_send_mail):
         """AJAX経由での却下時にJSONレスポンスが返る"""
         mock_send_mail.return_value = 1
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(
@@ -841,7 +841,7 @@ class LTApplicationApproveRejectViewTest(TestCase):
 
     def test_approve_ajax_permission_error(self):
         """AJAX経由で権限エラー時にステータス403とJSONが返る"""
-        self.client.login(username='Applicant', password='applicantpass123')
+        self.client.force_login(self.applicant)
 
         url = reverse('event:lt_application_approve', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(url, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
@@ -860,7 +860,7 @@ class LTApplicationApproveRejectViewTest(TestCase):
         self.pending_application.status = 'approved'
         self.pending_application.save()
 
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_reject', kwargs={'pk': self.pending_application.pk})
         response = self.client.post(
@@ -1113,7 +1113,7 @@ class LTApplicationAdditionalInfoTest(TestCase):
 
     def test_additional_info_field_shown_with_template(self):
         """テンプレートがある集会では初期値入りで追加情報フィールドが表示される"""
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_with_template.pk})
         response = self.client.get(url)
 
@@ -1131,7 +1131,7 @@ class LTApplicationAdditionalInfoTest(TestCase):
 
     def test_additional_info_field_shown_without_template(self):
         """テンプレートがない集会でも追加情報フィールドが表示される"""
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_without_template.pk})
         response = self.client.get(url)
 
@@ -1146,7 +1146,7 @@ class LTApplicationAdditionalInfoTest(TestCase):
     def test_submit_with_template_same_as_template_fails(self, mock_send_mail):
         """テンプレートと同一内容で送信するとエラーになる"""
         mock_send_mail.return_value = 1
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
 
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_with_template.pk})
         response = self.client.post(url, {
@@ -1164,7 +1164,7 @@ class LTApplicationAdditionalInfoTest(TestCase):
     def test_submit_with_valid_additional_info_succeeds(self, mock_send_mail):
         """有効な追加情報で送信が成功する"""
         mock_send_mail.return_value = 1
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
 
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_with_template.pk})
         response = self.client.post(url, {
@@ -1190,7 +1190,7 @@ class LTApplicationAdditionalInfoTest(TestCase):
     def test_submit_without_template_no_additional_info(self, mock_send_mail):
         """テンプレートなし集会では追加情報なしで送信できる"""
         mock_send_mail.return_value = 1
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
 
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_without_template.pk})
         response = self.client.post(url, {
@@ -1216,7 +1216,7 @@ class LTApplicationAdditionalInfoTest(TestCase):
     def test_submit_without_template_with_additional_info_succeeds(self, mock_send_mail):
         """テンプレートなし集会でも追加情報を自由記入できる"""
         mock_send_mail.return_value = 1
-        self.client.login(username='TestUser', password='testpass123')
+        self.client.force_login(self.user)
 
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community_without_template.pk})
         response = self.client.post(url, {
@@ -1313,7 +1313,7 @@ class LTApplicationReviewAdditionalInfoTest(TestCase):
 
     def test_review_page_shows_additional_info(self):
         """レビューページで追加情報が表示される"""
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
         url = reverse('event:lt_application_review', kwargs={'pk': self.application_with_info.pk})
         response = self.client.get(url)
 
@@ -1323,7 +1323,7 @@ class LTApplicationReviewAdditionalInfoTest(TestCase):
 
     def test_review_page_hides_additional_info_when_empty(self):
         """追加情報が空の場合はセクションが表示されない"""
-        self.client.login(username='Owner', password='ownerpass123')
+        self.client.force_login(self.owner)
         url = reverse('event:lt_application_review', kwargs={'pk': self.application_without_info.pk})
         response = self.client.get(url)
 

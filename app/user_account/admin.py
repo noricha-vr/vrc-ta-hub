@@ -14,7 +14,7 @@ class CustomUserChangeForm(UserChangeForm):
 class CustomUserCreationForm(UserCreationForm):
     class Meta:
         model = CustomUser
-        fields = ('user_name', 'display_name', 'email')
+        fields = ('email', 'user_name', 'display_name')
 
 
 # Register your models here.
@@ -22,13 +22,13 @@ class CustomUserAdmin(UserAdmin):
     form = CustomUserChangeForm
     add_form = CustomUserCreationForm
     
-    list_display = ('user_name', 'display_name', 'email', 'vrchat_user_id', 'is_staff', 'is_active')
+    list_display = ('email', 'user_name', 'display_name', 'vrchat_user_id', 'is_staff', 'is_active')
     list_filter = ('is_staff', 'is_active')
     search_fields = ('user_name', 'display_name', 'email')
-    ordering = ('user_name',)
+    ordering = ('email',)
     
     fieldsets = (
-        (None, {'fields': ('user_name', 'display_name', 'email', 'vrchat_user_id', 'password')}),
+        (None, {'fields': ('email', 'user_name', 'display_name', 'vrchat_user_id', 'password')}),
         ('権限', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('重要な日付', {'fields': ('last_login', 'date_joined')}),
     )
@@ -36,7 +36,7 @@ class CustomUserAdmin(UserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('user_name', 'display_name', 'email', 'password1', 'password2'),
+            'fields': ('email', 'user_name', 'display_name', 'password1', 'password2'),
         }),
     )
 

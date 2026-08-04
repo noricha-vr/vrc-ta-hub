@@ -21,7 +21,7 @@ from ._vket_test_bases import VketManageViewsBase
 class VketManageViewsTests(VketManageViewsBase):
     def test_manage_participation_update_sets_lifecycle_without_schedule(self):
         """管理画面から参加状態だけを不参加に変更できる"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         new_participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=Community.objects.create(name='集会C', status='approved', frequency='毎週'),
@@ -53,7 +53,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_participation_update_declined_clears_published_event(self):
         """公開済み参加を不参加にすると公開イベント連携を解除する"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         detail = EventDetail.objects.create(
             event=self.event1,
             detail_type='LT',
@@ -98,7 +98,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_participation_update_requires_schedule_for_active(self):
         """参加中で保存する場合は確定日程が必須"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         new_participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=Community.objects.create(name='集会C', status='approved', frequency='毎週'),

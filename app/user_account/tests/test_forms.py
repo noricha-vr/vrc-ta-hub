@@ -26,13 +26,13 @@ class BootstrapAuthenticationFormTests(TestCase):
             password='testpass123',
         )
 
-    def test_valid_login_with_user_name(self):
-        """user_nameフィールドで正常にログインできること."""
+    def test_valid_login_with_email(self):
+        """メールアドレスで正常にログインできること."""
         request = self.factory.post('/account/login/')
         form = BootstrapAuthenticationForm(
             request=request,
             data={
-                'username': 'test_community',
+                'username': 'test@example.com',
                 'password': 'testpass123',
             }
         )
@@ -45,19 +45,19 @@ class BootstrapAuthenticationFormTests(TestCase):
         form = BootstrapAuthenticationForm(
             request=request,
             data={
-                'username': 'test_community',
+                'username': 'test@example.com',
                 'password': 'wrongpassword',
             }
         )
         self.assertFalse(form.is_valid())
 
-    def test_invalid_login_with_nonexistent_user(self):
-        """存在しないユーザーでログインが失敗すること."""
+    def test_invalid_login_with_user_name(self):
+        """廃止したuser_nameではログインできないこと."""
         request = self.factory.post('/account/login/')
         form = BootstrapAuthenticationForm(
             request=request,
             data={
-                'username': 'nonexistent_user',
+                'username': 'test_community',
                 'password': 'testpass123',
             }
         )
@@ -75,11 +75,12 @@ class BootstrapAuthenticationFormTests(TestCase):
             else:
                 self.assertIn('form-control', css_class)
 
-    def test_username_field_has_correct_label(self):
-        """usernameフィールドのラベルが「ユーザー名」であること."""
+    def test_email_field_has_correct_label_and_autocomplete(self):
+        """ログイン入力がメールアドレス用に設定されていること."""
         request = self.factory.post('/account/login/')
         form = BootstrapAuthenticationForm(request=request)
-        self.assertEqual(form.fields['username'].label, 'ユーザー名')
+        self.assertEqual(form.fields['username'].label, 'メールアドレス')
+        self.assertEqual(form.fields['username'].widget.attrs['autocomplete'], 'email')
 
     def test_inactive_user_cannot_login(self):
         """非アクティブユーザーがログインできないこと."""
@@ -90,11 +91,25 @@ class BootstrapAuthenticationFormTests(TestCase):
         form = BootstrapAuthenticationForm(
             request=request,
             data={
-                'username': 'test_community',
+                'username': 'test@example.com',
                 'password': 'testpass123',
             }
         )
         self.assertFalse(form.is_valid())
+
+    def test_login_accepts_email_regardless_of_case(self):
+        """メールアドレスは大文字小文字の違いを区別せず認証できること."""
+        request = self.factory.post('/account/login/')
+        form = BootstrapAuthenticationForm(
+            request=request,
+            data={
+                'username': 'TEST@EXAMPLE.COM',
+                'password': 'testpass123',
+            },
+        )
+
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.get_user(), self.test_user)
 
     def test_remember_field_exists(self):
         """rememberフィールドが存在すること."""
@@ -159,22 +174,22 @@ class CustomSocialSignupFormTests(TestCase):
         self.assertIn('user_name', form.errors)
 
     def test_user_name_label_is_correct(self):
-        """user_nameフィールドのラベルが「ログインユーザー名」であること."""
+        """user_nameフィールドのラベルが表示用であること."""
         form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
-        self.assertEqual(form.fields['user_name'].label, 'ログインユーザー名')
+        self.assertEqual(form.fields['user_name'].label, '表示用ユーザー名')
 
     def test_user_name_max_length(self):
         """user_nameフィールドの最大文字数が150であること."""
         form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
         self.assertEqual(form.fields['user_name'].max_length, 150)
 
-    def test_field_order_is_user_name_then_email(self):
-        """フィールド順序がuser_name、emailの順であること."""
+    def test_field_order_is_email_then_user_name(self):
+        """フィールド順序がemail、user_nameの順であること."""
         form = CustomSocialSignupForm(sociallogin=self.mock_sociallogin)
         field_names = list(form.fields.keys())
         user_name_index = field_names.index('user_name')
         email_index = field_names.index('email')
-        self.assertLess(user_name_index, email_index)
+        self.assertLess(email_index, user_name_index)
 
     def test_discord_username_placeholder(self):
         """Discordユーザー名がプレースホルダーに設定されること."""
@@ -261,9 +276,9 @@ class CustomUserChangeFormTests(TestCase):
         )
 
     def test_user_name_label_is_correct(self):
-        """user_nameフィールドのラベルが「ログインユーザー名」であること."""
+        """user_nameフィールドのラベルが表示用であること."""
         form = CustomUserChangeForm(instance=self.test_user)
-        self.assertEqual(form.fields['user_name'].label, 'ログインユーザー名')
+        self.assertEqual(form.fields['user_name'].label, '表示用ユーザー名')
 
     def test_display_name_label_is_correct(self):
         """display_nameフィールドのラベルが「表示名」であること."""
@@ -278,12 +293,12 @@ class CustomUserChangeFormTests(TestCase):
             'VRChat内の名前や発表者名として表示されます。同じ表示名を複数ユーザーが使用できます。',
         )
 
-    def test_user_name_help_text_explains_login_identifier(self):
-        """user_nameの説明がログイン用の一意な識別子であることを伝えること."""
+    def test_user_name_help_text_explains_display_identifier(self):
+        """user_nameの説明が表示用の一意な識別子であることを伝えること."""
         form = CustomUserChangeForm(instance=self.test_user)
         self.assertEqual(
             form.fields['user_name'].help_text,
-            'ログインと内部識別に使用する一意のユーザー名です。通常は変更不要です。',
+            '表示用と内部識別に使用する一意のユーザー名です。通常は変更不要です。',
         )
 
     def test_form_has_bootstrap_class(self):
@@ -322,6 +337,44 @@ class CustomUserChangeFormTests(TestCase):
             },
         )
         self.assertTrue(form.is_valid(), form.errors)
+
+    def test_email_is_normalized_to_lowercase(self):
+        """プロフィール編集時のメールアドレスを小文字に正規化すること."""
+        form = CustomUserChangeForm(
+            instance=self.test_user,
+            data={
+                'display_name': self.test_user.display_name,
+                'user_name': self.test_user.user_name,
+                'email': 'TEST@EXAMPLE.COM',
+                'x_account': '',
+                'vrchat_user_id': '',
+            },
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['email'], 'test@example.com')
+
+    def test_email_case_insensitive_duplicate_is_rejected(self):
+        """他ユーザーの大小文字違いメールアドレスを拒否すること."""
+        User.objects.create_user(
+            email='other@example.com',
+            user_name='other_email_user',
+            password='testpass123',
+        )
+        form = CustomUserChangeForm(
+            instance=self.test_user,
+            data={
+                'display_name': self.test_user.display_name,
+                'user_name': self.test_user.user_name,
+                'email': 'OTHER@EXAMPLE.COM',
+                'x_account': '',
+                'vrchat_user_id': '',
+            },
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('email', form.errors)
+        self.assertIn('このメールアドレスは既に登録されています。', form.errors['email'])
 
 
 class CustomUserCreationFormTests(TestCase):

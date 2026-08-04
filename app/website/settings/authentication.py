@@ -9,15 +9,20 @@ from .base import DEBUG
 
 AUTH_USER_MODEL = 'user_account.CustomUser'
 
+# allauth backend は ModelBackend 継承で権限チェックも担い、LOGIN_METHODS に username が
+# ないため user_name での認証は構造的に無効（ModelBackend が並んでいても USERNAME_FIELD='email'
+# のため email 完全一致しか通らず、ユーザー名ログインは復活しない）。
+# ModelBackend は email 移行前のセッション互換のためだけに残す: セッションの _auth_user_backend が
+# このパスを指しており、一覧から消すと既存ログインが全員無効化される。
+# 移行前セッションが失効する SESSION_COOKIE_AGE（既定2週間）経過後に削除してよい（#598）。
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 # django-allauth 設定
-ACCOUNT_EMAIL_REQUIRED = False
-ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_AUTHENTICATION_METHOD = 'username'
+ACCOUNT_LOGIN_METHODS = {'email'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_USER_MODEL_USERNAME_FIELD = 'user_name'
 ACCOUNT_SESSION_REMEMBER = None  # ユーザーに選択させる

@@ -112,7 +112,7 @@ class CustomLoginViewTests(TestCase):
     def test_login_without_remember_sets_session_expiry_to_browser_close(self):
         """rememberなしでログインするとセッションがブラウザ終了時に切れること."""
         response = self.client.post(self.login_url, {
-            'username': 'test_community',
+            'username': 'test@example.com',
             'password': 'testpass123',
             # remember フィールドを送信しない（チェックなし）
         })
@@ -123,7 +123,7 @@ class CustomLoginViewTests(TestCase):
     def test_login_with_remember_keeps_session(self):
         """rememberありでログインするとセッションが維持されること."""
         response = self.client.post(self.login_url, {
-            'username': 'test_community',
+            'username': 'test@example.com',
             'password': 'testpass123',
             'remember': 'on',  # チェックあり
         })
@@ -134,7 +134,7 @@ class CustomLoginViewTests(TestCase):
     def test_login_success_message(self):
         """ログイン成功時にメッセージが表示されること."""
         response = self.client.post(self.login_url, {
-            'username': 'test_community',
+            'username': 'test@example.com',
             'password': 'testpass123',
         }, follow=True)
         self.assertContains(response, 'ログインしました')
@@ -143,7 +143,7 @@ class CustomLoginViewTests(TestCase):
         """nextパラメータがある場合、そのURLにリダイレクトされること."""
         next_url = '/community/settings/'
         response = self.client.post(f'{self.login_url}?next={next_url}', {
-            'username': 'test_community',
+            'username': 'test@example.com',
             'password': 'testpass123',
         })
         self.assertEqual(response.status_code, 302)
@@ -152,7 +152,7 @@ class CustomLoginViewTests(TestCase):
     def test_login_without_membership_redirects_to_my_presentations(self):
         """集会未所属ユーザーは自分の発表へリダイレクトされること."""
         response = self.client.post(self.login_url, {
-            'username': 'test_community',
+            'username': 'test@example.com',
             'password': 'testpass123',
         })
         self.assertEqual(response.status_code, 302)
@@ -162,7 +162,7 @@ class CustomLoginViewTests(TestCase):
         """外部URLへのリダイレクトを防止する（オープンリダイレクト対策）."""
         external_url = 'https://evil.example.com'
         response = self.client.post(f'{self.login_url}?next={external_url}', {
-            'username': 'test_community',
+            'username': 'test@example.com',
             'password': 'testpass123',
         })
         # 外部URLにはリダイレクトされず、集会未所属の既定先にリダイレクトされる
@@ -173,7 +173,7 @@ class CustomLoginViewTests(TestCase):
         """プロトコル相対URLへのリダイレクトを防止する（オープンリダイレクト対策）."""
         protocol_relative_url = '//evil.example.com/path'
         response = self.client.post(f'{self.login_url}?next={protocol_relative_url}', {
-            'username': 'test_community',
+            'username': 'test@example.com',
             'password': 'testpass123',
         })
         # プロトコル相対URLにはリダイレクトされず、集会未所属の既定先にリダイレクトされる
@@ -204,14 +204,14 @@ class SettingsViewTests(TestCase):
 
     def test_settings_view_renders_correctly(self):
         """ログイン状態で設定ページが正しくレンダリングされること."""
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'account/settings.html')
 
     def test_settings_view_without_community(self):
         """集会を持たないユーザーの設定ページが正しく表示されること."""
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
         # 集会追加ボタンが表示されていること（新しいレイアウト）
@@ -230,7 +230,7 @@ class SettingsViewTests(TestCase):
             user=self.test_user,
             role=CommunityMember.Role.OWNER,
         )
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -263,7 +263,7 @@ class SettingsViewTests(TestCase):
             user=self.test_user,
             role=CommunityMember.Role.OWNER,
         )
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -284,7 +284,7 @@ class SettingsViewTests(TestCase):
             user=self.test_user,
             role=CommunityMember.Role.OWNER,
         )
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -295,7 +295,7 @@ class SettingsViewTests(TestCase):
 
     def test_settings_view_participant_shows_my_communities_section(self):
         """参加者（集会を持たないユーザー）にはマイ集会セクションが表示されること."""
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -306,7 +306,7 @@ class SettingsViewTests(TestCase):
 
     def test_settings_view_participant_shows_add_community_button(self):
         """参加者には集会追加ボタンが表示されること."""
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -315,7 +315,7 @@ class SettingsViewTests(TestCase):
 
     def test_settings_view_participant_shows_account_items(self):
         """参加者にアカウント関連の項目が表示されること."""
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -345,7 +345,7 @@ class SettingsViewTests(TestCase):
             user=self.test_user,
             role=CommunityMember.Role.OWNER,
         )
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -369,7 +369,7 @@ class SettingsViewTests(TestCase):
             user=self.test_user,
             role=CommunityMember.Role.OWNER,
         )
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -389,7 +389,7 @@ class SettingsViewTests(TestCase):
             user=self.test_user,
             role=CommunityMember.Role.OWNER,
         )
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -398,7 +398,7 @@ class SettingsViewTests(TestCase):
 
     def test_settings_view_uses_list_layout(self):
         """設定ページがリスト型レイアウトを使用していること."""
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -415,7 +415,7 @@ class SettingsViewTests(TestCase):
         self.test_user.is_staff = True
         self.test_user.save()
 
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -425,7 +425,7 @@ class SettingsViewTests(TestCase):
 
     def test_settings_view_non_staff_does_not_see_admin_section(self):
         """非スタッフユーザーには管理セクションが表示されないこと."""
-        self.client.login(username='test_settings_user', password='testpass123')
+        self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
@@ -456,28 +456,28 @@ class UserUpdateViewTests(TestCase):
 
     def test_user_update_view_renders_correctly(self):
         """ログイン状態でユーザー情報更新ページが正しくレンダリングされること."""
-        self.client.login(username='test_update_user', password='testpass123')
+        self.client.login(username='test_update@example.com', password='testpass123')
         response = self.client.get(self.update_url)
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'account/user_update.html')
 
     def test_user_update_view_contains_email_privacy_notice(self):
         """ユーザー情報更新ページにメールアドレス非公開の説明が含まれていること."""
-        self.client.login(username='test_update_user', password='testpass123')
+        self.client.login(username='test_update@example.com', password='testpass123')
         response = self.client.get(self.update_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'メールアドレスは公開されません')
         self.assertContains(response, 'fa-lock')
         self.assertContains(response, 'form-text')
 
-    def test_user_update_view_explains_display_name_and_login_user_name(self):
-        """表示名とログインユーザー名の使い分けが画面で伝わること."""
-        self.client.login(username='test_update_user', password='testpass123')
+    def test_user_update_view_explains_display_name_and_user_name(self):
+        """表示名と表示用ユーザー名の使い分けが画面で伝わること."""
+        self.client.login(username='test_update@example.com', password='testpass123')
         response = self.client.get(self.update_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'name="display_name"')
         self.assertContains(response, 'VRChat内の名前や発表者名として表示されます')
-        self.assertContains(response, 'ログインと内部識別に使用します')
+        self.assertContains(response, '表示用と内部識別に使用します')
 
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
@@ -648,7 +648,7 @@ class HeaderDropdownMenuTests(TestCase):
 
     def test_authenticated_user_sees_dropdown_icon(self):
         """ログインユーザーにはユーザーアイコンが表示されること."""
-        self.client.login(username='test_header_user', password='testpass123')
+        self.client.login(username='test_header@example.com', password='testpass123')
         response = self.client.get(self.index_url)
         self.assertEqual(response.status_code, 200)
         # ユーザーアイコンが表示される
@@ -659,7 +659,7 @@ class HeaderDropdownMenuTests(TestCase):
 
     def test_authenticated_user_dropdown_contains_settings(self):
         """ログインユーザーのドロップダウンに設定リンクが含まれること."""
-        self.client.login(username='test_header_user', password='testpass123')
+        self.client.login(username='test_header@example.com', password='testpass123')
         response = self.client.get(self.index_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse('account:settings'))
@@ -668,7 +668,7 @@ class HeaderDropdownMenuTests(TestCase):
 
     def test_authenticated_user_dropdown_contains_logout(self):
         """ログインユーザーのドロップダウンにログアウトリンクが含まれること."""
-        self.client.login(username='test_header_user', password='testpass123')
+        self.client.login(username='test_header@example.com', password='testpass123')
         response = self.client.get(self.index_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse('account:logout'))
@@ -677,7 +677,7 @@ class HeaderDropdownMenuTests(TestCase):
 
     def test_participant_dropdown_does_not_contain_community_list(self):
         """参加者のドロップダウンにはマイ集会リストが含まれないこと."""
-        self.client.login(username='test_header_user', password='testpass123')
+        self.client.login(username='test_header@example.com', password='testpass123')
         response = self.client.get(self.index_url)
         self.assertEqual(response.status_code, 200)
         # マイ集会ヘッダーがないことを確認
@@ -698,7 +698,7 @@ class HeaderDropdownMenuTests(TestCase):
             user=self.test_user,
             role=CommunityMember.Role.OWNER,
         )
-        self.client.login(username='test_header_user', password='testpass123')
+        self.client.login(username='test_header@example.com', password='testpass123')
         response = self.client.get(self.index_url)
         self.assertEqual(response.status_code, 200)
         # マイ集会ヘッダーがあることを確認

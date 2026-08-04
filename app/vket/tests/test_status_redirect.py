@@ -62,7 +62,7 @@ class VketStatusRedirectViewTests(TestCase):
 
     def test_redirect_to_latest_collaboration(self):
         """ログインユーザーで最新コラボのstatusへリダイレクト"""
-        self.client.login(username='redirect_user', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('vket:status_redirect'))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
@@ -75,7 +75,7 @@ class VketStatusRedirectViewTests(TestCase):
         self.collaboration.phase = VketCollaboration.Phase.ARCHIVED
         self.collaboration.save()
 
-        self.client.login(username='redirect_user', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('vket:status_redirect'))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse('vket:list'))
@@ -85,7 +85,7 @@ class VketStatusRedirectViewTests(TestCase):
         self.collaboration.phase = VketCollaboration.Phase.DRAFT
         self.collaboration.save()
 
-        self.client.login(username='redirect_user', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('vket:status_redirect'))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse('vket:list'))
@@ -95,7 +95,7 @@ class VketStatusRedirectViewTests(TestCase):
         self.collaboration.phase = VketCollaboration.Phase.DRAFT
         self.collaboration.save()
 
-        self.client.login(username='redirect_admin', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(reverse('vket:status_redirect'))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(
@@ -116,7 +116,7 @@ class VketStatusRedirectViewTests(TestCase):
             phase=VketCollaboration.Phase.LOCKED,
         )
 
-        self.client.login(username='redirect_user', password='testpass123')
+        self.client.force_login(self.user)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
@@ -135,7 +135,7 @@ class VketStatusRedirectViewTests(TestCase):
             user=self.superuser,
             role=CommunityMember.Role.OWNER,
         )
-        self.client.login(username='redirect_admin', password='adminpass123')
+        self.client.force_login(self.superuser)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
@@ -155,7 +155,7 @@ class VketStatusRedirectViewTests(TestCase):
 
     def test_status_page_hides_admin_link_for_normal_user(self):
         """一般ユーザーには管理者リンクが表示されない"""
-        self.client.login(username='redirect_user', password='testpass123')
+        self.client.force_login(self.user)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()

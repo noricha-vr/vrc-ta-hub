@@ -74,7 +74,7 @@ class TwitterTemplateListViewTest(TestCase):
 
     def test_owner_can_access_template_list(self):
         """主催者はテンプレート一覧にアクセスできる"""
-        self.client.login(username='owner_user', password='testpassword')
+        self.client.force_login(self.owner)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
@@ -86,7 +86,7 @@ class TwitterTemplateListViewTest(TestCase):
 
     def test_staff_can_access_template_list(self):
         """スタッフもテンプレート一覧にアクセスできる"""
-        self.client.login(username='staff_user', password='testpassword')
+        self.client.force_login(self.staff)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
@@ -98,7 +98,7 @@ class TwitterTemplateListViewTest(TestCase):
 
     def test_non_member_sees_empty_list(self):
         """メンバーでないユーザーは空のリストを見る"""
-        self.client.login(username='other_user', password='testpassword')
+        self.client.force_login(self.other_user)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
@@ -110,7 +110,7 @@ class TwitterTemplateListViewTest(TestCase):
 
     def test_no_active_community_returns_empty_list(self):
         """active_community_idがない場合は空のリストを返す"""
-        self.client.login(username='owner_user', password='testpassword')
+        self.client.force_login(self.owner)
         # セッションを空にする
         session = self.client.session
         if 'active_community_id' in session:
@@ -162,7 +162,7 @@ class TwitterTemplateCreateViewTest(TestCase):
 
     def test_owner_can_create_template(self):
         """主催者はテンプレートを作成できる"""
-        self.client.login(username='owner_user2', password='testpassword')
+        self.client.force_login(self.owner)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
@@ -183,7 +183,7 @@ class TwitterTemplateCreateViewTest(TestCase):
 
     def test_non_member_cannot_create_template(self):
         """メンバーでないユーザーはテンプレートを作成できない"""
-        self.client.login(username='other_user2', password='testpassword')
+        self.client.force_login(self.other_user)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
@@ -196,7 +196,7 @@ class TwitterTemplateCreateViewTest(TestCase):
 
     def test_no_active_community_cannot_create(self):
         """active_community_idがない場合はテンプレートを作成できない"""
-        self.client.login(username='owner_user2', password='testpassword')
+        self.client.force_login(self.owner)
         # セッションを空にする
         session = self.client.session
         if 'active_community_id' in session:
@@ -211,7 +211,7 @@ class TwitterTemplateCreateViewTest(TestCase):
 
     def test_create_form_shows_group_url_variable_in_default_template_and_help(self):
         """新規作成フォームはグループURL変数を初期値とヘルプに表示する"""
-        self.client.login(username='owner_user2', password='testpassword')
+        self.client.force_login(self.owner)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()

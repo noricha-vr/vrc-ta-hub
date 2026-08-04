@@ -52,7 +52,7 @@ class TwitterTemplateDeletePermissionTest(TestCase):
         )
 
     def test_non_member_cannot_delete_template(self):
-        self.client.login(username="other_user_del", password="testpassword")
+        self.client.force_login(self.other_user)
 
         url = reverse("twitter:template_delete", kwargs={"pk": self.template.pk})
         response = self.client.post(url)
@@ -61,7 +61,7 @@ class TwitterTemplateDeletePermissionTest(TestCase):
         self.assertTrue(TwitterTemplate.objects.filter(pk=self.template.pk).exists())
 
     def test_owner_can_delete_template(self):
-        self.client.login(username="owner_user_del", password="testpassword")
+        self.client.force_login(self.owner)
 
         url = reverse("twitter:template_delete", kwargs={"pk": self.template.pk})
         response = self.client.post(url)

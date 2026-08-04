@@ -199,10 +199,10 @@ class PlaywrightLiveServerTestCase(StaticLiveServerTestCase):
             'UI asset loading failed:\n' + '\n'.join(self.external_ui_asset_failures),
         )
 
-    def login(self, user_name: str, password: str) -> None:
+    def login(self, email: str, password: str) -> None:
         """公開ログインフォームからユーザーを認証する."""
         self.page.goto(f'{self.live_server_url}{reverse("account:login")}')
-        self.page.get_by_label('ユーザー名').fill(user_name)
+        self.page.get_by_label('メールアドレス').fill(email)
         self.page.get_by_label('パスワード').fill(password)
         self.page.get_by_role('button', name=re.compile(r'ログイン$')).click()
         self.page.wait_for_load_state('domcontentloaded')
@@ -327,7 +327,7 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
 
     def test_login_settings_logout_and_protected_redirect(self) -> None:
         """ログイン状態が設定画面へ反映され、ログアウト後は保護される."""
-        self.login(self.applicant.user_name, self.password)
+        self.login(self.applicant.email, self.password)
         self.page.goto(f'{self.live_server_url}{reverse("account:settings")}')
         expect(self.page.get_by_role('heading', name='アカウント設定', exact=True)).to_be_visible()
 
@@ -340,7 +340,7 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
     def test_application_approval_becomes_public_presentation(self) -> None:
         """発表者の申請が主催者承認後に匿名公開される."""
         application_theme = '申請から公開されるE2E発表'
-        self.login(self.applicant.user_name, self.password)
+        self.login(self.applicant.email, self.password)
         self.page.goto(
             f'{self.live_server_url}{reverse("community:detail", kwargs={"pk": self.community.pk})}'
         )
@@ -353,7 +353,7 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
 
         application = EventDetail.objects.get(event=self.event, theme=application_theme)
         self.logout()
-        self.login(self.owner.user_name, self.password)
+        self.login(self.owner.email, self.password)
         self.page.goto(
             f'{self.live_server_url}{reverse("event:lt_application_review", kwargs={"pk": application.pk})}'
         )

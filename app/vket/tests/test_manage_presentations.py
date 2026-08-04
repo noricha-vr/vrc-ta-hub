@@ -24,7 +24,7 @@ from ._vket_test_bases import VketManageViewsBase
 class VketManageViewsTests(VketManageViewsBase):
     def test_manage_update_confirms_draft_presentations(self):
         """確定ボタン押下でDRAFTのLTがCONFIRMEDに一括更新される"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         new_community = Community.objects.create(
             name='集会D', status='approved', frequency='毎週',
         )
@@ -73,7 +73,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_update_ignores_posted_start_time_for_initial_draft_presentation(self):
         """DRAFT発表の開始時刻は同一POSTで送られても更新しない"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=Community.objects.create(name='集会E', status='approved', frequency='毎週'),
@@ -112,7 +112,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_update_creates_event_detail_for_new_presentation(self):
         """確定ボタンでpublished_event_detailがないCONFIRMED LTにEventDetailが作成される"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         # published_event_detail がない DRAFT のLTを追加
         pres = VketPresentation.objects.create(
             participation=self.participation1,
@@ -148,7 +148,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_page_shows_draft_badge(self):
         """管理画面でDRAFTのLTに「申請中」バッジが表示される"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         VketPresentation.objects.create(
             participation=self.participation1,
             order=0,
@@ -166,7 +166,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_page_shows_time_input_for_rehearsal_confirmed_presentation(self):
         """公開前のCONFIRMED発表には開始時刻入力欄を表示する"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=Community.objects.create(name='集会C', status='approved', frequency='毎週'),
@@ -201,7 +201,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_page_prefers_event_detail_time_for_published_presentation(self):
         """公開済み発表の入力初期値は公開EventDetailの時刻を優先する"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         detail = EventDetail.objects.create(
             event=self.event1,
             detail_type='LT',
@@ -231,7 +231,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_page_shows_lt_time_badge(self):
         """管理画面でLT時間バッジが表示される"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         # プレゼンテーションとEventDetailを作成
         detail = EventDetail.objects.create(
             event=self.event1,
@@ -258,7 +258,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_presentation_delete_removes_presentation_and_event_detail(self):
         """管理者がLTを削除するとVketPresentationとEventDetailが両方削除される"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         detail = EventDetail.objects.create(
             event=self.event1,
             detail_type='LT',
@@ -286,7 +286,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_presentation_delete_requires_staff(self):
         """一般ユーザー（非staff）はLTを削除できない"""
-        self.client.login(username='normal_user', password='testpass123')
+        self.client.force_login(self.normal_user)
         pres = VketPresentation.objects.create(
             participation=self.participation1,
             order=0,

@@ -28,7 +28,7 @@ class APIKeyViewsSecurityTests(TestCase):
 
     def test_create_api_key_stores_hash_and_shows_raw_key_only_once(self):
         """作成直後のみ平文キーが表示され、DBにはハッシュのみが保存されること。"""
-        self.client.login(username="test_user", password="testpass123")
+        self.client.login(username="test_user@example.com", password="testpass123")
 
         response = self.client.post(
             self.create_url,
@@ -59,4 +59,3 @@ class APIKeyViewsSecurityTests(TestCase):
         self.assertEqual(response2.status_code, 200)
         self.assertIsNone(response2.context["new_api_key"])
         self.assertNotContains(response2, raw_key)
-

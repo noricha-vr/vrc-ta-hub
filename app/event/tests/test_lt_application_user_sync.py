@@ -50,7 +50,7 @@ class LTApplicationUserSyncTest(TestCase):
     def test_speaker_updates_display_name(self, mock_send):
         """speaker を変更して送信すると user.display_name が更新される."""
         mock_send.return_value = 1
-        self.client.login(username='OriginalName', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.post(self.url, {
             'event': self.future_event.pk,
             'theme': 'X-sync',
@@ -71,7 +71,7 @@ class LTApplicationUserSyncTest(TestCase):
     def test_x_account_normalized_from_url(self, mock_send):
         """x_account に URL を送ると正規化される."""
         mock_send.return_value = 1
-        self.client.login(username='OriginalName', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.post(self.url, {
             'event': self.future_event.pk,
             'theme': 'normalize',
@@ -87,7 +87,7 @@ class LTApplicationUserSyncTest(TestCase):
     def test_x_account_empty_is_allowed(self, mock_send):
         """x_account 未入力でも申込が成立する."""
         mock_send.return_value = 1
-        self.client.login(username='OriginalName', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.post(self.url, {
             'event': self.future_event.pk,
             'theme': 'empty-x',
@@ -108,7 +108,7 @@ class LTApplicationUserSyncTest(TestCase):
             email='other@example.com',
             password='pw',
         )
-        self.client.login(username='OriginalName', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.post(self.url, {
             'event': self.future_event.pk,
             'theme': 'dup',
@@ -125,7 +125,7 @@ class LTApplicationUserSyncTest(TestCase):
     def test_speaker_same_as_self_is_allowed(self, mock_send):
         """自分自身の user_name と同じ speaker は許容される."""
         mock_send.return_value = 1
-        self.client.login(username='OriginalName', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.post(self.url, {
             'event': self.future_event.pk,
             'theme': 'same',
@@ -138,7 +138,7 @@ class LTApplicationUserSyncTest(TestCase):
     def test_speaker_allows_display_name_chars(self, mock_send):
         """空白など user_name では不正な文字も表示名として許容する."""
         mock_send.return_value = 1
-        self.client.login(username='OriginalName', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.post(self.url, {
             'event': self.future_event.pk,
             'theme': 'bad',
@@ -156,7 +156,7 @@ class LTApplicationUserSyncTest(TestCase):
         self.user.display_name = 'DisplayName'
         self.user.x_account = 'initial_handle'
         self.user.save(update_fields=['display_name', 'x_account'])
-        self.client.login(username='OriginalName', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         form = response.context['form']
@@ -167,7 +167,7 @@ class LTApplicationUserSyncTest(TestCase):
         """display_name 未設定時は speaker 初期値に user_name を使う."""
         self.user.display_name = ''
         self.user.save(update_fields=['display_name'])
-        self.client.login(username='OriginalName', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         form = response.context['form']

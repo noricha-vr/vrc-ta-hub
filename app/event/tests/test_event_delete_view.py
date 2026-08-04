@@ -70,7 +70,7 @@ class EventDeleteViewPermissionTest(TestCase):
 
     def test_owner_can_delete_event(self):
         """主催者はイベントを削除できる"""
-        self.client.login(username='Owner User', password='ownerpass123')
+        self.client.force_login(self.owner_user)
 
         url = reverse('event:delete', kwargs={'pk': self.event.pk})
         response = self.client.post(url)
@@ -105,7 +105,7 @@ class EventDeleteViewPermissionTest(TestCase):
             duration=60,
             recurring_master=self.event,
         )
-        self.client.login(username='Owner User', password='ownerpass123')
+        self.client.force_login(self.owner_user)
 
         response = self.client.post(
             reverse('event:delete', kwargs={'pk': self.event.pk})
@@ -135,7 +135,7 @@ class EventDeleteViewPermissionTest(TestCase):
                 start_time=self.event.start_time,
                 duration=60,
             )
-        self.client.login(username='Owner User', password='ownerpass123')
+        self.client.force_login(self.owner_user)
 
         self.client.post(
             reverse('event:delete', kwargs={'pk': self.event.pk}),
@@ -162,7 +162,7 @@ class EventDeleteViewPermissionTest(TestCase):
         calendar_service_class.return_value.delete_event.side_effect = RuntimeError(
             'calendar unavailable'
         )
-        self.client.login(username='Owner User', password='ownerpass123')
+        self.client.force_login(self.owner_user)
 
         response = self.client.post(
             reverse('event:delete', kwargs={'pk': self.event.pk}),
@@ -224,7 +224,7 @@ class EventDeleteViewPermissionTest(TestCase):
         calendar_service_class.return_value.delete_event.side_effect = (
             delete_after_database_commit
         )
-        self.client.login(username='Owner User', password='ownerpass123')
+        self.client.force_login(self.owner_user)
 
         response = self.client.post(
             reverse('event:delete', kwargs={'pk': self.event.pk}),
@@ -288,7 +288,7 @@ class EventDeleteViewPermissionTest(TestCase):
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
             published_event=child,
         )
-        self.client.login(username='Owner User', password='ownerpass123')
+        self.client.force_login(self.owner_user)
 
         response = self.client.post(
             reverse('event:delete', kwargs={'pk': self.event.pk}),
@@ -351,7 +351,7 @@ class EventDeleteViewPermissionTest(TestCase):
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
             published_event=locked_child,
         )
-        self.client.login(username='Owner User', password='ownerpass123')
+        self.client.force_login(self.owner_user)
 
         self.client.post(
             reverse('event:delete', kwargs={'pk': self.event.pk}),
@@ -367,7 +367,7 @@ class EventDeleteViewPermissionTest(TestCase):
 
     def test_staff_cannot_delete_event(self):
         """スタッフはイベントを削除できない"""
-        self.client.login(username='Staff User', password='staffpass123')
+        self.client.force_login(self.staff_user)
 
         url = reverse('event:delete', kwargs={'pk': self.event.pk})
         response = self.client.post(url)
@@ -380,7 +380,7 @@ class EventDeleteViewPermissionTest(TestCase):
 
     def test_other_user_cannot_delete_event(self):
         """コミュニティ外のユーザーはイベントを削除できない"""
-        self.client.login(username='Other User', password='otherpass123')
+        self.client.force_login(self.other_user)
 
         url = reverse('event:delete', kwargs={'pk': self.event.pk})
         response = self.client.post(url)
@@ -457,7 +457,7 @@ class EventDeleteViewMultipleOwnersTest(TestCase):
 
     def test_second_owner_can_delete_event(self):
         """2人目の主催者もイベントを削除できる"""
-        self.client.login(username='Owner2 User', password='owner2pass123')
+        self.client.force_login(self.owner2)
 
         url = reverse('event:delete', kwargs={'pk': self.event.pk})
         response = self.client.post(url)

@@ -74,7 +74,7 @@ class SwitchCommunityViewTest(TestCase):
 
     def test_switch_to_valid_community(self):
         """有効な集会に切り替えできる"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.post(
             reverse('community:switch'),
@@ -91,7 +91,7 @@ class SwitchCommunityViewTest(TestCase):
 
     def test_cannot_switch_to_other_users_community(self):
         """他のユーザーの集会には切り替えできない"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.post(
             reverse('community:switch'),
@@ -108,7 +108,7 @@ class SwitchCommunityViewTest(TestCase):
 
     def test_switch_without_community_id(self):
         """community_idがない場合はエラー"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.post(
             reverse('community:switch'),
@@ -121,7 +121,7 @@ class SwitchCommunityViewTest(TestCase):
 
     def test_redirects_to_referer(self):
         """元のページにリダイレクトする"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.post(
             reverse('community:switch'),
@@ -133,7 +133,7 @@ class SwitchCommunityViewTest(TestCase):
 
     def test_switch_with_invalid_community_id(self):
         """無効なcommunity_id（数値でない文字列）の場合はエラーメッセージが表示される"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.post(
             reverse('community:switch'),
@@ -150,7 +150,7 @@ class SwitchCommunityViewTest(TestCase):
 
     def test_switch_with_non_integer_community_id(self):
         """小数点を含むcommunity_idの場合はエラーメッセージが表示される"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.post(
             reverse('community:switch'),
@@ -167,7 +167,7 @@ class SwitchCommunityViewTest(TestCase):
 
     def test_switch_with_redirect_to_on_success(self):
         """成功時にredirect_toパラメータで指定したURLにリダイレクトする"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.post(
             reverse('community:switch'),
@@ -187,7 +187,7 @@ class SwitchCommunityViewTest(TestCase):
 
     def test_switch_blocks_external_redirect_to(self):
         """redirect_toに外部URLが指定された場合はリダイレクトしない（オープンリダイレクト対策）"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.post(
             reverse('community:switch'),
@@ -203,7 +203,7 @@ class SwitchCommunityViewTest(TestCase):
 
     def test_switch_blocks_external_referer(self):
         """refererに外部URLが指定された場合はフォールバックする（オープンリダイレクト対策）"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.post(
             reverse('community:switch'),
@@ -216,7 +216,7 @@ class SwitchCommunityViewTest(TestCase):
 
     def test_cannot_switch_to_ended_community(self):
         """終了した集会には切り替えできない"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         self.community1.end_at = date.today() - timedelta(days=1)
         self.community1.save(update_fields=['end_at'])
@@ -233,7 +233,7 @@ class SwitchCommunityViewTest(TestCase):
 
     def test_switch_failure_redirects_to_referer_not_redirect_to(self):
         """失敗時はredirect_toではなくrefererにリダイレクトする"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.post(
             reverse('community:switch'),
@@ -292,7 +292,7 @@ class CommunityUpdateViewPermissionTest(TestCase):
 
     def test_owner_can_access_update_view(self):
         """主催者は更新ビューにアクセスできる"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
         # セッションにactive_community_idを設定
         session = self.client.session
         session['active_community_id'] = self.community.id
@@ -303,7 +303,7 @@ class CommunityUpdateViewPermissionTest(TestCase):
 
     def test_staff_can_access_update_view(self):
         """スタッフは更新ビューにアクセスできる"""
-        self.client.login(username='スタッフ', password='testpass123')
+        self.client.force_login(self.staff)
         # セッションにactive_community_idを設定
         session = self.client.session
         session['active_community_id'] = self.community.id
@@ -314,7 +314,7 @@ class CommunityUpdateViewPermissionTest(TestCase):
 
     def test_non_member_cannot_access_update_view(self):
         """非メンバーは更新ビューにアクセスできない"""
-        self.client.login(username='非メンバー', password='testpass123')
+        self.client.force_login(self.non_member)
 
         response = self.client.get(reverse('community:update'))
         # 403 Forbiddenになる
@@ -365,7 +365,7 @@ class CloseCommunityViewPermissionTest(TestCase):
 
     def test_owner_can_close_community(self):
         """主催者は集会を閉鎖できる"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         with patch('community.views.manage.cleanup_community_future_data', return_value={'db_events': 0, 'rules': 0, 'google_events': 0}) as cleanup_mock:
             response = self.client.post(reverse('community:close', kwargs={'pk': self.community.pk}))
@@ -380,7 +380,7 @@ class CloseCommunityViewPermissionTest(TestCase):
 
     def test_staff_cannot_close_community(self):
         """スタッフは集会を閉鎖できない"""
-        self.client.login(username='スタッフ', password='testpass123')
+        self.client.force_login(self.staff)
 
         response = self.client.post(reverse('community:close', kwargs={'pk': self.community.pk}))
 
@@ -389,7 +389,7 @@ class CloseCommunityViewPermissionTest(TestCase):
 
     def test_admin_can_close_community(self):
         """管理者は集会を閉鎖できる"""
-        self.client.login(username='管理者', password='testpass123')
+        self.client.force_login(self.admin)
 
         with patch('community.views.manage.cleanup_community_future_data', return_value={'db_events': 0, 'rules': 0, 'google_events': 0}) as cleanup_mock:
             response = self.client.post(reverse('community:close', kwargs={'pk': self.community.pk}))
@@ -404,7 +404,7 @@ class CloseCommunityViewPermissionTest(TestCase):
 
     def test_get_request_redirects_to_detail_instead_of_405(self):
         """GETアクセス時は405ではなく詳細へ戻す"""
-        self.client.login(username='管理者', password='testpass123')
+        self.client.force_login(self.admin)
         response = self.client.get(reverse('community:close', kwargs={'pk': self.community.pk}))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse('community:detail', kwargs={'pk': self.community.pk}))
@@ -440,7 +440,7 @@ class AdminCommunityCleanupViewTest(TestCase):
         )
 
     def test_superuser_can_run_admin_cleanup(self):
-        self.client.login(username='管理者2', password='testpass123')
+        self.client.force_login(self.admin)
 
         with patch('community.views.manage.cleanup_community_future_data', return_value={'db_events': 3, 'rules': 1, 'google_events': 2}) as cleanup_mock:
             response = self.client.post(reverse('community:admin_cleanup', kwargs={'pk': self.community.pk}))
@@ -451,12 +451,12 @@ class AdminCommunityCleanupViewTest(TestCase):
         self.assertIsNotNone(self.community.end_at)
 
     def test_non_superuser_cannot_run_admin_cleanup(self):
-        self.client.login(username='オーナー2', password='testpass123')
+        self.client.force_login(self.owner)
         response = self.client.post(reverse('community:admin_cleanup', kwargs={'pk': self.community.pk}))
         self.assertEqual(response.status_code, 403)
 
     def test_get_request_redirects_to_detail_instead_of_405(self):
-        self.client.login(username='管理者2', password='testpass123')
+        self.client.force_login(self.admin)
         response = self.client.get(reverse('community:admin_cleanup', kwargs={'pk': self.community.pk}))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse('community:detail', kwargs={'pk': self.community.pk}))

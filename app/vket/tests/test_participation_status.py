@@ -78,7 +78,7 @@ class VketParticipationStatusTests(TestCase):
             notice=notice, participation=self.participation,
         )
 
-        self.client.login(username='status_owner', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.get(
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
@@ -106,7 +106,7 @@ class VketParticipationStatusTests(TestCase):
             acknowledged_at=timezone.now(),
         )
 
-        self.client.login(username='status_owner', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.get(
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
@@ -129,7 +129,7 @@ class VketParticipationStatusTests(TestCase):
             role=CommunityMember.Role.OWNER,
         )
 
-        self.client.login(username='no_part_user', password='testpass123')
+        self.client.force_login(other_user)
         session = self.client.session
         session['active_community_id'] = other_community.id
         session.save()
@@ -145,7 +145,7 @@ class VketParticipationStatusTests(TestCase):
         self.participation.progress = VketParticipation.Progress.APPLIED
         self.participation.save()
 
-        self.client.login(username='status_owner', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.post(
             reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),
@@ -162,7 +162,7 @@ class VketParticipationStatusTests(TestCase):
         self.participation.progress = VketParticipation.Progress.NOT_APPLIED
         self.participation.save()
 
-        self.client.login(username='status_owner', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.post(
             reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),
@@ -180,7 +180,7 @@ class VketParticipationStatusTests(TestCase):
         self.participation.progress = VketParticipation.Progress.REHEARSAL
         self.participation.save()
 
-        self.client.login(username='status_owner', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.post(
             reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),
@@ -201,7 +201,7 @@ class VketParticipationStatusTests(TestCase):
         self.participation.progress = VketParticipation.Progress.APPLIED
         self.participation.save()
 
-        self.client.login(username='status_owner', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.post(
             reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),
@@ -221,7 +221,7 @@ class VketParticipationStatusTests(TestCase):
         self.participation.stage_registered_at = registered_at
         self.participation.save()
 
-        self.client.login(username='status_owner', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.post(
             reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk}),
@@ -239,7 +239,7 @@ class VketParticipationStatusTests(TestCase):
         self.participation.progress = VketParticipation.Progress.APPLIED
         self.participation.save()
 
-        self.client.login(username='status_owner', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.get(
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
@@ -253,7 +253,7 @@ class VketParticipationStatusTests(TestCase):
         self.participation.stage_registered_at = timezone.now()
         self.participation.save()
 
-        self.client.login(username='status_owner', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.get(
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
@@ -268,7 +268,7 @@ class VketParticipationStatusTests(TestCase):
         self.participation.progress = VketParticipation.Progress.REHEARSAL
         self.participation.save()
 
-        self.client.login(username='status_owner', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.get(
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
@@ -286,7 +286,7 @@ class VketParticipationStatusTests(TestCase):
         self.participation.progress = VketParticipation.Progress.REHEARSAL
         self.participation.save()
 
-        self.client.login(username='status_owner', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.get(
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})

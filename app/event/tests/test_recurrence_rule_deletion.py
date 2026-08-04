@@ -167,7 +167,7 @@ class RecurrenceRuleAdminTest(TestCase):
     
     def test_admin_delete_future_events_view(self):
         """管理画面の未来のイベント削除ビューのテスト"""
-        self.client.login(username='Admin User', password='adminpass123')
+        self.client.force_login(self.superuser)
         
         # 削除確認ページにアクセス
         url = f'/admin/event/recurrencerule/{self.rule.pk}/delete_future_events/'
@@ -179,7 +179,7 @@ class RecurrenceRuleAdminTest(TestCase):
     
     def test_admin_delete_future_events_post(self):
         """管理画面で未来のイベントを削除するテスト"""
-        self.client.login(username='Admin User', password='adminpass123')
+        self.client.force_login(self.superuser)
         
         # 削除実行
         url = f'/admin/event/recurrencerule/{self.rule.pk}/delete_future_events/'

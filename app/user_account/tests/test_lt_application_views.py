@@ -140,7 +140,7 @@ class LTApplicationListViewTests(LTApplicationViewTestBase):
         self.assertIn('/login/', response.url)
 
     def test_authenticated_shows_own_applications(self):
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, 200)
         applications = response.context['applications']
@@ -151,27 +151,27 @@ class LTApplicationListViewTests(LTApplicationViewTestBase):
         self.assertIn('Rejected Theme', themes)
 
     def test_other_user_applications_not_shown(self):
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
         response = self.client.get(self.list_url)
         applications = response.context['applications']
         themes = [a.theme for a in applications]
         self.assertNotIn('Other Theme', themes)
 
     def test_non_lt_type_not_shown(self):
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
         response = self.client.get(self.list_url)
         applications = response.context['applications']
         themes = [a.theme for a in applications]
         self.assertNotIn('Blog Theme', themes)
 
     def test_rejected_reason_displayed(self):
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
         response = self.client.get(self.list_url)
         self.assertContains(response, 'テスト却下理由')
 
     def test_vket_application_is_shown_to_applied_by_user(self):
         detail = self.create_vket_application()
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
 
         response = self.client.get(self.list_url)
 
@@ -187,7 +187,7 @@ class LTApplicationEditViewTests(LTApplicationViewTestBase):
         self.assertIn('/login/', response.url)
 
     def test_can_edit_own_application(self):
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
         response = self.client.get(self.edit_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'My LT Theme')
@@ -197,14 +197,14 @@ class LTApplicationEditViewTests(LTApplicationViewTestBase):
         self.assertContains(response, 'URL入力のみでは記事は生成されません')
 
     def test_cannot_edit_other_user_application(self):
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
         other_edit_url = reverse('account:lt_application_edit', kwargs={'pk': self.other_application.pk})
         response = self.client.get(other_edit_url)
         self.assertEqual(response.status_code, 404)
 
     def test_vket_applied_by_user_can_edit_application(self):
         detail = self.create_vket_application()
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
 
         response = self.client.get(reverse('account:lt_application_edit', kwargs={'pk': detail.pk}))
 
@@ -212,14 +212,14 @@ class LTApplicationEditViewTests(LTApplicationViewTestBase):
 
     def test_unrelated_user_cannot_edit_vket_application(self):
         detail = self.create_vket_application()
-        self.client.login(username='other_user', password='testpass123')
+        self.client.login(username='other@example.com', password='testpass123')
 
         response = self.client.get(reverse('account:lt_application_edit', kwargs={'pk': detail.pk}))
 
         self.assertEqual(response.status_code, 404)
 
     def test_save_theme_and_speaker(self):
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
         response = self.client.post(self.edit_url, {
             'theme': 'Updated Theme',
             'speaker': 'Updated Speaker',
@@ -234,7 +234,7 @@ class LTApplicationEditViewTests(LTApplicationViewTestBase):
         self.assertEqual(self.my_application.speaker, 'Updated Speaker')
 
     def test_start_time_and_duration_not_changed(self):
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
         original_start = self.my_application.start_time
         original_duration = self.my_application.duration
         self.client.post(self.edit_url, {
@@ -250,7 +250,7 @@ class LTApplicationEditViewTests(LTApplicationViewTestBase):
         self.assertEqual(self.my_application.duration, original_duration)
 
     def test_status_not_changed_by_form(self):
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
         self.client.post(self.edit_url, {
             'theme': 'Updated Theme',
             'speaker': 'applicant',
@@ -265,7 +265,7 @@ class LTApplicationEditViewTests(LTApplicationViewTestBase):
 
     def test_cannot_edit_rejected_application(self):
         """却下済みのLT申請は編集画面にアクセスすると404"""
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
         rejected_edit_url = reverse('account:lt_application_edit', kwargs={'pk': self.my_rejected.pk})
         response = self.client.get(rejected_edit_url)
         self.assertEqual(response.status_code, 404)
@@ -282,7 +282,7 @@ class LTApplicationEditViewTests(LTApplicationViewTestBase):
             status='pending',
             applicant=self.user,
         )
-        self.client.login(username='applicant', password='testpass123')
+        self.client.login(username='applicant@example.com', password='testpass123')
         pending_edit_url = reverse('account:lt_application_edit', kwargs={'pk': my_pending.pk})
         response = self.client.get(pending_edit_url)
         self.assertEqual(response.status_code, 200)

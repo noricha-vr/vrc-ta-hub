@@ -28,7 +28,7 @@ class VketManageViewsTests(VketManageViewsBase):
         changed_date = self.collaboration.period_start + timedelta(days=1)
         self.event1.date = changed_date
         self.event1.save(update_fields=['date'])
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
 
         response = self.client.get(
             reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
@@ -54,7 +54,7 @@ class VketManageViewsTests(VketManageViewsBase):
         """管理画面は参加中の公開イベントと確定開始時刻の差分を表示する"""
         self.event1.start_time = '22:00'
         self.event1.save(update_fields=['start_time'])
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
 
         response = self.client.get(
             reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
@@ -73,7 +73,7 @@ class VketManageViewsTests(VketManageViewsBase):
         """管理画面は公開イベントと確定開催時間の差分を表示する"""
         self.event1.duration = 90
         self.event1.save(update_fields=['duration'])
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
 
         response = self.client.get(
             reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
@@ -108,7 +108,7 @@ class VketManageViewsTests(VketManageViewsBase):
                 'updated_at',
             ]
         )
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
 
         response = self.client.get(
             reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
@@ -130,7 +130,7 @@ class VketManageViewsTests(VketManageViewsBase):
         self.participation2.save(
             update_fields=['published_event', 'confirmed_date', 'updated_at']
         )
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
 
         response = self.client.get(
             reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
@@ -150,7 +150,7 @@ class VketManageViewsTests(VketManageViewsBase):
         """管理画面は確定日時に一致するEventがある未関連参加を警告しない"""
         self.participation2.published_event = None
         self.participation2.save(update_fields=['published_event', 'updated_at'])
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
 
         response = self.client.get(
             reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
@@ -170,7 +170,7 @@ class VketManageViewsTests(VketManageViewsBase):
                 'updated_at',
             ]
         )
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
 
         response = self.client.get(
             reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
@@ -196,7 +196,7 @@ class VketManageViewsTests(VketManageViewsBase):
         confirmed_date = self.participation2.confirmed_date
         confirmed_start_time = self.participation2.confirmed_start_time
         self.participation2.published_event = None
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
 
         for missing_field in ('confirmed_date', 'confirmed_start_time'):
             with self.subTest(missing_field=missing_field):
@@ -228,7 +228,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_participation_update_sets_confirmed_fields(self):
         """ManageParticipationUpdateViewが確定日程・progressを正しくセットする"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         # 未確定の参加を作成してテスト
         new_participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
@@ -268,7 +268,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_participation_update_reuses_existing_event(self):
         """確定日程に一致する既存Eventがあれば公開イベントとして再利用する"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         community = Community.objects.create(name='集会C', status='approved', frequency='毎週')
         participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
@@ -453,7 +453,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_participation_update_approves_existing_pending_detail(self):
         """既存のpending EventDetailは確定時にapprovedへ同期される"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         detail = EventDetail.objects.create(
             event=self.event1,
             detail_type='LT',

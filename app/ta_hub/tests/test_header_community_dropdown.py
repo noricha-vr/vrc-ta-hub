@@ -61,7 +61,7 @@ class HeaderCommunityDropdownTest(TestCase):
 
     def test_user_without_communities_does_not_see_community_section(self):
         """集会未所属ユーザーはマイ集会セクションを見ない"""
-        self.client.login(username='集会なしユーザー', password='testpass123')
+        self.client.force_login(self.user_no_community)
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
@@ -71,7 +71,7 @@ class HeaderCommunityDropdownTest(TestCase):
 
     def test_user_sees_all_communities_in_dropdown(self):
         """ユーザーは所属する全ての集会をドロップダウンで見る"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
@@ -81,7 +81,7 @@ class HeaderCommunityDropdownTest(TestCase):
 
     def test_my_presentations_link_is_not_duplicated_with_active_community(self):
         """集会所属ユーザーにも自分の発表導線を1件だけ表示する"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
@@ -91,7 +91,7 @@ class HeaderCommunityDropdownTest(TestCase):
 
     def test_active_community_has_checkmark(self):
         """アクティブな集会にはチェックマークが表示される"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         # セッションにactive_community_idを設定
         session = self.client.session
@@ -106,7 +106,7 @@ class HeaderCommunityDropdownTest(TestCase):
 
     def test_inactive_community_has_circle_icon(self):
         """非アクティブな集会には丸アイコンが表示される"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         # セッションにactive_community_idを設定
         session = self.client.session
@@ -121,7 +121,7 @@ class HeaderCommunityDropdownTest(TestCase):
 
     def test_switch_form_exists_for_inactive_community(self):
         """非アクティブな集会には切り替えフォームがある"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         # セッションにactive_community_idを設定
         session = self.client.session
@@ -136,7 +136,7 @@ class HeaderCommunityDropdownTest(TestCase):
 
     def test_add_community_link_exists(self):
         """集会を追加リンクが存在する"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
@@ -145,7 +145,7 @@ class HeaderCommunityDropdownTest(TestCase):
 
     def test_account_settings_link_exists(self):
         """アカウント設定リンクが存在する"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
@@ -154,7 +154,7 @@ class HeaderCommunityDropdownTest(TestCase):
 
     def test_switch_community_redirects_to_my_list(self):
         """集会切り替え後はダッシュボードにリダイレクトする"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         # セッションにactive_community_idを設定
         session = self.client.session

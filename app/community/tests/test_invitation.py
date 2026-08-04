@@ -134,7 +134,7 @@ class CreateInvitationViewTest(TestCase):
 
     def test_owner_can_create_invitation(self):
         """主催者は招待リンクを生成できる"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         response = self.client.post(
             reverse('community:create_invitation', kwargs={'pk': self.community.pk})
@@ -150,7 +150,7 @@ class CreateInvitationViewTest(TestCase):
 
     def test_staff_cannot_create_invitation(self):
         """スタッフは招待リンクを生成できない"""
-        self.client.login(username='スタッフ', password='testpass123')
+        self.client.force_login(self.staff)
 
         response = self.client.post(
             reverse('community:create_invitation', kwargs={'pk': self.community.pk})
@@ -163,7 +163,7 @@ class CreateInvitationViewTest(TestCase):
 
     def test_non_member_cannot_create_invitation(self):
         """非メンバーは招待リンクを生成できない"""
-        self.client.login(username='非メンバー', password='testpass123')
+        self.client.force_login(self.non_member)
 
         response = self.client.post(
             reverse('community:create_invitation', kwargs={'pk': self.community.pk})
@@ -221,7 +221,7 @@ class AcceptInvitationViewTest(TestCase):
 
     def test_logged_in_user_can_view_invitation_page(self):
         """ログイン済みユーザーは招待ページを閲覧できる"""
-        self.client.login(username='新規ユーザー', password='testpass123')
+        self.client.force_login(self.new_user)
 
         response = self.client.get(
             reverse('community:accept_invitation', kwargs={'token': self.invitation.token})
@@ -233,7 +233,7 @@ class AcceptInvitationViewTest(TestCase):
 
     def test_user_can_accept_invitation(self):
         """ユーザーは招待を受けてスタッフになれる"""
-        self.client.login(username='新規ユーザー', password='testpass123')
+        self.client.force_login(self.new_user)
 
         response = self.client.post(
             reverse('community:accept_invitation', kwargs={'token': self.invitation.token})
@@ -276,7 +276,7 @@ class AcceptInvitationViewTest(TestCase):
 
     def test_expired_invitation_post_shows_error(self):
         """期限切れの招待にPOSTするとエラー"""
-        self.client.login(username='新規ユーザー', password='testpass123')
+        self.client.force_login(self.new_user)
 
         self.invitation.expires_at = timezone.now() - timedelta(seconds=1)
         self.invitation.save()
@@ -295,7 +295,7 @@ class AcceptInvitationViewTest(TestCase):
 
     def test_existing_member_sees_info_message(self):
         """既存メンバーには情報メッセージを表示"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         response = self.client.get(
             reverse('community:accept_invitation', kwargs={'token': self.invitation.token})
@@ -306,7 +306,7 @@ class AcceptInvitationViewTest(TestCase):
 
     def test_existing_member_cannot_be_added_twice(self):
         """既存メンバーは重複して追加されない"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
         initial_count = CommunityMember.objects.filter(
             community=self.community, user=self.owner
         ).count()
@@ -362,7 +362,7 @@ class RevokeInvitationViewTest(TestCase):
 
     def test_owner_can_revoke_invitation(self):
         """主催者は招待リンクを削除できる"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         response = self.client.post(
             reverse('community:revoke_invitation', kwargs={
@@ -378,7 +378,7 @@ class RevokeInvitationViewTest(TestCase):
 
     def test_staff_cannot_revoke_invitation(self):
         """スタッフは招待リンクを削除できない"""
-        self.client.login(username='スタッフ', password='testpass123')
+        self.client.force_login(self.staff)
 
         response = self.client.post(
             reverse('community:revoke_invitation', kwargs={
@@ -419,7 +419,7 @@ class MemberManageViewInvitationTest(TestCase):
 
     def test_invitation_section_is_displayed(self):
         """招待リンクセクションが表示される"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         response = self.client.get(
             reverse('community:member_manage', kwargs={'pk': self.community.pk})
@@ -435,7 +435,7 @@ class MemberManageViewInvitationTest(TestCase):
             self.community, self.owner
         )
 
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         response = self.client.get(
             reverse('community:member_manage', kwargs={'pk': self.community.pk})
@@ -452,7 +452,7 @@ class MemberManageViewInvitationTest(TestCase):
             expires_at=timezone.now() - timedelta(seconds=1)
         )
 
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         response = self.client.get(
             reverse('community:member_manage', kwargs={'pk': self.community.pk})

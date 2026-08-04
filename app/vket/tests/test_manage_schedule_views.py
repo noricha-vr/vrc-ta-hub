@@ -56,13 +56,13 @@ class VketApplyFlowTests(VketApplyFlowBase):
 class VketManageViewsTests(VketManageViewsBase):
     def test_manage_page_requires_staff(self):
         """管理画面はstaff権限が必要"""
-        self.client.login(username='normal_user', password='testpass123')
+        self.client.force_login(self.normal_user)
         response = self.client.get(reverse('vket:manage', kwargs={'pk': self.collaboration.pk}))
         self.assertEqual(response.status_code, 403)
 
     def test_manage_page_shows_collaboration(self):
         """管理画面にコラボ名と集会名が表示される"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(reverse('vket:manage', kwargs={'pk': self.collaboration.pk}))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.collaboration.name)
@@ -73,7 +73,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_schedule_page_shows_overlap_warning(self):
         """日程重複がある場合にoverlap_warningsがセットされる"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(
             reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk})
         )
@@ -92,7 +92,7 @@ class VketManageViewsTests(VketManageViewsBase):
             confirmed_duration=60,
         )
 
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(
             reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk})
         )
@@ -114,7 +114,7 @@ class VketManageViewsTests(VketManageViewsBase):
             requested_duration=60,
         )
 
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(
             reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk})
         )
@@ -140,7 +140,7 @@ class VketManageViewsTests(VketManageViewsBase):
             status='approved',
         )
 
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(
             reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk})
         )

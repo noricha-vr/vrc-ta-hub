@@ -22,7 +22,7 @@ from ._vket_test_bases import VketApplyFlowBase
 class VketApplyFlowTests(VketApplyFlowBase):
     def test_confirmed_participation_post_allows_unlocked_lt_start_time(self):
         """日程確定後も締切内なら未確定LTの開始時刻を更新できる"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         participation = VketParticipation.objects.create(
@@ -119,7 +119,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
             status=VketPresentation.Status.CONFIRMED,
         )
 
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         post_data = {
             'requested_date': self.collaboration.period_start.isoformat(),
@@ -156,7 +156,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_confirmed_participation_post_does_not_delete_existing_lt(self):
         """日程確定後はformset DELETEでも既存LTを削除しない"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         participation = VketParticipation.objects.create(
@@ -209,7 +209,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_confirmed_participation_apply_get_shows_lt_editable_message(self):
         """日程確定後も締切内のLT時刻編集可否を案内する"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         VketParticipation.objects.create(
             collaboration=self.collaboration,
@@ -231,7 +231,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_lt_start_time_is_rejected_after_deadline_but_text_updates(self):
         """締切後はLT時刻を保持し、登壇者名とテーマは更新できる"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         self.collaboration.lt_deadline = timezone.localdate() - timedelta(days=1)
         self.collaboration.save(update_fields=['lt_deadline'])
@@ -265,7 +265,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_confirmed_or_published_lt_time_ignores_post_value(self):
         """確定済みまたは公開済みLTの時刻はPOST値で上書きできない"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         participation = VketParticipation.objects.create(
             collaboration=self.collaboration, community=self.community,

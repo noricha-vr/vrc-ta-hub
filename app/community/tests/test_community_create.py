@@ -148,7 +148,7 @@ class CommunityCreateViewTest(TestCase):
 
     def test_authenticated_user_can_access_create_page(self):
         """認証済みユーザーが集会登録ページにアクセスできることをテスト."""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(self.create_url)
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'community/create.html')
@@ -156,7 +156,7 @@ class CommunityCreateViewTest(TestCase):
 
     def test_submission_without_guidelines_agreement_is_rejected(self):
         """ガイドラインに同意しない送信では集会を作成しないことをテスト."""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         post_data = self._make_post_data(name='未同意集会')
         post_data.pop('guidelines_agreed')
 
@@ -184,7 +184,7 @@ class CommunityCreateViewTest(TestCase):
             user=self.user,
             role=CommunityMember.Role.OWNER
         )
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(self.create_url)
         # リダイレクトされずにページにアクセスできる
         self.assertEqual(response.status_code, 200)
@@ -199,7 +199,7 @@ class CommunityCreateViewTest(TestCase):
         # Discord通知のモック
         mock_discord_post.return_value = MagicMock(status_code=200)
 
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         post_data = self._make_post_data(
             organizer_url='https://vrchat.com/home/user/usr_01b02b0e-58b5-4558-a6ca-56dd32dafdad',
         )
@@ -235,7 +235,7 @@ class CommunityCreateViewTest(TestCase):
         # Discord通知のモック
         mock_discord_post.return_value = MagicMock(status_code=200)
 
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         post_data = self._make_post_data(name='オーナーテスト集会')
 
         response = self.client.post(self.create_url, post_data)
@@ -282,7 +282,7 @@ class CommunityCreateViewTest(TestCase):
             role=CommunityMember.Role.OWNER
         )
 
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         post_data = self._make_post_data(name='新規集会')
 
         response = self.client.post(self.create_url, post_data)
@@ -354,7 +354,7 @@ class SettingsViewCommunityButtonTest(TestCase):
 
     def test_user_without_community_sees_add_button(self):
         """集会がないユーザーに集会作成リンクが表示されることをテスト."""
-        self.client.login(username='集会なしユーザー', password='testpass123')
+        self.client.force_login(self.user_without_community)
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '新しい技術・学術系集会を始める')
@@ -362,7 +362,7 @@ class SettingsViewCommunityButtonTest(TestCase):
 
     def test_user_with_community_also_sees_add_button(self):
         """集会があるユーザーにも集会作成リンクが表示されることをテスト（複数集会対応）."""
-        self.client.login(username='集会持ちユーザー', password='testpass123')
+        self.client.force_login(self.user_with_community)
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
         # 新しいレイアウトでは集会作成リンクは常に表示される
@@ -394,21 +394,24 @@ class SettingsViewEmailAlertTest(TestCase):
         )
         self.user_without_email = CustomUser.objects.create_user(
             user_name='メール無しユーザー',
-            email='',
+            email='no-email-placeholder@example.com',
             password='testpass123'
         )
+        # create_user は email 必須のため、移行前から空のまま残るユーザーを update で再現する
+        CustomUser.objects.filter(pk=self.user_without_email.pk).update(email='')
+        self.user_without_email.refresh_from_db()
         self.settings_url = reverse('account:settings')
 
     def test_user_without_email_sees_warning_alert(self):
         """メールアドレス未設定のユーザーに警告アラートが表示されることをテスト."""
-        self.client.login(username='メール無しユーザー', password='testpass123')
+        self.client.force_login(self.user_without_email)
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'メールアドレスが未設定です')
 
     def test_user_with_email_does_not_see_warning_alert(self):
         """メールアドレス設定済みのユーザーには警告アラートが表示されないことをテスト."""
-        self.client.login(username='メール有りユーザー', password='testpass123')
+        self.client.force_login(self.user_with_email)
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'メールアドレスが未設定です')
