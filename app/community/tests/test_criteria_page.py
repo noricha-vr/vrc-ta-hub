@@ -42,14 +42,26 @@ class CommunityCriteriaPageTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         soup = BeautifulSoup(response.content, 'html.parser')
-        criteria_alert = soup.select_one('div.alert.alert-info[role="note"]')
-        criteria_link = criteria_alert.select_one(f'a.alert-link[href="{self.criteria_url}"]')
-        self.assertEqual(criteria_link.get_text(strip=True), '掲載・審査基準')
+        criteria_alert = soup.select_one('#criteria-summary[role="note"]')
+        # 文言の逐語検証はせず、導線（リンク）と各種別への言及だけを検証する
+        # （言い回しの調整で壊れる change-detector を避ける）
+        self.assertIsNotNone(
+            criteria_alert.select_one(f'a[href="{self.criteria_url}"]'),
+        )
+        self.assertIsNotNone(
+            criteria_alert.select_one(
+                'a[href="https://github.com/noricha-vr/vrc-ta-hub/issues"]',
+            ),
+        )
+        summary_text = criteria_alert.get_text(' ', strip=True)
+        for category in ('技術系', '学術系', '協力団体'):
+            self.assertIn(category, summary_text)
+        # 協力団体希望者への案内（Hub への宣伝協力が条件であること）が含まれる
+        self.assertIn('Hub紹介・宣伝への協力', summary_text)
 
     def test_common_footer_links_to_criteria(self):
         response = self.client.get(reverse('ta_hub:about'))
 
         self.assertEqual(response.status_code, 200)
         soup = BeautifulSoup(response.content, 'html.parser')
-        footer_link = soup.select_one(f'footer a[href="{self.criteria_url}"]')
-        self.assertEqual(footer_link.get_text(strip=True), '掲載・審査基準')
+        self.assertIsNotNone(soup.select_one(f'footer a[href="{self.criteria_url}"]'))

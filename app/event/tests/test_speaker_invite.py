@@ -192,9 +192,10 @@ class SpeakerInviteTests(TestCase):
         self.assertContains(preview, "署名付き招待URLの発表")
         self.assertContains(preview, "登壇者A")
         self.assertContains(preview, self.speaker.display_label)
+        self.assertContains(preview, "「自分の発表」ページからこの発表を編集できます")
         self.assertRedirects(
             response,
-            reverse("event:detail", kwargs={"pk": self.event_detail.pk}),
+            reverse("event:my_presentations"),
         )
         self.event_detail.refresh_from_db()
         self.assertEqual(self.event_detail.applicant, self.speaker)
@@ -485,7 +486,7 @@ class SpeakerInviteTests(TestCase):
         self.assertContains(response, 'role="alert" aria-live="assertive"')
         self.assertNotContains(response, "ログイン中アカウントに紐づけます")
 
-    def test_linked_speaker_sees_my_page_link_and_can_open_edit_form(self):
+    def test_linked_speaker_sees_my_presentations_link_and_can_open_edit_form(self):
         self.client.force_login(self.speaker)
         self._exchange()
         link_response = self.client.post(self.confirm_url)
@@ -495,7 +496,7 @@ class SpeakerInviteTests(TestCase):
             "event:detail_update",
             kwargs={"pk": self.event_detail.pk},
         )
-        my_page_response = self.client.get(reverse("event:my_list"))
+        my_page_response = self.client.get(reverse("event:my_presentations"))
 
         self.assertContains(my_page_response, "自分の発表")
         self.assertContains(my_page_response, "署名付き招待URLの発表")
@@ -504,7 +505,7 @@ class SpeakerInviteTests(TestCase):
         self.assertNotContains(my_page_response, "集会未登録")
         self.assertNotContains(my_page_response, "イベントがありません")
         self.assertEqual(
-            list(my_page_response.context["speaker_event_details"]),
+            list(my_page_response.context["presentations"]),
             [self.event_detail],
         )
 

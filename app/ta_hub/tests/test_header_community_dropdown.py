@@ -66,8 +66,8 @@ class HeaderCommunityDropdownTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'マイ集会')
-        self.assertContains(response, 'マイページ')
-        self.assertContains(response, reverse('event:my_list'))
+        self.assertContains(response, '自分の発表')
+        self.assertContains(response, reverse('event:my_presentations'))
 
     def test_user_sees_all_communities_in_dropdown(self):
         """ユーザーは所属する全ての集会をドロップダウンで見る"""
@@ -79,15 +79,15 @@ class HeaderCommunityDropdownTest(TestCase):
         self.assertContains(response, '個人開発集会')
         self.assertContains(response, '技術共有会')
 
-    def test_my_page_link_is_not_duplicated_with_active_community(self):
-        """集会所属ユーザーにもマイページ導線を1件だけ表示する"""
+    def test_my_presentations_link_is_not_duplicated_with_active_community(self):
+        """集会所属ユーザーにも自分の発表導線を1件だけ表示する"""
         self.client.login(username='テストユーザー', password='testpass123')
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        my_list_url = reverse('event:my_list')
-        self.assertContains(response, f'href="{my_list_url}"', count=1)
-        self.assertContains(response, 'マイページ')
+        presentations_url = reverse('event:my_presentations')
+        self.assertContains(response, f'href="{presentations_url}"', count=1)
+        self.assertContains(response, '自分の発表')
 
     def test_active_community_has_checkmark(self):
         """アクティブな集会にはチェックマークが表示される"""

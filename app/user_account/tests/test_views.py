@@ -1,10 +1,12 @@
 """認証ビューのテスト."""
 from django.contrib.auth import get_user_model
 from django.contrib.messages import get_messages
+from django.conf import settings
 from django.test import Client, TestCase, override_settings, tag
 from django.urls import reverse
 
 from community.models import Community, CommunityMember
+from tests.factories import make_community
 from user_account.tests.utils import (
     TEST_SOCIALACCOUNT_PROVIDERS,
     TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS,
@@ -38,14 +40,32 @@ class CustomLoginViewTests(TestCase):
         self.assertTemplateUsed(response, 'account/login.html')
 
     @override_settings(DISCORD_AUTH_REQUIRED=True)
-    def test_authenticated_user_redirects_to_my_list(self):
-        """ログイン済みならnext指定に関係なくマイリストへ遷移すること."""
+    def test_authenticated_user_without_membership_redirects_to_my_presentations(self):
+        """集会未所属のログイン済みユーザーは自分の発表へ遷移すること."""
         self.client.force_login(self.test_user)
 
         for login_url in (self.login_url, f'{self.login_url}?next=/account/settings/'):
             with self.subTest(login_url=login_url):
                 response = self.client.get(login_url)
-                self.assertRedirects(response, reverse('event:my_list'), fetch_redirect_response=False)
+                self.assertRedirects(
+                    response,
+                    reverse('event:my_presentations'),
+                    fetch_redirect_response=False,
+                )
+
+    @override_settings(DISCORD_AUTH_REQUIRED=True)
+    def test_authenticated_user_with_membership_uses_existing_default(self):
+        """集会所属のログイン済みユーザーは従来の既定先へ遷移すること."""
+        make_community(name='ログイン直アクセス遷移テスト集会', owner=self.test_user)
+        self.client.force_login(self.test_user)
+
+        response = self.client.get(self.login_url)
+
+        self.assertRedirects(
+            response,
+            settings.LOGIN_REDIRECT_URL,
+            fetch_redirect_response=False,
+        )
 
     @override_settings(DISCORD_AUTH_REQUIRED=True)
     def test_authenticated_user_without_discord_keeps_link_requirement(self):
@@ -129,39 +149,36 @@ class CustomLoginViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, next_url)
 
-    def test_login_redirects_to_default_url_without_next(self):
-        """nextパラメータがない場合、デフォルトのURLにリダイレクトされること."""
-        from django.conf import settings
+    def test_login_without_membership_redirects_to_my_presentations(self):
+        """集会未所属ユーザーは自分の発表へリダイレクトされること."""
         response = self.client.post(self.login_url, {
             'username': 'test_community',
             'password': 'testpass123',
         })
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, settings.LOGIN_REDIRECT_URL)
+        self.assertEqual(response.url, reverse('event:my_presentations'))
 
     def test_login_does_not_redirect_to_external_url(self):
         """外部URLへのリダイレクトを防止する（オープンリダイレクト対策）."""
-        from django.conf import settings
         external_url = 'https://evil.example.com'
         response = self.client.post(f'{self.login_url}?next={external_url}', {
             'username': 'test_community',
             'password': 'testpass123',
         })
-        # 外部URLにはリダイレクトされず、デフォルトURLにリダイレクトされる
+        # 外部URLにはリダイレクトされず、集会未所属の既定先にリダイレクトされる
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, settings.LOGIN_REDIRECT_URL)
+        self.assertEqual(response.url, reverse('event:my_presentations'))
 
     def test_login_does_not_redirect_to_protocol_relative_url(self):
         """プロトコル相対URLへのリダイレクトを防止する（オープンリダイレクト対策）."""
-        from django.conf import settings
         protocol_relative_url = '//evil.example.com/path'
         response = self.client.post(f'{self.login_url}?next={protocol_relative_url}', {
             'username': 'test_community',
             'password': 'testpass123',
         })
-        # プロトコル相対URLにはリダイレクトされず、デフォルトURLにリダイレクトされる
+        # プロトコル相対URLにはリダイレクトされず、集会未所属の既定先にリダイレクトされる
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, settings.LOGIN_REDIRECT_URL)
+        self.assertEqual(response.url, reverse('event:my_presentations'))
 
 
 @tag('offline_external_api')
@@ -304,6 +321,8 @@ class SettingsViewTests(TestCase):
 
         # ユーザー情報編集が表示されていること
         self.assertContains(response, 'ユーザー情報を編集')
+        self.assertContains(response, '自分の発表')
+        self.assertContains(response, reverse('event:my_presentations'))
         # パスワード変更が表示されていること
         self.assertContains(response, 'パスワードを変更')
         # Discord連携が表示されていること

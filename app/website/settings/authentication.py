@@ -23,6 +23,7 @@ ACCOUNT_USER_MODEL_USERNAME_FIELD = 'user_name'
 ACCOUNT_SESSION_REMEMBER = None  # ユーザーに選択させる
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
+ACCOUNT_ADAPTER = 'user_account.adapters.CustomAccountAdapter'
 SOCIALACCOUNT_ADAPTER = 'user_account.adapters.CustomSocialAccountAdapter'
 
 # OAuth callback URLのプロトコル（本番: https、開発: http）
