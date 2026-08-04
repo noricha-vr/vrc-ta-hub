@@ -234,7 +234,7 @@ class SocialSignupDuplicateEmailNextTests(TestCase):
         )
 
         response = self.client.post(reverse('account_login'), {
-            'login': user.user_name,
+            'login': user.email,
             'password': 'testpass123',
         })
 
@@ -253,7 +253,7 @@ class SocialSignupDuplicateEmailNextTests(TestCase):
         make_community(name='allauth遷移テスト集会', owner=user)
 
         response = self.client.post(reverse('account_login'), {
-            'login': user.user_name,
+            'login': user.email,
             'password': 'testpass123',
         })
 
@@ -274,7 +274,7 @@ class SocialSignupDuplicateEmailNextTests(TestCase):
         response = self.client.post(
             f"{reverse('account_login')}?next={next_url}",
             {
-                'login': user.user_name,
+                'login': user.email,
                 'password': 'testpass123',
             },
         )
