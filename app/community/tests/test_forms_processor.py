@@ -25,6 +25,7 @@ from tests.factories import (
     make_community as _make_community_factory,
     make_user,
 )
+from website.constants import build_site_url
 
 User = get_user_model()
 
@@ -76,7 +77,9 @@ class ApproveCommunityRegistrationTest(TestCase):
         self.assertIn("Hubのポスターまたはアセットを活動拠点に設置", html_message)
         self.assertIn("集会・イベント内でHubを紹介・宣伝する時間を確保", html_message)
         self.assertIn("発表資料をHubのWebサイトへ定期的にアップロード", html_message)
-        self.assertIn("http://testserver/community/criteria/", html_message)
+        # 公開URLは受信 Host（testserver）ではなく設定由来であること
+        self.assertIn(build_site_url("/community/criteria/"), html_message)
+        self.assertNotIn("http://testserver/community/criteria/", html_message)
         self.assertNotIn("実践的な技術の習得・共有・発表を主目的", html_message)
 
     def test_regular_email_includes_category_criteria(self):
@@ -96,7 +99,8 @@ class ApproveCommunityRegistrationTest(TestCase):
 
                 html_message = mail.outbox[0].alternatives[0][0]
                 self.assertIn(summary, html_message)
-                self.assertIn("http://testserver/community/criteria/", html_message)
+                self.assertIn(build_site_url("/community/criteria/"), html_message)
+                self.assertNotIn("http://testserver/community/criteria/", html_message)
                 self.assertNotIn("協力団体としての遵守条件", html_message)
 
     def test_skips_email_when_owner_email_missing(self):
