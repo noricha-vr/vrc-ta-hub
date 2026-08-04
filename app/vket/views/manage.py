@@ -7,7 +7,7 @@ from datetime import datetime
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
-from django.db.models import Case, IntegerField, Prefetch, When
+from django.db.models import Case, Exists, IntegerField, OuterRef, Prefetch, When
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
 from django.views import View
@@ -16,6 +16,7 @@ from django.views.generic import TemplateView
 from allauth.socialaccount.models import SocialAccount
 
 from community.models import Community
+from event.models import Event
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from ta_hub.index_cache import clear_index_view_cache
 from vket.services import clear_participation_publication, sync_participation_publication
@@ -55,6 +56,13 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
                 Prefetch('presentations', queryset=presentations_qs, to_attr='all_presentations')
             )
             .annotate(
+                has_confirmed_event=Exists(
+                    Event.objects.filter(
+                        community_id=OuterRef('community_id'),
+                        date=OuterRef('confirmed_date'),
+                        start_time=OuterRef('confirmed_start_time'),
+                    )
+                ),
                 # 希望日程があるものを上に表示
                 sort_has_requested=Case(
                     When(requested_date__isnull=False, then=0),
@@ -98,6 +106,17 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
                 )
             )
         ]
+        publication_missing_event_participations = [
+            participation
+            for participation in participations
+            if (
+                participation.lifecycle == VketParticipation.Lifecycle.ACTIVE
+                and not participation.published_event_id
+                and participation.confirmed_date
+                and participation.confirmed_start_time
+                and not participation.has_confirmed_event
+            )
+        ]
 
         context.update(
             {
@@ -110,6 +129,7 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
                 'lt_registered_count': lt_registered_count,
                 'discord_mentions': discord_mentions,
                 'publication_drift_participations': publication_drift_participations,
+                'publication_missing_event_participations': publication_missing_event_participations,
                 # progressラベルの辞書（テンプレートで参照可能）
                 'progress_choices': dict(VketParticipation.Progress.choices),
                 'lifecycle_choices': dict(VketParticipation.Lifecycle.choices),

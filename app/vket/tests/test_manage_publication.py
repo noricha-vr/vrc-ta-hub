@@ -69,16 +69,40 @@ class VketManageViewsTests(VketManageViewsBase):
         self.assertContains(response, '21:00')
         self.assertContains(response, '22:00')
 
-    def test_manage_view_ignores_non_active_and_unpublished_participations(self):
-        """管理画面は不参加と公開未同期の日時差分を警告しない"""
-        self.event1.date = self.collaboration.period_start + timedelta(days=1)
-        self.event1.save(update_fields=['date'])
-        self.participation1.lifecycle = VketParticipation.Lifecycle.DECLINED
-        self.participation1.save(update_fields=['lifecycle', 'updated_at'])
-        self.participation2.published_event = None
-        self.participation2.confirmed_date = (
+    def test_manage_view_ignores_non_active_participations(self):
+        """管理画面は未関連Eventがない不参加を警告しない"""
+        self.participation1.published_event = None
+        self.participation1.confirmed_date = (
             self.collaboration.period_start + timedelta(days=2)
         )
+        self.participation1.lifecycle = VketParticipation.Lifecycle.DECLINED
+        self.participation1.save(
+            update_fields=[
+                'published_event',
+                'confirmed_date',
+                'lifecycle',
+                'updated_at',
+            ]
+        )
+        self.client.login(username='admin_user', password='adminpass123')
+
+        response = self.client.get(
+            reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['publication_drift_participations'], [])
+        self.assertEqual(
+            response.context['publication_missing_event_participations'],
+            [],
+        )
+        self.assertNotContains(response, 'data-testid="publication-drift-warning"')
+
+    def test_manage_view_warns_when_unpublished_confirmed_event_is_missing(self):
+        """管理画面は未関連で確定日時のEventがない参加を警告する"""
+        missing_date = self.collaboration.period_start + timedelta(days=2)
+        self.participation2.published_event = None
+        self.participation2.confirmed_date = missing_date
         self.participation2.save(
             update_fields=['published_event', 'confirmed_date', 'updated_at']
         )
@@ -89,8 +113,94 @@ class VketManageViewsTests(VketManageViewsBase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context['publication_drift_participations'], [])
+        self.assertContains(response, 'data-testid="publication-drift-warning"')
+        self.assertContains(
+            response,
+            f'data-participation-id="{self.participation2.pk}"',
+        )
+        self.assertContains(response, missing_date.strftime('%Y/%m/%d'))
+        self.assertContains(response, '21:30')
+        self.assertContains(response, 'ロックが機能していません')
+
+    def test_manage_view_ignores_unpublished_participation_with_matching_event(self):
+        """管理画面は確定日時に一致するEventがある未関連参加を警告しない"""
+        self.participation2.published_event = None
+        self.participation2.save(update_fields=['published_event', 'updated_at'])
+        self.client.login(username='admin_user', password='adminpass123')
+
+        response = self.client.get(
+            reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'data-testid="publication-drift-warning"')
+
+    def test_manage_view_requires_matching_event_in_same_community(self):
+        """管理画面は別集会にだけ一致Eventがある未関連参加を警告する"""
+        self.participation1.published_event = None
+        self.participation1.confirmed_start_time = self.event2.start_time
+        self.participation1.save(
+            update_fields=[
+                'published_event',
+                'confirmed_start_time',
+                'updated_at',
+            ]
+        )
+        self.client.login(username='admin_user', password='adminpass123')
+
+        response = self.client.get(
+            reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [
+                p.pk
+                for p in response.context[
+                    'publication_missing_event_participations'
+                ]
+            ],
+            [self.participation1.pk],
+        )
+        self.assertContains(
+            response,
+            f'data-participation-id="{self.participation1.pk}"',
+        )
+
+    def test_manage_view_ignores_unpublished_participation_without_confirmed_schedule(self):
+        """管理画面は確定日時の片方が未設定の未関連参加を警告しない"""
+        confirmed_date = self.participation2.confirmed_date
+        confirmed_start_time = self.participation2.confirmed_start_time
+        self.participation2.published_event = None
+        self.client.login(username='admin_user', password='adminpass123')
+
+        for missing_field in ('confirmed_date', 'confirmed_start_time'):
+            with self.subTest(missing_field=missing_field):
+                self.participation2.confirmed_date = confirmed_date
+                self.participation2.confirmed_start_time = confirmed_start_time
+                setattr(self.participation2, missing_field, None)
+                self.participation2.save(
+                    update_fields=[
+                        'published_event',
+                        'confirmed_date',
+                        'confirmed_start_time',
+                        'updated_at',
+                    ]
+                )
+
+                response = self.client.get(
+                    reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(
+                    response.context['publication_missing_event_participations'],
+                    [],
+                )
+                self.assertNotContains(
+                    response,
+                    'data-testid="publication-drift-warning"',
+                )
 
     def test_manage_participation_update_sets_confirmed_fields(self):
         """ManageParticipationUpdateViewが確定日程・progressを正しくセットする"""
