@@ -100,9 +100,15 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
                 # 重複判定は事前SELECTではなくunique制約（community, date, start_time）に
                 # 一本化する。SELECT→CREATE間の競合で500 + Error Reporting誤検知になっていた
                 # （exc_info付きerrorログをError Reportingがincident化するためwarningに留める）。
-                # Eventのunique制約は現状1本のみ。別制約が増えた場合の誤分類はログの
-                # 例外文字列で事後追跡する（制約名の文字列ガードはDBバックエンドで
-                # メッセージ書式が異なり脆いため採らない）。
+                # 重複起因かは制約名の文字列ではなく行の実在で判別する（sqlite/MySQLで
+                # エラーメッセージ書式が異なるため）。重複以外の整合性エラー（FK違反等）は
+                # 一般エラー処理へ再送出し、error ログ（Error Reporting 対象）を維持する。
+                if not Event.objects.filter(
+                    community=community,
+                    date=start_date,
+                    start_time=start_time,
+                ).exists():
+                    raise
                 logger.warning(
                     f'重複イベント検出: コミュニティ={community.name}, 日付={start_date}, '
                     f'開始時間={start_time}, detail={e}')
