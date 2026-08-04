@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import TemplateView
 
 from event_calendar.views import CalendarEntryUpdateView
 from .views import (
@@ -34,6 +35,11 @@ from .views import (
 app_name = 'community'
 urlpatterns = [
     path('list/', CommunityListView.as_view(), name='list'),
+    path(
+        'criteria/',
+        TemplateView.as_view(template_name='community/criteria.html'),
+        name='criteria',
+    ),
     path('archive/', ArchivedCommunityListView.as_view(), name='archive_list'),
     path('calendar_update/', CalendarEntryUpdateView.as_view(), name='calendar_update'),
     path('waiting_list/', WaitingCommunityListView.as_view(), name='waiting_list'),

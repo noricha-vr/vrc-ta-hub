@@ -1,0 +1,153 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block meta %}
+    <title>掲載・審査基準 - VRChat 技術・学術系イベントHub</title>
+    <meta name="twitter:title" content="掲載・審査基準 - VRChat 技術・学術系イベントHub">
+    <meta property="og:title" content="掲載・審査基準 - VRChat 技術・学術系イベントHub">
+    <meta name="description"
+          content="VRChat 技術・学術系イベントHubにおける技術系・学術系・協力団体の定義と、協力団体の審査基準をご案内します。">
+    <meta name="twitter:description"
+          content="VRChat 技術・学術系イベントHubにおける技術系・学術系・協力団体の定義と、協力団体の審査基準をご案内します。">
+    <meta property="og:description"
+          content="VRChat 技術・学術系イベントHubにおける技術系・学術系・協力団体の定義と、協力団体の審査基準をご案内します。">
+    <meta property="og:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
+    <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
+{% endblock %}
+
+{% block main %}
+    <div class="container my-5">
+        <header class="mx-auto mb-5 text-center" style="max-width: 52rem;">
+            <h1 class="fw-bold keiko_yellow mb-4">集会・協力団体の掲載・審査基準</h1>
+            <p class="lead mb-0">
+                技術・学術系イベントHubへの掲載区分と、協力団体を審査する際の共通基準を公開しています。
+            </p>
+        </header>
+
+        <section class="mb-5" aria-labelledby="category-definitions">
+            <h2 id="category-definitions" class="h3 text-primary fw-bold mb-4">技術系・学術系・協力団体の定義</h2>
+            <div class="row g-4">
+                <div class="col-lg-4">
+                    <article class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h3 class="h4 card-title">技術系</h3>
+                            <p class="card-text mb-0">
+                                コンピューター、ものづくり、創作技法など、実践的な技術の習得・共有・発表を主目的とする集会・イベントです。
+                            </p>
+                        </div>
+                    </article>
+                </div>
+                <div class="col-lg-4">
+                    <article class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h3 class="h4 card-title">学術系</h3>
+                            <p class="card-text mb-0">
+                                人文科学・社会科学・自然科学などの知見や研究成果について、学習・議論・発表することを主目的とする集会・イベントです。
+                            </p>
+                        </div>
+                    </article>
+                </div>
+                <div class="col-lg-4">
+                    <article class="card h-100 shadow-sm border-primary">
+                        <div class="card-body">
+                            <h3 class="h4 card-title">協力団体</h3>
+                            <p class="card-text mb-0">
+                                団体自身が技術・学術イベントを主催していなくても、VRChat内の技術・学術コミュニティへ
+                                <strong>具体的・継続的・検証可能な貢献</strong>を行う団体です。
+                            </p>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-5" aria-labelledby="examples">
+            <h2 id="examples" class="h3 text-primary fw-bold mb-4">対象例・対象外例</h2>
+            <p>以下は判断の目安です。名称だけではなく、活動内容と実績を確認して総合的に判断します。</p>
+            <div class="row g-4">
+                <div class="col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-header fw-bold">対象例</div>
+                        <div class="card-body">
+                            <ul class="mb-0">
+                                <li>技術の知識や制作手法を定期的に共有する集会</li>
+                                <li>研究成果や専門分野について発表・議論する集会</li>
+                                <li>主目的は技術・学術イベントの主催ではないが、必須条件を満たし、Hubや界隈へ継続的に貢献する団体</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-header fw-bold">対象外例</div>
+                        <div class="card-body">
+                            <ul class="mb-0">
+                                <li>交流や娯楽だけを目的とし、技術・学術との関わりや貢献が確認できない活動</li>
+                                <li>一度限りの宣伝や、実施時期・内容が具体化していない将来の協力表明</li>
+                                <li>活動実態や貢献内容、連絡担当者を確認できない団体</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="mb-5" aria-labelledby="required-conditions">
+            <h2 id="required-conditions" class="h3 text-primary fw-bold mb-3">協力団体の必須条件</h2>
+            <p>協力団体として申請する場合は、次の5項目をすべて満たす必要があります。</p>
+            <ol class="list-group list-group-numbered">
+                <li class="list-group-item">VRChat上で月1回以上の活動実態があること</li>
+                <li class="list-group-item">Hubポスターまたはアセットを活動拠点に設置すること</li>
+                <li class="list-group-item">集会・イベント内でHubを紹介・宣伝する時間を設けること</li>
+                <li class="list-group-item">
+                    技術・学術界隈との親和性があること（申請時は活動内容、以後は実績で判断します）
+                </li>
+                <li class="list-group-item">連絡可能な担当者がいて、ガイドライン遵守に同意すること</li>
+            </ol>
+        </section>
+
+        <section class="mb-5" aria-labelledby="evaluation-method">
+            <h2 id="evaluation-method" class="h3 text-primary fw-bold mb-3">評価方法</h2>
+            <p>次の4軸をそれぞれ0〜2点で評価します。</p>
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <caption class="caption-top">協力団体の評価軸</caption>
+                    <thead>
+                    <tr>
+                        <th scope="col">評価軸</th>
+                        <th scope="col">確認内容</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <th scope="row">活動実態の検証可能性</th>
+                        <td>開催日時、活動記録、公開情報などから継続的な活動を確認できるか</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Hubへの宣伝貢献の具体性</th>
+                        <td>ポスター・アセットの設置場所や、紹介・宣伝の機会が具体的か</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">技術・学術コミュニティとの親和性</th>
+                        <td>活動内容や実績が、VRChat内の技術・学術コミュニティの発展につながるか</td>
+                    </tr>
+                    <tr>
+                        <th scope="row">継続性</th>
+                        <td>活動と貢献を続けられるか。発表登録・資料アップロードの定期性も加点材料とします</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="alert alert-primary mb-0" role="note">
+                <strong>承認可能ライン:</strong>
+                各評価軸で1点以上、かつ合計6点以上の場合に承認可能とします。
+            </div>
+        </section>
+
+        <div class="text-center">
+            <a href="{% url 'community:create' %}" class="btn btn-primary">
+                集会登録ページへ
+            </a>
+            <p class="text-secondary mt-2 mb-0">登録にはログインが必要です。</p>
+        </div>
+    </div>
+{% endblock %}
