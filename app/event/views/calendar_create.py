@@ -96,12 +96,16 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
 
                 messages.success(self.request, 'イベントが正常に登録されました')
 
-            except IntegrityError:
+            except IntegrityError as e:
                 # 重複判定は事前SELECTではなくunique制約（community, date, start_time）に
                 # 一本化する。SELECT→CREATE間の競合で500 + Error Reporting誤検知になっていた
                 # （exc_info付きerrorログをError Reportingがincident化するためwarningに留める）。
+                # Eventのunique制約は現状1本のみ。別制約が増えた場合の誤分類はログの
+                # 例外文字列で事後追跡する（制約名の文字列ガードはDBバックエンドで
+                # メッセージ書式が異なり脆いため採らない）。
                 logger.warning(
-                    f'重複イベント検出: コミュニティ={community.name}, 日付={start_date}, 開始時間={start_time}')
+                    f'重複イベント検出: コミュニティ={community.name}, 日付={start_date}, '
+                    f'開始時間={start_time}, detail={e}')
                 messages.error(self.request, f'同じ日時（{start_date} {start_time}）にすでにイベントが登録されています。')
                 return self.form_invalid(form)
 
