@@ -25,7 +25,7 @@ VRC技術学術ハブの開発、運用、調査メモ、利用ガイドをま�
 - [Google Calendar同期の重複問題 詳細分析](google_calendar_sync_analysis.md)
 - [静的ファイルのCloudflare R2同期手順](static_files_sync.md)
 - [マイグレーション Rollback 手順](migration-rollback.md)
-- [Vketコラボ現行仕様](vket-collaboration-spec.md)
+- [Vketコラボ現行仕様・公開同期運用](vket-collaboration-spec.md)
 - [Discord Bot仕様書](discord-bot-specification.md)
 - [Discord Bot実装ガイド](discord-bot-implementation-guide.md)
 
