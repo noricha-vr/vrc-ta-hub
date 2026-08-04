@@ -81,13 +81,12 @@ class CalendarCreateDuplicateTest(TestCase):
             'IntegrityError が error ログとして記録されている',
         )
 
-    def test_race_condition_integrity_error_is_handled_as_duplicate(self):
-        """CREATE時にはじめて衝突が発覚する競合でも、500やerrorログにしない.
+    def test_non_duplicate_integrity_error_keeps_error_log(self):
+        """重複以外の整合性エラー（FK違反等）は重複扱いにせず error ログを維持する.
 
-        Issue #568 の本質は「事前チェックをすり抜けた並行作成の衝突」。
-        単一スレッドのテストでは真の競合を再現できないため、プロセス外の
-        並行性の代理として create の IntegrityError を mock で注入する
-        （内部 patch はモック境界違反だが、並行性の再現は他手段が無いため許容）。
+        重複行が存在しないのに IntegrityError になるケースの代理として
+        mock で注入する（FK違反はテストDBで直接再現しづらいため。
+        内部 patch はモック境界違反だが、他手段が無いため理由付きで許容）。
         """
         event_date = timezone.localdate() + timedelta(days=10)
 
@@ -95,8 +94,7 @@ class CalendarCreateDuplicateTest(TestCase):
             Event.objects,
             'create',
             side_effect=IntegrityError(
-                "Duplicate entry '1-2026-08-14-21:00:00.000000' "
-                "for key 'event.event_unique_community_date_start_time'"
+                'Cannot add or update a child row: a foreign key constraint fails'
             ),
         ):
             with self.assertLogs('event.views.calendar_create', level='WARNING') as logs:
@@ -111,8 +109,9 @@ class CalendarCreateDuplicateTest(TestCase):
                 )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'すでにイベントが登録されています')
-        self.assertFalse(
+        self.assertContains(response, 'イベントの登録に失敗しました')
+        self.assertNotContains(response, 'すでにイベントが登録されています')
+        self.assertTrue(
             [r for r in logs.records if r.levelname == 'ERROR'],
-            '競合時の IntegrityError が error ログとして記録されている',
+            '重複以外の IntegrityError が error ログに残っていない（Error Reporting から消える）',
         )
