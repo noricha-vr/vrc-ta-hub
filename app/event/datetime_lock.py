@@ -1,6 +1,7 @@
 from datetime import datetime, time
 
 from vket.models import VketParticipation
+from vket.services import collab_event_match
 
 
 EVENT_DETAIL_DATETIME_LOCK_MESSAGE = "Vketコラボ期間中のため運営のみ変更できます。"
@@ -16,7 +17,7 @@ def is_event_datetime_locked(event, user) -> bool:
     return VketParticipation.objects.filter(
         # コラボ本体のイベントだけをロックする。同じ集会の通常イベントまで
         # 巻き込むとコラボ無関係の定例回まで編集不能になる（Issue #571）。
-        published_event_id=event.pk,
+        collab_event_match(event),
         community_id=event.community_id,
         lifecycle=VketParticipation.Lifecycle.ACTIVE,
         collaboration__period_start__lte=event.date,

@@ -158,8 +158,41 @@ class VketScheduleLockServiceTests(TestCase):
         self.assertFalse(is_event_locked_by_vket(self.event_in_period))
 
     def test_participation_without_published_event_not_locked(self):
-        """published_event 未設定の参加だけならロックされない"""
+        """published_event 未設定 + confirmed 日時も未設定ならロックされない"""
         self._create_participation(published_event=None)
+        self.assertFalse(is_event_locked_by_vket(self.event_in_period))
+
+    def test_confirmed_schedule_match_locked_without_published_event(self):
+        """published_event 未設定でも confirmed 日時が一致すれば本体としてロックされる"""
+        self._create_participation(
+            published_event=None,
+            confirmed_date=self.event_in_period.date,
+            confirmed_start_time=self.event_in_period.start_time,
+            confirmed_duration=self.event_in_period.duration,
+        )
+        self.assertTrue(is_event_locked_by_vket(self.event_in_period))
+
+    def test_confirmed_schedule_mismatch_not_locked(self):
+        """同じ日でも開始時刻が違う通常イベントはロックされない"""
+        other_time_event = make_event(
+            self.community,
+            event_date=self.event_in_period.date,
+            start_time='23:30',
+        )
+        self._create_participation(
+            published_event=None,
+            confirmed_date=self.event_in_period.date,
+            confirmed_start_time=self.event_in_period.start_time,
+            confirmed_duration=self.event_in_period.duration,
+        )
+        self.assertFalse(is_event_locked_by_vket(other_time_event))
+
+    def test_unconfirmed_participation_not_locked(self):
+        """スケジュール未確定（confirmed_date なし）の参加ではロックされない"""
+        self._create_participation(
+            published_event=None,
+            confirmed_start_time=self.event_in_period.start_time,
+        )
         self.assertFalse(is_event_locked_by_vket(self.event_in_period))
 
     def test_active_participation_outside_period_not_locked(self):

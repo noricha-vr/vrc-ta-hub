@@ -59,8 +59,39 @@ class IsEventDatetimeLockedTests(TestCase):
         self.assertFalse(is_event_datetime_locked(self.regular_event, self.owner))
 
     def test_participation_without_published_event_is_not_locked(self):
-        """published_event 未設定の参加だけならロックされない"""
+        """published_event 未設定 + confirmed 日時も未設定ならロックされない"""
         self._create_participation(published_event=None)
+
+        self.assertFalse(is_event_datetime_locked(self.collab_event, self.owner))
+
+    def test_confirmed_schedule_match_is_locked_without_published_event(self):
+        """published_event 未設定でも confirmed 日時が一致すれば本体としてロックされる"""
+        self._create_participation(
+            published_event=None,
+            confirmed_date=self.collab_event.date,
+            confirmed_start_time=self.collab_event.start_time,
+            confirmed_duration=self.collab_event.duration,
+        )
+
+        self.assertTrue(is_event_datetime_locked(self.collab_event, self.owner))
+
+    def test_confirmed_schedule_mismatch_is_not_locked(self):
+        """confirmed 日時が一致しない同一集会イベントはロックされない"""
+        self._create_participation(
+            published_event=None,
+            confirmed_date=self.collab_event.date,
+            confirmed_start_time=self.collab_event.start_time,
+            confirmed_duration=self.collab_event.duration,
+        )
+
+        self.assertFalse(is_event_datetime_locked(self.regular_event, self.owner))
+
+    def test_unconfirmed_participation_is_not_locked(self):
+        """スケジュール未確定（confirmed_date なし）の参加ではロックされない"""
+        self._create_participation(
+            published_event=None,
+            confirmed_start_time=self.collab_event.start_time,
+        )
 
         self.assertFalse(is_event_datetime_locked(self.collab_event, self.owner))
 

@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from django.db.models import Q
+
 from community.constants import weekday_code
 from event.models import Event, EventDetail
 from vket.models import VketParticipation, VketPresentation
@@ -15,13 +17,30 @@ class VketPublicationSyncResult:
     changed_index_data: bool
 
 
+def collab_event_match(event) -> Q:
+    """イベントがコラボ本体かを判定する VketParticipation 向け条件を返す。
+
+    published_event 一致が本来の判定だが、本番では publication sync が未実施で
+    published_event が全件未設定のため、それだけではロックが一切効かない。
+    フォールバックとして confirmed 日時一致も本体とみなす（この一致規則は
+    _resolve_publication_event が既存 Event を本体として拾う規則と同じ）。
+    """
+    return Q(published_event_id=event.pk) | Q(
+        published_event__isnull=True,
+        confirmed_date=event.date,
+        confirmed_start_time=event.start_time,
+    )
+
+
 def get_vket_lock_info(event, *, date=None) -> tuple[bool, str]:
     """Vketコラボ本体のイベントかどうかを判定し、ロックメッセージを返す。
 
-    そのイベント自身がアクティブな VketParticipation の公開先（published_event）で、
-    かつイベント日がそのコラボの開催期間内（period_start〜period_end）であれば
+    そのイベント自身がアクティブな VketParticipation のコラボ本体で、
+    かつ判定対象日がそのコラボの開催期間内（period_start〜period_end）であれば
     ロック中と判定する。同じ集会の通常イベントは期間内でもロックしない。
     1クエリで判定とメッセージ取得を行う。
+
+    本体判定は published_event 一致、または confirmed 日時一致（下記フォールバック）。
 
     Args:
         event: Event インスタンス
@@ -37,9 +56,7 @@ def get_vket_lock_info(event, *, date=None) -> tuple[bool, str]:
         return False, ""
     participation = (
         VketParticipation.objects.filter(
-            # コラボ本体のイベントだけをロックする。同じ集会の通常イベントまで
-            # 巻き込むとコラボ無関係の定例回まで編集不能になる（Issue #571）。
-            published_event_id=event.pk,
+            collab_event_match(event),
             community=event.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
             collaboration__period_start__lte=target_date,
