@@ -1,11 +1,13 @@
 """ログイン・ログアウト・登録に関する view 群."""
 
+from urllib.parse import urlencode
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView
+from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView, RedirectURLMixin
 from django.shortcuts import redirect
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import FormView, TemplateView
@@ -47,6 +49,8 @@ class CustomLoginView(LoginView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['discord_oauth_enabled'] = is_discord_oauth_available(self.request)
+        context['redirect_field_name'] = self.redirect_field_name
+        context['redirect_field_value'] = self.get_redirect_url()
         return context
 
 
@@ -58,7 +62,7 @@ class CustomLogoutView(LogoutView):
         return super().dispatch(request, *args, **kwargs)
 
 
-class RegisterView(FormView):
+class RegisterView(RedirectURLMixin, FormView):
     """新規登録ページ."""
 
     template_name = 'account/register.html'
@@ -72,7 +76,17 @@ class RegisterView(FormView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['discord_oauth_enabled'] = self.discord_oauth_enabled
+        context['redirect_field_name'] = self.redirect_field_name
+        context['redirect_field_value'] = self.get_redirect_url()
         return context
+
+    def get_success_url(self):
+        """安全な遷移先を引き継いでログイン画面へ移動する."""
+        login_url = reverse('account:login')
+        redirect_url = self.get_redirect_url()
+        if not redirect_url:
+            return login_url
+        return f'{login_url}?{urlencode({self.redirect_field_name: redirect_url})}'
 
     def form_valid(self, form):
         if self.discord_oauth_enabled:
