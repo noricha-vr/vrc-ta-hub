@@ -423,6 +423,25 @@ class VketBannerTests(TestCase):
         self.assertIsNotNone(response.context['vket_banner'])
         self.assertContains(response, '参加申し込み')
 
+    def test_banner_hidden_after_period_end(self):
+        """終了日翌日にはLOCKEDフェーズのバナーを表示しない"""
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='banner-expired-locked',
+            name='Expired Locked Collab',
+            period_start=today - timedelta(days=8),
+            period_end=today - timedelta(days=1),
+            registration_deadline=today - timedelta(days=15),
+            lt_deadline=today - timedelta(days=10),
+            phase=VketCollaboration.Phase.LOCKED,
+        )
+        self._login_and_set_community()
+
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context['vket_banner'])
+
     def test_banner_hidden_for_archived(self):
         """ARCHIVEDフェーズではバナーが表示されない"""
         today = timezone.localdate()
@@ -460,13 +479,13 @@ class VketBannerTests(TestCase):
         self.assertIsNone(response.context['vket_banner'])
 
     def test_banner_shows_during_event(self):
-        """開催期間中は「開催中」バナーが表示される"""
+        """終了日当日は「開催中」バナーが表示される"""
         today = timezone.localdate()
         VketCollaboration.objects.create(
             slug='banner-during',
             name='During Event',
             period_start=today - timedelta(days=1),
-            period_end=today + timedelta(days=5),
+            period_end=today,
             registration_deadline=today - timedelta(days=10),
             lt_deadline=today - timedelta(days=5),
             phase=VketCollaboration.Phase.LOCKED,
@@ -477,6 +496,37 @@ class VketBannerTests(TestCase):
         self.assertEqual(response.status_code, 200)
         banner = response.context['vket_banner']
         self.assertIsNotNone(banner)
+        self.assertIn('開催中', banner['message'])
+
+    def test_banner_uses_current_collaboration_over_newer_expired_one(self):
+        """終了済みコラボより開催中コラボのバナーを優先する"""
+        today = timezone.localdate()
+        current_collab = VketCollaboration.objects.create(
+            slug='banner-current-locked',
+            name='Current Locked Collab',
+            period_start=today - timedelta(days=5),
+            period_end=today,
+            registration_deadline=today - timedelta(days=10),
+            lt_deadline=today - timedelta(days=5),
+            phase=VketCollaboration.Phase.LOCKED,
+        )
+        VketCollaboration.objects.create(
+            slug='banner-newer-expired-entry-open',
+            name='Newer Expired Entry Open Collab',
+            period_start=today - timedelta(days=2),
+            period_end=today - timedelta(days=1),
+            registration_deadline=today - timedelta(days=15),
+            lt_deadline=today - timedelta(days=10),
+            phase=VketCollaboration.Phase.ENTRY_OPEN,
+        )
+        self._login_and_set_community()
+
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertEqual(response.status_code, 200)
+        banner = response.context['vket_banner']
+        self.assertIsNotNone(banner)
+        self.assertEqual(banner['collaboration'], current_collab)
         self.assertIn('開催中', banner['message'])
 
     def test_banner_entry_open_with_participation_links_to_status(self):
