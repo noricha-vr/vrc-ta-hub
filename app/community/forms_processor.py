@@ -88,8 +88,13 @@ def approve_community_registration(community: Community, request: HttpRequest) -
 
     subject = f'{community.name}が承認されました'
     my_list_url = request.build_absolute_uri(reverse('event:my_list'))
+    criteria_url = request.build_absolute_uri(reverse('community:criteria'))
     context = {
         'community': community,
+        'criteria_url': criteria_url,
+        'is_academic': 'academic' in community.tags,
+        'is_partner': 'partner' in community.tags,
+        'is_tech': 'tech' in community.tags,
         'my_list_url': my_list_url,
         'owner_name': community.get_owner().display_label if community.get_owner() else None,
     }
