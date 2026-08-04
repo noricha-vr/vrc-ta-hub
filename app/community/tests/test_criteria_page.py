@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from django.test import TestCase
 from django.urls import reverse
 
-from user_account.models import CustomUser
+from tests.factories import make_user
 
 
 class CommunityCriteriaPageTest(TestCase):
@@ -31,7 +31,7 @@ class CommunityCriteriaPageTest(TestCase):
         self.assertIn('合計6点以上', approval_line.get_text())
 
     def test_registration_page_links_to_criteria(self):
-        user = CustomUser.objects.create_user(
+        user = make_user(
             user_name='審査基準テストユーザー',
             email='criteria@example.com',
             password='testpass123',
