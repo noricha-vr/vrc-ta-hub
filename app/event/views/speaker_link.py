@@ -1,7 +1,7 @@
 """発表者本人によるアカウント紐づけを提供するビュー。"""
 
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.views import redirect_to_login
 from django.db import transaction
 from django.db.models import QuerySet
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.views import View
 
 from event.models import EventDetail
+from event.notifications import notify_speaker_account_linked
 from event.services.speaker_invite import (
     SpeakerInviteTokenExpired,
     SpeakerInviteTokenInvalid,
@@ -21,14 +22,14 @@ from event.services.speaker_invite import (
 
 SPEAKER_INVITE_SESSION_KEY = "speaker_invite_token"
 EXPIRED_INVITE_MESSAGE = (
-    "この招待リンクの有効期限（30日）が切れています。"
+    "この招待リンクの有効期限（7日）が切れています。"
     "主催者に新しいリンクを依頼してください。"
 )
 INVALID_INVITE_MESSAGE = (
     "招待リンクが正しくありません。URLが途中で切れていないか確認してください。"
 )
 STALE_INVITE_MESSAGE = (
-    "この招待リンクは発行後に発表情報が更新されたため無効です。"
+    "この招待リンクは現在のアカウント紐づけ状態では利用できません。"
     "主催者に新しいリンクを依頼してください。"
 )
 ALREADY_LINKED_MESSAGE = "この発表には既にアカウントが紐づいています。"
@@ -49,6 +50,32 @@ def _protect_sensitive_response(response: HttpResponse) -> HttpResponse:
     return response
 
 
+def _is_ajax(request: HttpRequest) -> bool:
+    return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
+def _invite_issue_response(
+    request: HttpRequest,
+    event_detail: EventDetail,
+    payload: dict[str, str],
+    *,
+    status: int = 200,
+) -> HttpResponse:
+    """招待発行結果をリクエスト形式に応じて返す。"""
+    if _is_ajax(request):
+        return JsonResponse(payload, status=status)
+
+    if status >= 400:
+        messages.error(request, payload["error"])
+    else:
+        messages.warning(
+            request,
+            "招待リンクの発行にはJavaScriptが必要です。"
+            "JavaScriptを有効にして再度発行してください。",
+        )
+    return redirect("event:detail", pk=event_detail.pk)
+
+
 class SensitiveResponseMixin:
     """トークン交換に関係するレスポンスの保存と参照元送信を防ぐ。"""
 
@@ -60,20 +87,38 @@ class SensitiveResponseMixin:
 class SpeakerInviteIssueView(SensitiveResponseMixin, View):
     """集会管理者に発表者向けの招待URLを発行する。"""
 
-    def post(self, request: HttpRequest, pk: int) -> JsonResponse:
+    def post(self, request: HttpRequest, pk: int) -> HttpResponse:
         event_detail = get_object_or_404(_event_detail_queryset(), pk=pk)
         community = event_detail.event.community
         if not request.user.is_authenticated or not community.can_edit(request.user):
-            return JsonResponse({"error": "権限がありません。"}, status=403)
+            if _is_ajax(request):
+                return JsonResponse({"error": "権限がありません。"}, status=403)
+            return HttpResponse("権限がありません。", status=403)
         if not _is_invitable(event_detail):
-            return JsonResponse({"error": NOT_INVITABLE_MESSAGE}, status=400)
+            return _invite_issue_response(
+                request,
+                event_detail,
+                {"error": NOT_INVITABLE_MESSAGE},
+                status=400,
+            )
         if event_detail.applicant_id is not None:
-            return JsonResponse({"error": ALREADY_LINKED_MESSAGE}, status=409)
+            return _invite_issue_response(
+                request,
+                event_detail,
+                {"error": ALREADY_LINKED_MESSAGE},
+                status=409,
+            )
+        if not _is_ajax(request):
+            return _invite_issue_response(request, event_detail, {})
 
         token = create_invite_token(event_detail)
         confirm_path = reverse("event:speaker_link_confirm")
         invite_url = f"{request.build_absolute_uri(confirm_path)}#{token}"
-        return JsonResponse({"invite_url": invite_url})
+        return _invite_issue_response(
+            request,
+            event_detail,
+            {"invite_url": invite_url},
+        )
 
 
 class SpeakerInviteTokenExchangeView(SensitiveResponseMixin, View):
@@ -101,18 +146,10 @@ class SpeakerInviteTokenExchangeView(SensitiveResponseMixin, View):
         return JsonResponse({"confirm_url": reverse("event:speaker_link_confirm")})
 
 
-class SpeakerLinkConfirmView(LoginRequiredMixin, View):
+class SpeakerLinkConfirmView(SensitiveResponseMixin, View):
     """セッション内の招待を確認し、ログイン中ユーザーを発表へ紐づける。"""
 
     template_name = "event/speaker_link_confirm.html"
-
-    def dispatch(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
-        has_session_token = bool(request.session.get(SPEAKER_INVITE_SESSION_KEY))
-        if request.method == "GET" and not has_session_token:
-            response = View.dispatch(self, request, *args, **kwargs)
-        else:
-            response = super().dispatch(request, *args, **kwargs)
-        return _protect_sensitive_response(response)
 
     def get(self, request: HttpRequest) -> HttpResponse:
         token = request.session.get(SPEAKER_INVITE_SESSION_KEY)
@@ -121,6 +158,11 @@ class SpeakerLinkConfirmView(LoginRequiredMixin, View):
                 request,
                 self.template_name,
                 {"needs_token_exchange": True},
+            )
+        if not request.user.is_authenticated:
+            return redirect_to_login(
+                request.get_full_path(),
+                login_url=reverse("account:login"),
             )
         try:
             event_detail = verify_invite_token(token)
@@ -146,6 +188,11 @@ class SpeakerLinkConfirmView(LoginRequiredMixin, View):
         )
 
     def post(self, request: HttpRequest) -> HttpResponse:
+        if not request.user.is_authenticated:
+            return redirect_to_login(
+                request.get_full_path(),
+                login_url=reverse("account:login"),
+            )
         token = request.session.get(SPEAKER_INVITE_SESSION_KEY)
         if not token:
             return self._render_error(request, INVALID_INVITE_MESSAGE)
@@ -168,6 +215,10 @@ class SpeakerLinkConfirmView(LoginRequiredMixin, View):
                     )
                 event_detail.applicant = request.user
                 event_detail.save(update_fields=["applicant", "updated_at"])
+                linked_user = request.user
+                transaction.on_commit(
+                    lambda: notify_speaker_account_linked(event_detail, linked_user)
+                )
         except SpeakerInviteTokenExpired:
             return self._clear_and_render_error(request, EXPIRED_INVITE_MESSAGE)
         except SpeakerInviteTokenStale:

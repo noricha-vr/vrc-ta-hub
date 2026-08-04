@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
 from django import forms
+from django.conf import settings
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.test import Client, TestCase, override_settings, tag
@@ -14,6 +15,7 @@ from user_account.tests.utils import (
     TEST_SOCIALACCOUNT_PROVIDERS,
     TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS,
 )
+from tests.factories import make_user
 
 
 class HrefCollector(HTMLParser):
@@ -192,14 +194,22 @@ class SocialSignupDuplicateEmailNextTests(TestCase):
         ))
 
     def test_duplicate_email_login_link_ignores_raw_external_next(self) -> None:
-        """検証済みnextが空ならリクエスト上の外部URLを引き継がないこと."""
+        """allauthログインが外部nextへリダイレクトしないこと."""
         external_url = 'https://evil.example.com/path'
+        login_url = reverse('account_login')
+        make_user(
+            user_name='external_next_login_user',
+            email='external-next-login@example.com',
+        )
 
-        response = render_duplicate_email_signup('', request_next=external_url)
+        get_response = self.client.get(login_url, {'next': external_url})
+        post_response = self.client.post(login_url, {
+            'login': 'external_next_login_user',
+            'password': 'testpass123',
+            'next': external_url,
+        })
 
-        self.assertNotContains(response, 'evil.example.com')
-        self.assertFalse(has_next_link(
-            collect_hrefs(response),
-            reverse('account_login'),
-            external_url,
-        ))
+        self.assertEqual(get_response.status_code, 200)
+        self.assertEqual(post_response.status_code, 302)
+        self.assertEqual(post_response.url, settings.LOGIN_REDIRECT_URL)
+        self.assertNotEqual(post_response.url, external_url)

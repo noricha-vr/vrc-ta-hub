@@ -146,6 +146,15 @@ class DiscordAuthRequiredMiddlewareTests(TestCase):
         # 正常にページが表示される（リダイレクトループしない）
         self.assertEqual(response.status_code, 200)
 
+    def test_speaker_invite_token_exchange_is_not_redirected(self):
+        """トークン交換はDiscord連携前でもビューまで到達すること."""
+        self.client.login(username='test_no_discord', password='testpass123')
+
+        response = self.client.post(reverse('event:speaker_invite_token_exchange'))
+
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn('discord-required', response.get('Location', ''))
+
     def test_exempt_path_admin_not_redirected(self):
         """除外パス /admin/ はリダイレクトされないこと."""
         self.client.login(username='test_no_discord', password='testpass123')

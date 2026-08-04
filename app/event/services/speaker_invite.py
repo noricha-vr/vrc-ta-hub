@@ -7,7 +7,7 @@ from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from event.models import EventDetail
 
 
-SPEAKER_INVITE_MAX_AGE = timedelta(days=30)
+SPEAKER_INVITE_MAX_AGE = timedelta(days=7)
 SPEAKER_INVITE_SALT = "event.speaker-invite"
 PAYLOAD_SEPARATOR = "|"
 
@@ -25,11 +25,11 @@ class SpeakerInviteTokenInvalid(SpeakerInviteTokenError):
 
 
 class SpeakerInviteTokenStale(SpeakerInviteTokenError):
-    """招待発行後に対象の発表が更新されたことを示す。"""
+    """招待発行後に対象の紐づけ状態が変わったことを示す。"""
 
 
 def create_invite_token(event_detail: EventDetail) -> str:
-    """保存済みの発表に対する30日間有効な署名トークンを作成する。
+    """保存済みの発表に対する7日間有効な署名トークンを作成する。
 
     Args:
         event_detail: 招待対象の発表。
@@ -38,13 +38,13 @@ def create_invite_token(event_detail: EventDetail) -> str:
         URL fragmentに埋め込める署名済みトークン。
 
     Raises:
-        ValueError: 発表が未保存、または更新日時を持たない場合。
+        ValueError: 発表が未保存の場合。
     """
-    if event_detail.pk is None or event_detail.updated_at is None:
+    if event_detail.pk is None:
         raise ValueError("保存済みの発表のみ招待できます。")
 
     payload = PAYLOAD_SEPARATOR.join(
-        (str(event_detail.pk), event_detail.updated_at.isoformat())
+        (str(event_detail.pk), _applicant_generation(event_detail.applicant_id))
     )
     return TimestampSigner(salt=SPEAKER_INVITE_SALT).sign(payload)
 
@@ -54,7 +54,7 @@ def verify_invite_token(
     *,
     event_detail: EventDetail | None = None,
 ) -> EventDetail:
-    """署名・期限・発表の更新世代を検証して対象を返す。
+    """署名・期限・発表の紐づけ世代を検証して対象を返す。
 
     Args:
         token: 招待URLから受け取った署名済みトークン。
@@ -66,7 +66,7 @@ def verify_invite_token(
     Raises:
         SpeakerInviteTokenExpired: トークンの有効期限が切れている場合。
         SpeakerInviteTokenInvalid: トークンが改ざん、破損、または対象不明の場合。
-        SpeakerInviteTokenStale: 発行後に対象の発表が更新された場合。
+        SpeakerInviteTokenStale: 発行後に対象の紐づけ状態が変わった場合。
     """
     event_detail_id, generation = _unsign_payload(token)
     target = event_detail
@@ -80,9 +80,18 @@ def verify_invite_token(
     elif target.pk != event_detail_id:
         raise SpeakerInviteTokenInvalid
 
-    if target.updated_at.isoformat() != generation:
+    if generation != _applicant_generation(target.applicant_id):
+        raise SpeakerInviteTokenStale
+    if target.applicant_id is not None:
         raise SpeakerInviteTokenStale
     return target
+
+
+def _applicant_generation(applicant_id: int | None) -> str:
+    """紐づけ状態をトークン世代へ変換する。"""
+    # 失効はクレームと期限のみ。解除後も旧リンクを無効化する必要が生じたら、
+    # nonce フィールドを追加する migration で対応する。
+    return f"applicant:{applicant_id or ''}"
 
 
 def _unsign_payload(token: str) -> tuple[int, str]:

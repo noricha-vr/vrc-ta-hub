@@ -71,6 +71,8 @@ class DiscordAuthRequiredMiddleware:
         '/accounts/discord/',         # Discord OAuth フロー
         '/accounts/social/signup/',   # ソーシャルサインアップ
         '/account/discord-required/', # 新しい案内ページ
+        # トークン交換はセッション保存のみで、Discord連携前にも完了させる必要がある。
+        '/event/speaker-link/token/',
         '/static/',
         '/media/',
         '/admin/',                    # 管理画面（ログイン用）

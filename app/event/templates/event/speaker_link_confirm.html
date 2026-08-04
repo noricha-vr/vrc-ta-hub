@@ -16,6 +16,7 @@
             window.addEventListener('DOMContentLoaded', async function () {
                 const exchangeForm = document.getElementById('speaker-token-exchange-form');
                 const feedback = document.getElementById('speaker-token-exchange-feedback');
+                feedback.hidden = false;
                 if (!speakerInviteToken) {
                     feedback.className = 'alert alert-danger';
                     feedback.setAttribute('role', 'alert');
@@ -68,12 +69,17 @@
                     </div>
                     <div class="card-body p-4">
                         {% if needs_token_exchange %}
+                            <noscript>
+                                <div class="alert alert-warning" role="alert">
+                                    このページの表示には JavaScript が必要です。ブラウザの設定で JavaScript を有効にしてから、招待リンクを開き直してください。
+                                </div>
+                            </noscript>
                             <form id="speaker-token-exchange-form"
                                   action="{% url 'event:speaker_invite_token_exchange' %}"
                                   method="post">
                                 {% csrf_token %}
                             </form>
-                            <div id="speaker-token-exchange-feedback" class="alert alert-info"
+                            <div id="speaker-token-exchange-feedback" class="alert alert-info" hidden
                                  role="status" aria-live="polite">
                                 招待リンクを確認しています。
                             </div>

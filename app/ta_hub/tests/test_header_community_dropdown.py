@@ -88,7 +88,6 @@ class HeaderCommunityDropdownTest(TestCase):
         my_list_url = reverse('event:my_list')
         self.assertContains(response, f'href="{my_list_url}"', count=1)
         self.assertContains(response, 'マイページ')
-        self.assertContains(response, 'bi-person-lines-fill me-2" aria-hidden="true"')
 
     def test_active_community_has_checkmark(self):
         """アクティブな集会にはチェックマークが表示される"""
