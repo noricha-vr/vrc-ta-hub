@@ -149,6 +149,17 @@ class CommunityUpdateForm(VrcGroupUrlMixin, forms.ModelForm):
 class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
     """集会新規登録用フォーム."""
 
+    # 同意対象は公開文書として実在する「掲載・審査基準」に限定する
+    # （独立したガイドライン文書は存在しないため、読めないものへの同意を求めない）
+    guidelines_agreed = forms.BooleanField(
+        label='掲載・審査基準を確認し、内容に同意します。',
+        required=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        error_messages={
+            'required': '登録するには、掲載・審査基準への同意が必要です。',
+        },
+    )
+
     weekdays = forms.MultipleChoiceField(
         label='曜日',
         choices=WEEKDAY_CHOICES,

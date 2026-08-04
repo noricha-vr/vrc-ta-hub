@@ -25,6 +25,7 @@ from tests.factories import (
     make_community as _make_community_factory,
     make_user,
 )
+from website.constants import build_site_url
 
 User = get_user_model()
 
@@ -42,7 +43,10 @@ def _make_community(owner=None, name="Test Community"):
     return _make_community_factory(name=name, owner=owner, status="pending")
 
 
-@override_settings(DEFAULT_FROM_EMAIL="noreply@example.com")
+@override_settings(
+    DEFAULT_FROM_EMAIL="noreply@example.com",
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+)
 class ApproveCommunityRegistrationTest(TestCase):
     """approve_community_registration の承認 + メール送信"""
 
@@ -60,6 +64,44 @@ class ApproveCommunityRegistrationTest(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["owner1@example.com"])
         self.assertIn(self.community.name, mail.outbox[0].subject)
+
+    def test_partner_email_includes_cooperation_conditions(self):
+        """partner の承認メールに必須条件と推奨条件を記載する。"""
+        self.community.tags = ["tech", "partner"]
+        self.community.save(update_fields=["tags"])
+
+        approve_community_registration(self.community, self.request)
+
+        html_message = mail.outbox[0].alternatives[0][0]
+        self.assertIn("協力団体としての遵守条件", html_message)
+        self.assertIn("Hubのポスターまたはアセットを活動拠点に設置", html_message)
+        self.assertIn("集会・イベント内でHubを紹介・宣伝する時間を確保", html_message)
+        self.assertIn("発表資料をHubのWebサイトへ定期的にアップロード", html_message)
+        # 公開URLは受信 Host（testserver）ではなく設定由来であること
+        self.assertIn(build_site_url("/community/criteria/"), html_message)
+        self.assertNotIn("http://testserver/community/criteria/", html_message)
+        self.assertNotIn("実践的な技術の習得・共有・発表を主目的", html_message)
+
+    def test_regular_email_includes_category_criteria(self):
+        """通常集会の承認メールに種別の基準要約と公開ページを記載する。"""
+        category_summaries = {
+            "tech": "実践的な技術の習得・共有・発表を主目的",
+            "academic": "知見や研究成果について、学習・議論・発表することを主目的",
+        }
+
+        for tag, summary in category_summaries.items():
+            with self.subTest(tag=tag):
+                self.community.tags = [tag]
+                self.community.save(update_fields=["tags"])
+                mail.outbox.clear()
+
+                approve_community_registration(self.community, self.request)
+
+                html_message = mail.outbox[0].alternatives[0][0]
+                self.assertIn(summary, html_message)
+                self.assertIn(build_site_url("/community/criteria/"), html_message)
+                self.assertNotIn("http://testserver/community/criteria/", html_message)
+                self.assertNotIn("協力団体としての遵守条件", html_message)
 
     def test_skips_email_when_owner_email_missing(self):
         """オーナーが email 未設定でもクラッシュせず status は approved になる"""
