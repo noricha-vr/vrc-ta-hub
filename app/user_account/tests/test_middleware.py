@@ -155,6 +155,14 @@ class DiscordAuthRequiredMiddlewareTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertNotIn('discord-required', response.get('Location', ''))
 
+    def test_speaker_link_confirm_is_not_redirected(self):
+        """確認画面もDiscord連携前に到達できること（fragment交換の前提）."""
+        self.client.login(username='test_no_discord', password='testpass123')
+
+        response = self.client.get(reverse('event:speaker_link_confirm'))
+
+        self.assertEqual(response.status_code, 200)
+
     def test_exempt_path_admin_not_redirected(self):
         """除外パス /admin/ はリダイレクトされないこと."""
         self.client.login(username='test_no_discord', password='testpass123')
