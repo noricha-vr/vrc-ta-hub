@@ -77,7 +77,7 @@ class EventMyListDashboardTest(TestCase):
 
     def test_communities_in_context(self):
         """コンテキストに所属集会一覧が含まれる"""
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -89,7 +89,7 @@ class EventMyListDashboardTest(TestCase):
 
     def test_active_community_in_context(self):
         """コンテキストにアクティブな集会が含まれる"""
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -98,7 +98,7 @@ class EventMyListDashboardTest(TestCase):
 
     def test_switch_active_community(self):
         """集会切り替えが機能する"""
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
 
         # community2をアクティブに設定
         response = self.client.post(
@@ -115,7 +115,7 @@ class EventMyListDashboardTest(TestCase):
 
     def test_warnings_for_missing_poster(self):
         """ポスター未設定の警告が表示される"""
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -133,7 +133,7 @@ class EventMyListDashboardTest(TestCase):
 
     def test_warnings_for_no_future_events(self):
         """今後のイベントがない警告が表示される"""
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -160,7 +160,7 @@ class EventMyListDashboardTest(TestCase):
             weekday='Mon'
         )
 
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         warnings = response.context['warnings']
@@ -180,7 +180,7 @@ class EventMyListDashboardTest(TestCase):
         self.community1.poster_image = create_test_image()
         self.community1.save()
 
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         warnings = response.context['warnings']
@@ -196,7 +196,7 @@ class EventMyListDashboardTest(TestCase):
 
     def test_dropdown_shows_when_multiple_communities(self):
         """複数の集会がある場合ドロップダウンが表示される"""
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -228,7 +228,7 @@ class EventMyListDashboardTest(TestCase):
             role=CommunityMember.Role.OWNER
         )
 
-        self.client.login(username='Single User', password='singlepass123')
+        self.client.force_login(single_user)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -240,7 +240,7 @@ class EventMyListDashboardTest(TestCase):
 
     def test_quick_action_buttons_displayed(self):
         """クイックアクションボタンが表示される"""
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -253,7 +253,7 @@ class EventMyListDashboardTest(TestCase):
 
     def test_lt_application_link_is_next_to_calendar_create(self):
         """LT申請一覧リンクがイベント登録ボタンの直後に表示される"""
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -270,13 +270,13 @@ class EventMyListDashboardTest(TestCase):
 
     def test_lt_application_link_displayed_without_community(self):
         """集会未所属ユーザーでもLT申請一覧リンクに到達できる"""
-        User.objects.create_user(
+        participant = User.objects.create_user(
             user_name='Participant User',
             email='participant@example.com',
             password='participantpass123',
         )
 
-        self.client.login(username='Participant User', password='participantpass123')
+        self.client.force_login(participant)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -303,7 +303,7 @@ class EventMyListDashboardTest(TestCase):
             status='pending',
         )
 
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -329,7 +329,7 @@ class EventMyListDashboardTest(TestCase):
             status='pending',
         )
 
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
         content = response.content.decode()
 
@@ -364,7 +364,7 @@ class EventMyListDashboardTest(TestCase):
             status='approved',
         )
 
-        self.client.login(username='Dashboard User', password='dashboardpass123')
+        self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
@@ -399,7 +399,7 @@ class VketBannerTests(TestCase):
         )
 
     def _login_and_set_community(self):
-        self.client.login(username='banner_user', password='testpass123')
+        self.client.force_login(self.user)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
@@ -602,7 +602,7 @@ class VketBannerTests(TestCase):
 
     def test_staff_banner_links_to_manage_without_active_community(self):
         """Hub運営スタッフは集会未選択でもmy_listのバナーから管理画面へ遷移できる"""
-        User.objects.create_user(
+        banner_staff = User.objects.create_user(
             user_name='vket_banner_staff',
             email='vket_banner_staff@example.com',
             password='testpass123',
@@ -618,7 +618,7 @@ class VketBannerTests(TestCase):
             lt_deadline=today + timedelta(days=10),
             phase=VketCollaboration.Phase.ENTRY_OPEN,
         )
-        self.client.login(username='vket_banner_staff', password='testpass123')
+        self.client.force_login(banner_staff)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)

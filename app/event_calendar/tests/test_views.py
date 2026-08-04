@@ -66,7 +66,7 @@ class CalendarEntryUpdateViewTest(TestCase):
 
     def test_owner_can_access_calendar_entry(self):
         """主催者はカレンダーエントリーにアクセスできる"""
-        self.client.login(username='owner_user', password='testpassword')
+        self.client.force_login(self.owner)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
@@ -77,7 +77,7 @@ class CalendarEntryUpdateViewTest(TestCase):
 
     def test_staff_can_access_calendar_entry(self):
         """スタッフもカレンダーエントリーにアクセスできる"""
-        self.client.login(username='staff_user', password='testpassword')
+        self.client.force_login(self.staff)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
@@ -88,7 +88,7 @@ class CalendarEntryUpdateViewTest(TestCase):
 
     def test_non_member_cannot_access_calendar_entry(self):
         """メンバーでないユーザーはアクセスできない"""
-        self.client.login(username='other_user', password='testpassword')
+        self.client.force_login(self.other_user)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
@@ -99,7 +99,7 @@ class CalendarEntryUpdateViewTest(TestCase):
 
     def test_no_active_community_returns_404(self):
         """active_community_idがない場合は404を返す"""
-        self.client.login(username='owner_user', password='testpassword')
+        self.client.force_login(self.owner)
         # セッションを空にする（active_community_idをセットしない）
         session = self.client.session
         if 'active_community_id' in session:
@@ -117,7 +117,7 @@ class CalendarEntryUpdateViewTest(TestCase):
         # 最初はエントリーが存在しないことを確認
         self.assertEqual(CalendarEntry.objects.filter(community=self.community).count(), 0)
 
-        self.client.login(username='owner_user', password='testpassword')
+        self.client.force_login(self.owner)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()

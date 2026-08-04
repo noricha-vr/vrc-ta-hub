@@ -29,7 +29,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
             progress=VketParticipation.Progress.APPLIED,
         )
 
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))
@@ -82,7 +82,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
             progress=VketParticipation.Progress.APPLIED,
         )
 
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))

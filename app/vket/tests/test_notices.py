@@ -250,7 +250,7 @@ class VketNoticeTests(TestCase):
         """公開・認証済みの両レスポンスを共有キャッシュへ保存させない"""
         url = reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
         responses = [self.client.get(url)]
-        self.client.login(username='owner_user2', password='testpass123')
+        self.client.force_login(self.owner)
         responses.append(self.client.get(url))
 
         for response in responses:
@@ -269,7 +269,7 @@ class VketNoticeTests(TestCase):
             acknowledged_at=timezone.now(),
         )
 
-        self.client.login(username='owner_user2', password='testpass123')
+        self.client.force_login(self.owner)
         response = self.client.get(
             reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
         )
@@ -284,7 +284,7 @@ class VketNoticeTests(TestCase):
 
     def test_manage_notice_list_requires_staff(self):
         """管理用お知らせ一覧はstaff権限が必要"""
-        self.client.login(username='owner_user2', password='testpass123')
+        self.client.force_login(self.owner)
         response = self.client.get(
             reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
         )
@@ -292,7 +292,7 @@ class VketNoticeTests(TestCase):
 
     def test_manage_notice_list_shows_notice(self):
         """管理用お知らせ一覧にnoticeが表示される"""
-        self.client.login(username='admin_user2', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(
             reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
         )
@@ -309,7 +309,7 @@ class VketNoticeTests(TestCase):
             acknowledged_at=timezone.now(),
         )
 
-        self.client.login(username='admin_user2', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(
             reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
         )
@@ -329,7 +329,7 @@ class VketNoticeTests(TestCase):
             acknowledged_at=timezone.now(),
         )
 
-        self.client.login(username='owner_user2', password='testpass123')
+        self.client.force_login(self.owner)
         response = self.client.get(
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
         )
@@ -344,7 +344,7 @@ class VketNoticeTests(TestCase):
 
     def test_notice_create_auto_generates_receipts(self):
         """お知らせ作成時にactive参加者分のReceiptが自動生成される"""
-        self.client.login(username='admin_user2', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.post(
             reverse('vket:manage_notice_create', kwargs={'pk': self.collaboration.pk}),
             data={
@@ -362,7 +362,7 @@ class VketNoticeTests(TestCase):
 
     def test_manage_notice_update_success(self):
         """superuserがお知らせのタイトルと本文を編集できる"""
-        self.client.login(username='admin_user2', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.post(
             reverse('vket:manage_notice_update', kwargs={
                 'pk': self.collaboration.pk,
@@ -377,7 +377,7 @@ class VketNoticeTests(TestCase):
 
     def test_manage_notice_update_requires_staff(self):
         """一般ユーザー（非staff）はお知らせを編集できない"""
-        self.client.login(username='owner_user2', password='testpass123')
+        self.client.force_login(self.owner)
         response = self.client.post(
             reverse('vket:manage_notice_update', kwargs={
                 'pk': self.collaboration.pk,
@@ -391,7 +391,7 @@ class VketNoticeTests(TestCase):
 
     def test_manage_notice_update_validates_required_fields(self):
         """タイトル・本文が空の場合はエラー"""
-        self.client.login(username='admin_user2', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.post(
             reverse('vket:manage_notice_update', kwargs={
                 'pk': self.collaboration.pk,
@@ -414,7 +414,7 @@ class VketNoticeTests(TestCase):
             lt_deadline=timezone.localdate() + timedelta(days=3),
             phase=VketCollaboration.Phase.SCHEDULING,
         )
-        self.client.login(username='admin_user2', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.post(
             reverse('vket:manage_notice_update', kwargs={
                 'pk': other_collab.pk,
@@ -434,7 +434,7 @@ class VketNoticeTests(TestCase):
             notice=self.notice, participation=self.participation
         )
 
-        self.client.login(username='admin_user2', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(
             reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
         )
@@ -451,7 +451,7 @@ class VketNoticeTests(TestCase):
             notice=self.notice, participation=self.participation
         )
 
-        self.client.login(username='admin_user2', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(
             reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
         )
@@ -471,7 +471,7 @@ class VketNoticeTests(TestCase):
             acknowledged_at=timezone.now(),
         )
 
-        self.client.login(username='admin_user2', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(
             reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
         )
@@ -488,7 +488,7 @@ class VketNoticeTests(TestCase):
             notice=self.notice, participation=self.participation
         )
 
-        self.client.login(username='admin_user2', password='adminpass123')
+        self.client.force_login(self.superuser)
         response = self.client.get(
             reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
         )

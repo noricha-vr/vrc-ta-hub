@@ -23,7 +23,7 @@ from ._vket_test_bases import VketApplyFlowBase
 class VketApplyFlowTests(VketApplyFlowBase):
     def test_new_apply_shows_organizer_note_template(self):
         """新規申請GETで organizer_note の初期値テンプレートが表示される"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         response = self.client.get(
@@ -35,7 +35,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_existing_participation_preserves_organizer_note(self):
         """既存参加者のGETで organizer_note が初期テンプレートで上書きされない"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         # 先に参加を作成（副作用でDBレコードを作成）
@@ -55,14 +55,14 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_apply_get_allows_staff(self):
         """スタッフもapplyページにアクセスできる"""
-        self.client.login(username='other_user', password='testpass123')
+        self.client.force_login(self.other_user)
         self._set_active_community()
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
         self.assertEqual(response.status_code, 200)
 
     def test_apply_get_shows_organizer_note_guidance_above_textarea(self):
         """備考欄の案内文がテキストエリア外に表示される"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
@@ -81,7 +81,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
     def test_apply_post_creates_participation_and_presentation(self):
         """主催者が申請するとVketParticipationとVketPresentationが作成される"""
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         target_date = self.collaboration.period_start
@@ -133,7 +133,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
         self.collaboration.registration_deadline = timezone.localdate() - timedelta(days=1)
         self.collaboration.save()
 
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
         self.assertEqual(response.status_code, 403)
@@ -143,7 +143,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
         self.collaboration.registration_deadline = timezone.localdate() - timedelta(days=1)
         self.collaboration.save()
 
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.get(reverse('vket:detail', kwargs={'pk': self.collaboration.pk}))
         self.assertEqual(response.status_code, 200)
@@ -171,7 +171,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
             published_event=event,
         )
 
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
         response = self.client.get(reverse('vket:detail', kwargs={'pk': self.collaboration.pk}))
         self.assertEqual(response.status_code, 200)
@@ -194,7 +194,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
             applied_by=self.owner,
         )
 
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
@@ -257,7 +257,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
             status=VketPresentation.Status.CONFIRMED,
         )
 
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         post_data = {
@@ -311,7 +311,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
             applied_by=self.owner,
         )
 
-        self.client.login(username='owner_user', password='testpass123')
+        self.client.force_login(self.owner)
         self._set_active_community()
 
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))

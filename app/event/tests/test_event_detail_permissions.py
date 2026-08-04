@@ -121,7 +121,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_non_member_cannot_access_event_detail_create_view(self):
         """非メンバーはEventDetail作成ページにアクセスできない（403）."""
-        self.client.login(username="other_user", password="testpass123")
+        self.client.force_login(self.other_user)
 
         url = reverse("event:detail_create", kwargs={"event_pk": self.event.pk})
         response = self.client.get(url)
@@ -130,7 +130,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_non_member_cannot_access_event_detail_update_view(self):
         """非メンバーはEventDetail更新ページにアクセスするとイベント詳細にリダイレクトされる."""
-        self.client.login(username="other_user", password="testpass123")
+        self.client.force_login(self.other_user)
 
         url = reverse("event:detail_update", kwargs={"pk": self.event_detail.pk})
         response = self.client.get(url)
@@ -149,7 +149,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_non_member_cannot_delete_event_detail(self):
         """非メンバーはEventDetailを削除できない（403）."""
-        self.client.login(username="other_user", password="testpass123")
+        self.client.force_login(self.other_user)
 
         url = reverse("event:detail_delete", kwargs={"pk": self.event_detail.pk})
         response = self.client.post(url)
@@ -159,7 +159,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_applicant_can_access_approved_event_detail_update_view(self):
         """発表者本人は自分の承認済みLTの更新画面にアクセスできる."""
-        self.client.login(username="applicant_user", password="testpass123")
+        self.client.force_login(self.applicant)
 
         url = reverse("event:detail_update", kwargs={"pk": self.applicant_detail.pk})
         response = self.client.get(url)
@@ -170,7 +170,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_admin_can_change_event_detail_datetime(self):
         """コミュニティ管理者は開始時刻と持ち時間を変更できる."""
-        self.client.login(username="owner_user", password="testpass123")
+        self.client.force_login(self.owner)
 
         url = reverse("event:detail_update", kwargs={"pk": self.applicant_detail.pk})
         response = self.client.post(
@@ -192,7 +192,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_applicant_update_form_disables_datetime_fields(self):
         """承認済みLTの登壇者本人は日時欄を編集できない."""
-        self.client.login(username="applicant_user", password="testpass123")
+        self.client.force_login(self.applicant)
 
         url = reverse("event:detail_update", kwargs={"pk": self.applicant_detail.pk})
         response = self.client.get(url)
@@ -203,7 +203,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_applicant_datetime_tampering_keeps_values_and_updates_theme(self):
         """登壇者の改変POSTでは日時を保護し、他の編集内容は保存する."""
-        self.client.login(username="applicant_user", password="testpass123")
+        self.client.force_login(self.applicant)
 
         url = reverse("event:detail_update", kwargs={"pk": self.applicant_detail.pk})
         response = self.client.post(
@@ -226,7 +226,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_owner_can_access_event_detail_create_view_with_generation_feedback(self):
         """主催者の作成画面には記事生成待機UIが含まれる."""
-        self.client.login(username="owner_user", password="testpass123")
+        self.client.force_login(self.owner)
 
         url = reverse("event:detail_create", kwargs={"event_pk": self.event.pk})
         response = self.client.get(url)
@@ -237,7 +237,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_applicant_cannot_access_pending_event_detail_update_view(self):
         """発表者本人でも承認待ちLTの更新画面にはアクセスできない."""
-        self.client.login(username="applicant_user", password="testpass123")
+        self.client.force_login(self.applicant)
 
         url = reverse("event:detail_update", kwargs={"pk": self.pending_applicant_detail.pk})
         response = self.client.get(url)
@@ -248,7 +248,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_applicant_can_upload_pdf_on_approved_event_detail(self):
         """発表者本人は自分の承認済みLTにPDFをアップロードできる."""
-        self.client.login(username="applicant_user", password="testpass123")
+        self.client.force_login(self.applicant)
 
         pdf = SimpleUploadedFile(
             "slides.pdf",
@@ -278,7 +278,7 @@ class EventDetailPermissionTests(TestCase):
     @patch("event.views.blog.generate_blog")
     def test_applicant_can_generate_blog_for_approved_event_detail(self, mock_generate_blog, mock_ensure_pdf_thumbnail):
         """発表者本人は自分の承認済みLTで記事生成できる."""
-        self.client.login(username="applicant_user", password="testpass123")
+        self.client.force_login(self.applicant)
         self.applicant_detail.slide_file = SimpleUploadedFile(
             "slides.pdf",
             b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF",
@@ -304,7 +304,7 @@ class EventDetailPermissionTests(TestCase):
     @patch("event.views.blog.generate_blog")
     def test_applicant_cannot_generate_blog_for_pending_event_detail(self, mock_generate_blog):
         """発表者本人でも承認待ちLTでは記事生成できない."""
-        self.client.login(username="applicant_user", password="testpass123")
+        self.client.force_login(self.applicant)
         self.pending_applicant_detail.slide_file = SimpleUploadedFile(
             "slides.pdf",
             b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF",
@@ -320,7 +320,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_locked_event_detail_update_view_disables_datetime_fields(self):
         """Vket 期間中の更新画面では日時欄を無効化して案内文を表示する."""
-        self.client.login(username="owner_user", password="testpass123")
+        self.client.force_login(self.owner)
 
         url = reverse("event:detail_update", kwargs={"pk": self.locked_detail.pk})
         response = self.client.get(url)
@@ -332,7 +332,7 @@ class EventDetailPermissionTests(TestCase):
 
     def test_locked_event_detail_rejects_tampered_datetime_post(self):
         """Vket 期間中は改変 POST でも日時変更できない."""
-        self.client.login(username="owner_user", password="testpass123")
+        self.client.force_login(self.owner)
 
         url = reverse("event:detail_update", kwargs={"pk": self.locked_detail.pk})
         response = self.client.post(

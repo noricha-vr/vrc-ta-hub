@@ -63,7 +63,7 @@ class CommunityMemberManageViewTest(TestCase):
 
     def test_owner_can_access_member_manage(self):
         """主催者はメンバー管理ページにアクセスできる"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         response = self.client.get(
             reverse('community:member_manage', kwargs={'pk': self.community.pk})
@@ -73,7 +73,7 @@ class CommunityMemberManageViewTest(TestCase):
 
     def test_staff_cannot_access_member_manage(self):
         """スタッフはメンバー管理ページにアクセスできない"""
-        self.client.login(username='スタッフ', password='testpass123')
+        self.client.force_login(self.staff)
 
         response = self.client.get(
             reverse('community:member_manage', kwargs={'pk': self.community.pk})
@@ -82,7 +82,7 @@ class CommunityMemberManageViewTest(TestCase):
 
     def test_non_member_cannot_access_member_manage(self):
         """非メンバーはメンバー管理ページにアクセスできない"""
-        self.client.login(username='非メンバー', password='testpass123')
+        self.client.force_login(self.non_member)
 
         response = self.client.get(
             reverse('community:member_manage', kwargs={'pk': self.community.pk})
@@ -101,7 +101,7 @@ class CommunityMemberManageViewTest(TestCase):
         """削除確認の表示名はJS文字列としてエスケープされる"""
         self.staff.display_name = "');alert(1);//"
         self.staff.save(update_fields=['display_name'])
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         response = self.client.get(
             reverse('community:member_manage', kwargs={'pk': self.community.pk})
@@ -165,7 +165,7 @@ class RemoveStaffViewTest(TestCase):
 
     def test_owner_can_remove_staff(self):
         """主催者はスタッフを削除できる"""
-        self.client.login(username='オーナー1', password='testpass123')
+        self.client.force_login(self.owner1)
 
         response = self.client.post(
             reverse('community:remove_staff', kwargs={
@@ -181,7 +181,7 @@ class RemoveStaffViewTest(TestCase):
 
     def test_owner_can_remove_other_owner(self):
         """主催者は他の主催者を削除できる"""
-        self.client.login(username='オーナー1', password='testpass123')
+        self.client.force_login(self.owner1)
 
         response = self.client.post(
             reverse('community:remove_staff', kwargs={
@@ -197,7 +197,7 @@ class RemoveStaffViewTest(TestCase):
 
     def test_owner_cannot_remove_self(self):
         """主催者は自分自身を削除できない"""
-        self.client.login(username='オーナー1', password='testpass123')
+        self.client.force_login(self.owner1)
 
         response = self.client.post(
             reverse('community:remove_staff', kwargs={
@@ -217,7 +217,7 @@ class RemoveStaffViewTest(TestCase):
         # owner2を削除
         self.owner2_member.delete()
 
-        self.client.login(username='オーナー1', password='testpass123')
+        self.client.force_login(self.owner1)
 
         # スタッフとして別のユーザーがowner1を削除しようとしてもエラー
         # 実際にはowner1はこの時点で唯一の主催者なので、自分を削除できない
@@ -234,7 +234,7 @@ class RemoveStaffViewTest(TestCase):
         )
 
         # 新オーナーでログイン
-        self.client.login(username='新オーナー', password='testpass123')
+        self.client.force_login(new_owner)
 
         # owner1を削除しようとする（この時点で2人の主催者がいるので可能）
         response = self.client.post(
@@ -266,7 +266,7 @@ class RemoveStaffViewTest(TestCase):
 
     def test_staff_cannot_remove_members(self):
         """スタッフはメンバーを削除できない"""
-        self.client.login(username='スタッフ', password='testpass123')
+        self.client.force_login(self.staff)
 
         response = self.client.post(
             reverse('community:remove_staff', kwargs={
@@ -321,7 +321,7 @@ class SettingsPageCommunityDropdownTest(TestCase):
 
     def test_no_communities_shows_message(self):
         """集会がない場合は「所属している集会はありません」が表示される"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.get(reverse('account:settings'))
         self.assertEqual(response.status_code, 200)
@@ -334,7 +334,7 @@ class SettingsPageCommunityDropdownTest(TestCase):
             user=self.user,
             role=CommunityMember.Role.OWNER
         )
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.get(reverse('account:settings'))
         self.assertEqual(response.status_code, 200)
@@ -353,7 +353,7 @@ class SettingsPageCommunityDropdownTest(TestCase):
             user=self.user,
             role=CommunityMember.Role.STAFF
         )
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         response = self.client.get(reverse('account:settings'))
         self.assertEqual(response.status_code, 200)
@@ -413,7 +413,7 @@ class MemberManageLinkTest(TestCase):
 
     def test_owner_sees_member_manage_link_on_community_settings(self):
         """主催者は集会設定ページでメンバー管理リンクを見ることができる"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
         # セッションにactive_community_idを設定
         session = self.client.session
         session['active_community_id'] = self.community.id
@@ -425,7 +425,7 @@ class MemberManageLinkTest(TestCase):
 
     def test_staff_does_not_see_member_manage_link_on_community_settings(self):
         """スタッフは集会設定ページでメンバー管理リンクを見ることができない"""
-        self.client.login(username='スタッフ', password='testpass123')
+        self.client.force_login(self.staff)
         # セッションにactive_community_idを設定
         session = self.client.session
         session['active_community_id'] = self.community.id
@@ -441,7 +441,7 @@ class MemberManageLinkTest(TestCase):
 
     def test_owner_sees_member_manage_link_on_update(self):
         """主催者は集会編集ページでメンバー管理リンクを見ることができる"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
         # セッションにactive_community_idを設定
         session = self.client.session
         session['active_community_id'] = self.community.id
@@ -453,7 +453,7 @@ class MemberManageLinkTest(TestCase):
 
     def test_staff_does_not_see_member_manage_link_on_update(self):
         """スタッフは集会編集ページでメンバー管理リンクを見ることができない"""
-        self.client.login(username='スタッフ', password='testpass123')
+        self.client.force_login(self.staff)
         # セッションにactive_community_idを設定
         session = self.client.session
         session['active_community_id'] = self.community.id

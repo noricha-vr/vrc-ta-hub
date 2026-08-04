@@ -228,7 +228,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_participation_update_sets_confirmed_fields(self):
         """ManageParticipationUpdateViewが確定日程・progressを正しくセットする"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         # 未確定の参加を作成してテスト
         new_participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
@@ -268,7 +268,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_participation_update_reuses_existing_event(self):
         """確定日程に一致する既存Eventがあれば公開イベントとして再利用する"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         community = Community.objects.create(name='集会C', status='approved', frequency='毎週')
         participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
@@ -453,7 +453,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_participation_update_approves_existing_pending_detail(self):
         """既存のpending EventDetailは確定時にapprovedへ同期される"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         detail = EventDetail.objects.create(
             event=self.event1,
             detail_type='LT',

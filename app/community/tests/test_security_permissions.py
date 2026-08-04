@@ -25,12 +25,12 @@ class WaitingListSuperuserOnlyTests(TestCase):
         )
 
     def test_waiting_list_is_forbidden_for_non_superuser(self):
-        self.client.login(username="normal_user", password="testpass123")
+        self.client.force_login(self.user)
         response = self.client.get(reverse("community:waiting_list"))
         self.assertEqual(response.status_code, 403)
 
     def test_waiting_list_is_allowed_for_superuser(self):
-        self.client.login(username="admin_user", password="adminpass123")
+        self.client.force_login(self.superuser)
         response = self.client.get(reverse("community:waiting_list"))
         self.assertEqual(response.status_code, 200)
 
@@ -56,14 +56,14 @@ class PendingCommunityDetailSuperuserOnlyTests(TestCase):
         )
 
     def test_pending_community_detail_is_hidden_from_non_superuser(self):
-        self.client.login(username="normal_user2", password="testpass123")
+        self.client.force_login(self.user)
         response = self.client.get(
             reverse("community:detail", kwargs={"pk": self.pending_community.pk})
         )
         self.assertEqual(response.status_code, 404)
 
     def test_pending_community_detail_is_visible_to_superuser(self):
-        self.client.login(username="admin_user2", password="adminpass123")
+        self.client.force_login(self.superuser)
         response = self.client.get(
             reverse("community:detail", kwargs={"pk": self.pending_community.pk})
         )

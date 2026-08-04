@@ -23,7 +23,7 @@ from ._vket_test_bases import VketManageViewsBase
 class VketManageViewsTests(VketManageViewsBase):
     def test_manage_participation_update_publishes_confirmed_presentation(self):
         """確定ボタンは発表時刻を保存しEventDetailへ公開同期する"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=Community.objects.create(name='集会C', status='approved', frequency='毎週'),
@@ -70,7 +70,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_participation_update_updates_published_presentation_start_time(self):
         """公開済み発表の開始時刻はVketPresentationとEventDetailに同期される"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         detail = EventDetail.objects.create(
             event=self.event1,
             detail_type='LT',
@@ -118,7 +118,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_participation_update_rejects_foreign_presentation(self):
         """別参加の発表開始時刻は更新できない"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         foreign_detail = EventDetail.objects.create(
             event=self.event2,
             detail_type='LT',
@@ -164,7 +164,7 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_participation_update_repairs_foreign_event_detail(self):
         """同参加の発表に紐づく別イベントのEventDetailは公開イベントへ付け替える"""
-        self.client.login(username='admin_user', password='adminpass123')
+        self.client.force_login(self.superuser)
         foreign_detail = EventDetail.objects.create(
             event=self.event2,
             detail_type='LT',

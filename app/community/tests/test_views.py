@@ -151,7 +151,7 @@ class AcceptViewTest(TestCase):
     def test_accept_community_sends_email(self):
         """集会承認時にメールが送信されることをテスト"""
         # 管理者ユーザーでログイン
-        self.client.login(username='管理者ユーザー', password='testpass123')
+        self.client.force_login(self.admin_user)
 
         # 未承認集会を承認（pkパラメータを指定）
         response = self.client.post(
@@ -181,7 +181,7 @@ class AcceptViewTest(TestCase):
 
     def test_waiting_list_renders_poster_image_src(self):
         """承認待ち一覧でポスター画像のsrc属性を正しく描画する。"""
-        self.client.login(username='管理者ユーザー', password='testpass123')
+        self.client.force_login(self.admin_user)
 
         response = self.client.get(reverse('community:waiting_list'))
 
@@ -572,7 +572,7 @@ class CommunityDetailViewLtApplicationSectionTest(TestCase):
 
     def test_lt_section_shown_when_authenticated_and_approved_and_accepts_lt(self):
         """ログイン済み・承認済み・LT受付ONの場合、LT申請セクションが表示される"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(self.detail_url)
 
         self.assertEqual(response.status_code, 200)
@@ -580,7 +580,7 @@ class CommunityDetailViewLtApplicationSectionTest(TestCase):
 
     def test_login_notice_not_shown_when_authenticated(self):
         """ログイン済みの場合、ログインが必要な旨の補足文は表示されない"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(self.detail_url)
 
         self.assertEqual(response.status_code, 200)
@@ -599,7 +599,7 @@ class CommunityDetailViewLtApplicationSectionTest(TestCase):
         self.community.status = 'pending'
         self.community.save()
 
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
         response = self.client.get(self.detail_url)
 
         self.assertEqual(response.status_code, 404)
@@ -694,7 +694,7 @@ class CommunityUpdateViewPromotionBannerTest(TestCase):
 
     def test_promotion_banner_not_displayed_on_update_page(self):
         """集会編集ページにプロモーションバナーを表示しないこと"""
-        self.client.login(username='テストユーザー', password='testpass123')
+        self.client.force_login(self.user)
 
         # アクティブ集会を設定するためセッションを設定
         session = self.client.session
@@ -735,7 +735,7 @@ class CommunityDetailAdminCleanupButtonTest(TestCase):
         )
 
     def test_superuser_sees_admin_cleanup_button(self):
-        self.client.login(username='管理者メンテ', password='testpass123')
+        self.client.force_login(self.admin)
         response = self.client.get(reverse('community:detail', kwargs={'pk': self.community.pk}))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '管理者メンテナンス（ワンクリック）')
@@ -743,7 +743,7 @@ class CommunityDetailAdminCleanupButtonTest(TestCase):
         self.assertContains(response, '管理者ワンクリック修復を実行')
 
     def test_non_superuser_cannot_see_admin_cleanup_button(self):
-        self.client.login(username='一般ユーザー', password='testpass123')
+        self.client.force_login(self.normal_user)
         response = self.client.get(reverse('community:detail', kwargs={'pk': self.community.pk}))
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, '管理者メンテナンス（ワンクリック）')

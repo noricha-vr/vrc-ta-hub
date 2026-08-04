@@ -57,7 +57,7 @@ class CreateOwnershipTransferViewTest(TestCase):
 
     def test_owner_can_create_transfer_link(self):
         """主催者は引き継ぎリンクを生成できる"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         response = self.client.post(
             reverse('community:create_ownership_transfer', kwargs={'pk': self.community.pk})
@@ -74,7 +74,7 @@ class CreateOwnershipTransferViewTest(TestCase):
 
     def test_staff_cannot_create_transfer_link(self):
         """スタッフは引き継ぎリンクを生成できない"""
-        self.client.login(username='スタッフ', password='testpass123')
+        self.client.force_login(self.staff)
 
         response = self.client.post(
             reverse('community:create_ownership_transfer', kwargs={'pk': self.community.pk})
@@ -90,7 +90,7 @@ class CreateOwnershipTransferViewTest(TestCase):
 
     def test_non_member_cannot_create_transfer_link(self):
         """非メンバーは引き継ぎリンクを生成できない"""
-        self.client.login(username='非メンバー', password='testpass123')
+        self.client.force_login(self.non_member)
 
         response = self.client.post(
             reverse('community:create_ownership_transfer', kwargs={'pk': self.community.pk})
@@ -106,7 +106,7 @@ class CreateOwnershipTransferViewTest(TestCase):
 
     def test_cannot_create_multiple_transfer_links(self):
         """有効な引き継ぎリンクは1つしか作成できない"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         # 1つ目を作成
         self.client.post(
@@ -185,7 +185,7 @@ class AcceptOwnershipTransferViewTest(TestCase):
 
     def test_logged_in_user_can_view_transfer_page(self):
         """ログイン済みユーザーは引き継ぎページを閲覧できる"""
-        self.client.login(username='新規ユーザー', password='testpass123')
+        self.client.force_login(self.new_user)
 
         response = self.client.get(
             reverse('community:accept_ownership_transfer', kwargs={'token': self.invitation.token})
@@ -197,7 +197,7 @@ class AcceptOwnershipTransferViewTest(TestCase):
 
     def test_new_user_can_accept_transfer(self):
         """新規ユーザーは引き継ぎを受けて主催者になれる"""
-        self.client.login(username='新規ユーザー', password='testpass123')
+        self.client.force_login(self.new_user)
 
         response = self.client.post(
             reverse('community:accept_ownership_transfer', kwargs={'token': self.invitation.token})
@@ -232,7 +232,7 @@ class AcceptOwnershipTransferViewTest(TestCase):
 
     def test_existing_staff_can_accept_transfer(self):
         """既存スタッフは引き継ぎを受けて主催者に昇格できる"""
-        self.client.login(username='スタッフ', password='testpass123')
+        self.client.force_login(self.staff)
 
         response = self.client.post(
             reverse('community:accept_ownership_transfer', kwargs={'token': self.invitation.token})
@@ -256,7 +256,7 @@ class AcceptOwnershipTransferViewTest(TestCase):
 
     def test_current_owner_cannot_accept_transfer(self):
         """現在の主催者は自分自身に引き継ぎできない"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         response = self.client.post(
             reverse('community:accept_ownership_transfer', kwargs={'token': self.invitation.token})
@@ -291,7 +291,7 @@ class AcceptOwnershipTransferViewTest(TestCase):
 
     def test_expired_transfer_post_shows_error(self):
         """期限切れの引き継ぎリンクにPOSTするとエラー"""
-        self.client.login(username='新規ユーザー', password='testpass123')
+        self.client.force_login(self.new_user)
 
         self.invitation.expires_at = timezone.now() - timedelta(seconds=1)
         self.invitation.save()
@@ -355,7 +355,7 @@ class RevokeOwnershipTransferViewTest(TestCase):
 
     def test_owner_can_revoke_transfer_link(self):
         """主催者は引き継ぎリンクを削除できる"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
 
         response = self.client.post(
             reverse('community:revoke_ownership_transfer', kwargs={
@@ -371,7 +371,7 @@ class RevokeOwnershipTransferViewTest(TestCase):
 
     def test_staff_cannot_revoke_transfer_link(self):
         """スタッフは引き継ぎリンクを削除できない"""
-        self.client.login(username='スタッフ', password='testpass123')
+        self.client.force_login(self.staff)
 
         response = self.client.post(
             reverse('community:revoke_ownership_transfer', kwargs={
@@ -412,7 +412,7 @@ class CommunitySettingsOwnershipTransferTest(TestCase):
 
     def test_transfer_section_is_displayed_for_owner(self):
         """主催者には引き継ぎセクションが表示される"""
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
         session = self.client.session
         session['active_community_id'] = self.community.pk
         session.save()
@@ -432,7 +432,7 @@ class CommunitySettingsOwnershipTransferTest(TestCase):
             expires_at=timezone.now() + timedelta(days=INVITATION_EXPIRATION_DAYS)
         )
 
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
         session = self.client.session
         session['active_community_id'] = self.community.pk
         session.save()
@@ -452,7 +452,7 @@ class CommunitySettingsOwnershipTransferTest(TestCase):
             expires_at=timezone.now() - timedelta(seconds=1)
         )
 
-        self.client.login(username='オーナー', password='testpass123')
+        self.client.force_login(self.owner)
         session = self.client.session
         session['active_community_id'] = self.community.pk
         session.save()

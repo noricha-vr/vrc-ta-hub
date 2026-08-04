@@ -75,7 +75,7 @@ class StaffApplyViewTests(StaffAccessTestBase):
 
     def test_staff_can_access_apply_get(self):
         """staffロールのユーザーがApplyViewのGETにアクセスできる"""
-        self.client.login(username='staff_user', password='testpass123')
+        self.client.force_login(self.staff_user)
         self._set_active_community()
         response = self.client.get(
             reverse('vket:apply', kwargs={'pk': self.collaboration.pk})
@@ -84,7 +84,7 @@ class StaffApplyViewTests(StaffAccessTestBase):
 
     def test_staff_can_submit_apply_post(self):
         """staffロールのユーザーがApplyViewのPOSTで参加登録できる"""
-        self.client.login(username='staff_user', password='testpass123')
+        self.client.force_login(self.staff_user)
         self._set_active_community()
 
         target_date = self.collaboration.period_start
@@ -114,7 +114,7 @@ class StaffApplyViewTests(StaffAccessTestBase):
 
     def test_non_member_cannot_access_apply(self):
         """メンバーでないユーザーはApplyViewに403が返る"""
-        self.client.login(username='non_member', password='testpass123')
+        self.client.force_login(self.non_member_user)
         # non_member にはアクティブなコミュニティがないため membership=None で弾かれる
         response = self.client.get(
             reverse('vket:apply', kwargs={'pk': self.collaboration.pk})
@@ -134,7 +134,7 @@ class StaffStageRegisterViewTests(StaffAccessTestBase):
             progress=VketParticipation.Progress.APPLIED,
         )
 
-        self.client.login(username='staff_user', password='testpass123')
+        self.client.force_login(self.staff_user)
         self._set_active_community()
         response = self.client.post(
             reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk})
@@ -156,7 +156,7 @@ class StaffStageRegisterViewTests(StaffAccessTestBase):
             progress=VketParticipation.Progress.APPLIED,
         )
 
-        self.client.login(username='non_member', password='testpass123')
+        self.client.force_login(self.non_member_user)
         response = self.client.post(
             reverse('vket:stage_register', kwargs={'pk': self.collaboration.pk})
         )
@@ -180,7 +180,7 @@ class StaffPresentationDeleteViewTests(StaffAccessTestBase):
             duration=5,
         )
 
-        self.client.login(username='staff_user', password='testpass123')
+        self.client.force_login(self.staff_user)
         self._set_active_community()
         response = self.client.post(
             reverse(
@@ -208,7 +208,7 @@ class StaffPresentationDeleteViewTests(StaffAccessTestBase):
             duration=5,
         )
 
-        self.client.login(username='non_member', password='testpass123')
+        self.client.force_login(self.non_member_user)
         response = self.client.post(
             reverse(
                 'vket:presentation_delete',
@@ -228,7 +228,7 @@ class StaffCollaborationDetailViewTests(StaffAccessTestBase):
 
     def test_staff_sees_apply_button(self):
         """staffロールのユーザーにも参加申請ボタンが表示される"""
-        self.client.login(username='staff_user', password='testpass123')
+        self.client.force_login(self.staff_user)
         self._set_active_community()
         response = self.client.get(
             reverse('vket:detail', kwargs={'pk': self.collaboration.pk})
@@ -299,20 +299,20 @@ class VketStaffAccessTests(TestCase):
 
     def test_staff_can_access_manage_page(self):
         """staffユーザーが管理画面にアクセスできる"""
-        self.client.login(username='staff_user', password='staffpass123')
+        self.client.force_login(self.staff_user)
         response = self.client.get(reverse('vket:manage', kwargs={'pk': self.collaboration.pk}))
         self.assertEqual(response.status_code, 200)
 
     def test_staff_can_see_draft_collaboration(self):
         """staffユーザーにDRAFTコラボが表示される"""
-        self.client.login(username='staff_user', password='staffpass123')
+        self.client.force_login(self.staff_user)
         response = self.client.get(reverse('vket:list'))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, self.draft_collaboration.name)
 
     def test_staff_can_access_manage_notice_list(self):
         """staffユーザーが管理用お知らせ一覧にアクセスできる"""
-        self.client.login(username='staff_user', password='staffpass123')
+        self.client.force_login(self.staff_user)
         response = self.client.get(
             reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
         )
@@ -325,7 +325,7 @@ class VketStaffAccessTests(TestCase):
             user=self.staff_user,
             role=CommunityMember.Role.OWNER,
         )
-        self.client.login(username='staff_user', password='staffpass123')
+        self.client.force_login(self.staff_user)
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
