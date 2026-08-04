@@ -14,7 +14,12 @@ from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 from tests.factories import make_event
 from vket.models import VketCollaboration, VketParticipation
-from vket.services import get_vket_lock_info, is_event_locked_by_vket, get_vket_lock_message
+from vket.services import (
+    collab_event_match,
+    get_vket_lock_info,
+    is_event_locked_by_vket,
+    get_vket_lock_message,
+)
 
 User = get_user_model()
 
@@ -186,6 +191,19 @@ class VketScheduleLockServiceTests(TestCase):
             confirmed_duration=self.event_in_period.duration,
         )
         self.assertFalse(is_event_locked_by_vket(other_time_event))
+
+    def test_unsaved_event_never_matches(self):
+        """未保存イベント（pk なし）は本体条件に一致しない"""
+        self._create_participation(published_event=None)
+        unsaved = Event(
+            community=self.community,
+            date=self.event_in_period.date,
+            start_time=self.event_in_period.start_time,
+        )
+
+        matched = VketParticipation.objects.filter(collab_event_match(unsaved)).exists()
+
+        self.assertFalse(matched)
 
     def test_unconfirmed_participation_not_locked(self):
         """スケジュール未確定（confirmed_date なし）の参加ではロックされない"""

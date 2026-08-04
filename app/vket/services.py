@@ -17,17 +17,27 @@ class VketPublicationSyncResult:
     changed_index_data: bool
 
 
-def collab_event_match(event) -> Q:
+def collab_event_match(event, *, date=None) -> Q:
     """イベントがコラボ本体かを判定する VketParticipation 向け条件を返す。
 
     published_event 一致が本来の判定だが、本番では publication sync が未実施で
     published_event が全件未設定のため、それだけではロックが一切効かない。
     フォールバックとして confirmed 日時一致も本体とみなす（この一致規則は
     _resolve_publication_event が既存 Event を本体として拾う規則と同じ）。
+
+    Args:
+        event: Event インスタンス
+        date: 追加で本体とみなす日付。移動先日付を渡すと「期間内へ移動して本体になる」
+            操作もロック対象にできる（イベントの現在日との OR で判定する）。
     """
+    if not event.pk:
+        # pk が None だと published_event_id=None が IS NULL に化けて誤判定するため、
+        # 未保存イベントは常に不一致（空集合）にする。
+        return Q(pk__in=[])
+    candidate_dates = {event.date, date} - {None}
     return Q(published_event_id=event.pk) | Q(
         published_event__isnull=True,
-        confirmed_date=event.date,
+        confirmed_date__in=candidate_dates,
         confirmed_start_time=event.start_time,
     )
 
@@ -49,14 +59,16 @@ def get_vket_lock_info(event, *, date=None) -> tuple[bool, str]:
     Returns:
         (ロック中か, メッセージ) のタプル。ロックされていない場合は (False, "")
     """
+    if not event.pk:
+        return False, ""
     # ロック判定に不要な列まで読むと、列追加直後の古いDBスキーマで 500 になりうるため、
     # メッセージ生成に必要な情報だけを取得する（欠損カラム参照による 500 回避）。
     target_date = date or event.date
-    if not event.pk:
-        return False, ""
     participation = (
         VketParticipation.objects.filter(
-            collab_event_match(event),
+            # 移動先日付が confirmed_date と一致する場合も本体扱いにして、
+            # 期間外の Event を confirmed_date へ動かす操作を素通りさせない。
+            collab_event_match(event, date=target_date),
             community=event.community,
             lifecycle=VketParticipation.Lifecycle.ACTIVE,
             collaboration__period_start__lte=target_date,
