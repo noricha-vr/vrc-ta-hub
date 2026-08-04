@@ -28,7 +28,7 @@ class DebugLoginSkipMiddlewareTests(TestCase):
         response = self.client.get(reverse('account:settings'))
 
         self.assertEqual(response.status_code, 200)
-        user = User.objects.get(user_name='ai_agent')
+        user = User.objects.get(email='ai-agent@example.local')
         self.assertEqual(response.wsgi_request.user, user)
         self.assertTrue(user.is_active)
         self.assertTrue(user.is_staff)
@@ -48,7 +48,7 @@ class DebugLoginSkipMiddlewareTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertIn('/account/login/', response['Location'])
-        self.assertFalse(User.objects.filter(user_name='ai_agent').exists())
+        self.assertFalse(User.objects.filter(email='ai-agent@example.local').exists())
 
     @override_settings(
         DEBUG=True,
@@ -64,13 +64,13 @@ class DebugLoginSkipMiddlewareTests(TestCase):
             email='real-user@example.local',
             password='testpass123',
         )
-        self.client.login(username='real_user', password='testpass123')
+        self.client.login(username='real-user@example.local', password='testpass123')
 
         response = self.client.get(reverse('account:settings'))
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.wsgi_request.user, user)
-        self.assertFalse(User.objects.filter(user_name='ai_agent').exists())
+        self.assertFalse(User.objects.filter(email='ai-agent@example.local').exists())
 
 
 @override_settings(
@@ -116,13 +116,13 @@ class DiscordAuthRequiredMiddlewareTests(TestCase):
 
     def test_user_with_discord_not_redirected(self):
         """Discord連携済みユーザーはリダイレクトされないこと."""
-        self.client.login(username='test_with_discord', password='testpass123')
+        self.client.login(username='with_discord@example.com', password='testpass123')
         response = self.client.get(reverse('account:settings'))
         self.assertEqual(response.status_code, 200)
 
     def test_user_without_discord_redirected_to_discord_required(self):
         """Discord未連携ユーザーは /account/discord-required/ にリダイレクトされること."""
-        self.client.login(username='test_no_discord', password='testpass123')
+        self.client.login(username='no_discord@example.com', password='testpass123')
         response = self.client.get(reverse('account:settings'))
         self.assertRedirects(
             response,
@@ -132,7 +132,7 @@ class DiscordAuthRequiredMiddlewareTests(TestCase):
 
     def test_exempt_path_logout_not_redirected(self):
         """除外パス /account/logout/ はリダイレクトされないこと."""
-        self.client.login(username='test_no_discord', password='testpass123')
+        self.client.login(username='no_discord@example.com', password='testpass123')
         # Django 5.0 で GET ログアウトは削除されたため POST を使う (Issue #387)
         response = self.client.post(reverse('account:logout'))
         # logout後のリダイレクト（discord_requiredではない）
@@ -141,14 +141,14 @@ class DiscordAuthRequiredMiddlewareTests(TestCase):
 
     def test_exempt_path_discord_required_not_redirected(self):
         """除外パス /account/discord-required/ はリダイレクトされないこと（無限ループ防止）."""
-        self.client.login(username='test_no_discord', password='testpass123')
+        self.client.login(username='no_discord@example.com', password='testpass123')
         response = self.client.get(reverse('account:discord_required'))
         # 正常にページが表示される（リダイレクトループしない）
         self.assertEqual(response.status_code, 200)
 
     def test_speaker_invite_token_exchange_is_not_redirected(self):
         """トークン交換はDiscord連携前でもビューまで到達すること."""
-        self.client.login(username='test_no_discord', password='testpass123')
+        self.client.login(username='no_discord@example.com', password='testpass123')
 
         response = self.client.post(reverse('event:speaker_invite_token_exchange'))
 
@@ -157,7 +157,7 @@ class DiscordAuthRequiredMiddlewareTests(TestCase):
 
     def test_speaker_link_confirm_is_not_redirected(self):
         """確認画面もDiscord連携前に到達できること（fragment交換の前提）."""
-        self.client.login(username='test_no_discord', password='testpass123')
+        self.client.login(username='no_discord@example.com', password='testpass123')
 
         response = self.client.get(reverse('event:speaker_link_confirm'))
 
@@ -165,21 +165,21 @@ class DiscordAuthRequiredMiddlewareTests(TestCase):
 
     def test_exempt_path_admin_not_redirected(self):
         """除外パス /admin/ はリダイレクトされないこと."""
-        self.client.login(username='test_no_discord', password='testpass123')
+        self.client.login(username='no_discord@example.com', password='testpass123')
         response = self.client.get('/admin/')
         # adminログインページにリダイレクト or 表示される（discord_requiredではない）
         self.assertNotIn('discord-required', response.url if response.status_code == 302 else '')
 
     def test_exempt_path_static_not_redirected(self):
         """除外パス /static/ はリダイレクトされないこと."""
-        self.client.login(username='test_no_discord', password='testpass123')
+        self.client.login(username='no_discord@example.com', password='testpass123')
         # staticファイルへのアクセス（存在しなくても404が返るがdiscord-requiredにはリダイレクトされない）
         response = self.client.get('/static/test.css')
         self.assertNotEqual(response.status_code, 302)
 
     def test_discord_required_page_renders_correctly(self):
         """Discord連携必須ページが正しくレンダリングされること."""
-        self.client.login(username='test_no_discord', password='testpass123')
+        self.client.login(username='no_discord@example.com', password='testpass123')
         response = self.client.get(reverse('account:discord_required'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'account/discord_required.html')

@@ -216,7 +216,7 @@ class SocialSignupDuplicateEmailNextTests(TestCase):
 
         get_response = self.client.get(login_url, {'next': external_url})
         post_response = self.client.post(login_url, {
-            'login': 'external_next_login_user',
+            'login': 'external-next-login@example.com',
             'password': 'testpass123',
             'next': external_url,
         })

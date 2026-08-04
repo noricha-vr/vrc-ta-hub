@@ -181,11 +181,13 @@ class CustomUserCreationForm(UserCreationForm):
 
 
 class BootstrapAuthenticationForm(AuthenticationForm):
-    """カスタムユーザーモデルのuser_nameフィールドに対応した認証フォーム."""
+    """メールアドレスで認証するフォーム。"""
 
-    username = forms.CharField(
-        label='ユーザー名',
-        widget=forms.TextInput(attrs={'class': 'form-control', 'autofocus': True}),
+    username = forms.EmailField(
+        label='メールアドレス',
+        widget=forms.EmailInput(
+            attrs={'class': 'form-control', 'autofocus': True, 'autocomplete': 'email'},
+        ),
     )
     remember = forms.BooleanField(
         label='ログインしたままにする',
@@ -201,12 +203,11 @@ class BootstrapAuthenticationForm(AuthenticationForm):
                 field.widget.attrs.update({'class': 'form-control'})
 
     def clean(self):
-        username = self.cleaned_data.get('username')
+        email = self.cleaned_data.get('username')
         password = self.cleaned_data.get('password')
 
-        if username is not None and password:
-            # user_nameフィールドでユーザーを検索して認証
-            self.user_cache = self.authenticate_user(username, password)
+        if email is not None and password:
+            self.user_cache = self.authenticate_user(email, password)
             if self.user_cache is None:
                 raise self.get_invalid_login_error()
             else:
@@ -214,13 +215,12 @@ class BootstrapAuthenticationForm(AuthenticationForm):
 
         return self.cleaned_data
 
-    def authenticate_user(self, username, password):
-        """user_nameフィールドを使用してユーザーを認証."""
+    def authenticate_user(self, email, password):
+        """メールアドレスを使用してユーザーを認証する。"""
         from django.contrib.auth import authenticate
 
-        # Djangoの認証バックエンドはUSERNAME_FIELDを使用するため、
-        # usernameパラメータとして渡す（内部でuser_nameとして処理される）
-        return authenticate(self.request, username=username, password=password)
+        # Django標準フォームとの互換性のため、入力名は username のままにする。
+        return authenticate(self.request, username=email, password=password)
 
 
 class BootstrapPasswordChangeForm(PasswordChangeForm):
@@ -247,12 +247,12 @@ class LocalSignupForm(UserCreationForm):
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
         }
         help_texts = {
-            'user_name': 'ログインに使用する一意のユーザー名です。',
+            'user_name': '表示用の一意なユーザー名です。',
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['user_name'].label = 'ログインユーザー名'
+        self.fields['user_name'].label = '表示用ユーザー名'
         self.fields['password1'].label = 'パスワード'
         self.fields['password2'].label = 'パスワード（確認）'
         for field in self.fields.values():
@@ -309,11 +309,11 @@ class CustomUserChangeForm(forms.ModelForm):
         }
         labels = {
             'display_name': '表示名',
-            'user_name': 'ログインユーザー名',
+            'user_name': '表示用ユーザー名',
         }
         help_texts = {
             'display_name': 'VRChat内の名前や発表者名として表示されます。同じ表示名を複数ユーザーが使用できます。',
-            'user_name': 'ログインと内部識別に使用する一意のユーザー名です。通常は変更不要です。',
+            'user_name': '表示用と内部識別に使用する一意のユーザー名です。通常は変更不要です。',
         }
 
     def clean_x_account(self):
@@ -353,11 +353,11 @@ class CustomSocialSignupForm(SocialSignupForm):
     USER_NAME_MAX_LENGTH = 150
 
     user_name = forms.CharField(
-        label='ログインユーザー名',
+        label='表示用ユーザー名',
         max_length=USER_NAME_MAX_LENGTH,
         required=True,
         widget=forms.TextInput(attrs={'class': 'form-control'}),
-        help_text='ログインに使用する一意のユーザー名です。',
+        help_text='表示用の一意なユーザー名です。',
     )
 
     def __init__(self, *args, **kwargs):
@@ -376,7 +376,7 @@ class CustomSocialSignupForm(SocialSignupForm):
                 self.fields['user_name'].widget.attrs['placeholder'] = discord_username
 
         # フィールド順序を設定
-        self.order_fields(['user_name', 'email'])
+        self.order_fields(['email', 'user_name'])
 
     def clean_email(self):
         """メールアドレスの重複チェック.

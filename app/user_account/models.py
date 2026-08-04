@@ -10,7 +10,9 @@ import string
 
 
 class CustomUserManager(BaseUserManager):
-    def create_user(self, user_name, email=None, password=None, **extra_fields):
+    def create_user(self, email, user_name=None, password=None, **extra_fields):
+        if not email:
+            raise ValueError('メールアドレスは必須項目です。')
         if not user_name:
             raise ValueError('ユーザー名は必須項目です。')
         email = self.normalize_email(email)
@@ -20,7 +22,7 @@ class CustomUserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, user_name, email=None, password=None, **extra_fields):
+    def create_superuser(self, email, user_name=None, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
 
@@ -29,7 +31,7 @@ class CustomUserManager(BaseUserManager):
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('スーパーユーザーはsuperuserである必要があります。')
 
-        return self.create_user(user_name, email, password, **extra_fields)
+        return self.create_user(email, user_name, password, **extra_fields)
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
@@ -118,8 +120,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     objects = CustomUserManager()
 
     EMAIL_FIELD = 'email'
-    USERNAME_FIELD = 'user_name'
-    REQUIRED_FIELDS = ['email']
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['user_name']
 
     class Meta:
         verbose_name = 'ユーザー'
@@ -131,7 +133,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     @property
     def display_label(self):
-        """人間向けの表示名を返す。未設定ならログインユーザー名を使う。"""
+        """人間向けの表示名を返す。未設定ならユーザー名を使う。"""
         return self.display_name or self.user_name
 
     def clean(self):

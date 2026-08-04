@@ -10,14 +10,13 @@ from .base import DEBUG
 AUTH_USER_MODEL = 'user_account.CustomUser'
 
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
+    'user_account.backends.EmailBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
 # django-allauth 設定
-ACCOUNT_EMAIL_REQUIRED = False
-ACCOUNT_USERNAME_REQUIRED = False
-ACCOUNT_AUTHENTICATION_METHOD = 'username'
+ACCOUNT_LOGIN_METHODS = {'email'}
+ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'none'
 ACCOUNT_USER_MODEL_USERNAME_FIELD = 'user_name'
 ACCOUNT_SESSION_REMEMBER = None  # ユーザーに選択させる
