@@ -96,7 +96,8 @@
                     </span>
                     {% endif %}
                     <div class="text-muted small mt-1">
-                        <i class="bi bi-person-plus me-1" aria-hidden="true"></i>登録日 {{ member.user.date_joined|date:"Y/m/d" }}
+                        {# 同日登録の同名ユーザーも区別できるよう時刻（分）まで表示する #}
+                        <i class="bi bi-person-plus me-1" aria-hidden="true"></i>登録日 {{ member.user.date_joined|date:"Y/m/d H:i" }}
                         <span class="ms-2"><i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>メンバー追加 {{ member.created_at|date:"Y/m/d" }}</span>
                     </div>
                 </div>
