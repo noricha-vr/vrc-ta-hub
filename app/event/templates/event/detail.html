@@ -150,16 +150,20 @@
             <div class="col-lg-12">
                 {% include 'ta_hub/messages.html' %}
                 <h1 class="mb-3">{{ event_detail.title }}</h1>
-                {# Youtube動画を埋め込み#}
-                {% if video_id %}
-                    <div class="mb-3">
-                        <div class="ratio ratio-16x9">
-                            <iframe src="https://www.youtube.com/embed/{{ video_id }}{% if start_time %}?start={{ start_time }}{% endif %}"
-                                    title="{{ event_detail.theme }} - {{ event_detail.speaker }}"
-                                    allowfullscreen
-                                    referrerpolicy="strict-origin-when-cross-origin"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
-                        </div>
+                {% if event_detail.thumbnail_image %}
+                    <div class="mb-4">
+                        {# ファーストビューの主要画像（LCP 候補）のため lazy にせず優先読み込みする #}
+                        <img src="{{ event_detail.thumbnail_image.url|cf_resize:'1200' }}"
+                             class="event-detail-thumbnail img-fluid rounded shadow-sm"
+                             alt="{{ event_detail.title }}のサムネイル"
+                             fetchpriority="high">
+                    </div>
+                {% endif %}
+
+                {# アクセス解析（管理者向けメニュー扱いのためサムネイル直下・管理ボタン群の上に配置。集会管理者 / superuser のみ表示） #}
+                {% if can_view_analytics %}
+                    <div class="analytics-card">
+                        {% include 'analytics/_chart_section.html' %}
                     </div>
                 {% endif %}
 
@@ -298,22 +302,20 @@
                     {% endif %}
                 {% endif %}
 
-                {# アクセス解析（管理者向けメニュー扱いのためサムネイル上に配置。集会管理者 / superuser のみ表示） #}
-                {% if can_view_analytics %}
-                    <div class="analytics-card">
-                        {% include 'analytics/_chart_section.html' %}
+                {# Youtube動画を埋め込み#}
+                {% if video_id %}
+                    <div class="mb-3">
+                        <div class="ratio ratio-16x9">
+                            <iframe src="https://www.youtube.com/embed/{{ video_id }}{% if start_time %}?start={{ start_time }}{% endif %}"
+                                    title="{{ event_detail.theme }} - {{ event_detail.speaker }}"
+                                    allowfullscreen
+                                    referrerpolicy="strict-origin-when-cross-origin"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+                        </div>
                     </div>
                 {% endif %}
 
                 {# detail_typeによって詳細情報の表示を切り替え #}
-                {% if event_detail.thumbnail_image %}
-                    <div class="mb-4">
-                        <img src="{{ event_detail.thumbnail_image.url|cf_resize:'1200' }}"
-                             class="event-detail-thumbnail img-fluid rounded shadow-sm"
-                             alt="{{ event_detail.title }}のサムネイル"
-                             loading="lazy">
-                    </div>
-                {% endif %}
                 {% if event_detail.detail_type == 'LT' %}
                     {% include 'event/detail_info_lt.html' %}
                 {% elif event_detail.detail_type == 'SPECIAL' %}
