@@ -87,19 +87,17 @@
                     </span>
                     {# 同名ユーザーの誤操作防止: メールアドレスは出さず、Discord連携の有無と登録日で区別する #}
                     {% if member.has_discord_link %}
-                    <span class="badge bg-light text-dark border ms-2" title="Discord連携あり">
+                    <span class="badge bg-light text-dark border ms-2">
                         <i class="bi bi-discord me-1" aria-hidden="true"></i>Discord連携あり
                     </span>
                     {% else %}
-                    <span class="badge bg-light text-muted border ms-2" title="Discord連携なし">
+                    <span class="badge bg-light text-muted border ms-2">
                         <i class="bi bi-slash-circle me-1" aria-hidden="true"></i>Discord連携なし
                     </span>
                     {% endif %}
-                    <div class="text-muted mt-1">
-                        <small>
-                            <i class="bi bi-person-plus me-1" aria-hidden="true"></i>登録日 {{ member.user.date_joined|date:"Y/m/d" }}
-                            <span class="ms-2"><i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>メンバー追加 {{ member.created_at|date:"Y/m/d" }}</span>
-                        </small>
+                    <div class="text-muted small mt-1">
+                        <i class="bi bi-person-plus me-1" aria-hidden="true"></i>登録日 {{ member.user.date_joined|date:"Y/m/d" }}
+                        <span class="ms-2"><i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>メンバー追加 {{ member.created_at|date:"Y/m/d" }}</span>
                     </div>
                 </div>
                 {% if not member.is_owner or members|length > 1 %}
