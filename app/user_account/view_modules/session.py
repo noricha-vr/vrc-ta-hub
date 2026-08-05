@@ -1,5 +1,7 @@
 """ログイン・ログアウト・登録に関する view 群."""
 
+import logging
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView, RedirectURLMixin
@@ -13,6 +15,7 @@ from allauth.account import app_settings
 from allauth.account.utils import complete_signup, perform_login, setup_user_email
 from django.db import transaction
 
+from user_account.adapters import ConfirmationEmailDeliveryError
 from user_account.discord_oauth import is_discord_oauth_available
 from user_account.forms import (
     BootstrapAuthenticationForm,
@@ -20,6 +23,8 @@ from user_account.forms import (
     LocalSignupForm,
 )
 from user_account.login_redirect import get_default_login_redirect_url
+
+logger = logging.getLogger(__name__)
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
@@ -41,19 +46,11 @@ class CustomLoginView(LoginView):
             form.get_user(),
             email_verification=app_settings.EmailVerificationMethod.MANDATORY,
             redirect_url=self.get_redirect_url() or get_default_login_redirect_url(form.get_user()),
-            email=form.cleaned_data['username'],
+            email=form.cleaned_data['username'].lower(),
         )
-        if self.request.user.is_authenticated:
-            messages.info(self.request, 'ログインしました。')
         if self.request.user.is_authenticated and not remember:
             self.request.session.set_expiry(0)
         return response
-
-    def get_success_url(self):
-        redirect_url = self.get_redirect_url()
-        if redirect_url:
-            return redirect_url
-        return get_default_login_redirect_url(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -99,12 +96,25 @@ class RegisterView(RedirectURLMixin, FormView):
         # Send only after the user and its unverified primary address commit.
         # A mail delivery failure deliberately leaves this state for login resend.
         redirect_url = self.get_redirect_url() or get_default_login_redirect_url(user)
-        return complete_signup(
-            self.request,
-            user,
-            app_settings.EmailVerificationMethod.MANDATORY,
-            redirect_url,
-        )
+        try:
+            return complete_signup(
+                self.request,
+                user,
+                app_settings.EmailVerificationMethod.MANDATORY,
+                redirect_url,
+            )
+        except ConfirmationEmailDeliveryError as exc:
+            logger.error(
+                'Failed to send signup confirmation: user_id=%s exception_type=%s',
+                user.pk,
+                type(exc).__name__,
+                exc_info=True,
+            )
+            messages.warning(
+                self.request,
+                '登録は完了しました。確認メールの送信に失敗したため、ログイン画面から再送してください。',
+            )
+            return redirect('account:login')
 
 
 class CustomPasswordChangeView(LoginRequiredMixin, PasswordChangeView):

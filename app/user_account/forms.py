@@ -4,9 +4,11 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.core.validators import FileExtensionValidator
+from django.http import HttpRequest
 
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 from allauth.account.models import EmailAddress
+from allauth.core import ratelimit
 
 from community.constants import WEEKDAY_CHOICES
 from community.models import Community
@@ -17,6 +19,16 @@ from .vrchat import normalize_vrchat_user_id
 
 X_HANDLE_RE = re.compile(r'^[A-Za-z0-9_]{1,15}\Z')
 X_URL_PREFIX_RE = re.compile(r'^https?://(?:www\.)?(?:x|twitter)\.com/', re.IGNORECASE)
+EMAIL_CHANGE_RATE_LIMIT_ACTION = 'manage_email'
+
+
+def consume_email_change_rate_limit(request: HttpRequest, user: CustomUser) -> bool:
+    """メールアドレス変更用の allauth レート制限を消費する。"""
+    return ratelimit.consume(
+        request,
+        action=EMAIL_CHANGE_RATE_LIMIT_ACTION,
+        user=user,
+    )
 
 
 def normalize_x_account(value: str) -> str:
@@ -353,6 +365,23 @@ class CustomUserChangeForm(forms.ModelForm):
 
     def clean_vrchat_user_id(self):
         return normalize_vrchat_user_id(self.cleaned_data.get('vrchat_user_id', ''))
+
+
+class UserNameChangeForm(forms.ModelForm):
+    """ユーザー名だけを変更するフォーム。"""
+
+    class Meta:
+        model = CustomUser
+        fields = ('user_name',)
+        widgets = {
+            'user_name': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+        labels = {
+            'user_name': '表示用ユーザー名',
+        }
+        help_texts = {
+            'user_name': '表示用と内部識別に使用するユーザー名です。',
+        }
 
 
 class SocialAccountDisconnectForm(forms.Form):

@@ -15,6 +15,10 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+class ConfirmationEmailDeliveryError(Exception):
+    """確認メール生成・送信中の失敗を表す。"""
+
+
 class CustomAccountAdapter(DefaultAccountAdapter):
     """ログイン後の既定リダイレクト先を集会所属状況で切り替える。"""
 
@@ -36,6 +40,13 @@ class CustomAccountAdapter(DefaultAccountAdapter):
     def get_signup_redirect_url(self, request):
         """新規登録後の既定リダイレクト先を返す。"""
         return get_default_login_redirect_url(request.user)
+
+    def send_confirmation_mail(self, request, emailconfirmation, signup):
+        """確認メール処理の失敗を登録フローから識別できる形にする。"""
+        try:
+            return super().send_confirmation_mail(request, emailconfirmation, signup)
+        except Exception as exc:
+            raise ConfirmationEmailDeliveryError from exc
 
 
 class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):

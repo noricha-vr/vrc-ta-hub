@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 
 from allauth.account.models import EmailAddress
 
+from user_account.forms import consume_email_change_rate_limit
 from user_account.models import CustomUser, APIKey
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,8 @@ class VerifiedAdminAuthenticationForm(AdminAuthenticationForm):
 
 
 class CustomUserChangeForm(UserChangeForm):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, request=None, **kwargs):
+        self.request = request
         super().__init__(*args, **kwargs)
         self.original_email = self.instance.email
 
@@ -38,6 +40,14 @@ class CustomUserChangeForm(UserChangeForm):
         email = self.cleaned_data['email'].lower()
         if EmailAddress.objects.filter(email__iexact=email).exclude(user=self.instance).exists():
             raise ValidationError('このメールアドレスは既に登録されています。')
+        if (
+            self.instance.pk
+            and email != self.original_email
+            and not consume_email_change_rate_limit(self.request, self.instance)
+        ):
+            raise ValidationError(
+                'メールアドレスの変更回数が上限に達しました。時間をおいて再度お試しください。'
+            )
         return email
 
     def save(self, commit=True):
@@ -71,6 +81,18 @@ class CustomUserAdmin(UserAdmin):
     form = CustomUserChangeForm
     add_form = CustomUserCreationForm
 
+    def get_form(self, request, obj=None, **kwargs):
+        form_class = super().get_form(request, obj, **kwargs)
+        if obj is None:
+            return form_class
+
+        class RequestAwareUserChangeForm(form_class):
+            def __init__(self, *args, **form_kwargs):
+                form_kwargs['request'] = request
+                super().__init__(*args, **form_kwargs)
+
+        return RequestAwareUserChangeForm
+
     def save_model(self, request, obj, form, change):
         requested_email = form.cleaned_data['email'].lower()
         super().save_model(request, obj, form, change)
@@ -84,6 +106,7 @@ class CustomUserAdmin(UserAdmin):
                         'user_id=%s exception_type=%s',
                         obj.pk,
                         type(exc).__name__,
+                        exc_info=True,
                     )
                     self.message_user(
                         request,

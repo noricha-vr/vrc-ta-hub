@@ -12,13 +12,17 @@ from allauth.account.models import EmailAddress
 
 from analytics import services as analytics_services
 from community.models import CommunityMember
-from user_account.forms import CustomUserChangeForm
+from user_account.forms import (
+    CustomUserChangeForm,
+    UserNameChangeForm,
+    consume_email_change_rate_limit,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class UserNameChangeView(LoginRequiredMixin, UpdateView):
-    form_class = CustomUserChangeForm
+    form_class = UserNameChangeForm
     success_url = reverse_lazy('account:settings')
     template_name = 'account/user_name_change.html'
 
@@ -41,6 +45,15 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         new_email = form.cleaned_data['email']
         old_email = form.original_email
+        if new_email != old_email and not consume_email_change_rate_limit(
+            self.request,
+            self.request.user,
+        ):
+            form.add_error(
+                'email',
+                'メールアドレスの変更回数が上限に達しました。時間をおいて再度お試しください。',
+            )
+            return self.form_invalid(form)
         response = super().form_valid(form)
         if new_email != old_email:
             try:
@@ -54,6 +67,7 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
                     'user_id=%s exception_type=%s',
                     self.request.user.pk,
                     type(exc).__name__,
+                    exc_info=True,
                 )
                 messages.warning(
                     self.request,
