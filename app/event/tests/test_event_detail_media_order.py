@@ -9,8 +9,8 @@ from django.core.files.base import ContentFile
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from community.models import Community
-from event.models import Event, EventDetail
+from event.models import EventDetail
+from tests.factories import make_community, make_event, make_event_detail
 
 # 1x1 の最小 PNG。ImageField のバリデーションを通すためだけに使う
 MINIMAL_PNG = bytes.fromhex(
@@ -25,27 +25,24 @@ class EventDetailMediaOrderTests(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.community = Community.objects.create(
-            name='順序検証集会', status='approved', frequency='毎週', organizers='主催',
+        cls.community = make_community(
+            name='順序検証集会', frequency='毎週', organizers='主催',
         )
-        cls.event = Event.objects.create(
-            community=cls.community,
-            date=date(2026, 2, 10),
+        cls.event = make_event(
+            cls.community,
+            event_date=date(2026, 2, 10),
             start_time=time(22, 0),
-            duration=60,
             weekday='Tue',
         )
 
     def _create_detail(self, *, with_video: bool, with_thumbnail: bool) -> EventDetail:
-        detail = EventDetail.objects.create(
-            event=self.event,
-            detail_type='LT',
-            start_time=time(22, 0),
-            duration=30,
+        detail = make_event_detail(
+            self.event,
+            status='approved',
             speaker='Speaker',
             theme=f'video={with_video} thumb={with_thumbnail}',
+            start_time=time(22, 0),
             contents='contents',
-            status='approved',
             youtube_url='https://www.youtube.com/watch?v=dQw4w9WgXcQ' if with_video else '',
         )
         if with_thumbnail:
