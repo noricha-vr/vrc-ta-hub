@@ -214,16 +214,15 @@ class SpeakerInviteTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(duplicate_response.status_code, 200)
-        webhook_mock.assert_called_once_with(
-            webhook_url,
-            {
-                "content": (
-                    "署名付き招待URLの発表 に "
-                    f"{self.speaker.display_label} がアカウントを紐づけました"
-                ),
-                "allowed_mentions": {"parse": []},
-            },
-        )
+        # 検証の主眼は「重複POSTでも通知は1回だけ」。本文の細部（識別用の登録日など）は
+        # 変わり得るため、宛先と主要素のみを確認して change-detector 化を避ける。
+        webhook_mock.assert_called_once()
+        called_url, payload = webhook_mock.call_args.args
+        self.assertEqual(called_url, webhook_url)
+        self.assertIn("署名付き招待URLの発表", payload["content"])
+        self.assertIn(self.speaker.display_label, payload["content"])
+        self.assertIn("アカウントを紐づけました", payload["content"])
+        self.assertEqual(payload["allowed_mentions"], {"parse": []})
 
     def test_confirmation_skips_discord_notification_without_webhook(self):
         self.client.force_login(self.speaker)

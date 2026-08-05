@@ -85,7 +85,21 @@
                     <span class="badge {% if member.is_owner %}bg-primary{% else %}bg-secondary{% endif %} ms-2">
                         {{ member.get_role_display }}
                     </span>
-                    <small class="text-muted ms-2">{{ member.created_at|date:"Y/m/d" }} 追加</small>
+                    {# 同名ユーザーの誤操作防止: メールアドレスは出さず、Discord連携の有無と登録日で区別する #}
+                    {% if member.has_discord_link %}
+                    <span class="badge bg-light text-dark border ms-2">
+                        <i class="bi bi-discord me-1" aria-hidden="true"></i>Discord連携あり
+                    </span>
+                    {% else %}
+                    <span class="badge bg-light text-muted border ms-2">
+                        <i class="bi bi-slash-circle me-1" aria-hidden="true"></i>Discord連携なし
+                    </span>
+                    {% endif %}
+                    <div class="text-muted small mt-1">
+                        {# 同日登録の同名ユーザーも区別できるよう時刻（分）まで表示する #}
+                        <i class="bi bi-person-plus me-1" aria-hidden="true"></i>登録日 {{ member.user.date_joined|date:"Y/m/d H:i" }}
+                        <span class="ms-2"><i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>メンバー追加 {{ member.created_at|date:"Y/m/d" }}</span>
+                    </div>
                 </div>
                 {% if not member.is_owner or members|length > 1 %}
                 {% if member.user != request.user or not member.is_owner %}

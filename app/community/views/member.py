@@ -1,8 +1,10 @@
 """メンバー管理系ビュー: 集会切り替え、メンバー管理、招待."""
 import logging
 
+from allauth.socialaccount.models import SocialAccount
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Exists, OuterRef
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -91,7 +93,14 @@ class CommunityMemberManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin,
         context = super().get_context_data(**kwargs)
         community = get_object_or_404(Community, pk=self.kwargs['pk'])
         context['community'] = community
-        context['members'] = community.members.select_related('user').order_by('role', 'created_at')
+        # user_name の unique 制約解除により同名メンバーが並び得るため、
+        # email を出さずに識別できる副次情報（Discord 連携の有無・登録日）を併記する。
+        # Exists() で 1 クエリに畳み込み、メンバー数ぶんの SocialAccount 参照（N+1）を避ける。
+        context['members'] = community.members.select_related('user').annotate(
+            has_discord_link=Exists(
+                SocialAccount.objects.filter(user=OuterRef('user_id'), provider='discord')
+            )
+        ).order_by('role', 'created_at')
         # 有効な招待リンク一覧を取得
         context['invitations'] = community.invitations.filter(
             expires_at__gt=timezone.now()
