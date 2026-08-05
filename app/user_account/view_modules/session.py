@@ -41,6 +41,8 @@ class CustomLoginView(LoginView):
     def form_valid(self, form):
         """allauth の確認ステージを通じてログインする."""
         remember = form.cleaned_data.get('remember')
+        session_expiry = app_settings.SESSION_COOKIE_AGE if remember else 0
+        self.request.session.set_expiry(session_expiry)
         response = perform_login(
             self.request,
             form.get_user(),
@@ -48,8 +50,6 @@ class CustomLoginView(LoginView):
             redirect_url=self.get_redirect_url() or get_default_login_redirect_url(form.get_user()),
             email=form.cleaned_data['username'].lower(),
         )
-        if self.request.user.is_authenticated and not remember:
-            self.request.session.set_expiry(0)
         return response
 
     def get_context_data(self, **kwargs):

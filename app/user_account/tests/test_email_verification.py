@@ -247,6 +247,33 @@ class EmailVerificationViewTests(TestCase):
         self.assertRedirects(response, '/accounts/confirm-email/', fetch_redirect_response=False)
         self.assertNotIn('_auth_user_id', self.client.session)
 
+    def test_unverified_login_without_remember_expires_when_browser_closes(self):
+        """Preserve remember-off after email confirmation resumes the login."""
+        user = make_user(
+            user_name='pending_session_user',
+            email='pending-session@example.com',
+            password='testpass123',
+        )
+        address = EmailAddress.objects.get(user=user)
+        address.verified = False
+        address.save(update_fields=['verified'])
+
+        response = self.client.post(reverse('account:login'), {
+            'username': user.email,
+            'password': 'testpass123',
+        })
+
+        self.assertRedirects(response, '/accounts/confirm-email/', fetch_redirect_response=False)
+        confirmation_url = reverse(
+            'account_confirm_email',
+            args=[EmailConfirmationHMAC(address).key],
+        )
+        self.client.get(confirmation_url)
+        self.client.post(confirmation_url)
+
+        self.assertIn('_auth_user_id', self.client.session)
+        self.assertTrue(self.client.session.get_expire_at_browser_close())
+
     def test_login_syncs_missing_email_address_as_unverified(self):
         """Send verification instead of locking a programmatically created user out."""
         user = make_user_without_email_address(
