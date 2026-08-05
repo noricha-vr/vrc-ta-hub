@@ -43,11 +43,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     user_name = models.CharField(
         'ユーザー名',
         max_length=150,
-        unique=True,
-        help_text='必須。150文字以下。文字、数字、@/./+/-/_のみ使用可能です。',
-        error_messages={
-            'unique': "そのユーザー名はすでに使用されています。",
-        },
+        help_text='必須。150文字以下。文字、数字、@/./+/-/_のみ使用可能です。'
+                  '同じユーザー名を複数ユーザーが使用できます。',
     )
     display_name = models.CharField(
         '表示名',

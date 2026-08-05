@@ -178,7 +178,8 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         """新規ユーザー作成時のフィールド設定.
 
         Discordから取得した情報でユーザーを作成する。
-        ユーザー名が既存ユーザーと衝突する場合はユニーク化する。
+        user_name は一意制約を持たないため、既存ユーザーと同名でもそのまま採用する
+        （suffix 付与は表示名をノイズにするだけで、識別は email / id が担う）。
 
         Args:
             request: HTTPリクエスト
@@ -193,21 +194,7 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         discord_id = sociallogin.account.uid
         discord_username = data.get('username', '')
 
-        # ベースとなるユーザー名を決定
-        base_name = discord_username or f"discord_{discord_id}"
-        user_name = base_name
-
-        # ユーザー名の衝突を確認し、衝突時はユニーク化
-        counter = 1
-        while User.objects.filter(user_name=user_name).exists():
-            if counter == 1:
-                # 最初の衝突時はdiscord_idの先頭8文字を付加
-                discord_id_suffix = discord_id[:8]
-                user_name = f"{base_name}_{discord_id_suffix}"
-            else:
-                # それ以降はカウンターを付加
-                user_name = f"{base_name}_{counter}"
-            counter += 1
+        user_name = discord_username or f"discord_{discord_id}"
 
         user.user_name = user_name
         user.display_name = discord_username or user_name

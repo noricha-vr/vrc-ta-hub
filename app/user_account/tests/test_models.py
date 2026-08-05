@@ -69,3 +69,26 @@ class CustomUserAuthenticationIdentifierTests(TestCase):
         )
 
         self.assertIsNone(authenticate(username='not_an_email_login', password='testpass123'))
+
+
+class CustomUserNameUniquenessTests(TestCase):
+    """user_name が一意制約を持たないことを検証する。"""
+
+    def test_create_user_allows_duplicate_user_name(self):
+        """同じ user_name の複数ユーザーを作成できることを確認する。"""
+        first = User.objects.create_user(
+            email='duplicate-one@example.com',
+            user_name='same_name',
+            password='testpass123',
+        )
+        second = User.objects.create_user(
+            email='duplicate-two@example.com',
+            user_name='same_name',
+            password='testpass123',
+        )
+
+        self.assertNotEqual(first.pk, second.pk)
+        self.assertEqual(
+            User.objects.filter(user_name='same_name').count(),
+            2,
+        )

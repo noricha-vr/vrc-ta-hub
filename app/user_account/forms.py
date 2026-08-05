@@ -136,7 +136,6 @@ class CustomUserCreationForm(UserCreationForm):
         error_messages = {
             'user_name': {
                 'required': 'ユーザー名は必須項目です。',
-                'unique': 'このユーザー名は既に使用されています。',
             },
             'email': {
                 'required': 'メールアドレスは必須項目です。',
@@ -247,7 +246,7 @@ class LocalSignupForm(UserCreationForm):
             'user_name': forms.TextInput(attrs={'class': 'form-control'}),
         }
         help_texts = {
-            'user_name': '表示用の一意なユーザー名です。',
+            'user_name': '表示用のユーザー名です。',
         }
 
     def __init__(self, *args, **kwargs):
@@ -315,7 +314,7 @@ class CustomUserChangeForm(forms.ModelForm):
         }
         help_texts = {
             'display_name': 'VRChat内の名前や発表者名として表示されます。同じ表示名を複数ユーザーが使用できます。',
-            'user_name': '表示用と内部識別に使用する一意のユーザー名です。通常は変更不要です。',
+            'user_name': '表示用と内部識別に使用するユーザー名です。通常は変更不要です。',
         }
 
     def clean_x_account(self):
@@ -368,7 +367,7 @@ class CustomSocialSignupForm(SocialSignupForm):
         max_length=USER_NAME_MAX_LENGTH,
         required=True,
         widget=forms.TextInput(attrs={'class': 'form-control'}),
-        help_text='表示用の一意なユーザー名です。',
+        help_text='表示用のユーザー名です。',
     )
 
     def __init__(self, *args, **kwargs):
@@ -404,11 +403,3 @@ class CustomSocialSignupForm(SocialSignupForm):
                 )
         return email
 
-    def clean_user_name(self):
-        """ユーザー名の重複チェック."""
-        user_name = self.cleaned_data.get('user_name')
-        if user_name and CustomUser.objects.filter(user_name=user_name).exists():
-            raise forms.ValidationError(
-                'このユーザー名は既に使用されています。別のユーザー名を入力してください。'
-            )
-        return user_name

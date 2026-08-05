@@ -248,8 +248,8 @@ class CustomSocialSignupFormTests(TestCase):
         self.assertIn('email', form.errors)
         self.assertIn('このメールアドレスは既に登録されています', form.errors['email'][0])
 
-    def test_user_name_duplicate_validation(self):
-        """既存ユーザー名でエラーが発生すること."""
+    def test_user_name_duplicate_is_allowed(self):
+        """既存ユーザーと同じ user_name でもバリデーションが通ること."""
         User.objects.create_user(
             user_name='existing_user',
             email='existing@example.com',
@@ -259,9 +259,8 @@ class CustomSocialSignupFormTests(TestCase):
             sociallogin=self.mock_sociallogin,
             data={'email': 'new@example.com', 'user_name': 'existing_user'}
         )
-        self.assertFalse(form.is_valid())
-        self.assertIn('user_name', form.errors)
-        self.assertIn('このユーザー名は既に使用されています', form.errors['user_name'][0])
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertNotIn('user_name', form.errors)
 
 
 class CustomUserChangeFormTests(TestCase):
@@ -294,11 +293,11 @@ class CustomUserChangeFormTests(TestCase):
         )
 
     def test_user_name_help_text_explains_display_identifier(self):
-        """user_nameの説明が表示用の一意な識別子であることを伝えること."""
+        """user_nameの説明が表示用・内部識別用であることを伝えること."""
         form = CustomUserChangeForm(instance=self.test_user)
         self.assertEqual(
             form.fields['user_name'].help_text,
-            '表示用と内部識別に使用する一意のユーザー名です。通常は変更不要です。',
+            '表示用と内部識別に使用するユーザー名です。通常は変更不要です。',
         )
 
     def test_form_has_bootstrap_class(self):
