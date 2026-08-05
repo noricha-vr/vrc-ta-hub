@@ -4,6 +4,7 @@
 
 ## レポート一覧
 
+- [Issue #600 発表履歴「もっと見る」ボタン配置調査](issue-600-presentation-history-more-button.md) — 対象ボタンだけを中央揃えにし、既存の発表履歴一覧リンクを維持する方針
 - [Issue #566 協力団体の公開審査基準](issue-566-community-criteria.md) — 掲載区分、必須条件、評価軸、公開導線の採用方針
 - [Issue #570 終了済み Vket バナー調査](issue-570-expired-vket-banner.md) — 開催終了翌日から募集バナーを非表示にする条件と回帰テスト方針
 - [Issue #542 Google→DB 同期デッドコード削除](issue-542-google-to-db-sync-removal.md) — DB→Google の正規経路を維持し、旧方向の未使用実装・参照・テストを削除した判断記録
