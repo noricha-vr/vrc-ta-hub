@@ -123,6 +123,21 @@ gcloud run jobs execute vrc-ta-hub-migrate \
 - CI/CD パイプラインに組み込みやすいが、ジョブ実行ログから rollback の成否を確認する必要がある
 - 緊急時は方式 A の方が手数が少なく早い
 
+### user_account 0015 の適用前監査
+
+`user_account.0015_backfill_verified_email_addresses` は既存ユーザーを確認済みにする前に、
+空メール・別ユーザー所有の `EmailAddress`・同一ユーザーの重複行がないことを確認する。
+新しいイメージで次の読み取り専用コマンドを実行し、`audit passed` を確認してから migration を適用する。
+出力は件数のみで、メールアドレスやユーザー ID はログに残さない。
+
+```bash
+python manage.py audit_email_verification_backfill
+python manage.py migrate user_account 0015 --plan
+python manage.py migrate user_account 0015
+```
+
+監査または migration が停止した場合は、所有者を推測して修正せず、対象データの確認後に再実行する。
+
 ## 危険な migration の見分け方
 
 PR レビュー時点で**「rollback コストが高い」**と判断するためのチェックリスト。

@@ -37,6 +37,7 @@ VRC技術学術ハブの開発、運用、調査メモ、利用ガイドをま�
 - [提案書](proposals/index.md)
 - [Giga Week 2025 Winter 下書き](giga-week-2025-winter/index.md)
 - [Vket 2026 Summer 動画アーカイブ下書き](giga-week-2026-summer/index.md)
+- [Vket 2026 Summer - Vket技術学術WEEK 動画アーカイブ](giga-week-2026-summer/draft-article.md)
 
 ## 分析・調査メモ
 
@@ -95,4 +96,6 @@ VRC技術学術ハブの開発、運用、調査メモ、利用ガイドをま�
 - [Issue #500 Campaign UTM validator migration](research/issue-500-analytics-campaign-migration.md)
 - [Issue #529 offline runner と Docker network-none の遮断結果](research/issue-529-offline-network-none.md)
 - [Issue #542 Google→DB 同期デッドコード削除](research/issue-542-google-to-db-sync-removal.md)
+- [Issue #566 協力団体の公開審査基準](research/issue-566-community-criteria.md)
+- [Issue #570 終了済み Vket バナー調査](research/issue-570-expired-vket-banner.md)
 - [Sentry エラートラッキング](sentry.md)
