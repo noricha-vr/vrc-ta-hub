@@ -6,9 +6,10 @@ from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.core.validators import FileExtensionValidator
 from django.http import HttpRequest
 
-from allauth.socialaccount.forms import SignupForm as SocialSignupForm
+from allauth.account.adapter import get_adapter
 from allauth.account.models import EmailAddress
 from allauth.core import ratelimit
+from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 
 from community.constants import WEEKDAY_CHOICES
 from community.models import Community
@@ -229,10 +230,13 @@ class BootstrapAuthenticationForm(AuthenticationForm):
 
     def authenticate_user(self, email, password):
         """メールアドレスを使用してユーザーを認証する。"""
-        from django.contrib.auth import authenticate
-
-        # Django標準フォームとの互換性のため、入力名は username のままにする。
-        return authenticate(self.request, username=email, password=password)
+        # adapter 経由にすることで、allauth のログイン失敗制限と
+        # 成功時のカウンタ rollback を同じ認証チェーンで適用する。
+        return get_adapter().authenticate(
+            self.request,
+            email=email,
+            password=password,
+        )
 
 
 class BootstrapPasswordChangeForm(PasswordChangeForm):

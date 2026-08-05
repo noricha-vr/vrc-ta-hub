@@ -25,6 +25,11 @@ ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_CHANGE_EMAIL = True
+# 同一 email は5回/5分、同一IPは10回/分で制限する。allauth の既定値を
+# 明示して、ライブラリ更新でブルートフォース対策の強度が変わらないようにする。
+ACCOUNT_RATE_LIMITS = {
+    'login_failed': '10/m/ip,5/300s/key',
+}
 # Confirmation links only resume the signup login in the browser that started
 # registration. This preserves a validated ``next`` without turning a leaked,
 # reusable confirmation link into a session-independent login link.
