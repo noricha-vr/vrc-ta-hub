@@ -1,9 +1,12 @@
 """認証ビューのテスト."""
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.contrib.messages import get_messages
 from django.conf import settings
 from django.test import Client, TestCase, override_settings, tag
 from django.urls import reverse
+
+from allauth.account.models import EmailAddress
 
 from community.models import Community, CommunityMember
 from tests.factories import make_community
@@ -556,8 +559,9 @@ class RegisterViewTests(TestCase):
         self.assertContains(response, 'name="password2"')
 
     @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
-    def test_register_page_creates_local_user_without_discord_oauth(self):
-        """Discord OAuth 未設定時はローカルユーザーを作成できること."""
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_register_page_creates_unverified_local_user_without_discord_oauth(self):
+        """ローカル登録は未検証 primary address と確認メールを作成すること."""
         response = self.client.post(self.register_url, {
             'user_name': 'local_signup_user',
             'email': 'local-signup@example.com',
@@ -565,9 +569,12 @@ class RegisterViewTests(TestCase):
             'password2': 'testpass12345',
         }, follow=True)
 
-        self.assertRedirects(response, reverse('account:login'))
-        self.assertTrue(User.objects.filter(user_name='local_signup_user').exists())
-        self.assertContains(response, 'アカウントを作成しました。ログインしてください。')
+        self.assertRedirects(response, '/accounts/confirm-email/', fetch_redirect_response=False)
+        user = User.objects.get(user_name='local_signup_user')
+        self.assertTrue(EmailAddress.objects.filter(
+            user=user, email=user.email, verified=False, primary=True,
+        ).exists())
+        self.assertEqual(len(mail.outbox), 1)
 
 
 @tag('offline_external_api')

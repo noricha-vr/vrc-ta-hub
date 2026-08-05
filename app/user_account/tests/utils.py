@@ -2,6 +2,7 @@
 from django.contrib.auth import get_user_model
 
 from allauth.socialaccount.models import SocialAccount
+from allauth.account.models import EmailAddress
 
 User = get_user_model()
 
@@ -46,6 +47,12 @@ def create_discord_linked_user(user_name, email, password, discord_uid=None, **e
         email=email,
         password=password,
         **extra_fields,
+    )
+    EmailAddress.objects.create(
+        user=user,
+        email=user.email,
+        verified=True,
+        primary=True,
     )
     SocialAccount.objects.create(
         user=user,

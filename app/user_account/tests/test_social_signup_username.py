@@ -85,7 +85,7 @@ class DiscordAutoSignupUserNameTests(TestCase):
         self.assertEqual(created.user_name, 'PROBE_NAME')
 
     def test_unique_discord_username_is_saved_as_is(self):
-        """重複がない場合も従来どおり Discord ユーザー名が保存されること."""
+        """検証済みDiscordメールは mandatory でも確認済みとして保存されること."""
         created = self._auto_signup(
             discord_username='solo_name',
             email='flow-solo@example.com',
@@ -93,3 +93,9 @@ class DiscordAutoSignupUserNameTests(TestCase):
         )
 
         self.assertEqual(created.user_name, 'solo_name')
+        self.assertTrue(EmailAddress.objects.filter(
+            user=created,
+            email='flow-solo@example.com',
+            verified=True,
+            primary=True,
+        ).exists())
