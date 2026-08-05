@@ -51,3 +51,14 @@ class NginxConfigTest(SimpleTestCase):
             'proxy_set_header X-Forwarded-Proto $scheme;',
             self.nginx_config,
         )
+
+    def test_nginx_preserves_cloud_run_forwarded_for_chain(self):
+        """Cloud Runが付与した2ホップを増減させずDjangoへ渡す."""
+        self.assertIn(
+            'proxy_set_header X-Forwarded-For $http_x_forwarded_for;',
+            self.nginx_config,
+        )
+        self.assertNotIn(
+            'proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;',
+            self.nginx_config,
+        )

@@ -6,9 +6,10 @@ from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.core.validators import FileExtensionValidator
 from django.http import HttpRequest
 
-from allauth.socialaccount.forms import SignupForm as SocialSignupForm
+from allauth.account.adapter import get_adapter
 from allauth.account.models import EmailAddress
 from allauth.core import ratelimit
+from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 
 from community.constants import WEEKDAY_CHOICES
 from community.models import Community
@@ -192,7 +193,31 @@ class CustomUserCreationForm(UserCreationForm):
         return user
 
 
-class BootstrapAuthenticationForm(AuthenticationForm):
+class AllauthAuthenticationFormMixin:
+    """Django認証フォームをallauthの失敗制限付き認証へ接続する。"""
+
+    def clean(self):
+        email = self.cleaned_data.get('username')
+        password = self.cleaned_data.get('password')
+
+        if email is not None and password:
+            self.user_cache = self.authenticate_user(email, password)
+            if self.user_cache is None:
+                raise self.get_invalid_login_error()
+            self.confirm_login_allowed(self.user_cache)
+
+        return self.cleaned_data
+
+    def authenticate_user(self, email, password):
+        """allauth adapter経由でemailとpasswordを認証する。"""
+        return get_adapter().authenticate(
+            self.request,
+            email=email,
+            password=password,
+        )
+
+
+class BootstrapAuthenticationForm(AllauthAuthenticationFormMixin, AuthenticationForm):
     """メールアドレスで認証するフォーム。"""
 
     username = forms.EmailField(
@@ -213,26 +238,6 @@ class BootstrapAuthenticationForm(AuthenticationForm):
         for name, field in self.fields.items():
             if name != 'remember':
                 field.widget.attrs.update({'class': 'form-control'})
-
-    def clean(self):
-        email = self.cleaned_data.get('username')
-        password = self.cleaned_data.get('password')
-
-        if email is not None and password:
-            self.user_cache = self.authenticate_user(email, password)
-            if self.user_cache is None:
-                raise self.get_invalid_login_error()
-            else:
-                self.confirm_login_allowed(self.user_cache)
-
-        return self.cleaned_data
-
-    def authenticate_user(self, email, password):
-        """メールアドレスを使用してユーザーを認証する。"""
-        from django.contrib.auth import authenticate
-
-        # Django標準フォームとの互換性のため、入力名は username のままにする。
-        return authenticate(self.request, username=email, password=password)
 
 
 class BootstrapPasswordChangeForm(PasswordChangeForm):

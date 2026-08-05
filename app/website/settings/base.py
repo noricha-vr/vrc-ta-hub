@@ -79,6 +79,9 @@ INSTALLED_APPS = [
 SITE_ID = 1
 
 REST_FRAMEWORK = {
+    # Cloud RunがXFF末尾へ付与するclient/proxyの2要素だけを信頼する。
+    # 左側にユーザーが追加した値をanon throttleの識別子へ使わせない。
+    'NUM_PROXIES': 2,
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle'

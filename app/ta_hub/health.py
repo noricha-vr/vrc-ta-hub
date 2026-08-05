@@ -8,7 +8,7 @@ zombie プロセスへの誤ルーティングを防ぐため、DB と cache の
 - cache 失敗は status を ng にしない（cache 未設定でも生存判定したい）
 """
 
-from django.core.cache import cache
+from django.core.cache import caches
 from django.db import connection
 from django.http import JsonResponse
 
@@ -16,6 +16,11 @@ from django.http import JsonResponse
 _HEALTH_CACHE_KEY = "_health_probe"
 _HEALTH_CACHE_VALUE = "1"
 _HEALTH_CACHE_TTL_SEC = 5
+
+
+def _get_health_cache():
+    """現在のsettingsからhealth probe専用cacheを取得する。"""
+    return caches['healthcheck']
 
 
 def health_check(request):
@@ -35,8 +40,9 @@ def health_check(request):
         checks["status"] = "ng"
 
     try:
-        cache.set(_HEALTH_CACHE_KEY, _HEALTH_CACHE_VALUE, _HEALTH_CACHE_TTL_SEC)
-        if cache.get(_HEALTH_CACHE_KEY) != _HEALTH_CACHE_VALUE:
+        health_cache = _get_health_cache()
+        health_cache.set(_HEALTH_CACHE_KEY, _HEALTH_CACHE_VALUE, _HEALTH_CACHE_TTL_SEC)
+        if health_cache.get(_HEALTH_CACHE_KEY) != _HEALTH_CACHE_VALUE:
             raise RuntimeError("cache roundtrip failed")
         checks["cache"] = "ok"
     except Exception:

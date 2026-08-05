@@ -40,6 +40,10 @@ ALLOWED_HOSTS = _build_allowed_hosts()
 # ローカルでは .env.local で HTTP_X_FORWARDED_PROTO=http を設定して is_secure()=False を保証する。
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+# Cloud Run が XFF 末尾へ追加する client / Google frontend の2要素を信頼する。
+# nginx はこのチェーンを追加せず透過し、左側の偽装値をIP制限キーに使わせない。
+ALLAUTH_TRUSTED_PROXY_COUNT = 2
+
 # 本番環境のセキュリティ強化
 if not DEBUG:
     SESSION_COOKIE_SECURE = True

@@ -8,13 +8,19 @@ from django.core.exceptions import ValidationError
 
 from allauth.account.models import EmailAddress
 
-from user_account.forms import consume_email_change_rate_limit
+from user_account.forms import (
+    AllauthAuthenticationFormMixin,
+    consume_email_change_rate_limit,
+)
 from user_account.models import CustomUser, APIKey
 
 logger = logging.getLogger(__name__)
 
 
-class VerifiedAdminAuthenticationForm(AdminAuthenticationForm):
+class VerifiedAdminAuthenticationForm(
+    AllauthAuthenticationFormMixin,
+    AdminAuthenticationForm,
+):
     """Require a verified primary identity before creating an admin session."""
 
     def confirm_login_allowed(self, user):

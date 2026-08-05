@@ -18,6 +18,53 @@ Google Cloud側のBuild Trigger設定で限定する。GitHub Actionsの`safe-to
 GitHub Actionsの隔離PRゲートは[テスト方針](testing.md#github-actions-の隔離pr承認ゲート)を参照。
 必要なTrigger filterを確認できない環境では、自動deployを有効化しない。
 
+## DatabaseCache migrationの先行適用
+
+Cloud BuildはDjango migrationを自動実行しない。Cloud Runではログイン失敗回数と
+DRF throttleを複数インスタンス間で共有するため、default cacheが
+`login_rate_limit_cache` テーブルを使う。新revisionにトラフィックを入れる前に
+`user_account.0016_login_rate_limit_cache` を必ず適用する。
+
+```bash
+gcloud run jobs execute vrc-ta-hub-migrate \
+  --region=asia-northeast1 \
+  --args="migrate,user_account,0016"
+```
+
+実行ログで成功を確認し、`showmigrations user_account`で `0016` が適用済みに
+なってからdeploy・トラフィック切り替えへ進む。新revisionが動作中にこの
+migrationを戻すとログインとAPI throttleがDBエラーになるため、rollback時は
+先に旧revisionへトラフィックを戻す。
+
+Cloud Run以外はLocMemCache（`REDIS_URL` 設定時は既存Redis）を使う。Cloud Runでは
+DRF throttleもDatabaseCacheに乗るため、複数インスタンス間の精度が上がる一方、
+Cloud SQLのread/writeとレイテンシを監視する。`cache.clear()` を行う管理コマンドは
+ログイン失敗回数とDRF throttleも一括解除するため、必要時のみ実行する。
+
+DatabaseCacheはランダムemailによるキー大量生成で既定300件から有効な制限キーが
+押し出されないよう、`MAX_ENTRIES=100000`、`CULL_FREQUENCY=4`とする。パスワード
+リセット完了時はallauthが対象emailの失敗カウンタを解除し、正規ユーザーの回復手段になる。
+
+### 期限切れcache行の定期削除
+
+`expires`にはindexがある。Cloud SQLの不要行とcull負荷を抑えるため、次の処理を
+1時間ごとを目安に、トラフィックの少ない時間帯で実行する。削除件数だけを出力し、
+cache keyやemailはログへ出さない。Cloud Run Job化は別タスクとする。
+
+```bash
+python manage.py shell <<'PY'
+from django.db import connection
+from django.utils import timezone
+
+table = connection.ops.quote_name('login_rate_limit_cache')
+with connection.cursor() as cursor:
+    cursor.execute(f'DELETE FROM {table} WHERE expires < %s', [timezone.now()])
+    print(f'deleted={cursor.rowcount}')
+PY
+```
+
+全レート制限を解除する`cache.clear()`は定期清掃には使わない。
+
 ## ヘルスチェック {#health}
 
 Cloud Run の readiness / liveness probe 用に `/health` エンドポイントを提供する。
@@ -34,7 +81,8 @@ Cloud Run の readiness / liveness probe 用に `/health` エンドポイント�
 
 - **DB の疎通失敗は致命的**: 503 を返してロードバランサから外す。zombie プロセスへの誤ルーティングを防ぐ。
 - **cache 失敗は無視**: cache が未設定でも生存判定したいので、`cache=ng` でも `status=ok` を維持する。
-- **軽量実装**: クエリは `connection.ensure_connection()` のみ、cache は短い TTL の往復確認のみ。
+- **軽量実装**: DBは`connection.ensure_connection()`で確認し、cacheは専用LocMem aliasを往復する。
+  probeごとにDatabaseCacheへINSERTしないため、Cloud SQLへの追加書き込みは発生しない。
 
 ### 動作確認
 
