@@ -15,6 +15,7 @@ from event.notifications import (
     notify_owners_of_new_application,
     notify_applicant_of_result,
     notify_slide_material_published,
+    notify_speaker_account_linked,
     _send_discord_notification_for_new_application,
     _send_discord_notification_for_result,
 )
@@ -373,3 +374,40 @@ class DiscordWebhookSafeLoggingTest(TestCase):
                 self.assertNotIn("secret-token", logs)
                 self.assertNotIn("request failed", logs)
                 self.assertNotIn("Traceback", logs)
+
+
+class SpeakerAccountLinkedNotificationTest(TestCase):
+    """notify_speaker_account_linked の同名ユーザー識別と email 非露出"""
+
+    def setUp(self):
+        self.owner = _make_user("owner-link", "owner-link@example.com")
+        self.community = _make_community(owner=self.owner, webhook_url=WEBHOOK_URL)
+        self.event = _make_event(self.community)
+        self.event_detail = _make_event_detail(self.event)
+        self.speaker = _make_user("かぶり太郎", "linked-speaker@example.com")
+        self.speaker.date_joined = self.speaker.date_joined.replace(
+            year=2024, month=3, day=9
+        )
+        self.speaker.save(update_fields=["date_joined"])
+
+    @patch("event.notifications.post_discord_webhook")
+    def test_content_includes_registration_date_for_disambiguation(self, mock_post):
+        """同名ユーザーを区別できるよう登録日が本文に含まれる"""
+        mock_post.return_value = MagicMock(ok=True, status_code=200)
+
+        notify_speaker_account_linked(self.event_detail, self.speaker)
+
+        payload = mock_post.call_args.args[1]
+        self.assertIn(self.speaker.display_label, payload["content"])
+        self.assertIn("2024/03/09", payload["content"])
+
+    @patch("event.notifications.post_discord_webhook")
+    def test_content_does_not_expose_email(self, mock_post):
+        """通知本文にメールアドレスを含めない"""
+        mock_post.return_value = MagicMock(ok=True, status_code=200)
+
+        notify_speaker_account_linked(self.event_detail, self.speaker)
+
+        payload = mock_post.call_args.args[1]
+        self.assertNotIn(self.speaker.email, payload["content"])
+        self.assertNotIn(self.speaker.email.split("@")[0], payload["content"])

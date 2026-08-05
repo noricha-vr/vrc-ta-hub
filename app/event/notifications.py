@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils.timezone import localtime
 
 from event.models import EventDetail
 from website.constants import build_site_url
@@ -351,9 +352,12 @@ def notify_speaker_account_linked(event_detail: EventDetail, user) -> None:
     if not webhook_url:
         return
 
+    # user_name の unique 制約解除で同名ユーザーが存在し得るため、登録日を添えて誤認を防ぐ。
+    # email は「公開しない」とサインアップ時に約束しているため通知にも載せない。
+    joined_on = localtime(user.date_joined).strftime("%Y/%m/%d")
     payload = {
         "content": (
-            f"{event_detail.theme} に {user.display_label} が"
+            f"{event_detail.theme} に {user.display_label}（登録日 {joined_on}）が"
             "アカウントを紐づけました"
         ),
         "allowed_mentions": {"parse": []},
