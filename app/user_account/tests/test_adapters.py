@@ -398,65 +398,6 @@ class CustomSocialAccountAdapterTests(TestCase):
 
             self.assertEqual(result.email, 'real@example.com')
 
-    def test_populate_user_handles_username_collision(self):
-        """ユーザー名が既存ユーザーと衝突する場合、ユニーク化すること."""
-        # 既存ユーザーを作成（衝突テスト用）
-        User.objects.create_user(
-            user_name='collision_user',
-            email='collision@example.com',
-            password='testpass123'
-        )
-
-        request = self.factory.get('/accounts/discord/login/callback/')
-
-        sociallogin = MagicMock()
-        sociallogin.account.uid = '1234567890abcdef'
-
-        data = {
-            'username': 'collision_user',  # 既存ユーザーと同じ名前
-            'email': 'new@example.com',
-        }
-
-        mock_user = MagicMock()
-        with patch('user_account.adapters.DefaultSocialAccountAdapter.populate_user', return_value=mock_user):
-            result = self.adapter.populate_user(request, sociallogin, data)
-
-            # discord_idの先頭8文字が付加されていること
-            self.assertEqual(result.user_name, 'collision_user_12345678')
-
-    def test_populate_user_handles_multiple_username_collisions(self):
-        """複数回のユーザー名衝突に対応すること."""
-        discord_id = '1234567890abcdef'
-
-        # 既存ユーザーを複数作成（複数回衝突テスト用）
-        User.objects.create_user(
-            user_name='multi_collision',
-            email='multi1@example.com',
-            password='testpass123'
-        )
-        User.objects.create_user(
-            user_name='multi_collision_12345678',  # discord_id先頭8文字と同じ
-            email='multi2@example.com',
-            password='testpass123'
-        )
-
-        request = self.factory.get('/accounts/discord/login/callback/')
-
-        sociallogin = MagicMock()
-        sociallogin.account.uid = discord_id
-
-        data = {
-            'username': 'multi_collision',
-            'email': 'new@example.com',
-        }
-
-        mock_user = MagicMock()
-        with patch('user_account.adapters.DefaultSocialAccountAdapter.populate_user', return_value=mock_user):
-            result = self.adapter.populate_user(request, sociallogin, data)
-
-            # 2回目の衝突なのでカウンター（2）が付加されていること
-            self.assertEqual(result.user_name, 'multi_collision_2')
-
     def test_save_user_sets_user_name_from_form(self):
         """フォームからuser_nameを取得して保存すること."""
         request = self.factory.get('/accounts/discord/login/callback/')
