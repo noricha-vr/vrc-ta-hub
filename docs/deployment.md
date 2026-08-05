@@ -18,6 +18,29 @@ Google Cloud側のBuild Trigger設定で限定する。GitHub Actionsの`safe-to
 GitHub Actionsの隔離PRゲートは[テスト方針](testing.md#github-actions-の隔離pr承認ゲート)を参照。
 必要なTrigger filterを確認できない環境では、自動deployを有効化しない。
 
+## DatabaseCache migrationの先行適用
+
+Cloud BuildはDjango migrationを自動実行しない。Cloud Runではログイン失敗回数と
+DRF throttleを複数インスタンス間で共有するため、default cacheが
+`login_rate_limit_cache` テーブルを使う。新revisionにトラフィックを入れる前に
+`user_account.0016_login_rate_limit_cache` を必ず適用する。
+
+```bash
+gcloud run jobs execute vrc-ta-hub-migrate \
+  --region=asia-northeast1 \
+  --args="migrate,user_account,0016"
+```
+
+実行ログで成功を確認し、`showmigrations user_account`で `0016` が適用済みに
+なってからdeploy・トラフィック切り替えへ進む。新revisionが動作中にこの
+migrationを戻すとログインとAPI throttleがDBエラーになるため、rollback時は
+先に旧revisionへトラフィックを戻す。
+
+Cloud Run以外はLocMemCache（`REDIS_URL` 設定時は既存Redis）を使う。Cloud Runでは
+DRF throttleもDatabaseCacheに乗るため、複数インスタンス間の精度が上がる一方、
+Cloud SQLのread/writeとレイテンシを監視する。`cache.clear()` を行う管理コマンドは
+ログイン失敗回数とDRF throttleも一括解除するため、必要時のみ実行する。
+
 ## ヘルスチェック {#health}
 
 Cloud Run の readiness / liveness probe 用に `/health` エンドポイントを提供する。
