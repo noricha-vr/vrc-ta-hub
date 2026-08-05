@@ -41,6 +41,30 @@ DRF throttleもDatabaseCacheに乗るため、複数インスタンス間の精�
 Cloud SQLのread/writeとレイテンシを監視する。`cache.clear()` を行う管理コマンドは
 ログイン失敗回数とDRF throttleも一括解除するため、必要時のみ実行する。
 
+DatabaseCacheはランダムemailによるキー大量生成で既定300件から有効な制限キーが
+押し出されないよう、`MAX_ENTRIES=100000`、`CULL_FREQUENCY=4`とする。パスワード
+リセット完了時はallauthが対象emailの失敗カウンタを解除し、正規ユーザーの回復手段になる。
+
+### 期限切れcache行の定期削除
+
+`expires`にはindexがある。Cloud SQLの不要行とcull負荷を抑えるため、次の処理を
+1時間ごとを目安に、トラフィックの少ない時間帯で実行する。削除件数だけを出力し、
+cache keyやemailはログへ出さない。Cloud Run Job化は別タスクとする。
+
+```bash
+python manage.py shell <<'PY'
+from django.db import connection
+from django.utils import timezone
+
+table = connection.ops.quote_name('login_rate_limit_cache')
+with connection.cursor() as cursor:
+    cursor.execute(f'DELETE FROM {table} WHERE expires < %s', [timezone.now()])
+    print(f'deleted={cursor.rowcount}')
+PY
+```
+
+全レート制限を解除する`cache.clear()`は定期清掃には使わない。
+
 ## ヘルスチェック {#health}
 
 Cloud Run の readiness / liveness probe 用に `/health` エンドポイントを提供する。
@@ -57,7 +81,8 @@ Cloud Run の readiness / liveness probe 用に `/health` エンドポイント�
 
 - **DB の疎通失敗は致命的**: 503 を返してロードバランサから外す。zombie プロセスへの誤ルーティングを防ぐ。
 - **cache 失敗は無視**: cache が未設定でも生存判定したいので、`cache=ng` でも `status=ok` を維持する。
-- **軽量実装**: クエリは `connection.ensure_connection()` のみ、cache は短い TTL の往復確認のみ。
+- **軽量実装**: DBは`connection.ensure_connection()`で確認し、cacheは専用LocMem aliasを往復する。
+  probeごとにDatabaseCacheへINSERTしないため、Cloud SQLへの追加書き込みは発生しない。
 
 ### 動作確認
 

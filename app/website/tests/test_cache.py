@@ -8,6 +8,7 @@ caching.py で定義した CACHES 設定が以下を満たすことを検証す�
 4. TIMEOUT で値が expire する
 """
 
+import json
 import os
 import subprocess
 import sys
@@ -16,11 +17,15 @@ import time
 from django.conf import settings
 from django.core.cache import cache, caches
 from django.core.cache.backends.db import DatabaseCache
+from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
 from django.test import SimpleTestCase, TestCase, override_settings
 
+from website.settings.caching import validate_cloud_run_cache_backend
 
-SETTINGS_BACKEND_PROBE = """
+
+SETTINGS_CACHE_PROBE = """
+import json
 import os
 import sys
 
@@ -29,21 +34,21 @@ if os.environ.pop('FORCE_MANAGE_TEST', '') == '1':
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'website.settings')
 from django.conf import settings
-print(settings.CACHES['default']['BACKEND'])
+print(json.dumps(settings.CACHES))
 """
 
 
 class CacheBackendSelectionTest(SimpleTestCase):
     """環境ごとのsettingsロードでdefault cacheを選択する."""
 
-    def _probe_backend(self, **environment: str) -> str:
+    def _probe_caches(self, **environment: str) -> dict:
         probe_environment = os.environ.copy()
         for name in ('K_SERVICE', 'REDIS_URL', 'TESTING', 'FORCE_MANAGE_TEST'):
             probe_environment.pop(name, None)
         probe_environment.update(environment)
 
         completed = subprocess.run(
-            [sys.executable, '-c', SETTINGS_BACKEND_PROBE],
+            [sys.executable, '-c', SETTINGS_CACHE_PROBE],
             cwd=settings.BASE_DIR,
             env=probe_environment,
             capture_output=True,
@@ -51,32 +56,73 @@ class CacheBackendSelectionTest(SimpleTestCase):
             check=True,
             timeout=20,
         )
-        return completed.stdout.strip().splitlines()[-1]
+        return json.loads(completed.stdout.strip().splitlines()[-1])
 
     def test_cloud_run_uses_database_cache(self) -> None:
-        backend = self._probe_backend(K_SERVICE='vrc-ta-hub')
+        caches_config = self._probe_caches(K_SERVICE='vrc-ta-hub')
+        default = caches_config['default']
 
-        self.assertEqual(backend, 'django.core.cache.backends.db.DatabaseCache')
+        self.assertEqual(
+            default['BACKEND'],
+            'django.core.cache.backends.db.DatabaseCache',
+        )
+        self.assertEqual(default['OPTIONS']['MAX_ENTRIES'], 100_000)
+        self.assertEqual(default['OPTIONS']['CULL_FREQUENCY'], 4)
+        self.assertEqual(
+            caches_config['healthcheck']['BACKEND'],
+            'django.core.cache.backends.locmem.LocMemCache',
+        )
+
+    def test_cloud_run_rejects_non_database_default_cache(self) -> None:
+        invalid_caches = {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            }
+        }
+
+        with self.assertRaises(ImproperlyConfigured):
+            validate_cloud_run_cache_backend(
+                invalid_caches,
+                is_cloud_run=True,
+                is_test_run=False,
+            )
 
     def test_testing_environment_overrides_cloud_run(self) -> None:
-        backend = self._probe_backend(K_SERVICE='vrc-ta-hub', TESTING='true')
+        caches_config = self._probe_caches(K_SERVICE='vrc-ta-hub', TESTING='true')
 
-        self.assertEqual(backend, 'django.core.cache.backends.locmem.LocMemCache')
+        self.assertEqual(
+            caches_config['default']['BACKEND'],
+            'django.core.cache.backends.locmem.LocMemCache',
+        )
 
     def test_manage_test_argv_overrides_cloud_run(self) -> None:
-        backend = self._probe_backend(K_SERVICE='vrc-ta-hub', FORCE_MANAGE_TEST='1')
+        caches_config = self._probe_caches(
+            K_SERVICE='vrc-ta-hub',
+            FORCE_MANAGE_TEST='1',
+        )
 
-        self.assertEqual(backend, 'django.core.cache.backends.locmem.LocMemCache')
+        self.assertEqual(
+            caches_config['default']['BACKEND'],
+            'django.core.cache.backends.locmem.LocMemCache',
+        )
 
     def test_local_without_redis_uses_locmem(self) -> None:
-        backend = self._probe_backend()
+        caches_config = self._probe_caches()
 
-        self.assertEqual(backend, 'django.core.cache.backends.locmem.LocMemCache')
+        self.assertEqual(
+            caches_config['default']['BACKEND'],
+            'django.core.cache.backends.locmem.LocMemCache',
+        )
 
     def test_local_with_existing_redis_uses_redis_cache(self) -> None:
-        backend = self._probe_backend(REDIS_URL='redis://cache.example.invalid:6379/1')
+        caches_config = self._probe_caches(
+            REDIS_URL='redis://cache.example.invalid:6379/1',
+        )
 
-        self.assertEqual(backend, 'django.core.cache.backends.redis.RedisCache')
+        self.assertEqual(
+            caches_config['default']['BACKEND'],
+            'django.core.cache.backends.redis.RedisCache',
+        )
 
 
 class CacheRoundTripTest(TestCase):

@@ -27,12 +27,44 @@ TIMEOUT は短期キャッシュ前提 (5 分)。長期に保持したい用途�
 import sys
 from os import environ
 
+from django.core.exceptions import ImproperlyConfigured
+
 from .base import TESTING
 
 # デフォルト TTL (秒)。短期キャッシュ前提
 DEFAULT_CACHE_TIMEOUT = 300
 # 同一 Redis を別プロジェクトと共有してもキー衝突を防ぐためのプレフィックス
 CACHE_KEY_PREFIX = 'vrc-ta-hub'
+DATABASE_CACHE_BACKEND = 'django.core.cache.backends.db.DatabaseCache'
+# 既定の300件では、ランダムemailを使った攻撃で有効なレート制限キーまで
+# 頻繁にcullされる。100,000件を上限にし、cull時の削除量も1/4へ抑える。
+DATABASE_CACHE_OPTIONS = {
+    'MAX_ENTRIES': 100_000,
+    'CULL_FREQUENCY': 4,
+}
+HEALTHCHECK_CACHE = {
+    'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    'LOCATION': 'vrc-ta-hub-healthcheck',
+    'TIMEOUT': DEFAULT_CACHE_TIMEOUT,
+    'KEY_PREFIX': CACHE_KEY_PREFIX,
+}
+
+
+def validate_cloud_run_cache_backend(
+    caches_config: dict,
+    *,
+    is_cloud_run: bool,
+    is_test_run: bool,
+) -> None:
+    """Cloud Runの共有cache契約に違反する設定を起動時に拒否する。"""
+    if (
+        is_cloud_run
+        and not is_test_run
+        and caches_config['default']['BACKEND'] != DATABASE_CACHE_BACKEND
+    ):
+        raise ImproperlyConfigured(
+            'Cloud Run requires DatabaseCache for the default cache backend.'
+        )
 
 REDIS_URL = environ.get('REDIS_URL', '').strip()
 # K_SERVICE は Cloud Run が全revisionへ自動設定する予約済み環境変数。
@@ -55,10 +87,11 @@ if IS_TEST_RUN:
 elif IS_CLOUD_RUN:
     CACHES = {
         'default': {
-            'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+            'BACKEND': DATABASE_CACHE_BACKEND,
             'LOCATION': 'login_rate_limit_cache',
             'TIMEOUT': DEFAULT_CACHE_TIMEOUT,
             'KEY_PREFIX': CACHE_KEY_PREFIX,
+            'OPTIONS': DATABASE_CACHE_OPTIONS,
         }
     }
 elif REDIS_URL:
@@ -79,3 +112,15 @@ else:
             'KEY_PREFIX': CACHE_KEY_PREFIX,
         }
     }
+
+# health probeはDB疎通を別に検査するため、default cacheへ書き込まず
+# process内LocMemの往復だけを確認する。
+CACHES['healthcheck'] = HEALTHCHECK_CACHE
+
+# Cloud RunでLocMemへ静かに縮退すると、複数instanceのレート制限が分断される。
+# 設定順序の変更や将来の分岐追加で契約が崩れた場合は起動時に失敗させる。
+validate_cloud_run_cache_backend(
+    CACHES,
+    is_cloud_run=IS_CLOUD_RUN,
+    is_test_run=IS_TEST_RUN,
+)

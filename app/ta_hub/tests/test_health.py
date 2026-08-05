@@ -45,7 +45,7 @@ class HealthCheckTest(TestCase):
     def test_health_keeps_ok_when_only_cache_fails(self):
         """cache 失敗時も status=ok を返す（cache 未設定環境でも生存判定したい）"""
         with patch(
-            'ta_hub.health.cache.set',
+            'ta_hub.health._get_health_cache',
             side_effect=Exception('cache down'),
         ):
             response = self.client.get('/health')
@@ -58,7 +58,8 @@ class HealthCheckTest(TestCase):
 
     def test_health_cache_roundtrip_mismatch_marks_cache_ng(self):
         """cache.get が想定外の値を返すと cache=ng になる（status は ok のまま）"""
-        with patch('ta_hub.health.cache.get', return_value='unexpected'):
+        with patch('ta_hub.health._get_health_cache') as get_cache:
+            get_cache.return_value.get.return_value = 'unexpected'
             response = self.client.get('/health')
 
         self.assertEqual(response.status_code, 200)
