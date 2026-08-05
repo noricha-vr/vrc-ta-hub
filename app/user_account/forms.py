@@ -193,7 +193,31 @@ class CustomUserCreationForm(UserCreationForm):
         return user
 
 
-class BootstrapAuthenticationForm(AuthenticationForm):
+class AllauthAuthenticationFormMixin:
+    """Django認証フォームをallauthの失敗制限付き認証へ接続する。"""
+
+    def clean(self):
+        email = self.cleaned_data.get('username')
+        password = self.cleaned_data.get('password')
+
+        if email is not None and password:
+            self.user_cache = self.authenticate_user(email, password)
+            if self.user_cache is None:
+                raise self.get_invalid_login_error()
+            self.confirm_login_allowed(self.user_cache)
+
+        return self.cleaned_data
+
+    def authenticate_user(self, email, password):
+        """allauth adapter経由でemailとpasswordを認証する。"""
+        return get_adapter().authenticate(
+            self.request,
+            email=email,
+            password=password,
+        )
+
+
+class BootstrapAuthenticationForm(AllauthAuthenticationFormMixin, AuthenticationForm):
     """メールアドレスで認証するフォーム。"""
 
     username = forms.EmailField(
@@ -214,29 +238,6 @@ class BootstrapAuthenticationForm(AuthenticationForm):
         for name, field in self.fields.items():
             if name != 'remember':
                 field.widget.attrs.update({'class': 'form-control'})
-
-    def clean(self):
-        email = self.cleaned_data.get('username')
-        password = self.cleaned_data.get('password')
-
-        if email is not None and password:
-            self.user_cache = self.authenticate_user(email, password)
-            if self.user_cache is None:
-                raise self.get_invalid_login_error()
-            else:
-                self.confirm_login_allowed(self.user_cache)
-
-        return self.cleaned_data
-
-    def authenticate_user(self, email, password):
-        """メールアドレスを使用してユーザーを認証する。"""
-        # adapter 経由にすることで、allauth のログイン失敗制限と
-        # 成功時のカウンタ rollback を同じ認証チェーンで適用する。
-        return get_adapter().authenticate(
-            self.request,
-            email=email,
-            password=password,
-        )
 
 
 class BootstrapPasswordChangeForm(PasswordChangeForm):

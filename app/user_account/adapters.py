@@ -6,8 +6,10 @@ from allauth.account.models import EmailAddress
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
+from django.http import HttpRequest
 from django.urls import reverse
 
+from ta_hub.utils import get_client_ip as get_trusted_client_ip
 from user_account.login_redirect import get_default_login_redirect_url
 
 logger = logging.getLogger(__name__)
@@ -21,6 +23,15 @@ class ConfirmationEmailDeliveryError(Exception):
 
 class CustomAccountAdapter(DefaultAccountAdapter):
     """ログイン後の既定リダイレクト先を集会所属状況で切り替える。"""
+
+    def get_client_ip(self, request: HttpRequest) -> str:
+        """Cloud Runの信頼済みXFF契約から安全にclient IPを返す。
+
+        allauth既定実装はXFFが信頼proxy数より短いと設定例外を送出する。
+        既存の共通utilityへ揃え、欠落時はREMOTE_ADDR、1要素ならその値、
+        2要素以上ならCloud Runが付与した末尾から2番目を使う。
+        """
+        return get_trusted_client_ip(request)
 
     def clean_username(self, username, shallow=False):
         """user_name の重複を検証エラーにしない。
