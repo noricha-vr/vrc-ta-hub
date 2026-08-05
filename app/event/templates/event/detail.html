@@ -152,10 +152,11 @@
                 <h1 class="mb-3">{{ event_detail.title }}</h1>
                 {% if event_detail.thumbnail_image %}
                     <div class="mb-4">
+                        {# ファーストビューの主要画像（LCP 候補）のため lazy にせず優先読み込みする #}
                         <img src="{{ event_detail.thumbnail_image.url|cf_resize:'1200' }}"
                              class="event-detail-thumbnail img-fluid rounded shadow-sm"
                              alt="{{ event_detail.title }}のサムネイル"
-                             loading="lazy">
+                             fetchpriority="high">
                     </div>
                 {% endif %}
 
