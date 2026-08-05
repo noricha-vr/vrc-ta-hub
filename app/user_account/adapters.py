@@ -2,6 +2,7 @@
 import logging
 
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.account.models import EmailAddress
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
@@ -105,6 +106,17 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
         existing_user = User.objects.filter(email__iexact=email).first()
         if not existing_user:
+            return
+
+        if not EmailAddress.objects.filter(
+            user=existing_user,
+            email__iexact=existing_user.email,
+            verified=True,
+        ).exists():
+            logger.warning(
+                "Skipping auto connect without a verified account email: user_id=%s",
+                existing_user.id,
+            )
             return
 
         if SocialAccount.objects.filter(

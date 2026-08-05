@@ -23,7 +23,12 @@ AUTHENTICATION_BACKENDS = [
 # django-allauth 設定
 ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
-ACCOUNT_EMAIL_VERIFICATION = 'none'
+ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
+ACCOUNT_CHANGE_EMAIL = True
+# Confirmation links only resume the signup login in the browser that started
+# registration. This preserves a validated ``next`` without turning a leaked,
+# reusable confirmation link into a session-independent login link.
+ACCOUNT_LOGIN_ON_EMAIL_CONFIRMATION = True
 ACCOUNT_USER_MODEL_USERNAME_FIELD = 'user_name'
 ACCOUNT_SESSION_REMEMBER = None  # ユーザーに選択させる
 SOCIALACCOUNT_AUTO_SIGNUP = True

@@ -6,6 +6,7 @@ from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.core.validators import FileExtensionValidator
 
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
+from allauth.account.models import EmailAddress
 
 from community.constants import WEEKDAY_CHOICES
 from community.models import Community
@@ -261,7 +262,10 @@ class LocalSignupForm(UserCreationForm):
         email = self.cleaned_data.get('email')
         if email:
             email = email.lower()
-            if CustomUser.objects.filter(email__iexact=email).exists():
+            if (
+                CustomUser.objects.filter(email__iexact=email).exists()
+                or EmailAddress.objects.filter(email__iexact=email).exists()
+            ):
                 raise forms.ValidationError('このメールアドレスは既に登録されています。')
         return email
 
@@ -320,14 +324,32 @@ class CustomUserChangeForm(forms.ModelForm):
     def clean_x_account(self):
         return normalize_x_account(self.cleaned_data.get('x_account', ''))
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # ModelForm._post_clean assigns submitted values to instance before
+        # save(). Email changes must instead stay pending in allauth.
+        self.original_email = self.instance.email
+
     def clean_email(self):
         """メールアドレスを正規化し、他ユーザーとの重複を拒否する。"""
         email = self.cleaned_data.get('email')
         if email:
             email = email.lower()
-            if CustomUser.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
+            if (
+                CustomUser.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists()
+                or EmailAddress.objects.filter(email__iexact=email).exclude(user=self.instance).exists()
+            ):
                 raise forms.ValidationError('このメールアドレスは既に登録されています。')
         return email
+
+    def save(self, commit=True):
+        """Save profile fields while leaving an email change pending."""
+        user = super().save(commit=False)
+        user.email = self.original_email
+        if commit:
+            user.save()
+            self.save_m2m()
+        return user
 
     def clean_vrchat_user_id(self):
         return normalize_vrchat_user_id(self.cleaned_data.get('vrchat_user_id', ''))
@@ -402,4 +424,3 @@ class CustomSocialSignupForm(SocialSignupForm):
                     '既存のアカウントにログインしてから、Discord連携を行ってください。'
                 )
         return email
-

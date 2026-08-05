@@ -1,14 +1,20 @@
 """プロフィールと設定画面に関する view 群."""
 
+import logging
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.utils.safestring import mark_safe
 from django.views.generic import TemplateView, UpdateView
 
+from allauth.account.models import EmailAddress
+
 from analytics import services as analytics_services
 from community.models import CommunityMember
 from user_account.forms import CustomUserChangeForm
+
+logger = logging.getLogger(__name__)
 
 
 class UserNameChangeView(LoginRequiredMixin, UpdateView):
@@ -33,8 +39,34 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
         return self.request.user
 
     def form_valid(self, form):
-        messages.success(self.request, 'ユーザー情報が更新されました。')
-        return super().form_valid(form)
+        new_email = form.cleaned_data['email']
+        old_email = form.original_email
+        response = super().form_valid(form)
+        if new_email != old_email:
+            try:
+                EmailAddress.objects.add_new_email(self.request, self.request.user, new_email)
+            except Exception as exc:
+                # The current email remains authoritative. allauth may have
+                # committed a pending row before the mail backend failed, so a
+                # later submission of the same address acts as a safe resend.
+                logger.error(
+                    'Failed to send email-change confirmation: '
+                    'user_id=%s exception_type=%s',
+                    self.request.user.pk,
+                    type(exc).__name__,
+                )
+                messages.warning(
+                    self.request,
+                    '確認メールを送信できませんでした。現在のメールアドレスは変更されていません。時間をおいて再度お試しください。',
+                )
+            else:
+                messages.success(
+                    self.request,
+                    '確認メールを新しいメールアドレスに送信しました。確認完了まで現在のメールアドレスを使用します。',
+                )
+        else:
+            messages.success(self.request, 'ユーザー情報が更新されました。')
+        return response
 
 
 class SettingsView(LoginRequiredMixin, TemplateView):
