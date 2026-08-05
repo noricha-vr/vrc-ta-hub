@@ -8,58 +8,37 @@ caching.py で定義した CACHES 設定が以下を満たすことを検証す�
 4. TIMEOUT で値が expire する
 """
 
-import json
-import os
-import subprocess
-import sys
 import time
 
-from django.conf import settings
 from django.core.cache import cache, caches
 from django.core.cache.backends.db import DatabaseCache
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
 from django.test import SimpleTestCase, TestCase, override_settings
 
-from website.settings.caching import validate_cloud_run_cache_backend
-
-
-SETTINGS_CACHE_PROBE = """
-import json
-import os
-import sys
-
-if os.environ.pop('FORCE_MANAGE_TEST', '') == '1':
-    sys.argv = ['manage.py', 'test']
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'website.settings')
-from django.conf import settings
-print(json.dumps(settings.CACHES))
-"""
+from website.settings.caching import (
+    build_caches,
+    detect_test_run,
+    validate_cloud_run_cache_backend,
+)
 
 
 class CacheBackendSelectionTest(SimpleTestCase):
-    """環境ごとのsettingsロードでdefault cacheを選択する."""
+    """環境フラグからdefault cacheを決定的に選択する."""
 
-    def _probe_caches(self, **environment: str) -> dict:
-        probe_environment = os.environ.copy()
-        for name in ('K_SERVICE', 'REDIS_URL', 'TESTING', 'FORCE_MANAGE_TEST'):
-            probe_environment.pop(name, None)
-        probe_environment.update(environment)
-
-        completed = subprocess.run(
-            [sys.executable, '-c', SETTINGS_CACHE_PROBE],
-            cwd=settings.BASE_DIR,
-            env=probe_environment,
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=20,
+    def test_test_run_is_detected_from_setting_or_manage_command(self) -> None:
+        self.assertTrue(detect_test_run(testing=True, argv=['manage.py']))
+        self.assertTrue(
+            detect_test_run(testing=False, argv=['manage.py', 'test'])
         )
-        return json.loads(completed.stdout.strip().splitlines()[-1])
+        self.assertFalse(detect_test_run(testing=False, argv=['manage.py', 'check']))
 
     def test_cloud_run_uses_database_cache(self) -> None:
-        caches_config = self._probe_caches(K_SERVICE='vrc-ta-hub')
+        caches_config = build_caches(
+            is_cloud_run=True,
+            is_testing=False,
+            redis_url=None,
+        )
         default = caches_config['default']
 
         self.assertEqual(
@@ -88,17 +67,10 @@ class CacheBackendSelectionTest(SimpleTestCase):
             )
 
     def test_testing_environment_overrides_cloud_run(self) -> None:
-        caches_config = self._probe_caches(K_SERVICE='vrc-ta-hub', TESTING='true')
-
-        self.assertEqual(
-            caches_config['default']['BACKEND'],
-            'django.core.cache.backends.locmem.LocMemCache',
-        )
-
-    def test_manage_test_argv_overrides_cloud_run(self) -> None:
-        caches_config = self._probe_caches(
-            K_SERVICE='vrc-ta-hub',
-            FORCE_MANAGE_TEST='1',
+        caches_config = build_caches(
+            is_cloud_run=True,
+            is_testing=True,
+            redis_url='redis://cache.example.invalid:6379/1',
         )
 
         self.assertEqual(
@@ -107,7 +79,11 @@ class CacheBackendSelectionTest(SimpleTestCase):
         )
 
     def test_local_without_redis_uses_locmem(self) -> None:
-        caches_config = self._probe_caches()
+        caches_config = build_caches(
+            is_cloud_run=False,
+            is_testing=False,
+            redis_url=None,
+        )
 
         self.assertEqual(
             caches_config['default']['BACKEND'],
@@ -115,8 +91,10 @@ class CacheBackendSelectionTest(SimpleTestCase):
         )
 
     def test_local_with_existing_redis_uses_redis_cache(self) -> None:
-        caches_config = self._probe_caches(
-            REDIS_URL='redis://cache.example.invalid:6379/1',
+        caches_config = build_caches(
+            is_cloud_run=False,
+            is_testing=False,
+            redis_url='redis://cache.example.invalid:6379/1',
         )
 
         self.assertEqual(
