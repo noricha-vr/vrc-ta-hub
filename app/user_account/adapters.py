@@ -17,6 +17,17 @@ User = get_user_model()
 class CustomAccountAdapter(DefaultAccountAdapter):
     """ログイン後の既定リダイレクト先を集会所属状況で切り替える。"""
 
+    def clean_username(self, username, shallow=False):
+        """user_name の重複を検証エラーにしない。
+
+        user_name は一意制約を持たないため「重複＝エラー」という allauth の前提自体を外す。
+        populate_user 側で潰すと社外フロー（allauth 内部の process_signup 等）が
+        独自に clean_username を呼ぶ経路をすり抜けるため、検証の入口で一貫して無効化する。
+        shallow=True は allauth 公式の DB 重複チェックのみスキップするフラグで、
+        文字種バリデータとブラックリストはそのまま維持される。
+        """
+        return super().clean_username(username, shallow=True)
+
     def get_login_redirect_url(self, request):
         """ログイン中ユーザーの既定リダイレクト先を返す。"""
         return get_default_login_redirect_url(request.user)

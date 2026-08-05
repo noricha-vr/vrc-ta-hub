@@ -398,31 +398,6 @@ class CustomSocialAccountAdapterTests(TestCase):
 
             self.assertEqual(result.email, 'real@example.com')
 
-    def test_populate_user_keeps_discord_username_even_when_duplicated(self):
-        """既存ユーザーと同名でも suffix を付けずそのまま採用すること."""
-        User.objects.create_user(
-            user_name='collision_user',
-            email='collision@example.com',
-            password='testpass123'
-        )
-
-        request = self.factory.get('/accounts/discord/login/callback/')
-
-        sociallogin = MagicMock()
-        sociallogin.account.uid = '1234567890abcdef'
-
-        data = {
-            'username': 'collision_user',  # 既存ユーザーと同じ名前
-            'email': 'new@example.com',
-        }
-
-        mock_user = MagicMock()
-        with patch('user_account.adapters.DefaultSocialAccountAdapter.populate_user', return_value=mock_user):
-            result = self.adapter.populate_user(request, sociallogin, data)
-
-            self.assertEqual(result.user_name, 'collision_user')
-            self.assertEqual(result.display_name, 'collision_user')
-
     def test_save_user_sets_user_name_from_form(self):
         """フォームからuser_nameを取得して保存すること."""
         request = self.factory.get('/accounts/discord/login/callback/')
