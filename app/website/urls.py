@@ -21,6 +21,7 @@ from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
 from ta_hub.health import health_check
+from user_account.views import CustomLoginView
 
 urlpatterns = [
     # Cloud Run readiness/liveness probe 用（DB + cache 疎通確認）
@@ -36,6 +37,9 @@ urlpatterns = [
     path('accounts/', include('allauth.urls')),
     path('twitter/', include('twitter.urls')),
     path('api/v1/', include('api_v1.urls')),
+    # Keep DRF's logout and password endpoints, while preventing its login view
+    # from bypassing allauth's mandatory email-verification login stage.
+    path('api-auth/login/', CustomLoginView.as_view(), name='api-auth-login'),
     path('api-auth/', include('rest_framework.urls')),
     # API Documentation: schema endpoint is always available; UI is DEBUG-only
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

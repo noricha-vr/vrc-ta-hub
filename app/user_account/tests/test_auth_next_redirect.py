@@ -15,7 +15,7 @@ from django.template.loader import render_to_string
 from django.test import Client, RequestFactory, TestCase, override_settings, tag
 from django.urls import reverse
 
-from allauth.account.models import EmailAddress
+from allauth.account.models import EmailAddress, EmailConfirmationHMAC
 from allauth.core.context import request_context
 from allauth.socialaccount.internal.flows.signup import process_signup
 from allauth.socialaccount.models import SocialAccount, SocialLogin
@@ -146,37 +146,55 @@ class AuthNextLinkTests(TestCase):
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
 @tag('offline_external_api')
 class LocalSignupNextTests(TestCase):
-    """ローカル登録後のログイン復帰先を検証する."""
+    """ローカル登録後の確認フローの復帰先を検証する."""
 
     def setUp(self) -> None:
         self.client = Client()
         self.register_url = reverse('account:register')
         self.login_url = reverse('account:login')
 
-    def test_local_signup_preserves_safe_next_on_login_redirect(self) -> None:
-        """ローカル登録フォームと登録後ログインURLがnextを保持すること."""
+    def _confirm_signup(self, email: str):
+        address = EmailAddress.objects.get(email=email)
+        confirmation_url = reverse(
+            'account_confirm_email',
+            args=[EmailConfirmationHMAC(address).key],
+        )
+        self.client.get(confirmation_url)
+        return self.client.post(confirmation_url)
+
+    def test_local_signup_preserves_safe_next_through_confirmation(self) -> None:
+        """ローカル登録は同じブラウザでの確認後に安全な復帰先へ戻ること."""
         next_url = '/event/speaker-link/signed-token/'
+        email = 'local-signup-with-next@example.com'
         page_response = self.client.get(self.register_url, {'next': next_url})
         self.assertContains(page_response, f'name="next" value="{next_url}"')
 
         response = self.client.post(self.register_url, {
             'user_name': 'local_signup_with_next',
-            'email': 'local-signup-with-next@example.com',
+            'email': email,
             'password1': 'testpass12345',
             'password2': 'testpass12345',
             'next': next_url,
         })
 
-        redirect_url = urlparse(response.url)
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(redirect_url.path, self.login_url)
-        self.assertEqual(parse_qs(redirect_url.query)['next'], [next_url])
+        self.assertEqual(urlparse(response.url).path, '/accounts/confirm-email/')
 
-    def test_local_signup_rejects_external_next_on_login_redirect(self) -> None:
-        """ローカル登録後ログインURLが外部nextを保持しないこと."""
+        confirmation_response = self._confirm_signup(email)
+
+        self.assertRedirects(
+            confirmation_response,
+            next_url,
+            fetch_redirect_response=False,
+        )
+        self.assertIn('_auth_user_id', self.client.session)
+
+    def test_local_signup_rejects_external_next_for_email_confirmation(self) -> None:
+        """ローカル登録でも外部nextへ遷移しないこと."""
+        email = 'local-signup-external-next@example.com'
         response = self.client.post(self.register_url, {
             'user_name': 'local_signup_external_next',
-            'email': 'local-signup-external-next@example.com',
+            'email': email,
             'password1': 'testpass12345',
             'password2': 'testpass12345',
             'next': 'https://evil.example.com/path',
@@ -184,9 +202,15 @@ class LocalSignupNextTests(TestCase):
 
         self.assertRedirects(
             response,
-            self.login_url,
+            '/accounts/confirm-email/',
             fetch_redirect_response=False,
         )
+
+        confirmation_response = self._confirm_signup(email)
+
+        self.assertEqual(confirmation_response.status_code, 302)
+        self.assertEqual(confirmation_response.url, reverse('event:my_presentations'))
+        self.assertNotIn('evil.example.com', confirmation_response.url)
 
 
 @tag('offline_external_api')

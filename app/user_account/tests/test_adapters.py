@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase, override_settings, tag
 
 from allauth.socialaccount.models import SocialAccount
+from allauth.account.models import EmailAddress
 from community.models import Community, CommunityMember
 from user_account.adapters import CustomSocialAccountAdapter
 from user_account.tests.utils import (
@@ -27,6 +28,12 @@ class CustomSocialAccountAdapterTests(TestCase):
             user_name='existing_user',
             email='existing@example.com',
             password='testpass123',
+        )
+        EmailAddress.objects.create(
+            user=self.existing_user,
+            email=self.existing_user.email,
+            verified=True,
+            primary=True,
         )
 
     def test_is_auto_signup_allowed_returns_true_when_email_exists(self):
@@ -282,8 +289,9 @@ class CustomSocialAccountAdapterTests(TestCase):
 
         sociallogin.connect.assert_not_called()
 
-    def test_pre_social_login_connects_when_no_email_address_record(self):
-        """EmailAddressレコードがなくてもDiscord verified なら自動連携すること."""
+    def test_pre_social_login_skips_when_no_email_address_record(self):
+        """確認済みEmailAddressがなければDiscordを自動連携しないこと."""
+        EmailAddress.objects.filter(user=self.existing_user).delete()
         request = self.factory.get('/accounts/discord/login/callback/')
 
         sociallogin = MagicMock()
@@ -298,7 +306,26 @@ class CustomSocialAccountAdapterTests(TestCase):
 
         self.adapter.pre_social_login(request, sociallogin)
 
-        sociallogin.connect.assert_called_once_with(request, self.existing_user)
+        sociallogin.connect.assert_not_called()
+
+    def test_pre_social_login_skips_when_local_email_is_unverified(self):
+        """Discord側が確認済みでもローカルemail未確認なら自動連携しないこと."""
+        EmailAddress.objects.filter(user=self.existing_user).update(verified=False)
+        request = self.factory.get('/accounts/discord/login/callback/')
+
+        sociallogin = MagicMock()
+        sociallogin.is_existing = False
+        sociallogin.state = {}
+        sociallogin.account.provider = 'discord'
+        sociallogin.account.uid = '123456789'
+        sociallogin.account.extra_data = {
+            'email': 'existing@example.com',
+            'verified': True,
+        }
+
+        self.adapter.pre_social_login(request, sociallogin)
+
+        sociallogin.connect.assert_not_called()
 
     def test_pre_social_login_skips_when_existing_user_has_other_discord_account(self):
         """既存ユーザーが別の Discord アカウントを連携済みなら自動連携しないこと."""

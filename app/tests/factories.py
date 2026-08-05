@@ -30,6 +30,8 @@ from typing import Optional
 
 from django.contrib.auth import get_user_model
 
+from allauth.account.models import EmailAddress
+
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 
@@ -60,10 +62,42 @@ def make_user(
     Returns:
         作成された ``CustomUser`` インスタンス。
     """
+    user = User.objects.create_user(
+        user_name=user_name,
+        email=email,
+        password=password,
+        **extra,
+    )
+    if email:
+        EmailAddress.objects.create(
+            user=user,
+            email=user.email,
+            verified=True,
+            primary=True,
+        )
+    return user
+
+
+def make_user_without_email_address(
+    user_name: str,
+    email: str,
+    password: str = "testpass123",
+    **extra,
+):
+    """Create a programmatic user before allauth has synchronized its email."""
     return User.objects.create_user(
         user_name=user_name,
         email=email,
         password=password,
+        **extra,
+    )
+
+
+def make_legacy_user(user_name: str, email: str = "", **extra):
+    """Create a legacy-shaped row that may violate current manager requirements."""
+    return User.objects.create(
+        user_name=user_name,
+        email=email,
         **extra,
     )
 

@@ -4,8 +4,11 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.core.validators import FileExtensionValidator
+from django.http import HttpRequest
 
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
+from allauth.account.models import EmailAddress
+from allauth.core import ratelimit
 
 from community.constants import WEEKDAY_CHOICES
 from community.models import Community
@@ -16,6 +19,16 @@ from .vrchat import normalize_vrchat_user_id
 
 X_HANDLE_RE = re.compile(r'^[A-Za-z0-9_]{1,15}\Z')
 X_URL_PREFIX_RE = re.compile(r'^https?://(?:www\.)?(?:x|twitter)\.com/', re.IGNORECASE)
+EMAIL_CHANGE_RATE_LIMIT_ACTION = 'manage_email'
+
+
+def consume_email_change_rate_limit(request: HttpRequest, user: CustomUser) -> bool:
+    """メールアドレス変更用の allauth レート制限を消費する。"""
+    return ratelimit.consume(
+        request,
+        action=EMAIL_CHANGE_RATE_LIMIT_ACTION,
+        user=user,
+    )
 
 
 def normalize_x_account(value: str) -> str:
@@ -261,7 +274,10 @@ class LocalSignupForm(UserCreationForm):
         email = self.cleaned_data.get('email')
         if email:
             email = email.lower()
-            if CustomUser.objects.filter(email__iexact=email).exists():
+            if (
+                CustomUser.objects.filter(email__iexact=email).exists()
+                or EmailAddress.objects.filter(email__iexact=email).exists()
+            ):
                 raise forms.ValidationError('このメールアドレスは既に登録されています。')
         return email
 
@@ -320,17 +336,52 @@ class CustomUserChangeForm(forms.ModelForm):
     def clean_x_account(self):
         return normalize_x_account(self.cleaned_data.get('x_account', ''))
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # ModelForm._post_clean assigns submitted values to instance before
+        # save(). Email changes must instead stay pending in allauth.
+        self.original_email = self.instance.email
+
     def clean_email(self):
         """メールアドレスを正規化し、他ユーザーとの重複を拒否する。"""
         email = self.cleaned_data.get('email')
         if email:
             email = email.lower()
-            if CustomUser.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
+            if (
+                CustomUser.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists()
+                or EmailAddress.objects.filter(email__iexact=email).exclude(user=self.instance).exists()
+            ):
                 raise forms.ValidationError('このメールアドレスは既に登録されています。')
         return email
 
+    def save(self, commit=True):
+        """Save profile fields while leaving an email change pending."""
+        user = super().save(commit=False)
+        user.email = self.original_email
+        if commit:
+            user.save()
+            self.save_m2m()
+        return user
+
     def clean_vrchat_user_id(self):
         return normalize_vrchat_user_id(self.cleaned_data.get('vrchat_user_id', ''))
+
+
+class UserNameChangeForm(forms.ModelForm):
+    """ユーザー名だけを変更するフォーム。"""
+
+    class Meta:
+        model = CustomUser
+        fields = ('user_name',)
+        widgets = {
+            'user_name': forms.TextInput(attrs={'class': 'form-control'}),
+        }
+        labels = {
+            'user_name': '表示用ユーザー名',
+        }
+        help_texts = {
+            'user_name': '表示用と内部識別に使用するユーザー名です。',
+        }
 
 
 class SocialAccountDisconnectForm(forms.Form):
@@ -402,4 +453,3 @@ class CustomSocialSignupForm(SocialSignupForm):
                     '既存のアカウントにログインしてから、Discord連携を行ってください。'
                 )
         return email
-

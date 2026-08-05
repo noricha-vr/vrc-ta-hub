@@ -1,16 +1,21 @@
 """ログイン・ログアウト・登録に関する view 群."""
 
-from urllib.parse import urlencode
+import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView, RedirectURLMixin
 from django.shortcuts import redirect
-from django.urls import reverse, reverse_lazy
+from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import FormView, TemplateView
 
+from allauth.account import app_settings
+from allauth.account.utils import complete_signup, perform_login, setup_user_email
+from django.db import transaction
+
+from user_account.adapters import ConfirmationEmailDeliveryError
 from user_account.discord_oauth import is_discord_oauth_available
 from user_account.forms import (
     BootstrapAuthenticationForm,
@@ -18,6 +23,8 @@ from user_account.forms import (
     LocalSignupForm,
 )
 from user_account.login_redirect import get_default_login_redirect_url
+
+logger = logging.getLogger(__name__)
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
@@ -32,19 +39,18 @@ class CustomLoginView(LoginView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        """ログイン成功時に remember 設定からセッション期限を決める."""
+        """allauth の確認ステージを通じてログインする."""
         remember = form.cleaned_data.get('remember')
-        response = super().form_valid(form)
-        if not remember:
-            self.request.session.set_expiry(0)
+        session_expiry = app_settings.SESSION_COOKIE_AGE if remember else 0
+        self.request.session.set_expiry(session_expiry)
+        response = perform_login(
+            self.request,
+            form.get_user(),
+            email_verification=app_settings.EmailVerificationMethod.MANDATORY,
+            redirect_url=self.get_redirect_url() or get_default_login_redirect_url(form.get_user()),
+            email=form.cleaned_data['username'].lower(),
+        )
         return response
-
-    def get_success_url(self):
-        messages.info(self.request, 'ログインしました。')
-        redirect_url = self.get_redirect_url()
-        if redirect_url:
-            return redirect_url
-        return get_default_login_redirect_url(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -80,21 +86,35 @@ class RegisterView(RedirectURLMixin, FormView):
         context['redirect_field_value'] = self.get_redirect_url()
         return context
 
-    def get_success_url(self):
-        """安全な遷移先を引き継いでログイン画面へ移動する."""
-        login_url = reverse('account:login')
-        redirect_url = self.get_redirect_url()
-        if not redirect_url:
-            return login_url
-        return f'{login_url}?{urlencode({self.redirect_field_name: redirect_url})}'
-
     def form_valid(self, form):
         if self.discord_oauth_enabled:
             return redirect('account:register')
 
-        form.save()
-        messages.success(self.request, 'アカウントを作成しました。ログインしてください。')
-        return super().form_valid(form)
+        with transaction.atomic():
+            user = form.save()
+            setup_user_email(self.request, user, [])
+        # Send only after the user and its unverified primary address commit.
+        # A mail delivery failure deliberately leaves this state for login resend.
+        redirect_url = self.get_redirect_url() or get_default_login_redirect_url(user)
+        try:
+            return complete_signup(
+                self.request,
+                user,
+                app_settings.EmailVerificationMethod.MANDATORY,
+                redirect_url,
+            )
+        except ConfirmationEmailDeliveryError as exc:
+            logger.error(
+                'Failed to send signup confirmation: user_id=%s exception_type=%s',
+                user.pk,
+                type(exc).__name__,
+                exc_info=True,
+            )
+            messages.warning(
+                self.request,
+                '登録は完了しました。確認メールの送信に失敗したため、ログイン画面から再送してください。',
+            )
+            return redirect('account:login')
 
 
 class CustomPasswordChangeView(LoginRequiredMixin, PasswordChangeView):

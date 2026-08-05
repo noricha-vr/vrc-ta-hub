@@ -1,6 +1,6 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.core.validators import RegexValidator
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 import hashlib
@@ -31,12 +31,29 @@ class CustomUserManager(BaseUserManager):
         if extra_fields.get('is_superuser') is not True:
             raise ValueError('スーパーユーザーはsuperuserである必要があります。')
 
-        return self.create_user(
-            email,
-            user_name=user_name,
-            password=password,
-            **extra_fields,
-        )
+        email = self.normalize_email(email).lower()
+        database = self._db or 'default'
+        with transaction.atomic(using=database):
+            from allauth.account.models import EmailAddress
+
+            if EmailAddress.objects.using(database).filter(email__iexact=email).exists():
+                raise ValueError('このメールアドレスは既に登録されています。')
+            user = self.create_user(
+                email,
+                user_name=user_name,
+                password=password,
+                **extra_fields,
+            )
+            # createsuperuser is a trusted operator flow. Keeping this in the
+            # same transaction prevents a successful CLI run from producing a
+            # staff account that the mandatory verification gate cannot use.
+            EmailAddress.objects.using(database).create(
+                user=user,
+                email=user.email,
+                verified=True,
+                primary=True,
+            )
+        return user
 
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):

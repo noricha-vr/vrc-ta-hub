@@ -2,6 +2,7 @@
 import logging
 
 from allauth.account.adapter import DefaultAccountAdapter
+from allauth.account.models import EmailAddress
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
@@ -12,6 +13,10 @@ from user_account.login_redirect import get_default_login_redirect_url
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+
+class ConfirmationEmailDeliveryError(Exception):
+    """確認メール生成・送信中の失敗を表す。"""
 
 
 class CustomAccountAdapter(DefaultAccountAdapter):
@@ -35,6 +40,13 @@ class CustomAccountAdapter(DefaultAccountAdapter):
     def get_signup_redirect_url(self, request):
         """新規登録後の既定リダイレクト先を返す。"""
         return get_default_login_redirect_url(request.user)
+
+    def send_confirmation_mail(self, request, emailconfirmation, signup):
+        """確認メール処理の失敗を登録フローから識別できる形にする。"""
+        try:
+            return super().send_confirmation_mail(request, emailconfirmation, signup)
+        except Exception as exc:
+            raise ConfirmationEmailDeliveryError from exc
 
 
 class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
@@ -105,6 +117,17 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
         existing_user = User.objects.filter(email__iexact=email).first()
         if not existing_user:
+            return
+
+        if not EmailAddress.objects.filter(
+            user=existing_user,
+            email__iexact=existing_user.email,
+            verified=True,
+        ).exists():
+            logger.warning(
+                "Skipping auto connect without a verified account email: user_id=%s",
+                existing_user.id,
+            )
             return
 
         if SocialAccount.objects.filter(
