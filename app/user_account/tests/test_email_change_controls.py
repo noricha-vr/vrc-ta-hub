@@ -11,7 +11,7 @@ from django.urls import reverse
 
 from allauth.account.models import EmailAddress
 
-from tests.factories import make_user
+from tests.factories import make_user, make_user_without_email_address
 from user_account.adapters import CustomAccountAdapter
 from user_account.tests.utils import (
     TEST_SOCIALACCOUNT_PROVIDERS,
@@ -193,6 +193,38 @@ class EmailChangeFlowTests(TestCase):
             email='admin-limit-rejected@example.com',
         ).exists())
         self.assertEqual(len(mail.outbox), EMAIL_CHANGE_LIMIT)
+
+    def test_admin_rejects_email_owned_by_legacy_user_without_email_address(self):
+        """EmailAddressがない既存ユーザーのemailも管理画面で奪えない。"""
+        admin = User.objects.create_superuser(
+            user_name='legacy_collision_admin',
+            email='legacy-collision-admin@example.com',
+            password='testpass123',
+        )
+        owner = make_user_without_email_address(
+            user_name='legacy_email_owner',
+            email='legacy-owner@example.com',
+        )
+        target = make_user(
+            user_name='legacy_collision_target',
+            email='legacy-collision-target@example.com',
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse('admin:user_account_customuser_change', args=[target.pk]),
+            self._admin_change_data(target, owner.email.upper()),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'このメールアドレスは既に登録されています')
+        target.refresh_from_db()
+        self.assertEqual(target.email, 'legacy-collision-target@example.com')
+        self.assertFalse(EmailAddress.objects.filter(
+            user=target,
+            email__iexact=owner.email,
+        ).exists())
+        self.assertEqual(len(mail.outbox), 0)
 
     @staticmethod
     def _admin_change_data(user, email):

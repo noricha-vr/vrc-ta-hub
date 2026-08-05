@@ -38,6 +38,8 @@ class CustomUserChangeForm(UserChangeForm):
 
     def clean_email(self):
         email = self.cleaned_data['email'].lower()
+        if CustomUser.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
+            raise ValidationError('このメールアドレスは既に登録されています。')
         if EmailAddress.objects.filter(email__iexact=email).exclude(user=self.instance).exists():
             raise ValidationError('このメールアドレスは既に登録されています。')
         if (
