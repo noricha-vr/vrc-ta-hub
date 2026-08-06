@@ -136,28 +136,49 @@ class ReadDeployCheckTest(SimpleTestCase):
         with self.assertRaises(ValueError):
             self.reader.build_summary(config)
 
-    def test_check_command_running_migrate_is_rejected(self):
-        """確認のつもりで適用してしまう定義を実行前に落とす。"""
+    def _with_check_command(self, command):
         config = dict(self.config)
-        config['migrations'] = dict(
-            self.config['migrations'],
-            check_command='gcloud run jobs execute x --args=manage.py,migrate,--noinput',
+        config['migrations'] = dict(self.config['migrations'], check_command=command)
+        return config
+
+    def test_check_command_running_migrate_is_rejected(self):
+        """確認のつもりで適用してしまう定義を実行前に落とす。
+
+        シェルの区切りは `;` `&&` `(` など多様で、許可する区切りを列挙する方式では
+        取りこぼす。区切りに依存せず検知できることを確かめる。
+        """
+        for command in (
+            'python manage.py migrate',
+            './scripts/check_pending_migrations.sh;python manage.py migrate',
+            './scripts/check_pending_migrations.sh && python manage.py migrate',
+            '(cd app && python manage.py migrate)',
+            "gcloud run jobs update x --args='^|^manage.py|migrate|--noinput'",
+        ):
+            with self.subTest(command=command):
+                with self.assertRaises(ValueError):
+                    self.reader.build_summary(self._with_check_command(command))
+
+    def test_check_command_executing_job_is_rejected(self):
+        """Job 名が -migrate で終わる形は migrate 検知をすり抜けるため別に落とす。"""
+        command = (
+            'gcloud run jobs execute vrc-ta-hub-migrate '
+            '--region=asia-northeast1 --project=vrc-ta-hub --wait'
         )
 
         with self.assertRaises(ValueError):
-            self.reader.build_summary(config)
+            self.reader.build_summary(self._with_check_command(command))
 
-    def test_showmigrations_is_not_rejected(self):
-        """read-only な showmigrations を migrate と誤検知しない。"""
-        config = dict(self.config)
-        config['migrations'] = dict(
-            self.config['migrations'],
-            check_command="gcloud run jobs execute x --args='^|^manage.py|showmigrations|--plan'",
-        )
+    def test_read_only_commands_are_not_rejected(self):
+        """read-only なコマンドを migrate と誤検知しない。"""
+        for command in (
+            './scripts/check_pending_migrations.sh',
+            'python manage.py showmigrations --plan',
+            'python manage.py sqlmigrate user_account 0016',
+        ):
+            with self.subTest(command=command):
+                summary = self.reader.build_summary(self._with_check_command(command))
 
-        summary = self.reader.build_summary(config)
-
-        self.assertIn('showmigrations', summary['migrations']['check_command'])
+                self.assertEqual(summary['migrations']['check_command'], command)
 
     def test_missing_referenced_script_is_rejected(self):
         config = dict(self.config)

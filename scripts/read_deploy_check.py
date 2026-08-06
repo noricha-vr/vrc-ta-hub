@@ -30,9 +30,10 @@ LOG_CHECK_NAME_RE = re.compile(r"[^\"'`\\\x00-\x1f\x7f]{1,200}")
 
 # check_command は read-only でなければならない。deploy-watch は切替前にこれを実行するため、
 # migrate が混ざると「確認のつもりで適用してしまう」事故になる。
-# 区切りにカンマ・= も含めるのは、gcloud の --args=manage.py,migrate,--noinput 形式を
-# 見落とさないため。create_migrate_job.sh のようにファイル名へ含まれる場合は検知しない。
-MIGRATE_TOKEN_RE = re.compile(r"""(?:^|[\s|/'",=])migrate(?:$|[\s|'",])""")
+# 許可する区切りを列挙する方式は `;migrate` `&&migrate` `(migrate)` を取りこぼすため、
+# 「前後が識別子の一部でない」ことだけを条件にする。これで showmigrations / sqlmigrate や
+# create_migrate_job.sh のようにファイル名へ含まれる場合は検知しない。
+MIGRATE_TOKEN_RE = re.compile(r"(?<![\w./-])migrate(?![\w-])")
 
 
 def _ensure_list(value: Any) -> list[Any]:
@@ -118,6 +119,13 @@ def resolve_migrations(config: dict[str, Any], base_dir: Path | None = None) -> 
         raise ValueError(
             "migrations.check_command must be read-only, but it runs migrate: "
             f"{check_command!r}"
+        )
+    # Job 名が `-migrate` で終わる（apply_command をコピペした形）と上の検知をすり抜ける。
+    # 確認は showmigrations を実行するスクリプト経由に限る、という契約を明示する。
+    if "jobs execute" in check_command:
+        raise ValueError(
+            "migrations.check_command must not execute a Cloud Run job directly; "
+            f"use a read-only script instead: {check_command!r}"
         )
 
     if base_dir is not None:
