@@ -1,0 +1,132 @@
+# deploy-watch project checklist schema (v1)
+# - `complete_checklist`: 監視完了時に満たすべき project-level 条件
+# - `[migrations]`: デプロイ前の未適用 migration 確認・適用コマンド
+# - `[[checks.critical]]`: 全ステージ（即時モード含む）で実行する curl アサーション
+# - `[[checks.important]]`: Stage 2 以降で実行する curl アサーション
+# - `[[log_checks]]`: Cloud Logging で確認する project-level 指標
+# - `[[critical_paths]]`: 重要機能の棚卸し
+#
+# URL は本番の絶対 URL で書く。deploy-watch は新リビジョン検証時に host を
+# canary タグ URL へ差し替えて叩くため、canary 用の URL を別途書く必要はない。
+schema_version = 1
+title = "vrc-ta-hub deploy checklist"
+service = "vrc-ta-hub"
+source_of_truth = true
+
+complete_checklist = [
+  "未適用 migration がゼロであることをトラフィック切替前に確認した",
+  "Critical の curl アサーションを各ステージで実行した",
+  "Important の curl アサーションを Stage 2 以降で実行した",
+  "/health の db と cache がどちらも ok であることを確認した",
+  "5xx が増加していないことを確認した",
+]
+
+[migrations]
+# Cloud Build は migration を自動実行しない（判断記録: docs/research/issue-464-cloud-run-job-migration.md）。
+# 未適用のまま新リビジョンへトラフィックを流すと 500 になるため、切替前に必ずこの確認を通す。
+#
+# check_command は read-only（showmigrations --plan）。実行〜ログ読み取り〜判定まで
+# 1コマンドで完結させる。未適用があれば exit 1、ログが取れなければ exit 2 で落とす
+# （取り込み遅延を「未適用ゼロ」と誤認すると今回の事故を素通りさせるため）。
+# Job が存在しない場合は先に ./scripts/create_migrate_job.sh で作成する。
+check_command = "./scripts/check_pending_migrations.sh"
+# 全アプリ適用（Job のデフォルト引数）。個別に当てる場合は gcloud run jobs update で
+# --args を差し替えてから execute する（execute --args による実行時上書きは、この環境では
+# API が overrides を受け付けず失敗する）。
+apply_command = "./scripts/create_migrate_job.sh && gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --project=vrc-ta-hub --wait"
+
+[[checks.critical]]
+name = "トップページ"
+url = "https://vrc-ta-hub.com/"
+method = "GET"
+expect_status = 200
+expect_body = "VRChat技術・学術系イベントHub"
+
+# /health は cache 失敗でも status=ok を返す設計（app/ta_hub/health.py）。
+[[checks.critical]]
+name = "ヘルスチェック（DB）"
+url = "https://vrc-ta-hub.com/health"
+method = "GET"
+expect_status = 200
+expect_body = "\"db\": \"ok\""
+
+# migration 未適用（DatabaseCache のテーブル不在）はここでしか検知できない。
+# cache フィールドは常に LocMem の healthcheck alias を見るため、テーブルが無くても ok を返す。
+[[checks.critical]]
+name = "ヘルスチェック（共有キャッシュ）"
+url = "https://vrc-ta-hub.com/health"
+method = "GET"
+expect_status = 200
+expect_body = "\"shared_cache\": \"ok\""
+
+[[checks.critical]]
+name = "ヘルスチェック（cache）"
+url = "https://vrc-ta-hub.com/health"
+method = "GET"
+expect_status = 200
+expect_body = "\"cache\": \"ok\""
+
+# DatabaseCache に実際に依存するため、即時モード（critical のみ実行）でも検知したい。
+[[checks.critical]]
+name = "ログイン画面"
+url = "https://vrc-ta-hub.com/account/login/"
+method = "GET"
+expect_status = 200
+expect_body = "csrfmiddlewaretoken"
+
+[[checks.critical]]
+name = "ヘルスチェック（総合ステータス）"
+url = "https://vrc-ta-hub.com/health"
+method = "GET"
+expect_status = 200
+expect_body = "\"status\": \"ok\""
+
+[[checks.important]]
+name = "集会一覧"
+url = "https://vrc-ta-hub.com/community/list/"
+method = "GET"
+expect_status = 200
+expect_body = "技術学術系集会一覧"
+
+[[checks.important]]
+name = "発表一覧"
+url = "https://vrc-ta-hub.com/event/detail/history/"
+method = "GET"
+expect_status = 200
+expect_body = "イベント発表履歴"
+
+[[log_checks]]
+name = "5xx エラー"
+filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"vrc-ta-hub\" AND httpRequest.status>=500"
+description = "トラフィック切替前後で 5xx が増えていないことを確認する"
+
+# migration 未適用で DatabaseCache のテーブルが無いと発生する。
+[[log_checks]]
+name = "cache テーブル不在"
+filter = "resource.type=\"cloud_run_revision\" AND resource.labels.service_name=\"vrc-ta-hub\" AND textPayload=~\"login_rate_limit_cache\""
+description = "DatabaseCache のテーブル未作成（migration 未適用）を検知する"
+
+[[critical_paths]]
+priority = "P0"
+feature = "トップページ /"
+impact = "サイト全体が閲覧不可"
+
+[[critical_paths]]
+priority = "P0"
+feature = "ヘルスチェック /health"
+impact = "Cloud Run がインスタンスを異常判定"
+
+[[critical_paths]]
+priority = "P0"
+feature = "ログイン /account/login/"
+impact = "主催者が集会・発表を管理できない"
+
+[[critical_paths]]
+priority = "P1"
+feature = "集会一覧 /community/list/"
+impact = "集会情報の集約という主目的が果たせない"
+
+[[critical_paths]]
+priority = "P1"
+feature = "発表一覧 /event/detail/history/"
+impact = "発表アーカイブへ到達できない"

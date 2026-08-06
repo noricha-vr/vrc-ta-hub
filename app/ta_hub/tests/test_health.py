@@ -28,6 +28,22 @@ class HealthCheckTest(TestCase):
         self.assertEqual(payload['status'], 'ok')
         self.assertEqual(payload['db'], 'ok')
         self.assertEqual(payload['cache'], 'ok')
+        self.assertEqual(payload['shared_cache'], 'ok')
+
+    def test_health_marks_shared_cache_ng_when_default_cache_unavailable(self):
+        """default cache が使えないと shared_cache=ng になる
+
+        Cloud Run の default は DatabaseCache で、テーブル未作成（migration 未適用）だと
+        ここが落ちる。cache フィールドは常に LocMem を見るので検知できない。
+        """
+        with patch('ta_hub.health.caches') as mock_caches:
+            mock_caches.__getitem__.side_effect = Exception('no such table')
+            response = self.client.get('/health')
+
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content)
+        self.assertEqual(payload['status'], 'ok')
+        self.assertEqual(payload['shared_cache'], 'ng')
 
     def test_health_returns_503_when_db_unreachable(self):
         """DB 切断時は 503 / status=ng / db=ng を返す（probe で外す）"""

@@ -5,7 +5,7 @@ VRC技術学術ハブの開発、運用、調査メモ、利用ガイドをま�
 ## 開発・運用の基本
 
 - [セットアップ](setup.md)
-- [デプロイ](deployment.md) — [ヘルスチェック](deployment.md#health)
+- [デプロイ](deployment.md) — [ヘルスチェック](deployment.md#health) / [デプロイ前チェック定義](deploy-check.toml)
 - [テスト方針と共有 factory ヘルパー](testing.md)
 - [mypy + django-stubs 段階導入ガイド](mypy.md)
 - [関数リファレンス](functions.md)

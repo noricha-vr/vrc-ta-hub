@@ -23,3 +23,8 @@ Django関係のスクリプトはカスタムコマンドとして、各アプ�
 
 - `scripts/db_pull_restore.sh`: `make db-pull` が取得した本番ダンプを Docker Compose の `db` サービスへ復元し、アプリコンテナ経由で代表テーブル件数を検証します。
 - `scripts/tests/test_db_pull_restore.sh`: Docker Compose 呼び出しをモックして、復元先サービス固定・`DB_HOST` 不一致検知・代表テーブル件数検証を確認します。
+
+## デプロイ運用
+
+- `scripts/create_migrate_job.sh`: Cloud Run Job `vrc-ta-hub-migrate` を作成/更新（冪等）。稼働中サービスからイメージ・環境変数・シークレット・SA を引き継ぎます。
+- `scripts/tests/test_deploy_ops_config.sh`: `make -n` の展開結果で本番DBターゲットの `op run` / Compose 経由を検証し、migrate Job スクリプトの必須オプションを静的検証します。
