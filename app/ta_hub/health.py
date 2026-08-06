@@ -6,6 +6,9 @@ zombie プロセスへの誤ルーティングを防ぐため、DB と cache の
 設計方針:
 - DB 失敗は致命的なので 503 を返す（probe で外れる）
 - cache 失敗は status を ng にしない（cache 未設定でも生存判定したい）
+- shared_cache は default alias（Cloud Run では DatabaseCache）の可用性を別に返す。
+  cache フィールドは常に LocMem の healthcheck alias を見るため、DatabaseCache の
+  テーブル未作成（migration 未適用）を検知できない。デプロイ前チェックはこちらを見る。
 """
 
 from django.core.cache import caches
@@ -27,8 +30,8 @@ def health_check(request):
     """軽量ヘルスチェック (DB + cache ping)
 
     Returns:
-        JsonResponse: ``{"status": "ok"|"ng", "db": "ok"|"ng", "cache": "ok"|"ng"}``。
-            DB がダウンしている場合のみ 503、それ以外は 200。
+        JsonResponse: ``{"status", "db", "cache", "shared_cache"}`` の各値が
+            ``"ok"|"ng"``。DB がダウンしている場合のみ 503、それ以外は 200。
     """
     checks = {"status": "ok"}
 
@@ -48,6 +51,16 @@ def health_check(request):
     except Exception:
         # cache 未設定環境でも生存判定したいので status は ng にしない
         checks["cache"] = "ng"
+
+    try:
+        # default alias は Cloud Run では DatabaseCache。probe ごとに INSERT すると
+        # Cloud SQL への書き込みが増えるので、読み取りだけで疎通を確かめる
+        # （テーブルが無ければここで例外になる）。
+        caches['default'].get(_HEALTH_CACHE_KEY)
+        checks["shared_cache"] = "ok"
+    except Exception:
+        # レート制限は落ちるがページ表示は生きうるので status は ng にしない
+        checks["shared_cache"] = "ng"
 
     status_code = 200 if checks["status"] == "ok" else 503
     return JsonResponse(checks, status=status_code)
