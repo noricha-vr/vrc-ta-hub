@@ -38,16 +38,20 @@ Jobが存在しない場合は先に作成する。稼働中のCloud Runサー�
 gcloud run jobs execute vrc-ta-hub-migrate \
   --region=asia-northeast1 --project=vrc-ta-hub --wait
 
-# 個別のmigrationだけ当てる場合は実行時に引数を上書きする。
-# 区切りは ^|^ を使う（既定のカンマ区切りだと "manage.py migrate" が壊れる）。
-gcloud run jobs execute vrc-ta-hub-migrate \
-  --region=asia-northeast1 --project=vrc-ta-hub --wait \
+# 個別のmigrationだけ当てる場合はJob定義の引数を差し替えてから実行し、必ず戻す。
+# execute --args による実行時上書きは、この環境ではAPIがoverridesを受け付けず失敗する
+# （Unknown name "priorityTier"）。区切りは ^|^ を使う（既定のカンマ区切りだと壊れる）。
+gcloud run jobs update vrc-ta-hub-migrate \
+  --region=asia-northeast1 --project=vrc-ta-hub \
   --args='^|^manage.py|migrate|user_account|0016|--noinput'
-
-# 未適用の一覧（read-only）。出力はJobのログに出る
 gcloud run jobs execute vrc-ta-hub-migrate \
-  --region=asia-northeast1 --project=vrc-ta-hub --wait \
-  --args='^|^manage.py|showmigrations|--plan'
+  --region=asia-northeast1 --project=vrc-ta-hub --wait
+gcloud run jobs update vrc-ta-hub-migrate \
+  --region=asia-northeast1 --project=vrc-ta-hub \
+  --args='^|^manage.py|migrate|--noinput'
+
+# 未適用の一覧（read-only）。引数の差し替え・復元・ログ判定まで面倒を見る
+./scripts/check_pending_migrations.sh
 ```
 
 デプロイ前チェックの正本は [deploy-check.toml](deploy-check.toml)（deploy-watchが読む）。

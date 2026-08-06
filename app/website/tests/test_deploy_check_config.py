@@ -26,11 +26,19 @@ class DeployCheckConfigTest(SimpleTestCase):
         ]
 
     def test_migration_check_command_is_read_only(self):
-        """未適用 migration の確認は read-only。deploy-watch が誤って適用しないこと。"""
+        """未適用 migration の確認は read-only。deploy-watch が誤って適用しないこと。
+
+        check_command 自体はスクリプトなので、スクリプト本体が showmigrations だけを
+        実行し migrate を含まないことまで見る。
+        """
         check_command = self.config['migrations']['check_command']
-        self.assertIn('showmigrations', check_command)
-        self.assertNotIn('migrate --noinput', check_command)
-        self.assertNotIn('|migrate|', check_command)
+        self.assertIn('check_pending_migrations.sh', check_command)
+
+        script = REPO_ROOT / 'scripts' / 'check_pending_migrations.sh'
+        body = script.read_text(encoding='utf-8')
+        self.assertIn('showmigrations', body)
+        # 実行対象として migrate を渡す箇所が無いこと（復元用の args 文字列は除く）
+        self.assertNotIn("--args='^|^manage.py|migrate", body)
 
     def test_migration_apply_command_creates_job_first(self):
         """Job 不在でも適用できるよう、作成スクリプトを経由する。"""
@@ -44,22 +52,36 @@ class DeployCheckConfigTest(SimpleTestCase):
         self.assertTrue(checks)
         self.assertTrue(all(check['expect_status'] == 200 for check in checks))
 
-    def test_health_check_asserts_db_and_cache(self):
-        """/health は cache 失敗でも status=ok を返すため、db と cache の値まで見る。
+    def test_health_check_asserts_shared_cache(self):
+        """/health は cache 失敗でも status=ok を返すため、各フィールドの値まで見る。
 
-        DatabaseCache のテーブル未作成（migration 未適用）を status だけでは検知できない。
+        cache フィールドは常に LocMem の healthcheck alias を見るので、
+        DatabaseCache のテーブル未作成（migration 未適用）は shared_cache でしか
+        検知できない。これが無いと、この設定ファイルを追加した意味が無くなる。
         """
         bodies = {
             check['expect_body']
             for check in self._expectations_for('critical', '/health')
         }
         self.assertIn('"db": "ok"', bodies)
-        self.assertIn('"cache": "ok"', bodies)
+        self.assertIn('"shared_cache": "ok"', bodies)
         self.assertIn('"status": "ok"', bodies)
 
-    def test_important_checks_cover_login_and_listings(self):
+    def test_login_page_is_critical(self):
+        """ログイン画面は DatabaseCache に依存するので即時モードでも検証する
+
+        important は --immediate でスキップされる。緊急デプロイでこそ
+        migration 未適用を検知したいので critical に置く。
+        """
+        critical_urls = [check['url'] for check in self._checks('critical')]
+        self.assertTrue(
+            any(url.endswith('/account/login/') for url in critical_urls),
+            '/account/login/ should be a critical check',
+        )
+
+    def test_important_checks_cover_listings(self):
         important_urls = [check['url'] for check in self._checks('important')]
-        for path in ('/account/login/', '/community/list/', '/event/detail/history/'):
+        for path in ('/community/list/', '/event/detail/history/'):
             self.assertTrue(
                 any(url.endswith(path) for url in important_urls),
                 f'{path} should be an important check',

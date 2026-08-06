@@ -71,8 +71,10 @@ PROD_DUMP_OPTS := --single-transaction --routines --triggers --no-tablespaces --
 # また本番 MySQL 8 の認証プラグインにホストの MariaDB クライアントは非対応なため、
 # 本番への mysqldump / mysql は Compose の db サービス（MySQL 8 正規クライアント）経由で叩く。
 OP_RUN := op run --env-file=$(PROD_ENV_FILE) --
-# MYSQL_PWD の値は呼び出し側で `-e MYSQL_PWD="$$DB_PASSWORD"` の形に展開される
-PROD_MYSQL_EXEC := docker compose exec -T -e MYSQL_PWD
+# 値なしの `-e MYSQL_PWD` は呼び出し元プロセスの環境から引き継ぐ。
+# `-e MYSQL_PWD=<値>` にすると docker CLI の argv に本番パスワードが平文で乗り、
+# 実行中は同一ホストの ps から読める（op run のマスクは argv に効かない）。
+PROD_MYSQL_EXEC := MYSQL_PWD="$$DB_PASSWORD" docker compose exec -T -e MYSQL_PWD
 
 define require_op
 	@command -v op >/dev/null 2>&1 || \
@@ -86,12 +88,19 @@ define assert_prod_db_env
 		{ echo "ERROR: $(PROD_ENV_FILE) must define DB_NAME, DB_USER, DB_PASSWORD, and DB_HOST." >&2; exit 1; }
 endef
 
+# DROP/CREATE DATABASE に埋め込む前に識別子を検証する（scripts/db_pull_restore.sh と同基準）。
+# バッククォート囲みだけでは、値に ` が混ざると SQL 文が壊れる。
+define assert_prod_db_name_is_identifier
+	case "$$DB_NAME" in *[!A-Za-z0-9_]*) \
+		echo "ERROR: DB_NAME must contain only letters, numbers, and underscores." >&2; exit 1;; esac
+endef
+
 db-backup: ## 本番DBバックアップ → dumps/
 	$(require_op)
 	@mkdir -p $(DUMPS_DIR)
 	@$(OP_RUN) sh -c '$(assert_prod_db_env); \
 		echo "Backing up production DB ($$DB_NAME)..."; \
-		$(PROD_MYSQL_EXEC)="$$DB_PASSWORD" $(COMPOSE_DB_SERVICE) mysqldump -h "$$DB_HOST" -u "$$DB_USER" $(PROD_DUMP_OPTS) "$$DB_NAME"' \
+		$(PROD_MYSQL_EXEC) $(COMPOSE_DB_SERVICE) mysqldump -h "$$DB_HOST" -u "$$DB_USER" $(PROD_DUMP_OPTS) "$$DB_NAME"' \
 		| gzip > $(DUMPS_DIR)/production_$(DATE).sql.gz
 	@echo "Done: $(DUMPS_DIR)/production_$(DATE).sql.gz"
 
@@ -107,7 +116,7 @@ db-pull: ## 本番DB → ローカルDB
 	@mkdir -p $(DUMPS_DIR)
 	@$(OP_RUN) sh -c '$(assert_prod_db_env); \
 		echo "Dumping production DB ($$DB_NAME)..."; \
-		$(PROD_MYSQL_EXEC)="$$DB_PASSWORD" $(COMPOSE_DB_SERVICE) mysqldump -h "$$DB_HOST" -u "$$DB_USER" $(PROD_DUMP_OPTS) "$$DB_NAME"' \
+		$(PROD_MYSQL_EXEC) $(COMPOSE_DB_SERVICE) mysqldump -h "$$DB_HOST" -u "$$DB_USER" $(PROD_DUMP_OPTS) "$$DB_NAME"' \
 		| gzip > $(DUMPS_DIR)/production.sql.gz
 	@echo "Restoring to Docker Compose DB service ($(COMPOSE_DB_SERVICE))..."
 	@APP_SERVICE="$(COMPOSE_APP_SERVICE)" \
@@ -129,17 +138,20 @@ db-push: ## ローカルDB → 本番DB（確認プロンプト + 自動backup�
 	@echo "Dumping Docker Compose local DB ($(LOCAL_DB_NAME))..."
 	@docker compose exec -T -e MYSQL_PWD="$(LOCAL_DB_AUTH)" db mysqldump -u "$(LOCAL_DB_USER)" --single-transaction --routines --triggers --no-tablespaces "$(LOCAL_DB_NAME)" \
 		| gzip > $(DUMPS_DIR)/local.sql.gz
-	@$(OP_RUN) sh -c '$(assert_prod_db_env); \
+	@$(OP_RUN) sh -e -c '$(assert_prod_db_env); \
+		$(assert_prod_db_name_is_identifier); \
 		printf "Type the production DB name (%s) to continue: " "$$DB_NAME"; \
 		read confirm </dev/tty; \
 		[ "$$confirm" = "$$DB_NAME" ] || { echo "Aborted."; exit 1; }; \
 		echo "Auto-backup: production DB..."; \
-		$(PROD_MYSQL_EXEC)="$$DB_PASSWORD" $(COMPOSE_DB_SERVICE) mysqldump -h "$$DB_HOST" -u "$$DB_USER" $(PROD_DUMP_OPTS) "$$DB_NAME" \
-			| gzip > $(DUMPS_DIR)/production_before_push_$(DATE).sql.gz; \
-		echo "Saved: $(DUMPS_DIR)/production_before_push_$(DATE).sql.gz"; \
+		BACKUP="$(DUMPS_DIR)/production_before_push_$(DATE).sql.gz"; \
+		$(PROD_MYSQL_EXEC) $(COMPOSE_DB_SERVICE) mysqldump -h "$$DB_HOST" -u "$$DB_USER" $(PROD_DUMP_OPTS) "$$DB_NAME" \
+			| gzip > "$$BACKUP"; \
+		gunzip -t "$$BACKUP" || { echo "ERROR: backup is missing or corrupt. Aborting before DROP." >&2; exit 1; }; \
+		echo "Saved: $$BACKUP"; \
 		echo "Restoring to production DB ($$DB_NAME)..."; \
-		$(PROD_MYSQL_EXEC)="$$DB_PASSWORD" $(COMPOSE_DB_SERVICE) mysql -h "$$DB_HOST" -u "$$DB_USER" \
+		$(PROD_MYSQL_EXEC) $(COMPOSE_DB_SERVICE) mysql -h "$$DB_HOST" -u "$$DB_USER" \
 			-e "DROP DATABASE IF EXISTS \`$$DB_NAME\`; CREATE DATABASE \`$$DB_NAME\`;"; \
 		gunzip -c $(DUMPS_DIR)/local.sql.gz \
-			| $(PROD_MYSQL_EXEC)="$$DB_PASSWORD" $(COMPOSE_DB_SERVICE) mysql -h "$$DB_HOST" -u "$$DB_USER" "$$DB_NAME"'
+			| $(PROD_MYSQL_EXEC) $(COMPOSE_DB_SERVICE) mysql -h "$$DB_HOST" -u "$$DB_USER" "$$DB_NAME"'
 	@echo "Done: $(LOCAL_DB_NAME) → production"

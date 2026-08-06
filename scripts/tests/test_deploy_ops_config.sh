@@ -61,10 +61,18 @@ for target in db-backup db-pull db-push; do
   # op run 経由でなければ op:// 参照がホスト名として渡り接続に失敗する
   assert_expansion_contains "$target" "op run --env-file=.env.production.local --"
   # ホストの MariaDB クライアントは本番 MySQL 8 の認証プラグインに非対応
-  assert_expansion_contains "$target" 'docker compose exec -T -e MYSQL_PWD="$DB_PASSWORD" db'
+  assert_expansion_contains "$target" 'docker compose exec -T -e MYSQL_PWD db'
+  # 値付き -e は docker CLI の argv に本番パスワードを平文で載せる（ps から読める）
+  assert_expansion_not_contains "$target" '-e MYSQL_PWD="$DB_PASSWORD"'
   # op が無い環境では分かりやすく落とす
   assert_expansion_contains "$target" "command -v op"
 done
+
+# 本番DBを DROP する前に識別子検証とバックアップ健全性チェックを通す
+assert_expansion_contains db-push "gunzip -t"
+assert_expansion_contains db-push "must contain only letters, numbers, and underscores"
+# 内側 sh に -e が無いと、バックアップ失敗後も DROP DATABASE が続行する
+assert_expansion_contains db-push "sh -e -c"
 
 # ローカルへ流し込むため GTID を落とす
 assert_expansion_contains db-pull "--set-gtid-purged=OFF"

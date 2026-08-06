@@ -25,13 +25,14 @@ complete_checklist = [
 # Cloud Build は migration を自動実行しない（判断記録: docs/research/issue-464-cloud-run-job-migration.md）。
 # 未適用のまま新リビジョンへトラフィックを流すと 500 になるため、切替前に必ずこの確認を通す。
 #
-# check_command は read-only。Cloud Run Job で showmigrations --plan を実行し、
-# 出力は Job のログに出るので check_log_command で読む（`[ ]` 行が未適用）。
+# check_command は read-only（showmigrations --plan）。実行〜ログ読み取り〜判定まで
+# 1コマンドで完結させる。未適用があれば exit 1、ログが取れなければ exit 2 で落とす
+# （取り込み遅延を「未適用ゼロ」と誤認すると今回の事故を素通りさせるため）。
 # Job が存在しない場合は先に ./scripts/create_migrate_job.sh で作成する。
-check_command = "gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --project=vrc-ta-hub --wait --args='^|^manage.py|showmigrations|--plan'"
-check_log_command = "gcloud logging read 'resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"vrc-ta-hub-migrate\"' --project=vrc-ta-hub --limit=300 --freshness=10m --format='value(textPayload)' | grep -F '[ ]'"
-# 全アプリ適用（Job のデフォルト引数）。個別に当てる場合は
-# --args='^|^manage.py|migrate|user_account|0016|--noinput' のように実行時上書きする。
+check_command = "./scripts/check_pending_migrations.sh"
+# 全アプリ適用（Job のデフォルト引数）。個別に当てる場合は gcloud run jobs update で
+# --args を差し替えてから execute する（execute --args による実行時上書きは、この環境では
+# API が overrides を受け付けず失敗する）。
 apply_command = "./scripts/create_migrate_job.sh && gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --project=vrc-ta-hub --wait"
 
 [[checks.critical]]
@@ -42,13 +43,21 @@ expect_status = 200
 expect_body = "VRChat技術・学術系イベントHub"
 
 # /health は cache 失敗でも status=ok を返す設計（app/ta_hub/health.py）。
-# DatabaseCache のテーブル未作成を status だけでは検知できないため cache まで見る。
 [[checks.critical]]
 name = "ヘルスチェック（DB）"
 url = "https://vrc-ta-hub.com/health"
 method = "GET"
 expect_status = 200
 expect_body = "\"db\": \"ok\""
+
+# migration 未適用（DatabaseCache のテーブル不在）はここでしか検知できない。
+# cache フィールドは常に LocMem の healthcheck alias を見るため、テーブルが無くても ok を返す。
+[[checks.critical]]
+name = "ヘルスチェック（共有キャッシュ）"
+url = "https://vrc-ta-hub.com/health"
+method = "GET"
+expect_status = 200
+expect_body = "\"shared_cache\": \"ok\""
 
 [[checks.critical]]
 name = "ヘルスチェック（cache）"
@@ -57,21 +66,20 @@ method = "GET"
 expect_status = 200
 expect_body = "\"cache\": \"ok\""
 
+# DatabaseCache に実際に依存するため、即時モード（critical のみ実行）でも検知したい。
+[[checks.critical]]
+name = "ログイン画面"
+url = "https://vrc-ta-hub.com/account/login/"
+method = "GET"
+expect_status = 200
+expect_body = "csrfmiddlewaretoken"
+
 [[checks.critical]]
 name = "ヘルスチェック（総合ステータス）"
 url = "https://vrc-ta-hub.com/health"
 method = "GET"
 expect_status = 200
 expect_body = "\"status\": \"ok\""
-
-# ログイン画面は DatabaseCache（login_rate_limit_cache）に依存するため、
-# migration 未適用の検知に効く。
-[[checks.important]]
-name = "ログイン画面"
-url = "https://vrc-ta-hub.com/account/login/"
-method = "GET"
-expect_status = 200
-expect_body = "csrfmiddlewaretoken"
 
 [[checks.important]]
 name = "集会一覧"
