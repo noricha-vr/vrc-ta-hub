@@ -57,10 +57,13 @@
                                     <th scope="row" class="bg-light">発表の持ち時間</th>
                                     <td>{{ event_detail.duration }}分</td>
                                 </tr>
+                                {# 代理申請でのみ意味がある情報なので、発表者と同名なら出さない #}
+                                {% if event_detail.applicant and event_detail.applicant.display_label != event_detail.speaker %}
                                 <tr>
                                     <th scope="row" class="bg-light">申請者</th>
                                     <td>{{ event_detail.applicant.display_label }}</td>
                                 </tr>
+                                {% endif %}
                                 <tr>
                                     <th scope="row" class="bg-light">申請日時</th>
                                     <td>{{ event_detail.created_at|date:"Y年m月d日 H:i" }}</td>

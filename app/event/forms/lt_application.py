@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
 
+from community.constants import WEEKDAY_ABBR, weekday_code
 from user_account.forms import normalize_x_account
 from ..datetime_lock import (
     EVENT_DETAIL_DATETIME_LOCK_MESSAGE,
@@ -182,20 +183,16 @@ class LTApplicationForm(forms.Form):
         return additional_info
 
 
-WEEKDAY_LABELS = ['月', '火', '水', '木', '金', '土', '日']
-
-
 class EventScheduleChoiceField(forms.ModelChoiceField):
-    """開催日を「日付＋開始時刻」で選べるようにした ModelChoiceField。
+    """開催日を日付で選べるようにした ModelChoiceField。
 
     既定の __str__ だと日付が読み取れず、主催者が振替先を選び間違えるため表示を上書きする。
+    集会の開始時刻は隣の「開始時刻」欄（発表個別の時刻）と紛らわしいので出さない。
     """
 
     def label_from_instance(self, obj):
-        return (
-            f"{obj.date.strftime('%Y年%m月%d日')}({WEEKDAY_LABELS[obj.date.weekday()]}) "
-            f"{obj.start_time.strftime('%H:%M')}"
-        )
+        weekday = WEEKDAY_ABBR[weekday_code(obj.date)]
+        return f"{obj.date.strftime('%Y年%m月%d日')}({weekday})"
 
 
 class LTApplicationReviewForm(forms.Form):
