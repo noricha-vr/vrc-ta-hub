@@ -71,8 +71,14 @@ done
 # 本番DBを DROP する前に識別子検証とバックアップ健全性チェックを通す
 assert_expansion_contains db-push "gunzip -t"
 assert_expansion_contains db-push "must contain only letters, numbers, and underscores"
-# 内側 sh に -e が無いと、バックアップ失敗後も DROP DATABASE が続行する
-assert_expansion_contains db-push "sh -e -c"
+# 内側シェルに -e / pipefail が無いと、バックアップ失敗後も DROP DATABASE が続行する
+assert_expansion_contains db-push "bash -e -o pipefail -c"
+
+# `mysqldump | gzip` は dump が失敗しても gzip 側が成功するため、パイプの終了状態では
+# 空バックアップを検知できない。生成物にテーブル定義があることまで確認する。
+for target in db-backup db-pull db-push; do
+  assert_expansion_contains "$target" "has no table definitions"
+done
 
 # ローカルへ流し込むため GTID を落とす
 assert_expansion_contains db-pull "--set-gtid-purged=OFF"

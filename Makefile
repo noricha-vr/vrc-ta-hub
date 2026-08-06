@@ -95,6 +95,15 @@ define assert_prod_db_name_is_identifier
 		echo "ERROR: DB_NAME must contain only letters, numbers, and underscores." >&2; exit 1;; esac
 endef
 
+# `mysqldump | gzip` は dump が失敗しても gzip が成功するため、空でも正常な gz が残る。
+# パイプの終了状態には頼らず、生成物にテーブル定義が入っていることで成否を判定する。
+define assert_dump_is_usable
+	@gunzip -t "$(1)" 2>/dev/null || \
+		{ echo "ERROR: $(1) is corrupt or missing." >&2; rm -f "$(1)"; exit 1; }
+	@gunzip -c "$(1)" | grep -q "CREATE TABLE" || \
+		{ echo "ERROR: $(1) has no table definitions (dump likely failed)." >&2; rm -f "$(1)"; exit 1; }
+endef
+
 db-backup: ## 本番DBバックアップ → dumps/
 	$(require_op)
 	@mkdir -p $(DUMPS_DIR)
@@ -102,6 +111,7 @@ db-backup: ## 本番DBバックアップ → dumps/
 		echo "Backing up production DB ($$DB_NAME)..."; \
 		$(PROD_MYSQL_EXEC) $(COMPOSE_DB_SERVICE) mysqldump -h "$$DB_HOST" -u "$$DB_USER" $(PROD_DUMP_OPTS) "$$DB_NAME"' \
 		| gzip > $(DUMPS_DIR)/production_$(DATE).sql.gz
+	$(call assert_dump_is_usable,$(DUMPS_DIR)/production_$(DATE).sql.gz)
 	@echo "Done: $(DUMPS_DIR)/production_$(DATE).sql.gz"
 
 db-backup-local: ## ローカルDBバックアップ → dumps/
@@ -118,6 +128,7 @@ db-pull: ## 本番DB → ローカルDB
 		echo "Dumping production DB ($$DB_NAME)..."; \
 		$(PROD_MYSQL_EXEC) $(COMPOSE_DB_SERVICE) mysqldump -h "$$DB_HOST" -u "$$DB_USER" $(PROD_DUMP_OPTS) "$$DB_NAME"' \
 		| gzip > $(DUMPS_DIR)/production.sql.gz
+	$(call assert_dump_is_usable,$(DUMPS_DIR)/production.sql.gz)
 	@echo "Restoring to Docker Compose DB service ($(COMPOSE_DB_SERVICE))..."
 	@APP_SERVICE="$(COMPOSE_APP_SERVICE)" \
 		DB_SERVICE="$(COMPOSE_DB_SERVICE)" \
@@ -138,7 +149,8 @@ db-push: ## ローカルDB → 本番DB（確認プロンプト + 自動backup�
 	@echo "Dumping Docker Compose local DB ($(LOCAL_DB_NAME))..."
 	@docker compose exec -T -e MYSQL_PWD="$(LOCAL_DB_AUTH)" db mysqldump -u "$(LOCAL_DB_USER)" --single-transaction --routines --triggers --no-tablespaces "$(LOCAL_DB_NAME)" \
 		| gzip > $(DUMPS_DIR)/local.sql.gz
-	@$(OP_RUN) sh -e -c '$(assert_prod_db_env); \
+	$(call assert_dump_is_usable,$(DUMPS_DIR)/local.sql.gz)
+	@$(OP_RUN) bash -e -o pipefail -c '$(assert_prod_db_env); \
 		$(assert_prod_db_name_is_identifier); \
 		printf "Type the production DB name (%s) to continue: " "$$DB_NAME"; \
 		read confirm </dev/tty; \
@@ -147,7 +159,9 @@ db-push: ## ローカルDB → 本番DB（確認プロンプト + 自動backup�
 		BACKUP="$(DUMPS_DIR)/production_before_push_$(DATE).sql.gz"; \
 		$(PROD_MYSQL_EXEC) $(COMPOSE_DB_SERVICE) mysqldump -h "$$DB_HOST" -u "$$DB_USER" $(PROD_DUMP_OPTS) "$$DB_NAME" \
 			| gzip > "$$BACKUP"; \
-		gunzip -t "$$BACKUP" || { echo "ERROR: backup is missing or corrupt. Aborting before DROP." >&2; exit 1; }; \
+		gunzip -t "$$BACKUP" || { echo "ERROR: backup is corrupt. Aborting before DROP." >&2; exit 1; }; \
+		gunzip -c "$$BACKUP" | grep -q "CREATE TABLE" || \
+			{ echo "ERROR: backup has no table definitions. Aborting before DROP." >&2; exit 1; }; \
 		echo "Saved: $$BACKUP"; \
 		echo "Restoring to production DB ($$DB_NAME)..."; \
 		$(PROD_MYSQL_EXEC) $(COMPOSE_DB_SERVICE) mysql -h "$$DB_HOST" -u "$$DB_USER" \
