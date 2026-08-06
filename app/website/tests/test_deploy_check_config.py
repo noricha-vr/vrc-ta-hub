@@ -168,6 +168,16 @@ class ReadDeployCheckTest(SimpleTestCase):
         with self.assertRaises(ValueError):
             self.reader.build_summary(config, base_dir=REPO_ROOT)
 
+    def test_script_outside_repository_is_rejected(self):
+        """リポジトリ外を指す参照は、実在しても検証の対象外なので落とす。"""
+        config = dict(self.config)
+        config['migrations'] = dict(
+            self.config['migrations'], check_command='./scripts/../../../tmp/evil.sh'
+        )
+
+        with self.assertRaises(ValueError):
+            self.reader.build_summary(config, base_dir=REPO_ROOT)
+
     def test_render_text_shows_migrations(self):
         """テキスト出力にも migrations を出す（AI・人間が目視する経路）。"""
         summary = self.reader.build_summary(self.config, base_dir=REPO_ROOT)

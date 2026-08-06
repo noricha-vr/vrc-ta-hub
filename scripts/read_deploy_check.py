@@ -121,8 +121,16 @@ def resolve_migrations(config: dict[str, Any], base_dir: Path | None = None) -> 
         )
 
     if base_dir is not None:
+        root = base_dir.resolve()
         for script in _referenced_scripts(check_command):
-            if not (base_dir / script).exists():
+            target = (root / script).resolve()
+            # `./scripts/../../x.sh` のようにリポジトリ外を指す参照は、
+            # 実在してもこの検証の対象外なので設定ミスとして落とす。
+            if not target.is_relative_to(root):
+                raise ValueError(
+                    f"migrations.check_command references a script outside the repository: {script}"
+                )
+            if not target.exists():
                 raise ValueError(f"migrations.check_command references a missing script: {script}")
 
     return dict(migrations)
@@ -298,12 +306,13 @@ def main() -> int:
     args = parse_args()
     path = Path(args.path)
     config = _load_toml(path)
-    # スクリプト参照はリポジトリルート基準で解決する
+    # スクリプト参照はリポジトリルート基準で解決する。toml のパスから逆算すると
+    # 別ディレクトリの toml を渡したときに基準がずれるため、このファイルの位置を使う。
     summary = build_summary(
         config,
         watch_path=args.watch_path,
         service_name=args.service_name,
-        base_dir=path.resolve().parent.parent,
+        base_dir=Path(__file__).resolve().parent.parent,
     )
 
     if args.format == "json":
