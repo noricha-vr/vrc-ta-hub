@@ -212,25 +212,30 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
         schedule_changes: list[dict[str, str]] = []
 
         with transaction.atomic():
-            # 申請者は pending 中も内容を編集できるため、全フィールド save だと
-            # その編集を巻き戻す。行ロックして status を再確認し、更新列も限定する。
-            locked = EventDetail.objects.select_for_update().get(pk=self.event_detail.pk)
+            # 申請者は pending 中も内容を編集できる。dispatch 時点のインスタンスを
+            # 保存するとその編集を巻き戻すため、行ロックで取り直した最新行を
+            # 更新基準にする（更新列も限定する）。
+            locked = EventDetail.objects.select_for_update().select_related(
+                'event', 'applicant'
+            ).get(pk=self.event_detail.pk)
             if locked.status != 'pending':
                 messages.info(self.request, 'この申請は既に処理されています。')
-                return redirect('event:lt_application_review', pk=self.event_detail.pk)
+                return redirect('event:lt_application_review', pk=locked.pk)
+
+            self.event_detail = locked
 
             if action == 'approve':
                 schedule_changes = self._apply_schedule_changes(form)
-                self.event_detail.status = 'approved'
+                locked.status = 'approved'
                 status_text = '承認'
                 update_fields = ['status', 'event', 'start_time', 'duration', 'updated_at']
             else:
-                self.event_detail.status = 'rejected'
-                self.event_detail.rejection_reason = form.cleaned_data['rejection_reason']
+                locked.status = 'rejected'
+                locked.rejection_reason = form.cleaned_data['rejection_reason']
                 status_text = '却下'
                 update_fields = ['status', 'rejection_reason', 'updated_at']
 
-            self.event_detail.save(update_fields=update_fields)
+            locked.save(update_fields=update_fields)
 
         # 申請者に通知
         from event.notifications import notify_applicant_of_result

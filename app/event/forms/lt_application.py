@@ -259,7 +259,9 @@ class LTApplicationReviewForm(forms.Form):
         if event_detail is None:
             return
 
-        today = timezone.now().date()
+        # now().date() は UTC 基準になり、JST の 0〜9 時に前日開催の回まで
+        # 候補へ混入する（終了済みの日へ振替できてしまう）。
+        today = timezone.localdate()
         # 申請フォームと同じ受付中イベントに加え、現在割り当て中のイベントは
         # 受付停止・過去でも必ず候補に残す（据え置き承認を潰さないため）。
         self.fields['event'].queryset = Event.objects.filter(

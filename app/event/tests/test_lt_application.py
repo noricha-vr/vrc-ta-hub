@@ -1,8 +1,9 @@
 """LT申請機能のテスト"""
 import re
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from io import BytesIO
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from PIL import Image
 from django.test import TestCase, Client
@@ -586,6 +587,25 @@ class LTApplicationReviewTest(TestCase):
         self.assertNotIn(past_event, choices)
         self.assertNotIn(closed_event, choices)
 
+    def test_event_choices_exclude_yesterday_in_jst_early_morning(self):
+        """JST 早朝でも前日の回は候補に入らない（UTC 基準だと前日が今日扱いで混入する）"""
+        # JST 2026-08-20 01:30 = UTC 2026-08-19 16:30。now().date() だと 8/19 になる
+        jst_early_morning = datetime(
+            2026, 8, 20, 1, 30, tzinfo=ZoneInfo('Asia/Tokyo')
+        )
+        yesterday_event = make_event(self.community, event_date=date(2026, 8, 19))
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        # 実時刻だけを差し替え、日付の解釈（UTC か JST か）は実装に判定させる
+        with patch(
+            'django.utils.timezone.now',
+            return_value=jst_early_morning.astimezone(ZoneInfo('UTC')),
+        ):
+            choices = self.client.get(url).context['form'].fields['event'].queryset
+
+        self.assertNotIn(yesterday_event, choices)
+
     def test_currently_assigned_event_stays_selectable_when_closed(self):
         """受付停止済みの割当中イベントも選択肢に残る"""
         self.event.accepts_lt_application = False
@@ -647,6 +667,26 @@ class LTApplicationReviewTest(TestCase):
         self.pending_application.refresh_from_db()
         self.assertEqual(self.pending_application.theme, '申請者が直したテーマ')
         self.assertEqual(self.pending_application.status, 'approved')
+
+    @patch('event.notifications.send_mail')
+    def test_reject_keeps_concurrent_schedule_edit(self, mock_send_mail):
+        """却下は日時を触らないので、別経路で変わった日時をそのまま残す"""
+        mock_send_mail.return_value = 1
+        self.client.force_login(self.owner)
+
+        post_data = self._review_post_data(
+            action='reject', rejection_reason='今回は見送ります'
+        )
+        EventDetail.objects.filter(pk=self.pending_application.pk).update(
+            start_time=time(23, 45)
+        )
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        self.client.post(url, post_data)
+
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.start_time, time(23, 45))
+        self.assertEqual(self.pending_application.status, 'rejected')
 
     @patch('event.notifications.send_mail')
     def test_no_reschedule_section_when_unchanged(self, mock_send_mail):
