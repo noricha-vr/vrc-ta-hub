@@ -6,6 +6,10 @@ from django.db.models import Q
 from django.utils import timezone
 
 from user_account.forms import normalize_x_account
+from ..datetime_lock import (
+    EVENT_DETAIL_DATETIME_LOCK_MESSAGE,
+    is_event_datetime_locked,
+)
 from ..models import EventDetail, Event
 from ..thumbnail import SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT
 from .mixins import EventDetailMediaFormMixin
@@ -241,9 +245,17 @@ class LTApplicationReviewForm(forms.Form):
         help_text='却下する場合は、申請者に伝える理由を入力してください'
     )
 
-    def __init__(self, *args, event_detail=None, **kwargs):
+    def __init__(self, *args, event_detail=None, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.event_detail = event_detail
+        self.user = user
+
+        # 却下では日時を反映しないため必須から外す。required のままだと
+        # 日時欄の欠損だけで却下が通らなくなる。
+        if self.data.get('action') == 'reject':
+            for field_name in ('event', 'start_time', 'duration'):
+                self.fields[field_name].required = False
+
         if event_detail is None:
             return
 
@@ -263,13 +275,42 @@ class LTApplicationReviewForm(forms.Form):
     def clean(self):
         cleaned_data = super().clean()
         action = cleaned_data.get('action')
-        rejection_reason = cleaned_data.get('rejection_reason')
 
         if action == 'reject':
-            if not rejection_reason:
+            if not cleaned_data.get('rejection_reason'):
                 raise ValidationError('却下する場合は理由を入力してください')
-            # 却下時は日時を反映しないため、日時欄の欠損でブロックしない
-            for field_name in ('event', 'start_time', 'duration'):
-                self.errors.pop(field_name, None)
+            return cleaned_data
+
+        if action == 'approve':
+            self._validate_datetime_lock(cleaned_data)
 
         return cleaned_data
+
+    def _validate_datetime_lock(self, cleaned_data) -> None:
+        """Vket コラボ期間中の日時変更を主催者に許さない。
+
+        承認画面が api_v1.perform_update / EventDetailForm と同じロック規約を
+        共有しないと、ここが3つ目の抜け穴になる。
+        """
+        if self.event_detail is None or self.user is None:
+            return
+
+        new_event = cleaned_data.get('event')
+        if new_event is None:
+            return
+
+        # ロック中イベントからの持ち出しを禁止する。移動を許すと「未ロックの
+        # 兄弟イベントへ移してから削除」でロックを迂回できてしまう。
+        if (
+            new_event.pk != self.event_detail.event_id
+            and is_event_datetime_locked(self.event_detail.event, self.user)
+        ):
+            self.add_error('event', EVENT_DETAIL_DATETIME_LOCK_MESSAGE)
+
+        if not is_event_datetime_locked(new_event, self.user):
+            return
+
+        if cleaned_data.get('start_time') != self.event_detail.start_time:
+            self.add_error('start_time', EVENT_DETAIL_DATETIME_LOCK_MESSAGE)
+        if cleaned_data.get('duration') != self.event_detail.duration:
+            self.add_error('duration', EVENT_DETAIL_DATETIME_LOCK_MESSAGE)

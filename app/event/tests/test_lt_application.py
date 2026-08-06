@@ -616,6 +616,39 @@ class LTApplicationReviewTest(TestCase):
         self.assertIn(other_event.date.strftime('%Y-%m-%d'), html_message)
 
     @patch('event.notifications.send_mail')
+    def test_result_mail_shows_presentation_start_time(self, mock_send_mail):
+        """結果メールには集会ではなく発表個別の開始時刻を載せる"""
+        mock_send_mail.return_value = 1
+        self.pending_application.start_time = time(23, 15)
+        self.pending_application.save(update_fields=['start_time'])
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        self.client.post(url, self._review_post_data(
+            action='approve',
+            start_time='23:15',
+        ))
+
+        html_message = mock_send_mail.call_args.kwargs['html_message']
+        self.assertIn('23:15', html_message)
+
+    @patch('event.notifications.send_mail')
+    def test_approve_keeps_concurrent_applicant_edit(self, mock_send_mail):
+        """レビュー画面を開いた後に申請者が直した内容を承認で巻き戻さない"""
+        mock_send_mail.return_value = 1
+        self.client.force_login(self.owner)
+
+        EventDetail.objects.filter(pk=self.pending_application.pk).update(
+            theme='申請者が直したテーマ'
+        )
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        self.client.post(url, self._review_post_data(action='approve'))
+
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.theme, '申請者が直したテーマ')
+        self.assertEqual(self.pending_application.status, 'approved')
+
+    @patch('event.notifications.send_mail')
     def test_no_reschedule_section_when_unchanged(self, mock_send_mail):
         """日時を変更せず承認した場合は変更明示セクションを出さない"""
         mock_send_mail.return_value = 1
