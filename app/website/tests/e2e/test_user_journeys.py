@@ -357,8 +357,7 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
         self.page.goto(
             f'{self.live_server_url}{reverse("event:lt_application_review", kwargs={"pk": application.pk})}'
         )
-        self.page.get_by_label('承認する').check()
-        self.page.get_by_role('button', name=re.compile(r'決定$')).click()
+        self.page.get_by_role('button', name=re.compile(r'承認する$')).click()
         expect(self.page.get_by_text('申請を承認しました。', exact=True)).to_be_visible()
 
         application.refresh_from_db()
