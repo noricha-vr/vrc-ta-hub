@@ -18,18 +18,53 @@ Google Cloud側のBuild Trigger設定で限定する。GitHub Actionsの`safe-to
 GitHub Actionsの隔離PRゲートは[テスト方針](testing.md#github-actions-の隔離pr承認ゲート)を参照。
 必要なTrigger filterを確認できない環境では、自動deployを有効化しない。
 
-## DatabaseCache migrationの先行適用
+## migration適用用のCloud Run Job
 
-Cloud BuildはDjango migrationを自動実行しない。Cloud Runではログイン失敗回数と
-DRF throttleを複数インスタンス間で共有するため、default cacheが
-`login_rate_limit_cache` テーブルを使う。新revisionにトラフィックを入れる前に
-`user_account.0016_login_rate_limit_cache` を必ず適用する。
+Cloud BuildはDjango migrationを自動実行しない（判断記録:
+[issue-464](research/issue-464-cloud-run-job-migration.md)）。本番migrationは
+Cloud Run Job `vrc-ta-hub-migrate` を人間の判断で実行して適用する。
+
+Jobが存在しない場合は先に作成する。稼働中のCloud Runサービスからイメージ・
+環境変数・シークレット・サービスアカウントを引き継ぐ冪等スクリプトを使う。
 
 ```bash
-gcloud run jobs execute vrc-ta-hub-migrate \
-  --region=asia-northeast1 \
-  --args="migrate,user_account,0016"
+./scripts/create_migrate_job.sh
 ```
+
+適用（全アプリ）と適用状況の確認:
+
+```bash
+# 全アプリのmigrateを適用（Jobのデフォルト引数）
+gcloud run jobs execute vrc-ta-hub-migrate \
+  --region=asia-northeast1 --project=vrc-ta-hub --wait
+
+# 個別のmigrationだけ当てる場合は実行時に引数を上書きする。
+# 区切りは ^|^ を使う（既定のカンマ区切りだと "manage.py migrate" が壊れる）。
+gcloud run jobs execute vrc-ta-hub-migrate \
+  --region=asia-northeast1 --project=vrc-ta-hub --wait \
+  --args='^|^manage.py|migrate|user_account|0016|--noinput'
+
+# 未適用の一覧（read-only）。出力はJobのログに出る
+gcloud run jobs execute vrc-ta-hub-migrate \
+  --region=asia-northeast1 --project=vrc-ta-hub --wait \
+  --args='^|^manage.py|showmigrations|--plan'
+```
+
+デプロイ前チェックの正本は [deploy-check.toml](deploy-check.toml)（deploy-watchが読む）。
+`[migrations]` に上記コマンドを定義してあるため、トラフィック切替前に未適用migrationが
+無いことを必ず確認する。
+
+`user_account.0015_backfill_verified_email_addresses` は所有権が競合するデータ
+（別ユーザーが所有する `EmailAddress` 等）があると監査で停止する。停止した場合は
+所有者を推測して修正せず、[migration-rollback.md](migration-rollback.md#user_account-0015-の適用前監査)
+の監査コマンドで対象を確認してから再実行する。
+
+### DatabaseCache migrationの先行適用
+
+Cloud Runではログイン失敗回数とDRF throttleを複数インスタンス間で共有するため、
+default cacheが `login_rate_limit_cache` テーブルを使う。新revisionにトラフィックを
+入れる前に `user_account.0016_login_rate_limit_cache` を必ず適用する。未適用のまま
+トラフィックを流すと、cacheテーブル不在でトップページが500になる。
 
 実行ログで成功を確認し、`showmigrations user_account`で `0016` が適用済みに
 なってからdeploy・トラフィック切り替えへ進む。新revisionが動作中にこの
