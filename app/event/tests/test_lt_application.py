@@ -11,6 +11,7 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 
+from community.constants import WEEKDAY_ABBR, weekday_code
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 from event.views.lt_application import _calc_next_lt_start_time
@@ -18,6 +19,9 @@ from tests.factories import make_community, make_event, make_event_detail
 from user_account.tests.utils import create_discord_linked_user
 
 User = get_user_model()
+
+# 説明文中の「申請者」と混同しないよう、申請内容テーブルの見出しセルで判定する
+APPLICANT_ROW_HEADER = '<th scope="row" class="bg-light">申請者</th>'
 
 def create_test_image():
     """テスト用の画像ファイルを生成する"""
@@ -566,6 +570,55 @@ class LTApplicationReviewTest(TestCase):
         self.assertEqual(self.pending_application.status, 'rejected')
         self.assertEqual(self.pending_application.event_id, original_event_id)
         self.assertEqual(self.pending_application.start_time, original_start_time)
+
+    def test_event_choice_label_shows_date_without_time(self):
+        """開催日の選択肢は日付と曜日だけ（隣の開始時刻欄と紛らわしいので時刻は出さない）"""
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        field = self.client.get(url).context['form'].fields['event']
+        label = field.label_from_instance(self.event)
+
+        self.assertEqual(
+            label,
+            f"{self.event.date.strftime('%Y年%m月%d日')}"
+            f"({WEEKDAY_ABBR[weekday_code(self.event.date)]})",
+        )
+        self.assertNotIn(self.event.start_time.strftime('%H:%M'), label)
+
+    def test_applicant_row_hidden_when_same_as_speaker(self):
+        """発表者と申請者が同じ人なら申請者行を出さない"""
+        self.pending_application.speaker = self.applicant.display_label
+        self.pending_application.save(update_fields=['speaker'])
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        response = self.client.get(url)
+
+        self.assertNotContains(response, APPLICANT_ROW_HEADER, html=True)
+
+    def test_applicant_row_shown_for_proxy_application(self):
+        """代理申請（発表者と申請者が別名）なら申請者行を出す"""
+        self.pending_application.speaker = '登壇する人'
+        self.pending_application.save(update_fields=['speaker'])
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        response = self.client.get(url)
+
+        self.assertContains(response, APPLICANT_ROW_HEADER, html=True)
+        self.assertContains(response, self.applicant.display_label)
+
+    def test_applicant_row_hidden_when_applicant_is_missing(self):
+        """申請者が紐づいていない発表では申請者行を出さない"""
+        self.pending_application.applicant = None
+        self.pending_application.save(update_fields=['applicant'])
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        response = self.client.get(url)
+
+        self.assertNotContains(response, APPLICANT_ROW_HEADER, html=True)
 
     def test_event_choices_limited_to_own_open_future_events(self):
         """開催日の選択肢は自集会の受付中・未来イベントと現在割当中イベントに限る"""
