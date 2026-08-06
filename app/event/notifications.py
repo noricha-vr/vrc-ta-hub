@@ -111,13 +111,19 @@ def notify_owners_of_new_application(event_detail: EventDetail, request=None) ->
     _send_discord_notification_for_new_application(event_detail, review_url)
 
 
-def notify_applicant_of_result(event_detail: EventDetail, request=None) -> None:
+def notify_applicant_of_result(
+    event_detail: EventDetail,
+    request=None,
+    schedule_changes: list[dict[str, str]] | None = None,
+) -> None:
     """
     申請結果を申請者に通知する
 
     Args:
         event_detail: 承認/却下されたEventDetailインスタンス
         request: HTTPリクエスト（絶対URL生成用）
+        schedule_changes: 主催者が承認時に変更した日時の一覧。
+            ``[{'label': '開催日', 'before': ..., 'after': ...}, ...]`` 形式。
     """
     applicant = event_detail.applicant
     if not applicant or not applicant.email:
@@ -160,6 +166,7 @@ def notify_applicant_of_result(event_detail: EventDetail, request=None) -> None:
         'guide_url': guide_url,
         'list_url': list_url,
         'is_approved': event_detail.status == 'approved',
+        'schedule_changes': schedule_changes or [],
     }
 
     if event_detail.status == 'approved':
@@ -194,7 +201,7 @@ def notify_applicant_of_result(event_detail: EventDetail, request=None) -> None:
         )
 
     # Discord Webhook通知
-    _send_discord_notification_for_result(event_detail)
+    _send_discord_notification_for_result(event_detail, schedule_changes)
 
 
 def _send_discord_notification_for_new_application(
@@ -275,7 +282,10 @@ def _send_discord_notification_for_new_application(
         )
 
 
-def _send_discord_notification_for_result(event_detail: EventDetail) -> None:
+def _send_discord_notification_for_result(
+    event_detail: EventDetail,
+    schedule_changes: list[dict[str, str]] | None = None,
+) -> None:
     """申請結果のDiscord Webhook通知を送信"""
     community = event_detail.event.community
     webhook_url = community.notification_webhook_url
@@ -298,6 +308,22 @@ def _send_discord_notification_for_result(event_detail: EventDetail) -> None:
         {"name": "👤 発表者", "value": event_detail.speaker, "inline": True},
         {"name": "📅 開催日", "value": str(event_detail.event.date), "inline": True},
     ]
+
+    if is_approved:
+        fields.append({
+            "name": "⏰ 開始時刻",
+            "value": event_detail.start_time.strftime("%H:%M"),
+            "inline": True,
+        })
+        if schedule_changes:
+            fields.append({
+                "name": "🔄 日時変更",
+                "value": "\n".join(
+                    f"{change['label']}: {change['before']} → {change['after']}"
+                    for change in schedule_changes
+                ),
+                "inline": False,
+            })
 
     if not is_approved and event_detail.rejection_reason:
         fields.append({

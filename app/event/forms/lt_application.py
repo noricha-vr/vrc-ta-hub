@@ -2,9 +2,14 @@
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.utils import timezone
 
 from user_account.forms import normalize_x_account
+from ..datetime_lock import (
+    EVENT_DETAIL_DATETIME_LOCK_MESSAGE,
+    is_event_datetime_locked,
+)
 from ..models import EventDetail, Event
 from ..thumbnail import SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT
 from .mixins import EventDetailMediaFormMixin
@@ -177,8 +182,24 @@ class LTApplicationForm(forms.Form):
         return additional_info
 
 
+WEEKDAY_LABELS = ['月', '火', '水', '木', '金', '土', '日']
+
+
+class EventScheduleChoiceField(forms.ModelChoiceField):
+    """開催日を「日付＋開始時刻」で選べるようにした ModelChoiceField。
+
+    既定の __str__ だと日付が読み取れず、主催者が振替先を選び間違えるため表示を上書きする。
+    """
+
+    def label_from_instance(self, obj):
+        return (
+            f"{obj.date.strftime('%Y年%m月%d日')}({WEEKDAY_LABELS[obj.date.weekday()]}) "
+            f"{obj.start_time.strftime('%H:%M')}"
+        )
+
+
 class LTApplicationReviewForm(forms.Form):
-    """LT申請の承認/却下フォーム"""
+    """LT申請の承認/却下フォーム（承認時の開催日・時刻調整を含む）"""
 
     ACTION_CHOICES = [
         ('approve', '承認する'),
@@ -188,8 +209,29 @@ class LTApplicationReviewForm(forms.Form):
     action = forms.ChoiceField(
         choices=ACTION_CHOICES,
         label='アクション',
-        widget=forms.RadioSelect(attrs={'class': 'form-check-input'}),
         initial='approve'
+    )
+
+    event = EventScheduleChoiceField(
+        queryset=Event.objects.none(),
+        label='開催日',
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+
+    start_time = forms.TimeField(
+        label='開始時刻',
+        input_formats=['%H:%M', '%H:%M:%S'],
+        widget=forms.TimeInput(
+            attrs={'type': 'time', 'class': 'form-control'},
+            format='%H:%M',
+        ),
+    )
+
+    duration = forms.IntegerField(
+        label='発表の持ち時間（分）',
+        min_value=1,
+        max_value=600,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
     )
 
     rejection_reason = forms.CharField(
@@ -203,12 +245,74 @@ class LTApplicationReviewForm(forms.Form):
         help_text='却下する場合は、申請者に伝える理由を入力してください'
     )
 
+    def __init__(self, *args, event_detail=None, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.event_detail = event_detail
+        self.user = user
+
+        # 却下では日時を反映しないため必須から外す。required のままだと
+        # 日時欄の欠損だけで却下が通らなくなる。
+        if self.data.get('action') == 'reject':
+            for field_name in ('event', 'start_time', 'duration'):
+                self.fields[field_name].required = False
+
+        if event_detail is None:
+            return
+
+        # now().date() は UTC 基準になり、JST の 0〜9 時に前日開催の回まで
+        # 候補へ混入する（終了済みの日へ振替できてしまう）。
+        today = timezone.localdate()
+        # 申請フォームと同じ受付中イベントに加え、現在割り当て中のイベントは
+        # 受付停止・過去でも必ず候補に残す（据え置き承認を潰さないため）。
+        self.fields['event'].queryset = Event.objects.filter(
+            community=event_detail.event.community,
+        ).filter(
+            Q(accepts_lt_application=True, date__gte=today) | Q(pk=event_detail.event_id)
+        ).order_by('date', 'start_time')
+
+        self.fields['event'].initial = event_detail.event_id
+        self.fields['start_time'].initial = event_detail.start_time
+        self.fields['duration'].initial = event_detail.duration
+
     def clean(self):
         cleaned_data = super().clean()
         action = cleaned_data.get('action')
-        rejection_reason = cleaned_data.get('rejection_reason')
 
-        if action == 'reject' and not rejection_reason:
-            raise ValidationError('却下する場合は理由を入力してください')
+        if action == 'reject':
+            if not cleaned_data.get('rejection_reason'):
+                raise ValidationError('却下する場合は理由を入力してください')
+            return cleaned_data
+
+        if action == 'approve':
+            self._validate_datetime_lock(cleaned_data)
 
         return cleaned_data
+
+    def _validate_datetime_lock(self, cleaned_data) -> None:
+        """Vket コラボ期間中の日時変更を主催者に許さない。
+
+        承認画面が api_v1.perform_update / EventDetailForm と同じロック規約を
+        共有しないと、ここが3つ目の抜け穴になる。
+        """
+        if self.event_detail is None or self.user is None:
+            return
+
+        new_event = cleaned_data.get('event')
+        if new_event is None:
+            return
+
+        # ロック中イベントからの持ち出しを禁止する。移動を許すと「未ロックの
+        # 兄弟イベントへ移してから削除」でロックを迂回できてしまう。
+        if (
+            new_event.pk != self.event_detail.event_id
+            and is_event_datetime_locked(self.event_detail.event, self.user)
+        ):
+            self.add_error('event', EVENT_DETAIL_DATETIME_LOCK_MESSAGE)
+
+        if not is_event_datetime_locked(new_event, self.user):
+            return
+
+        if cleaned_data.get('start_time') != self.event_detail.start_time:
+            self.add_error('start_time', EVENT_DETAIL_DATETIME_LOCK_MESSAGE)
+        if cleaned_data.get('duration') != self.event_detail.duration:
+            self.add_error('duration', EVENT_DETAIL_DATETIME_LOCK_MESSAGE)

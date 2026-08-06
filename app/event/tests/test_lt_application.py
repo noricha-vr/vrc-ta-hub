@@ -1,8 +1,9 @@
 """LT申請機能のテスト"""
 import re
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from io import BytesIO
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from PIL import Image
 from django.test import TestCase, Client
@@ -433,6 +434,18 @@ class LTApplicationReviewTest(TestCase):
             status='pending',
         )
 
+    def _review_post_data(self, action='approve', **overrides):
+        """レビューフォームの必須フィールドを埋めた POST データを返す。"""
+        data = {
+            'action': action,
+            'event': self.pending_application.event_id,
+            'start_time': self.pending_application.start_time.strftime('%H:%M'),
+            'duration': self.pending_application.duration,
+            'rejection_reason': '',
+        }
+        data.update(overrides)
+        return data
+
     def test_review_page_requires_login(self):
         """レビューページは未ログインユーザーにはアクセスできない"""
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
@@ -468,10 +481,7 @@ class LTApplicationReviewTest(TestCase):
         self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
-        response = self.client.post(url, {
-            'action': 'approve',
-            'rejection_reason': '',
-        })
+        response = self.client.post(url, self._review_post_data(action='approve'))
 
         # リダイレクト確認
         self.assertEqual(response.status_code, 302)
@@ -487,10 +497,10 @@ class LTApplicationReviewTest(TestCase):
         self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
-        response = self.client.post(url, {
-            'action': 'reject',
-            'rejection_reason': 'Test rejection reason',
-        })
+        response = self.client.post(url, self._review_post_data(
+            action='reject',
+            rejection_reason='Test rejection reason',
+        ))
 
         # リダイレクト確認
         self.assertEqual(response.status_code, 302)
@@ -505,14 +515,190 @@ class LTApplicationReviewTest(TestCase):
         self.client.force_login(self.owner)
 
         url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
-        response = self.client.post(url, {
-            'action': 'reject',
-            'rejection_reason': '',  # 空
-        })
+        response = self.client.post(url, self._review_post_data(action='reject'))
 
         # フォームエラーで再表示
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '却下する場合は理由を入力してください')
+
+    @patch('event.notifications.send_mail')
+    def test_approve_with_rescheduled_event(self, mock_send_mail):
+        """開催日・開始時刻・持ち時間を変更して承認すると EventDetail に反映される"""
+        mock_send_mail.return_value = 1
+        other_event = make_event(self.community, event_date=date.today() + timedelta(days=21))
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url, self._review_post_data(
+            action='approve',
+            event=other_event.pk,
+            start_time='23:30',
+            duration=25,
+        ))
+
+        self.assertEqual(response.status_code, 302)
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'approved')
+        self.assertEqual(self.pending_application.event_id, other_event.pk)
+        self.assertEqual(self.pending_application.start_time, time(23, 30))
+        self.assertEqual(self.pending_application.duration, 25)
+
+    @patch('event.notifications.send_mail')
+    def test_reject_ignores_schedule_edits(self, mock_send_mail):
+        """却下時は日時の編集値を反映しない"""
+        mock_send_mail.return_value = 1
+        other_event = make_event(self.community, event_date=date.today() + timedelta(days=21))
+        original_event_id = self.pending_application.event_id
+        original_start_time = self.pending_application.start_time
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        response = self.client.post(url, self._review_post_data(
+            action='reject',
+            rejection_reason='内容が集会の趣旨に合いません',
+            event=other_event.pk,
+            start_time='23:30',
+            duration=25,
+        ))
+
+        self.assertEqual(response.status_code, 302)
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'rejected')
+        self.assertEqual(self.pending_application.event_id, original_event_id)
+        self.assertEqual(self.pending_application.start_time, original_start_time)
+
+    def test_event_choices_limited_to_own_open_future_events(self):
+        """開催日の選択肢は自集会の受付中・未来イベントと現在割当中イベントに限る"""
+        other_community = make_community(name='Other Community')
+        other_community_event = make_event(other_community)
+        past_event = make_event(self.community, event_date=date.today() - timedelta(days=7))
+        closed_event = make_event(
+            self.community,
+            event_date=date.today() + timedelta(days=28),
+            accepts_lt_application=False,
+        )
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        choices = self.client.get(url).context['form'].fields['event'].queryset
+
+        self.assertIn(self.event, choices)
+        self.assertNotIn(other_community_event, choices)
+        self.assertNotIn(past_event, choices)
+        self.assertNotIn(closed_event, choices)
+
+    def test_event_choices_exclude_yesterday_in_jst_early_morning(self):
+        """JST 早朝でも前日の回は候補に入らない（UTC 基準だと前日が今日扱いで混入する）"""
+        # JST 2026-08-20 01:30 = UTC 2026-08-19 16:30。now().date() だと 8/19 になる
+        jst_early_morning = datetime(
+            2026, 8, 20, 1, 30, tzinfo=ZoneInfo('Asia/Tokyo')
+        )
+        yesterday_event = make_event(self.community, event_date=date(2026, 8, 19))
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        # 実時刻だけを差し替え、日付の解釈（UTC か JST か）は実装に判定させる
+        with patch(
+            'django.utils.timezone.now',
+            return_value=jst_early_morning.astimezone(ZoneInfo('UTC')),
+        ):
+            choices = self.client.get(url).context['form'].fields['event'].queryset
+
+        self.assertNotIn(yesterday_event, choices)
+
+    def test_currently_assigned_event_stays_selectable_when_closed(self):
+        """受付停止済みの割当中イベントも選択肢に残る"""
+        self.event.accepts_lt_application = False
+        self.event.save(update_fields=['accepts_lt_application'])
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        choices = self.client.get(url).context['form'].fields['event'].queryset
+
+        self.assertIn(self.event, choices)
+
+    @patch('event.notifications.send_mail')
+    def test_reschedule_is_shown_in_result_mail(self, mock_send_mail):
+        """日時変更ありで承認するとメール本文に変更前後が載る"""
+        mock_send_mail.return_value = 1
+        other_event = make_event(self.community, event_date=date.today() + timedelta(days=21))
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        self.client.post(url, self._review_post_data(
+            action='approve',
+            event=other_event.pk,
+        ))
+
+        html_message = mock_send_mail.call_args.kwargs['html_message']
+        self.assertIn('主催者による日時変更', html_message)
+        self.assertIn(self.event.date.strftime('%Y-%m-%d'), html_message)
+        self.assertIn(other_event.date.strftime('%Y-%m-%d'), html_message)
+
+    @patch('event.notifications.send_mail')
+    def test_result_mail_shows_presentation_start_time(self, mock_send_mail):
+        """結果メールには集会ではなく発表個別の開始時刻を載せる"""
+        mock_send_mail.return_value = 1
+        self.pending_application.start_time = time(23, 15)
+        self.pending_application.save(update_fields=['start_time'])
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        self.client.post(url, self._review_post_data(
+            action='approve',
+            start_time='23:15',
+        ))
+
+        html_message = mock_send_mail.call_args.kwargs['html_message']
+        self.assertIn('23:15', html_message)
+
+    @patch('event.notifications.send_mail')
+    def test_approve_keeps_concurrent_applicant_edit(self, mock_send_mail):
+        """レビュー画面を開いた後に申請者が直した内容を承認で巻き戻さない"""
+        mock_send_mail.return_value = 1
+        self.client.force_login(self.owner)
+
+        EventDetail.objects.filter(pk=self.pending_application.pk).update(
+            theme='申請者が直したテーマ'
+        )
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        self.client.post(url, self._review_post_data(action='approve'))
+
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.theme, '申請者が直したテーマ')
+        self.assertEqual(self.pending_application.status, 'approved')
+
+    @patch('event.notifications.send_mail')
+    def test_reject_keeps_concurrent_schedule_edit(self, mock_send_mail):
+        """却下は日時を触らないので、別経路で変わった日時をそのまま残す"""
+        mock_send_mail.return_value = 1
+        self.client.force_login(self.owner)
+
+        post_data = self._review_post_data(
+            action='reject', rejection_reason='今回は見送ります'
+        )
+        EventDetail.objects.filter(pk=self.pending_application.pk).update(
+            start_time=time(23, 45)
+        )
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        self.client.post(url, post_data)
+
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.start_time, time(23, 45))
+        self.assertEqual(self.pending_application.status, 'rejected')
+
+    @patch('event.notifications.send_mail')
+    def test_no_reschedule_section_when_unchanged(self, mock_send_mail):
+        """日時を変更せず承認した場合は変更明示セクションを出さない"""
+        mock_send_mail.return_value = 1
+        self.client.force_login(self.owner)
+
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        self.client.post(url, self._review_post_data(action='approve'))
+
+        html_message = mock_send_mail.call_args.kwargs['html_message']
+        self.assertNotIn('主催者による日時変更', html_message)
 
     def test_owner_can_view_approved_application(self):
         """承認済み申請も主催者は閲覧でき、追加情報が表示される"""

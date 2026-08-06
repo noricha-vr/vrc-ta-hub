@@ -89,40 +89,58 @@
                     <h5 class="mb-0"><i class="bi bi-check2-square me-2"></i>アクション</h5>
                 </div>
                 <div class="card-body">
-                    <form method="post">
+                    <form method="post" id="review-form">
                         {% csrf_token %}
 
                         <div class="mb-4">
-                            <label class="form-label fw-bold">{{ form.action.label }}</label>
-                            <div class="d-flex gap-4">
-                                {% for radio in form.action %}
-                                    <div class="form-check">
-                                        {{ radio.tag }}
-                                        <label class="form-check-label {% if radio.data.value == 'approve' %}text-success{% else %}text-danger{% endif %}" for="{{ radio.id_for_label }}">
-                                            {% if radio.data.value == 'approve' %}
-                                                <i class="bi bi-check-circle me-1"></i>
-                                            {% else %}
-                                                <i class="bi bi-x-circle me-1"></i>
-                                            {% endif %}
-                                            {{ radio.choice_label }}
-                                        </label>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                            {% if form.action.errors %}
-                                <div class="invalid-feedback d-block">
-                                    {% for error in form.action.errors %}{{ error }}{% endfor %}
+                            <h6 class="fw-bold mb-2">
+                                <i class="bi bi-calendar-event me-2"></i>開催日・時間の調整
+                            </h6>
+                            <p class="text-muted mb-3">
+                                変更すると承認時に反映され、申請者に変更内容が通知されます。
+                                現在の申請内容は
+                                {{ event_detail.event.date|date:"Y年m月d日" }} {{ event_detail.start_time|time:"H:i" }}（{{ event_detail.duration }}分）です。
+                            </p>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="{{ form.event.id_for_label }}" class="form-label fw-bold">{{ form.event.label }}</label>
+                                    {{ form.event }}
+                                    {% if form.event.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {% for error in form.event.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
                                 </div>
-                            {% endif %}
+                                <div class="col-md-3">
+                                    <label for="{{ form.start_time.id_for_label }}" class="form-label fw-bold">{{ form.start_time.label }}</label>
+                                    {{ form.start_time }}
+                                    {% if form.start_time.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {% for error in form.start_time.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="{{ form.duration.id_for_label }}" class="form-label fw-bold">{{ form.duration.label }}</label>
+                                    {{ form.duration }}
+                                    {% if form.duration.errors %}
+                                        <div class="invalid-feedback d-block">
+                                            {% for error in form.duration.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="mb-4" id="rejection-reason-field">
-                            <label for="id_rejection_reason" class="form-label fw-bold">
+                        {# JS 無効でも却下できるよう、エラー再描画時はサーバー側で開く #}
+                        <div class="mb-4 {% if not form.rejection_reason.value and not form.non_field_errors %}d-none{% endif %}" id="rejection-reason-field">
+                            <label for="{{ form.rejection_reason.id_for_label }}" class="form-label fw-bold">
                                 {{ form.rejection_reason.label }}
                             </label>
                             {{ form.rejection_reason }}
                             {% if form.rejection_reason.help_text %}
-                                <small class="form-text text-muted">{{ form.rejection_reason.help_text }}</small>
+                                <div class="form-text text-muted" id="rejection-reason-help">{{ form.rejection_reason.help_text }}</div>
                             {% endif %}
                             {% if form.rejection_reason.errors %}
                                 <div class="invalid-feedback d-block">
@@ -131,21 +149,29 @@
                             {% endif %}
                         </div>
 
-                        {% if form.non_field_errors %}
+                        {% if form.non_field_errors or form.action.errors %}
                             <div class="alert alert-danger">
                                 {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+                                {% for error in form.action.errors %}{{ error }}{% endfor %}
                             </div>
                         {% endif %}
 
                         <hr class="my-4">
 
-                        <div class="d-flex justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
                             <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-left me-2"></i>マイリストに戻る
                             </a>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-check-lg me-2"></i>決定
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button type="submit" name="action" value="reject" id="reject-button"
+                                        class="btn btn-outline-danger btn-lg">
+                                    <i class="bi bi-x-circle me-2"></i>却下する
+                                </button>
+                                <button type="submit" name="action" value="approve"
+                                        class="btn btn-success btn-lg">
+                                    <i class="bi bi-check-circle me-2"></i>承認する
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -164,23 +190,52 @@
 {% if event_detail.status == 'pending' %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const actionRadios = document.querySelectorAll('input[name="action"]');
     const rejectionField = document.getElementById('rejection-reason-field');
+    const rejectionInput = document.getElementById('{{ form.rejection_reason.id_for_label }}');
+    const rejectButton = document.getElementById('reject-button');
+    if (!rejectionField || !rejectionInput || !rejectButton) {
+        return;
+    }
 
-    function toggleRejectionField() {
-        const selectedAction = document.querySelector('input[name="action"]:checked');
-        if (selectedAction && selectedAction.value === 'reject') {
-            rejectionField.style.display = 'block';
-        } else {
-            rejectionField.style.display = 'none';
+    const feedbackId = 'rejection-reason-hint';
+    const rejectionHelp = document.getElementById('rejection-reason-help');
+
+    function showHint(message) {
+        let hint = document.getElementById(feedbackId);
+        if (!hint) {
+            hint = document.createElement('div');
+            hint.id = feedbackId;
+            // 指示文なので既定の invalid-feedback より大きい本文サイズで出す
+            hint.className = 'text-danger fw-bold mt-1';
+            rejectionInput.insertAdjacentElement('afterend', hint);
+        }
+        hint.textContent = message;
+        // 同趣旨のヘルプ文が二重に並ぶのを防ぐ
+        if (rejectionHelp) {
+            rejectionHelp.classList.add('d-none');
         }
     }
 
-    actionRadios.forEach(function(radio) {
-        radio.addEventListener('change', toggleRejectionField);
-    });
+    // バリデーションエラーで再描画された場合は理由欄を開いたままにする
+    if (rejectionInput.value.trim() !== '') {
+        rejectionField.classList.remove('d-none');
+    }
 
-    toggleRejectionField();
+    rejectButton.addEventListener('click', function(event) {
+        if (rejectionField.classList.contains('d-none')) {
+            // 1クリック目: 理由欄を出して入力を促し、送信は止める
+            event.preventDefault();
+            rejectionField.classList.remove('d-none');
+            rejectionInput.focus();
+            showHint('却下理由を入力してから、もう一度「却下する」を押してください。');
+            return;
+        }
+        if (rejectionInput.value.trim() === '') {
+            event.preventDefault();
+            rejectionInput.focus();
+            showHint('却下理由を入力してください。');
+        }
+    });
 });
 </script>
 {% endif %}

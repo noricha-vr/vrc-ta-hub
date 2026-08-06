@@ -92,6 +92,36 @@
             margin-top: 0;
             font-size: 1.1em;
         }
+        .schedule-changes {
+            background-color: #fff3cd;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #ffc107;
+        }
+        .schedule-changes h3 {
+            color: #856404;
+            margin-top: 0;
+            font-size: 1.1em;
+        }
+        .schedule-changes table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .schedule-changes td {
+            padding: 8px 0;
+            border-bottom: 1px solid #ffe08a;
+            font-size: 1.1em;
+        }
+        .schedule-changes td:first-child {
+            font-weight: bold;
+            width: 120px;
+            color: #856404;
+        }
+        .schedule-changes .before {
+            color: #666;
+            text-decoration: line-through;
+        }
         .next-steps {
             background-color: #d4edda;
             padding: 20px;
@@ -138,6 +168,21 @@
             <p>{{ community.name }}への発表の申請が<span class="status-badge status-rejected">却下</span>されました。</p>
         {% endif %}
 
+        {% if is_approved and schedule_changes %}
+            <div class="schedule-changes">
+                <h3>主催者による日時変更</h3>
+                <p>申請いただいた内容から、以下のとおり変更されました。</p>
+                <table>
+                    {% for change in schedule_changes %}
+                        <tr>
+                            <td>{{ change.label }}</td>
+                            <td><span class="before">{{ change.before }}</span> → <strong>{{ change.after }}</strong></td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        {% endif %}
+
         <div class="application-details">
             <h3>申請内容</h3>
             <table>
@@ -159,7 +204,7 @@
                 </tr>
                 <tr>
                     <td>開始時間</td>
-                    <td>{{ community.start_time|time:"H:i" }}</td>
+                    <td>{{ event_detail.start_time|time:"H:i" }}</td>
                 </tr>
                 <tr>
                     <td>発表の持ち時間</td>
