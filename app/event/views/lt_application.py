@@ -4,6 +4,7 @@ from datetime import datetime, time, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Prefetch
 from django.http import JsonResponse
@@ -194,6 +195,11 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
             return redirect('event:lt_application_review', pk=self.event_detail.pk)
         return super().post(request, *args, **kwargs)
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['event_detail'] = self.event_detail
+        return kwargs
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['event_detail'] = self.event_detail
@@ -202,8 +208,10 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
 
     def form_valid(self, form):
         action = form.cleaned_data['action']
+        schedule_changes: list[dict[str, str]] = []
 
         if action == 'approve':
+            schedule_changes = self._apply_schedule_changes(form)
             self.event_detail.status = 'approved'
             status_text = '承認'
         else:
@@ -215,15 +223,62 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
 
         # 申請者に通知
         from event.notifications import notify_applicant_of_result
-        notify_applicant_of_result(self.event_detail, request=self.request)
+        notify_applicant_of_result(
+            self.event_detail,
+            request=self.request,
+            schedule_changes=schedule_changes,
+        )
 
         messages.success(self.request, f'申請を{status_text}しました。')
         logger.info(
             f'発表申請{status_text}: EventDetail ID={self.event_detail.pk}, '
             f'Community={self.community.name}, Reviewer={self.request.user.user_name}'
         )
+        if schedule_changes:
+            logger.info(
+                '発表申請の日時変更: EventDetail ID=%s, changes=%s',
+                self.event_detail.pk,
+                ', '.join(
+                    f"{c['label']}: {c['before']} → {c['after']}" for c in schedule_changes
+                ),
+            )
 
         return redirect('event:my_list')
+
+    def _apply_schedule_changes(self, form) -> list[dict[str, str]]:
+        """承認時の日時調整を EventDetail へ反映し、変更内容を返す。"""
+        new_event = form.cleaned_data['event']
+        new_start_time = form.cleaned_data['start_time']
+        new_duration = form.cleaned_data['duration']
+
+        # queryset で担保済みだが、他集会への付け替えは実害が大きいので保存直前にも検証する
+        if new_event.community_id != self.community.pk:
+            raise PermissionDenied('他の集会のイベントには変更できません。')
+
+        changes: list[dict[str, str]] = []
+        if new_event.pk != self.event_detail.event_id:
+            changes.append({
+                'label': '開催日',
+                'before': self.event_detail.event.date.strftime('%Y-%m-%d'),
+                'after': new_event.date.strftime('%Y-%m-%d'),
+            })
+            self.event_detail.event = new_event
+        if new_start_time != self.event_detail.start_time:
+            changes.append({
+                'label': '開始時刻',
+                'before': self.event_detail.start_time.strftime('%H:%M'),
+                'after': new_start_time.strftime('%H:%M'),
+            })
+            self.event_detail.start_time = new_start_time
+        if new_duration != self.event_detail.duration:
+            changes.append({
+                'label': '持ち時間',
+                'before': f'{self.event_detail.duration}分',
+                'after': f'{new_duration}分',
+            })
+            self.event_detail.duration = new_duration
+
+        return changes
 
 
 class LTApplicationApproveView(LoginRequiredMixin, View):

@@ -2,6 +2,7 @@
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.utils import timezone
 
 from user_account.forms import normalize_x_account
@@ -177,8 +178,24 @@ class LTApplicationForm(forms.Form):
         return additional_info
 
 
+WEEKDAY_LABELS = ['月', '火', '水', '木', '金', '土', '日']
+
+
+class EventScheduleChoiceField(forms.ModelChoiceField):
+    """開催日を「日付＋開始時刻」で選べるようにした ModelChoiceField。
+
+    既定の __str__ だと日付が読み取れず、主催者が振替先を選び間違えるため表示を上書きする。
+    """
+
+    def label_from_instance(self, obj):
+        return (
+            f"{obj.date.strftime('%Y年%m月%d日')}({WEEKDAY_LABELS[obj.date.weekday()]}) "
+            f"{obj.start_time.strftime('%H:%M')}"
+        )
+
+
 class LTApplicationReviewForm(forms.Form):
-    """LT申請の承認/却下フォーム"""
+    """LT申請の承認/却下フォーム（承認時の開催日・時刻調整を含む）"""
 
     ACTION_CHOICES = [
         ('approve', '承認する'),
@@ -188,8 +205,29 @@ class LTApplicationReviewForm(forms.Form):
     action = forms.ChoiceField(
         choices=ACTION_CHOICES,
         label='アクション',
-        widget=forms.RadioSelect(attrs={'class': 'form-check-input'}),
         initial='approve'
+    )
+
+    event = EventScheduleChoiceField(
+        queryset=Event.objects.none(),
+        label='開催日',
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
+
+    start_time = forms.TimeField(
+        label='開始時刻',
+        input_formats=['%H:%M', '%H:%M:%S'],
+        widget=forms.TimeInput(
+            attrs={'type': 'time', 'class': 'form-control'},
+            format='%H:%M',
+        ),
+    )
+
+    duration = forms.IntegerField(
+        label='発表の持ち時間（分）',
+        min_value=1,
+        max_value=600,
+        widget=forms.NumberInput(attrs={'class': 'form-control', 'min': 1}),
     )
 
     rejection_reason = forms.CharField(
@@ -203,12 +241,35 @@ class LTApplicationReviewForm(forms.Form):
         help_text='却下する場合は、申請者に伝える理由を入力してください'
     )
 
+    def __init__(self, *args, event_detail=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.event_detail = event_detail
+        if event_detail is None:
+            return
+
+        today = timezone.now().date()
+        # 申請フォームと同じ受付中イベントに加え、現在割り当て中のイベントは
+        # 受付停止・過去でも必ず候補に残す（据え置き承認を潰さないため）。
+        self.fields['event'].queryset = Event.objects.filter(
+            community=event_detail.event.community,
+        ).filter(
+            Q(accepts_lt_application=True, date__gte=today) | Q(pk=event_detail.event_id)
+        ).order_by('date', 'start_time')
+
+        self.fields['event'].initial = event_detail.event_id
+        self.fields['start_time'].initial = event_detail.start_time
+        self.fields['duration'].initial = event_detail.duration
+
     def clean(self):
         cleaned_data = super().clean()
         action = cleaned_data.get('action')
         rejection_reason = cleaned_data.get('rejection_reason')
 
-        if action == 'reject' and not rejection_reason:
-            raise ValidationError('却下する場合は理由を入力してください')
+        if action == 'reject':
+            if not rejection_reason:
+                raise ValidationError('却下する場合は理由を入力してください')
+            # 却下時は日時を反映しないため、日時欄の欠損でブロックしない
+            for field_name in ('event', 'start_time', 'duration'):
+                self.errors.pop(field_name, None)
 
         return cleaned_data
