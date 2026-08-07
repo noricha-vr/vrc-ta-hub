@@ -27,4 +27,6 @@ Django関係のスクリプトはカスタムコマンドとして、各アプ�
 ## デプロイ運用
 
 - `scripts/create_migrate_job.sh`: Cloud Run Job `vrc-ta-hub-migrate` を作成/更新（冪等）。稼働中サービスからイメージ・環境変数・シークレット・SA を引き継ぎます。
+- `scripts/check_pending_migrations.sh`: 本番の未適用 migration を一覧（read-only）。未適用ありで exit 1、ログが取れなければ exit 2 で落とします。
+- `scripts/read_deploy_check.py`: `docs/deploy-check.toml` を検証して要約を出力（deploy-watch が読む層）。`[migrations]` の必須項目と `check_command` の read-only 性を実行前に確認します。
 - `scripts/tests/test_deploy_ops_config.sh`: `make -n` の展開結果で本番DBターゲットの `op run` / Compose 経由を検証し、migrate Job スクリプトの必須オプションを静的検証します。

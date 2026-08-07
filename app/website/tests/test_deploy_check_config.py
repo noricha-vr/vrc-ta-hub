@@ -1,5 +1,6 @@
 """docs/deploy-check.toml（deploy-watch が読むデプロイ前チェック定義）のテスト。"""
 
+import importlib.util
 import tomllib
 from pathlib import Path
 
@@ -98,3 +99,123 @@ class DeployCheckConfigTest(SimpleTestCase):
                     check['url'].startswith('https://vrc-ta-hub.com/'),
                     f"{check['name']}: {check['url']}",
                 )
+
+
+class ReadDeployCheckTest(SimpleTestCase):
+    """scripts/read_deploy_check.py（deploy-watch が読む要約層）のテスト。"""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        script_path = REPO_ROOT / 'scripts' / 'read_deploy_check.py'
+        spec = importlib.util.spec_from_file_location('read_deploy_check', script_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f'could not load {script_path}')
+        cls.reader = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.reader)
+        cls.config = tomllib.loads(DEPLOY_CHECK_PATH.read_text(encoding='utf-8'))
+
+    def test_actual_config_passes_validation(self):
+        """実際の deploy-check.toml が検証を通る（スキーマ違反の早期検知）。"""
+        summary = self.reader.build_summary(self.config, base_dir=REPO_ROOT)
+
+        self.assertEqual(summary['service'], 'vrc-ta-hub')
+        self.assertTrue(summary['selected_checks']['critical'])
+
+    def test_summary_includes_migrations(self):
+        """migrations は要約に含める。読み捨てるとこの設定ファイルの主目的が失われる。"""
+        summary = self.reader.build_summary(self.config, base_dir=REPO_ROOT)
+
+        self.assertIn('migrations', summary)
+        self.assertIn('check_pending_migrations.sh', summary['migrations']['check_command'])
+        self.assertTrue(summary['migrations']['apply_command'])
+
+    def test_migrations_section_is_required(self):
+        config = {key: value for key, value in self.config.items() if key != 'migrations'}
+
+        with self.assertRaises(ValueError):
+            self.reader.build_summary(config)
+
+    def _with_check_command(self, command):
+        config = dict(self.config)
+        config['migrations'] = dict(self.config['migrations'], check_command=command)
+        return config
+
+    def test_check_command_running_migrate_is_rejected(self):
+        """確認のつもりで適用してしまう定義を実行前に落とす。
+
+        シェルの区切りは `;` `&&` `(` など多様で、許可する区切りを列挙する方式では
+        取りこぼす。区切りに依存せず検知できることを確かめる。
+        """
+        for command in (
+            'python manage.py migrate',
+            './scripts/check_pending_migrations.sh;python manage.py migrate',
+            './scripts/check_pending_migrations.sh && python manage.py migrate',
+            '(cd app && python manage.py migrate)',
+            "gcloud run jobs update x --args='^|^manage.py|migrate|--noinput'",
+        ):
+            with self.subTest(command=command):
+                with self.assertRaises(ValueError):
+                    self.reader.build_summary(self._with_check_command(command))
+
+    def test_check_command_executing_job_is_rejected(self):
+        """Job 名が -migrate で終わる形は migrate 検知をすり抜けるため別に落とす。"""
+        command = (
+            'gcloud run jobs execute vrc-ta-hub-migrate '
+            '--region=asia-northeast1 --project=vrc-ta-hub --wait'
+        )
+
+        with self.assertRaises(ValueError):
+            self.reader.build_summary(self._with_check_command(command))
+
+    def test_read_only_commands_are_not_rejected(self):
+        """read-only なコマンドを migrate と誤検知しない。"""
+        for command in (
+            './scripts/check_pending_migrations.sh',
+            'python manage.py showmigrations --plan',
+            'python manage.py sqlmigrate user_account 0016',
+        ):
+            with self.subTest(command=command):
+                summary = self.reader.build_summary(self._with_check_command(command))
+
+                self.assertEqual(summary['migrations']['check_command'], command)
+
+    def test_missing_referenced_script_is_rejected(self):
+        config = dict(self.config)
+        config['migrations'] = dict(
+            self.config['migrations'], check_command='./scripts/nonexistent.sh'
+        )
+
+        with self.assertRaises(ValueError):
+            self.reader.build_summary(config, base_dir=REPO_ROOT)
+
+    def test_malformed_check_entry_is_rejected(self):
+        """スキーマ違反のチェック定義を黙って捨てない。
+
+        捨てると `critical: 0 checks` で成功終了し、本番確認を実行しないまま
+        デプロイが進む。
+        """
+        config = dict(self.config)
+        config['checks'] = dict(self.config['checks'], critical=['https://vrc-ta-hub.com/'])
+
+        with self.assertRaises(ValueError):
+            self.reader.build_summary(config)
+
+    def test_script_outside_repository_is_rejected(self):
+        """リポジトリ外を指す参照は、実在しても検証の対象外なので落とす。"""
+        config = dict(self.config)
+        config['migrations'] = dict(
+            self.config['migrations'], check_command='./scripts/../../../tmp/evil.sh'
+        )
+
+        with self.assertRaises(ValueError):
+            self.reader.build_summary(config, base_dir=REPO_ROOT)
+
+    def test_render_text_shows_migrations(self):
+        """テキスト出力にも migrations を出す（AI・人間が目視する経路）。"""
+        summary = self.reader.build_summary(self.config, base_dir=REPO_ROOT)
+
+        rendered = self.reader.render_text(summary)
+
+        self.assertIn('migrations:', rendered)
+        self.assertIn('check_pending_migrations.sh', rendered)

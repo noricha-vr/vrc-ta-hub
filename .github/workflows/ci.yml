@@ -54,6 +54,15 @@ jobs:
           uv pip install --system ruff==0.11.6
           ruff check app/
 
+      # Makefile / 運用スクリプトの契約テスト。make -n の展開結果を検査するだけで
+      # docker / op / gcloud は起動しないため、この軽量ジョブで回せる。
+      - name: Run script contract tests
+        run: |
+          bash scripts/tests/test_deploy_ops_config.sh
+          bash scripts/tests/test_db_pull_restore.sh
+          bash scripts/tests/test_run_tests.sh
+          python -m unittest scripts.tests.test_run_live_smoke
+
   test:
     needs: [isolation-gate, lint]
     runs-on: ubuntu-latest
