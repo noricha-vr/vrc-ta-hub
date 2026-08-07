@@ -384,10 +384,15 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
             f'{reverse("event:detail", kwargs={"pk": invite_detail.pk})}'
         )
         self.page.get_by_role('button', name=re.compile(r'招待リンクを発行$')).click()
-        invite_url_field = self.page.locator('#speaker-invite-url')
+        invite_url_field = self.page.get_by_label('招待リンク')
         expect(invite_url_field).to_be_visible()
         invite_url = invite_url_field.input_value()
-        self.assertIn('#', invite_url)
+        self.assertTrue(
+            invite_url.startswith(
+                f'{self.live_server_url}{reverse("event:speaker_link_confirm")}#'
+            ),
+            invite_url,
+        )
         self.logout()
 
         # 招待リンクを開くとトークンがサーバーへ預けられ、URLからfragmentが消える。
@@ -400,8 +405,8 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
         self.page.get_by_role('button', name=re.compile(r'ログイン$')).click()
         self.page.wait_for_load_state('domcontentloaded')
 
-        # 確認画面が Referrer-Policy: no-referrer を返すとブラウザは Origin: null で
-        # POST し CSRF 検証が必ず落ちる。Django test client では再現しない回帰。
+        # Referrer-Policy が no-referrer だとブラウザは Origin: null で POST し
+        # CSRF 検証が落ちる（Django test client では再現しない回帰）。
         self.page.get_by_role(
             'button', name=re.compile(r'このアカウントに紐づける$')
         ).click()

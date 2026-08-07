@@ -46,11 +46,11 @@ def _is_invitable(event_detail: EventDetail) -> bool:
 
 def _protect_sensitive_response(response: HttpResponse) -> HttpResponse:
     response["Cache-Control"] = "private, no-store"
-    # no-referrer にすると Chrome はこのページからのフォーム送信で Origin: null を送り、
-    # Django の CSRF Origin 検証が必ず失敗する（紐づけ確定が 403 になる）。
-    # strict-origin ならパスも fragment も送らずオリジンのみ送るため、招待トークンの
-    # 漏洩リスクは変わらない。
-    response["Referrer-Policy"] = "strict-origin"
+    # no-referrer にするとブラウザはこのページからのフォーム送信で Origin: null を送り、
+    # CSRF の Origin 検証が必ず失敗する（紐づけ確定が 403 になる）。same-origin なら
+    # 同一オリジンには Origin が付き、外部には何も送らない。招待トークンは fragment に
+    # あり、fragment は referrer policy によらず Referer から除去されるため漏洩しない。
+    response["Referrer-Policy"] = "same-origin"
     return response
 
 
