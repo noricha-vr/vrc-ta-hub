@@ -4,6 +4,7 @@
 
 ## レポート一覧
 
+- [Issue #619 イベント詳細の管理者向け UI 配置](issue-619-event-detail-admin-ui.md) — 管理操作・LT注意書き・発表者アカウント・アクセス解析の表示順と権限境界
 - [Issue #566 協力団体の公開審査基準](issue-566-community-criteria.md) — 掲載区分、必須条件、評価軸、公開導線の採用方針
 - [Issue #570 終了済み Vket バナー調査](issue-570-expired-vket-banner.md) — 開催終了翌日から募集バナーを非表示にする条件と回帰テスト方針
 - [Issue #542 Google→DB 同期デッドコード削除](issue-542-google-to-db-sync-removal.md) — DB→Google の正規経路を維持し、旧方向の未使用実装・参照・テストを削除した判断記録
