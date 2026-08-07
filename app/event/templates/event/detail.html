@@ -136,10 +136,6 @@
             margin-bottom: 0.5rem;
         }
 
-        .speaker-account-card .speaker-account-linked h2 {
-            margin-bottom: 0;
-        }
-
         .speaker-account-card .modal-title {
             background: transparent;
             border: none;
@@ -165,7 +161,8 @@
                 {% endif %}
 
                 {% if can_manage_event_detail %}
-                    <div class="d-flex">
+                    {# id は表示順の回帰テスト（test_event_detail_admin_ui_order.py）が参照する #}
+                    <div class="d-flex" id="admin-actions">
                         {% if is_community_owner %}
                             <a href="{% url 'event:my_list' %}"
                                class="btn btn-primary me-2">イベント一覧</a>
@@ -212,7 +209,7 @@
                     {% endif %}
 
                     {% if event_detail.detail_type == 'LT' %}
-                        <div class="mt-3">
+                        <div class="mt-3" id="lt-article-notes">
                             <ul>
                                 <li>希望の記事が作成されない場合、「記事生成」ボタンを押して再生成が可能です</li>
                                 <li>記事の生成には約10〜20秒ほどかかります</li>

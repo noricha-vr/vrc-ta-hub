@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 
 from django.test import SimpleTestCase
@@ -28,50 +27,6 @@ class EventDetailTemplateTest(SimpleTestCase):
         self.assertIn("event_detail.thumbnail_image.url|cf_resize:'1200'", template)
         self.assertIn("aspect-ratio: 16 / 9;", template)
         self.assertIn("event-detail-thumbnail", template)
-
-    def test_admin_ui_keeps_order_permissions_and_speaker_layout(self):
-        """管理UIの順序・権限境界・発表者アカウントの表示を保つ."""
-        template = self._detail_template()
-
-        manage_start = template.index("{% if can_manage_event_detail %}")
-        article_notes = template.index("希望の記事が作成されない場合")
-        speaker_account = template.index('class="speaker-account-card')
-        analytics_condition = template.index("{% if can_view_analytics %}")
-        analytics_section = template.index("analytics/_chart_section.html")
-
-        self.assertLess(manage_start, article_notes)
-        self.assertLess(article_notes, speaker_account)
-        self.assertLess(speaker_account, analytics_section)
-        self.assertLess(analytics_condition, analytics_section)
-        self.assertRegex(
-            template,
-            r"{% endif %}\s*\n\s*{# アクセス解析は操作群.*? #}\s*\n\s*{% if can_view_analytics %}",
-        )
-        applicant_branch = template.split("{% if event_detail.applicant %}", 1)[1].split(
-            "{% else %}", 1
-        )[0]
-        unlinked_branch = template.split("{% if event_detail.applicant %}", 1)[1].split(
-            "{% else %}", 1
-        )[1].split("{% endif %}", 1)[0]
-
-        self.assertRegex(
-            applicant_branch,
-            re.compile(
-                r'class="speaker-account-linked d-flex flex-wrap align-items-center gap-2".*?'
-                r'id="speaker-account-heading" class="h5 mb-0".*?'
-                r'class="mb-0".*?data-bs-target="#speaker-unlink-modal"',
-                re.DOTALL,
-            ),
-        )
-        self.assertIn('class="text-muted mb-3"', unlinked_branch)
-        self.assertIn('id="speaker-invite-form"', unlinked_branch)
-        self.assertIn('action="{% url \'event:speaker_invite_issue\' event_detail.pk %}"', unlinked_branch)
-        self.assertIn('id="speaker-invite-url" class="form-control" readonly', unlinked_branch)
-
-    def _detail_template(self):
-        return (
-            Path(__file__).resolve().parents[1] / "templates" / "event" / "detail.html"
-        ).read_text(encoding="utf-8")
 
     def test_detail_form_expands_optional_fields_when_errors_exist(self):
         """折りたたみ対象フィールドにエラーがある場合は詳細設定を開く."""
