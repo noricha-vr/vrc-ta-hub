@@ -189,6 +189,18 @@ class ReadDeployCheckTest(SimpleTestCase):
         with self.assertRaises(ValueError):
             self.reader.build_summary(config, base_dir=REPO_ROOT)
 
+    def test_malformed_check_entry_is_rejected(self):
+        """スキーマ違反のチェック定義を黙って捨てない。
+
+        捨てると `critical: 0 checks` で成功終了し、本番確認を実行しないまま
+        デプロイが進む。
+        """
+        config = dict(self.config)
+        config['checks'] = dict(self.config['checks'], critical=['https://vrc-ta-hub.com/'])
+
+        with self.assertRaises(ValueError):
+            self.reader.build_summary(config)
+
     def test_script_outside_repository_is_rejected(self):
         """リポジトリ外を指す参照は、実在しても検証の対象外なので落とす。"""
         config = dict(self.config)

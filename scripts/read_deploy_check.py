@@ -73,14 +73,23 @@ def _matches_service(check: dict[str, Any], service_name: str | None) -> bool:
 def _normalize_checks(config: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     checks = config.get("checks") or {}
     if not isinstance(checks, dict):
-        return {section: [] for section in CHECK_SECTIONS}
+        raise ValueError("checks must be a table")
 
     normalized: dict[str, list[dict[str, Any]]] = {}
     for section in CHECK_SECTIONS:
         items = checks.get(section) or []
         if isinstance(items, dict):
             items = [items]
-        normalized[section] = [item for item in items if isinstance(item, dict)]
+        if not isinstance(items, list):
+            raise ValueError(f"checks.{section} must be an array of tables")
+        # スキーマ違反の要素を黙って捨てると `critical: 0 checks` で成功終了し、
+        # 本番確認を実行しないままデプロイが進む。設定ミスとして落とす。
+        for item in items:
+            if not isinstance(item, dict):
+                raise ValueError(
+                    f"checks.{section} entries must be tables, got {type(item).__name__}"
+                )
+        normalized[section] = list(items)
     return normalized
 
 
