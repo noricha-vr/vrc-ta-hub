@@ -88,4 +88,5 @@ class EventDetailAdminUiOrderTests(TestCase):
 
         self.assertIn('id="speaker-invite-form"', html)
         self.assertIn('id="speaker-invite-url"', html)
-        self.assertNotIn('speaker-account-linked', html)
+        # class="..." で見る（同名の CSS セレクタが <style> に出るため素の語では判定できない）
+        self.assertNotIn('class="speaker-account-linked', html)
