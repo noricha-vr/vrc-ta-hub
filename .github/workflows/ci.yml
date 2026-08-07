@@ -52,7 +52,7 @@ jobs:
       - name: Run ruff lint
         run: |
           uv pip install --system ruff==0.11.6
-          ruff check app/
+          ruff check app/ scripts/
 
       # Makefile / 運用スクリプトの契約テスト。make -n の展開結果を検査するだけで
       # docker / op / gcloud は起動しないため、この軽量ジョブで回せる。

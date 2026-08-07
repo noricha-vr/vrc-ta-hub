@@ -1,5 +1,6 @@
 """docs/deploy-check.toml（deploy-watch が読むデプロイ前チェック定義）のテスト。"""
 
+import copy
 import importlib.util
 import tomllib
 from pathlib import Path
@@ -188,6 +189,53 @@ class ReadDeployCheckTest(SimpleTestCase):
 
         with self.assertRaises(ValueError):
             self.reader.build_summary(config, base_dir=REPO_ROOT)
+
+    def test_critical_paths_resolve_to_actual_checks(self):
+        """棚卸しが実チェックと機械的に紐づく（飾りにしない）。"""
+        summary = self.reader.build_summary(self.config, base_dir=REPO_ROOT)
+
+        paths = summary['critical_paths']
+        self.assertTrue(paths)
+        for path in paths:
+            self.assertTrue(path['check_url'], f"{path['feature']} should resolve to a check URL")
+
+    def test_broken_check_id_reference_is_rejected(self):
+        """チェックを消しても棚卸しだけ残る状態を落とす。"""
+        config = copy.deepcopy(self.config)
+        config['critical_paths'][0]['check_id'] = 'NO_SUCH_ID'
+
+        with self.assertRaises(ValueError):
+            self.reader.build_summary(config)
+
+    def test_duplicate_check_id_is_rejected(self):
+        config = copy.deepcopy(self.config)
+        config['checks']['critical'][1]['id'] = config['checks']['critical'][0]['id']
+
+        with self.assertRaises(ValueError):
+            self.reader.build_summary(config)
+
+    def test_check_without_id_is_rejected(self):
+        config = copy.deepcopy(self.config)
+        del config['checks']['critical'][0]['id']
+
+        with self.assertRaises(ValueError):
+            self.reader.build_summary(config)
+
+    def test_missing_script_is_detected_in_common_notations(self):
+        """`./` 無しや絶対パス指定でも実在確認が働く（fail-open の解消）。
+
+        拾えない記法があると、タイポが黙って検証をすり抜ける。
+        """
+        for command in (
+            './scripts/nonexistent.sh',
+            'bash scripts/nonexistent.sh',
+            '/repo/scripts/nonexistent.sh',
+        ):
+            with self.subTest(command=command):
+                with self.assertRaises(ValueError):
+                    self.reader.build_summary(
+                        self._with_check_command(command), base_dir=REPO_ROOT
+                    )
 
     def test_malformed_check_entry_is_rejected(self):
         """スキーマ違反のチェック定義を黙って捨てない。

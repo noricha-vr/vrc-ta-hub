@@ -36,6 +36,7 @@ check_command = "./scripts/check_pending_migrations.sh"
 apply_command = "./scripts/create_migrate_job.sh && gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --project=vrc-ta-hub --wait"
 
 [[checks.critical]]
+id = "C1"
 name = "トップページ"
 url = "https://vrc-ta-hub.com/"
 method = "GET"
@@ -44,6 +45,7 @@ expect_body = "VRChat技術・学術系イベントHub"
 
 # /health は cache 失敗でも status=ok を返す設計（app/ta_hub/health.py）。
 [[checks.critical]]
+id = "C2"
 name = "ヘルスチェック（DB）"
 url = "https://vrc-ta-hub.com/health"
 method = "GET"
@@ -53,6 +55,7 @@ expect_body = "\"db\": \"ok\""
 # migration 未適用（DatabaseCache のテーブル不在）はここでしか検知できない。
 # cache フィールドは常に LocMem の healthcheck alias を見るため、テーブルが無くても ok を返す。
 [[checks.critical]]
+id = "C3"
 name = "ヘルスチェック（共有キャッシュ）"
 url = "https://vrc-ta-hub.com/health"
 method = "GET"
@@ -60,6 +63,7 @@ expect_status = 200
 expect_body = "\"shared_cache\": \"ok\""
 
 [[checks.critical]]
+id = "C4"
 name = "ヘルスチェック（cache）"
 url = "https://vrc-ta-hub.com/health"
 method = "GET"
@@ -68,6 +72,7 @@ expect_body = "\"cache\": \"ok\""
 
 # DatabaseCache に実際に依存するため、即時モード（critical のみ実行）でも検知したい。
 [[checks.critical]]
+id = "C5"
 name = "ログイン画面"
 url = "https://vrc-ta-hub.com/account/login/"
 method = "GET"
@@ -75,6 +80,7 @@ expect_status = 200
 expect_body = "csrfmiddlewaretoken"
 
 [[checks.critical]]
+id = "C6"
 name = "ヘルスチェック（総合ステータス）"
 url = "https://vrc-ta-hub.com/health"
 method = "GET"
@@ -82,6 +88,7 @@ expect_status = 200
 expect_body = "\"status\": \"ok\""
 
 [[checks.important]]
+id = "I1"
 name = "集会一覧"
 url = "https://vrc-ta-hub.com/community/list/"
 method = "GET"
@@ -89,6 +96,7 @@ expect_status = 200
 expect_body = "技術学術系集会一覧"
 
 [[checks.important]]
+id = "I2"
 name = "発表一覧"
 url = "https://vrc-ta-hub.com/event/detail/history/"
 method = "GET"
@@ -108,25 +116,30 @@ description = "DatabaseCache のテーブル未作成（migration 未適用）�
 
 [[critical_paths]]
 priority = "P0"
+check_id = "C1"
 feature = "トップページ /"
 impact = "サイト全体が閲覧不可"
 
 [[critical_paths]]
 priority = "P0"
+check_id = "C3"
 feature = "ヘルスチェック /health"
 impact = "Cloud Run がインスタンスを異常判定"
 
 [[critical_paths]]
 priority = "P0"
+check_id = "C5"
 feature = "ログイン /account/login/"
 impact = "主催者が集会・発表を管理できない"
 
 [[critical_paths]]
 priority = "P1"
+check_id = "I1"
 feature = "集会一覧 /community/list/"
 impact = "集会情報の集約という主目的が果たせない"
 
 [[critical_paths]]
 priority = "P1"
+check_id = "I2"
 feature = "発表一覧 /event/detail/history/"
 impact = "発表アーカイブへ到達できない"
