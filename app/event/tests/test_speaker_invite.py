@@ -117,7 +117,7 @@ class SpeakerInviteTests(TestCase):
 
         self._assert_detail_redirect_with_message(response, "既にアカウント")
 
-    def test_sensitive_responses_disable_cache_and_referrer(self):
+    def test_sensitive_responses_restrict_cache_and_referrer(self):
         self.client.force_login(self.owner)
         issue_response = self._issue()
         token = urlparse(issue_response.json()["invite_url"]).fragment
@@ -129,7 +129,9 @@ class SpeakerInviteTests(TestCase):
         for response in (issue_response, exchange_response, confirm_response):
             with self.subTest(path=response.request["PATH_INFO"]):
                 self.assertEqual(response.headers["Cache-Control"], "private, no-store")
-                self.assertEqual(response.headers["Referrer-Policy"], "no-referrer")
+                # no-referrer は Origin: null を招き CSRF 検証を壊す
+                # （理由は _protect_sensitive_response のコメント参照）。
+                self.assertEqual(response.headers["Referrer-Policy"], "same-origin")
 
     def test_bootstrap_page_clears_fragment_without_loading_analytics(self):
         token = create_invite_token(self.event_detail)

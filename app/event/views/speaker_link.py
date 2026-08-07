@@ -46,7 +46,11 @@ def _is_invitable(event_detail: EventDetail) -> bool:
 
 def _protect_sensitive_response(response: HttpResponse) -> HttpResponse:
     response["Cache-Control"] = "private, no-store"
-    response["Referrer-Policy"] = "no-referrer"
+    # no-referrer にするとブラウザはこのページからのフォーム送信で Origin: null を送り、
+    # CSRF の Origin 検証が必ず失敗する（紐づけ確定が 403 になる）。same-origin なら
+    # 同一オリジンには Origin が付き、外部には何も送らない。招待トークンは fragment に
+    # あり、fragment は referrer policy によらず Referer から除去されるため漏洩しない。
+    response["Referrer-Policy"] = "same-origin"
     return response
 
 

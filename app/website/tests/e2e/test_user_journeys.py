@@ -367,3 +367,52 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
             f'{self.live_server_url}{reverse("event:detail", kwargs={"pk": application.pk})}'
         )
         expect(self.page.get_by_role('heading', name=application_theme, exact=True)).to_be_visible()
+
+    def test_speaker_invite_link_binds_applicant_account(self) -> None:
+        """主催者が発行した招待リンクで発表者本人がアカウントを紐づけられる."""
+        invite_detail = make_event_detail(
+            self.event,
+            applicant=None,
+            status='approved',
+            speaker='招待対象の発表者',
+            theme='招待リンクで紐づけるE2E発表',
+        )
+
+        self.login(self.owner.email, self.password)
+        self.page.goto(
+            f'{self.live_server_url}'
+            f'{reverse("event:detail", kwargs={"pk": invite_detail.pk})}'
+        )
+        self.page.get_by_role('button', name=re.compile(r'招待リンクを発行$')).click()
+        invite_url_field = self.page.get_by_label('招待リンク')
+        expect(invite_url_field).to_be_visible()
+        invite_url = invite_url_field.input_value()
+        self.assertTrue(
+            invite_url.startswith(
+                f'{self.live_server_url}{reverse("event:speaker_link_confirm")}#'
+            ),
+            invite_url,
+        )
+        self.logout()
+
+        # 招待リンクを開くとトークンがサーバーへ預けられ、URLからfragmentが消える。
+        self.page.goto(invite_url)
+        expect(self.page).to_have_url(
+            re.compile(r'/account/login/\?next=/event/speaker-link/$')
+        )
+        self.page.get_by_label('メールアドレス').fill(self.applicant.email)
+        self.page.get_by_label('パスワード').fill(self.password)
+        self.page.get_by_role('button', name=re.compile(r'ログイン$')).click()
+        self.page.wait_for_load_state('domcontentloaded')
+
+        # Referrer-Policy が no-referrer だとブラウザは Origin: null で POST し
+        # CSRF 検証が落ちる（Django test client では再現しない回帰）。
+        self.page.get_by_role(
+            'button', name=re.compile(r'このアカウントに紐づける$')
+        ).click()
+        expect(self.page).to_have_url(
+            re.compile(rf'{re.escape(reverse("event:my_presentations"))}$')
+        )
+
+        invite_detail.refresh_from_db()
+        self.assertEqual(invite_detail.applicant, self.applicant)

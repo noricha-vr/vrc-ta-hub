@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
-    <meta name="referrer" content="no-referrer">
+    {# Referrer-Policy は SpeakerLink 系ビューの _protect_sensitive_response が正本。 #}
+    {# meta で二重に持つと片方だけ変わった時に静かに食い違うため置かない。 #}
     <meta name="description" content="発表と本人アカウントの紐づけを確認します。">
     <link rel="canonical" href="https://vrc-ta-hub.com{% url 'event:speaker_link_confirm' %}">
     <title>発表者アカウントの紐づけ - VRChat 技術・学術系イベントHub</title>
