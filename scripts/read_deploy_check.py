@@ -154,8 +154,53 @@ def resolve_migrations(config: dict[str, Any], base_dir: Path | None = None) -> 
 
 
 def _referenced_scripts(command: str) -> list[str]:
-    """コマンド文字列から ./scripts/*.sh 形式の参照を拾う。"""
-    return re.findall(r"\./(scripts/[\w./-]+\.sh)", command)
+    """コマンド文字列から scripts/*.sh への参照をパス全体として拾う。
+
+    `./scripts/x.sh` だけでなく `bash scripts/x.sh` や絶対パス指定も対象にする。
+    拾えないと実在確認が黙ってスキップされ、タイポが検証をすり抜ける。
+    先頭を捨てて `scripts/...` だけを返すと、`/tmp/scripts/x.sh` がリポジトリ内の
+    同名ファイルで実在確認を通ってしまうため、必ずパス全体を返す。
+    """
+    return re.findall(r"(?:^|[\s'\"=])([\w./-]*scripts/[\w./-]+\.sh)", command)
+
+
+def _index_check_ids(checks: dict[str, list[dict[str, Any]]]) -> dict[str, dict[str, Any]]:
+    """critical / important の id を索引する。重複と欠落は設定ミスとして落とす。"""
+    indexed: dict[str, dict[str, Any]] = {}
+    for section in ("critical", "important"):
+        for item in checks.get(section, []):
+            check_id = item.get("id")
+            if not isinstance(check_id, str) or not check_id.strip():
+                raise ValueError(f"checks.{section} entry requires a non-empty string id")
+            if check_id in indexed:
+                raise ValueError(f"duplicate check id: {check_id}")
+            indexed[check_id] = item
+    return indexed
+
+
+def resolve_critical_paths(
+    config: dict[str, Any], checks: dict[str, list[dict[str, Any]]]
+) -> list[dict[str, Any]]:
+    """critical_paths の check_id を実チェックへ解決する。
+
+    棚卸しと実チェックが機械的に紐づいていないと、チェックを消しても棚卸しだけが
+    残り「守られているつもり」になる。
+    """
+    indexed = _index_check_ids(checks)
+    resolved: list[dict[str, Any]] = []
+    for path in _ensure_list(config.get("critical_paths")):
+        if not isinstance(path, dict):
+            raise ValueError("critical_paths entries must be tables")
+        check_id = path.get("check_id")
+        if not check_id:
+            raise ValueError(f"critical_paths {path.get('feature')!r} requires check_id")
+        source = indexed.get(str(check_id))
+        if source is None:
+            raise ValueError(
+                f"critical_paths {path.get('feature')!r} references unknown check_id: {check_id}"
+            )
+        resolved.append({**path, "check_url": source.get("url")})
+    return resolved
 
 
 def resolve_absence_alerts(config: dict[str, Any]) -> list[dict[str, Any]]:
@@ -226,7 +271,7 @@ def build_summary(
         "selected_checks": selected_checks,
         "log_checks": _ensure_list(config.get("log_checks")),
         "absence_alerts": resolve_absence_alerts(config),
-        "critical_paths": _ensure_list(config.get("critical_paths")),
+        "critical_paths": resolve_critical_paths(config, checks),
         "watch_path": watch_path,
         "service_name": service_name,
     }
