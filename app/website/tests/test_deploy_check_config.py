@@ -250,14 +250,20 @@ class ReadDeployCheckTest(SimpleTestCase):
             self.reader.build_summary(config)
 
     def test_script_outside_repository_is_rejected(self):
-        """リポジトリ外を指す参照は、実在しても検証の対象外なので落とす。"""
-        config = dict(self.config)
-        config['migrations'] = dict(
-            self.config['migrations'], check_command='./scripts/../../../tmp/evil.sh'
-        )
+        """リポジトリ外を指す参照は、実在しても検証の対象外なので落とす。
 
-        with self.assertRaises(ValueError):
-            self.reader.build_summary(config, base_dir=REPO_ROOT)
+        絶対パス指定は、リポジトリ内に同名ファイルがあると実在確認をすり抜けやすい
+        （実行されるのは外部のスクリプトなのに設定が受理される）。
+        """
+        for command in (
+            './scripts/../../../tmp/evil.sh',
+            '/tmp/scripts/check_pending_migrations.sh',
+        ):
+            with self.subTest(command=command):
+                with self.assertRaises(ValueError):
+                    self.reader.build_summary(
+                        self._with_check_command(command), base_dir=REPO_ROOT
+                    )
 
     def test_render_text_shows_migrations(self):
         """テキスト出力にも migrations を出す（AI・人間が目視する経路）。"""
