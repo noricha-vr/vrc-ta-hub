@@ -4,7 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
-    <meta name="referrer" content="no-referrer">
+    {# no-referrer はフォーム送信の Origin を null にし、確定 POST が CSRF 検証で必ず落ちる。 #}
+    {# strict-origin ならパスも fragment（招待トークン）も送らずオリジンだけを送る。 #}
+    <meta name="referrer" content="strict-origin">
     <meta name="description" content="発表と本人アカウントの紐づけを確認します。">
     <link rel="canonical" href="https://vrc-ta-hub.com{% url 'event:speaker_link_confirm' %}">
     <title>発表者アカウントの紐づけ - VRChat 技術・学術系イベントHub</title>
