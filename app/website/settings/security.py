@@ -1,7 +1,7 @@
 """セキュリティ関連の Django 設定.
 
 ALLOWED_HOSTS / SECURE_PROXY_SSL_HEADER / SESSION_COOKIE_SECURE /
-CSRF_COOKIE_SECURE / SECURE_HSTS_* / CSRF_TRUSTED_ORIGINS /
+SESSION_COOKIE_SAMESITE / CSRF_COOKIE_SECURE / SECURE_HSTS_* / CSRF_TRUSTED_ORIGINS /
 CORS_ALLOWED_ORIGINS / CORS_URLS_REGEX / DISCORD_AUTH_REQUIRED を扱う。
 """
 import os
@@ -43,6 +43,11 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # Cloud Run が XFF 末尾へ追加する client / Google frontend の2要素を信頼する。
 # nginx はこのチェーンを追加せず透過し、左側の偽装値をIP制限キーに使わせない。
 ALLAUTH_TRUSTED_PROXY_COUNT = 2
+
+# Django 既定と同値だが明示固定する。event:my_list の ?community= が GET でセッションを
+# 更新するため、サブリソース（img/iframe/fetch）経由でセッション Cookie が送られない Lax が
+# 外部サイトからのアクティブ集会すり替えを防ぐ防御線になっている。
+SESSION_COOKIE_SAMESITE = 'Lax'
 
 # 本番環境のセキュリティ強化
 if not DEBUG:

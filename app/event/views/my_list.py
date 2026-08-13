@@ -37,12 +37,28 @@ class EventMyList(LoginRequiredMixin, ListView):
         if not raw_community_id:
             return
 
+        # クロスサイト起点のトップレベルナビゲーションではセッションを書き換えない
+        # （active_community_id は集会更新・イベント作成の対象決定に使われる共有状態のため、
+        #   CSRF 保護のない GET で外部サイトから切り替えられると別タブのフォーム対象がすり替わる）
+        if self.request.headers.get('Sec-Fetch-Site') == 'cross-site':
+            return
+
         try:
             community_id = int(raw_community_id)
         except (TypeError, ValueError):
             return
 
-        if community_id in self._get_user_communities():
+        # community:switch（community/views/member.py）と同じ受理条件に揃える:
+        # メンバーシップがあり、かつ終了済みでない集会のみ。条件を変える時は両方を更新すること
+        membership = self.request.user.community_memberships.select_related('community').filter(
+            community_id=community_id
+        ).first()
+        if membership is None or membership.community.is_ended:
+            return
+
+        # 同値の再代入でも session.modified が立ち毎回 DB 書き込みになるため差分がある時だけ更新
+        # （ページネーションリンクが community= を引き継ぐので my_list の全ページビューに乗る）
+        if self.request.session.get('active_community_id') != community_id:
             self.request.session['active_community_id'] = community_id
 
     def get(self, request, *args, **kwargs):

@@ -159,7 +159,8 @@ class HeaderCommunityDropdownTest(TestCase):
         self.assertTrue(active_links, 'アクティブ集会のリンクが見つからない')
         self.assertIn(expected_href, active_links[0])
         self.assertIn('aria-current="true"', active_links[0])
-        self.assertIn('active', active_links[0])
+        # 部分一致だと "dropdown-item" 等の別語に含まれる 'active' でも通るため class 属性値で照合する
+        self.assertIn('class="dropdown-item active"', active_links[0])
 
     def test_inactive_community_has_circle_icon(self):
         """非アクティブな集会には丸アイコンが表示される"""
@@ -201,16 +202,23 @@ class HeaderCommunityDropdownTest(TestCase):
         )
 
     def test_inactive_community_link_switches_active_community(self):
-        """非アクティブ集会のリンクを辿るとアクティブな集会が切り替わる"""
+        """ドロップダウンに描画されたリンクをそのまま辿るとアクティブな集会が切り替わる"""
         self.client.force_login(self.user)
 
         session = self.client.session
         session['active_community_id'] = self.community1.id
         session.save()
 
-        response = self.client.get(
-            reverse('event:my_list'), {'community': self.community2.id}
-        )
+        header_response = self.client.get(reverse('ta_hub:index'))
+        # 描画済み href をそのまま辿ることで、テンプレートとビューの結線ずれを検知する
+        hrefs = [
+            re.search(r'href="([^"]+)"', attrs).group(1)
+            for attrs, inner in self._find_my_list_links(header_response)
+            if self.community2.name in inner
+        ]
+        self.assertTrue(hrefs, '非アクティブ集会のリンクが見つからない')
+
+        response = self.client.get(hrefs[0], HTTP_SEC_FETCH_SITE='same-origin')
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.client.session['active_community_id'], self.community2.id)

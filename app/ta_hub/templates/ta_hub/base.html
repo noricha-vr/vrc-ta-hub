@@ -375,7 +375,8 @@
                                         {% if not membership.community.is_ended %}
                                             {% if membership.community.id == active_community.id %}
                                                 <li><a class="dropdown-item active" aria-current="true" href="{% url 'event:my_list' %}?community={{ membership.community.id }}">
-                                                    <i class="bi bi-check-lg me-2 text-primary" aria-hidden="true"></i>{{ membership.community.name|truncatechars:12 }}
+                                                    {# .dropdown-item.active は青背景・白文字。text-primary を付けると青地に青で潰れるため継承色を使う #}
+                                                    <i class="bi bi-check-lg me-2" aria-hidden="true"></i>{{ membership.community.name|truncatechars:12 }}
                                                 </a></li>
                                             {% else %}
                                                 <li><a class="dropdown-item" href="{% url 'event:my_list' %}?community={{ membership.community.id }}">

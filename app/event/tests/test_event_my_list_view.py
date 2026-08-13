@@ -863,6 +863,43 @@ class EventMyListCommunityQueryParamTest(TestCase):
         self.assertEqual(response.context['active_community'].id, self.community_a.id)
         self.assertEqual(self.client.session['active_community_id'], self.community_a.id)
 
+    def test_ended_community_is_ignored(self):
+        """終了済みの所属集会は指定してもセッションが書き換わらない"""
+        self.community_b.end_at = timezone.now().date() - timedelta(days=1)
+        self.community_b.save(update_fields=['end_at'])
+
+        response = self.client.get(
+            reverse('event:my_list'), {'community': self.community_b.id}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['active_community'].id, self.community_a.id)
+        self.assertEqual(self.client.session['active_community_id'], self.community_a.id)
+
+    def test_cross_site_navigation_does_not_switch_community(self):
+        """クロスサイト起点の遷移では集会が切り替わらない"""
+        response = self.client.get(
+            reverse('event:my_list'),
+            {'community': self.community_b.id},
+            headers={'sec-fetch-site': 'cross-site'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['active_community'].id, self.community_a.id)
+        self.assertEqual(self.client.session['active_community_id'], self.community_a.id)
+
+    def test_same_origin_navigation_switches_community(self):
+        """同一オリジン起点の遷移では従来どおり集会が切り替わる"""
+        response = self.client.get(
+            reverse('event:my_list'),
+            {'community': self.community_b.id},
+            headers={'sec-fetch-site': 'same-origin'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['active_community'].id, self.community_b.id)
+        self.assertEqual(self.client.session['active_community_id'], self.community_b.id)
+
     def test_pagination_keeps_community_param(self):
         """ページ送りしても集会指定が維持される"""
         page_size = EventMyList.paginate_by
