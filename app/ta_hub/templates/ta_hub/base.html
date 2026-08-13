@@ -374,9 +374,9 @@
                                     {% for membership in user_communities %}
                                         {% if not membership.community.is_ended %}
                                             {% if membership.community.id == active_community.id %}
-                                                <li><span class="dropdown-item-text">
+                                                <li><a class="dropdown-item" href="{% url 'event:my_list' %}">
                                                     <i class="bi bi-check-lg me-2 text-primary"></i>{{ membership.community.name|truncatechars:12 }}
-                                                </span></li>
+                                                </a></li>
                                             {% else %}
                                                 <li>
                                                     <form action="{% url 'community:switch' %}" method="post" class="d-inline w-100">

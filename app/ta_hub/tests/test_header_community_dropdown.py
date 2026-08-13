@@ -1,5 +1,7 @@
 """ヘッダーの集会ドロップダウン表示のテスト"""
 
+import re
+
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -103,6 +105,26 @@ class HeaderCommunityDropdownTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # チェックマークアイコンが存在することを確認
         self.assertContains(response, 'bi-check-lg')
+
+    def test_active_community_links_to_my_list(self):
+        """アクティブな集会名はマイイベント一覧へのリンクになっている"""
+        self.client.force_login(self.user)
+
+        session = self.client.session
+        session['active_community_id'] = self.community1.id
+        session.save()
+
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        my_list_url = reverse('event:my_list')
+        links = re.findall(
+            r'<a[^>]+href="{}"[^>]*>(.*?)</a>'.format(re.escape(my_list_url)),
+            response.content.decode(),
+            re.DOTALL,
+        )
+        self.assertEqual(len(links), 1)
+        self.assertIn(self.community1.name, links[0])
 
     def test_inactive_community_has_circle_icon(self):
         """非アクティブな集会には丸アイコンが表示される"""
