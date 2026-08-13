@@ -12,6 +12,12 @@ from django.utils import timezone
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
 from event.views.my_list import EventMyList
+from tests.factories import (
+    make_community,
+    make_community_member,
+    make_event,
+    make_user,
+)
 from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
@@ -779,57 +785,37 @@ class EventMyListCommunityQueryParamTest(TestCase):
 
     def setUp(self):
         self.client = Client()
-        self.user = User.objects.create_user(
+        self.user = make_user(
             user_name='QP User', email='qp_user@example.com', password='qppass123',
         )
-        self.other_user = User.objects.create_user(
+        self.other_user = make_user(
             user_name='QP Other', email='qp_other@example.com', password='qppass123',
         )
 
-        self.community_a = self._create_community('QP Community A')
-        self.community_b = self._create_community('QP Community B')
-        self.foreign_community = self._create_community('QP Foreign Community')
-
-        CommunityMember.objects.create(
-            community=self.community_a, user=self.user, role=CommunityMember.Role.OWNER,
+        self.community_a = make_community(name='QP Community A', owner=self.user, organizers='QP')
+        self.community_b = make_community(name='QP Community B', organizers='QP')
+        self.foreign_community = make_community(
+            name='QP Foreign Community', owner=self.other_user, organizers='QP',
         )
-        CommunityMember.objects.create(
-            community=self.community_b, user=self.user, role=CommunityMember.Role.STAFF,
-        )
-        CommunityMember.objects.create(
-            community=self.foreign_community, user=self.other_user,
-            role=CommunityMember.Role.OWNER,
+        make_community_member(
+            self.community_b, self.user, role=CommunityMember.Role.STAFF,
         )
 
         past = timezone.now().date() - timedelta(days=7)
-        self.event_a = Event.objects.create(
-            community=self.community_a, date=past, start_time=time(22, 0),
-            duration=60, weekday='Mon',
+        self.event_a = make_event(
+            self.community_a, event_date=past, start_time=time(22, 0), weekday='Mon',
         )
-        self.event_b = Event.objects.create(
-            community=self.community_b, date=past, start_time=time(21, 0),
-            duration=60, weekday='Fri',
+        self.event_b = make_event(
+            self.community_b, event_date=past, start_time=time(21, 0), weekday='Fri',
         )
-        self.foreign_event = Event.objects.create(
-            community=self.foreign_community, date=past, start_time=time(20, 0),
-            duration=60, weekday='Wed',
+        self.foreign_event = make_event(
+            self.foreign_community, event_date=past, start_time=time(20, 0), weekday='Wed',
         )
 
         self.client.force_login(self.user)
         session = self.client.session
         session['active_community_id'] = self.community_a.id
         session.save()
-
-    def _create_community(self, name):
-        return Community.objects.create(
-            name=name,
-            start_time=time(22, 0),
-            duration=60,
-            weekdays=['Mon'],
-            frequency='Every week',
-            organizers='QP',
-            status='approved',
-        )
 
     def test_query_param_switches_to_specified_community(self):
         """所属集会を指定すると、その集会のイベントだけが表示されセッションも更新される"""
