@@ -1,5 +1,7 @@
 """ヘッダーの集会ドロップダウン表示のテスト"""
 
+import re
+
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth import get_user_model
@@ -104,6 +106,62 @@ class HeaderCommunityDropdownTest(TestCase):
         # チェックマークアイコンが存在することを確認
         self.assertContains(response, 'bi-check-lg')
 
+    def _find_my_list_links(self, response):
+        """マイイベント一覧への集会指定リンクを (href, 内側HTML) で列挙する"""
+        my_list_url = reverse('event:my_list')
+        pattern = r'<a([^>]+href="{}\?community=\d+"[^>]*)>(.*?)</a>'.format(
+            re.escape(my_list_url)
+        )
+        return re.findall(pattern, response.content.decode(), re.DOTALL)
+
+    def test_active_community_links_to_my_list_with_community_param(self):
+        """アクティブな集会名は集会IDを固定したマイイベント一覧リンクになっている"""
+        self.client.force_login(self.user)
+
+        session = self.client.session
+        session['active_community_id'] = self.community1.id
+        session.save()
+
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        my_list_url = reverse('event:my_list')
+        expected_href = f'{my_list_url}?community={self.community1.id}'
+        # テスト用集会名は truncatechars:12 に切られない12文字以内を前提にしている
+        self.assertTrue(
+            any(
+                expected_href in attrs and self.community1.name in inner
+                for attrs, inner in self._find_my_list_links(response)
+            ),
+            'アクティブ集会名を含む my_list リンクが見つからない',
+        )
+
+    def test_active_community_link_marked_as_current(self):
+        """アクティブな集会リンクは Bootstrap の選択状態で示される"""
+        self.client.force_login(self.user)
+
+        session = self.client.session
+        session['active_community_id'] = self.community1.id
+        session.save()
+
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        expected_href = '{}?community={}'.format(
+            reverse('event:my_list'), self.community1.id
+        )
+        # テスト用集会名は truncatechars:12 に切られない12文字以内を前提にしている
+        active_links = [
+            attrs
+            for attrs, inner in self._find_my_list_links(response)
+            if self.community1.name in inner
+        ]
+        self.assertTrue(active_links, 'アクティブ集会のリンクが見つからない')
+        self.assertIn(expected_href, active_links[0])
+        self.assertIn('aria-current="true"', active_links[0])
+        # 部分一致だと "dropdown-item" 等の別語に含まれる 'active' でも通るため class 属性値で照合する
+        self.assertIn('class="dropdown-item active"', active_links[0])
+
     def test_inactive_community_has_circle_icon(self):
         """非アクティブな集会には丸アイコンが表示される"""
         self.client.force_login(self.user)
@@ -119,8 +177,8 @@ class HeaderCommunityDropdownTest(TestCase):
         # 丸アイコンが存在することを確認（非アクティブ集会用）
         self.assertContains(response, 'bi-circle')
 
-    def test_switch_form_exists_for_inactive_community(self):
-        """非アクティブな集会には切り替えフォームがある"""
+    def test_inactive_community_links_to_my_list_with_community_param(self):
+        """非アクティブな集会は集会IDを固定したGETリンクで切り替えられる"""
         self.client.force_login(self.user)
 
         # セッションにactive_community_idを設定
@@ -131,8 +189,39 @@ class HeaderCommunityDropdownTest(TestCase):
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        # 切り替えフォームにcommunity_idが含まれることを確認
-        self.assertContains(response, f'name="community_id" value="{self.community2.id}"')
+        expected_href = '{}?community={}'.format(
+            reverse('event:my_list'), self.community2.id
+        )
+        # テスト用集会名は truncatechars:12 に切られない12文字以内を前提にしている
+        self.assertTrue(
+            any(
+                expected_href in attrs and self.community2.name in inner
+                for attrs, inner in self._find_my_list_links(response)
+            ),
+            '非アクティブ集会名を含む my_list リンクが見つからない',
+        )
+
+    def test_inactive_community_link_switches_active_community(self):
+        """ドロップダウンに描画されたリンクをそのまま辿るとアクティブな集会が切り替わる"""
+        self.client.force_login(self.user)
+
+        session = self.client.session
+        session['active_community_id'] = self.community1.id
+        session.save()
+
+        header_response = self.client.get(reverse('ta_hub:index'))
+        # 描画済み href をそのまま辿ることで、テンプレートとビューの結線ずれを検知する
+        hrefs = [
+            re.search(r'href="([^"]+)"', attrs).group(1)
+            for attrs, inner in self._find_my_list_links(header_response)
+            if self.community2.name in inner
+        ]
+        self.assertTrue(hrefs, '非アクティブ集会のリンクが見つからない')
+
+        response = self.client.get(hrefs[0], HTTP_SEC_FETCH_SITE='same-origin')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.session['active_community_id'], self.community2.id)
 
     def test_add_community_link_exists(self):
         """集会を追加リンクが存在する"""

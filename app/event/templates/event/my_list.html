@@ -35,6 +35,8 @@
                                 <form method="post" action="{% url 'community:switch' %}">
                                     {% csrf_token %}
                                     <input type="hidden" name="community_id" value="{{ community.id }}">
+                                    {# redirect_to が無いと Referer（?community= 付き URL）へ戻され、切替が即取り消される #}
+                                    <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
                                     <button type="submit" class="dropdown-item {% if active_community and community.id == active_community.id %}active{% endif %}">
                                         {{ community.name }}
                                     </button>

@@ -374,20 +374,14 @@
                                     {% for membership in user_communities %}
                                         {% if not membership.community.is_ended %}
                                             {% if membership.community.id == active_community.id %}
-                                                <li><span class="dropdown-item-text">
-                                                    <i class="bi bi-check-lg me-2 text-primary"></i>{{ membership.community.name|truncatechars:12 }}
-                                                </span></li>
+                                                <li><a class="dropdown-item active" aria-current="true" href="{% url 'event:my_list' %}?community={{ membership.community.id }}">
+                                                    {# .dropdown-item.active は青背景・白文字。text-primary を付けると青地に青で潰れるため継承色を使う #}
+                                                    <i class="bi bi-check-lg me-2" aria-hidden="true"></i>{{ membership.community.name|truncatechars:12 }}
+                                                </a></li>
                                             {% else %}
-                                                <li>
-                                                    <form action="{% url 'community:switch' %}" method="post" class="d-inline w-100">
-                                                        {% csrf_token %}
-                                                        <input type="hidden" name="community_id" value="{{ membership.community.id }}">
-                                                        <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
-                                                        <button type="submit" class="dropdown-item">
-                                                            <i class="bi bi-circle me-2 text-muted"></i>{{ membership.community.name|truncatechars:12 }}
-                                                        </button>
-                                                    </form>
-                                                </li>
+                                                <li><a class="dropdown-item" href="{% url 'event:my_list' %}?community={{ membership.community.id }}">
+                                                    <i class="bi bi-circle me-2 text-muted" aria-hidden="true"></i>{{ membership.community.name|truncatechars:12 }}
+                                                </a></li>
                                             {% endif %}
                                         {% endif %}
                                     {% endfor %}

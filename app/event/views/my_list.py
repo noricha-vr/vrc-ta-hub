@@ -26,6 +26,47 @@ class EventMyList(LoginRequiredMixin, ListView):
             self.request.user.community_memberships.values_list('community_id', flat=True)
         )
 
+    def _apply_community_query_param(self):
+        """?community=<id> が指定されていればアクティブな集会をそこへ固定する。
+
+        不正値・権限外の ID は黙って無視し、既存のセッション/フォールバック挙動に委ねる
+        （community:switch も権限外を画面遷移だけで済ませるため、URL 直叩きの失敗を
+        エラー表示せずに揃える）。
+        """
+        raw_community_id = self.request.GET.get('community')
+        if not raw_community_id:
+            return
+
+        # クロスサイト起点のトップレベルナビゲーションではセッションを書き換えない
+        # （active_community_id は集会更新・イベント作成の対象決定に使われる共有状態のため、
+        #   CSRF 保護のない GET で外部サイトから切り替えられると別タブのフォーム対象がすり替わる）
+        if self.request.headers.get('Sec-Fetch-Site') == 'cross-site':
+            return
+
+        try:
+            community_id = int(raw_community_id)
+        except (TypeError, ValueError):
+            return
+
+        # community:switch（community/views/member.py）と同じ受理条件に揃える:
+        # メンバーシップがあり、かつ終了済みでない集会のみ。条件を変える時は両方を更新すること
+        membership = self.request.user.community_memberships.select_related('community').filter(
+            community_id=community_id
+        ).first()
+        if membership is None or membership.community.is_ended:
+            return
+
+        # 同値の再代入でも session.modified が立ち毎回 DB 書き込みになるため差分がある時だけ更新
+        # （ページネーションリンクが community= を引き継ぐので my_list の全ページビューに乗る）
+        if self.request.session.get('active_community_id') != community_id:
+            self.request.session['active_community_id'] = community_id
+
+    def get(self, request, *args, **kwargs):
+        # get_queryset / get_context_data の双方が更新後のセッションを読むよう、
+        # 一覧の組み立て前にアクティブな集会を確定させる。
+        self._apply_community_query_param()
+        return super().get(request, *args, **kwargs)
+
     def _get_active_community(self):
         """アクティブな集会を取得する"""
         active_community_id = self.request.session.get('active_community_id')

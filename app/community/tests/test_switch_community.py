@@ -1,3 +1,4 @@
+import re
 from datetime import date, timedelta
 
 from django.test import TestCase, Client
@@ -246,6 +247,49 @@ class SwitchCommunityViewTest(TestCase):
 
         # refererにリダイレクトされる
         self.assertRedirects(response, '/account/settings/', fetch_redirect_response=False)
+
+    def test_switch_from_my_list_with_community_param_is_not_reverted(self):
+        """?community= 付きページの切替フォームを使った切り替えが巻き戻されない"""
+        self.client.force_login(self.user)
+
+        my_list_url = reverse('event:my_list')
+        page_url = f'{my_list_url}?community={self.community2.id}'
+        session = self.client.session
+        session['active_community_id'] = self.community2.id
+        session.save()
+
+        # 集会2のマイイベント一覧（?community=2）を開き、そこに描画された切替フォームを送る。
+        # redirect_to が無いと Referer 経由で ?community=2 に戻され切り替えが取り消される。
+        page = self.client.get(page_url, HTTP_SEC_FETCH_SITE='same-origin')
+        self.assertEqual(page.status_code, 200)
+        form_data = self._extract_switch_form_data(page, self.community1.id)
+
+        response = self.client.post(
+            reverse('community:switch'),
+            form_data,
+            HTTP_REFERER=page_url,
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.session['active_community_id'], self.community1.id)
+
+    def _extract_switch_form_data(self, response, community_id):
+        """レンダリング済みページから指定集会への切替フォームの入力値を取り出す"""
+        switch_url = re.escape(reverse('community:switch'))
+        forms = re.findall(
+            r'<form[^>]+action="{}"[^>]*>(.*?)</form>'.format(switch_url),
+            response.content.decode(),
+            re.DOTALL,
+        )
+        target = [
+            form for form in forms
+            if f'name="community_id" value="{community_id}"' in form
+        ]
+        self.assertTrue(target, f'集会 {community_id} への切替フォームが見つからない')
+        return dict(
+            re.findall(r'<input[^>]+name="([^"]+)"[^>]+value="([^"]*)"', target[0])
+        )
 
 
 class CommunityUpdateViewPermissionTest(TestCase):
