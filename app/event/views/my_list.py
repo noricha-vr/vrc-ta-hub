@@ -26,6 +26,31 @@ class EventMyList(LoginRequiredMixin, ListView):
             self.request.user.community_memberships.values_list('community_id', flat=True)
         )
 
+    def _apply_community_query_param(self):
+        """?community=<id> が指定されていればアクティブな集会をそこへ固定する。
+
+        不正値・権限外の ID は黙って無視し、既存のセッション/フォールバック挙動に委ねる
+        （community:switch も権限外を画面遷移だけで済ませるため、URL 直叩きの失敗を
+        エラー表示せずに揃える）。
+        """
+        raw_community_id = self.request.GET.get('community')
+        if not raw_community_id:
+            return
+
+        try:
+            community_id = int(raw_community_id)
+        except (TypeError, ValueError):
+            return
+
+        if community_id in self._get_user_communities():
+            self.request.session['active_community_id'] = community_id
+
+    def get(self, request, *args, **kwargs):
+        # get_queryset / get_context_data の双方が更新後のセッションを読むよう、
+        # 一覧の組み立て前にアクティブな集会を確定させる。
+        self._apply_community_query_param()
+        return super().get(request, *args, **kwargs)
+
     def _get_active_community(self):
         """アクティブな集会を取得する"""
         active_community_id = self.request.session.get('active_community_id')

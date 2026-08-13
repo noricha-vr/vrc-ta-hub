@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from community.models import Community, CommunityMember
 from event.models import Event, EventDetail
+from event.views.my_list import EventMyList
 from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
@@ -771,3 +772,123 @@ class EventMyListEditButtonTest(TestCase):
         # 有効なリンクとしては表示されない（disabled ラップ）
         self.assertNotContains(response, f'href="{update_url}"')
         self.assertContains(response, 'Vketコラボ期間中は編集できません')
+
+
+class EventMyListCommunityQueryParamTest(TestCase):
+    """?community=<id> でアクティブな集会を固定する挙動のテスト。"""
+
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(
+            user_name='QP User', email='qp_user@example.com', password='qppass123',
+        )
+        self.other_user = User.objects.create_user(
+            user_name='QP Other', email='qp_other@example.com', password='qppass123',
+        )
+
+        self.community_a = self._create_community('QP Community A')
+        self.community_b = self._create_community('QP Community B')
+        self.foreign_community = self._create_community('QP Foreign Community')
+
+        CommunityMember.objects.create(
+            community=self.community_a, user=self.user, role=CommunityMember.Role.OWNER,
+        )
+        CommunityMember.objects.create(
+            community=self.community_b, user=self.user, role=CommunityMember.Role.STAFF,
+        )
+        CommunityMember.objects.create(
+            community=self.foreign_community, user=self.other_user,
+            role=CommunityMember.Role.OWNER,
+        )
+
+        past = timezone.now().date() - timedelta(days=7)
+        self.event_a = Event.objects.create(
+            community=self.community_a, date=past, start_time=time(22, 0),
+            duration=60, weekday='Mon',
+        )
+        self.event_b = Event.objects.create(
+            community=self.community_b, date=past, start_time=time(21, 0),
+            duration=60, weekday='Fri',
+        )
+        self.foreign_event = Event.objects.create(
+            community=self.foreign_community, date=past, start_time=time(20, 0),
+            duration=60, weekday='Wed',
+        )
+
+        self.client.force_login(self.user)
+        session = self.client.session
+        session['active_community_id'] = self.community_a.id
+        session.save()
+
+    def _create_community(self, name):
+        return Community.objects.create(
+            name=name,
+            start_time=time(22, 0),
+            duration=60,
+            weekdays=['Mon'],
+            frequency='Every week',
+            organizers='QP',
+            status='approved',
+        )
+
+    def test_query_param_switches_to_specified_community(self):
+        """所属集会を指定すると、その集会のイベントだけが表示されセッションも更新される"""
+        response = self.client.get(
+            reverse('event:my_list'), {'community': self.community_b.id}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['active_community'].id, self.community_b.id)
+        event_ids = [event.id for event in response.context['events']]
+        self.assertEqual(event_ids, [self.event_b.id])
+        self.assertEqual(self.client.session['active_community_id'], self.community_b.id)
+
+    def test_foreign_community_is_ignored(self):
+        """権限のない集会IDは無視され、セッションも書き換わらない"""
+        response = self.client.get(
+            reverse('event:my_list'), {'community': self.foreign_community.id}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['active_community'].id, self.community_a.id)
+        event_ids = [event.id for event in response.context['events']]
+        self.assertNotIn(self.foreign_event.id, event_ids)
+        self.assertEqual(self.client.session['active_community_id'], self.community_a.id)
+
+    def test_non_numeric_community_falls_back(self):
+        """非数値の集会IDでもエラーにならず既存の表示にフォールバックする"""
+        response = self.client.get(reverse('event:my_list'), {'community': 'abc'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['active_community'].id, self.community_a.id)
+        self.assertEqual(self.client.session['active_community_id'], self.community_a.id)
+
+    def test_pagination_keeps_community_param(self):
+        """ページ送りしても集会指定が維持される"""
+        page_size = EventMyList.paginate_by
+        past_base = timezone.now().date() - timedelta(days=30)
+        extra_events = [
+            Event(
+                community=self.community_b,
+                date=past_base - timedelta(days=offset),
+                start_time=time(21, 0),
+                duration=60,
+                weekday='Fri',
+            )
+            for offset in range(page_size)
+        ]
+        Event.objects.bulk_create(extra_events)
+
+        response = self.client.get(
+            reverse('event:my_list'), {'community': self.community_b.id, 'page': 2}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['active_community'].id, self.community_b.id)
+        self.assertEqual(response.context['page_obj'].number, 2)
+        self.assertEqual(
+            response.context['current_query_params'],
+            f'community={self.community_b.id}',
+        )
+        for event in response.context['events']:
+            self.assertEqual(event.community_id, self.community_b.id)
