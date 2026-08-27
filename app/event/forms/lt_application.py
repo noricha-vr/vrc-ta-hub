@@ -129,13 +129,18 @@ class LTApplicationForm(forms.Form):
         super().__init__(*args, **kwargs)
 
         if self.community:
-            # accepts_lt_application=True かつ未来のイベントのみ
-            today = timezone.now().date()
-            self.fields['event'].queryset = Event.objects.filter(
+            # Cloud Run のシステム時刻は UTC なので、開催日の境界は
+            # settings.TIME_ZONE（Asia/Tokyo）に合わせる。
+            today = timezone.localdate()
+            event_queryset = Event.objects.filter(
                 community=self.community,
                 accepts_lt_application=True,
                 date__gte=today
             ).order_by('date', 'start_time')
+            self.fields['event'].queryset = event_queryset
+            self.fields['event'].initial = event_queryset.values_list(
+                'pk', flat=True
+            ).first()
 
             # テンプレートが設定されている場合は初期値として編集可能にする
             if self.community.lt_application_template:
