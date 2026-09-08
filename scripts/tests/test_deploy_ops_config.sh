@@ -36,7 +36,7 @@ expand_target() {
   local out="$TMP_DIR/$target.expanded"
 
   if [[ ! -f "$out" ]]; then
-    make -C "$REPO_ROOT" -n "$target" > "$out" 2>/dev/null \
+    make -C "$REPO_ROOT" -n "$target" LOCAL_DB_NAME=test_db LOCAL_DB_USER=test_user LOCAL_DB_AUTH=test_password > "$out" 2>/dev/null \
       || fail "make -n $target failed"
   fi
   printf '%s\n' "$out"
@@ -55,17 +55,18 @@ assert_expansion_not_contains() {
   fi
 }
 
-# --- 課題1: 本番DBターゲットが 1Password 参照を解決し、Compose の db 経由で叩く ---
+# --- 本番DBターゲットはdotenvを直接読み、Compose の db 経由で叩く ---
 
 for target in db-backup db-pull db-push; do
-  # op run 経由でなければ op:// 参照がホスト名として渡り接続に失敗する
-  assert_expansion_contains "$target" "op run --env-file=.env.production.local --"
+  assert_expansion_contains "$target" 'python3 scripts/production_db_env.py ".env.production.local" --'
+  assert_expansion_not_contains "$target" "op run"
   # ホストの MariaDB クライアントは本番 MySQL 8 の認証プラグインに非対応
   assert_expansion_contains "$target" 'docker compose exec -T -e MYSQL_PWD db'
   # 値付き -e は docker CLI の argv に本番パスワードを平文で載せる（ps から読める）
   assert_expansion_not_contains "$target" '-e MYSQL_PWD="$DB_PASSWORD"'
-  # op が無い環境では分かりやすく落とす
-  assert_expansion_contains "$target" "command -v op"
+  # ファイルの欠落・不正はDB操作前に検知する
+  assert_expansion_contains "$target" 'production_db_env.py ".env.production.local" --check'
+  assert_expansion_not_contains "$target" "command -v op"
 done
 
 # 本番DBを DROP する前に識別子検証とバックアップ健全性チェックを通す
@@ -137,3 +138,6 @@ assert_file_contains "$MIGRATE_JOB_SCRIPT" 'REGION="${REGION:-asia-northeast1}"'
 assert_file_contains "$MIGRATE_JOB_SCRIPT" 'PROJECT_ID="${PROJECT_ID:-vrc-ta-hub}"'
 
 printf 'PASS: deploy ops config (Makefile / create_migrate_job.sh)\n'
+
+# CIの既存エントリポイントから、ダミー値だけを使う実行検証も回す。
+python3 -m unittest discover -s "$SCRIPT_DIR" -p test_production_db_env.py
