@@ -32,12 +32,16 @@ def read_db_env(path: Path) -> dict[str, str]:
         if key in values:
             raise ConfigurationError(f"{key} が重複しています")
         if raw.startswith("'"):
-            if len(raw) < 2 or not raw.endswith("'") or "'" in raw[1:-1]:
+            quoted = re.fullmatch(r"'([^']*)'(?:\s+#.*)?", raw)
+            if quoted is None:
                 raise ConfigurationError(f"{key} の単引用符が不正です")
-            value = raw[1:-1]
+            value = quoted[1]
         elif raw.startswith('"'):
+            quoted = re.fullmatch(r'(\"(?:[^\"\\]|\\.)*\")(?:\s+#.*)?', raw)
+            if quoted is None:
+                raise ConfigurationError(f"{key} の二重引用符が不正です")
             try:
-                value = json.loads(raw)
+                value = json.loads(quoted[1])
             except (ValueError, TypeError):
                 raise ConfigurationError(f"{key} の二重引用符が不正です") from None
             value = value.replace("$$", "$")

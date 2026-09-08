@@ -61,6 +61,15 @@ class ProductionDbEnvTests(unittest.TestCase):
                 self.assertNotIn("private", result.stderr)
                 self.assertNotIn("Traceback", result.stderr)
 
+    def test_quoted_trailing_comments_preserve_hash_inside_value(self):
+        for raw, expected in [("'fixture #literal $value' # rotated", "fixture #literal $value"),
+                              ('"fixture #literal $$value" # rotated', "fixture #literal $value")]:
+            with self.subTest(raw=raw):
+                self.env_file.write_text("".join(f"{k}={raw if k == 'DB_PASSWORD' else v}\n" for k, v in self.values.items()))
+                result = self.run_command("--", sys.executable, "-c", "import os,json; print(json.dumps(os.environ['DB_PASSWORD']))")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout), expected)
+
     def test_missing_or_duplicate_key_and_missing_file(self):
         self.env_file.write_text("DB_HOST=example.invalid\n")
         self.assertNotEqual(self.run_command("--check", extra_env=self.values).returncode, 0)
