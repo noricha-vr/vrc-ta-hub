@@ -21,6 +21,8 @@ Django関係のスクリプトはカスタムコマンドとして、各アプ�
 
 ## DB同期
 
+- `scripts/production_db_env.py`: `.env.production.local` のDB用4変数をシェル評価なしで読み、子プロセスの環境へ渡します。op不要。欠落・重複・未解決参照はDB操作前に拒否します。
+- `scripts/tests/test_production_db_env.py`: ダミー値で引用符・ドル記号・非漏洩・異常時の停止を検証し、Dockerをモックして `make db-backup` を確認します。
 - `scripts/db_pull_restore.sh`: `make db-pull` が取得した本番ダンプを Docker Compose の `db` サービスへ復元し、アプリコンテナ経由で代表テーブル件数を検証します。
 - `scripts/tests/test_db_pull_restore.sh`: Docker Compose 呼び出しをモックして、復元先サービス固定・`DB_HOST` 不一致検知・代表テーブル件数検証を確認します。
 
@@ -29,4 +31,4 @@ Django関係のスクリプトはカスタムコマンドとして、各アプ�
 - `scripts/create_migrate_job.sh`: Cloud Run Job `vrc-ta-hub-migrate` を作成/更新（冪等）。稼働中サービスからイメージ・環境変数・シークレット・SA を引き継ぎます。
 - `scripts/check_pending_migrations.sh`: 本番の未適用 migration を一覧（read-only）。未適用ありで exit 1、ログが取れなければ exit 2 で落とします。
 - `scripts/read_deploy_check.py`: `docs/deploy-check.toml` を検証して要約を出力（deploy-watch が読む層）。`[migrations]` の必須項目と `check_command` の read-only 性を実行前に確認します。
-- `scripts/tests/test_deploy_ops_config.sh`: `make -n` の展開結果で本番DBターゲットの `op run` / Compose 経由を検証し、migrate Job スクリプトの必須オプションを静的検証します。
+- `scripts/tests/test_deploy_ops_config.sh`: `make -n` の展開結果で本番DBターゲットのdotenv直接読込 / Compose 経由を検証し、migrate Job スクリプトの必須オプションを静的検証します。
