@@ -4,6 +4,9 @@ user_name の unique 制約解除（#579）により、メンバー管理画面�
 ユーザーが並び得る。権限操作（削除・昇格）で別人を誤操作しないための副次情報が
 出ていること、その副次情報に email が含まれないことを振る舞いとして検証する。
 """
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from django.db import connection
 from django.test import Client, TestCase
 from django.test.utils import CaptureQueriesContext
@@ -61,10 +64,9 @@ class SameNameMemberIdentificationTest(TestCase):
 
     def test_registration_date_is_rendered_for_each_member(self):
         """各メンバーの登録日が描画され、副次情報として使える"""
-        joined = self.duplicate_unlinked.date_joined.replace(
-            year=2020, month=1, day=15
+        self.duplicate_unlinked.date_joined = datetime(
+            2020, 1, 15, 12, tzinfo=ZoneInfo('Asia/Tokyo')
         )
-        self.duplicate_unlinked.date_joined = joined
         self.duplicate_unlinked.save(update_fields=['date_joined'])
         self.client.force_login(self.owner)
 

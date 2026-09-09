@@ -51,9 +51,9 @@ DATE      := $(shell date +%Y%m%d_%H%M%S)
 DUMPS_DIR := dumps
 
 DB_SECRET_SUFFIX := PASSWORD
-LOCAL_DB_NAME     := $(shell docker compose exec -T vrc-ta-hub printenv DB_NAME 2>/dev/null || grep '^DB_NAME=' .env.local | cut -d= -f2-)
-LOCAL_DB_USER     := $(shell docker compose exec -T vrc-ta-hub printenv DB_USER 2>/dev/null || grep '^DB_USER=' .env.local | cut -d= -f2-)
-LOCAL_DB_AUTH     := $(shell docker compose exec -T vrc-ta-hub printenv DB_$(DB_SECRET_SUFFIX) 2>/dev/null || grep '^DB_$(DB_SECRET_SUFFIX)=' .env.local | cut -d= -f2-)
+LOCAL_DB_NAME     = $(shell docker compose exec -T vrc-ta-hub printenv DB_NAME 2>/dev/null || grep '^DB_NAME=' .env.local | cut -d= -f2-)
+LOCAL_DB_USER     = $(shell docker compose exec -T vrc-ta-hub printenv DB_USER 2>/dev/null || grep '^DB_USER=' .env.local | cut -d= -f2-)
+LOCAL_DB_AUTH     = $(shell docker compose exec -T vrc-ta-hub printenv DB_$(DB_SECRET_SUFFIX) 2>/dev/null || grep '^DB_$(DB_SECRET_SUFFIX)=' .env.local | cut -d= -f2-)
 
 COMPOSE_APP_SERVICE      ?= vrc-ta-hub
 COMPOSE_DB_SERVICE       ?= db
@@ -66,26 +66,18 @@ PROD_ENV_FILE ?= .env.production.local
 # --set-gtid-purged=OFF は GTID を持たない Compose DB へ流し込むために必須。
 PROD_DUMP_OPTS := --single-transaction --routines --triggers --no-tablespaces --set-gtid-purged=OFF
 
-# .env.production.local の値は 1Password 参照（op://...）なので生値を読んではいけない。
-# `op run --env-file` で実値へ解決し、コマンド内でシェル変数として参照する。
+# Git 管理外の .env.production.local から DB 変数だけを直接読み込む。
+# 値はシェル評価せず、子プロセスの環境へ渡す。
 # また本番 MySQL 8 の認証プラグインにホストの MariaDB クライアントは非対応なため、
 # 本番への mysqldump / mysql は Compose の db サービス（MySQL 8 正規クライアント）経由で叩く。
-OP_RUN := op run --env-file=$(PROD_ENV_FILE) --
+PROD_DB_RUN = python3 scripts/production_db_env.py "$(PROD_ENV_FILE)" --
 # 値なしの `-e MYSQL_PWD` は呼び出し元プロセスの環境から引き継ぐ。
 # `-e MYSQL_PWD=<値>` にすると docker CLI の argv に本番パスワードが平文で乗り、
-# 実行中は同一ホストの ps から読める（op run のマスクは argv に効かない）。
+# 実行中は同一ホストの ps から読める（CLI のログマスクは argv に効かない）。
 PROD_MYSQL_EXEC := MYSQL_PWD="$$DB_PASSWORD" docker compose exec -T -e MYSQL_PWD
 
-define require_op
-	@command -v op >/dev/null 2>&1 || \
-		(echo "ERROR: 1Password CLI (op) not found. $(PROD_ENV_FILE) stores op:// references and requires 'op run'." >&2; exit 1)
-	@test -f "$(PROD_ENV_FILE)" || (echo "ERROR: $(PROD_ENV_FILE) not found." >&2; exit 1)
-endef
-
-# op run 配下で必須 DB 変数が解決できたかを検証する（値そのものは出力しない）
-define assert_prod_db_env
-	test -n "$$DB_NAME" -a -n "$$DB_USER" -a -n "$$DB_PASSWORD" -a -n "$$DB_HOST" || \
-		{ echo "ERROR: $(PROD_ENV_FILE) must define DB_NAME, DB_USER, DB_PASSWORD, and DB_HOST." >&2; exit 1; }
+define require_prod_env
+	@python3 scripts/production_db_env.py "$(PROD_ENV_FILE)" --check
 endef
 
 # DROP/CREATE DATABASE に埋め込む前に識別子を検証する（scripts/db_pull_restore.sh と同基準）。
@@ -105,9 +97,9 @@ define assert_dump_is_usable
 endef
 
 db-backup: ## 本番DBバックアップ → dumps/
-	$(require_op)
+	$(require_prod_env)
 	@mkdir -p $(DUMPS_DIR)
-	@$(OP_RUN) sh -c '$(assert_prod_db_env); \
+	@$(PROD_DB_RUN) sh -c '\
 		echo "Backing up production DB ($$DB_NAME)..."; \
 		$(PROD_MYSQL_EXEC) $(COMPOSE_DB_SERVICE) mysqldump -h "$$DB_HOST" -u "$$DB_USER" $(PROD_DUMP_OPTS) "$$DB_NAME"' \
 		| gzip > $(DUMPS_DIR)/production_$(DATE).sql.gz
@@ -122,9 +114,9 @@ db-backup-local: ## ローカルDBバックアップ → dumps/
 	@echo "Done: $(DUMPS_DIR)/local_$(DATE).sql.gz"
 
 db-pull: ## 本番DB → ローカルDB
-	$(require_op)
+	$(require_prod_env)
 	@mkdir -p $(DUMPS_DIR)
-	@$(OP_RUN) sh -c '$(assert_prod_db_env); \
+	@$(PROD_DB_RUN) sh -c '\
 		echo "Dumping production DB ($$DB_NAME)..."; \
 		$(PROD_MYSQL_EXEC) $(COMPOSE_DB_SERVICE) mysqldump -h "$$DB_HOST" -u "$$DB_USER" $(PROD_DUMP_OPTS) "$$DB_NAME"' \
 		| gzip > $(DUMPS_DIR)/production.sql.gz
@@ -143,14 +135,14 @@ db-verify-local: ## アプリコンテナ経由でローカルDB復元結果を�
 	@docker compose exec -T vrc-ta-hub python manage.py shell -c "from community.models import Community; from event.models import Event; from vket.models import VketCollaboration; print('local DB verify:', {'communities': Community.objects.count(), 'events': Event.objects.count(), 'vket_collaborations': VketCollaboration.objects.count()}); assert Community.objects.exists(); assert Event.objects.exists();"
 
 db-push: ## ローカルDB → 本番DB（確認プロンプト + 自動backup）
-	$(require_op)
+	$(require_prod_env)
 	@echo "WARNING: This will OVERWRITE the production database with local data."
 	@mkdir -p $(DUMPS_DIR)
 	@echo "Dumping Docker Compose local DB ($(LOCAL_DB_NAME))..."
 	@docker compose exec -T -e MYSQL_PWD="$(LOCAL_DB_AUTH)" db mysqldump -u "$(LOCAL_DB_USER)" --single-transaction --routines --triggers --no-tablespaces "$(LOCAL_DB_NAME)" \
 		| gzip > $(DUMPS_DIR)/local.sql.gz
 	$(call assert_dump_is_usable,$(DUMPS_DIR)/local.sql.gz)
-	@$(OP_RUN) bash -e -o pipefail -c '$(assert_prod_db_env); \
+	@$(PROD_DB_RUN) bash -e -o pipefail -c '\
 		$(assert_prod_db_name_is_identifier); \
 		printf "Type the production DB name (%s) to continue: " "$$DB_NAME"; \
 		read confirm </dev/tty; \

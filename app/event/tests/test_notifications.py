@@ -3,7 +3,9 @@
 メール/Discord Webhook の通知送信パスをカバーする。
 silent failure を起こしうる recipient リスト構築・例外ハンドリングを重点的に検証する。
 """
+from datetime import datetime
 from unittest.mock import patch, MagicMock
+from zoneinfo import ZoneInfo
 
 import requests
 from django.contrib.auth import get_user_model
@@ -385,8 +387,8 @@ class SpeakerAccountLinkedNotificationTest(TestCase):
         self.event = _make_event(self.community)
         self.event_detail = _make_event_detail(self.event)
         self.speaker = _make_user("かぶり太郎", "linked-speaker@example.com")
-        self.speaker.date_joined = self.speaker.date_joined.replace(
-            year=2024, month=3, day=9
+        self.speaker.date_joined = datetime(
+            2024, 3, 9, 12, tzinfo=ZoneInfo("Asia/Tokyo")
         )
         self.speaker.save(update_fields=["date_joined"])
 
