@@ -231,6 +231,10 @@
             function updateFieldVisibility(detailType) {
                 const config = fieldVisibility[detailType];
                 if (!config) return;
+                ['theme', 'speaker'].forEach(name => {
+                    const input = document.getElementById('id_' + name);
+                    if (input) input.required = detailType === 'LT';
+                });
                 
                 // 詳細設定ボタンの表示/非表示
                 if (detailType === 'LT' && isBeforeEvent) {

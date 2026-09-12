@@ -133,6 +133,10 @@ class EventDetailForm(EventDetailMediaFormMixin, forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         detail_type = cleaned_data.get('detail_type')
+        if detail_type == 'LT':
+            for field_name, label in (('theme', 'テーマ'), ('speaker', '発表者')):
+                if field_name not in self.errors and not cleaned_data.get(field_name):
+                    self.add_error(field_name, f'{label}を入力してください。')
         is_datetime_locked = (
             self.instance.pk
             and self.request

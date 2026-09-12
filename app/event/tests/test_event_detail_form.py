@@ -110,6 +110,43 @@ class EventDetailFormCleanTest(TestCase):
         self.assertIn('自動トリミング', form.fields['thumbnail_image'].help_text)
         self.assertIn('はみ出した部分', form.fields['thumbnail_image'].help_text)
 
+    def test_presentation_requires_theme_and_speaker(self):
+        """新規・編集とも欠落、空文字、空白だけの発表情報を拒否する。"""
+        for form_class in (EventDetailForm, LTApplicationEditForm):
+            for editing in (False, True):
+                for field in ('theme', 'speaker'):
+                    for value in (None, '', ' \t\n\u3000'):
+                        with self.subTest(form=form_class, editing=editing, field=field, value=value):
+                            data = {
+                                'detail_type': 'LT', 'theme': 'テーマ', 'speaker': '発表者',
+                                'start_time': '22:00', 'duration': 30,
+                            }
+                            if value is None:
+                                data.pop(field)
+                            else:
+                                data[field] = value
+                            instance = self.existing_detail if editing else EventDetail(event=self.event)
+                            form = form_class(data=data, instance=instance)
+                            self.assertFalse(form.is_valid())
+                            self.assertIn(field, form.errors)
+
+    def test_empty_presentation_post_does_not_save_or_queue_tweet(self):
+        """ブラウザの必須チェックを迂回しても保存・投稿予約しない。"""
+        from django.urls import reverse
+
+        self.client.force_login(self.user)
+        detail_count = EventDetail.objects.count()
+        queue_count = TweetQueue.objects.count()
+        response = self.client.post(
+            reverse('event:detail_create', kwargs={'event_pk': self.event.pk}),
+            {'detail_type': 'LT', 'start_time': '22:00', 'duration': 30},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('theme', response.context['form'].errors)
+        self.assertIn('speaker', response.context['form'].errors)
+        self.assertEqual(EventDetail.objects.count(), detail_count)
+        self.assertEqual(TweetQueue.objects.count(), queue_count)
+
     def test_lt_application_edit_form_accepts_thumbnail_image(self):
         """LT申請者編集フォームでもサムネイル画像をアップロードできる."""
         form = LTApplicationEditForm(instance=self.existing_detail)

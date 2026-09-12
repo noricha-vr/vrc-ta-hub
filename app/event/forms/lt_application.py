@@ -60,6 +60,9 @@ class LTApplicationEditForm(EventDetailMediaFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        for field_name, label in (('theme', 'テーマ'), ('speaker', '発表者')):
+            self.fields[field_name].required = True
+            self.fields[field_name].error_messages['required'] = f'{label}を入力してください。'
         # 記事未生成ならON、生成済みならOFF。
         # meta_description だけで判定すると手書きの contents / h1 を上書き再生成してしまう。
         has_article = bool(
