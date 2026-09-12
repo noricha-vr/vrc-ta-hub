@@ -189,6 +189,19 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
     """EventDetail作成・更新用シリアライザー"""
     generate_from_pdf = serializers.BooleanField(write_only=True, required=False, default=False)
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        instance = self.instance or EventDetail()
+        if attrs.get('detail_type', instance.detail_type) == 'LT':
+            errors = {}
+            for field_name, label in (('theme', 'テーマ'), ('speaker', '発表者')):
+                value = attrs.get(field_name, getattr(instance, field_name))
+                if not value or not value.strip():
+                    errors[field_name] = f'{label}を入力してください。'
+            if errors:
+                raise serializers.ValidationError(errors)
+        return attrs
+
     class Meta:
         model = EventDetail
         fields = [

@@ -141,6 +141,50 @@ class EventDetailAPITest(TestCase):
         if 'results' in response.data:
             return response.data['results']
         return response.data
+
+    def test_empty_presentation_create_is_rejected(self):
+        from twitter.models import TweetQueue
+
+        self.client.force_authenticate(user=self.user1)
+        count = EventDetail.objects.count()
+        queued = TweetQueue.objects.count()
+        for field in ('theme', 'speaker'):
+            for value in (None, '', ' \t\u3000'):
+                with self.subTest(field=field, value=value):
+                    data = {'event': self.event1.pk, 'start_time': '20:00',
+                            'duration': 30, 'theme': 'テーマ', 'speaker': '発表者'}
+                    if value is None:
+                        data.pop(field)
+                    else:
+                        data[field] = value
+                    response = self.client.post(self.url, data, format='json')
+                    self.assertEqual(response.status_code, 400)
+        self.assertEqual(EventDetail.objects.count(), count)
+        self.assertEqual(TweetQueue.objects.count(), queued)
+
+    def test_empty_presentation_patch_is_rejected(self):
+        self.client.force_authenticate(user=self.user1)
+        url = reverse('event-detail-api-detail', kwargs={'pk': self.event_detail1.pk})
+        for field in ('theme', 'speaker'):
+            for value in ('', ' \t\u3000'):
+                with self.subTest(field=field, value=value):
+                    response = self.client.patch(url, {field: value}, format='json')
+                    self.assertEqual(response.status_code, 400)
+        self.event_detail1.refresh_from_db()
+        self.assertEqual(self.event_detail1.theme, 'Test Theme 1')
+        self.assertEqual(self.event_detail1.speaker, 'Speaker 1')
+        response = self.client.patch(url, {'additional_info': '追記'}, format='json')
+        self.assertEqual(response.status_code, 200)
+
+    def test_switching_empty_blog_to_presentation_is_rejected(self):
+        self.client.force_authenticate(user=self.user1)
+        EventDetail.objects.filter(pk=self.event_detail1.pk).update(
+            detail_type='BLOG', theme='', speaker='')
+        url = reverse('event-detail-api-detail', kwargs={'pk': self.event_detail1.pk})
+        response = self.client.patch(url, {'detail_type': 'LT'}, format='json')
+        self.assertEqual(response.status_code, 400)
+        response = self.client.patch(url, {'contents': 'ブログ本文'}, format='json')
+        self.assertEqual(response.status_code, 200)
     
     def test_api_key_authentication(self):
         """APIキー認証のテスト"""
