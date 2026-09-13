@@ -297,13 +297,13 @@ class SettingsViewTests(TestCase):
         self.assertNotContains(response, 'collapseOther')
 
     def test_settings_view_participant_shows_my_communities_section(self):
-        """参加者（集会を持たないユーザー）にはマイ集会セクションが表示されること."""
+        """参加者（集会を持たないユーザー）には集会一覧セクションが表示されること."""
         self.client.login(username='test_settings@example.com', password='testpass123')
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
-        # マイ集会セクションが表示されていること
-        self.assertContains(response, 'マイ集会')
+        # 集会一覧セクションが表示されていること
+        self.assertContains(response, '集会一覧')
         self.assertContains(response, '所属している集会はありません')
         self.assertContains(response, '新しい技術・学術系集会を始める')
 
@@ -336,7 +336,7 @@ class SettingsViewTests(TestCase):
         self.assertContains(response, 'ログアウト')
 
     def test_settings_view_owner_shows_my_communities_with_settings_link(self):
-        """主催者にはマイ集会セクションに集会と設定リンクが表示されること."""
+        """主催者には集会一覧セクションに集会と設定リンクが表示されること."""
         # 集会を作成し、メンバーシップも作成
         community = Community.objects.create(
             name='テスト集会',
@@ -352,8 +352,8 @@ class SettingsViewTests(TestCase):
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
-        # マイ集会セクションが表示されていること
-        self.assertContains(response, 'マイ集会')
+        # 集会一覧セクションが表示されていること
+        self.assertContains(response, '集会一覧')
         # 集会名が表示されていること
         self.assertContains(response, 'テスト集会')
         # 設定ボタンが表示されていること
@@ -683,17 +683,17 @@ class HeaderDropdownMenuTests(TestCase):
         self.assertContains(response, '>ログアウト')
 
     def test_participant_dropdown_does_not_contain_community_list(self):
-        """参加者のドロップダウンにはマイ集会リストが含まれないこと."""
+        """参加者のドロップダウンには集会一覧リストが含まれないこと."""
         self.client.login(username='test_header@example.com', password='testpass123')
         response = self.client.get(self.index_url)
         self.assertEqual(response.status_code, 200)
-        # マイ集会ヘッダーがないことを確認
-        self.assertNotContains(response, 'マイ集会')
+        # 集会一覧ヘッダーがないことを確認
+        self.assertNotContains(response, '<li class="dropdown-header small text-muted">集会一覧</li>')
         # 区切り線がないことを確認
         self.assertNotContains(response, 'dropdown-divider')
 
     def test_owner_dropdown_contains_community_list(self):
-        """主催者のドロップダウンにマイ集会リストが含まれること."""
+        """主催者のドロップダウンに集会一覧リストが含まれること."""
         # 集会を作成し、メンバーシップも作成
         community = Community.objects.create(
             name='テスト集会',
@@ -708,8 +708,8 @@ class HeaderDropdownMenuTests(TestCase):
         self.client.login(username='test_header@example.com', password='testpass123')
         response = self.client.get(self.index_url)
         self.assertEqual(response.status_code, 200)
-        # マイ集会ヘッダーがあることを確認
-        self.assertContains(response, 'マイ集会')
+        # 集会一覧ヘッダーがあることを確認
+        self.assertContains(response, '<li class="dropdown-header small text-muted">集会一覧</li>')
         # 集会名があることを確認（12文字で切り捨て）
         self.assertContains(response, 'テスト集会')
         # 区切り線があることを確認

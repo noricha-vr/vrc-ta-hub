@@ -328,7 +328,7 @@ class SettingsPageCommunityDropdownTest(TestCase):
         self.assertContains(response, '所属している集会はありません')
 
     def test_one_community_shows_in_list(self):
-        """集会が1つの場合はマイ集会リストに表示される"""
+        """集会が1つの場合は集会一覧リストに表示される"""
         CommunityMember.objects.create(
             community=self.community1,
             user=self.user,
@@ -338,11 +338,11 @@ class SettingsPageCommunityDropdownTest(TestCase):
 
         response = self.client.get(reverse('account:settings'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'マイ集会')
+        self.assertContains(response, '集会一覧')
         self.assertContains(response, '集会1')
 
     def test_multiple_communities_shown_in_list(self):
-        """集会が複数の場合は全てマイ集会リストに表示される"""
+        """集会が複数の場合は全て集会一覧リストに表示される"""
         CommunityMember.objects.create(
             community=self.community1,
             user=self.user,
@@ -357,7 +357,7 @@ class SettingsPageCommunityDropdownTest(TestCase):
 
         response = self.client.get(reverse('account:settings'))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'マイ集会')
+        self.assertContains(response, '集会一覧')
         self.assertContains(response, '集会1')
         self.assertContains(response, '集会2')
 
