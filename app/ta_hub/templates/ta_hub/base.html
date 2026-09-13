@@ -370,7 +370,7 @@
                                 </a></li>
                                 {% if active_community %}
                                     <li><hr class="dropdown-divider"></li>
-                                    <li class="dropdown-header small text-muted">マイ集会</li>
+                                    <li class="dropdown-header small text-muted">集会一覧</li>
                                     {% for membership in user_communities %}
                                         {% if not membership.community.is_ended %}
                                             {% if membership.community.id == active_community.id %}

@@ -58,16 +58,16 @@ class HeaderCommunityDropdownTest(TestCase):
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'マイ集会')
+        self.assertNotContains(response, '<li class="dropdown-header small text-muted">集会一覧</li>')
         self.assertNotContains(response, '個人開発集会')
 
     def test_user_without_communities_does_not_see_community_section(self):
-        """集会未所属ユーザーはマイ集会セクションを見ない"""
+        """集会未所属ユーザーは集会一覧セクションを見ない"""
         self.client.force_login(self.user_no_community)
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'マイ集会')
+        self.assertNotContains(response, '<li class="dropdown-header small text-muted">集会一覧</li>')
         self.assertContains(response, '自分の発表')
         self.assertContains(response, reverse('event:my_presentations'))
 
@@ -77,7 +77,7 @@ class HeaderCommunityDropdownTest(TestCase):
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'マイ集会')
+        self.assertContains(response, '<li class="dropdown-header small text-muted">集会一覧</li>')
         self.assertContains(response, '個人開発集会')
         self.assertContains(response, '技術共有会')
 
