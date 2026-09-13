@@ -174,15 +174,15 @@ class ReopenCommunityTest(TestCase):
             self.assertIsNone(self.community.end_at)
 
     def test_reopen_clears_schedule_and_rules_without_deleting_history(self):
-        from event.models import Event, RecurrenceRule
-        from tests.factories import make_event_detail
+        from event.models import RecurrenceRule
+        from tests.factories import make_event, make_event_detail
         rule = RecurrenceRule.objects.create(
             community=self.community, frequency='WEEKLY', start_date=timezone.localdate())
-        master = Event.objects.create(
-            community=self.community, date=timezone.localdate(), recurrence_rule=rule,
+        master = make_event(
+            self.community, event_date=timezone.localdate(), recurrence_rule=rule,
             is_recurring_master=True)
-        child = Event.objects.create(
-            community=self.community, date=timezone.localdate() + timedelta(days=7),
+        child = make_event(
+            self.community, event_date=timezone.localdate() + timedelta(days=7),
             recurring_master=master)
         detail = make_event_detail(master)
         self.community.weekdays = ['Sat']
