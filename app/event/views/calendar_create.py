@@ -2,15 +2,15 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.cache import cache
-from django.db import IntegrityError, transaction
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views.generic import FormView
 
-from community.constants import weekday_code
 from event.forms import GoogleCalendarEventForm
 from event.models import Event
+from event.services.calendar_registration import register_calendar_events
 
 logger = logging.getLogger(__name__)
 
@@ -61,71 +61,36 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
         return kwargs
 
     def form_valid(self, form):
-        try:
-            # フォームのバリデーション後にコミュニティを取得
-            community = self._get_active_community()
-            if not community:
-                messages.error(self.request, 'コミュニティが見つかりません')
-                return self.form_invalid(form)
-
-            start_date = form.cleaned_data['start_date']
-            start_time = form.cleaned_data['start_time']
-
-            logger.info(f'イベント登録開始: コミュニティ={community.name}, 日付={start_date}, 開始時間={start_time}')
-
-            duration = form.cleaned_data['duration']
-
-            # 新しいイベントをDBに保存
-            try:
-                # atomic の savepoint で包まないと、外側トランザクション内で
-                # IntegrityError を握った後のクエリが TransactionManagementError になる
-                with transaction.atomic():
-                    new_event = Event.objects.create(
-                        community=community,
-                        date=start_date,
-                        start_time=start_time,
-                        duration=duration,
-                        weekday=weekday_code(start_date),
-                        # google_calendar_event_idは同期時に設定される
-                    )
-                logger.info(f'イベントをDBに登録: ID={new_event.id}, 日付={start_date}, 開始時間={start_time}')
-
-                # イベントの作成が成功した場合、キャッシュをクリア
-                cache_key = f'calendar_entry_url_{new_event.id}'
-                cache.delete(cache_key)
-
-                messages.success(self.request, 'イベントが正常に登録されました')
-
-            except IntegrityError as e:
-                # 重複判定は事前SELECTではなくunique制約（community, date, start_time）に
-                # 一本化する。SELECT→CREATE間の競合で500 + Error Reporting誤検知になっていた
-                # （exc_info付きerrorログをError Reportingがincident化するためwarningに留める）。
-                # 重複起因かは制約名の文字列ではなく行の実在で判別する（sqlite/MySQLで
-                # エラーメッセージ書式が異なるため）。重複以外の整合性エラー（FK違反等）は
-                # 一般エラー処理へ再送出し、error ログ（Error Reporting 対象）を維持する。
-                if not Event.objects.filter(
-                    community=community,
-                    date=start_date,
-                    start_time=start_time,
-                ).exists():
-                    raise
-                logger.warning(
-                    f'重複イベント検出: コミュニティ={community.name}, 日付={start_date}, '
-                    f'開始時間={start_time}, detail={e}')
-                messages.error(self.request, f'同じ日時（{start_date} {start_time}）にすでにイベントが登録されています。')
-                return self.form_invalid(form)
-
-            except Exception as e:
-                logger.error(f'イベントのDB登録でエラー: {str(e)}', exc_info=True)
-                messages.error(self.request, 'イベントの登録に失敗しました')
-                return self.form_invalid(form)
-
-            return super().form_valid(form)
-
-        except Exception:
-            logger.exception("イベントの登録に失敗しました")
-            messages.error(self.request, 'イベントの登録に失敗しました')
+        community = self._get_active_community()
+        if not community:
+            form.add_error(None, 'コミュニティが見つかりません。')
             return self.form_invalid(form)
+        try:
+            events = register_calendar_events(community, form.cleaned_data)
+        except ValidationError as exc:
+            form.add_error(None, exc)
+            return self.form_invalid(form)
+        except IntegrityError:
+            # atomic を抜けた後で判定し、壊れたトランザクションを再利用しない。
+            if Event.objects.filter(
+                community=community, date=form.cleaned_data['start_date'],
+                start_time=form.cleaned_data['start_time'],
+            ).exists():
+                logger.warning('重複イベント検出: community_id=%s', community.pk)
+                form.add_error(None, '同じ日時にすでにイベントが登録されています。')
+            else:
+                logger.exception('イベントのDB登録に失敗: community_id=%s', community.pk)
+                form.add_error(None, 'イベントの登録に失敗しました。')
+            return self.form_invalid(form)
+        except Exception:
+            logger.exception('イベントの登録に失敗: community_id=%s', community.pk)
+            form.add_error(None, 'イベントの登録に失敗しました。')
+            return self.form_invalid(form)
+        if form.cleaned_data['recurrence_type'] == 'none':
+            messages.success(self.request, 'イベントが正常に登録されました')
+        else:
+            messages.success(self.request, f'開催周期を保存し、{len(events)}件の開催予定を登録しました。以後も自動生成されます。')
+        return super().form_valid(form)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

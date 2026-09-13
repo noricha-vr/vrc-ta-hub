@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from django import forms
 from django.core.exceptions import ValidationError
 
+from event.recurrence.calculator import get_nth_weekday_of_month
+
 from .recurrence import (
     CALENDAR_WEEKDAY_CHOICES,
     RECURRENCE_CHOICES,
@@ -26,7 +28,7 @@ class GoogleCalendarEventForm(forms.Form):
             'type': 'date',
             'class': 'form-control'
         }),
-        help_text='イベントの開始日を選択してください'
+        help_text='初回開催日を選択してください。定期開催の場合は、選択した曜日・日付・週と一致させてください。'
     )
 
     start_time = forms.TimeField(
@@ -123,5 +125,21 @@ class GoogleCalendarEventForm(forms.Form):
             if cleaned_data.get('monthly_day') > 28:
                 self.add_error(
                     'monthly_day', '月末の日付は月によって異なるため、28日以前の選択を推奨します')
+
+        # 開始日は必ず初回開催日。選択した周期と違う日の登録を防ぐ。
+        weekday = cleaned_data.get('weekday')
+        if start_date and recurrence_type in ('weekly', 'biweekly', 'monthly_by_day') and weekday:
+            weekday_index = [code for code, _ in CALENDAR_WEEKDAY_CHOICES].index(weekday)
+            if start_date.weekday() != weekday_index:
+                self.add_error('weekday', '開始日の曜日と同じ曜日を選択してください。')
+            elif recurrence_type == 'monthly_by_day' and cleaned_data.get('week_number'):
+                expected = get_nth_weekday_of_month(
+                    start_date, weekday_index, int(cleaned_data['week_number']))
+                if start_date != expected:
+                    self.add_error('week_number', '開始日と一致する週を選択してください。')
+        if (start_date and recurrence_type == 'monthly_by_date'
+                and cleaned_data.get('monthly_day')
+                and start_date.day != cleaned_data['monthly_day']):
+            self.add_error('monthly_day', '開始日と同じ日付を選択してください。')
 
         return cleaned_data
