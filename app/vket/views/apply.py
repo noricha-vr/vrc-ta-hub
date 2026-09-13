@@ -33,7 +33,7 @@ class ApplyView(LoginRequiredMixin, View):
         community, membership = _get_active_membership(request)
         if community is None or membership is None:
             return HttpResponseForbidden(
-                '集会が選択されていません。ヘッダーの「マイ集会」から集会を選択してください。'
+                '集会が選択されていません。ヘッダーの「集会一覧」から集会を選択してください。'
             )
 
         if not (request.user.is_superuser or membership):
@@ -91,7 +91,7 @@ class ApplyView(LoginRequiredMixin, View):
         community, membership = _get_active_membership(request)
         if community is None or membership is None:
             return HttpResponseForbidden(
-                '集会が選択されていません。ヘッダーの「マイ集会」から集会を選択してください。'
+                '集会が選択されていません。ヘッダーの「集会一覧」から集会を選択してください。'
             )
 
         if not (request.user.is_superuser or membership):
