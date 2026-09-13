@@ -89,6 +89,9 @@ class CalendarRecurrenceRegistrationTest(TestCase):
         response = self.client.post(self.url, self.payload('monthly_by_day', start, week_number=-1))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(RecurrenceRule.objects.get().week_of_month, -1)
+        self.community.refresh_from_db()
+        self.assertIn('毎月最終', self.community.frequency)
+        self.assertEqual(self.community.frequency.count('曜日'), 1)
         for event in Event.objects.all():
             self.assertEqual(event.date.weekday(), start.weekday())
             self.assertNotEqual((event.date + timedelta(days=7)).month, event.date.month)

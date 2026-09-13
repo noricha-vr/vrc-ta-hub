@@ -57,7 +57,7 @@ def register_calendar_events(community, data):
                 weekdays = []
             elif recurrence_type == 'monthly_by_day':
                 ordinal = '最終' if week == -1 else f'第{week}'
-                frequency = f'毎月{ordinal}{dict(WEEKDAY_CHOICES)[code]}曜日'
+                frequency = f'毎月{ordinal}{dict(WEEKDAY_CHOICES)[code]}'
             else:
                 frequency = '毎週' if interval == 1 else '隔週'
 
