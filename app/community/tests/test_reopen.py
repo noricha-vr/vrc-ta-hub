@@ -7,7 +7,8 @@ from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from community.models import Community, CommunityMember
+from community.models import CommunityMember
+from tests.factories import make_community
 
 
 @override_settings(SOCIALACCOUNT_PROVIDERS={'discord': {'APPS': [{
@@ -16,7 +17,7 @@ from community.models import Community, CommunityMember
 class ReopenCommunityTest(TestCase):
     def setUp(self):
         self.owner = get_user_model().objects.create_user(email='reopen@example.com', user_name='再開主催者')
-        self.community = Community.objects.create(
+        self.community = make_community(
             name='終了した集会', end_at=timezone.localdate() - timedelta(days=30),
             frequency='毎週', organizers='主催者', status='approved',
         )
@@ -41,7 +42,7 @@ class ReopenCommunityTest(TestCase):
         self.assertIsNotNone(self.community.end_at)
 
     def test_update_and_reopen_together_with_correct_community_selected(self):
-        other = Community.objects.create(name='別の集会')
+        other = make_community(name='別の集会')
         CommunityMember.objects.create(community=other, user=self.owner, role='owner')
         session = self.client.session
         session['active_community_id'] = other.pk
