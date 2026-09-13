@@ -261,7 +261,7 @@ class CommunitySettingsCloseReopenTest(TestCase):
         self.assertContains(response, 'に閉鎖されています')
         # 再開ボタンが表示される
         self.assertContains(response, '集会を再開する')
-        self.assertContains(response, 'reopenCommunityModal')
+        self.assertContains(response, reverse('community:reopen', args=[self.community.pk]))
         # 閉鎖ボタンは表示されない
         self.assertNotContains(response, '集会を閉鎖する')
 
@@ -287,8 +287,8 @@ class CommunitySettingsCloseReopenTest(TestCase):
         self.assertContains(response, '閉鎖日以降のイベントは削除されます')
         self.assertContains(response, '閉鎖する')
 
-    def test_reopen_modal_exists(self):
-        """再開確認モーダルが存在する"""
+    def test_reopen_edit_link_exists(self):
+        """再開編集画面へのリンクが存在する"""
         from django.utils import timezone
         self.community.end_at = timezone.now().date()
         self.community.save()
@@ -298,9 +298,8 @@ class CommunitySettingsCloseReopenTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         # モーダルの内容が含まれている
-        self.assertContains(response, 'id="reopenCommunityModal"')
-        self.assertContains(response, '集会の再開確認')
-        self.assertContains(response, '定期イベントを再開するには')
+        self.assertContains(response, reverse('community:reopen', args=[self.community.pk]))
+        self.assertNotContains(response, 'reopenCommunityModal')
         self.assertContains(response, '再開する')
 
 

@@ -1,0 +1,44 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}<title>集会の再開完了 - {{ community.name }}</title>{% endblock %}
+{% block main %}
+<div class="container py-4">
+    <div class="row justify-content-center"><div class="col-lg-8">
+        <nav aria-label="breadcrumb"><ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'account:settings' %}">アカウント設定</a></li>
+            <li class="breadcrumb-item active" aria-current="page">再開完了</li>
+        </ol></nav>
+        <div class="card"><div class="card-body p-4">
+            <h1 class="h3 mb-3">{{ community.name }}を再開しました</h1>
+            <p>集会情報を保存しました。次に、開催予定を登録しましょう。</p>
+            <p class="text-muted">削除済みの開催予定・定期イベントは自動復元されません。日時や繰り返しの設定を確認して登録してください。</p>
+            {% if community.status != 'approved' %}
+            <div class="alert alert-info">掲載状態は「{{ community.get_status_display }}」です。承認されるまでは公開されません。</div>
+            {% endif %}
+            {% if can_manage %}
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <form method="post" action="{% url 'community:switch' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="community_id" value="{{ community.pk }}">
+                    <input type="hidden" name="redirect_to" value="{% url 'event:calendar_create' %}">
+                    <button class="btn btn-primary" type="submit">開催予定を登録する</button>
+                </form>
+                <form method="post" action="{% url 'community:switch' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="community_id" value="{{ community.pk }}">
+                    <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
+                    <button class="btn btn-outline-primary" type="submit">イベント管理へ</button>
+                </form>
+                <form method="post" action="{% url 'community:switch' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="community_id" value="{{ community.pk }}">
+                    <input type="hidden" name="redirect_to" value="{% url 'community:settings' %}">
+                    <button class="btn btn-outline-secondary" type="submit">集会設定を確認する</button>
+                </form>
+            </div>
+            {% endif %}
+            <a href="{% url 'community:detail' community.pk %}">集会ページを見る</a>
+            <a href="{% url 'account:settings' %}" class="ms-3">アカウント設定に戻る</a>
+        </div></div>
+    </div></div>
+</div>
+{% endblock %}

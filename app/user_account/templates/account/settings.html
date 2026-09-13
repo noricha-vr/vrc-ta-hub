@@ -29,7 +29,7 @@
                         <div class="list-group list-group-flush">
                             {% if user_communities %}
                                 {% for membership in user_communities %}
-                                    <div class="list-group-item d-flex justify-content-between align-items-center mb-0{% if membership.community.is_ended %} opacity-50{% endif %}">
+                                    <div class="list-group-item d-flex justify-content-between align-items-center mb-0 flex-wrap gap-3">
                                         <div class="d-inline flex-grow-1">
                                             {% if membership.community.is_ended %}
                                                 <span class="text-muted">
@@ -49,7 +49,15 @@
                                                 </form>
                                             {% endif %}
                                         </div>
-                                        {% if not membership.community.is_ended %}
+                                        {% if membership.community.is_ended %}
+                                            {% if membership.is_owner or user.is_superuser %}
+                                            <a href="{% url 'community:reopen' membership.community.pk %}" class="btn btn-outline-primary flex-shrink-0">
+                                                集会を再開
+                                            </a>
+                                            {% else %}
+                                            <span class="small text-muted">再開は主催者が行えます</span>
+                                            {% endif %}
+                                        {% else %}
                                             <form method="post" action="{% url 'community:switch' %}" class="d-inline">
                                                 {% csrf_token %}
                                                 <input type="hidden" name="community_id" value="{{ membership.community.id }}">
