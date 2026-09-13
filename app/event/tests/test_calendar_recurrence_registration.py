@@ -164,3 +164,18 @@ class CalendarRecurrenceRegistrationTest(TestCase):
         form = GoogleCalendarEventForm(self.payload('monthly_by_date', date(2026, 10, 31)))
         self.assertFalse(form.is_valid())
         self.assertIn('monthly_day', form.errors)
+
+    def test_single_addition_preserves_existing_recurring_schedule(self):
+        self.client.post(self.url, self.payload())
+        self.community.refresh_from_db()
+        before = (self.community.frequency, self.community.weekdays,
+                  self.community.start_time, self.community.duration)
+        original_count = Event.objects.count()
+        response = self.client.post(self.url, self.payload(
+            'none', self.start + timedelta(days=1), start_time='19:00', duration=30))
+        self.assertEqual(response.status_code, 302)
+        self.community.refresh_from_db()
+        self.assertEqual((self.community.frequency, self.community.weekdays,
+                          self.community.start_time, self.community.duration), before)
+        self.assertEqual(RecurrenceRule.objects.count(), 1)
+        self.assertEqual(Event.objects.count(), original_count + 1)

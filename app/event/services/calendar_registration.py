@@ -61,10 +61,12 @@ def register_calendar_events(community, data):
             else:
                 frequency = '毎週' if interval == 1 else '隔週'
 
-        community.frequency = frequency
-        community.weekdays = weekdays
-        community.start_time = start_time
-        community.duration = duration
-        community.save(update_fields=['frequency', 'weekdays', 'start_time', 'duration', 'updated_at'])
+        # 臨時の単発追加で、稼働中の定期開催情報を上書きしない。
+        if recurrence_type != 'none' or not community.recurrence_rules.exists():
+            community.frequency = frequency
+            community.weekdays = weekdays
+            community.start_time = start_time
+            community.duration = duration
+            community.save(update_fields=['frequency', 'weekdays', 'start_time', 'duration', 'updated_at'])
         refresh_calendar_entry_and_event_cache(community)
         return events
