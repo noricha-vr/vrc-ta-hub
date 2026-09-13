@@ -146,6 +146,23 @@ class CommunityUpdateForm(VrcGroupUrlMixin, forms.ModelForm):
         self.fields['poster_image'].help_text = POSTER_REQUIREMENTS_HELP_TEXT
 
 
+class CommunityReopenForm(CommunityUpdateForm):
+    """再開時も管理者専用タグを維持し、編集可能なタグだけを表示する。"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        editable_tags = {value for value, _ in FORM_TAGS}
+        self.initial['tags'] = [tag for tag in self.instance.tags if tag in editable_tags]
+        self.fields['tags'].initial = self.initial['tags']
+        for name in ('weekdays', 'tags'):
+            self.fields[name].widget.attrs.pop('class', None)
+
+    def clean_tags(self):
+        editable_tags = {value for value, _ in FORM_TAGS}
+        preserved = [tag for tag in self.instance.tags if tag not in editable_tags]
+        return self.cleaned_data['tags'] + preserved
+
+
 class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
     """集会新規登録用フォーム."""
 

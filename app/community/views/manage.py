@@ -4,9 +4,9 @@ import logging
 import requests  # noqa: F401 - 既存テストの patch パス互換用
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import ValidationError
-from django.db import DataError
-from django.shortcuts import get_object_or_404, redirect
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import DataError, transaction
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import UpdateView, CreateView, ListView
@@ -24,7 +24,7 @@ from ..forms_processor import (
     refresh_calendar_entry_and_event_cache,
     reject_community_registration,
 )
-from ..forms import CommunitySearchForm, CommunityUpdateForm, CommunityCreateForm
+from ..forms import CommunitySearchForm, CommunityUpdateForm, CommunityCreateForm, CommunityReopenForm
 from ..libs import get_join_type
 from ..constants import WEEKDAY_CHOICES
 from ..models import Community
@@ -223,23 +223,58 @@ class AdminCommunityCleanupView(LoginRequiredMixin, AuthenticatedForbiddenMixin,
 
 
 class ReopenCommunityView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
+    """集会情報の編集と再開を一度の確定で行う。対象はセッションではなくURLで固定。"""
+
     def test_func(self):
         community = get_object_or_404(Community, pk=self.kwargs['pk'])
         return self.request.user.is_superuser or community.is_owner(self.request.user)
 
-    def post(self, request, pk):
+    def get(self, request, pk):
         community = get_object_or_404(Community, pk=pk)
+        if community.end_at is None:
+            return redirect('community:reopen_complete', pk=pk)
+        return self.render_form(request, community, CommunityReopenForm(instance=community))
 
-        # 権限チェック（主催者のみ再開可能）
-        if not (request.user.is_superuser or community.can_delete(request.user)):
-            messages.error(request, '権限がありません。')
-            return redirect('community:detail', pk=pk)
+    def render_form(self, request, community, form):
+        return render(request, 'community/update.html', {
+            'community': community,
+            'form': form,
+            'is_reopening': True,
+        })
 
-        # 閉鎖日をクリア
-        community.end_at = None
-        community.save()
+    def post(self, request, pk):
+        # ロック後の状態で再送信を判定し、古いフォームによる再更新を防ぐ。
+        with transaction.atomic():
+            community = get_object_or_404(Community.objects.select_for_update(), pk=pk)
+            if not (request.user.is_superuser or community.is_owner(request.user)):
+                raise PermissionDenied
+            if community.end_at is None:
+                return redirect('community:reopen_complete', pk=pk)
+            form = CommunityReopenForm(request.POST, request.FILES, instance=community)
+            if not form.is_valid():
+                return self.render_form(request, community, form)
+            community = form.save(commit=False)
+            community.end_at = None
+            community.save()
+            form.save_m2m()
+            refresh_calendar_entry_and_event_cache(community)
 
-        logger.info(f'集会「{community.name}」を再開しました。')
-        messages.success(request, f'{community.name}を再開しました。')
+        if community.can_edit(request.user):
+            request.session['active_community_id'] = community.pk
+        logger.info('集会を情報更新して再開しました: community_id=%s', community.pk)
+        return redirect('community:reopen_complete', pk=pk)
 
-        return redirect('community:detail', pk=pk)
+
+class ReopenCommunityCompleteView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
+    def test_func(self):
+        community = get_object_or_404(Community, pk=self.kwargs['pk'])
+        return self.request.user.is_superuser or community.is_owner(self.request.user)
+
+    def get(self, request, pk):
+        community = get_object_or_404(Community, pk=pk)
+        if community.end_at is not None:
+            return redirect('community:reopen', pk=pk)
+        return render(request, 'community/reopen_complete.html', {
+            'community': community,
+            'can_manage': community.members.filter(user=request.user).exists(),
+        })

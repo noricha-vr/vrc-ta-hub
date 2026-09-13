@@ -225,9 +225,9 @@
             </div>
             <h6 class="mb-2">集会の再開</h6>
             <p class="text-muted small mb-2">閉鎖した集会を再開します。定期イベントは別途設定し直す必要があります。</p>
-            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#reopenCommunityModal">
+            <a href="{% url 'community:reopen' community.pk %}" class="btn btn-outline-success">
                 <i class="fa-solid fa-play me-1"></i>集会を再開する
-            </button>
+            </a>
             {% else %}
             <h6 class="mb-2">集会の閉鎖</h6>
             <p class="text-muted small mb-2">集会を閉鎖すると、閉鎖日以降のイベントは削除されます。</p>
@@ -296,29 +296,6 @@
                 <form action="{% url 'community:close' community.pk %}" method="post" class="d-inline">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-danger">閉鎖する</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 再開確認モーダル -->
-<div class="modal fade" id="reopenCommunityModal" tabindex="-1" aria-labelledby="reopenCommunityModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="reopenCommunityModalLabel">集会の再開確認</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>この集会を再開しますか？</p>
-                <p class="text-info">定期イベントを再開するには、設定から改めてイベントを登録し直してください。</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                <form action="{% url 'community:reopen' community.pk %}" method="post" class="d-inline">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-success">再開する</button>
                 </form>
             </div>
         </div>

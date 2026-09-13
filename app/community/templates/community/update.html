@@ -1,10 +1,28 @@
 {% extends 'ta_hub/base.html' %}
 {% load django_bootstrap5 image_tags %}
 
+{% block meta %}<title>{% if is_reopening %}集会の再開{% else %}集会情報の編集{% endif %} - {{ community.name }}</title>{% endblock %}
+
 {% block main %}
     <div class="container my-5">
         <div class="row">
             <div class="col-md-10 offset-md-1">
+                {% if is_reopening %}
+                <nav aria-label="breadcrumb"><ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'account:settings' %}">アカウント設定</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">集会の再開</li>
+                </ol></nav>
+                <h1 class="h3 mb-3">{{ community.name }}を再開</h1>
+                <p>集会情報を確認・編集して、この内容で再開しますか？</p>
+                <div class="alert alert-info">
+                    {% if community.is_ended %}
+                    <p>{{ community.end_at|date:"Y年n月j日" }}に終了した集会です。</p>
+                    {% else %}
+                    <p>{{ community.end_at|date:"Y年n月j日" }}の終了予定を取り消します。</p>
+                    {% endif %}
+                    <p class="mb-0">保存すると、情報の更新と再開が同時に反映されます。削除済みの開催予定・定期イベントは自動復元されません。再開後に開催予定を登録してください。</p>
+                </div>
+                {% endif %}
                 {% include 'ta_hub/messages.html' %}
                 {% if form.errors %}
                 <div class="alert alert-danger mb-4">
@@ -49,12 +67,9 @@
                                         <img src="{{ community.poster_image.url|cf_resize:'400' }}"
                                              alt="{{ community.name }}"
                                              class="img-fluid rounded border"
-                                             style="max-width: 320px;">
+                                             style="max-width: min(100%, 320px);">
                                     {% else %}
-                                        <img src="https://vrc-ta-hub.com/poster/no-image.png"
-                                             alt="{{ community.name }}"
-                                             class="img-fluid rounded border"
-                                             style="max-width: 320px;">
+                                        <p class="text-muted mb-0">ポスターは登録されていません。</p>
                                     {% endif %}
                                 </div>
                             </div>
@@ -65,12 +80,17 @@
                         </div>
                     </div>
 
-                    <div class="mt-4 d-flex gap-2">
+                    <div class="mt-4 d-flex flex-wrap gap-2">
+                        {% if is_reopening %}
+                        <button type="submit" class="btn btn-primary">この内容で再開する</button>
+                        <a href="{% url 'account:settings' %}" class="btn btn-outline-secondary">アカウント設定に戻る</a>
+                        {% else %}
                         <button type="submit" class="btn btn-primary">更新</button>
                         {% if active_membership.is_owner %}
                         <a href="{% url 'community:member_manage' active_community.pk %}" class="btn btn-outline-secondary">
                             <i class="bi bi-person-gear me-1"></i>メンバー管理
                         </a>
+                        {% endif %}
                         {% endif %}
                     </div>
                 </form>

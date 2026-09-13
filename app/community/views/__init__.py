@@ -18,6 +18,7 @@ from .manage import (  # noqa: F401
     CloseCommunityView,
     AdminCommunityCleanupView,
     ReopenCommunityView,
+    ReopenCommunityCompleteView,
 )
 from .member import (  # noqa: F401
     SwitchCommunityView,
