@@ -10,7 +10,7 @@
         <div class="card"><div class="card-body p-4">
             <h1 class="h3 mb-3">{{ community.name }}を再開しました</h1>
             <p>集会情報を保存しました。次に、開催予定を登録しましょう。</p>
-            <p class="text-muted">削除済みの開催予定・定期イベントは自動復元されません。日時や繰り返しの設定を確認して登録してください。</p>
+            <p class="text-muted">以前の開催周期・曜日は未設定に戻りました。削除済みの開催予定・定期イベントは自動復元されません。初回開催日・開催時間・開催周期を登録すると、その周期で以後の開催予定が自動生成されます。</p>
             {% if community.status != 'approved' %}
             <div class="alert alert-info">掲載状態は「{{ community.get_status_display }}」です。承認されるまでは公開されません。</div>
             {% endif %}
@@ -20,7 +20,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="community_id" value="{{ community.pk }}">
                     <input type="hidden" name="redirect_to" value="{% url 'event:calendar_create' %}">
-                    <button class="btn btn-primary" type="submit">開催予定を登録する</button>
+                    <button class="btn btn-primary" type="submit">開催予定・開催周期を登録する</button>
                 </form>
                 <form method="post" action="{% url 'community:switch' %}">
                     {% csrf_token %}

@@ -56,14 +56,15 @@ class ReopenCommunityTest(TestCase):
         self.assertIsNone(self.community.end_at)
         self.assertEqual(self.community.name, self.data['name'])
         self.assertEqual(self.community.description, self.data['description'])
-        self.assertEqual(self.community.weekdays, ['Mon'])
+        self.assertEqual(self.community.weekdays, [])
+        self.assertEqual(self.community.frequency, '未設定')
         self.assertEqual(self.community.status, 'approved')
         self.assertEqual(other.name, '別の集会')
         self.assertEqual(self.client.session['active_community_id'], self.community.pk)
         self.assertEqual(self.community.events.count(), 0)
         self.assertEqual(self.community.members.count(), 1)
         response = self.client.get(self.done)
-        self.assertContains(response, '開催予定を登録する')
+        self.assertContains(response, '開催予定・開催周期を登録する')
         self.assertContains(response, f'name="community_id" value="{self.community.pk}"')
         response = self.client.post(reverse('community:switch'), {
             'community_id': self.community.pk, 'redirect_to': reverse('event:calendar_create'),
@@ -119,7 +120,7 @@ class ReopenCommunityTest(TestCase):
         self.client.post(self.url, self.data)
         response = self.client.get(self.done)
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, '開催予定を登録する')
+        self.assertNotContains(response, '開催予定・開催周期を登録する')
         self.assertContains(response, reverse('community:detail', args=[self.community.pk]))
 
     def test_pending_status_preserved_and_explained(self):
@@ -171,3 +172,43 @@ class ReopenCommunityTest(TestCase):
             self.community.refresh_from_db()
             self.assertTrue(self.community.poster_image.storage.exists(self.community.poster_image.name))
             self.assertIsNone(self.community.end_at)
+
+    def test_reopen_clears_schedule_and_rules_without_deleting_history(self):
+        from event.models import Event, RecurrenceRule
+        from tests.factories import make_event_detail
+        rule = RecurrenceRule.objects.create(
+            community=self.community, frequency='WEEKLY', start_date=timezone.localdate())
+        master = Event.objects.create(
+            community=self.community, date=timezone.localdate(), recurrence_rule=rule,
+            is_recurring_master=True)
+        child = Event.objects.create(
+            community=self.community, date=timezone.localdate() + timedelta(days=7),
+            recurring_master=master)
+        detail = make_event_detail(master)
+        self.community.weekdays = ['Sat']
+        self.community.save()
+        response = self.client.get(self.url)
+        self.assertNotContains(response, 'name="frequency"')
+        self.assertNotContains(response, 'name="weekdays"')
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.frequency, '毎週')
+        self.client.post(self.url, {**self.data, 'name': ''})
+        self.assertTrue(RecurrenceRule.objects.filter(pk=rule.pk).exists())
+        self.client.post(self.url, self.data)
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.frequency, '未設定')
+        self.assertEqual(self.community.weekdays, [])
+        self.assertFalse(RecurrenceRule.objects.filter(pk=rule.pk).exists())
+        master.refresh_from_db()
+        child.refresh_from_db()
+        detail.refresh_from_db()
+        self.assertIsNone(master.recurrence_rule_id)
+        self.assertFalse(master.is_recurring_master)
+        # 再開フォーム再送信で、新しく設定した周期を消さない。
+        new_rule = RecurrenceRule.objects.create(community=self.community, frequency='WEEKLY')
+        self.community.frequency = '隔週'
+        self.community.save()
+        self.client.post(self.url, self.data)
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.frequency, '隔週')
+        self.assertTrue(RecurrenceRule.objects.filter(pk=new_rule.pk).exists())
