@@ -255,6 +255,14 @@ class ReopenCommunityView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View)
                 return self.render_form(request, community, form)
             community = form.save(commit=False)
             community.end_at = None
+            community.frequency = '未設定'
+            community.weekdays = []
+            # SET_NULL で関連を解除する。開催回や発表記録は削除しない。
+            for rule in community.recurrence_rules.all():
+                rule.delete(delete_future_events=False)
+            # 旧親の削除で子開催回までCASCADEされないよう、各回を独立させる。
+            community.events.filter(recurring_master__isnull=False).update(recurring_master=None)
+            community.events.filter(is_recurring_master=True).update(is_recurring_master=False)
             community.save()
             form.save_m2m()
             refresh_calendar_entry_and_event_cache(community)

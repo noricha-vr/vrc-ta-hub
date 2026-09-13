@@ -20,7 +20,7 @@
                     {% else %}
                     <p>{{ community.end_at|date:"Y年n月j日" }}の終了予定を取り消します。</p>
                     {% endif %}
-                    <p class="mb-0">保存すると、情報の更新と再開が同時に反映されます。削除済みの開催予定・定期イベントは自動復元されません。再開後に開催予定を登録してください。</p>
+                    <p class="mb-0">保存すると、情報の更新と再開が同時に反映されます。削除済みの開催予定・定期イベントは自動復元されません。以前の開催周期・曜日は未設定に戻ります。再開後に初回開催日・開催時間・開催周期を登録してください。</p>
                 </div>
                 {% endif %}
                 {% include 'ta_hub/messages.html' %}
@@ -51,8 +51,10 @@
                             {% bootstrap_field form.name %}
                             {% bootstrap_field form.start_time %}
                             {% bootstrap_field form.duration %}
+                            {% if not is_reopening %}
                             {% bootstrap_field form.weekdays %}
                             {% bootstrap_field form.frequency %}
+                            {% endif %}
                             {% bootstrap_field form.organizers %}
                             {% bootstrap_field form.group_url %}
                             {% bootstrap_field form.organizer_url %}

@@ -159,23 +159,20 @@ def generate_dates_by_rule(rule: RecurrenceRule, base_date: date, months: int) -
             current_date += timedelta(weeks=1)  # 1週間ずつ進めて、is_occurrence_dateで判定
 
     elif rule.frequency == 'MONTHLY_BY_DATE':
-        # 毎月（日付指定）
-        while current_date <= end_date:
-            dates.append(current_date)
-            # 次の月の同じ日付へ
-            if current_date.month == 12:
-                next_month = 1
-                next_year = current_date.year + 1
-            else:
-                next_month = current_date.month + rule.interval
-                next_year = current_date.year
-
-            try:
-                current_date = current_date.replace(year=next_year, month=next_month)
-            except ValueError:
-                # 月末の場合（例：1月31日→2月28日）
-                current_date = current_date.replace(year=next_year, month=next_month, day=1)
-                current_date = (current_date + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+        anchor = rule.start_date or base_date
+        month_index = base_date.year * 12 + base_date.month - 1
+        anchor_index = anchor.year * 12 + anchor.month - 1
+        month_index = max(month_index, anchor_index)
+        month_index += (anchor_index - month_index) % rule.interval
+        while True:
+            year, month_zero = divmod(month_index, 12)
+            month = month_zero + 1
+            current_date = date(year, month, min(anchor.day, monthrange(year, month)[1]))
+            if current_date > end_date:
+                break
+            if current_date >= base_date:
+                dates.append(current_date)
+            month_index += rule.interval
 
     elif rule.frequency == 'MONTHLY_BY_WEEK':
         # 毎月（第N曜日）

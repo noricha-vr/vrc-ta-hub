@@ -345,10 +345,10 @@ class GenerateRecurringEventsCommandTest(TestCase):
 
         self.assertGreater(generated_events.count(), 0, "隔週イベントが生成されていない")
 
-        # Communityのstart_time/durationが使われることを確認
+        # 登録したマスターのstart_time/durationが使われることを確認
         for event in generated_events:
-            self.assertEqual(event.start_time, time(20, 0))
-            self.assertEqual(event.duration, 45)
+            self.assertEqual(event.start_time, time(22, 0))
+            self.assertEqual(event.duration, 90)
 
         # 隔週であることを確認
         if generated_events.count() >= 2:
@@ -397,17 +397,17 @@ class GenerateRecurringEventsCommandTest(TestCase):
             date__gte=timezone.now().date()
         )
 
-        # Communityのstart_time/durationが使われることを確認
+        # 登録したマスターのstart_time/durationが使われることを確認
         self.assertGreater(generated_events.count(), 0, "月次イベントが生成されていない")
         for event in generated_events:
-            self.assertEqual(event.start_time, time(19, 0))
-            self.assertEqual(event.duration, 30)
+            self.assertEqual(event.start_time, time(20, 0))
+            self.assertEqual(event.duration, 120)
 
-    def test_community_time_change_reflected(self):
-        """Communityの時刻変更が生成イベントに反映されることのテスト
+    def test_community_time_change_does_not_change_registered_series(self):
+        """集会情報の時刻変更で登録済み周期の時刻を変えない
 
         マスターイベントは21:00だが、Communityを22:00に変更した場合、
-        生成されるイベントは22:00になるべき。
+        生成されるイベントは登録時の21:00を維持する。
         """
         # Communityの開始時刻を変更（マスターイベントは21:00のまま）
         self.community.start_time = time(22, 0)
@@ -425,15 +425,15 @@ class GenerateRecurringEventsCommandTest(TestCase):
 
         for event in generated_events:
             self.assertEqual(
-                event.start_time, time(22, 0),
-                f"イベント {event.date} の開始時刻が22:00ではなく{event.start_time}"
+                event.start_time, time(21, 0),
+                f"イベント {event.date} の開始時刻が21:00ではなく{event.start_time}"
             )
 
-    def test_community_duration_change_reflected(self):
-        """Communityのduration変更が生成イベントに反映されることのテスト
+    def test_community_duration_change_does_not_change_registered_series(self):
+        """集会情報の開催時間変更で登録済み周期の開催時間を変えない
 
         マスターイベントはduration=60だが、Communityを90に変更した場合、
-        生成されるイベントはduration=90になるべき。
+        生成されるイベントは登録時のduration=60を維持する。
         """
         # Communityのdurationを変更（マスターイベントは60のまま）
         self.community.duration = 90
@@ -451,8 +451,8 @@ class GenerateRecurringEventsCommandTest(TestCase):
 
         for event in generated_events:
             self.assertEqual(
-                event.duration, 90,
-                f"イベント {event.date} のdurationが90ではなく{event.duration}"
+                event.duration, 60,
+                f"イベント {event.date} のdurationが60ではなく{event.duration}"
             )
 
     def test_deterministic_custom_rule_cleans_invalid_future_instances(self):

@@ -154,8 +154,12 @@ class CommunityReopenForm(CommunityUpdateForm):
         editable_tags = {value for value, _ in FORM_TAGS}
         self.initial['tags'] = [tag for tag in self.instance.tags if tag in editable_tags]
         self.fields['tags'].initial = self.initial['tags']
-        for name in ('weekdays', 'tags'):
-            self.fields[name].widget.attrs.pop('class', None)
+        self.fields.pop('weekdays', None)
+        self.fields['tags'].widget.attrs.pop('class', None)
+
+    class Meta(CommunityUpdateForm.Meta):
+        fields = [name for name in CommunityUpdateForm.Meta.fields
+                  if name not in ('frequency', 'weekdays')]
 
     def clean_tags(self):
         editable_tags = {value for value, _ in FORM_TAGS}

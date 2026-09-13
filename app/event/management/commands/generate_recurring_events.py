@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from community.constants import weekday_code
+from community.models import Community
 from event.models import Event
 from event.recurrence_service import RecurrenceService
 from event.services.recurrence_override import exclude_tombstoned_dates
@@ -154,7 +155,7 @@ class Command(BaseCommand):
             dates = service.generate_dates(
                 rule=rule,
                 base_date=base_date,
-                base_time=community.start_time,
+                base_time=master.start_time,
                 months=months,
                 community=community
             )
@@ -183,12 +184,20 @@ class Command(BaseCommand):
                 created_count = 0
                 last_created_date = None
                 with transaction.atomic():
+                    # 再開時の旧ルール解除・新規登録と直列化する。
+                    current_community = Community.objects.select_for_update().get(pk=community.pk)
+                    if current_community.end_at is not None or not Event.objects.filter(
+                        pk=master.pk, recurrence_rule_id=rule.pk, is_recurring_master=True,
+                    ).exists():
+                        continue
                     for date in new_dates:
+                        if Event.objects.filter(community=community, date=date).exists():
+                            continue
                         Event.objects.create(
                             community=community,
                             date=date,
-                            start_time=community.start_time,
-                            duration=community.duration,
+                            start_time=master.start_time,
+                            duration=master.duration,
                             weekday=weekday_code(date),
                             recurring_master=master
                         )
