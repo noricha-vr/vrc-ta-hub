@@ -204,6 +204,9 @@ class ReopenCommunityTest(TestCase):
         detail.refresh_from_db()
         self.assertIsNone(master.recurrence_rule_id)
         self.assertFalse(master.is_recurring_master)
+        self.assertIsNone(child.recurring_master_id)
+        master.delete()
+        child.refresh_from_db()
         # 再開フォーム再送信で、新しく設定した周期を消さない。
         new_rule = RecurrenceRule.objects.create(community=self.community, frequency='WEEKLY')
         self.community.frequency = '隔週'
