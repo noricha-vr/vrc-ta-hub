@@ -469,3 +469,28 @@ class PostCardThumbnailTestCase(TestCase):
 
         self.assertContains(response, 'width="1200"')
         self.assertContains(response, 'height="630"')
+
+
+class PostCardThumbnailRealSettingsTestCase(TestCase):
+    """STATIC_URL を上書きせず、実設定でもルート相対 URL になることを確認する"""
+
+    def test_list_thumbnail_src_is_root_relative(self):
+        """Django が相対 STATIC_URL('static/') を '/static/' に正規化するため 404 にならない"""
+        category, _ = Category.objects.get_or_create(
+            slug="update", defaults={"name": "アップデート", "order": 1}
+        )
+        Post.objects.create(
+            title="実設定確認",
+            slug="real-settings-post",
+            body_markdown="本文",
+            category=category,
+            is_published=True,
+            published_at=timezone.now(),
+        )
+
+        response = self.client.get(reverse("news:list"))
+
+        self.assertContains(
+            response, 'src="/static/news/images/og/category-update-v1.png"'
+        )
+        self.assertNotContains(response, 'src="static/')
