@@ -4,10 +4,17 @@ from django.templatetags.static import static
 
 from website.constants import DEFAULT_NEWS_IMAGE_URL, build_site_url
 
+from .thumbnail_specs import build_category_map, build_slug_map
 
+
+# 記事 slug 個別のサムネイル（手作り画像 + 生成画像）
 STATIC_THUMBNAIL_BY_SLUG = {
     "vket-2026-summer": "news/images/og/vket-2026-summer-video-archive-v1.png",
+    **build_slug_map(),
 }
+
+# slug 個別の指定が無い記事のフォールバック（カテゴリ既定画像）
+STATIC_THUMBNAIL_BY_CATEGORY_SLUG = build_category_map()
 
 
 class Category(models.Model):
@@ -68,30 +75,53 @@ class Post(models.Model):
         return clean_text[:max_length]
     
     @property
-    def has_detail_thumbnail(self) -> bool:
-        """本文に表示するサムネイルの有無を返す。"""
-        return bool(self.thumbnail or self.uses_static_thumbnail)
+    def static_thumbnail_path(self) -> str | None:
+        """staticサムネイルの相対パスを返す。無ければ None。
+
+        優先度は アップロード画像 > slug 個別 > カテゴリ既定。
+        """
+        if self.thumbnail:
+            return None
+
+        slug_thumbnail = STATIC_THUMBNAIL_BY_SLUG.get(self.slug)
+        if slug_thumbnail:
+            return slug_thumbnail
+
+        if self.category_id is None:
+            return None
+        return STATIC_THUMBNAIL_BY_CATEGORY_SLUG.get(self.category.slug)
 
     @property
     def uses_static_thumbnail(self) -> bool:
         """専用staticサムネイルを使用するか返す。"""
-        return not self.thumbnail and self.slug in STATIC_THUMBNAIL_BY_SLUG
+        return self.static_thumbnail_path is not None
+
+    @property
+    def has_detail_thumbnail(self) -> bool:
+        """本文に表示するサムネイルの有無を返す。"""
+        return bool(self.thumbnail or self.uses_static_thumbnail)
+
+    def get_thumbnail_url(self) -> str:
+        """テンプレートの img src に使うサムネイルURLを返す。
+
+        staticがローカル配信なら相対URLのままなので、未デプロイでもローカルで確認できる。
+        """
+        if self.thumbnail:
+            return self.thumbnail.url
+
+        static_thumbnail = self.static_thumbnail_path
+        if static_thumbnail:
+            return static(static_thumbnail)
+
+        return DEFAULT_NEWS_IMAGE_URL
 
     def get_absolute_thumbnail_url(self, request: HttpRequest | None = None) -> str:
-        """サムネイルの絶対URLを返す。
+        """OGP・構造化データ用にサムネイルの絶対URLを返す。
 
         Args:
             request: 相対URLのホスト解決に使うリクエスト。
         """
-        if self.thumbnail:
-            thumbnail_url = self.thumbnail.url
-            return self._build_absolute_thumbnail_url(thumbnail_url, request)
-
-        static_thumbnail = STATIC_THUMBNAIL_BY_SLUG.get(self.slug)
-        if static_thumbnail:
-            return self._build_absolute_thumbnail_url(static(static_thumbnail), request)
-
-        return DEFAULT_NEWS_IMAGE_URL
+        return self._build_absolute_thumbnail_url(self.get_thumbnail_url(), request)
 
     @staticmethod
     def _build_absolute_thumbnail_url(

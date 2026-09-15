@@ -139,6 +139,8 @@ class PostDetailViewTestCase(TestCase):
             "https://vrc-ta-hub.com/static/news/images/og/"
             "vket-2026-summer-video-archive-v1.png"
         )
+        # 本文の img は相対URL（未デプロイでもローカルで確認できるようにするため）
+        expected_src = "/static/news/images/og/vket-2026-summer-video-archive-v1.png"
         response = self.client.get(
             reverse("news:detail", kwargs={"slug": post.slug}),
             secure=True,
@@ -146,7 +148,7 @@ class PostDetailViewTestCase(TestCase):
         )
         structured_data = json.loads(response.context["structured_data_json"])
 
-        self.assertContains(response, f'src="{expected_url}"')
+        self.assertContains(response, f'src="{expected_src}"')
         self.assertContains(
             response,
             f'<meta property="og:image" content="{expected_url}">',
@@ -211,7 +213,7 @@ class PostDetailViewTestCase(TestCase):
         )
         structured_data = json.loads(response.context["structured_data_json"])
 
-        self.assertContains(response, f'src="{expected_url}"')
+        self.assertContains(response, 'src="/media/news/uploaded.png"')
         self.assertContains(
             response,
             f'<meta property="og:image" content="{expected_url}">',
@@ -390,3 +392,80 @@ class StaffOnlyViewsTestCase(TestCase):
         url = reverse("news:edit", kwargs={"slug": self.post.slug})
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
+
+
+@override_settings(STATIC_URL="/static/")
+class PostCardThumbnailTestCase(TestCase):
+    """一覧カードのサムネイル表示テスト（プレースホルダ廃止の回帰）"""
+
+    @classmethod
+    def setUpTestData(cls):
+        # マイグレーションで作られる初期カテゴリを再利用する
+        cls.update_category, _ = Category.objects.get_or_create(
+            slug="update", defaults={"name": "アップデート", "order": 1}
+        )
+        cls.activity_category, _ = Category.objects.get_or_create(
+            slug="activity", defaults={"name": "活動", "order": 2}
+        )
+        cls.mapped_post = Post.objects.create(
+            title="Vket 2026 Summer 動画アーカイブ",
+            slug="vket-2026-summer",
+            body_markdown="動画アーカイブの本文です。",
+            category=cls.activity_category,
+            is_published=True,
+            published_at=timezone.now(),
+        )
+        cls.category_default_post = Post.objects.create(
+            title="カテゴリ既定の記事",
+            slug="category-default-post",
+            body_markdown="カテゴリ既定画像を使う記事です。",
+            category=cls.update_category,
+            is_published=True,
+            published_at=timezone.now(),
+        )
+
+    def setUp(self):
+        self.client = Client()
+
+    def test_list_shows_mapped_static_thumbnail(self):
+        """一覧カードに slug 個別の static 画像が出る"""
+        response = self.client.get(reverse("news:list"))
+
+        self.assertContains(
+            response,
+            'src="/static/news/images/og/vket-2026-summer-video-archive-v1.png"',
+        )
+
+    def test_list_shows_category_default_thumbnail(self):
+        """一覧カードにカテゴリ既定画像が出る"""
+        response = self.client.get(reverse("news:list"))
+
+        self.assertContains(
+            response, 'src="/static/news/images/og/category-update-v1.png"'
+        )
+
+    def test_list_has_no_placeholder_icon(self):
+        """プレースホルダアイコンを表示しない"""
+        response = self.client.get(reverse("news:list"))
+
+        self.assertNotContains(response, "bi-image")
+
+    def test_category_list_shows_category_default_thumbnail(self):
+        """カテゴリ別一覧にもカテゴリ既定画像が出る"""
+        url = reverse(
+            "news:category_list",
+            kwargs={"category_slug": self.update_category.slug},
+        )
+        response = self.client.get(url)
+
+        self.assertContains(
+            response, 'src="/static/news/images/og/category-update-v1.png"'
+        )
+        self.assertNotContains(response, "bi-image")
+
+    def test_list_thumbnail_has_intrinsic_size(self):
+        """画像の実寸を属性で指定してレイアウトシフトを防ぐ"""
+        response = self.client.get(reverse("news:list"))
+
+        self.assertContains(response, 'width="1200"')
+        self.assertContains(response, 'height="630"')

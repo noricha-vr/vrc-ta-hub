@@ -19,6 +19,12 @@ Django関係のスクリプトはカスタムコマンドとして、各アプ�
 - `scripts/fix_h1_duplicates.py` / `scripts/fix_inner_h1_tags.py`: 本文の H1 重複・内部 H1 の是正。
 - `app/website/tests/test_script_exit_codes.py`: 上記スクリプトが exit code 契約（`sys.exit(main())` / print 不使用）を守っていることを検証します。
 
+## 画像生成（Django 非依存）
+
+`django.setup()` を呼ばず、`_script_bootstrap.app_dir()` で import パスだけ通します。exit code 契約は上記と同じです。
+
+- `scripts/generate_news_thumbnails.py`: お知らせのサムネイル（1200×630 PNG）を `app/news/static/news/images/og/` へ生成します。定義は `app/news/thumbnail_specs.py`、描画は `app/news/thumbnail_generator.py`。`--only <slug|category:slug>` / `--force` / `--out` / `--dry-run`。実行例: `docker compose exec vrc-ta-hub python /scripts/generate_news_thumbnails.py --force`。作り直す時はファイル名の `-vN` を上げます（static は CDN キャッシュされるため）。
+
 ## DB同期
 
 - `scripts/production_db_env.py`: `.env.production.local` のDB用4変数をシェル評価なしで読み、子プロセスの環境へ渡します。op不要。欠落・重複・未解決参照はDB操作前に拒否します。

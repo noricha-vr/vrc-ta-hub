@@ -89,7 +89,7 @@ class IndexView(TemplateView):
         """
         if with_images:
             news_slugs = [a['news_slug'] for a in VKET_ACHIEVEMENTS]
-            news_posts = Post.objects.filter(slug__in=news_slugs).only('slug', 'thumbnail')
+            news_posts = Post.objects.filter(slug__in=news_slugs).select_related('category').only('slug', 'thumbnail', 'category')
             thumbnail_map = {post.slug: post.get_absolute_thumbnail_url(self.request) for post in news_posts}
         else:
             thumbnail_map = {}

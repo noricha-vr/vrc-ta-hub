@@ -22,38 +22,22 @@
   .card:hover .news-thumbnail-container img {
     transform: scale(1.05);
   }
-  
-  .news-thumbnail-placeholder {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 3rem;
-    color: #dee2e6;
-  }
 </style>
 
 <div class="col-12">
   <a class="card text-decoration-none shadow-sm" href="{% url 'news:detail' post.slug %}">
     <div class="card-body">
       <div class="row align-items-center">
-        {% if post.thumbnail %}
-          <div class="col-md-4 col-lg-3 mb-3 mb-md-0">
-            <div class="news-thumbnail-container">
-              <img src="{{ post.thumbnail.url }}" 
-                   alt="{{ post.title|escape }}のサムネイル画像" 
-                   loading="lazy">
-            </div>
+        <div class="col-md-4 col-lg-3 mb-3 mb-md-0">
+          <div class="news-thumbnail-container">
+            <img src="{{ post.get_thumbnail_url }}"
+                 alt="{{ post.title|escape }}のサムネイル画像"
+                 width="1200"
+                 height="630"
+                 loading="lazy">
           </div>
-          <div class="col-md-8 col-lg-9">
-        {% else %}
-          <div class="col-md-4 col-lg-3 mb-3 mb-md-0">
-            <div class="news-thumbnail-container">
-              <i class="bi bi-image news-thumbnail-placeholder"></i>
-            </div>
-          </div>
-          <div class="col-md-8 col-lg-9">
-        {% endif %}
+        </div>
+        <div class="col-md-8 col-lg-9">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <h5 class="card-title mb-0">
               {% if not post.is_published %}

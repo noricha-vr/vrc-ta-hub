@@ -231,7 +231,7 @@
                 {% if object.has_detail_thumbnail %}
                     <div class="mb-4 detail-thumbnail-wrapper">
                         <div class="detail-thumbnail-container{% if object.uses_static_thumbnail %} detail-thumbnail-container--static{% endif %}">
-                            <img src="{{ object.get_absolute_thumbnail_url }}"
+                            <img src="{{ object.get_thumbnail_url }}"
                                  alt="{{ object.title|escape }}のサムネイル画像"
                                  loading="lazy">
                         </div>
