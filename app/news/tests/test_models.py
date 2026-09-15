@@ -218,3 +218,113 @@ class PostGetAbsoluteThumbnailUrlTestCase(TestCase):
         }
         defaults.update(kwargs)
         return Post(**defaults)
+
+
+class PostStaticThumbnailTestCase(TestCase):
+    """Post.static_thumbnail_path / get_thumbnail_url のテスト"""
+
+    @classmethod
+    def setUpTestData(cls):
+        # マイグレーションで作られる初期カテゴリを再利用する
+        cls.update_category, _ = Category.objects.get_or_create(
+            slug="update", defaults={"name": "アップデート", "order": 1}
+        )
+        cls.activity_category, _ = Category.objects.get_or_create(
+            slug="activity", defaults={"name": "活動", "order": 2}
+        )
+        cls.other_category, _ = Category.objects.get_or_create(
+            slug="test-unmapped", defaults={"name": "未マップ", "order": 99}
+        )
+
+    def _make_post(self, **kwargs):
+        defaults = {
+            "title": "テスト",
+            "slug": "test-static-thumbnail",
+            "body_markdown": "",
+            "category": self.update_category,
+        }
+        defaults.update(kwargs)
+        return Post(**defaults)
+
+    def test_update_category_falls_back_to_category_thumbnail(self):
+        """アップデートカテゴリの記事はカテゴリ既定画像を使う"""
+        post = self._make_post()
+
+        self.assertEqual(
+            post.static_thumbnail_path, "news/images/og/category-update-v1.png"
+        )
+        self.assertTrue(post.uses_static_thumbnail)
+        self.assertTrue(post.has_detail_thumbnail)
+
+    def test_activity_category_falls_back_to_category_thumbnail(self):
+        """活動カテゴリの記事はカテゴリ既定画像を使う"""
+        post = self._make_post(category=self.activity_category)
+
+        self.assertEqual(
+            post.static_thumbnail_path, "news/images/og/category-activity-v1.png"
+        )
+
+    def test_slug_thumbnail_takes_priority_over_category(self):
+        """slug 個別の画像がカテゴリ既定より優先される"""
+        post = self._make_post(slug="website-management", category=self.activity_category)
+
+        self.assertEqual(
+            post.static_thumbnail_path, "news/images/og/website-management-v1.png"
+        )
+
+    def test_uploaded_thumbnail_takes_priority_over_category(self):
+        """アップロード画像がカテゴリ既定より優先される"""
+        post = self._make_post(thumbnail="news/uploaded.png")
+
+        self.assertIsNone(post.static_thumbnail_path)
+        self.assertFalse(post.uses_static_thumbnail)
+        self.assertTrue(post.has_detail_thumbnail)
+
+    def test_unmapped_category_has_no_static_thumbnail(self):
+        """マップ外カテゴリはstatic画像を持たない"""
+        post = self._make_post(category=self.other_category)
+
+        self.assertIsNone(post.static_thumbnail_path)
+        self.assertFalse(post.uses_static_thumbnail)
+        self.assertFalse(post.has_detail_thumbnail)
+
+    def test_unmapped_category_returns_default_image_url(self):
+        """マップ外カテゴリはデフォルト画像URLを返す"""
+        post = self._make_post(category=self.other_category)
+
+        self.assertEqual(
+            post.get_thumbnail_url(),
+            "https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg",
+        )
+
+    def test_post_without_category_does_not_raise(self):
+        """カテゴリ未設定でも例外にならない"""
+        post = Post(title="テスト", slug="test-no-category", body_markdown="")
+
+        self.assertIsNone(post.static_thumbnail_path)
+
+    @override_settings(STATIC_URL="/static/")
+    def test_get_thumbnail_url_is_relative_for_local_static(self):
+        """staticがローカル配信なら相対URLを返す（ローカル確認のため）"""
+        post = self._make_post()
+
+        self.assertEqual(
+            post.get_thumbnail_url(),
+            "/static/news/images/og/category-update-v1.png",
+        )
+
+    def test_get_thumbnail_url_returns_media_url_for_upload(self):
+        """アップロード画像はmediaのURLを返す"""
+        post = self._make_post(thumbnail="news/uploaded.png")
+
+        self.assertEqual(post.get_thumbnail_url(), "/media/news/uploaded.png")
+
+    @override_settings(STATIC_URL="/static/")
+    def test_absolute_url_wraps_relative_thumbnail_url(self):
+        """絶対URLは get_thumbnail_url の結果をサイトURLで包む"""
+        post = self._make_post()
+
+        self.assertEqual(
+            post.get_absolute_thumbnail_url(),
+            "https://vrc-ta-hub.com/static/news/images/og/category-update-v1.png",
+        )

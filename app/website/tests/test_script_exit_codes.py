@@ -12,6 +12,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -29,6 +30,7 @@ TARGET_SCRIPTS = (
     "create_vket_posts.py",
     "fix_h1_duplicates.py",
     "fix_inner_h1_tags.py",
+    "generate_news_thumbnails.py",
 )
 
 
@@ -186,3 +188,48 @@ class ScriptFailurePathTest(TestCase):
     def test_fix_inner_h1_tags_returns_0_on_empty_db(self):
         module = _load_script("fix_inner_h1_tags.py")
         self.assertEqual(module.fix_inner_h1_tags(), 0)
+
+
+class GenerateNewsThumbnailsScriptTest(SimpleTestCase):
+    """generate_news_thumbnails.py の CLI 動作（DB 非依存）"""
+
+    def setUp(self):
+        self.module = _load_script("generate_news_thumbnails.py")
+
+    def test_generates_requested_thumbnail(self):
+        """--only で指定した 1 枚を出力先に生成する"""
+        from PIL import Image
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            exit_code = self.module.main(
+                ["--out", tmp_dir, "--only", "category:update", "--force"]
+            )
+
+            self.assertEqual(exit_code, 0)
+            generated = list(Path(tmp_dir).glob("*.png"))
+            self.assertEqual(len(generated), 1)
+            with Image.open(generated[0]) as image:
+                self.assertEqual(image.size, (1200, 630))
+
+    def test_dry_run_writes_nothing(self):
+        """--dry-run はファイルを書かずに 0 を返す"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            exit_code = self.module.main(["--out", tmp_dir, "--dry-run"])
+
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(list(Path(tmp_dir).glob("*.png")), [])
+
+    def test_unknown_only_returns_1(self):
+        """--only が 1 件も一致しなければ exit 1"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            self.assertEqual(
+                self.module.main(["--out", tmp_dir, "--only", "no-such-slug"]), 1
+            )
+
+    def test_asset_error_returns_1(self):
+        """アセット欠落などの例外は exit 1 として扱う"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with patch.object(
+                self.module, "generate_thumbnails", side_effect=RuntimeError("boom")
+            ):
+                self.assertEqual(self.module.main(["--out", tmp_dir]), 1)
