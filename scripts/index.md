@@ -16,6 +16,7 @@ Django関係のスクリプトはカスタムコマンドとして、各アプ�
 
 - `scripts/check_event_schedule.py`: 30日先までのイベントを一覧表示し、重複イベントがあれば exit 1。
 - `scripts/create_activity_posts.py` / `scripts/create_update_post.py` / `scripts/create_vket_posts.py`: News 記事の投入。カテゴリ不在・fixture 不在は exit 1。
+- `scripts/create_news_post.py`: `app/news/fixtures/` の Markdown（フロントマター付き）から News 記事を投入する汎用版。`--fixture <ファイル名>` / `--draft`。同 slug 既存なら何もせず 0、カテゴリ不在・fixture 不在・フロントマター不正は exit 1。
 - `scripts/fix_h1_duplicates.py` / `scripts/fix_inner_h1_tags.py`: 本文の H1 重複・内部 H1 の是正。
 - `app/website/tests/test_script_exit_codes.py`: 上記スクリプトが exit code 契約（`sys.exit(main())` / print 不使用）を守っていることを検証します。
 

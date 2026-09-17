@@ -17,7 +17,7 @@ from news.thumbnail_specs import (
     build_slug_map,
 )
 
-EXPECTED_POST_SPEC_COUNT = 7
+EXPECTED_POST_SPEC_COUNT = 8
 EXPECTED_CATEGORY_SPEC_COUNT = 2
 
 

@@ -95,6 +95,12 @@ POST_THUMBNAIL_SPECS: tuple[PostThumbnailSpec, ...] = (
         category_slug="activity",
         filename="2025-07-04-vket-week-announcement-v1.png",
     ),
+    PostThumbnailSpec(
+        slug="2026-09-17-presentation-list-redesign",
+        title="発表一覧をブログ形式にリニューアルしました",
+        category_slug="update",
+        filename="2026-09-17-presentation-list-redesign-v1.png",
+    ),
 )
 
 
