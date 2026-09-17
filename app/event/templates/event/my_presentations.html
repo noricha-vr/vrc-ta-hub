@@ -16,7 +16,8 @@
                             <article class="card shadow-sm overflow-hidden">
                                 <div class="row g-0">
                                     <div class="col-12 col-sm-4 col-md-3">
-                                        <a href="{% url 'event:detail' detail.pk %}" class="d-block ratio ratio-16x9 bg-light">
+                                        <a href="{% url 'event:detail' detail.pk %}" class="d-block ratio ratio-16x9 bg-light"
+                                           aria-label="{{ detail.theme|default:'テーマ未設定' }}の詳細">
                                             {% if detail.thumbnail_image %}
                                                 <img src="{{ detail.thumbnail_image.url|cf_resize:'400' }}"
                                                      class="object-fit-cover" loading="lazy"
