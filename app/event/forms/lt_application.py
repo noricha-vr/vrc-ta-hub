@@ -200,7 +200,7 @@ class EventScheduleChoiceField(forms.ModelChoiceField):
 
     def label_from_instance(self, obj):
         weekday = WEEKDAY_ABBR[weekday_code(obj.date)]
-        return f"{obj.date.strftime('%Y年%m月%d日')}({weekday})"
+        return f"{obj.date.year}年{obj.date.month}月{obj.date.day}日({weekday})"
 
 
 class LTApplicationReviewForm(forms.Form):

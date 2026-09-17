@@ -21,7 +21,7 @@ class TweetGeneratorPromptTest(TweetGeneratorTestBase):
         from twitter.utils import generate_tweet
         result = generate_tweet("過去の投稿サンプル", {
             "event_name": "Generator Test Community",
-            "date": "2026年4月13日(月)",
+            "date": "4月13日(月)",
             "time": "22:00",
             "group_url": "https://vrc.group/TEST.1234",
             "hashtag": "#TestMeetup",

@@ -10,7 +10,10 @@ logger = logging.getLogger(__name__)
 
 
 def format_event_info(event):
-    """イベント情報を整形する"""
+    """イベント情報を整形する。
+
+    告知は当日〜直前に投稿されるため、date には年を含めない。
+    """
     # 曜日を計算
     weekdays = ['月', '火', '水', '木', '金', '土', '日']
     weekday = weekdays[event.date.weekday()]
@@ -19,7 +22,7 @@ def format_event_info(event):
     details_text = "\n".join([f"{d.start_time.strftime('%H:%M')} - {d.theme} ({d.speaker})" for d in details])
     return {
         "event_name": event.community.name,
-        "date": f"{event.date.year}年{event.date.month}月{event.date.day}日({weekday})",
+        "date": f"{event.date.month}月{event.date.day}日({weekday})",
         "time": event.start_time.strftime("%H:%M"),
         "details": details_text,
         "group_url": event.community.group_url,

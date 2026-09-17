@@ -23,7 +23,7 @@ def build_google_event_description(event: Event) -> str:
     """
     lines = [
         f"集会: {event.community.name}",
-        f"開催日時: {event.date.strftime('%Y年%m月%d日')} {event.start_time.strftime('%H:%M')}",
+        f"開催日時: {event.date.year}年{event.date.month}月{event.date.day}日 {event.start_time.strftime('%H:%M')}",
         f"開催時間: {event.duration}分",
     ]
 
