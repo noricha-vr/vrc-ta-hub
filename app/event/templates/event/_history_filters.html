@@ -1,0 +1,56 @@
+{% comment %}
+発表一覧の検索フォームと切り替えチップ。
+キーワード箱は q を送る（theme は旧URL互換として初期値にだけ使う）。
+集会・発表者の絞り込みは hidden で保持し、× チップから外す。
+{% endcomment %}
+<form method="get" class="mb-3" role="search">
+    {% if show_all %}<input type="hidden" name="view" value="all">{% endif %}
+    {% if is_special %}<input type="hidden" name="type" value="special">{% endif %}
+    {% if request.GET.community_name %}
+        <input type="hidden" name="community_name" value="{{ request.GET.community_name }}">
+    {% endif %}
+    {% if request.GET.speaker %}
+        <input type="hidden" name="speaker" value="{{ request.GET.speaker }}">
+    {% endif %}
+    <div class="input-group">
+        <input type="search" name="q" class="form-control" value="{{ keyword }}"
+               placeholder="キーワードで探す（テーマ・発表者・集会名）"
+               aria-label="キーワードで発表を検索">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-search me-1" aria-hidden="true"></i>検索
+        </button>
+    </div>
+</form>
+
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <div class="btn-group btn-group-sm" role="group" aria-label="表示する発表の切り替え">
+        <a href="{{ view_materials_url }}"
+           class="btn {% if show_all %}btn-outline-primary{% else %}btn-primary{% endif %}"
+           {% if not show_all %}aria-current="page"{% endif %}>資料あり ({{ materials_count }})</a>
+        <a href="{{ view_all_url }}"
+           class="btn {% if show_all %}btn-primary{% else %}btn-outline-primary{% endif %}"
+           {% if show_all %}aria-current="page"{% endif %}>すべて ({{ all_count }})</a>
+    </div>
+    <div class="btn-group btn-group-sm" role="group" aria-label="発表の種別の切り替え">
+        <a href="{{ type_lt_url }}"
+           class="btn {% if is_special %}btn-outline-secondary{% else %}btn-secondary{% endif %}"
+           {% if not is_special %}aria-current="page"{% endif %}>発表</a>
+        <a href="{{ type_special_url }}"
+           class="btn {% if is_special %}btn-secondary{% else %}btn-outline-secondary{% endif %}"
+           {% if is_special %}aria-current="page"{% endif %}>特別企画・ブログ</a>
+    </div>
+</div>
+
+{% if filter_chips %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        {% for chip in filter_chips %}
+            <a href="{{ chip.remove_url }}"
+               class="badge rounded-pill bg-light text-body border text-decoration-none py-2 px-3">
+                {{ chip.label }}: {{ chip.value }}
+                <i class="bi bi-x-lg ms-1" aria-hidden="true"></i>
+                <span class="visually-hidden">この絞り込みを外す</span>
+            </a>
+        {% endfor %}
+        <a href="{{ clear_filters_url }}" class="small text-decoration-none">絞り込みをすべて解除</a>
+    </div>
+{% endif %}

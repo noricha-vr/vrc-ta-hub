@@ -402,7 +402,7 @@
                     {% endfor %}
                 </div>
                 <div class="text-end">
-                    <a href="{% url 'event:event_log_list' %}?community_name={{ community.name|urlencode }}"
+                    <a href="{% url 'event:detail_history' %}?type=special&community_name={{ community.name|urlencode }}"
                        class="btn btn-primary">もっと見る</a>
                 </div>
             </div>

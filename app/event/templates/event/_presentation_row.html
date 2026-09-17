@@ -1,0 +1,27 @@
+{% comment %}
+資料がまだ無い発表のコンパクト行（?view=all のときだけカードと同じ時系列に混ざる）。
+サムネイルを出さないことで、同じ集会ポスターが延々と並ぶのを避ける。
+{% endcomment %}
+<div class="presentation-row px-3 py-2 bg-white border rounded">
+    {% comment %} 行全体を詳細ページへのリンクにする（stretched-link）。集会名・発表者リンクは stretched-link(z-index:1) より DOM 上で前にあるため z-2 で上に出す {% endcomment %}
+    <div class="small text-muted d-flex flex-wrap align-items-center gap-1 mb-1">
+        <time datetime="{{ detail.event.date|date:'Y-m-d' }}">{{ detail.event.date|date:"Y年n月j日" }}</time>
+        <span aria-hidden="true">·</span>
+        <a class="position-relative z-2 text-decoration-none"
+           href="{{ request.path }}?{% if community_link_base_query %}{{ community_link_base_query }}&{% endif %}community_name={{ detail.event.community.name|urlencode }}">
+            {{ detail.event.community.name }}
+        </a>
+        {% if detail.speaker %}
+            <span aria-hidden="true">·</span>
+            <a class="position-relative z-2 text-decoration-none"
+               href="{{ request.path }}?{% if speaker_link_base_query %}{{ speaker_link_base_query }}&{% endif %}speaker={{ detail.speaker|urlencode }}">
+                {{ detail.speaker }}
+            </a>
+        {% endif %}
+    </div>
+    <div class="text-break fw-bold">
+        <a href="{% url 'event:detail' detail.pk %}" class="text-decoration-none text-body stretched-link">
+            {{ detail.title|default:"テーマ未設定" }}
+        </a>
+    </div>
+</div>
