@@ -437,7 +437,9 @@ class EventLogRedirectView(RedirectView):
 
     def get_redirect_url(self, *args, **kwargs):
         params = {'type': EventDetailPastList.TYPE_SPECIAL}
-        community_name = self.request.GET.get('community_name', '').strip()
-        if community_name:
-            params['community_name'] = community_name
+        # 旧URLの絞り込み（集会名・テーマ）は新一覧でも同じキーで有効なので引き継ぐ
+        for key in ('community_name', 'theme'):
+            value = self.request.GET.get(key, '').strip()
+            if value:
+                params[key] = value
         return f"{reverse('event:detail_history')}?{urlencode(params)}"

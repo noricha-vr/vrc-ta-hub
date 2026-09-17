@@ -880,6 +880,19 @@ class EventLogListViewFilterTest(TestCase):
             {'type': ['special'], 'community_name': ['Event Log Test Community']},
         )
 
+    def test_event_log_redirect_keeps_theme(self):
+        """旧URLの theme 絞り込みもリダイレクト先へ引き継がれる"""
+        response = self.client.get(
+            reverse('event:event_log_list'), {'theme': 'Approved Special'}
+        )
+
+        self.assertEqual(response.status_code, 301)
+        _, _, query = response['Location'].partition('?')
+        self.assertEqual(
+            parse_qs(query),
+            {'type': ['special'], 'theme': ['Approved Special']},
+        )
+
     def test_special_list_only_shows_approved(self):
         """特別企画/ブログ一覧で承認済みのみ表示される"""
         url = reverse('event:detail_history')
