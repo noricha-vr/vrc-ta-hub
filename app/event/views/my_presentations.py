@@ -23,5 +23,5 @@ class MyPresentationsView(LoginRequiredMixin, ListView):
                 status="approved",
             )
             .select_related("event", "event__community")
-            .order_by("-event__date", "start_time")
+            .order_by("-event__date", "start_time", "pk")
         )
