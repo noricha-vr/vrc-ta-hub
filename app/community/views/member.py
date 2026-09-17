@@ -64,7 +64,7 @@ class SwitchCommunityView(LoginRequiredMixin, View):
         )
 
         if not result.is_accepted:
-            messages.error(request, SWITCH_ERROR_MESSAGES[result.error])
+            messages.error(request, SWITCH_ERROR_MESSAGES.get(result.error, '集会を切り替えられませんでした。'))
             return redirect(self._get_redirect_url(request, success=False))
 
         messages.success(request, '集会を切り替えました。')
