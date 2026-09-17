@@ -247,11 +247,11 @@ class EventDateUpdateViewTests(TestCase):
         )
         self.assertIn('description', call_kwargs)
         self.assertIn(
-            new_date.strftime('%Y年%m月%d日'),
+            f"{new_date.year}年{new_date.month}月{new_date.day}日",
             call_kwargs['description'],
         )
         self.assertNotIn(
-            self.original_date.strftime('%Y年%m月%d日'),
+            f"{self.original_date.year}年{self.original_date.month}月{self.original_date.day}日",
             call_kwargs['description'],
         )
 

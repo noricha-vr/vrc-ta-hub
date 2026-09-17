@@ -581,7 +581,7 @@ class LTApplicationReviewTest(TestCase):
 
         self.assertEqual(
             label,
-            f"{self.event.date.strftime('%Y年%m月%d日')}"
+            f"{self.event.date.year}年{self.event.date.month}月{self.event.date.day}日"
             f"({WEEKDAY_ABBR[weekday_code(self.event.date)]})",
         )
         self.assertNotIn(self.event.start_time.strftime('%H:%M'), label)

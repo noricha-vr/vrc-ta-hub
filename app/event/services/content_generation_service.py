@@ -234,8 +234,11 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
         prompt_text = BLOG_GENERATION_TEMPLATE.format(
             transcript=limited_transcript or "文字起こしはありません。",
             pdf_content=pdf_content or "PDFコンテンツはありません。",
-            date=event_detail.event.date.strftime('%Y年%m月%d日') if hasattr(event_detail.event.date,
-                                                                             'strftime') else event_detail.event.date,
+            date=(
+                f"{event_detail.event.date.year}年"
+                f"{event_detail.event.date.month}月"
+                f"{event_detail.event.date.day}日"
+            ) if hasattr(event_detail.event.date, 'strftime') else event_detail.event.date,
             # 日付フォーマット（文字列の場合はそのまま）
             community_name=event_detail.event.community.name,
             speaker=event_detail.speaker,

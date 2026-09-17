@@ -43,7 +43,7 @@
                                 </tr>
                                 <tr>
                                     <th scope="row" class="bg-light">開催日</th>
-                                    <td>{{ event_detail.event.date|date:"Y年m月d日" }}</td>
+                                    <td>{{ event_detail.event.date|date:"Y年n月j日" }}</td>
                                 </tr>
                                 <tr>
                                     <th scope="row" class="bg-light">テーマ</th>
@@ -66,7 +66,7 @@
                                 {% endif %}
                                 <tr>
                                     <th scope="row" class="bg-light">申請日時</th>
-                                    <td>{{ event_detail.created_at|date:"Y年m月d日 H:i" }}</td>
+                                    <td>{{ event_detail.created_at|date:"Y年n月j日 H:i" }}</td>
                                 </tr>
                                 {% if event_detail.additional_info %}
                                 <tr>
@@ -102,7 +102,7 @@
                             <p class="text-muted mb-3">
                                 変更すると承認時に反映され、申請者に変更内容が通知されます。
                                 現在の申請内容は
-                                {{ event_detail.event.date|date:"Y年m月d日" }} {{ event_detail.start_time|time:"H:i" }}（{{ event_detail.duration }}分）です。
+                                {{ event_detail.event.date|date:"Y年n月j日" }} {{ event_detail.start_time|time:"H:i" }}（{{ event_detail.duration }}分）です。
                             </p>
 
                             <div class="row g-3">

@@ -276,7 +276,7 @@
 
                         {% for event_dict in scheduled_events %}
                             <tr{% if event_dict.event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
-                                <td>{{ event_dict.event.date|date:"Y年m月d日 (D)" }}</td>
+                                <td>{{ event_dict.event.date|date:"Y年n月j日 (D)" }}</td>
                                 <td>
                                     {{ event_dict.event.start_time|date:"H:i" }} -
                                     {{ event_dict.event.end_time|date:"H:i" }}
@@ -324,7 +324,7 @@
 
                         {% for event_dict in past_events %}
                             <tr {% if event_dict.event.date|date:"Y-m-d" == today %} class="table-danger"{% endif %}>
-                                <td>{{ event_dict.event.date|date:"Y年m月d日" }}</td>
+                                <td>{{ event_dict.event.date|date:"Y年n月j日" }}</td>
                                 <td>
                                     {{ event_dict.event.start_time|date:"H:i" }} -
                                     {{ event_dict.event.end_time|date:"H:i" }}
