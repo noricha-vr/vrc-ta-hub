@@ -5,7 +5,7 @@
     EventDetailがイベント一覧・カレンダー・Twitter・APIに漏洩していた。
 """
 from datetime import date, time, timedelta
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -778,9 +778,9 @@ class EventDetailPastListFilterTest(TestCase):
         )
 
     def test_past_list_only_shows_approved(self):
-        """LT履歴一覧で承認済みのみ表示される"""
+        """発表一覧（すべて表示）で承認済みのみ表示される"""
         url = reverse('event:detail_history')
-        response = self.client.get(url)
+        response = self.client.get(url, {'view': 'all'})
 
         self.assertEqual(response.status_code, 200)
 
@@ -791,11 +791,22 @@ class EventDetailPastListFilterTest(TestCase):
         self.assertNotIn(self.rejected_detail.id, detail_ids)
         self.assertNotIn(self.pending_detail.id, detail_ids)
 
+    def test_past_list_hides_details_without_materials_by_default(self):
+        """既定表示では記事・動画・スライドの無い発表を出さない"""
+        url = reverse('event:detail_history')
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
+        detail_ids = [d.id for d in response.context['event_details']]
+        self.assertNotIn(self.approved_detail.id, detail_ids)
+
 
 class EventLogListViewFilterTest(TestCase):
-    """EventLogListView でapprovedのみ表示されるテスト"""
+    """旧 event_log ページの統合先（発表一覧の特別企画タブ）のテスト"""
 
     def setUp(self):
+        cache.clear()
         self.client = Client()
 
         self.community = Community.objects.create(
@@ -844,15 +855,39 @@ class EventLogListViewFilterTest(TestCase):
             start_time=time(22, 0),
         )
 
-    def test_event_log_list_only_shows_approved(self):
+    def test_event_log_redirects_to_presentation_list(self):
+        """旧URLは発表一覧の特別企画タブへ301で飛ぶ"""
+        response = self.client.get(reverse('event:event_log_list'))
+
+        self.assertRedirects(
+            response,
+            f"{reverse('event:detail_history')}?type=special",
+            status_code=301,
+            fetch_redirect_response=False,
+        )
+
+    def test_event_log_redirect_keeps_community_name(self):
+        """community_name はリダイレクト先へ引き継がれる"""
+        response = self.client.get(
+            reverse('event:event_log_list'), {'community_name': 'Event Log Test Community'}
+        )
+
+        self.assertEqual(response.status_code, 301)
+        path, _, query = response['Location'].partition('?')
+        self.assertEqual(path, reverse('event:detail_history'))
+        self.assertEqual(
+            parse_qs(query),
+            {'type': ['special'], 'community_name': ['Event Log Test Community']},
+        )
+
+    def test_special_list_only_shows_approved(self):
         """特別企画/ブログ一覧で承認済みのみ表示される"""
-        url = reverse('event:event_log_list')
-        response = self.client.get(url)
+        url = reverse('event:detail_history')
+        response = self.client.get(url, {'type': 'special', 'view': 'all'})
 
         self.assertEqual(response.status_code, 200)
 
-        event_logs = response.context['event_logs']
-        log_ids = [d.id for d in event_logs]
+        log_ids = [d.id for d in response.context['event_details']]
 
         self.assertIn(self.approved_special.id, log_ids)
         self.assertNotIn(self.rejected_blog.id, log_ids)

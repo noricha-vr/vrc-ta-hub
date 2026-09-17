@@ -1,49 +1,86 @@
 {% extends 'ta_hub/base.html' %}
-{% load django_bootstrap5 %}
 {% block meta %}
-    <title>VRChat 技術・学術系 イベント発表履歴 - 技術・学術系イベントHub</title>
-    <meta name="twitter:title"
-          content="VRChat 技術・学術系 イベント発表履歴 - 技術・学術系イベントHub">
-    <meta property="og:title" content="VRChat 技術・学術系 イベント発表履歴 - 技術・学術系イベントHub">
-    <meta name="description"
-          content="VRChat 技術・学術系イベントの発表履歴を確認できます。集会名、発表者、テーマで検索ができてとても便利です。聞き逃した発表やもう一度聞きたい発表を探してみよう！">
-    <meta name="twitter:description"
-          content="VRChat 技術・学術系イベントの発表履歴を確認できます。集会名、発表者、テーマで検索ができてとても便利です。聞き逃した発表やもう一度聞きたい発表を探してみよう！">
-    <meta property="og:description"
-          content="VRChat 技術・学術系イベントの発表履歴を確認できます。集会名、発表者、テーマで検索ができてとても便利です。聞き逃した発表やもう一度聞きたい発表を探してみよう！">
+    <title>VRChat 技術・学術系 発表一覧 - 技術・学術系イベントHub</title>
+    <meta name="twitter:title" content="VRChat 技術・学術系 発表一覧 - 技術・学術系イベントHub">
+    <meta property="og:title" content="VRChat 技術・学術系 発表一覧 - 技術・学術系イベントHub">
+    <meta name="description" content="{{ meta_description }}">
+    <meta name="twitter:description" content="{{ meta_description }}">
+    <meta property="og:description" content="{{ meta_description }}">
     <meta property="og:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg">
     <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg">
+    {% if structured_data_json %}
+        <script type="application/ld+json">{{ structured_data_json|safe }}</script>
+    {% endif %}
 {% endblock %}
 
 {% block main %}
-    <div class="container my-5">
-        <div class="row text-center">
-            <div class="col-lg-12">
-                <a href="{% url 'event:detail_history' %}" class="text-decoration-none text-black">
-                    <h1 class="fw-bold keiko_yellow">VRChat 技術・学術系 イベント発表履歴</h1>
-                </a>
+    <style>
+        /* 抜粋は2行でクランプする */
+        .presentation-excerpt {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* sm 以上ではサムネイルをカードの高さいっぱいに広げる（xs は 16:9 で上に積む） */
+        @media (min-width: 576px) {
+            .presentation-thumb {
+                min-height: 140px;
+            }
+
+            .presentation-thumb::before {
+                display: none;
+            }
+        }
+
+        /* 資料なしの行はカードと区別が付くよう左に薄い縦線を引く */
+        .presentation-row {
+            border-left: 4px solid #dee2e6 !important;
+        }
+    </style>
+
+    <div class="container my-4">
+        <div class="row">
+            <div class="col-12 col-lg-10 offset-lg-1">
+                {% include 'ta_hub/messages.html' %}
+
+                <h1 class="h2 fw-bold keiko_yellow">VRChat 技術・学術系 発表一覧</h1>
+                <p class="text-muted mb-4">
+                    {{ summary.community_count }} 集会 · {{ summary.presentation_count }} 発表 ·
+                    {{ summary.speaker_count }} 人の発表者
+                </p>
+
+                {% include 'event/_history_filters.html' %}
+
+                {% if event_details %}
+                    <div class="d-flex flex-column gap-3">
+                        {% for detail in event_details %}
+                            {% if detail.has_materials %}
+                                {% include 'event/_presentation_card.html' with detail=detail %}
+                            {% else %}
+                                {% include 'event/_presentation_row.html' with detail=detail %}
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+
+                    {% if page_obj.paginator.num_pages > 1 %}
+                        <div class="mt-4">
+                            {% include 'ta_hub/pagination.html' %}
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="alert alert-secondary" role="alert">
+                        <p class="mb-3">該当する発表はありません。</p>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% if not show_all and all_count %}
+                                <a href="{{ view_all_url }}" class="btn btn-primary btn-sm">資料なしも含めてすべて表示</a>
+                            {% endif %}
+                            <a href="{{ clear_filters_url }}" class="btn btn-outline-secondary btn-sm">絞り込みを解除</a>
+                        </div>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
-
-    {% include 'event/detail_list_search.html' %}
-
-    <div class="container mt-4">
-        {% include 'ta_hub/messages.html' %}
-        <div class="row mb-5">
-            <div class="col-lg-12">
-                {% include 'event/detail_list_table.html' %}
-            </div>
-            <div>
-                ※ 集会名・発表者を選択すると絞り込みができます<br/>
-                ※ テーマを選択すると詳細を確認できます
-            </div>
-        </div>
-
-        <div class="mt-3 mb-5">
-            {% include 'ta_hub/pagination.html' %}
-        </div>
-    </div>
-
-
 {% endblock %}

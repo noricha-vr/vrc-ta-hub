@@ -347,7 +347,7 @@
                         <a class="nav-link text-light" href="{% url 'community:list' %}">集会一覧</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link text-light" href="{% url 'event:detail_history' %}">発表履歴</a>
+                        <a class="nav-link text-light" href="{% url 'event:detail_history' %}">発表一覧</a>
                     </li>
                     {% if user.is_authenticated %}
                         <li class="nav-item">
@@ -459,7 +459,7 @@
                     </li>
                     <li class="mb-2">
                         <a href="{% url 'event:detail_history' %}"
-                           class="text-light text-decoration-none small">発表履歴</a>
+                           class="text-light text-decoration-none small">発表一覧</a>
                     </li>
                     <li class="mb-2">
                         <a href="{% url 'news:list' %}" class="text-light text-decoration-none small">お知らせ</a>

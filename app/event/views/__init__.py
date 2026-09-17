@@ -13,7 +13,7 @@ from event.views.helpers import (  # noqa: F401
 from event.views.list import (  # noqa: F401
     EventDetailPastList,
     EventListView,
-    EventLogListView,
+    EventLogRedirectView,
 )
 from event.views.my_list import EventMyList  # noqa: F401
 from event.views.my_presentations import MyPresentationsView  # noqa: F401

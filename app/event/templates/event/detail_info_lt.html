@@ -18,14 +18,14 @@
         <tr>
             <th scope="row">発表者</th>
             <td>
-                <a href="{% url 'event:detail_history' %}?speaker={{ event_detail.speaker }}"
+                <a href="{% url 'event:detail_history' %}?speaker={{ event_detail.speaker|urlencode }}"
                    class="me-2">{{ event_detail.speaker }}さん</a>
             </td>
         </tr>
         <tr>
             <th scope="row">集会名</th>
             <td>
-                <a href="{% url 'event:detail_history' %}?community_name={{ event_detail.event.community.name }}" class="me-2">
+                <a href="{% url 'event:detail_history' %}?community_name={{ event_detail.event.community.name|urlencode }}" class="me-2">
                     {{ event_detail.event.community.name }}
                 </a>
             </td>
