@@ -6,6 +6,10 @@ from django.urls import reverse
 
 from community.models import Community
 from event.models import Event, EventDetail
+from event.views.list import EventDetailPastList
+
+# 上限値をビュー側の定数から参照し、値を変えてもテストが追従するようにする
+RATE_LIMIT = EventDetailPastList.RATE_LIMIT_MAX_REQUESTS
 
 
 @override_settings(ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
@@ -41,8 +45,8 @@ class EventDetailHistoryRateLimitTest(TestCase):
             start_time=time(22, 0),
         )
 
-    def test_rate_limit_is_20_requests_per_10_minutes_per_ip(self):
-        for _ in range(20):
+    def test_rate_limit_blocks_after_configured_requests_per_ip(self):
+        for _ in range(RATE_LIMIT):
             response = self.client.get(self.url, HTTP_X_FORWARDED_FOR='1.2.3.4')
             self.assertEqual(response.status_code, 200)
 
@@ -55,7 +59,7 @@ class EventDetailHistoryRateLimitTest(TestCase):
         )
 
     def test_rate_limit_is_independent_per_ip(self):
-        for _ in range(20):
+        for _ in range(RATE_LIMIT):
             self.client.get(self.url, HTTP_X_FORWARDED_FOR='1.2.3.4')
 
         blocked = self.client.get(self.url, HTTP_X_FORWARDED_FOR='1.2.3.4')
@@ -94,6 +98,8 @@ class EventDetailHistoryQueryBloatPreventionTest(TestCase):
             status='approved',
             speaker='Approved Speaker',
             theme='Interesting Theme',
+            # 発表一覧の既定表示は「資料あり」なので、本文を持たせて一覧に出す
+            contents='記事本文があるため既定表示に含まれる。',
             duration=15,
             start_time=time(22, 0),
         )

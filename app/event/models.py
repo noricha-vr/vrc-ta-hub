@@ -9,11 +9,39 @@ import filetype
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from django.utils.html import strip_tags
 
 from community.constants import WEEKDAY_CHOICES
 from community.models import Community
 
 logger = logging.getLogger(__name__)
+
+# 発表一覧カードに出す抜粋の最大文字数
+EXCERPT_LENGTH = 120
+
+# Markdown 記号を落とすための置換規則（適用順に並べる）
+_MARKDOWN_STRIP_PATTERNS = (
+    (re.compile(r'```.*?```', re.DOTALL), ' '),          # コードフェンス
+    (re.compile(r'`([^`]*)`'), r'\1'),                    # インラインコード
+    (re.compile(r'!\[[^\]]*\]\([^)]*\)'), ' '),           # 画像記法
+    (re.compile(r'\[([^\]]*)\]\([^)]*\)'), r'\1'),        # リンク記法
+    (re.compile(r'^\s{0,3}#{1,6}\s*', re.MULTILINE), ''),  # 見出し
+    (re.compile(r'^\s{0,3}>\s?', re.MULTILINE), ''),      # 引用
+    (re.compile(r'^\s{0,3}[-*+]\s+', re.MULTILINE), ''),  # 箇条書き
+    (re.compile(r'^\s{0,3}(?:[-*_]\s*){3,}$', re.MULTILINE), ' '),  # 水平線
+    (re.compile(r'[*~]{1,3}'), ''),                       # 強調・打ち消し
+    # アンダースコアは強調記法のときだけ落とす（snake_case の識別子を壊さない）
+    (re.compile(r'(?<![0-9A-Za-z])_{1,3}|_{1,3}(?![0-9A-Za-z])'), ''),
+)
+
+
+def _strip_markdown(text: str) -> str:
+    """Markdown 記号と HTML タグを落とし、空白を 1 つに正規化した文字列を返す。"""
+    if not text:
+        return ''
+    for pattern, replacement in _MARKDOWN_STRIP_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return re.sub(r'\s+', ' ', strip_tags(text)).strip()
 
 
 def slide_file_upload_to(instance, filename):
@@ -462,6 +490,44 @@ class EventDetail(models.Model):
             if match:
                 return match.group(1)
         return None
+
+    @staticmethod
+    def materials_q() -> models.Q:
+        """記事・動画・スライドのいずれかを持つ発表を選ぶ Q を返す。
+
+        発表一覧の既定表示（「資料あり」）と ``has_materials`` の判定を
+        同じ定義に揃えるため、条件はここだけで定義する。
+        """
+        return (
+            models.Q(contents__gt='')
+            | (models.Q(youtube_url__isnull=False) & ~models.Q(youtube_url=''))
+            | (models.Q(slide_url__isnull=False) & ~models.Q(slide_url=''))
+            | (models.Q(slide_file__isnull=False) & ~models.Q(slide_file=''))
+        )
+
+    @property
+    def has_materials(self) -> bool:
+        """``materials_q()`` と同じ条件をインスタンス側で判定する。"""
+        return bool(self.contents or self.youtube_url or self.slide_url or self.slide_file)
+
+    def get_excerpt(self, length: int = EXCERPT_LENGTH) -> str:
+        """一覧カードに出す抜粋テキストを返す。
+
+        ``meta_description`` があればそれを優先し、無ければ ``contents`` から
+        Markdown 記号を落として組み立てる。``convert_markdown`` は重いので使わない。
+
+        Args:
+            length: 最大文字数。超える場合は末尾を ``…`` に置き換える。
+
+        Returns:
+            抜粋文字列。素材が無ければ空文字。
+        """
+        source = (self.meta_description or '').strip()
+        if not source:
+            source = _strip_markdown(self.contents or '')
+        if len(source) <= length:
+            return source
+        return source[:length - 1].rstrip() + '…'
 
 
 class MaterialUploadReminderLog(models.Model):

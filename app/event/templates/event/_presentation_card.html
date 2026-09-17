@@ -1,0 +1,62 @@
+{% comment %}
+資料（記事・動画・スライド）がある発表のカード。
+カード全体が詳細ページへのリンク（stretched-link）。サムネイルも明示的に <a> で包む。
+集会名・発表者リンクは stretched-link の上に出すため position-relative + z-1 を付ける。
+{% endcomment %}
+<article class="card shadow-sm shadow-hover overflow-hidden">
+    <div class="row g-0">
+        <div class="col-12 col-sm-4 col-md-3">
+            <a href="{% url 'event:detail' detail.pk %}"
+               class="presentation-thumb d-block ratio ratio-16x9 bg-light"
+               aria-label="{{ detail.title|default:'発表' }}の詳細" tabindex="-1">
+                {% include 'event/_presentation_thumbnail.html' with detail=detail %}
+            </a>
+        </div>
+        <div class="col-12 col-sm-8 col-md-9">
+            <div class="card-body d-flex flex-column h-100">
+                <h2 class="h5 fw-bold card-title mb-1 text-break">
+                    <a href="{% url 'event:detail' detail.pk %}"
+                       class="text-decoration-none text-body stretched-link">
+                        {{ detail.title|default:"テーマ未設定" }}
+                    </a>
+                </h2>
+                <div class="small text-muted d-flex flex-wrap align-items-center gap-1 mb-2">
+                    <time datetime="{{ detail.event.date|date:'Y-m-d' }}">{{ detail.event.date|date:"Y年n月j日" }}</time>
+                    <span aria-hidden="true">·</span>
+                    <a class="position-relative z-1 text-decoration-none"
+                       href="{{ request.path }}?{% if community_link_base_query %}{{ community_link_base_query }}&{% endif %}community_name={{ detail.event.community.name|urlencode }}">
+                        {{ detail.event.community.name }}
+                    </a>
+                    {% if detail.speaker %}
+                        <span aria-hidden="true">·</span>
+                        <a class="position-relative z-1 text-decoration-none"
+                           href="{{ request.path }}?{% if speaker_link_base_query %}{{ speaker_link_base_query }}&{% endif %}speaker={{ detail.speaker|urlencode }}">
+                            {{ detail.speaker }}
+                        </a>
+                    {% endif %}
+                </div>
+                {% with excerpt=detail.get_excerpt %}
+                    {% if excerpt %}
+                        <p class="card-text text-muted small presentation-excerpt mb-2">{{ excerpt }}</p>
+                    {% endif %}
+                {% endwith %}
+                <div class="d-flex flex-wrap gap-1 mt-auto">
+                    {% if detail.detail_type == 'SPECIAL' %}
+                        <span class="badge bg-primary">特別企画</span>
+                    {% elif detail.detail_type == 'BLOG' %}
+                        <span class="badge bg-info text-dark">ブログ</span>
+                    {% endif %}
+                    {% if detail.youtube_url %}
+                        <span class="badge bg-light text-success border"><i class="bi bi-play-btn me-1" aria-hidden="true"></i>動画</span>
+                    {% endif %}
+                    {% if detail.slide_file or detail.slide_url %}
+                        <span class="badge bg-light text-success border"><i class="bi bi-file-text me-1" aria-hidden="true"></i>スライド</span>
+                    {% endif %}
+                    {% if detail.contents %}
+                        <span class="badge bg-light text-success border"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>記事</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</article>

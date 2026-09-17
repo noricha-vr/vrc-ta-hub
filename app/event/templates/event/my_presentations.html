@@ -35,23 +35,7 @@
                                         <a href="{% url 'event:detail' detail.pk %}"
                                            class="my-presentation-thumb d-block h-100 ratio ratio-16x9 bg-light"
                                            aria-label="{{ detail.theme|default:'テーマ未設定' }}の詳細">
-                                            {% if detail.thumbnail_image %}
-                                                <img src="{{ detail.thumbnail_image.url|cf_resize:'400' }}"
-                                                     class="w-100 h-100 object-fit-cover" loading="lazy"
-                                                     alt="{{ detail.theme|default:'発表' }}のサムネイル">
-                                            {% elif detail.video_id %}
-                                                <img src="https://img.youtube.com/vi/{{ detail.video_id }}/mqdefault.jpg"
-                                                     class="w-100 h-100 object-fit-cover" loading="lazy"
-                                                     alt="{{ detail.theme|default:'発表' }}のサムネイル">
-                                            {% elif detail.event.community.poster_image %}
-                                                <img src="{{ detail.event.community.poster_image.url|cf_resize:'400' }}"
-                                                     class="w-100 h-100 object-fit-cover" loading="lazy"
-                                                     alt="{{ detail.event.community.name }}のポスター">
-                                            {% else %}
-                                                <span class="d-flex align-items-center justify-content-center text-secondary w-100 h-100">
-                                                    <i class="bi bi-image fs-1" aria-hidden="true"></i>
-                                                </span>
-                                            {% endif %}
+                                            {% include 'event/_presentation_thumbnail.html' with detail=detail %}
                                         </a>
                                     </div>
                                     <div class="col-12 col-sm-8 col-md-9">
