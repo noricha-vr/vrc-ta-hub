@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import ListView
 
+from community.services import activate_community
 from event.models import Event, EventDetail
 from event_calendar.calendar_utils import create_calendar_entry_url
 from utils.vrchat_time import get_vrchat_today
@@ -43,23 +44,8 @@ class EventMyList(LoginRequiredMixin, ListView):
         if self.request.headers.get('Sec-Fetch-Site') == 'cross-site':
             return
 
-        try:
-            community_id = int(raw_community_id)
-        except (TypeError, ValueError):
-            return
-
-        # community:switch（community/views/member.py）と同じ受理条件に揃える:
-        # メンバーシップがあり、かつ終了済みでない集会のみ。条件を変える時は両方を更新すること
-        membership = self.request.user.community_memberships.select_related('community').filter(
-            community_id=community_id
-        ).first()
-        if membership is None or membership.community.is_ended:
-            return
-
-        # 同値の再代入でも session.modified が立ち毎回 DB 書き込みになるため差分がある時だけ更新
-        # （ページネーションリンクが community= を引き継ぐので my_list の全ページビューに乗る）
-        if self.request.session.get('active_community_id') != community_id:
-            self.request.session['active_community_id'] = community_id
+        # 受理条件の判定と session 更新は community.services が正本
+        activate_community(self.request.session, self.request.user, raw_community_id)
 
     def get(self, request, *args, **kwargs):
         # get_queryset / get_context_data の双方が更新後のセッションを読むよう、
