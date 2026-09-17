@@ -26,6 +26,7 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 TARGET_SCRIPTS = (
     "check_event_schedule.py",
     "create_activity_posts.py",
+    "create_news_post.py",
     "create_update_post.py",
     "create_vket_posts.py",
     "fix_h1_duplicates.py",
