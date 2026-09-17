@@ -23,20 +23,19 @@
             overflow: hidden;
         }
 
-        /* sm 以上ではサムネイルをカードの高さいっぱいに広げる（xs は 16:9 で上に積む） */
-        @media (min-width: 576px) {
-            .presentation-thumb {
-                min-height: 140px;
-            }
-
-            .presentation-thumb::before {
-                display: none;
-            }
+        /* サムネイルは常に 16:9（ratio-16x9）。カードの高さには引き伸ばさない */
+        .presentation-thumb img {
+            display: block;
         }
 
-        /* 資料なしの行はカードと区別が付くよう左に薄い縦線を引く */
+        /* 資料なしの行はカードと区別が付くよう左に薄い縦線を引く。行全体をリンクにするため position-relative */
         .presentation-row {
+            position: relative;
             border-left: 4px solid #dee2e6 !important;
+        }
+
+        .presentation-row:hover {
+            background-color: #f8f9fa !important;
         }
     </style>
 

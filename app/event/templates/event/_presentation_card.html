@@ -1,18 +1,20 @@
 {% comment %}
 資料（記事・動画・スライド）がある発表のカード。
-カード全体が詳細ページへのリンク（stretched-link）。集会名・発表者リンクは
-stretched-link の上に出すため position-relative + z-1 を付ける。
+カード全体が詳細ページへのリンク（stretched-link）。サムネイルも明示的に <a> で包む。
+集会名・発表者リンクは stretched-link の上に出すため position-relative + z-1 を付ける。
 {% endcomment %}
 <article class="card shadow-sm shadow-hover overflow-hidden">
     <div class="row g-0">
-        <div class="col-12 col-sm-4 col-md-3 align-self-stretch">
-            <div class="presentation-thumb d-block h-100 ratio ratio-16x9 bg-light">
+        <div class="col-12 col-sm-4 col-md-3">
+            <a href="{% url 'event:detail' detail.pk %}"
+               class="presentation-thumb d-block ratio ratio-16x9 bg-light"
+               aria-label="{{ detail.title|default:'発表' }}の詳細" tabindex="-1">
                 {% include 'event/_presentation_thumbnail.html' with detail=detail %}
-            </div>
+            </a>
         </div>
         <div class="col-12 col-sm-8 col-md-9">
             <div class="card-body d-flex flex-column h-100">
-                <h2 class="h5 card-title mb-1 text-break">
+                <h2 class="h5 fw-bold card-title mb-1 text-break">
                     <a href="{% url 'event:detail' detail.pk %}"
                        class="text-decoration-none text-body stretched-link">
                         {{ detail.title|default:"テーマ未設定" }}
