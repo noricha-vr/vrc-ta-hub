@@ -1,4 +1,6 @@
 {% extends 'ta_hub/base.html' %}
+{% block canonical_path %}{{ canonical_path }}{% endblock %}
+{% block og_url_path %}{{ canonical_path }}{% endblock %}
 {% block meta %}
     <title>{{ page_title }} - 技術・学術系イベントHub</title>
     <meta name="twitter:title" content="{{ page_title }} - 技術・学術系イベントHub">

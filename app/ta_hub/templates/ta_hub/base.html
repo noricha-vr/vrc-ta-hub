@@ -48,8 +48,9 @@
     <meta name="author" content="技術・学術系イベントHub">
     <meta name="keywords" content="VRChat, 技術集会, 学術集会, イベント">
     <meta property="og:type" content="website">
-    <link rel="canonical" href="https://vrc-ta-hub.com{% firstof canonical_path request.path %}">
-    <meta property="og:url" content="https://vrc-ta-hub.com{% firstof canonical_path request.path %}">
+    {# canonical はページ側で {% block canonical_path %} を上書きして変えられる。未定義変数の参照は避ける（VariableDoesNotExist の生成がコンテキスト全体の repr を呼び N+1 を誘発する） #}
+    <link rel="canonical" href="https://vrc-ta-hub.com{% block canonical_path %}{{ request.path }}{% endblock %}">
+    <meta property="og:url" content="https://vrc-ta-hub.com{% block og_url_path %}{{ request.path }}{% endblock %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     {# Google font #}
