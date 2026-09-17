@@ -130,6 +130,63 @@ class MyPresentationsViewTests(TestCase):
         self.assertContains(response, "bi-image")
         self.assertNotContains(response, "img.youtube.com")
 
+    def test_shows_material_status_badges(self):
+        """スライド・動画・記事の登録状況をバッジで表示し、発表者行は出さない。"""
+        make_event_detail(
+            self.event,
+            applicant=self.user,
+            status="approved",
+            theme="資料なし発表",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertContains(response, "スライド未登録")
+        self.assertContains(response, "動画未登録")
+        self.assertContains(response, "記事未生成")
+        self.assertNotContains(response, "発表者:")
+        self.assertNotContains(response, "bi-eye")
+
+    def test_shows_registered_badges_when_materials_exist(self):
+        """資料が登録済みの発表は登録済みバッジを表示する。"""
+        make_event_detail(
+            self.event,
+            applicant=self.user,
+            status="approved",
+            theme="資料あり発表",
+            slide_url="https://example.com/slides",
+            youtube_url="https://www.youtube.com/watch?v=abcdefghijk",
+            contents="本文あり",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertNotContains(response, "スライド未登録")
+        self.assertNotContains(response, "動画未登録")
+        self.assertNotContains(response, "記事未生成")
+        self.assertContains(response, "全 1 件")
+
+    def test_paginates_by_twenty(self):
+        """21 件以上は 20 件ずつページ分割する。"""
+        for index in range(21):
+            make_event_detail(
+                self.event,
+                applicant=self.user,
+                status="approved",
+                theme=f"発表{index:02d}",
+                start_time=time(hour=index),
+            )
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(len(response.context["presentations"]), 20)
+        self.assertTrue(response.context["page_obj"].has_next())
+        self.assertContains(response, "全 21 件")
+        self.assertContains(response, "?page=2")
+
     def test_orders_by_event_date_descending_then_start_time_ascending(self):
         """新しい開催日を先にし、同じ開催日は開始時刻順に表示する。"""
         newer_event = make_event(

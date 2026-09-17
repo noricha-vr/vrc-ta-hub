@@ -12,6 +12,7 @@ class MyPresentationsView(LoginRequiredMixin, ListView):
     model = EventDetail
     template_name = "event/my_presentations.html"
     context_object_name = "presentations"
+    paginate_by = 20
 
     def get_queryset(self):
         """承認済みの本人申請発表を開催日の新しい順に返す。"""

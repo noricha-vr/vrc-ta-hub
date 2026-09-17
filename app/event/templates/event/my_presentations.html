@@ -2,52 +2,87 @@
 {% load image_tags %}
 
 {% block main %}
+    <style>
+        /* sm 以上では画像をカードの高さいっぱいに広げる（xs は 16:9 で上に積む） */
+        @media (min-width: 576px) {
+            .my-presentation-thumb {
+                min-height: 140px;
+            }
+            .my-presentation-thumb::before {
+                display: none;
+            }
+        }
+    </style>
     <div class="container my-4">
         <div class="row">
             <div class="col-12 col-md-10 offset-md-1">
                 {% include 'ta_hub/messages.html' %}
-                <h1 class="h2 fw-bold keiko_yellow mb-4">
-                    <i class="bi bi-person-video3 me-2" aria-hidden="true"></i>自分の発表
-                </h1>
+                <div class="d-flex align-items-baseline justify-content-between mb-4">
+                    <h1 class="h2 fw-bold keiko_yellow mb-0">
+                        <i class="bi bi-person-video3 me-2" aria-hidden="true"></i>自分の発表
+                    </h1>
+                    {% if page_obj.paginator.count %}
+                        <span class="text-muted small">全 {{ page_obj.paginator.count }} 件</span>
+                    {% endif %}
+                </div>
 
                 {% if presentations %}
                     <div class="d-flex flex-column gap-3">
                         {% for detail in presentations %}
                             <article class="card shadow-sm overflow-hidden">
                                 <div class="row g-0">
-                                    <div class="col-12 col-sm-4 col-md-3">
-                                        <a href="{% url 'event:detail' detail.pk %}" class="d-block ratio ratio-16x9 bg-light"
+                                    <div class="col-12 col-sm-4 col-md-3 align-self-stretch">
+                                        <a href="{% url 'event:detail' detail.pk %}"
+                                           class="my-presentation-thumb d-block h-100 ratio ratio-16x9 bg-light"
                                            aria-label="{{ detail.theme|default:'テーマ未設定' }}の詳細">
                                             {% if detail.thumbnail_image %}
                                                 <img src="{{ detail.thumbnail_image.url|cf_resize:'400' }}"
-                                                     class="object-fit-cover" loading="lazy"
+                                                     class="w-100 h-100 object-fit-cover" loading="lazy"
                                                      alt="{{ detail.theme|default:'発表' }}のサムネイル">
                                             {% elif detail.video_id %}
                                                 <img src="https://img.youtube.com/vi/{{ detail.video_id }}/mqdefault.jpg"
-                                                     class="object-fit-cover" loading="lazy"
+                                                     class="w-100 h-100 object-fit-cover" loading="lazy"
                                                      alt="{{ detail.theme|default:'発表' }}のサムネイル">
                                             {% elif detail.event.community.poster_image %}
                                                 <img src="{{ detail.event.community.poster_image.url|cf_resize:'400' }}"
-                                                     class="object-fit-cover" loading="lazy"
+                                                     class="w-100 h-100 object-fit-cover" loading="lazy"
                                                      alt="{{ detail.event.community.name }}のポスター">
                                             {% else %}
-                                                <span class="d-flex align-items-center justify-content-center text-secondary">
+                                                <span class="d-flex align-items-center justify-content-center text-secondary w-100 h-100">
                                                     <i class="bi bi-image fs-1" aria-hidden="true"></i>
                                                 </span>
                                             {% endif %}
                                         </a>
                                     </div>
                                     <div class="col-12 col-sm-8 col-md-9">
-                                        <div class="card-body">
-                                            <h2 class="h5 card-title">{{ detail.theme|default:"テーマ未設定" }}</h2>
-                                            <p class="card-text mb-1">発表者: {{ detail.speaker|default:"未設定" }}</p>
-                                            <p class="card-text text-muted mb-3">
-                                                {{ detail.event.community.name }} / {{ detail.event.date }}
-                                            </p>
-                                            <div class="d-flex gap-2">
-                                                <a href="{% url 'event:detail' detail.pk %}" class="btn btn-outline-primary btn-sm">
-                                                    <i class="bi bi-eye me-1" aria-hidden="true"></i>詳細
+                                        <div class="card-body d-flex flex-column h-100">
+                                            <h2 class="h5 card-title mb-1">
+                                                <a href="{% url 'event:detail' detail.pk %}" class="text-decoration-none text-body">
+                                                    {{ detail.theme|default:"テーマ未設定" }}
                                                 </a>
+                                            </h2>
+                                            <p class="card-text mb-2">
+                                                <time datetime="{{ detail.event.date|date:'Y-m-d' }}">{{ detail.event.date }}</time>
+                                                <span class="text-muted"> · {{ detail.event.community.name }}</span>
+                                            </p>
+                                            <div class="d-flex flex-wrap align-items-center gap-2 mt-auto">
+                                                <div class="d-flex flex-wrap gap-1 me-auto">
+                                                    {% if detail.slide_file or detail.slide_url %}
+                                                        <span class="badge bg-light text-success border"><i class="bi bi-file-text me-1" aria-hidden="true"></i>スライド</span>
+                                                    {% else %}
+                                                        <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>スライド未登録</span>
+                                                    {% endif %}
+                                                    {% if detail.youtube_url %}
+                                                        <span class="badge bg-light text-success border"><i class="bi bi-play-btn me-1" aria-hidden="true"></i>動画</span>
+                                                    {% else %}
+                                                        <span class="badge bg-light text-muted border"><i class="bi bi-play-btn me-1" aria-hidden="true"></i>動画未登録</span>
+                                                    {% endif %}
+                                                    {% if detail.contents %}
+                                                        <span class="badge bg-light text-success border"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>記事</span>
+                                                    {% else %}
+                                                        <span class="badge bg-light text-muted border"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>記事未生成</span>
+                                                    {% endif %}
+                                                </div>
                                                 <a href="{% url 'event:detail_update' detail.pk %}" class="btn btn-success btn-sm">
                                                     <i class="bi bi-pencil me-1" aria-hidden="true"></i>編集
                                                 </a>
@@ -58,6 +93,9 @@
                             </article>
                         {% endfor %}
                     </div>
+                    {% if page_obj.paginator.num_pages > 1 %}
+                        {% include 'ta_hub/pagination.html' %}
+                    {% endif %}
                 {% else %}
                     <div class="alert alert-secondary" role="alert">
                         <p class="mb-3">編集できる発表はまだありません。</p>
