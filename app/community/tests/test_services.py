@@ -8,18 +8,16 @@ import importlib
 from datetime import timedelta
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from community.models import Community, CommunityMember
+from community.models import CommunityMember
 from community.services import (
     SESSION_KEY,
     ActivationError,
     activate_community,
 )
-
-CustomUser = get_user_model()
+from tests.factories import make_community, make_community_member, make_user
 
 
 def make_session():
@@ -30,25 +28,15 @@ def make_session():
 
 class ActivateCommunityTest(TestCase):
     def setUp(self):
-        self.user = CustomUser.objects.create_user(
-            email='svc_user@example.com',
-            password='testpass123',
-            user_name='サービステストユーザー',
-        )
-        self.community = Community.objects.create(
-            name='所属集会', status='approved', frequency='毎週',
-        )
-        self.ended_community = Community.objects.create(
-            name='終了済み集会', status='approved', frequency='毎週',
+        self.user = make_user(user_name='サービステストユーザー', email='svc_user@example.com')
+        self.community = make_community(name='所属集会', frequency='毎週')
+        self.ended_community = make_community(
+            name='終了済み集会', frequency='毎週',
             end_at=timezone.now().date() - timedelta(days=1),
         )
-        self.foreign_community = Community.objects.create(
-            name='非所属集会', status='approved', frequency='毎月',
-        )
+        self.foreign_community = make_community(name='非所属集会', frequency='毎月')
         for community in (self.community, self.ended_community):
-            CommunityMember.objects.create(
-                community=community, user=self.user, role=CommunityMember.Role.OWNER,
-            )
+            make_community_member(community, self.user, role=CommunityMember.Role.OWNER)
         self.session = make_session()
 
     def test_accepts_member_community(self):
