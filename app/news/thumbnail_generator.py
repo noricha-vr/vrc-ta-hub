@@ -105,25 +105,45 @@ def load_font(size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(font_path()), size)
 
 
+def _is_katakana(char: str) -> bool:
+    """カタカナ（長音符 ー を含む）か。カタカナ語の途中で折り返さないための判定。"""
+    return "\u30a1" <= char <= "\u30fc"
+
+
 def _tokenize(text: str) -> list[str]:
-    """ASCII 連続・空白・和文 1 文字を単位に分割する。"""
+    """ASCII 連続・カタカナ連続・空白・その他の和文 1 文字を単位に分割する。
+
+    ASCII 語とカタカナ語は語中で折り返すと読みにくいので 1 トークンにまとめる。
+    """
     tokens: list[str] = []
-    ascii_buffer = ""
+    buffer = ""
+    buffer_kind = ""  # "ascii" / "katakana" / ""
+
+    def flush() -> None:
+        nonlocal buffer, buffer_kind
+        if buffer:
+            tokens.append(buffer)
+        buffer = ""
+        buffer_kind = ""
+
     for char in text:
         if char.isspace():
-            if ascii_buffer:
-                tokens.append(ascii_buffer)
-                ascii_buffer = ""
+            flush()
             tokens.append(" ")
         elif char.isascii():
-            ascii_buffer += char
+            if buffer_kind != "ascii":
+                flush()
+            buffer += char
+            buffer_kind = "ascii"
+        elif _is_katakana(char):
+            if buffer_kind != "katakana":
+                flush()
+            buffer += char
+            buffer_kind = "katakana"
         else:
-            if ascii_buffer:
-                tokens.append(ascii_buffer)
-                ascii_buffer = ""
+            flush()
             tokens.append(char)
-    if ascii_buffer:
-        tokens.append(ascii_buffer)
+    flush()
     return tokens
 
 
