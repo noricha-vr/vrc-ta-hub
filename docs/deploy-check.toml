@@ -101,7 +101,7 @@ name = "発表一覧"
 url = "https://vrc-ta-hub.com/event/detail/history/"
 method = "GET"
 expect_status = 200
-expect_body = "イベント発表履歴"
+expect_body = "発表一覧"
 
 [[log_checks]]
 name = "5xx エラー"
