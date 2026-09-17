@@ -97,6 +97,39 @@ class MyPresentationsViewTests(TestCase):
         self.assertContains(response, "集会を探して発表を申し込む")
         self.assertContains(response, reverse("community:list"))
 
+    def test_shows_youtube_thumbnail_when_thumbnail_image_is_missing(self):
+        """サムネイル画像が無い発表は YouTube のサムネイルにフォールバックする。"""
+        make_event_detail(
+            self.event,
+            applicant=self.user,
+            status="approved",
+            theme="動画あり発表",
+            youtube_url="https://www.youtube.com/watch?v=abcdefghijk",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertContains(
+            response,
+            "https://img.youtube.com/vi/abcdefghijk/mqdefault.jpg",
+        )
+
+    def test_shows_placeholder_when_no_image_is_available(self):
+        """画像が一切無い発表はプレースホルダーアイコンを表示する。"""
+        make_event_detail(
+            self.event,
+            applicant=self.user,
+            status="approved",
+            theme="画像なし発表",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(self.url)
+
+        self.assertContains(response, "bi-image")
+        self.assertNotContains(response, "img.youtube.com")
+
     def test_orders_by_event_date_descending_then_start_time_ascending(self):
         """新しい開催日を先にし、同じ開催日は開始時刻順に表示する。"""
         newer_event = make_event(
