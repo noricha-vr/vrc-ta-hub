@@ -99,7 +99,7 @@ POST_THUMBNAIL_SPECS: tuple[PostThumbnailSpec, ...] = (
         slug="2026-09-17-presentation-list-redesign",
         title="発表一覧をブログ形式にリニューアルしました",
         category_slug="update",
-        filename="2026-09-17-presentation-list-redesign-v1.png",
+        filename="2026-09-17-presentation-list-redesign-v2.png",
     ),
 )
 

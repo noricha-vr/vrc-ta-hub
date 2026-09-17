@@ -5,16 +5,16 @@
 {% endcomment %}
 <article class="card shadow-sm shadow-hover overflow-hidden">
     <div class="row g-0">
-        <div class="col-12 col-sm-4 col-md-3">
+        <div class="col-12 col-sm-5 col-md-4 d-flex align-items-center p-sm-3 pe-sm-0">
             <a href="{% url 'event:detail' detail.pk %}"
-               class="presentation-thumb d-block ratio ratio-16x9 bg-light"
+               class="presentation-thumb d-block w-100 ratio ratio-16x9 bg-light overflow-hidden"
                aria-label="{{ detail.title|default:'発表' }}の詳細" tabindex="-1">
                 {% include 'event/_presentation_thumbnail.html' with detail=detail %}
             </a>
         </div>
-        <div class="col-12 col-sm-8 col-md-9">
-            <div class="card-body d-flex flex-column h-100">
-                <h2 class="h5 fw-bold card-title mb-1 text-break">
+        <div class="col-12 col-sm-7 col-md-8">
+            <div class="card-body d-flex flex-column justify-content-center h-100 py-3">
+                <h2 class="h5 fw-bold card-title mb-1 text-break presentation-title">
                     <a href="{% url 'event:detail' detail.pk %}"
                        class="text-decoration-none text-body stretched-link">
                         {{ detail.title|default:"テーマ未設定" }}
@@ -40,7 +40,7 @@
                         <p class="card-text text-muted small presentation-excerpt mb-2">{{ excerpt }}</p>
                     {% endif %}
                 {% endwith %}
-                <div class="d-flex flex-wrap gap-1 mt-auto">
+                <div class="d-flex flex-wrap gap-1 mt-1">
                     {% if detail.detail_type == 'SPECIAL' %}
                         <span class="badge bg-primary">特別企画</span>
                     {% elif detail.detail_type == 'BLOG' %}

@@ -168,3 +168,13 @@ class RenderThumbnailTestCase(SimpleTestCase):
         with patch.object(generator, "LOGO_PATH", Path("/nonexistent/logo.png")):
             with self.assertRaises(generator.ThumbnailAssetError):
                 generator.logo_path()
+
+
+class KatakanaTokenizeTest(SimpleTestCase):
+    """カタカナ語は語中で折り返さない"""
+
+    def test_katakana_run_is_single_token(self):
+        tokens = generator._tokenize("形式にリニューアルしました Hub")
+        self.assertIn("リニューアル", tokens)
+        self.assertIn("Hub", tokens)
+        self.assertNotIn("リ", tokens)

@@ -25,9 +25,24 @@
             overflow: hidden;
         }
 
-        /* サムネイルは常に 16:9（ratio-16x9）。カードの高さには引き伸ばさない */
+        /* サムネイルは常に 16:9（ratio-16x9）。カードの高さには引き伸ばさず、
+           sm 以上では上下中央に置いて角丸の「額装」として見せる（xs は全幅で上に積む） */
         .presentation-thumb img {
             display: block;
+        }
+
+        @media (min-width: 576px) {
+            .presentation-thumb {
+                border-radius: var(--bs-border-radius);
+            }
+        }
+
+        /* タイトルは 2 行でクランプし、カードの高さを揃える */
+        .presentation-title {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
 
         /* 資料なしの行はカードと区別が付くよう左に薄い縦線を引く。行全体をリンクにするため position-relative */
