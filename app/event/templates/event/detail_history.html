@@ -1,8 +1,8 @@
 {% extends 'ta_hub/base.html' %}
 {% block meta %}
-    <title>VRChat 技術・学術系 発表一覧 - 技術・学術系イベントHub</title>
-    <meta name="twitter:title" content="VRChat 技術・学術系 発表一覧 - 技術・学術系イベントHub">
-    <meta property="og:title" content="VRChat 技術・学術系 発表一覧 - 技術・学術系イベントHub">
+    <title>{{ page_title }} - 技術・学術系イベントHub</title>
+    <meta name="twitter:title" content="{{ page_title }} - 技術・学術系イベントHub">
+    <meta property="og:title" content="{{ page_title }} - 技術・学術系イベントHub">
     <meta name="description" content="{{ meta_description }}">
     <meta name="twitter:description" content="{{ meta_description }}">
     <meta property="og:description" content="{{ meta_description }}">
@@ -44,11 +44,15 @@
             <div class="col-12 col-lg-10 offset-lg-1">
                 {% include 'ta_hub/messages.html' %}
 
-                <h1 class="h2 fw-bold keiko_yellow">VRChat 技術・学術系 発表一覧</h1>
-                <p class="text-muted mb-4">
-                    {{ summary.community_count }} 集会 · {{ summary.presentation_count }} 発表 ·
-                    {{ summary.speaker_count }} 人の発表者
-                </p>
+                <h1 class="h2 fw-bold keiko_yellow">{{ page_title }}</h1>
+                {% if is_special %}
+                    <p class="text-muted mb-4">集会が企画した特別イベントと、運営・主催者によるブログ記事の一覧です。</p>
+                {% else %}
+                    <p class="text-muted mb-4">
+                        {{ summary.community_count }} 集会 · {{ summary.presentation_count }} 発表 ·
+                        {{ summary.speaker_count }} 人の発表者
+                    </p>
+                {% endif %}
 
                 {% include 'event/_history_filters.html' %}
 

@@ -17,7 +17,7 @@ from website.settings import GOOGLE_CALENDAR_ID
 
 from ta_hub.utils import get_client_ip
 from django.core.cache import cache
-from django.http import HttpResponse
+from django.http import HttpResponse, QueryDict
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -144,6 +144,12 @@ class EventDetailPastList(ListView):
     VIEW_ALL = 'all'
     TYPE_SPECIAL = 'special'
     SUMMARY_CACHE_KEY = 'presentation_list_summary'
+    PAGE_TITLE_LT = 'VRChat 技術・学術系 発表一覧'
+    PAGE_TITLE_SPECIAL = 'VRChat 技術・学術系 特別企画・ブログ一覧'
+    META_DESCRIPTION_SPECIAL = (
+        'VRChatの技術・学術系集会が企画した特別イベントと、運営・主催者によるブログ記事の一覧です。'
+        '新しい順に掲載。集会名やキーワードで探せます。'
+    )
 
     def _get_rate_limit_cache_key(self, client_ip):
         bucket = int(timezone.now().timestamp()) // self.RATE_LIMIT_WINDOW_SECONDS
@@ -336,18 +342,30 @@ class EventDetailPastList(ListView):
             return self.request.build_absolute_uri(poster.url)
         return ''
 
+    @property
+    def page_title(self):
+        return self.PAGE_TITLE_SPECIAL if self.is_special else self.PAGE_TITLE_LT
+
+    def _canonical_path(self):
+        """canonical / og:url 用のパス。種別は別ページとして宣言し、絞り込み・ページ番号は集約する。"""
+        path = reverse('event:detail_history')
+        if self.is_special:
+            return f"{path}?{urlencode({'type': self.TYPE_SPECIAL})}"
+        return path
+
     def _build_structured_data(self, details):
         """BreadcrumbList と CollectionPage(ItemList) の JSON 文字列を返す。"""
         request = self.request
         home_url = request.build_absolute_uri('/')
-        list_url = request.build_absolute_uri(reverse('event:detail_history'))
+        list_url = request.build_absolute_uri(self._canonical_path())
+        list_name = '特別企画・ブログ一覧' if self.is_special else '発表一覧'
 
         breadcrumbs = {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
             "itemListElement": [
                 {"@type": "ListItem", "position": 1, "name": "ホーム", "item": home_url},
-                {"@type": "ListItem", "position": 2, "name": "発表一覧", "item": list_url},
+                {"@type": "ListItem", "position": 2, "name": list_name, "item": list_url},
             ],
         }
 
@@ -369,13 +387,20 @@ class EventDetailPastList(ListView):
         collection = {
             "@context": "https://schema.org",
             "@type": "CollectionPage",
-            "name": "発表一覧",
+            "name": list_name,
             "url": list_url,
             "inLanguage": "ja-JP",
             "isPartOf": home_url,
             "mainEntity": {"@type": "ItemList", "itemListElement": items},
         }
-        return json.dumps([breadcrumbs, collection], ensure_ascii=False).replace("</", "<\\/")
+        # <script> 内に埋め込むので、HTML として解釈されうる文字を JSON エスケープに置き換える
+        # （django.utils.html.json_script と同じ方針。</script> と <!-- の両方を封じる）
+        return (
+            json.dumps([breadcrumbs, collection], ensure_ascii=False)
+            .replace('<', '\\u003c')
+            .replace('>', '\\u003e')
+            .replace('&', '\\u0026')
+        )
 
     def _build_link_base_queries(self, context, query_params):
         """カード内の集会名・発表者リンク用に、当該キーを除いたクエリ文字列を詰める。"""
@@ -410,8 +435,17 @@ class EventDetailPastList(ListView):
         context['view_all_url'] = self._chip_url(query_params, 'view', self.VIEW_ALL)
         context['type_lt_url'] = self._chip_url(query_params, 'type', None)
         context['type_special_url'] = self._chip_url(query_params, 'type', self.TYPE_SPECIAL)
-        context['clear_filters_url'] = self.request.path
-        context['meta_description'] = self._build_meta_description(context['summary'])
+        # 「絞り込みを解除」は検索条件だけ外し、表示モード（種別）は維持する
+        base_params = QueryDict(mutable=True)
+        if self.is_special:
+            base_params['type'] = self.TYPE_SPECIAL
+        context['clear_filters_url'] = self._chip_url(base_params, 'view', None)
+        context['page_title'] = self.page_title
+        context['canonical_path'] = self._canonical_path()
+        context['meta_description'] = (
+            self.META_DESCRIPTION_SPECIAL if self.is_special
+            else self._build_meta_description(context['summary'])
+        )
 
         try:
             context['structured_data_json'] = self._build_structured_data(

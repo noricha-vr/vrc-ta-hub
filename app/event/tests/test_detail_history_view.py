@@ -328,3 +328,71 @@ class EventDetailExcerptTests(TestCase):
         detail = self._detail()
 
         self.assertEqual(detail.get_excerpt(), '')
+
+
+@override_settings(ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
+class PresentationListReviewFixTests(TestCase):
+    """ローカルレビュー指摘の回帰テスト（種別ごとの SEO 出し分け・解除リンク・ld+json エスケープ）。"""
+
+    def setUp(self):
+        cache.clear()
+        self.url = reverse('event:detail_history')
+        self.community = make_community(name='レビュー集会')
+        self.event = make_event(self.community, event_date=date(2026, 5, 10))
+        self.lt = make_event_detail(
+            self.event, status='approved', speaker='のり', theme='通常の発表', contents='本文',
+        )
+        self.special = make_event_detail(
+            self.event, status='approved', detail_type='SPECIAL',
+            theme='特別企画です', contents='本文',
+        )
+
+    def test_special_page_declares_its_own_title_and_canonical(self):
+        response = self.client.get(self.url, {'type': 'special', 'page': '1'})
+
+        self.assertContains(response, '<title>VRChat 技術・学術系 特別企画・ブログ一覧 - ')
+        self.assertContains(
+            response,
+            '<link rel="canonical" href="https://vrc-ta-hub.com/event/detail/history/?type=special">',
+        )
+        payload = json.loads(response.context['structured_data_json'])
+        self.assertEqual(payload[1]['name'], '特別企画・ブログ一覧')
+        self.assertTrue(payload[1]['url'].endswith('/event/detail/history/?type=special'))
+
+    def test_lt_page_canonical_drops_filters(self):
+        response = self.client.get(self.url, {'q': 'x', 'view': 'all', 'page': '1'})
+
+        self.assertContains(
+            response,
+            '<link rel="canonical" href="https://vrc-ta-hub.com/event/detail/history/">',
+        )
+        self.assertContains(response, '<title>VRChat 技術・学術系 発表一覧 - ')
+
+    def test_clear_filters_keeps_special_type(self):
+        response = self.client.get(self.url, {'type': 'special', 'q': '特別'})
+
+        self.assertEqual(response.context['clear_filters_url'], f'{self.url}?type=special')
+
+        response = self.client.get(self.url, {'q': '通常'})
+        self.assertEqual(response.context['clear_filters_url'], self.url)
+
+    def test_structured_data_escapes_html_sensitive_characters(self):
+        make_event_detail(
+            self.event, status='approved', speaker='攻撃',
+            theme='<!--<script>x</script>&', contents='本文',
+        )
+        response = self.client.get(self.url)
+
+        raw = response.context['structured_data_json']
+        self.assertNotIn('<', raw)
+        self.assertNotIn('>', raw)
+        self.assertNotIn('&', raw)
+        names = [i['name'] for i in json.loads(raw)[1]['mainEntity']['itemListElement']]
+        self.assertIn('<!--<script>x</script>&', names)
+
+    def test_row_meta_links_sit_above_stretched_link(self):
+        make_event_detail(self.event, status='approved', speaker='資料なし', theme='行表示')
+        response = self.client.get(self.url, {'view': 'all'})
+
+        self.assertContains(response, 'class="presentation-row')
+        self.assertContains(response, 'position-relative z-2 text-decoration-none')

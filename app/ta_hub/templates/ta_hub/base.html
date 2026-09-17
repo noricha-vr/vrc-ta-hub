@@ -48,8 +48,8 @@
     <meta name="author" content="技術・学術系イベントHub">
     <meta name="keywords" content="VRChat, 技術集会, 学術集会, イベント">
     <meta property="og:type" content="website">
-    <link rel="canonical" href="https://vrc-ta-hub.com{{ request.path }}">
-    <meta property="og:url" content="https://vrc-ta-hub.com{{ request.path }}">
+    <link rel="canonical" href="https://vrc-ta-hub.com{% firstof canonical_path request.path %}">
+    <meta property="og:url" content="https://vrc-ta-hub.com{% firstof canonical_path request.path %}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     {# Google font #}
