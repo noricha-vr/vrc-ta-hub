@@ -14,6 +14,15 @@ from django.views.generic import TemplateView
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 
 from ..models import Community, CommunityMember, CommunityInvitation
+from ..services import ActivationError, activate_community
+
+# 失敗理由（community.services.ActivationError）ごとの表示文言
+SWITCH_ERROR_MESSAGES = {
+    ActivationError.NOT_SPECIFIED: '集会が指定されていません。',
+    ActivationError.INVALID_ID: '無効な集会IDです。',
+    ActivationError.NOT_A_MEMBER: 'この集会へのアクセス権限がありません。',
+    ActivationError.ENDED: 'この集会は終了しています。',
+}
 
 logger = logging.getLogger(__name__)
 
@@ -50,35 +59,17 @@ class SwitchCommunityView(LoginRequiredMixin, View):
         return 'event:my_list'
 
     def post(self, request):
-        community_id = request.POST.get('community_id')
+        result = activate_community(
+            request.session, request.user, request.POST.get('community_id')
+        )
 
-        if community_id:
-            # community_idが整数に変換可能かを先にチェック
-            try:
-                community_id_int = int(community_id)
-            except (ValueError, TypeError):
-                messages.error(request, '無効な集会IDです。')
-                return redirect(self._get_redirect_url(request, success=False))
+        if not result.is_accepted:
+            messages.error(request, SWITCH_ERROR_MESSAGES[result.error])
+            return redirect(self._get_redirect_url(request, success=False))
 
-            # ユーザーがその集会のメンバーであることを確認
-            membership = request.user.community_memberships.select_related(
-                'community'
-            ).filter(community_id=community_id_int).first()
-
-            if membership:
-                if membership.community.is_ended:
-                    messages.error(request, 'この集会は終了しています。')
-                    return redirect(self._get_redirect_url(request, success=False))
-                request.session['active_community_id'] = community_id_int
-                messages.success(request, '集会を切り替えました。')
-                # 切り替え成功時はredirect_toまたはevent:my_listに遷移
-                return redirect(self._get_redirect_url(request, success=True))
-            else:
-                messages.error(request, 'この集会へのアクセス権限がありません。')
-        else:
-            messages.error(request, '集会が指定されていません。')
-
-        return redirect(self._get_redirect_url(request, success=False))
+        messages.success(request, '集会を切り替えました。')
+        # 切り替え成功時はredirect_toまたはevent:my_listに遷移
+        return redirect(self._get_redirect_url(request, success=True))
 
 
 class CommunityMemberManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
