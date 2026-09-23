@@ -16,7 +16,7 @@ GOOGLE_API_KEY=取得したAPIキー
 GOOGLE_CALENDAR_ID=d80eac7bdea1505cd9bc16153047c261be94e78607896c5ca567f8cfa78f0be1@group.calendar.google.com
 ```
 
-- `GOOGLE_CALENDAR_ID` の開発用 / 本番用の値は `CLAUDE.md` を参照
+- `GOOGLE_CALENDAR_ID` の開発用 / 本番用の値は `AGENTS.md` を参照
 - サービスアカウントの JSON キーを使う場合は `GOOGLE_CALENDAR_CREDENTIALS` にパスを設定
 
 ## Gemini API
