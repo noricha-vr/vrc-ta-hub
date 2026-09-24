@@ -140,10 +140,9 @@ class CalendarRecurrenceRegistrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Event.objects.count(), 0)
 
-    def test_monthly_continuation_keeps_day_and_master_time(self):
+    def test_monthly_continuation_keeps_day_and_follows_community_time(self):
         start = self.start.replace(day=15)
         self.client.post(self.url, self.payload('monthly_by_date', start))
-        master = Event.objects.get(is_recurring_master=True)
         last = Event.objects.latest('date').date
         self.community.start_time = time(23, 0)
         self.community.duration = 30
@@ -158,7 +157,7 @@ class CalendarRecurrenceRegistrationTest(TestCase):
         self.assertTrue(added.exists())
         for event in added:
             self.assertEqual(event.date.day, 15)
-            self.assertEqual((event.start_time, event.duration), (master.start_time, master.duration))
+            self.assertEqual((event.start_time, event.duration), (time(23, 0), 30))
 
     def test_month_end_limit_remains(self):
         form = GoogleCalendarEventForm(self.payload('monthly_by_date', date(2026, 10, 31)))
