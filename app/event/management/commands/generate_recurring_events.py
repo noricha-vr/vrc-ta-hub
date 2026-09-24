@@ -196,9 +196,10 @@ class Command(BaseCommand):
                         Event.objects.create(
                             community=community,
                             date=date,
-                            # 集会情報の開始時刻・開催時間を正とする（変更後の回に反映するため）
-                            start_time=community.start_time,
-                            duration=community.duration,
+                            # 集会情報の開始時刻・開催時間を正とする（変更後の回に反映するため）。
+                            # ロック前に読んだ値だと並行した時刻変更を取りこぼすため、ロック後の値を使う
+                            start_time=current_community.start_time,
+                            duration=current_community.duration,
                             weekday=weekday_code(date),
                             recurring_master=master
                         )
