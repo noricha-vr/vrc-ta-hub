@@ -1,4 +1,6 @@
 """認証ビューのテスト."""
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.contrib.messages import get_messages
@@ -10,6 +12,7 @@ from allauth.account.models import EmailAddress
 
 from community.models import Community, CommunityMember
 from tests.factories import make_community
+from user_account.forms import LocalSignupForm
 from user_account.tests.utils import (
     TEST_SOCIALACCOUNT_PROVIDERS,
     TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS,
@@ -554,16 +557,18 @@ class RegisterViewTests(TestCase):
         User.objects.create_user(
             user_name='existing_user', email='existing@example.com', password='testpass12345',
         )
-        responses = [
-            self.client.post(self.register_url, {
-                'user_name': f'new_user_{index}',
-                'email': email,
-                'password1': 'testpass12345',
-                'password2': 'testpass12345',
-            })
-            for index, email in enumerate(['existing@example.com', 'unregistered@example.com'])
-        ]
+        with patch.object(LocalSignupForm, 'clean_email') as clean_email:
+            responses = [
+                self.client.post(self.register_url, {
+                    'user_name': f'new_user_{index}',
+                    'email': email,
+                    'password1': 'testpass12345',
+                    'password2': 'testpass12345',
+                })
+                for index, email in enumerate(['existing@example.com', 'unregistered@example.com'])
+            ]
 
+        clean_email.assert_not_called()
         for response in responses:
             self.assertRedirects(response, self.register_url, fetch_redirect_response=False)
         self.assertEqual(responses[0].content, responses[1].content)
