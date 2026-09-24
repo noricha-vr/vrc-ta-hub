@@ -1,10 +1,10 @@
 """AUTHENTICATION_BACKENDS の構成に関するテスト."""
 from django.conf import settings
-from django.contrib.auth import BACKEND_SESSION_KEY, HASH_SESSION_KEY, SESSION_KEY, get_user_model
+from django.contrib.auth import BACKEND_SESSION_KEY, HASH_SESSION_KEY, SESSION_KEY
 from django.test import TestCase, tag
 from django.urls import reverse
 
-User = get_user_model()
+from tests.factories import make_user
 
 ALLAUTH_BACKEND = 'allauth.account.auth_backends.AuthenticationBackend'
 LEGACY_MODEL_BACKEND = 'django.contrib.auth.backends.ModelBackend'
@@ -15,7 +15,7 @@ class AuthenticationBackendsTests(TestCase):
     """email ログイン移行後の後片付け（#598）の回帰テスト."""
 
     def setUp(self):
-        self.user = User.objects.create_user(
+        self.user = make_user(
             user_name='backend_user', email='backend@example.com', password='testpass12345',
         )
 
