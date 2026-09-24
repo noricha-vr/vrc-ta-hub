@@ -3,6 +3,7 @@
 import logging
 
 from django.contrib import messages
+from django.contrib.auth.hashers import make_password
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView, RedirectURLMixin
 from django.shortcuts import redirect
@@ -12,7 +13,12 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import FormView, TemplateView
 
 from allauth.account import app_settings
-from allauth.account.utils import complete_signup, perform_login, setup_user_email
+# 登録済みアドレスへの応答は allauth の SignupForm と同じ内部フローを使う（65.18.0 に固定）。
+from allauth.account.internal.flows.email_verification import add_email_verification_sent_message
+from allauth.account.internal.flows.signup import prevent_enumeration
+from allauth.account.models import EmailAddress
+from allauth.account.utils import complete_signup, perform_login
+from allauth.core import ratelimit
 from django.db import transaction
 
 from user_account.adapters import ConfirmationEmailDeliveryError
@@ -25,6 +31,12 @@ from user_account.forms import (
 from user_account.login_redirect import get_default_login_redirect_url
 
 logger = logging.getLogger(__name__)
+
+SIGNUP_RATE_LIMIT_ACTION = 'signup'
+CONFIRM_EMAIL_RATE_LIMIT_ACTION = 'confirm_email'
+SIGNUP_MAIL_FAILURE_MESSAGE = (
+    '登録は完了しました。確認メールの送信に失敗したため、ログイン画面から再送してください。'
+)
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
@@ -86,35 +98,71 @@ class RegisterView(RedirectURLMixin, FormView):
         context['redirect_field_value'] = self.get_redirect_url()
         return context
 
+    def post(self, request, *args, **kwargs):
+        """登録 POST を IP 単位で制限する（入力された email に依らないので登録有無は漏れない）。"""
+        rate_limited_response = ratelimit.consume_or_429(request, action=SIGNUP_RATE_LIMIT_ACTION)
+        if rate_limited_response:
+            return rate_limited_response
+        return super().post(request, *args, **kwargs)
+
     def form_valid(self, form):
+        """登録済みかどうかに関わらず、同じリダイレクト・同じ表示で応答する。"""
         if self.discord_oauth_enabled:
             return redirect('account:register')
 
-        with transaction.atomic():
-            user = form.save()
-            setup_user_email(self.request, user, [])
-        # Send only after the user and its unverified primary address commit.
-        # A mail delivery failure deliberately leaves this state for login resend.
-        redirect_url = self.get_redirect_url() or get_default_login_redirect_url(user)
+        email = form.cleaned_data['email']
+        # allauth は宛先 email ごとの送信制限に当たると、送信も「送信しました」の表示も省く。
+        # 表示の有無から登録有無を推測されないよう、制限中も同じ表示を出す。
+        mail_throttled = not ratelimit.consume(
+            self.request,
+            action=CONFIRM_EMAIL_RATE_LIMIT_ACTION,
+            key=email,
+            dry_run=True,
+        )
         try:
-            return complete_signup(
-                self.request,
-                user,
-                app_settings.EmailVerificationMethod.MANDATORY,
-                redirect_url,
-            )
+            if form.account_already_exists:
+                response = self._respond_to_registered_email(form, email)
+            else:
+                response = self._sign_up_new_user(form)
         except ConfirmationEmailDeliveryError as exc:
             logger.error(
-                'Failed to send signup confirmation: user_id=%s exception_type=%s',
-                user.pk,
+                'Failed to send signup mail: exception_type=%s',
                 type(exc).__name__,
                 exc_info=True,
             )
-            messages.warning(
-                self.request,
-                '登録は完了しました。確認メールの送信に失敗したため、ログイン画面から再送してください。',
-            )
+            messages.warning(self.request, SIGNUP_MAIL_FAILURE_MESSAGE)
             return redirect('account:login')
+        if mail_throttled:
+            add_email_verification_sent_message(self.request, email, signup=True)
+        return response
+
+    def _respond_to_registered_email(self, form, email):
+        """アカウントは作らず、登録済みの案内メールを送って新規登録と同じ応答を返す。"""
+        # 新規登録はパスワードをハッシュ化する分だけ遅い。処理時間の差で登録有無を推測されないよう、
+        # 保存しないパスワードも一度ハッシュ化する（Django の ModelBackend と同じ手法）。
+        make_password(form.cleaned_data['password1'])
+        return prevent_enumeration(self.request, email=email)
+
+    def _sign_up_new_user(self, form):
+        with transaction.atomic():
+            user = form.save()
+            # allauth の setup_user_email は他ユーザーの確認待ちの行と同じアドレスを黙って捨てるため、
+            # 登録アドレスを未確認の primary として直接作る（重複は CustomUser.email の unique が防ぐ）。
+            EmailAddress.objects.create(
+                user=user,
+                email=user.email,
+                primary=True,
+                verified=False,
+            )
+        # Send only after the user and its unverified primary address commit.
+        # A mail delivery failure deliberately leaves this state for login resend.
+        redirect_url = self.get_redirect_url() or get_default_login_redirect_url(user)
+        return complete_signup(
+            self.request,
+            user,
+            app_settings.EmailVerificationMethod.MANDATORY,
+            redirect_url,
+        )
 
 
 class CustomPasswordChangeView(LoginRequiredMixin, PasswordChangeView):

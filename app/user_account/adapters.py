@@ -3,13 +3,18 @@ import logging
 
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.account.models import EmailAddress
+from allauth.core import context
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from allauth.socialaccount.models import SocialAccount
+from allauth.utils import build_absolute_uri
+from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.db import IntegrityError, transaction
 from django.http import HttpRequest
 from django.urls import reverse
 
 from ta_hub.utils import get_client_ip as get_trusted_client_ip
+from user_account.email_ownership import is_email_held_only_by_pending_changes, is_email_in_use
 from user_account.login_redirect import get_default_login_redirect_url
 
 logger = logging.getLogger(__name__)
@@ -59,6 +64,49 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         except Exception as exc:
             raise ConfirmationEmailDeliveryError from exc
 
+    def send_account_already_exists_mail(self, email):
+        """登録済みアドレスへの案内にログインとパスワード再設定の URL を載せる。
+
+        送信失敗は新規登録の確認メールと同じ例外にし、登録画面の応答を揃える。
+        """
+        request = context.request
+        mail_context = {
+            'login_url': build_absolute_uri(request, reverse('account:login')),
+            'password_reset_url': build_absolute_uri(request, reverse('account_reset_password')),
+        }
+        try:
+            self.send_mail('account/email/account_already_exists', email, mail_context)
+        except Exception as exc:
+            raise ConfirmationEmailDeliveryError from exc
+
+    def confirm_email(self, request, email_address):
+        """他アカウントが使用中のアドレスは確認せず、安全に失敗させる。
+
+        MySQL では allauth の unique_verified_email（条件付き unique）が作られず、
+        確認で CustomUser.email を書き換える時の unique 違反は 500 になるため、先に判定する。
+        """
+        if is_email_in_use(email_address.email, exclude_user_id=email_address.user_id):
+            return self._reject_email_confirmation(request, email_address)
+        try:
+            with transaction.atomic():
+                return super().confirm_email(request, email_address)
+        except IntegrityError:
+            # 判定後に別アカウントが同じアドレスを取った競合。確認を取り消して失敗扱いにする。
+            logger.warning(
+                'Email confirmation conflicted with another account: user_id=%s',
+                email_address.user_id,
+            )
+            return self._reject_email_confirmation(request, email_address)
+
+    def _reject_email_confirmation(self, request, email_address):
+        self.add_message(
+            request,
+            messages.ERROR,
+            'account/messages/email_confirmation_failed.txt',
+            {'email': email_address.email},
+        )
+        return False
+
 
 class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     """Discord OAuth認証用のカスタムアダプター.
@@ -84,12 +132,16 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         email = sociallogin.account.extra_data.get('email', '')
         is_verified = sociallogin.account.extra_data.get('verified') is True
 
-        if email and is_verified:
-            logger.info("Verified email found, allowing auto signup")
-            return True
-        else:
+        if not (email and is_verified):
             logger.info("Missing or unverified email, redirecting to signup form")
             return False
+        if is_email_held_only_by_pending_changes(email):
+            # allauth の自動登録判定は他ユーザーの確認待ちの変更行も衝突に数え、
+            # 登録済みの案内メールを送ってしまう。フォームの重複判定（確認待ちを除外）へ回す。
+            logger.info("Email is only pending on other accounts, redirecting to signup form")
+            return False
+        logger.info("Verified email found, allowing auto signup")
+        return True
 
     def pre_social_login(self, request, sociallogin):
         """ソーシャルログイン前の処理.
