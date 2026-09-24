@@ -124,7 +124,9 @@
                 padding-left: 15px;
                 padding-right: 15px;
                 padding-bottom: 15px;
-                width: 30%;
+                /* 30% だけだとスマホ幅で約117pxになり、アカウントメニューが画面外にはみ出す（#625） */
+                width: max(30%, 240px);
+                max-width: 100vw;
                 height: 100%;
                 background-color: rgba(0, 0, 0, 0.8);
                 z-index: 1000;
@@ -138,6 +140,15 @@
             .navbar-collapse.show {
                 right: 0;
                 transition: right 300ms ease-in-out;
+            }
+
+            .navbar-collapse .dropdown-menu {
+                min-width: 0;
+                max-width: 100%;
+            }
+
+            .navbar-collapse .dropdown-item {
+                white-space: normal;
             }
         }
 
