@@ -155,7 +155,7 @@ class Command(BaseCommand):
             dates = service.generate_dates(
                 rule=rule,
                 base_date=base_date,
-                base_time=master.start_time,
+                base_time=community.start_time,
                 months=months,
                 community=community
             )
@@ -196,8 +196,10 @@ class Command(BaseCommand):
                         Event.objects.create(
                             community=community,
                             date=date,
-                            start_time=master.start_time,
-                            duration=master.duration,
+                            # 集会情報の開始時刻・開催時間を正とする（変更後の回に反映するため）。
+                            # ロック前に読んだ値だと並行した時刻変更を取りこぼすため、ロック後の値を使う
+                            start_time=current_community.start_time,
+                            duration=current_community.duration,
                             weekday=weekday_code(date),
                             recurring_master=master
                         )
