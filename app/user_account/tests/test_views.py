@@ -11,7 +11,7 @@ from django.urls import reverse
 from allauth.account.models import EmailAddress
 
 from community.models import Community, CommunityMember
-from tests.factories import make_community
+from tests.factories import make_community, make_user
 from user_account.forms import LocalSignupForm
 from user_account.tests.utils import (
     TEST_SOCIALACCOUNT_PROVIDERS,
@@ -554,7 +554,7 @@ class RegisterViewTests(TestCase):
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
     def test_register_post_with_discord_oauth_is_rejected_before_validation(self):
         """Discord OAuth 有効時の登録 POST はメールの登録有無に関係なく同じ応答になること."""
-        User.objects.create_user(
+        make_user(
             user_name='existing_user', email='existing@example.com', password='testpass12345',
         )
         with patch.object(LocalSignupForm, 'clean_email') as clean_email:
