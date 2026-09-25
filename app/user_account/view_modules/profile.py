@@ -82,6 +82,13 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
             messages.success(self.request, 'ユーザー情報が更新されました。')
         return response
 
+    def form_invalid(self, form):
+        # 重複エラーでも変更回数を消費させ、他人のメールアドレスの登録有無を繰り返し照会できないようにする（#609）。
+        submitted_email = (form.data.get('email') or '').strip().lower()
+        if 'email' in form.errors and submitted_email and submitted_email != (form.original_email or '').lower():
+            consume_email_change_rate_limit(self.request, self.request.user)
+        return super().form_invalid(form)
+
 
 class SettingsView(LoginRequiredMixin, TemplateView):
     template_name = 'account/settings.html'

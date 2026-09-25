@@ -19,10 +19,11 @@ from allauth.account.internal.flows.signup import prevent_enumeration
 from allauth.account.models import EmailAddress
 from allauth.account.utils import complete_signup, perform_login
 from allauth.core import ratelimit
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 from user_account.adapters import ConfirmationEmailDeliveryError
 from user_account.discord_oauth import is_discord_oauth_available
+from user_account.email_ownership import is_email_in_use
 from user_account.forms import (
     BootstrapAuthenticationForm,
     BootstrapPasswordChangeForm,
@@ -124,7 +125,7 @@ class RegisterView(RedirectURLMixin, FormView):
             if form.account_already_exists:
                 response = self._respond_to_registered_email(form, email)
             else:
-                response = self._sign_up_new_user(form)
+                response = self._sign_up_new_user(form, email)
         except ConfirmationEmailDeliveryError as exc:
             logger.error(
                 'Failed to send signup mail: exception_type=%s',
@@ -144,17 +145,23 @@ class RegisterView(RedirectURLMixin, FormView):
         make_password(form.cleaned_data['password1'])
         return prevent_enumeration(self.request, email=email)
 
-    def _sign_up_new_user(self, form):
-        with transaction.atomic():
-            user = form.save()
-            # allauth の setup_user_email は他ユーザーの確認待ちの行と同じアドレスを黙って捨てるため、
-            # 登録アドレスを未確認の primary として直接作る（重複は CustomUser.email の unique が防ぐ）。
-            EmailAddress.objects.create(
-                user=user,
-                email=user.email,
-                primary=True,
-                verified=False,
-            )
+    def _sign_up_new_user(self, form, email):
+        try:
+            with transaction.atomic():
+                user = form.save()
+                # allauth の setup_user_email は他ユーザーの確認待ちの行と同じアドレスを黙って捨てるため、
+                # 登録アドレスを未確認の primary として直接作る（重複は CustomUser.email の unique が防ぐ）。
+                EmailAddress.objects.create(
+                    user=user,
+                    email=user.email,
+                    primary=True,
+                    verified=False,
+                )
+        except IntegrityError:
+            # 重複判定の後に別リクエストが同じアドレスを登録した競合。500 にせず登録済みと同じ応答にする。
+            if not is_email_in_use(email):
+                raise
+            return self._respond_to_registered_email(form, email)
         # Send only after the user and its unverified primary address commit.
         # A mail delivery failure deliberately leaves this state for login resend.
         redirect_url = self.get_redirect_url() or get_default_login_redirect_url(user)

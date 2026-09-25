@@ -550,3 +550,55 @@ class PreRegisteredAccountRecoveryTests(CacheResetMixin, TestCase):
         address.refresh_from_db()
         self.assertTrue(address.verified)
         self.assertEqual(self.owner_client.session['_auth_user_id'], str(self.account.pk))
+
+
+@override_settings(**MAIL_AND_LOCAL_SIGNUP)
+class SignupRaceTests(CacheResetMixin, TestCase):
+    """重複判定と保存の間に同じアドレスが登録された競合を確認する。"""
+
+    def test_concurrent_registration_of_the_same_email_gets_the_registered_response(self):
+        """保存時の unique 違反は 500 にせず、登録済みと同じ応答と案内メールになる。"""
+        email = 'race-owner@example.com'
+        make_user('race_owner', email)
+        user_count = User.objects.count()
+
+        # 重複判定の時点では未登録だった状態を再現する
+        with patch('user_account.forms.is_email_in_use', return_value=False):
+            response = Client().post(reverse('account:register'), signup_data(email, user_name='race_new'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers['Location'], CONFIRM_EMAIL_SENT_PATH)
+        self.assertEqual(User.objects.count(), user_count)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(ACCOUNT_EXISTS_MAIL_PHRASE, mail.outbox[0].body)
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class EmailChangeProbeRateLimitTests(CacheResetMixin, TestCase):
+    """メール変更フォームで他人のアドレスを繰り返し照会できないことを確認する。"""
+
+    def _post_email_change(self, user, email):
+        return self.client.post(reverse('account:user_update'), {
+            'display_name': user.display_name,
+            'user_name': user.user_name,
+            'email': email,
+            'x_account': '',
+            'vrchat_user_id': '',
+        })
+
+    @override_settings(ACCOUNT_RATE_LIMITS={**settings.ACCOUNT_RATE_LIMITS, 'manage_email': '2/m/user'})
+    def test_duplicate_email_errors_consume_the_email_change_limit(self):
+        make_user('probe_target', 'probe-target@example.com')
+        prober = make_discord_linked_user(user_name='prober', email='prober@example.com')
+        self.client.force_login(prober)
+
+        for _ in range(2):
+            response = self._post_email_change(prober, 'probe-target@example.com')
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, 'このメールアドレスは既に登録されています。')
+
+        response = self._post_email_change(prober, 'prober-new@example.com')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'メールアドレスの変更回数が上限に達しました')
+        self.assertFalse(EmailAddress.objects.filter(email='prober-new@example.com').exists())
