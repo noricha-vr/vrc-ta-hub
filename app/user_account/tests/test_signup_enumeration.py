@@ -122,6 +122,7 @@ class SignupResponseUniformityTests(CacheResetMixin, TestCase):
     def _assert_account_exists_mail(self, message, email):
         self.assertEqual(message.to, [email])
         self.assertIn(ACCOUNT_EXISTS_MAIL_PHRASE, message.body)
+        self.assertIn(f'このメールアドレス（{email}）', message.body)
         self.assertIn(LOGIN_PATH, message.body)
         self.assertIn(PASSWORD_RESET_PATH, message.body)
 
