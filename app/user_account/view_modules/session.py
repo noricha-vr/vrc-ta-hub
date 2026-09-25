@@ -99,7 +99,11 @@ class RegisterView(RedirectURLMixin, FormView):
         return context
 
     def post(self, request, *args, **kwargs):
-        """登録 POST を IP 単位で制限する（入力された email に依らないので登録有無は漏れない）。"""
+        # Discord 登録のみの構成ではフォームを検証しない。clean_email の重複エラーで
+        # メールの登録有無が外から判別できてしまうため、検証前に一律で弾く（#609）。
+        if self.discord_oauth_enabled:
+            return redirect('account:register')
+        # 登録 POST を IP 単位で制限する（入力された email に依らないので登録有無は漏れない）。
         rate_limited_response = ratelimit.consume_or_429(request, action=SIGNUP_RATE_LIMIT_ACTION)
         if rate_limited_response:
             return rate_limited_response
@@ -107,9 +111,6 @@ class RegisterView(RedirectURLMixin, FormView):
 
     def form_valid(self, form):
         """登録済みかどうかに関わらず、同じリダイレクト・同じ表示で応答する。"""
-        if self.discord_oauth_enabled:
-            return redirect('account:register')
-
         email = form.cleaned_data['email']
         # allauth は宛先 email ごとの送信制限に当たると、送信も「送信しました」の表示も省く。
         # 表示の有無から登録有無を推測されないよう、制限中も同じ表示を出す。
