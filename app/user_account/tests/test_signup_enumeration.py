@@ -577,14 +577,31 @@ class SignupRaceTests(CacheResetMixin, TestCase):
 class EmailChangeProbeRateLimitTests(CacheResetMixin, TestCase):
     """メール変更フォームで他人のアドレスを繰り返し照会できないことを確認する。"""
 
-    def _post_email_change(self, user, email):
+    def _post_email_change(self, user, email, x_account=''):
         return self.client.post(reverse('account:user_update'), {
             'display_name': user.display_name,
             'user_name': user.user_name,
             'email': email,
-            'x_account': '',
+            'x_account': x_account,
             'vrchat_user_id': '',
         })
+
+    @override_settings(ACCOUNT_RATE_LIMITS={**settings.ACCOUNT_RATE_LIMITS, 'manage_email': '2/m/user'})
+    def test_other_field_errors_also_consume_the_email_change_limit(self):
+        """他の項目を不正にしてメール欄の検証を避けても、変更回数を消費する。"""
+        make_user('probe_target', 'probe-target@example.com')
+        prober = make_discord_linked_user(user_name='prober', email='prober@example.com')
+        self.client.force_login(prober)
+
+        for index in range(2):
+            response = self._post_email_change(prober, f'unregistered-{index}@example.com', x_account='bad handle!')
+            self.assertEqual(response.status_code, 200)
+
+        for email in ('probe-target@example.com', 'unregistered-next@example.com'):
+            with self.subTest(email=email):
+                response = self._post_email_change(prober, email, x_account='bad handle!')
+                self.assertContains(response, 'メールアドレスの変更回数が上限に達しました')
+                self.assertNotContains(response, 'このメールアドレスは既に登録されています。')
 
     @override_settings(ACCOUNT_RATE_LIMITS={**settings.ACCOUNT_RATE_LIMITS, 'manage_email': '2/m/user'})
     def test_duplicate_email_errors_consume_the_email_change_limit(self):

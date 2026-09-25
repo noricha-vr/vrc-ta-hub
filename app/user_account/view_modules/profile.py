@@ -83,10 +83,10 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
         return response
 
     def form_invalid(self, form):
-        # 重複エラーでも変更回数を消費させ、上限後はどのアドレスでも同じ上限エラーにする。
-        # 他人のメールアドレスの登録有無を繰り返し照会できないようにするため（#609）。
+        # メール変更を含む送信は、どの項目のエラーでも変更回数を消費させ、上限後はどのアドレスでも
+        # 同じ上限エラーにする。他人のメールアドレスの登録有無を繰り返し照会できないようにするため（#609）。
         submitted_email = (form.data.get('email') or '').strip().lower()
-        if 'email' in form.errors and submitted_email and submitted_email != (form.original_email or '').lower():
+        if submitted_email and submitted_email != (form.original_email or '').lower():
             if not consume_email_change_rate_limit(self.request, self.request.user):
                 form.errors['email'] = form.error_class([EMAIL_CHANGE_LIMIT_MESSAGE])
         return super().form_invalid(form)
