@@ -597,8 +597,11 @@ class EmailChangeProbeRateLimitTests(CacheResetMixin, TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertContains(response, 'このメールアドレスは既に登録されています。')
 
-        response = self._post_email_change(prober, 'prober-new@example.com')
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'メールアドレスの変更回数が上限に達しました')
+        # 上限後は、登録済み・未登録のどちらのアドレスでも同じ上限エラーになる
+        for email in ('probe-target@example.com', 'prober-new@example.com'):
+            with self.subTest(email=email):
+                response = self._post_email_change(prober, email)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'メールアドレスの変更回数が上限に達しました')
+                self.assertNotContains(response, 'このメールアドレスは既に登録されています。')
         self.assertFalse(EmailAddress.objects.filter(email='prober-new@example.com').exists())
