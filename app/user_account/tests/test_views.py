@@ -1,4 +1,6 @@
 """認証ビューのテスト."""
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.contrib.messages import get_messages
@@ -9,7 +11,8 @@ from django.urls import reverse
 from allauth.account.models import EmailAddress
 
 from community.models import Community, CommunityMember
-from tests.factories import make_community
+from tests.factories import make_community, make_user
+from user_account.forms import LocalSignupForm
 from user_account.tests.utils import (
     TEST_SOCIALACCOUNT_PROVIDERS,
     TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS,
@@ -547,6 +550,30 @@ class RegisterViewTests(TestCase):
         self.assertIn('rel="noopener noreferrer"', content)
         self.assertIn('>利用規約</a>', content)
         self.assertIn('>プライバシーポリシー</a>', content)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_register_post_with_discord_oauth_is_rejected_before_validation(self):
+        """Discord OAuth 有効時の登録 POST はメールの登録有無に関係なく同じ応答になること."""
+        make_user(
+            user_name='existing_user', email='existing@example.com', password='testpass12345',
+        )
+        with patch.object(LocalSignupForm, 'clean_email') as clean_email:
+            responses = [
+                self.client.post(self.register_url, {
+                    'user_name': f'new_user_{index}',
+                    'email': email,
+                    'password1': 'testpass12345',
+                    'password2': 'testpass12345',
+                })
+                for index, email in enumerate(['existing@example.com', 'unregistered@example.com'])
+            ]
+
+        clean_email.assert_not_called()
+        for response in responses:
+            self.assertRedirects(response, self.register_url, fetch_redirect_response=False)
+        self.assertEqual(responses[0].content, responses[1].content)
+        self.assertFalse(User.objects.filter(email='unregistered@example.com').exists())
+        self.assertEqual(len(mail.outbox), 0)
 
     @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS)
     def test_register_page_shows_local_signup_form_without_discord_oauth(self):

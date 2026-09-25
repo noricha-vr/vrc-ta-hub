@@ -86,10 +86,14 @@ class RegisterView(RedirectURLMixin, FormView):
         context['redirect_field_value'] = self.get_redirect_url()
         return context
 
-    def form_valid(self, form):
+    def post(self, request, *args, **kwargs):
+        # Discord 登録のみの構成ではフォームを検証しない。clean_email の重複エラーで
+        # メールの登録有無が外から判別できてしまうため、検証前に一律で弾く（#609）。
         if self.discord_oauth_enabled:
             return redirect('account:register')
+        return super().post(request, *args, **kwargs)
 
+    def form_valid(self, form):
         with transaction.atomic():
             user = form.save()
             setup_user_email(self.request, user, [])
