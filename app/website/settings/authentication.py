@@ -22,10 +22,16 @@ ACCOUNT_LOGIN_METHODS = {'email'}
 ACCOUNT_SIGNUP_FIELDS = ['email*', 'password1*', 'password2*']
 ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_CHANGE_EMAIL = True
-# 同一 email は5回/5分、同一IPは10回/分で制限する。allauth の既定値を
-# 明示して、ライブラリ更新でブルートフォース対策の強度が変わらないようにする。
+# allauth の既定値を明示して、ライブラリ更新で制限の強度が変わらないようにする。
+# - login_failed: 同一 email は5回/5分、同一IPは10回/分
+# - signup: 登録 POST は同一IPで20回/分（ローカル登録の RegisterView が消費する）
+# - confirm_email: 確認メール・登録済み案内メール・ログイン時の再送は宛先 email ごとに3分に1通
+# allauth は action ごとに per（ip / key）単位で1つのキャッシュキーを共有するため、
+# 同じ per の rate を1つの action に複数並べない（履歴が混ざって正しく数えられない）。
 ACCOUNT_RATE_LIMITS = {
     'login_failed': '10/m/ip,5/300s/key',
+    'signup': '20/m/ip',
+    'confirm_email': '1/180s/key',
 }
 # Confirmation links only resume the signup login in the browser that started
 # registration. This preserves a validated ``next`` without turning a leaked,

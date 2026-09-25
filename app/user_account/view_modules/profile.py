@@ -34,6 +34,9 @@ class UserNameChangeView(LoginRequiredMixin, UpdateView):
         return super().form_valid(form)
 
 
+EMAIL_CHANGE_LIMIT_MESSAGE = 'メールアドレスの変更回数が上限に達しました。時間をおいて再度お試しください。'
+
+
 class UserUpdateView(LoginRequiredMixin, UpdateView):
     form_class = CustomUserChangeForm
     success_url = reverse_lazy('account:settings')
@@ -49,11 +52,8 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
             self.request,
             self.request.user,
         ):
-            form.add_error(
-                'email',
-                'メールアドレスの変更回数が上限に達しました。時間をおいて再度お試しください。',
-            )
-            return self.form_invalid(form)
+            form.add_error('email', EMAIL_CHANGE_LIMIT_MESSAGE)
+            return super().form_invalid(form)
         response = super().form_valid(form)
         if new_email != old_email:
             try:
@@ -81,6 +81,15 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
         else:
             messages.success(self.request, 'ユーザー情報が更新されました。')
         return response
+
+    def form_invalid(self, form):
+        # メール変更を含む送信は、どの項目のエラーでも変更回数を消費させ、上限後はどのアドレスでも
+        # 同じ上限エラーにする。他人のメールアドレスの登録有無を繰り返し照会できないようにするため（#609）。
+        submitted_email = (form.data.get('email') or '').strip().lower()
+        if submitted_email and submitted_email != (form.original_email or '').lower():
+            if not consume_email_change_rate_limit(self.request, self.request.user):
+                form.errors['email'] = form.error_class([EMAIL_CHANGE_LIMIT_MESSAGE])
+        return super().form_invalid(form)
 
 
 class SettingsView(LoginRequiredMixin, TemplateView):

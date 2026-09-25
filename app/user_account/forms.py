@@ -7,13 +7,13 @@ from django.core.validators import FileExtensionValidator
 from django.http import HttpRequest
 
 from allauth.account.adapter import get_adapter
-from allauth.account.models import EmailAddress
 from allauth.core import ratelimit
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 
 from community.constants import WEEKDAY_CHOICES
 from community.models import Community
 from community.models import TAGS, PLATFORM_CHOICES
+from .email_ownership import is_email_in_use
 from .models import CustomUser
 from .vrchat import normalize_vrchat_user_id
 
@@ -269,6 +269,7 @@ class LocalSignupForm(UserCreationForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.account_already_exists = False
         self.fields['user_name'].label = '表示用ユーザー名'
         self.fields['password1'].label = 'パスワード'
         self.fields['password2'].label = 'パスワード（確認）'
@@ -276,15 +277,21 @@ class LocalSignupForm(UserCreationForm):
             field.widget.attrs.update({'class': 'form-control'})
 
     def clean_email(self):
+        """登録済みかどうかは記録だけして、エラーにはしない（登録有無を応答に出さない）。"""
         email = self.cleaned_data.get('email')
         if email:
             email = email.lower()
-            if (
-                CustomUser.objects.filter(email__iexact=email).exists()
-                or EmailAddress.objects.filter(email__iexact=email).exists()
-            ):
-                raise forms.ValidationError('このメールアドレスは既に登録されています。')
+            self.account_already_exists = is_email_in_use(email)
         return email
+
+    def validate_unique(self):
+        """CustomUser.email の unique エラーも登録有無を漏らすため、email を検査から外す。"""
+        exclude = self._get_validation_exclusions()
+        exclude.add('email')
+        try:
+            self.instance.validate_unique(exclude=exclude)
+        except forms.ValidationError as error:
+            self._update_errors(error)
 
     def save(self, commit=True):
         user = super().save(commit=False)
@@ -352,10 +359,7 @@ class CustomUserChangeForm(forms.ModelForm):
         email = self.cleaned_data.get('email')
         if email:
             email = email.lower()
-            if (
-                CustomUser.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists()
-                or EmailAddress.objects.filter(email__iexact=email).exclude(user=self.instance).exists()
-            ):
+            if is_email_in_use(email, exclude_user_id=self.instance.pk):
                 raise forms.ValidationError('このメールアドレスは既に登録されています。')
         return email
 
@@ -448,11 +452,12 @@ class CustomSocialSignupForm(SocialSignupForm):
         """メールアドレスの重複チェック.
 
         大文字小文字を区別せずに重複をチェックする。
+        他ユーザーのメール変更で生まれた確認待ちの行は重複に数えない。
         """
         email = self.cleaned_data.get('email')
         if email:
             email = email.lower()
-            if CustomUser.objects.filter(email__iexact=email).exists():
+            if is_email_in_use(email):
                 raise forms.ValidationError(
                     'このメールアドレスは既に登録されています。'
                     '既存のアカウントにログインしてから、Discord連携を行ってください。'
