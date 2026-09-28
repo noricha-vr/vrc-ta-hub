@@ -162,3 +162,47 @@ class RemoveRecordingLineMigrationTest(TransactionTestCase):
         pk = self._make('未設定', '')
 
         self.assertEqual(self._template_after_migration(pk), '')
+
+    def test_does_not_rely_on_collation_for_exact_match(self):
+        """大文字小文字・末尾空白だけ違うテンプレートは置き換えない。"""
+        lower = LEGACY_DEFAULT_TEMPLATE.replace('OK / NG', 'ok / ng')
+        trailing = LEGACY_DEFAULT_TEMPLATE + ' '
+        lower_pk = self._make('小文字', lower)
+        trailing_pk = self._make('末尾空白', trailing)
+
+        self.assertEqual(self._template_after_migration(lower_pk), lower)
+        from community.models import Community
+        self.assertEqual(Community.objects.get(pk=trailing_pk).lt_application_template, trailing)
+
+    def test_reverse_restores_only_exact_new_default(self):
+        """逆方向は新しい既定文と完全一致する集会だけ旧既定文に戻す。"""
+        from community.models import Community
+
+        MigrationExecutor(connection).migrate(self.migrate_to)
+        new_default_pk = make_community(
+            name='新既定文', lt_application_template=DEFAULT_LT_APPLICATION_TEMPLATE,
+        ).pk
+        edited = DEFAULT_LT_APPLICATION_TEMPLATE + '\n\n【対象者】'
+        edited_pk = make_community(name='手書き', lt_application_template=edited).pk
+
+        MigrationExecutor(connection).migrate(self.migrate_from)
+
+        self.assertEqual(Community.objects.get(pk=new_default_pk).lt_application_template, LEGACY_DEFAULT_TEMPLATE)
+        self.assertEqual(Community.objects.get(pk=edited_pk).lt_application_template, edited)
+
+
+class RecordingAllowedDbDefaultTest(TransactionTestCase):
+    """migration 適用後に動く旧リビジョン（列を知らないコード）の INSERT が通る。"""
+
+    def test_old_model_insert_gets_db_default(self):
+        """recording_allowed を知らない旧モデルで作っても、DB 既定値で True になる。"""
+        old_state = MigrationExecutor(connection).loader.project_state(
+            [('community', '0028_alter_community_default_lt_duration')],
+        )
+        OldCommunity = old_state.apps.get_model('community', 'Community')
+        self.assertNotIn('recording_allowed', [f.name for f in OldCommunity._meta.get_fields()])
+
+        pk = OldCommunity.objects.create(name='旧リビジョン', frequency='毎週', organizers='主催').pk
+
+        from community.models import Community
+        self.assertTrue(Community.objects.get(pk=pk).recording_allowed)

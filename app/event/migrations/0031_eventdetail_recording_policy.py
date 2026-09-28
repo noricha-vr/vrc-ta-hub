@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='eventdetail',
             name='recording_policy',
-            field=models.CharField(choices=[('forbidden', '禁止（撮影しない）'), ('allowed', '許可（撮影するが公開しない）'), ('public', '公開（撮影して YouTube で公開）')], default='public', max_length=20, verbose_name='撮影'),
+            field=models.CharField(choices=[('forbidden', '禁止（撮影しない）'), ('allowed', '許可（撮影するが公開しない）'), ('public', '公開（撮影して YouTube で公開）')], db_default='public', default='public', max_length=20, verbose_name='撮影'),
         ),
     ]

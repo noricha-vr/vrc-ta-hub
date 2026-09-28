@@ -13,6 +13,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='community',
             name='recording_allowed',
-            field=models.BooleanField(default=True, help_text='オフにすると、この集会の発表はハブの自動撮影の対象になりません', verbose_name='撮影を許可する'),
+            field=models.BooleanField(db_default=True, default=True, help_text='オフにすると、この集会の発表はハブの自動撮影の対象になりません', verbose_name='撮影を許可する'),
         ),
     ]

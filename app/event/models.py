@@ -425,11 +425,13 @@ class EventDetail(models.Model):
         PUBLIC = 'public', '公開（撮影して YouTube で公開）'
 
     # 自動撮影の可否。API で公開し、録画ツールがこの値を見て撮影・公開を判断する。
+    # db_default: migration 適用後もしばらく動く旧リビジョンの INSERT（列を知らない）を通すため
     recording_policy = models.CharField(
         '撮影',
         max_length=20,
         choices=RecordingPolicy.choices,
         default=RecordingPolicy.PUBLIC,
+        db_default=RecordingPolicy.PUBLIC,
     )
 
     # soft delete 用マネージャ。`objects` は既存挙動互換（生存のみ）、
