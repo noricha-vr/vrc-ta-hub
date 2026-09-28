@@ -163,6 +163,15 @@ class RemoveRecordingLineMigrationTest(TransactionTestCase):
 
         self.assertEqual(self._template_after_migration(pk), '')
 
+    def test_replaces_legacy_default_saved_with_crlf(self):
+        """CRLF（や CR）で保存された旧既定文も置き換える。"""
+        crlf_pk = self._make('CRLF', LEGACY_DEFAULT_TEMPLATE.replace('\n', '\r\n'))
+        cr_pk = self._make('CR', LEGACY_DEFAULT_TEMPLATE.replace('\n', '\r'))
+
+        self.assertEqual(self._template_after_migration(crlf_pk), DEFAULT_LT_APPLICATION_TEMPLATE)
+        from community.models import Community
+        self.assertEqual(Community.objects.get(pk=cr_pk).lt_application_template, DEFAULT_LT_APPLICATION_TEMPLATE)
+
     def test_does_not_rely_on_collation_for_exact_match(self):
         """大文字小文字・末尾空白だけ違うテンプレートは置き換えない。"""
         lower = LEGACY_DEFAULT_TEMPLATE.replace('OK / NG', 'ok / ng')
@@ -184,11 +193,15 @@ class RemoveRecordingLineMigrationTest(TransactionTestCase):
         ).pk
         edited = DEFAULT_LT_APPLICATION_TEMPLATE + '\n\n【対象者】'
         edited_pk = make_community(name='手書き', lt_application_template=edited).pk
+        crlf_pk = make_community(
+            name='CRLF', lt_application_template=DEFAULT_LT_APPLICATION_TEMPLATE.replace('\n', '\r\n'),
+        ).pk
 
         MigrationExecutor(connection).migrate(self.migrate_from)
 
         self.assertEqual(Community.objects.get(pk=new_default_pk).lt_application_template, LEGACY_DEFAULT_TEMPLATE)
         self.assertEqual(Community.objects.get(pk=edited_pk).lt_application_template, edited)
+        self.assertEqual(Community.objects.get(pk=crlf_pk).lt_application_template, LEGACY_DEFAULT_TEMPLATE)
 
 
 class RecordingAllowedDbDefaultTest(TransactionTestCase):

@@ -9,7 +9,8 @@ management command ``backfill_recording_policy`` が使う。event の migration
 判定の順番（迷ったら撮らない・公開しない側へ倒す）:
 1. 4 つの選択肢のうち 3 つ以上がそのまま残っている（テンプレのまま未回答）→ 選択肢を
    1 つずつ取り除いた残りに拒否を表す語があれば forbidden、無ければ allowed
-2. 拒否を表す語（NG、不可、禁止、しない、ダメ、お断り、×、NO など）がある → forbidden
+2. 拒否を表す語（NG、不可、禁止、しない、しません、撮らない、遠慮、控え、やめて、不要、
+   ダメ、お断り、×、NO など）がある → forbidden
 3. 選択肢が 1 つだけ → YouTube公開→public、Discord限定→allowed、OK→allowed
 4. それ以外 → allowed
 【動画撮影】の行が無い時は None（変更しない）。
@@ -40,7 +41,8 @@ REFUSAL_PATTERN = re.compile(
     '|'.join((
         _NOT_IN_WORD.format('ng'),
         _NOT_IN_WORD.format('no'),
-        '不可', '禁止', 'しない', 'ダメ', 'だめ', 'お断り', '×', '✕',
+        '不可', '禁止', 'しない', 'しません', '撮らない', '遠慮', '控え', 'やめて', '不要',
+        'ダメ', 'だめ', 'お断り', '×', '✕',
     ))
 )
 

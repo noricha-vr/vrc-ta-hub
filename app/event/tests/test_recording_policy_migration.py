@@ -30,6 +30,9 @@ PARITY_INPUTS = (
     '【動画撮影】booking 次第、nothing',
     LEGACY_LINE + '\n撮影不可\n\n【対象者】初心者', LEGACY_LINE + '\n\n【対象者】初心者',
     '【動画撮影】\nNG', '【動画撮影】YouTube公開\nやっぱり撮影しないでください',
+    '【動画撮影】撮影しません', '【動画撮影】撮らないでください', '【動画撮影】撮影は遠慮します',
+    '【動画撮影】撮影はお控えください', '【動画撮影】ご遠慮ください', '【動画撮影】やめてください',
+    '【動画撮影】撮影不要', LEGACY_LINE + '\n撮らないで',
 )
 
 
@@ -79,6 +82,15 @@ class PolicyFromAdditionalInfoTest(SimpleTestCase):
             '【動画撮影】×': 'forbidden',
             '【動画撮影】✕': 'forbidden',
             '【動画撮影】No': 'forbidden',
+            '【動画撮影】撮影しません': 'forbidden',
+            '【動画撮影】撮らないでください': 'forbidden',
+            '【動画撮影】撮らないで': 'forbidden',
+            '【動画撮影】撮影は遠慮します': 'forbidden',
+            '【動画撮影】ご遠慮ください': 'forbidden',
+            '【動画撮影】撮影はお控えください': 'forbidden',
+            '【動画撮影】控えてください': 'forbidden',
+            '【動画撮影】やめてください': 'forbidden',
+            '【動画撮影】撮影不要': 'forbidden',
             '【 動画撮影 】NG': 'forbidden',
         })
 

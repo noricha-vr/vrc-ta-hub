@@ -6,7 +6,7 @@
 既定文は後から変わりうるため、定数を import せずここに固定する。
 
 一致判定は DB の照合順序（大文字小文字・末尾空白を同一視しうる）に頼らず、
-候補を取り出してから Python の == で比べる。
+候補を取り出してから Python の == で比べる。改行は \r\n / \r を \n にそろえてから比べる。
 逆方向（ロールバック）では、移行後に主催者が同じ新既定文で保存した集会も旧既定文に戻る。
 """
 
@@ -17,12 +17,16 @@ NEW_DEFAULT_TEMPLATE = "【発表概要】\n\n【スライド公開】OK / NG"
 TEMPLATE_PREFIX = "【発表概要】"
 
 
+def _normalize_newlines(text):
+    return text.replace('\r\n', '\n').replace('\r', '\n')
+
+
 def _replace_exact(apps, current, replacement):
     Community = apps.get_model('community', 'Community')
     candidates = Community._base_manager.filter(
         lt_application_template__startswith=TEMPLATE_PREFIX,
     ).values_list('pk', 'lt_application_template')
-    pks = [pk for pk, template in candidates if template == current]
+    pks = [pk for pk, template in candidates if _normalize_newlines(template) == current]
     if pks:
         Community._base_manager.filter(pk__in=pks).update(lt_application_template=replacement)
 
