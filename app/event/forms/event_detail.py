@@ -10,10 +10,16 @@ from ..datetime_lock import (
 )
 from ..models import EventDetail
 from ..thumbnail import SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT
-from .mixins import EventDetailMediaFormMixin
+from .mixins import (
+    RECORDING_POLICY_HELP_TEXT,
+    RECORDING_POLICY_LABEL,
+    EventDetailMediaFormMixin,
+    RecordingPolicyFormMixin,
+    recording_policy_widget,
+)
 
 
-class EventDetailForm(EventDetailMediaFormMixin, forms.ModelForm):
+class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms.ModelForm):
     start_time = forms.TimeField(
         label='開始時間',
         widget=forms.TimeInput(
@@ -53,8 +59,8 @@ class EventDetailForm(EventDetailMediaFormMixin, forms.ModelForm):
 
     class Meta:
         model = EventDetail
-        fields = ['detail_type', 'theme', 'speaker', 'start_time', 'duration', 'slide_file', 'slide_url',
-                  'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article']
+        fields = ['detail_type', 'theme', 'speaker', 'start_time', 'duration', 'recording_policy', 'slide_file',
+                  'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article']
         widgets = {
             'detail_type': forms.RadioSelect(attrs={'class': 'form-check-input'}),
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
@@ -70,9 +76,14 @@ class EventDetailForm(EventDetailMediaFormMixin, forms.ModelForm):
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
             'h1': forms.TextInput(attrs={'class': 'form-control'}),
             'contents': forms.Textarea(attrs={'class': 'form-control', 'rows': '8'}),
+            'recording_policy': recording_policy_widget(),
+        }
+        labels = {
+            'recording_policy': RECORDING_POLICY_LABEL,
         }
         help_texts = {
             'detail_type': '※ 記事の種類を選択してください。',
+            'recording_policy': RECORDING_POLICY_HELP_TEXT,
             'contents': '※ Markdown形式で記述してください。',
             'h1': '※ 空のときはテーマが使われます。',
             'duration': '単位は分',

@@ -13,10 +13,16 @@ from ..datetime_lock import (
 )
 from ..models import EventDetail, Event
 from ..thumbnail import SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT
-from .mixins import EventDetailMediaFormMixin
+from .mixins import (
+    RECORDING_POLICY_HELP_TEXT,
+    RECORDING_POLICY_LABEL,
+    EventDetailMediaFormMixin,
+    RecordingPolicyFormMixin,
+    recording_policy_widget,
+)
 
 
-class LTApplicationEditForm(EventDetailMediaFormMixin, forms.ModelForm):
+class LTApplicationEditForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms.ModelForm):
     """LT申請者が自分の申請内容を編集するフォーム"""
 
     generate_blog_article = forms.BooleanField(
@@ -29,8 +35,8 @@ class LTApplicationEditForm(EventDetailMediaFormMixin, forms.ModelForm):
 
     class Meta:
         model = EventDetail
-        fields = ['theme', 'speaker', 'slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents',
-                  'generate_blog_article']
+        fields = ['theme', 'speaker', 'recording_policy', 'slide_file', 'slide_url', 'thumbnail_image', 'youtube_url',
+                  'h1', 'contents', 'generate_blog_article']
         widgets = {
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
             'speaker': forms.TextInput(attrs={
@@ -43,8 +49,13 @@ class LTApplicationEditForm(EventDetailMediaFormMixin, forms.ModelForm):
             'youtube_url': forms.URLInput(attrs={'class': 'form-control'}),
             'h1': forms.TextInput(attrs={'class': 'form-control'}),
             'contents': forms.Textarea(attrs={'class': 'form-control', 'rows': '8'}),
+            'recording_policy': recording_policy_widget(),
+        }
+        labels = {
+            'recording_policy': RECORDING_POLICY_LABEL,
         }
         help_texts = {
+            'recording_policy': RECORDING_POLICY_HELP_TEXT,
             'contents': '※ Markdown形式で記述してください。',
             'h1': '※ 空のときはテーマが使われます。',
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
@@ -73,7 +84,7 @@ class LTApplicationEditForm(EventDetailMediaFormMixin, forms.ModelForm):
         self.initial['generate_blog_article'] = not has_article
 
 
-class LTApplicationForm(forms.Form):
+class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
     """LT発表の申請フォーム"""
 
     event = forms.ModelChoiceField(
@@ -113,6 +124,15 @@ class LTApplicationForm(forms.Form):
             'autocomplete': 'off',
         }),
         help_text='発表が登録されると、Hub の X アカウントから告知を自動投稿します。告知にあなたの X ID（@ID）を含めるため、入力にご協力ください。https://x.com/ の URL でも OK。アカウント情報にも保存され、次回以降の入力は不要です。'
+    )
+
+    recording_policy = forms.ChoiceField(
+        label=RECORDING_POLICY_LABEL,
+        choices=EventDetail.RecordingPolicy.choices,
+        initial=EventDetail.RecordingPolicy.PUBLIC,
+        required=False,
+        widget=recording_policy_widget(),
+        help_text=RECORDING_POLICY_HELP_TEXT,
     )
 
     additional_info = forms.CharField(

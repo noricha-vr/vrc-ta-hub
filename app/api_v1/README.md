@@ -44,6 +44,19 @@
 - `end_date`: イベント開催日（以前）
 - `start_time`: 開始時間
 
+### 撮影の同意
+
+自動撮影ツールが「撮ってよいか」を判断するための項目です。
+
+| 項目 | 出る場所 | 値 |
+|------|----------|-----|
+| `recording_allowed` | コミュニティ（`/community/`、`/event/` と `/event_detail/` の `event.community` ネストを含む） | `true`（既定）= 撮影を許可 / `false` = この集会は自動撮影の対象外 |
+| `recording_policy` | イベント詳細（`/event_detail/`、`/event-details/`） | `public`（既定）= 撮影して YouTube で公開 / `allowed` = 撮影するが公開しない / `forbidden` = 撮影しない |
+
+イベント詳細の読み取りには `detail_type`（`LT` = 発表 / `SPECIAL` = 特別企画 / `BLOG` = ブログ）も出ます。自動撮影の対象を発表に絞る時に使います。
+
+`recording_policy` は API キー認証の `POST` / `PUT` / `PATCH /event-details/` でも指定できます。上の 3 つ以外の値は 400 になります。
+
 ## レスポンス形式
 
 すべてのエンドポイントはJSONフォーマットでデータを返します。

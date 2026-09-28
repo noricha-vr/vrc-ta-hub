@@ -43,3 +43,8 @@ def weekday_code(value: date) -> str:
         ``Mon`` から ``Sun`` の固定曜日コード
     """
     return _WEEKDAY_CODES[value.weekday()]
+
+
+# 発表申請の「追加情報テンプレート」を主催者が未設定の時に設定画面へ出す既定文。
+# 撮影の可否は発表ごとの選択肢（EventDetail.recording_policy）で聞くため、ここには含めない。
+DEFAULT_LT_APPLICATION_TEMPLATE = "【発表概要】\n\n【スライド公開】OK / NG"

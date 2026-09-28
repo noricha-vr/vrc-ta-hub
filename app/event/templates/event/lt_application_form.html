@@ -124,6 +124,21 @@
                                 {% endif %}
                             </div>
 
+                            <div class="mb-4">
+                                <p class="form-label fw-bold mb-1">
+                                    <i class="bi bi-camera-video me-1"></i>{{ form.recording_policy.label }}
+                                </p>
+                                {% include "event/includes/recording_policy_radios.html" with field=form.recording_policy %}
+                                {% if form.recording_policy.help_text %}
+                                    <small class="form-text text-muted">{{ form.recording_policy.help_text }}</small>
+                                {% endif %}
+                                {% if form.recording_policy.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.recording_policy.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+
                             {% if form.additional_info %}
                             <div class="mb-4">
                                 <label for="id_additional_info" class="form-label fw-bold">

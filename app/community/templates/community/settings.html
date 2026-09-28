@@ -142,6 +142,18 @@
                         ONにすると、イベントページに発表申請ボタンが表示されます。
                     </small>
                 </div>
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="recording_allowed" name="recording_allowed"
+                               {% if community.recording_allowed %}checked{% endif %}>
+                        <label class="form-check-label fw-medium" for="recording_allowed">
+                            撮影を許可する
+                        </label>
+                    </div>
+                    <small class="form-text text-muted">
+                        オフにすると、この集会の発表はハブの自動撮影の対象になりません。
+                    </small>
+                </div>
                 <div id="lt-settings-detail" style="{% if not community.accepts_lt_application %}display: none;{% endif %}">
                     <hr class="my-3">
                     <div class="mb-3">

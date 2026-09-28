@@ -1,0 +1,15 @@
+{% comment %}
+撮影の選択肢（recording_policy）のラジオボタン。
+使い方: {% include "event/includes/recording_policy_radios.html" with field=form.recording_policy %}
+ラベル・ヘルプ・エラーは呼び出し側で出す。
+{% endcomment %}
+<div class="d-flex flex-column gap-1" role="radiogroup" aria-label="{{ field.label }}">
+    {% for radio in field %}
+        <div class="form-check">
+            {{ radio.tag }}
+            <label class="form-check-label" for="{{ radio.id_for_label }}">
+                {{ radio.choice_label }}
+            </label>
+        </div>
+    {% endfor %}
+</div>

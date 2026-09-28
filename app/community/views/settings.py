@@ -16,6 +16,7 @@ from website.discord_webhook import (
     post_discord_webhook,
 )
 
+from ..constants import DEFAULT_LT_APPLICATION_TEMPLATE
 from ..models import Community, CommunityMember, CommunityInvitation, INVITATION_EXPIRATION_DAYS
 
 logger = logging.getLogger(__name__)
@@ -76,8 +77,7 @@ class CommunitySettingsView(LoginRequiredMixin, TemplateView):
         # LT申請テンプレートのデフォルト値を設定
         if community:
             context['lt_application_template_display'] = (
-                community.lt_application_template or
-                "【発表概要】\n\n【スライド公開】OK / NG\n\n【動画撮影】YouTube公開 / Discord限定 / OK / NG"
+                community.lt_application_template or DEFAULT_LT_APPLICATION_TEMPLATE
             )
 
         return context
@@ -348,6 +348,7 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
     def post(self, request, pk):
         community = get_object_or_404(Community, pk=pk)
         accepts_lt = request.POST.get('accepts_lt_application') == 'on'
+        recording_allowed = request.POST.get('recording_allowed') == 'on'
         lt_template = request.POST.get('lt_application_template', '').strip()
         duration_str = request.POST.get('default_lt_duration', '30').strip()
         offset_str = request.POST.get('lt_start_offset_minutes', '30').strip()
@@ -365,11 +366,13 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
             offset = 30
 
         community.accepts_lt_application = accepts_lt
+        community.recording_allowed = recording_allowed
         community.lt_application_template = lt_template
         community.default_lt_duration = duration
         community.lt_start_offset_minutes = offset
         community.save(update_fields=[
             'accepts_lt_application',
+            'recording_allowed',
             'lt_application_template',
             'default_lt_duration',
             'lt_start_offset_minutes',
@@ -379,7 +382,7 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
         logger.info(
             f'発表申請設定更新: 集会「{community.name}」、'
             f'テンプレート文字数={len(lt_template)}、デフォルトの持ち時間={duration}分、'
-            f'LT開始オフセット={offset}分'
+            f'LT開始オフセット={offset}分、撮影許可={recording_allowed}'
         )
 
         return redirect('community:settings')

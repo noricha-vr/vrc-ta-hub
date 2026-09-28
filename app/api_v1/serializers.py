@@ -40,7 +40,7 @@ class CommunitySerializer(serializers.ModelSerializer):
             'id', 'name', 'created_at', 'updated_at', 'start_time', 'duration', 'weekdays',
             'frequency', 'organizers', 'group_url', 'group_id', 'organizer_url', 'sns_url',
             'discord', 'twitter_hashtag', 'poster_image', 'description',
-            'platform', 'tags', 'allow_poster_repost'
+            'platform', 'tags', 'allow_poster_repost', 'recording_allowed'
         ]
 
     def get_poster_image(self, obj):
@@ -180,8 +180,8 @@ class EventDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = EventDetail
         fields = [
-            'id', 'event', 'start_time', 'duration', 'youtube_url', 'slide_url',
-            'thumbnail_image', 'speaker', 'theme', 'additional_info'
+            'id', 'event', 'detail_type', 'start_time', 'duration', 'youtube_url', 'slide_url',
+            'thumbnail_image', 'speaker', 'theme', 'additional_info', 'recording_policy'
         ]
 
 
@@ -207,7 +207,7 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'event', 'detail_type', 'start_time', 'duration', 'youtube_url',
             'slide_url', 'slide_file', 'thumbnail_image', 'speaker', 'theme', 'h1', 'contents',
-            'meta_description', 'additional_info', 'generate_from_pdf'
+            'meta_description', 'additional_info', 'recording_policy', 'generate_from_pdf'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
         
