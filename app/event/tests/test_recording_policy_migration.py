@@ -1,17 +1,34 @@
 """recording_policy の DB 既定値と、既存の自由記述からの移行（event 0032）のテスト。"""
 
+from datetime import timedelta
+from importlib import import_module
 from io import StringIO
 
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import SimpleTestCase, TestCase, TransactionTestCase
+from django.utils import timezone
 
 from event.models import EventDetail
 from event.recording_policy_answers import plan_policy_changes, policy_from_additional_info
 from tests.factories import make_community, make_event, make_event_detail
 
 LEGACY_LINE = '【動画撮影】YouTube公開 / Discord限定 / OK / NG'
+MIGRATION_0032 = import_module('event.migrations.0032_backfill_recording_policy_from_additional_info')
+
+# migration に固定した判定とアプリの判定が同じ結果になることを確かめる入力の表
+PARITY_INPUTS = (
+    None, '', '行なし', '【発表概要】\n\n【スライド公開】NG',
+    LEGACY_LINE, '【動画撮影】YouTube公開 / OK / NG', LEGACY_LINE + ' 撮影不可',
+    '【動画撮影】NG', '【動画撮影】ＮＧ', '【動画撮影】撮影不可', '【動画撮影】撮影しないでください',
+    '【動画撮影】撮影NG、YouTube公開もNG', '【動画撮影】YouTube公開 / NG', '【動画撮影】ﾀﾞﾒです',
+    '【動画撮影】×', '【動画撮影】No', '【動画撮影】YouTube公開', '【動画撮影】Discord限定',
+    '【動画撮影】OK', '【動画撮影】', '【動画撮影】おまかせします', '【動画撮影】YouTube公開 / OK',
+    '【動画撮影】\nNG\n\n【対象者】初心者', '【動画撮影】YouTube公開【スライド公開】NG',
+    '【動画撮影】booking 次第、nothing',
+)
 
 
 def _info(recording_line):
@@ -31,6 +48,15 @@ class PolicyFromAdditionalInfoTest(SimpleTestCase):
         self._assert_cases({
             LEGACY_LINE: 'allowed',
             '【動画撮影】YouTube公開 / OK / NG': 'allowed',
+        })
+
+    def test_refusal_added_to_unanswered_template_is_forbidden(self):
+        """テンプレの並びを残したままでも、書き足した拒否の語があれば forbidden。"""
+        self._assert_cases({
+            LEGACY_LINE + ' 撮影不可': 'forbidden',
+            LEGACY_LINE + '（撮影しないでください）': 'forbidden',
+            LEGACY_LINE + ' → NG': 'forbidden',
+            '【動画撮影】YouTube公開 / OK / NG ×': 'forbidden',
         })
 
     def test_refusal_words_are_forbidden(self):
@@ -101,6 +127,26 @@ class PolicyFromAdditionalInfoTest(SimpleTestCase):
         ]
 
         self.assertEqual(plan_policy_changes(rows), {'forbidden': [1, 5], 'allowed': [2]})
+
+
+class MigrationAndAppJudgementParityTest(SimpleTestCase):
+    """migration 0032 に固定した判定とアプリの判定が、同じ入力で同じ結果になる。"""
+
+    def test_same_results_for_input_table(self):
+        for text in PARITY_INPUTS:
+            with self.subTest(text=text):
+                self.assertEqual(
+                    MIGRATION_0032.policy_from_additional_info(text),
+                    policy_from_additional_info(text),
+                )
+
+    def test_migration_does_not_import_app_module(self):
+        """0032 はアプリの判定モジュールを import していない（写しで固定）。"""
+        self.assertIsNot(MIGRATION_0032.policy_from_additional_info, policy_from_additional_info)
+        self.assertEqual(
+            MIGRATION_0032.policy_from_additional_info.__module__,
+            MIGRATION_0032.__name__,
+        )
 
 
 class BackfillRecordingPolicyMigrationTest(TransactionTestCase):
@@ -179,10 +225,19 @@ class BackfillRecordingPolicyCommandTest(TestCase):
             self.event, theme='選択済み', additional_info=_info('【動画撮影】NG'),
             recording_policy=EventDetail.RecordingPolicy.ALLOWED,
         )
+        # --since より前（0032 が判定済み、または新しい画面で「公開」を選んだ）の発表
+        self.before_since = make_event_detail(
+            self.event, theme='以前', additional_info=_info('【動画撮影】NG'),
+        )
+        self.since = timezone.now() - timedelta(hours=1)
+        EventDetail.all_objects.filter(pk=self.before_since.pk).update(
+            created_at=self.since - timedelta(minutes=1),
+        )
 
-    def _run(self, *args):
+    def _run(self, *args, since=None):
         out = StringIO()
-        call_command('backfill_recording_policy', *args, stdout=out)
+        since = since or self.since.isoformat()
+        call_command('backfill_recording_policy', '--since', since, *args, stdout=out)
         return out.getvalue()
 
     def _policies(self):
@@ -195,14 +250,32 @@ class BackfillRecordingPolicyCommandTest(TestCase):
         self.assertIn('対象 EventDetail: 3件', output)
         self.assertIn(f'public -> forbidden: 1件 ids=[{self.refused.pk}]', output)
         self.assertIn(f'public -> allowed: 1件 ids=[{self.unanswered.pk}]', output)
-        self.assertEqual(set(self._policies().values()), {'public', 'allowed'})
         self.assertEqual(self._policies()['拒否'], 'public')
+        self.assertEqual(self._policies()['未回答'], 'public')
 
-    def test_applies_only_to_public_rows_and_is_idempotent(self):
-        """public の発表だけ当て直し、2 回目は何も変えない。"""
+    def test_applies_only_to_public_rows_since_and_is_idempotent(self):
+        """--since 以降の public の発表だけ当て直し、2 回目は何も変えない。"""
         self._run()
 
         self.assertEqual(self._policies(), {
-            '拒否': 'forbidden', '未回答': 'allowed', '公開': 'public', '選択済み': 'allowed',
+            '拒否': 'forbidden', '未回答': 'allowed', '公開': 'public', '選択済み': 'allowed', '以前': 'public',
         })
         self.assertIn('変更はありません', self._run())
+
+    def test_until_excludes_later_rows(self):
+        """--until より後に作られた発表は触らない。"""
+        until = timezone.now() + timedelta(minutes=30)
+        EventDetail.all_objects.filter(pk=self.refused.pk).update(created_at=until + timedelta(minutes=1))
+
+        self._run('--until', until.isoformat())
+
+        self.assertEqual(self._policies()['拒否'], 'public')
+        self.assertEqual(self._policies()['未回答'], 'allowed')
+
+    def test_since_is_required_and_validated(self):
+        """--since は必須で、ISO 8601 でなければエラー。"""
+        with self.assertRaises(CommandError):
+            call_command('backfill_recording_policy', stdout=StringIO())
+        with self.assertRaises(CommandError):
+            self._run(since='昨日')
+        self.assertEqual(self._policies()['拒否'], 'public')

@@ -3,13 +3,27 @@
 migration 0032 と同じ判定を、recording_policy が public のままで自由記述に
 【動画撮影】がある発表だけに当てる。デプロイ中に旧リビジョンが作った申請
 （migration 0032 の後に入ったもの）を拾うため、デプロイ完了後に一度流す。
+--since には 0032 を流した時刻を渡す。それより前の発表は 0032 が判定済みで、
+新しい画面で明示的に「公開」を選んだ発表を古い自由記述で上書きしないため。
 """
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 from event.models import EventDetail
 from event.recording_policy_answers import RECORDING_KEYWORD, plan_policy_changes
+
+
+def _parse_iso_datetime(value):
+    """ISO 8601 の日時を aware な datetime にする。タイムゾーン無しは設定のタイムゾーンとみなす。"""
+    parsed = parse_datetime(value)
+    if parsed is None:
+        raise CommandError(f"日時の形式が正しくありません（ISO 8601）: {value}")
+    if timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed)
+    return parsed
 
 
 class Command(BaseCommand):
@@ -24,17 +38,37 @@ class Command(BaseCommand):
             action="store_true",
             help="変更せず、対象件数と変更内容の要約だけを表示します。",
         )
+        parser.add_argument(
+            "--since",
+            required=True,
+            type=_parse_iso_datetime,
+            help="この日時（ISO 8601、例: 2026-10-01T12:00:00+09:00）以降に作られた発表だけを対象にします。",
+        )
+        parser.add_argument(
+            "--until",
+            type=_parse_iso_datetime,
+            help="この日時より前に作られた発表だけを対象にします（任意）。",
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
+        since, until = options["since"], options["until"]
+        if until is not None and until <= since:
+            raise CommandError("--until は --since より後を指定してください。")
         candidates = EventDetail.all_objects.filter(
             recording_policy=EventDetail.RecordingPolicy.PUBLIC,
             additional_info__contains=RECORDING_KEYWORD,
-        ).order_by("pk").values_list("pk", "additional_info")
-        rows = list(candidates)
+            created_at__gte=since,
+        )
+        if until is not None:
+            candidates = candidates.filter(created_at__lt=until)
+        rows = list(candidates.order_by("pk").values_list("pk", "additional_info"))
         changes = plan_policy_changes(rows)
 
-        self.stdout.write(f"対象 EventDetail: {len(rows)}件 (dry_run={dry_run})")
+        self.stdout.write(
+            f"対象 EventDetail: {len(rows)}件 "
+            f"(since={since.isoformat()}, until={until.isoformat() if until else '-'}, dry_run={dry_run})"
+        )
         for policy, pks in sorted(changes.items()):
             self.stdout.write(f"  public -> {policy}: {len(pks)}件 ids={pks}")
         changed = sum(len(pks) for pks in changes.values())

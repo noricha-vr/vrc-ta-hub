@@ -2,11 +2,13 @@
 
 旧既定テンプレートには「【動画撮影】YouTube公開 / Discord限定 / OK / NG」の行があり、
 発表者は不要な選択肢を消して回答していた。その回答を EventDetail.recording_policy に移す。
-event の migration 0032 と management command ``backfill_recording_policy`` が共有するため、
+management command ``backfill_recording_policy`` が使う。event の migration 0032 は
+この時点の判定をコピーして固定している（判定を変える時は 0032 を変えない）。
 モデルや Django の設定を import しない（値は文字列で返す）。
 
 判定の順番（迷ったら撮らない・公開しない側へ倒す）:
-1. 4 つの選択肢のうち 3 つ以上がそのまま残っている（テンプレのまま未回答）→ allowed
+1. 4 つの選択肢のうち 3 つ以上がそのまま残っている（テンプレのまま未回答）→ 選択肢を
+   1 つずつ取り除いた残りに拒否を表す語があれば forbidden、無ければ allowed
 2. 拒否を表す語（NG、不可、禁止、しない、ダメ、お断り、×、NO など）がある → forbidden
 3. 選択肢が 1 つだけ → YouTube公開→public、Discord限定→allowed、OK→allowed
 4. それ以外 → allowed
@@ -60,6 +62,13 @@ def _recording_answer(text):
     return ''
 
 
+def _without_options(answer):
+    """回答から各選択肢を 1 回ずつ取り除く（テンプレの並びを消し、書き足した語だけ残す）。"""
+    for pattern, _policy in OPTION_PATTERNS:
+        answer = pattern.sub(' ', answer, count=1)
+    return answer
+
+
 def policy_from_additional_info(text):
     """自由記述から撮影の扱い（'public' / 'allowed' / 'forbidden'）を決める。
 
@@ -72,6 +81,8 @@ def policy_from_additional_info(text):
         return None
     found = [policy for pattern, policy in OPTION_PATTERNS if pattern.search(answer)]
     if len(found) >= UNANSWERED_OPTION_COUNT:
+        if REFUSAL_PATTERN.search(_without_options(answer)):
+            return FORBIDDEN
         return FALLBACK_POLICY
     if REFUSAL_PATTERN.search(answer):
         return FORBIDDEN

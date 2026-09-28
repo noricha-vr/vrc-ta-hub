@@ -13,9 +13,14 @@
 #   gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --wait
 #
 # 撮影の扱い（recording_policy）の当て直し: デプロイのトラフィックが 100% になった後に一度流す。
-# デプロイ中に旧リビジョンが受けた申請の【動画撮影】の回答を拾う（冪等。先に --dry-run で件数を見る）。
-#   gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --wait --args=manage.py,backfill_recording_policy,--dry-run
-#   gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --wait --args=manage.py,backfill_recording_policy
+# デプロイ中に旧リビジョンが受けた申請の【動画撮影】の回答を拾う（冪等）。--since には event 0032 を
+# 流した時刻を渡す。execute --args は使えないので Job の引数を差し替えて実行し、最後に必ず戻す。
+#   gcloud run jobs update vrc-ta-hub-migrate --region=asia-northeast1 --project=vrc-ta-hub \
+#     --args='^|^manage.py|backfill_recording_policy|--since|<ISO 日時>|--dry-run'
+#   gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --project=vrc-ta-hub --wait
+#   （ログで件数を確かめたら --dry-run を外して update → execute をもう一度）
+#   gcloud run jobs update vrc-ta-hub-migrate --region=asia-northeast1 --project=vrc-ta-hub \
+#     --args='^|^manage.py|migrate|--noinput'
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-vrc-ta-hub}"
