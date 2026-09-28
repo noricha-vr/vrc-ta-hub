@@ -3,6 +3,7 @@ import logging
 from django.utils import timezone
 from rest_framework import authentication
 from rest_framework import exceptions
+from rest_framework.permissions import SAFE_METHODS
 
 from user_account.models import APIKey
 
@@ -13,6 +14,8 @@ logger = logging.getLogger(__name__)
 # 失敗の内訳は logger 側にだけ残す。
 INVALID_API_KEY_CODE = 'invalid_api_key'
 INVALID_API_KEY_MESSAGE = '無効なAPIキーです。'
+READ_ONLY_API_KEY_CODE = 'read_only_api_key'
+READ_ONLY_API_KEY_MESSAGE = 'このAPIキーは読み取り専用です。'
 
 
 class APIKeyAuthentication(authentication.BaseAuthentication):
@@ -50,6 +53,11 @@ class APIKeyAuthentication(authentication.BaseAuthentication):
             raise self._fail('expired_or_ip_denied')
         if not key_obj.user.is_active:
             raise self._fail('inactive_user')
+        # 読み取り専用のキーは GET / HEAD / OPTIONS だけ通す。キーが有効なことは
+        # 上で確かめ終わっているので、ここは 401 でなく 403 で返す。
+        if key_obj.scope == APIKey.SCOPE_READ and request.method not in SAFE_METHODS:
+            logger.warning("API key write rejected: read-only scope")
+            raise exceptions.PermissionDenied(READ_ONLY_API_KEY_MESSAGE, code=READ_ONLY_API_KEY_CODE)
 
         # すべての検証通過後に last_used を更新（失敗キーの観測を残さない）
         key_obj.last_used = timezone.now()
