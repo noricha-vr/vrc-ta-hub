@@ -131,6 +131,19 @@ class LTApplicationEditFormRecordingPolicyTest(TestCase):
         self.detail.refresh_from_db()
         self.assertEqual(self.detail.recording_policy, RecordingPolicy.ALLOWED)
 
+    def test_edit_page_shows_radios(self):
+        """申請者の編集画面に撮影のラジオボタンが出る。"""
+        applicant = make_discord_linked_user(user_name='edit_applicant', email='edit_applicant@example.com')
+        self.detail.applicant = applicant
+        self.detail.save(update_fields=['applicant'])
+        self.client.force_login(applicant)
+
+        response = self.client.get(reverse('account:lt_application_edit', kwargs={'pk': self.detail.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-field="recording_policy"')
+        self.assertContains(response, '禁止（撮影しない）')
+
     def test_missing_value_keeps_current_policy(self):
         """選択が送られなかった時は今の値を変えない。"""
         self.detail.recording_policy = RecordingPolicy.FORBIDDEN
