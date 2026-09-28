@@ -48,18 +48,14 @@ REFUSAL_PATTERN = re.compile(
 def _recording_answer(text):
     """【動画撮影】の回答部分を返す。行が無ければ None。
 
-    回答は見出しの後ろから次の【 または行末まで。見出しの行が空で
-    次の行に書かれている場合も拾う（次の【 より前の最初の空でない行）。
+    回答は見出しの直後から次の【（無ければ末尾）までの全行。
+    次の行以降に書き足された回答も判定に含める。
     """
     normalized = unicodedata.normalize('NFKC', text).casefold()
     match = RECORDING_MARKER.search(normalized)
     if match is None:
         return None
-    section = normalized[match.end():].split('【', 1)[0]
-    for line in section.splitlines():
-        if line.strip():
-            return line
-    return ''
+    return normalized[match.end():].split('【', 1)[0]
 
 
 def _without_options(answer):

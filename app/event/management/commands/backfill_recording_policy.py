@@ -5,6 +5,9 @@ migration 0032 と同じ判定を、recording_policy が public のままで自�
 （migration 0032 の後に入ったもの）を拾うため、デプロイ完了後に一度流す。
 --since には 0032 を流した時刻を渡す。それより前の発表は 0032 が判定済みで、
 新しい画面で明示的に「公開」を選んだ発表を古い自由記述で上書きしないため。
+
+期間内の public の発表で、自由記述に拒否の回答が残っていれば forbidden にする。
+新しい画面で公開を選んでいても、答えが食い違っている時は撮らない側に倒す（意図した仕様）。
 """
 
 from django.core.management.base import BaseCommand, CommandError
@@ -29,7 +32,8 @@ def _parse_iso_datetime(value):
 class Command(BaseCommand):
     help = (
         "recording_policy が public で追加情報に【動画撮影】がある発表に、"
-        "回答から決めた撮影の扱いを当て直します。"
+        "回答から決めた撮影の扱いを当て直します。拒否の回答が残っていれば、"
+        "画面で公開を選んでいても撮らない側（forbidden）に倒します（意図した仕様）。"
     )
 
     def add_arguments(self, parser):

@@ -29,7 +29,8 @@ SERVICE_NAME="${SERVICE_NAME:-vrc-ta-hub}"
 JOB_NAME="${JOB_NAME:-vrc-ta-hub-migrate}"
 
 # Job のデフォルト引数は「全アプリの migrate」。個別 migration を当てる時は
-# `gcloud run jobs execute ... --args=...` で実行時に上書きする。
+# `gcloud run jobs update ... --args=...` で差し替えて実行し、終わったら戻す
+# （execute --args による実行時上書きはこの環境では使えない。docs/deployment.md 参照）。
 # 区切りに ^|^ を使うのは、既定のカンマ区切りだと "manage.py migrate" のような
 # カンマ非依存の引数列が壊れる（manage.py,migrate が別扱いされない）ため。
 DEFAULT_ARGS='^|^manage.py|migrate|--noinput'

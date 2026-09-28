@@ -28,6 +28,8 @@ PARITY_INPUTS = (
     '【動画撮影】OK', '【動画撮影】', '【動画撮影】おまかせします', '【動画撮影】YouTube公開 / OK',
     '【動画撮影】\nNG\n\n【対象者】初心者', '【動画撮影】YouTube公開【スライド公開】NG',
     '【動画撮影】booking 次第、nothing',
+    LEGACY_LINE + '\n撮影不可\n\n【対象者】初心者', LEGACY_LINE + '\n\n【対象者】初心者',
+    '【動画撮影】\nNG', '【動画撮影】YouTube公開\nやっぱり撮影しないでください',
 )
 
 
@@ -105,6 +107,18 @@ class PolicyFromAdditionalInfoTest(SimpleTestCase):
     def test_answer_on_next_line(self):
         """見出しの次の行に書かれた回答も拾う。"""
         self.assertEqual(policy_from_additional_info('【動画撮影】\nNG\n\n【対象者】初心者'), 'forbidden')
+        self.assertEqual(policy_from_additional_info('【動画撮影】\nNG'), 'forbidden')
+
+    def test_answer_covers_all_lines_until_next_heading(self):
+        """回答は次の【までの全行。後の行に書き足した拒否も拾う。"""
+        cases = {
+            LEGACY_LINE + '\n撮影不可\n\n【対象者】初心者': 'forbidden',
+            LEGACY_LINE + '\n\n【対象者】初心者': 'allowed',
+            '【動画撮影】YouTube公開\nやっぱり撮影しないでください': 'forbidden',
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(policy_from_additional_info(text), expected)
 
     def test_does_not_match_inside_words(self):
         """英単語の途中の ok / ng / no には反応しない。"""
