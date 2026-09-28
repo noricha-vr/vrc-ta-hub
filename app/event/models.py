@@ -419,6 +419,19 @@ class EventDetail(models.Model):
         help_text='登壇者が入力した追加情報'
     )
 
+    class RecordingPolicy(models.TextChoices):
+        FORBIDDEN = 'forbidden', '禁止（撮影しない）'
+        ALLOWED = 'allowed', '許可（撮影するが公開しない）'
+        PUBLIC = 'public', '公開（撮影して YouTube で公開）'
+
+    # 自動撮影の可否。API で公開し、録画ツールがこの値を見て撮影・公開を判断する。
+    recording_policy = models.CharField(
+        '撮影',
+        max_length=20,
+        choices=RecordingPolicy.choices,
+        default=RecordingPolicy.PUBLIC,
+    )
+
     # soft delete 用マネージャ。`objects` は既存挙動互換（生存のみ）、
     # `all_objects` は削除済みを含む全件。Django は宣言順の最初の Manager を
     # default_manager として扱うため、`objects` を先に置く。

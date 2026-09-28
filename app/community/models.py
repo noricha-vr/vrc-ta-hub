@@ -124,6 +124,11 @@ class Community(models.Model):
         default=30,
         help_text='集会開始時刻から何分後にLTを開始するか（発表申請時のデフォルト値）'
     )
+    recording_allowed = models.BooleanField(
+        '撮影を許可する',
+        default=True,
+        help_text='オフにすると、この集会の発表はハブの自動撮影の対象になりません',
+    )
 
     class Meta:
         verbose_name = '集会'

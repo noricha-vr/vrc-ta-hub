@@ -57,6 +57,10 @@
                                     <th scope="row" class="bg-light">発表の持ち時間</th>
                                     <td>{{ event_detail.duration }}分</td>
                                 </tr>
+                                <tr>
+                                    <th scope="row" class="bg-light">撮影</th>
+                                    <td>{{ event_detail.get_recording_policy_display }}</td>
+                                </tr>
                                 {# 代理申請でのみ意味がある情報なので、発表者と同名なら出さない #}
                                 {% if event_detail.applicant and event_detail.applicant.display_label != event_detail.speaker %}
                                 <tr>

@@ -111,6 +111,12 @@
                                             {% if field.help_text %}
                                                 <div class="form-text ms-5">{{ field.help_text }}</div>
                                             {% endif %}
+                                        {% elif field.name == 'recording_policy' %}
+                                            <label class="form-label">{{ field.label }}</label>
+                                            {% include "event/includes/recording_policy_radios.html" with field=field %}
+                                            {% if field.help_text %}
+                                                <div class="form-text">{{ field.help_text }}</div>
+                                            {% endif %}
                                         {% else %}
                                             {{ field.label_tag }}
                                             {% if field.name == 'speaker' %}
@@ -205,18 +211,18 @@
             // フィールドの表示設定
             const fieldVisibility = {
                 'LT': {
-                    show: ['theme', 'speaker', 'start_time', 'duration', 'slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'],
+                    show: ['theme', 'speaker', 'start_time', 'duration', 'slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article', 'recording_policy'],
                     hide: [],
                     optional: ['slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'] // 開催前は折りたたみ対象
                 },
                 'SPECIAL': {
                     show: ['h1', 'thumbnail_image', 'contents', 'start_time'],
-                    hide: ['theme', 'speaker', 'duration', 'slide_url', 'slide_file', 'youtube_url'],
+                    hide: ['theme', 'speaker', 'duration', 'recording_policy', 'slide_url', 'slide_file', 'youtube_url'],
                     optional: []
                 },
                 'BLOG': {
                     show: ['h1', 'thumbnail_image', 'contents'],
-                    hide: ['theme', 'speaker', 'start_time', 'duration', 'slide_url', 'slide_file', 'youtube_url'],
+                    hide: ['theme', 'speaker', 'start_time', 'duration', 'recording_policy', 'slide_url', 'slide_file', 'youtube_url'],
                     optional: []
                 }
             };
