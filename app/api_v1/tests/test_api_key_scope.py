@@ -52,6 +52,24 @@ class APIKeyScopeTest(TestCase):
         self.assertEqual(self.detail.theme, '元のテーマ')
         self.assertIsNone(self.detail.deleted_at)
 
+    def test_rejection_has_code_and_does_not_touch_last_used(self):
+        key, raw_key = APIKey.create_with_raw_key(user=self.owner, name='read のキー')
+        key.scope = APIKey.SCOPE_READ
+        key.save(update_fields=['scope'])
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f'Bearer {raw_key}')
+
+        response = client.patch(self.detail_url, {'theme': '書き換え'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data['code'], 'read_only_api_key')
+        key.refresh_from_db()
+        self.assertIsNone(key.last_used)
+
+    def test_unknown_scope_cannot_write(self):
+        response = self._client('admin').patch(self.detail_url, {'theme': '書き換え'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_write_key_can_write(self):
         response = self._client(APIKey.SCOPE_WRITE).patch(self.detail_url, {'theme': '書き換え'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)

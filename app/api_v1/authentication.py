@@ -53,9 +53,10 @@ class APIKeyAuthentication(authentication.BaseAuthentication):
             raise self._fail('expired_or_ip_denied')
         if not key_obj.user.is_active:
             raise self._fail('inactive_user')
-        # 読み取り専用のキーは GET / HEAD / OPTIONS だけ通す。キーが有効なことは
-        # 上で確かめ終わっているので、ここは 401 でなく 403 で返す。
-        if key_obj.scope == APIKey.SCOPE_READ and request.method not in SAFE_METHODS:
+        # 書き込みは scope=write のキーだけ。読み取り専用（や想定外の値）のキーは
+        # GET / HEAD / OPTIONS だけ通す。キーが有効なことは上で確かめ終わっているので、
+        # ここは 401 でなく 403 で返す。
+        if key_obj.scope != APIKey.SCOPE_WRITE and request.method not in SAFE_METHODS:
             logger.warning("API key write rejected: read-only scope")
             raise exceptions.PermissionDenied(READ_ONLY_API_KEY_MESSAGE, code=READ_ONLY_API_KEY_CODE)
 
