@@ -1,15 +1,15 @@
 """recording_policy の DB 既定値と、既存の自由記述からの移行（event 0032）のテスト。"""
 
-from importlib import import_module
+from io import StringIO
 
+from django.core.management import call_command
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
-from django.test import SimpleTestCase, TransactionTestCase
+from django.test import SimpleTestCase, TestCase, TransactionTestCase
 
-from tests.factories import make_community, make_event
-
-BACKFILL = import_module('event.migrations.0032_backfill_recording_policy_from_additional_info')
-policy_from_additional_info = BACKFILL.policy_from_additional_info
+from event.models import EventDetail
+from event.recording_policy_answers import plan_policy_changes, policy_from_additional_info
+from tests.factories import make_community, make_event, make_event_detail
 
 LEGACY_LINE = '【動画撮影】YouTube公開 / Discord限定 / OK / NG'
 
@@ -21,58 +21,86 @@ def _info(recording_line):
 class PolicyFromAdditionalInfoTest(SimpleTestCase):
     """自由記述の【動画撮影】の回答から撮影の扱いを決める純粋関数。"""
 
-    def test_single_answer_maps_to_policy(self):
-        """選択肢が 1 つだけ残っていれば対応する値になる。"""
-        cases = {
-            '【動画撮影】YouTube公開': 'public',
-            '【動画撮影】Discord限定': 'allowed',
-            '【動画撮影】OK': 'allowed',
-            '【動画撮影】NG': 'forbidden',
-        }
+    def _assert_cases(self, cases):
         for line, expected in cases.items():
             with self.subTest(line=line):
                 self.assertEqual(policy_from_additional_info(_info(line)), expected)
 
-    def test_notation_variants(self):
-        """全角・小文字・空白の表記ゆれを吸収する。"""
-        cases = {
+    def test_template_left_as_is_is_allowed(self):
+        """選択肢が 3 つ以上そのまま残っている（未回答）なら allowed。"""
+        self._assert_cases({
+            LEGACY_LINE: 'allowed',
+            '【動画撮影】YouTube公開 / OK / NG': 'allowed',
+        })
+
+    def test_refusal_words_are_forbidden(self):
+        """拒否を表す語があれば forbidden（選択肢が 1〜2 個でも優先）。"""
+        self._assert_cases({
+            '【動画撮影】NG': 'forbidden',
             '【動画撮影】ＮＧ': 'forbidden',
             '【動画撮影】ng です': 'forbidden',
-            '【動画撮影】 ｏｋ': 'allowed',
-            '【動画撮影】youtube 公開': 'public',
+            '【動画撮影】撮影不可': 'forbidden',
+            '【動画撮影】撮影しないでください': 'forbidden',
+            '【動画撮影】撮影NG、YouTube公開もNG': 'forbidden',
+            '【動画撮影】YouTube公開 / NG': 'forbidden',
+            '【動画撮影】OK / NG': 'forbidden',
+            '【動画撮影】禁止': 'forbidden',
+            '【動画撮影】ﾀﾞﾒです': 'forbidden',
+            '【動画撮影】だめ': 'forbidden',
+            '【動画撮影】お断りします': 'forbidden',
+            '【動画撮影】×': 'forbidden',
+            '【動画撮影】✕': 'forbidden',
+            '【動画撮影】No': 'forbidden',
             '【 動画撮影 】NG': 'forbidden',
-        }
-        for line, expected in cases.items():
-            with self.subTest(line=line):
-                self.assertEqual(policy_from_additional_info(_info(line)), expected)
+        })
 
-    def test_unanswered_or_ambiguous_falls_back_to_allowed(self):
-        """未回答（選択肢が 2 つ以上残る）・判別できない回答は安全側の allowed。"""
-        for line in (LEGACY_LINE, '【動画撮影】OK / NG', '【動画撮影】', '【動画撮影】おまかせします'):
-            with self.subTest(line=line):
-                self.assertEqual(policy_from_additional_info(_info(line)), 'allowed')
+    def test_single_option_maps_to_policy(self):
+        """拒否の語が無く選択肢が 1 つだけなら対応する値になる。"""
+        self._assert_cases({
+            '【動画撮影】YouTube公開': 'public',
+            '【動画撮影】youtube 公開': 'public',
+            '【動画撮影】Discord限定': 'allowed',
+            '【動画撮影】OK': 'allowed',
+            '【動画撮影】 ｏｋ': 'allowed',
+        })
+
+    def test_other_answers_fall_back_to_allowed(self):
+        """空・判別できない・選択肢が 2 つ残る回答は安全側の allowed。"""
+        self._assert_cases({
+            '【動画撮影】': 'allowed',
+            '【動画撮影】おまかせします': 'allowed',
+            '【動画撮影】YouTube公開 / OK': 'allowed',
+        })
 
     def test_answer_ends_at_next_heading(self):
-        """回答は次の【まで。後ろの項目の OK / NG を拾わない。"""
-        text = '【動画撮影】NG【スライド公開】OK'
-
-        self.assertEqual(policy_from_additional_info(text), 'forbidden')
+        """回答は次の【まで。後ろの項目の NG を拾わない。"""
+        self.assertEqual(policy_from_additional_info('【動画撮影】YouTube公開【スライド公開】NG'), 'public')
 
     def test_answer_on_next_line(self):
         """見出しの次の行に書かれた回答も拾う。"""
-        text = '【動画撮影】\nNG\n\n【対象者】初心者'
-
-        self.assertEqual(policy_from_additional_info(text), 'forbidden')
+        self.assertEqual(policy_from_additional_info('【動画撮影】\nNG\n\n【対象者】初心者'), 'forbidden')
 
     def test_does_not_match_inside_words(self):
-        """英単語の途中の ok / ng には反応しない。"""
-        self.assertEqual(policy_from_additional_info('【動画撮影】booking 次第'), 'allowed')
+        """英単語の途中の ok / ng / no には反応しない。"""
+        self.assertEqual(policy_from_additional_info('【動画撮影】booking 次第、nothing'), 'allowed')
 
     def test_no_recording_line_returns_none(self):
         """【動画撮影】の行が無ければ変更しない（None）。"""
         for text in ('', None, '【発表概要】\n\n【スライド公開】NG'):
             with self.subTest(text=text):
                 self.assertIsNone(policy_from_additional_info(text))
+
+    def test_plan_groups_changes_and_skips_public(self):
+        """変更計画は public 以外だけを扱いごとにまとめる。"""
+        rows = [
+            (1, _info('【動画撮影】NG')),
+            (2, _info(LEGACY_LINE)),
+            (3, _info('【動画撮影】YouTube公開')),
+            (4, '行なし'),
+            (5, _info('【動画撮影】不可')),
+        ]
+
+        self.assertEqual(plan_policy_changes(rows), {'forbidden': [1, 5], 'allowed': [2]})
 
 
 class BackfillRecordingPolicyMigrationTest(TransactionTestCase):
@@ -134,3 +162,47 @@ class RecordingPolicyDbDefaultTest(TransactionTestCase):
 
         from event.models import EventDetail
         self.assertEqual(EventDetail.all_objects.get(pk=pk).recording_policy, 'public')
+
+
+class BackfillRecordingPolicyCommandTest(TestCase):
+    """デプロイ後に当て直す management command。"""
+
+    def setUp(self):
+        self.event = make_event(make_community(name='再実行の集会'))
+        self.refused = make_event_detail(self.event, theme='拒否', additional_info=_info('【動画撮影】撮影不可'))
+        self.unanswered = make_event_detail(self.event, theme='未回答', additional_info=_info(LEGACY_LINE))
+        self.public_answer = make_event_detail(
+            self.event, theme='公開', additional_info=_info('【動画撮影】YouTube公開'),
+        )
+        # 既に選び直された発表（public 以外）は回答と食い違っても触らない
+        self.chosen = make_event_detail(
+            self.event, theme='選択済み', additional_info=_info('【動画撮影】NG'),
+            recording_policy=EventDetail.RecordingPolicy.ALLOWED,
+        )
+
+    def _run(self, *args):
+        out = StringIO()
+        call_command('backfill_recording_policy', *args, stdout=out)
+        return out.getvalue()
+
+    def _policies(self):
+        return dict(EventDetail.all_objects.values_list('theme', 'recording_policy'))
+
+    def test_dry_run_reports_without_changing(self):
+        """--dry-run は件数と変更内容を出すだけで書き換えない。"""
+        output = self._run('--dry-run')
+
+        self.assertIn('対象 EventDetail: 3件', output)
+        self.assertIn(f'public -> forbidden: 1件 ids=[{self.refused.pk}]', output)
+        self.assertIn(f'public -> allowed: 1件 ids=[{self.unanswered.pk}]', output)
+        self.assertEqual(set(self._policies().values()), {'public', 'allowed'})
+        self.assertEqual(self._policies()['拒否'], 'public')
+
+    def test_applies_only_to_public_rows_and_is_idempotent(self):
+        """public の発表だけ当て直し、2 回目は何も変えない。"""
+        self._run()
+
+        self.assertEqual(self._policies(), {
+            '拒否': 'forbidden', '未回答': 'allowed', '公開': 'public', '選択済み': 'allowed',
+        })
+        self.assertIn('変更はありません', self._run())

@@ -11,6 +11,11 @@
 #   ./scripts/create_migrate_job.sh                 # 稼働中リビジョンのイメージで作成/更新
 #   IMAGE=<explicit image> ./scripts/create_migrate_job.sh
 #   gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --wait
+#
+# 撮影の扱い（recording_policy）の当て直し: デプロイのトラフィックが 100% になった後に一度流す。
+# デプロイ中に旧リビジョンが受けた申請の【動画撮影】の回答を拾う（冪等。先に --dry-run で件数を見る）。
+#   gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --wait --args=manage.py,backfill_recording_policy,--dry-run
+#   gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --wait --args=manage.py,backfill_recording_policy
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-vrc-ta-hub}"
