@@ -1,8 +1,10 @@
-from datetime import date, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
+from unittest import mock
 
 from django.core.cache import cache
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from community.models import Community
 from event.models import Event, EventDetail
@@ -10,12 +12,24 @@ from event.views.list import EventDetailPastList
 
 # 上限値をビュー側の定数から参照し、値を変えてもテストが追従するようにする
 RATE_LIMIT = EventDetailPastList.RATE_LIMIT_MAX_REQUESTS
+WINDOW = EventDetailPastList.RATE_LIMIT_WINDOW_SECONDS
+
+
+def _just_before_window_boundary():
+    """いまの枠の終わる 1 秒前。実時間で数えると、ここで枠をまたいで回数がリセットされうる。"""
+    now = int(timezone.now().timestamp())
+    return datetime.fromtimestamp(now - now % WINDOW + WINDOW - 1, tz=UTC)
 
 
 @override_settings(ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])
 class EventDetailHistoryRateLimitTest(TestCase):
     def setUp(self):
         cache.clear()
+        # 窓は実時間の 10 分刻み。テスト中に境界をまたぐと回数がリセットされて落ちるので、
+        # 時計を「境界の 1 秒前」に止める（最もまたぎやすい時刻でも安定することを保証する）。
+        clock = mock.patch('event.views.list.timezone.now', return_value=_just_before_window_boundary())
+        clock.start()
+        self.addCleanup(clock.stop)
         self.client = Client()
         self.url = reverse('event:detail_history')
 
