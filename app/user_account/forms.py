@@ -7,6 +7,8 @@ from django.core.validators import FileExtensionValidator
 from django.http import HttpRequest
 
 from allauth.account.adapter import get_adapter
+# 登録済みアドレスへの応答は allauth の SignupForm と同じ内部フローを使う（65.18.0 に固定）。
+from allauth.account.internal.flows.email_verification import add_email_verification_sent_message
 from allauth.core import ratelimit
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 
@@ -21,6 +23,8 @@ from .vrchat import normalize_vrchat_user_id
 X_HANDLE_RE = re.compile(r'^[A-Za-z0-9_]{1,15}\Z')
 X_URL_PREFIX_RE = re.compile(r'^https?://(?:www\.)?(?:x|twitter)\.com/', re.IGNORECASE)
 EMAIL_CHANGE_RATE_LIMIT_ACTION = 'manage_email'
+# 確認メール・登録済みの案内メール・ログイン時の再送が共有する、宛先 email 単位の送信制限
+CONFIRM_EMAIL_RATE_LIMIT_ACTION = 'confirm_email'
 
 
 def consume_email_change_rate_limit(request: HttpRequest, user: CustomUser) -> bool:
@@ -449,17 +453,31 @@ class CustomSocialSignupForm(SocialSignupForm):
         self.order_fields(['email', 'user_name'])
 
     def clean_email(self):
-        """メールアドレスの重複チェック.
+        """登録済みかどうかは記録だけして、エラーにはしない（登録有無を応答に出さない）。
 
-        大文字小文字を区別せずに重複をチェックする。
-        他ユーザーのメール変更で生まれた確認待ちの行は重複に数えない。
+        大文字小文字を区別せずに判定し、他ユーザーのメール変更で生まれた確認待ちの行は登録済みに数えない。
+        allauth の validate_unique_email は確認待ちの行も衝突に数えるため、super() は呼ばない。
         """
         email = self.cleaned_data.get('email')
         if email:
             email = email.lower()
-            if is_email_in_use(email):
-                raise forms.ValidationError(
-                    'このメールアドレスは既に登録されています。'
-                    '既存のアカウントにログインしてから、Discord連携を行ってください。'
-                )
+            self.account_already_exists = is_email_in_use(email)
         return email
+
+    def try_save(self, request):
+        """登録済みならアカウントも Discord 連携も作らず、案内メールを送って新規登録と同じ応答にする。
+
+        登録済みの時の送信と応答は allauth（prevent_enumeration）に任せる。allauth は宛先ごとの
+        送信制限に当たると「送信しました」の表示も省くため、ローカル登録と同じく制限中も表示を出す。
+        """
+        email = self.cleaned_data['email']
+        mail_throttled = not ratelimit.consume(
+            request,
+            action=CONFIRM_EMAIL_RATE_LIMIT_ACTION,
+            key=email,
+            dry_run=True,
+        )
+        user, response = super().try_save(request)
+        if mail_throttled:
+            add_email_verification_sent_message(request, email, signup=True)
+        return user, response

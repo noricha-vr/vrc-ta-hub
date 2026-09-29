@@ -25,6 +25,7 @@ from user_account.adapters import ConfirmationEmailDeliveryError
 from user_account.discord_oauth import is_discord_oauth_available
 from user_account.email_ownership import is_email_in_use
 from user_account.forms import (
+    CONFIRM_EMAIL_RATE_LIMIT_ACTION,
     BootstrapAuthenticationForm,
     BootstrapPasswordChangeForm,
     LocalSignupForm,
@@ -34,7 +35,6 @@ from user_account.login_redirect import get_default_login_redirect_url
 logger = logging.getLogger(__name__)
 
 SIGNUP_RATE_LIMIT_ACTION = 'signup'
-CONFIRM_EMAIL_RATE_LIMIT_ACTION = 'confirm_email'
 SIGNUP_MAIL_FAILURE_MESSAGE = (
     '登録は完了しました。確認メールの送信に失敗したため、ログイン画面から再送してください。'
 )

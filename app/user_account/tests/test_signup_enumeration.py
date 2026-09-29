@@ -1,4 +1,4 @@
-"""ローカル登録のメール列挙耐性・送信制限・確認待ち行の先取り対策を確認する（Issue #609）。"""
+"""登録のメール列挙耐性・送信制限・確認待ち行の先取り対策を確認する（ローカル登録 #609・Discord 登録フォーム #652）。"""
 
 import re
 from unittest.mock import MagicMock, patch
@@ -17,13 +17,14 @@ from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from allauth.account.models import EmailAddress, EmailConfirmationHMAC
+from allauth.core import ratelimit
 from allauth.core.context import request_context
 from allauth.socialaccount.internal.flows.signup import process_signup, signup_by_form
 from allauth.socialaccount.models import SocialAccount, SocialLogin
 
 from tests.factories import make_discord_linked_user, make_user, make_user_without_email_address
 from user_account.adapters import CustomAccountAdapter, CustomSocialAccountAdapter
-from user_account.forms import CustomSocialSignupForm, CustomUserChangeForm
+from user_account.forms import CONFIRM_EMAIL_RATE_LIMIT_ACTION, CustomSocialSignupForm, CustomUserChangeForm
 from user_account.tests.utils import TEST_SOCIALACCOUNT_PROVIDERS, TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS
 
 User = get_user_model()
@@ -37,6 +38,7 @@ CONFIRM_EMAIL_SENT_PATH = '/accounts/confirm-email/'
 LOGIN_PATH = '/account/login/'
 PASSWORD_RESET_PATH = '/accounts/password/reset/'
 ACCOUNT_EXISTS_MAIL_PHRASE = '新しいアカウントは作成していません'
+DISCORD_LINK_MAIL_PHRASE = '既存のアカウントにログインしてから、Discord連携を行ってください'
 RESET_KEY_PATH_RE = re.compile(r'(/accounts/password/reset/key/[\w-]+/)')
 # 本番の MySQL には作られない allauth の条件付き unique 制約（SQLite のテスト DB にだけ存在する）
 PARTIAL_UNIQUE_INDEXES = ('unique_verified_email', 'unique_primary_email')
@@ -306,13 +308,15 @@ class PendingEmailChangeClaimTests(CacheResetMixin, TestCase):
     def test_discord_signup_form_accepts_an_address_only_pending_elsewhere(self):
         form = self._social_signup_form(self.PENDING_EMAIL)
         self.assertTrue(form.is_valid(), form.errors)
+        self.assertFalse(form.account_already_exists)
 
-    def test_discord_signup_form_rejects_a_verified_address_of_another_user(self):
+    def test_discord_signup_form_treats_a_verified_address_of_another_user_as_registered(self):
+        """エラーにはせず登録済みとして記録し、案内メールの経路へ回す（#652）。"""
         owner = make_user('verified_elsewhere', 'verified-elsewhere@example.com')
         EmailAddress.objects.create(user=owner, email='second-verified@example.com', verified=True, primary=False)
         form = self._social_signup_form('second-verified@example.com')
-        self.assertFalse(form.is_valid())
-        self.assertIn('このメールアドレスは既に登録されています', form.errors['email'][0])
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertTrue(form.account_already_exists)
 
     def test_discord_auto_signup_goes_to_the_form_when_only_pending_elsewhere(self):
         """allauth の自動登録判定は確認待ち行も衝突に数えるため、フォームへ回す。"""
@@ -388,6 +392,123 @@ class DiscordSignupWithPendingChangeTests(CacheResetMixin, TestCase):
         self.assertTrue(address.verified)
         self.assertTrue(address.primary)
         self.assertFalse(self.pending.verified)
+
+
+@override_settings(
+    EMAIL_BACKEND=MAIL_AND_LOCAL_SIGNUP['EMAIL_BACKEND'],
+    SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS,
+)
+class DiscordSignupFormResponseUniformityTests(CacheResetMixin, TestCase):
+    """Discord 登録フォームの送信でも、登録済みかどうかで応答が変わらないことを確認する（Issue #652）。
+
+    Discord のメールが未取得で自動登録にならず、フォームでメールアドレスを入力する経路。
+    """
+
+    def _submit(self, email, uid, user_name='discord_signup'):
+        """登録フォーム待ちの Discord ログインをセッションに置き、フォームを送信する。"""
+        provider = CustomSocialAccountAdapter().get_provider(RequestFactory().get('/'), 'discord')
+        sociallogin = SocialLogin(
+            provider=provider,
+            user=User(user_name=user_name, display_name=user_name),
+            account=SocialAccount(provider='discord', uid=uid, extra_data={'username': user_name}),
+        )
+        client = Client()
+        session = client.session
+        session['socialaccount_sociallogin'] = sociallogin.serialize()
+        session.save()
+        return client.post(reverse('socialaccount_signup'), {'email': email, 'user_name': user_name})
+
+    def _new_signup_baseline(self):
+        email = 'discord-baseline@example.com'
+        observed = observed_response(self._submit(email, 'baseline-uid'), email)
+        self.assertEqual(observed[:2], (302, CONFIRM_EMAIL_SENT_PATH))
+        self.assertEqual(len(observed[3]), 1)
+        return observed
+
+    @staticmethod
+    def _add_verified_secondary_address(email):
+        owner = make_user('secondary_owner', 'secondary-owner@example.com')
+        EmailAddress.objects.create(user=owner, email=email, verified=True, primary=False)
+
+    def _exhaust_confirm_email_limit(self, email):
+        """その宛先へ直前にメールを送った状態（宛先単位の送信制限を使い切った状態）にする。"""
+        consumed = ratelimit.consume(RequestFactory().post('/'), action=CONFIRM_EMAIL_RATE_LIMIT_ACTION, key=email)
+        self.assertTrue(consumed)
+
+    def test_registered_addresses_get_the_new_signup_response_and_a_guide_mail(self):
+        """主アドレスと他ユーザーの確認済みの副アドレスで、新規と同じ応答にして案内メールだけ送る。"""
+        baseline = self._new_signup_baseline()
+        registered_states = (
+            ('verified-primary@example.com', lambda email: make_user('verified_primary', email)),
+            ('unverified-primary@example.com', lambda email: make_unverified_user('unverified_primary', email)),
+            ('verified-secondary@example.com', self._add_verified_secondary_address),
+        )
+        for index, (email, make_registered) in enumerate(registered_states):
+            with self.subTest(email=email):
+                make_registered(email)
+                uid = f'registered-uid-{index}'
+                user_count = User.objects.count()
+                sent_before = len(mail.outbox)
+
+                response = self._submit(email, uid)
+
+                self.assertEqual(observed_response(response, email), baseline)
+                self.assertEqual(User.objects.count(), user_count)
+                self.assertFalse(SocialAccount.objects.filter(provider='discord', uid=uid).exists())
+                self.assertEqual(len(mail.outbox), sent_before + 1)
+                guide_mail = mail.outbox[-1]
+                self.assertEqual(guide_mail.to, [email])
+                self.assertIn(ACCOUNT_EXISTS_MAIL_PHRASE, guide_mail.body)
+                self.assertIn(DISCORD_LINK_MAIL_PHRASE, guide_mail.body)
+                self.assertIn(LOGIN_PATH, guide_mail.body)
+
+    def test_unregistered_address_signs_up_as_before(self):
+        """未登録なら今までどおりアカウントと Discord 連携を作り、確認メールを送る。"""
+        email = 'discord-newcomer@example.com'
+
+        response = self._submit(email, 'newcomer-uid', user_name='discord_newcomer')
+
+        self.assertRedirects(response, CONFIRM_EMAIL_SENT_PATH, fetch_redirect_response=False)
+        user = User.objects.get(email=email)
+        self.assertEqual(user.user_name, 'discord_newcomer')
+        self.assertTrue(SocialAccount.objects.filter(user=user, provider='discord', uid='newcomer-uid').exists())
+        self.assertTrue(EmailAddress.objects.filter(user=user, email=email, primary=True, verified=False).exists())
+        self.assertEqual(mail.outbox[-1].to, [email])
+        self.assertIn(CONFIRM_EMAIL_SENT_PATH, mail.outbox[-1].body)
+        self.assertNotIn(ACCOUNT_EXISTS_MAIL_PHRASE, mail.outbox[-1].body)
+
+    def test_field_errors_do_not_depend_on_registration(self):
+        """表示名が空などでフォームを再表示する時も、エラー表示は登録済みかどうかで変わらない。
+
+        再表示では Discord ログインが残り、同じ画面から何度でも送信できるため、ここでも差を出さない。
+        """
+        make_user('field_error_owner', 'discord-field-error-owner@example.com')
+
+        registered = self._submit('discord-field-error-owner@example.com', 'field-error-uid-1', user_name='')
+        unregistered = self._submit('discord-field-error-new@example.com', 'field-error-uid-2', user_name='')
+
+        self.assertEqual(registered.status_code, 200)
+        self.assertEqual(unregistered.status_code, 200)
+        self.assertEqual(
+            registered.context['form'].errors.get_json_data(),
+            unregistered.context['form'].errors.get_json_data(),
+        )
+        self.assertNotContains(registered, '既に登録')
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_throttled_mail_does_not_reveal_registration(self):
+        """宛先の送信制限中は登録済み・未登録ともメールを送らず、表示は制限外の時と同じにする。"""
+        baseline = self._new_signup_baseline()
+        make_user('throttled_owner', 'throttled-owner@example.com')
+        for index, email in enumerate(('throttled-owner@example.com', 'throttled-new@example.com')):
+            with self.subTest(email=email):
+                self._exhaust_confirm_email_limit(email)
+                sent_before = len(mail.outbox)
+
+                response = self._submit(email, f'throttled-uid-{index}')
+
+                self.assertEqual(observed_response(response, email), baseline)
+                self.assertEqual(len(mail.outbox), sent_before)
 
 
 @override_settings(**MAIL_AND_LOCAL_SIGNUP)

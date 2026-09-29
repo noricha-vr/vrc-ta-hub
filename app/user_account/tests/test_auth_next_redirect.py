@@ -1,17 +1,14 @@
 """認証画面間のnext引き継ぎを検証する."""
 
 from html.parser import HTMLParser
-from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
-from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.middleware import MessageMiddleware
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.http import HttpResponse
-from django.template.loader import render_to_string
 from django.test import Client, RequestFactory, TestCase, override_settings, tag
 from django.urls import reverse
 
@@ -71,30 +68,6 @@ def discord_login_href(hrefs: list[str]) -> str:
         if urlparse(href).path.endswith('/discord/login/'):
             return href
     raise AssertionError('Discordログインリンクが見つかりません')
-
-
-class DuplicateEmailForm(forms.Form):
-    """メール重複エラー表示用の最小フォーム."""
-
-    user_name = forms.CharField()
-    email = forms.EmailField()
-
-
-def render_duplicate_email_signup(redirect_url: str, request_next: str = '') -> HttpResponse:
-    """メール重複状態のソーシャル登録画面を描画する."""
-    form = DuplicateEmailForm(data={
-        'user_name': 'new_user',
-        'email': 'existing@example.com',
-    })
-    if form.is_valid():
-        form.add_error('email', 'このメールアドレスは既に登録されています')
-    html = render_to_string('socialaccount/signup.html', {
-        'form': form,
-        'redirect_field_name': 'next',
-        'redirect_field_value': redirect_url,
-        'request': SimpleNamespace(GET={'next': request_next}),
-    })
-    return HttpResponse(html)
 
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
@@ -215,19 +188,10 @@ class LocalSignupNextTests(TestCase):
 
 @tag('offline_external_api')
 class SocialSignupDuplicateEmailNextTests(TestCase):
-    """Discord登録のメール重複時ログイン導線を検証する."""
+    """allauthログイン画面のnextの扱いを検証する.
 
-    def test_duplicate_email_login_link_preserves_safe_next(self) -> None:
-        """メール重複時のログインリンクが安全なnextを保持すること."""
-        next_url = '/event/speaker-link/signed-token/'
-
-        response = render_duplicate_email_signup(next_url)
-
-        self.assertTrue(has_next_link(
-            collect_hrefs(response),
-            reverse('account_login'),
-            next_url,
-        ))
+    Discord登録画面のメール重複時のログイン導線は、登録有無を画面に出さないため廃止した（#652）。
+    """
 
     def test_duplicate_email_login_link_ignores_raw_external_next(self) -> None:
         """allauthログインが外部nextへリダイレクトしないこと."""
