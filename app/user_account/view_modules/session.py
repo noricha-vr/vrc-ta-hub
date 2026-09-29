@@ -2,6 +2,7 @@
 
 import logging
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -31,6 +32,7 @@ from user_account.forms import (
     LocalSignupForm,
 )
 from user_account.login_redirect import get_default_login_redirect_url
+from user_account.turnstile import is_turnstile_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +71,8 @@ class CustomLoginView(LoginView):
         context['discord_oauth_enabled'] = is_discord_oauth_available(self.request)
         context['redirect_field_name'] = self.redirect_field_name
         context['redirect_field_value'] = self.get_redirect_url()
+        # 無効（鍵が片方でも未設定）の時は渡さず、テンプレートでウィジェットもスクリプトも出さない
+        context['turnstile_site_key'] = settings.TURNSTILE_SITE_KEY if is_turnstile_enabled() else ''
         return context
 
 

@@ -253,6 +253,7 @@ RustFS は本番環境の Cloudflare R2 の代替として、画像などのメ�
 | `GEMINI_API_KEY` | AIコンテンツ自動生成 | [Google AI Studio](https://aistudio.google.com/) |
 | `OPENROUTER_API_KEY` | AI処理のバックアップ | [OpenRouter](https://openrouter.ai/) |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Discordログイン | [Discord Developer Portal](https://discord.com/developers/applications) |
+| `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | ログイン画面のボット対策（2 つとも設定した時だけ有効） | [Cloudflare Dashboard](https://dash.cloudflare.com/) の Turnstile |
 | `REQUEST_TOKEN` | カレンダー同期APIの認証 | 任意の文字列 |
 
 詳細は [docs/setup.md](docs/setup.md) を参照してください。

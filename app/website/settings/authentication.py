@@ -1,11 +1,12 @@
 """認証・ソーシャルログイン関連の設定.
 
 AUTH_USER_MODEL / AUTHENTICATION_BACKENDS / django-allauth の ACCOUNT_* /
-SOCIALACCOUNT_* / Discord OAuth プロバイダ設定をまとめる。
+SOCIALACCOUNT_* / Discord OAuth プロバイダ設定 / ログイン画面の Cloudflare Turnstile をまとめる。
 """
 import os
+import sys
 
-from .base import DEBUG
+from .base import DEBUG, TESTING
 
 AUTH_USER_MODEL = 'user_account.CustomUser'
 
@@ -70,6 +71,15 @@ if DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET:
 SOCIALACCOUNT_FORMS = {
     'signup': 'user_account.forms.CustomSocialSignupForm',
 }
+
+# Cloudflare Turnstile（メールアドレスでのログイン画面のボット対策）。
+# 2 つとも設定した時だけ有効。どちらかが空ならウィジェットも検証も無効にする（ローカル開発・CI は未設定で動く）。
+TURNSTILE_SITE_KEY = os.environ.get('TURNSTILE_SITE_KEY', '').strip()
+TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '').strip()
+# テストは環境変数に鍵があっても無効にする（有効時の振る舞いは override_settings で個別に検証する）。
+if 'test' in sys.argv or TESTING:
+    TURNSTILE_SITE_KEY = ''
+    TURNSTILE_SECRET_KEY = ''
 
 # ソーシャルアカウントの接続解除（disconnect）を試みた場合のリダイレクト先
 # 削除ボタンはテンプレートで非表示にするが、直接アクセスされた場合の保険
