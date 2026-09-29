@@ -3,7 +3,8 @@ import logging
 
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.account.models import EmailAddress
-from allauth.core import context
+from allauth.core import context, ratelimit
+from allauth.core.exceptions import ImmediateHttpResponse
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from allauth.socialaccount.models import SocialAccount
 from allauth.utils import build_absolute_uri
@@ -20,6 +21,9 @@ from user_account.login_redirect import get_default_login_redirect_url
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
+
+# 登録 POST の送信元 IP 単位の制限（ローカル登録と Discord 登録フォームで共有する）
+SIGNUP_RATE_LIMIT_ACTION = 'signup'
 
 
 class ConfirmationEmailDeliveryError(Exception):
@@ -113,6 +117,18 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
 
     既存ユーザーとDiscordアカウントの自動紐付けを行う。
     """
+
+    def is_open_for_signup(self, request, sociallogin):
+        """Discord 登録フォームの送信を、ローカル登録と同じ signup の制限（送信元 IP 単位）で数える。
+
+        allauth は登録処理の前にここを呼び、投げた ImmediateHttpResponse をそのまま応答にする。
+        入力された email を見る前に判定するので、制限に当たった時の応答から登録有無は漏れない。
+        GET は数えないため、登録画面の表示や Discord からの戻り（コールバック）は対象外。
+        """
+        rate_limited_response = ratelimit.consume_or_429(request, action=SIGNUP_RATE_LIMIT_ACTION)
+        if rate_limited_response:
+            raise ImmediateHttpResponse(rate_limited_response)
+        return super().is_open_for_signup(request, sociallogin)
 
     def is_auto_signup_allowed(self, request, sociallogin):
         """自動サインアップを許可するかどうかを判定.

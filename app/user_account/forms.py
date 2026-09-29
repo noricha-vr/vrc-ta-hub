@@ -4,11 +4,13 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm
 from django.core.validators import FileExtensionValidator
+from django.db import IntegrityError, transaction
 from django.http import HttpRequest
 
 from allauth.account.adapter import get_adapter
 # 登録済みアドレスへの応答は allauth の SignupForm と同じ内部フローを使う（65.18.0 に固定）。
 from allauth.account.internal.flows.email_verification import add_email_verification_sent_message
+from allauth.account.internal.flows.signup import prevent_enumeration
 from allauth.core import ratelimit
 from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 
@@ -467,8 +469,8 @@ class CustomSocialSignupForm(SocialSignupForm):
     def try_save(self, request):
         """登録済みならアカウントも Discord 連携も作らず、案内メールを送って新規登録と同じ応答にする。
 
-        登録済みの時の送信と応答は allauth（prevent_enumeration）に任せる。allauth は宛先ごとの
-        送信制限に当たると「送信しました」の表示も省くため、ローカル登録と同じく制限中も表示を出す。
+        登録済みの時の送信と応答は allauth の prevent_enumeration に任せる（ローカル登録と同じ）。
+        allauth は宛先ごとの送信制限に当たると「送信しました」の表示も省くため、制限中も表示を出す。
         """
         email = self.cleaned_data['email']
         mail_throttled = not ratelimit.consume(
@@ -477,7 +479,24 @@ class CustomSocialSignupForm(SocialSignupForm):
             key=email,
             dry_run=True,
         )
-        user, response = super().try_save(request)
+        user = None if self.account_already_exists else self._save_unless_registered(request, email)
+        response = prevent_enumeration(request, email=email) if user is None else None
         if mail_throttled:
             add_email_verification_sent_message(request, email, signup=True)
         return user, response
+
+    def _save_unless_registered(self, request, email):
+        """保存の直前にもう一度確かめてから保存する。登録済みなら保存せず None を返す。
+
+        clean_email の判定の後に、別リクエストが同じアドレスを登録した競合に備える。
+        CustomUser.email の一意制約違反も、登録済みと同じ扱いにする（ローカル登録と同じ）。
+        """
+        try:
+            with transaction.atomic():
+                if is_email_in_use(email):
+                    return None
+                return self.save(request)
+        except IntegrityError:
+            if not is_email_in_use(email):
+                raise
+            return None
