@@ -6,6 +6,7 @@ TURNSTILE_SITE_KEY と TURNSTILE_SECRET_KEY が 2 つとも設定されている
 from __future__ import annotations
 
 import logging
+import uuid
 from enum import Enum
 from typing import Any
 
@@ -20,6 +21,9 @@ RESPONSE_FIELD_NAME = 'cf-turnstile-response'
 # Cloudflare の仕様上のトークン長の上限。超える値は問い合わせずに不正とする
 MAX_TOKEN_LENGTH = 2048
 SITEVERIFY_TIMEOUT_SECONDS = 5
+# Cloudflare の内部エラーの時だけ 1 回再試行する（初回 + 再試行 1 回）
+SITEVERIFY_MAX_ATTEMPTS = 2
+HTTP_OK = 200
 HTTP_SERVER_ERROR_MIN_STATUS = 500
 # Cloudflare 側の内部エラー（再試行すれば通りうる）
 CLOUDFLARE_INTERNAL_ERROR_CODES = frozenset({'internal-error'})
@@ -32,7 +36,7 @@ class TurnstileResult(Enum):
 
     PASSED = 'passed'
     FAILED = 'failed'
-    # Cloudflare 側の障害や設定ミスで、トークンの正否を判定できなかった
+    # Cloudflare 側の障害で、トークンの正否を判定できなかった
     UNAVAILABLE = 'unavailable'
 
 
@@ -45,27 +49,44 @@ def verify_turnstile_token(token: str, remote_ip: str) -> TurnstileResult:
     """ウィジェットが発行したトークンを siteverify で検証する.
 
     トークンが無い・長すぎる時は Cloudflare に問い合わせずに FAILED を返す。
-    判定できない時（接続失敗・タイムアウト・5xx・応答の形式不正・Cloudflare の内部エラー・
-    シークレットキーの設定ミス）は、理由をログに残して UNAVAILABLE を返す。
-    UNAVAILABLE をどう扱うか（ログインを通すか）は呼び出し側が決める。
+    シークレットキーの設定ミスも FAILED（ログインは拒否し、error ログで知らせる）。
+    Cloudflare 側の障害（接続失敗・タイムアウト・5xx・JSON でない応答・再試行しても続く internal-error）は、
+    理由をログに残して UNAVAILABLE を返す。UNAVAILABLE をどう扱うか（ログインを通すか）は呼び出し側が決める。
     """
     if not token or len(token) > MAX_TOKEN_LENGTH:
         return TurnstileResult.FAILED
-    outcome = _post_siteverify(token, remote_ip)
-    if outcome is None:
-        return TurnstileResult.UNAVAILABLE
-    return _classify_outcome(outcome)
-
-
-def _post_siteverify(token: str, remote_ip: str) -> dict[str, Any] | None:
-    """siteverify に問い合わせて応答の JSON を返す。判定に使えない応答なら None を返す."""
+    # 再試行でトークンの二重使用（timeout-or-duplicate）と判定されないよう、全試行で同じ idempotency_key を送る
     payload = {
         'secret': settings.TURNSTILE_SECRET_KEY,
         'response': token,
         'remoteip': remote_ip,
+        'idempotency_key': str(uuid.uuid4()),
     }
+    for attempt in range(1, SITEVERIFY_MAX_ATTEMPTS + 1):
+        outcome = _post_siteverify(payload)
+        if outcome is None:
+            return TurnstileResult.UNAVAILABLE
+        result = _judge_outcome(*outcome)
+        if result is not None:
+            return result
+        logger.warning(
+            'Turnstile siteverify reported an internal error: attempt=%s/%s',
+            attempt,
+            SITEVERIFY_MAX_ATTEMPTS,
+        )
+    return TurnstileResult.UNAVAILABLE
+
+
+def _post_siteverify(payload: dict[str, str]) -> tuple[int, dict[str, Any]] | None:
+    """siteverify に問い合わせて (HTTP ステータス, 応答の JSON) を返す。判定に使えない応答なら None を返す."""
     try:
-        response = requests.post(SITEVERIFY_URL, data=payload, timeout=SITEVERIFY_TIMEOUT_SECONDS)
+        # 転送先に secret を送らないよう、リダイレクトはたどらない
+        response = requests.post(
+            SITEVERIFY_URL,
+            data=payload,
+            timeout=SITEVERIFY_TIMEOUT_SECONDS,
+            allow_redirects=False,
+        )
     except requests.RequestException as exc:
         logger.warning(
             'Turnstile siteverify is unavailable: reason=request_error exception_type=%s',
@@ -79,30 +100,32 @@ def _post_siteverify(token: str, remote_ip: str) -> dict[str, Any] | None:
         )
         return None
     try:
-        outcome = response.json()
+        body = response.json()
     except ValueError:
-        outcome = None
-    if not isinstance(outcome, dict):
+        body = None
+    if not isinstance(body, dict):
         logger.warning(
             'Turnstile siteverify is unavailable: reason=unexpected_body status=%s',
             response.status_code,
         )
         return None
-    return outcome
+    return response.status_code, body
 
 
-def _classify_outcome(outcome: dict[str, Any]) -> TurnstileResult:
-    """siteverify の応答を判定結果に変換する。トークンと secret はログに出さない."""
-    if outcome.get('success') is True:
+def _judge_outcome(status_code: int, body: dict[str, Any]) -> TurnstileResult | None:
+    """siteverify の応答を判定する。Cloudflare の内部エラー（再試行してよい）なら None を返す.
+
+    トークンと secret はログに出さない。
+    """
+    if status_code == HTTP_OK and body.get('success') is True:
         return TurnstileResult.PASSED
-    raw_codes = outcome.get('error-codes')
+    raw_codes = body.get('error-codes')
     error_codes = sorted({str(code) for code in raw_codes}) if isinstance(raw_codes, list) else []
-    if SECRET_MISCONFIGURED_ERROR_CODES.intersection(error_codes):
-        # 人の対応が要るので error で出す（Sentry に上がる）
-        logger.error('Turnstile secret key is misconfigured: error_codes=%s', error_codes)
-        return TurnstileResult.UNAVAILABLE
     if CLOUDFLARE_INTERNAL_ERROR_CODES.intersection(error_codes):
-        logger.warning('Turnstile siteverify is unavailable: reason=internal_error')
-        return TurnstileResult.UNAVAILABLE
-    logger.info('Turnstile verification failed: error_codes=%s', error_codes)
+        return None
+    if SECRET_MISCONFIGURED_ERROR_CODES.intersection(error_codes):
+        # 人が直すまで誰も通れないので error で出す（Sentry に上がる）。ボット対策を黙って外さないよう拒否する
+        logger.error('Turnstile secret key is misconfigured: error_codes=%s', error_codes)
+        return TurnstileResult.FAILED
+    logger.info('Turnstile verification failed: status=%s error_codes=%s', status_code, error_codes)
     return TurnstileResult.FAILED

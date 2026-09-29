@@ -23,9 +23,17 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 from ta_hub.health import health_check
 from user_account.views import CustomLoginView
 
+# パスワードでのログインは公開ログイン画面（ボット対策の Turnstile 付き）に一本化する（#611）。
+# 管理画面と allauth 標準のログインは GET も POST も公開ログイン画面へ転送し（next などのクエリは引き継ぐ）、
+# ここではパスワードを照合しない。staff は公開ログイン画面でログインしてから管理画面へ戻る。
+redirect_to_public_login = RedirectView.as_view(
+    pattern_name='account:login', permanent=False, query_string=True,
+)
+
 urlpatterns = [
     # Cloud Run readiness/liveness probe 用（DB + cache 疎通確認）
     path('health', health_check, name='health'),
+    path('admin/login/', redirect_to_public_login),
     path('admin/', admin.site.urls),
     path('community/', include('community.urls')),
     path('event/', include('event.urls')),
@@ -34,6 +42,7 @@ urlpatterns = [
     path('vket/', include('vket.urls')),
     # Redirect allauth default signup to custom register page
     path('accounts/signup/', RedirectView.as_view(url='/account/register/', permanent=False, query_string=True)),
+    path('accounts/login/', redirect_to_public_login),
     path('accounts/', include('allauth.urls')),
     path('twitter/', include('twitter.urls')),
     path('api/v1/', include('api_v1.urls')),
