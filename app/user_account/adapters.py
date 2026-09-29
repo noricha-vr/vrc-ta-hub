@@ -36,7 +36,8 @@ class CustomAccountAdapter(DefaultAccountAdapter):
     """ログイン後の既定リダイレクト先を集会所属状況で切り替える。"""
 
     # パスワード照合の前に行う追加確認（request を受け取り、失敗なら ValidationError を投げる）。
-    # 公開ログインフォームだけが Turnstile の検証を入れる。管理画面のログインと再認証では None のまま。
+    # 公開ログインフォームだけが Turnstile の検証を入れる（管理画面と allauth 標準のログインは公開ログイン画面へ
+    # 転送している: website/urls.py）。ログイン済みの再認証では None のまま。
     # get_adapter() は呼ぶたびに新しいインスタンスを返すので、設定はその 1 回の認証だけに効く。
     login_challenge: Callable[[HttpRequest], None] | None = None
 

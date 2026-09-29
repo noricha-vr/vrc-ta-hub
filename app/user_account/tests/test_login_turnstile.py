@@ -1,12 +1,18 @@
 """ログイン画面の Cloudflare Turnstile（ボット対策）の振る舞いテスト.
 
 siteverify への通信は必ずモックする（外部に通信しない）。
-fail-open のテストはモックが呼ばれたこととログを確かめ、パッチ漏れで素通りしただけの緑を防ぐ。
+fail-open のテストはモックが呼ばれた回数とログを確かめ、パッチ漏れで素通りしただけの緑を防ぐ。
+Turnstile を通らずにパスワードを照合できる入口（allauth 標準のログイン・管理画面のログイン・
+DRF の Basic 認証）が塞がっていることもここで確かめる。
 """
 
+import base64
+import uuid
 from unittest import mock
+from urllib.parse import parse_qs, urlsplit
 
 import requests
+from allauth.account.auth_backends import AuthenticationBackend
 from django.core.cache import cache
 from django.test import Client, SimpleTestCase, TestCase, override_settings, tag
 from django.urls import reverse
@@ -43,6 +49,10 @@ TRUSTED_CLIENT_IP = '203.0.113.10'
 USER_EMAIL = 'turnstile@example.com'
 USER_PASSWORD = 'testpass123'
 VALID_TOKEN = 'valid-token'
+# internal-error の時は 1 回だけ再試行する（初回 + 再試行 1 回）
+INTERNAL_ERROR_ATTEMPTS = 2
+ADMIN_INDEX_PATH = '/admin/'
+PUBLIC_API_PATH = '/api/v1/community/'
 
 
 def siteverify_response(body, status_code=200):
@@ -52,16 +62,29 @@ def siteverify_response(body, status_code=200):
     return response
 
 
+def rejected_response(*error_codes):
+    return siteverify_response({'success': False, 'error-codes': list(error_codes)})
+
+
 PASSED_RESPONSE = siteverify_response({'success': True})
-REJECTED_RESPONSE = siteverify_response(
-    {'success': False, 'error-codes': ['invalid-input-response']},
-)
+REJECTED_RESPONSE = rejected_response('invalid-input-response')
+INTERNAL_ERROR_RESPONSE = rejected_response('internal-error')
+SECRET_MISCONFIGURED_CODES = ('invalid-input-secret', 'missing-input-secret')
 
 
 def get_non_field_error_codes(response) -> set[str | None]:
     """レスポンスの認証フォームから非フィールドエラーの code を返す。"""
     form = response.context['form']
     return {error.code for error in form.non_field_errors().as_data()}
+
+
+def patch_password_backend():
+    """パスワードを照合する認証バックエンドを、呼ばれたかどうかを記録するモックに差し替える。"""
+    return mock.patch.object(AuthenticationBackend, 'authenticate', autospec=True, return_value=None)
+
+
+def sent_idempotency_keys(siteverify) -> list[str]:
+    return [call.kwargs['data']['idempotency_key'] for call in siteverify.call_args_list]
 
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
@@ -82,8 +105,8 @@ class TurnstileLoginTestCase(TestCase):
     def tearDown(self) -> None:
         cache.clear()
 
-    def post_login(self, *, email=USER_EMAIL, password=USER_PASSWORD, token=None, url=None):
-        data = {'username': email, 'password': password}
+    def post_login(self, *, email=USER_EMAIL, password=USER_PASSWORD, token=None, url=None, extra=None):
+        data = {'username': email, 'password': password, **(extra or {})}
         if token is not None:
             data['cf-turnstile-response'] = token
         return self.client.post(url or self.login_url, data, HTTP_X_FORWARDED_FOR=CLOUD_RUN_XFF)
@@ -155,15 +178,22 @@ class TurnstileEnabledLoginTests(TurnstileLoginTestCase):
                 siteverify.assert_not_called()
 
     def test_rejected_token_blocks_login_even_with_correct_password(self) -> None:
-        with mock.patch(SITEVERIFY_POST, return_value=REJECTED_RESPONSE) as siteverify:
+        with mock.patch(SITEVERIFY_POST, return_value=REJECTED_RESPONSE) as siteverify, \
+                patch_password_backend() as backend:
             response = self.post_login(token='forged-token')
 
         self.assert_rejected_by_turnstile(response)
-        siteverify.assert_called_once_with(
-            SITEVERIFY_URL,
-            data={'secret': TEST_SECRET_KEY, 'response': 'forged-token', 'remoteip': TRUSTED_CLIENT_IP},
-            timeout=SITEVERIFY_TIMEOUT_SECONDS,
+        backend.assert_not_called()
+        siteverify.assert_called_once()
+        self.assertEqual(siteverify.call_args.args, (SITEVERIFY_URL,))
+        self.assertEqual(siteverify.call_args.kwargs['timeout'], SITEVERIFY_TIMEOUT_SECONDS)
+        self.assertIs(siteverify.call_args.kwargs['allow_redirects'], False)
+        sent = siteverify.call_args.kwargs['data']
+        self.assertEqual(
+            {key: sent[key] for key in ('secret', 'response', 'remoteip')},
+            {'secret': TEST_SECRET_KEY, 'response': 'forged-token', 'remoteip': TRUSTED_CLIENT_IP},
         )
+        uuid.UUID(sent['idempotency_key'])
 
     def test_passed_token_logs_in(self) -> None:
         with mock.patch(SITEVERIFY_POST, return_value=PASSED_RESPONSE) as siteverify:
@@ -181,6 +211,15 @@ class TurnstileEnabledLoginTests(TurnstileLoginTestCase):
         self.assertEqual(get_non_field_error_codes(response), {INVALID_LOGIN_ERROR_CODE})
         self.assertNotContains(response, TURNSTILE_FAILED_MESSAGE)
 
+    def test_misconfigured_secret_rejects_login_with_the_ordinary_message(self) -> None:
+        for error_code in SECRET_MISCONFIGURED_CODES:
+            with self.subTest(error_code=error_code), \
+                    mock.patch(SITEVERIFY_POST, return_value=rejected_response(error_code)), \
+                    self.assertLogs(TURNSTILE_LOGGER, level='ERROR'):
+                response = self.post_login(token=VALID_TOKEN)
+
+                self.assert_rejected_by_turnstile(response)
+
     def test_api_auth_login_url_also_requires_turnstile(self) -> None:
         with mock.patch(SITEVERIFY_POST) as siteverify:
             response = self.post_login(url=reverse('api-auth-login'))
@@ -188,41 +227,34 @@ class TurnstileEnabledLoginTests(TurnstileLoginTestCase):
         self.assert_rejected_by_turnstile(response)
         siteverify.assert_not_called()
 
-    def test_admin_login_does_not_require_turnstile(self) -> None:
-        """管理画面のログインにはウィジェットが無いので、Turnstile の検証をしない."""
-        self.user.is_staff = True
-        self.user.save(update_fields=['is_staff'])
+    def test_internal_error_is_retried_once_with_the_same_idempotency_key(self) -> None:
+        with mock.patch(SITEVERIFY_POST, side_effect=[INTERNAL_ERROR_RESPONSE, PASSED_RESPONSE]) as siteverify, \
+                self.assertLogs(TURNSTILE_LOGGER, level='WARNING'):
+            response = self.post_login(token=VALID_TOKEN)
 
-        with mock.patch(SITEVERIFY_POST) as siteverify:
-            response = self.client.post(
-                reverse('admin:login'),
-                {'username': USER_EMAIL, 'password': USER_PASSWORD},
-                HTTP_X_FORWARDED_FOR=CLOUD_RUN_XFF,
-            )
-
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(self.client.session.get('_auth_user_id'), str(self.user.pk))
-        siteverify.assert_not_called()
+        self.assert_logged_in(response)
+        self.assertEqual(siteverify.call_count, INTERNAL_ERROR_ATTEMPTS)
+        first_key, retry_key = sent_idempotency_keys(siteverify)
+        self.assertEqual(first_key, retry_key)
 
     def test_cloudflare_outage_fails_open_with_warning(self) -> None:
         invalid_json_response = siteverify_response(None)
         invalid_json_response.json.side_effect = ValueError('not json')
+        # (モックの設定, siteverify を呼ぶ回数)。internal-error だけは 1 回再試行してから通す
         outages = {
-            'timeout': {'side_effect': requests.Timeout()},
-            'connection_error': {'side_effect': requests.ConnectionError()},
-            'server_error': {'return_value': siteverify_response({}, status_code=503)},
-            'invalid_json': {'return_value': invalid_json_response},
-            'internal_error': {
-                'return_value': siteverify_response({'success': False, 'error-codes': ['internal-error']}),
-            },
+            'timeout': ({'side_effect': requests.Timeout()}, 1),
+            'connection_error': ({'side_effect': requests.ConnectionError()}, 1),
+            'server_error': ({'return_value': siteverify_response({}, status_code=503)}, 1),
+            'invalid_json': ({'return_value': invalid_json_response}, 1),
+            'internal_error_twice': ({'return_value': INTERNAL_ERROR_RESPONSE}, INTERNAL_ERROR_ATTEMPTS),
         }
-        for name, outage in outages.items():
+        for name, (outage, expected_calls) in outages.items():
             with self.subTest(outage=name), mock.patch(SITEVERIFY_POST, **outage) as siteverify, \
                     self.assertLogs(TURNSTILE_LOGGER, level='WARNING'):
                 response = self.post_login(token=VALID_TOKEN)
 
                 self.assert_logged_in(response)
-                siteverify.assert_called_once()
+                self.assertEqual(siteverify.call_count, expected_calls)
                 self.client.logout()
 
 
@@ -277,11 +309,92 @@ class TurnstileLoginRateLimitTests(TurnstileLoginTestCase):
 
 
 @override_settings(**TURNSTILE_KEYS)
+class PasswordLoginEntryPointTests(TurnstileLoginTestCase):
+    """Turnstile を通らずにパスワードを照合できる入口を塞いだ（公開ログイン画面へ一本化した）ことを確かめる."""
+
+    def assert_redirected_to_public_login(self, response, next_path=None) -> None:
+        expected = f'{self.login_url}?next={next_path}' if next_path else self.login_url
+        self.assertRedirects(response, expected, fetch_redirect_response=False)
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_allauth_login_redirects_to_public_login_without_checking_password(self) -> None:
+        allauth_login_url = f"{reverse('account_login')}?next=/account/settings/"
+
+        with mock.patch(SITEVERIFY_POST) as siteverify, patch_password_backend() as backend:
+            get_response = self.client.get(allauth_login_url)
+            post_response = self.client.post(
+                allauth_login_url,
+                {'login': USER_EMAIL, 'password': USER_PASSWORD},
+                HTTP_X_FORWARDED_FOR=CLOUD_RUN_XFF,
+            )
+
+        self.assert_redirected_to_public_login(get_response, next_path='/account/settings/')
+        self.assert_redirected_to_public_login(post_response, next_path='/account/settings/')
+        backend.assert_not_called()
+        siteverify.assert_not_called()
+
+    def test_admin_login_redirects_to_public_login_without_checking_password(self) -> None:
+        self.user.is_staff = True
+        self.user.save(update_fields=['is_staff'])
+        admin_login_url = f"{reverse('admin:login')}?next={ADMIN_INDEX_PATH}"
+
+        with mock.patch(SITEVERIFY_POST) as siteverify, patch_password_backend() as backend:
+            get_response = self.client.get(admin_login_url)
+            post_response = self.client.post(
+                admin_login_url,
+                {'username': USER_EMAIL, 'password': USER_PASSWORD},
+                HTTP_X_FORWARDED_FOR=CLOUD_RUN_XFF,
+            )
+
+        self.assert_redirected_to_public_login(get_response, next_path=ADMIN_INDEX_PATH)
+        self.assert_redirected_to_public_login(post_response, next_path=ADMIN_INDEX_PATH)
+        backend.assert_not_called()
+        siteverify.assert_not_called()
+
+    def test_anonymous_admin_access_ends_on_public_login(self) -> None:
+        response = self.client.get(ADMIN_INDEX_PATH, follow=True)
+
+        final_url = urlsplit(response.redirect_chain[-1][0])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(final_url.path, self.login_url)
+        self.assertEqual(parse_qs(final_url.query), {'next': [ADMIN_INDEX_PATH]})
+        self.assertTemplateUsed(response, 'account/login.html')
+
+    def test_staff_logs_in_on_public_login_and_returns_to_admin(self) -> None:
+        self.user.is_staff = True
+        self.user.save(update_fields=['is_staff'])
+
+        with mock.patch(SITEVERIFY_POST, return_value=PASSED_RESPONSE):
+            response = self.post_login(token=VALID_TOKEN, extra={'next': ADMIN_INDEX_PATH})
+
+        self.assertRedirects(response, ADMIN_INDEX_PATH, fetch_redirect_response=False)
+        self.assertEqual(self.client.session.get('_auth_user_id'), str(self.user.pk))
+
+    def test_drf_basic_auth_does_not_check_passwords(self) -> None:
+        def basic_auth(password):
+            credentials = base64.b64encode(f'{USER_EMAIL}:{password}'.encode()).decode()
+            return f'Basic {credentials}'
+
+        with patch_password_backend() as backend:
+            public_response = self.client.get(PUBLIC_API_PATH, HTTP_AUTHORIZATION=basic_auth('wrong-password'))
+        protected_response = self.client.post(
+            reverse('recurrence-preview'),
+            {'base_date': '2026-01-01'},
+            HTTP_AUTHORIZATION=basic_auth(USER_PASSWORD),
+        )
+
+        # 誤ったパスワードは照合されずに公開 API がそのまま返り、正しいパスワードでも認証済みにならない
+        self.assertEqual(public_response.status_code, 200)
+        backend.assert_not_called()
+        self.assertEqual(protected_response.status_code, 403)
+
+
+@override_settings(**TURNSTILE_KEYS)
 class VerifyTurnstileTokenTests(SimpleTestCase):
     """siteverify の応答から判定結果への変換."""
 
-    def verify(self, response, token=VALID_TOKEN):
-        with mock.patch(SITEVERIFY_POST, return_value=response) as siteverify:
+    def verify(self, *responses, token=VALID_TOKEN):
+        with mock.patch(SITEVERIFY_POST, side_effect=list(responses)) as siteverify:
             result = verify_turnstile_token(token, TRUSTED_CLIENT_IP)
         return result, siteverify
 
@@ -298,25 +411,23 @@ class VerifyTurnstileTokenTests(SimpleTestCase):
                 self.assertIs(result, expected)
                 self.assertEqual(siteverify.called, expected is TurnstileResult.PASSED)
 
-    def test_only_boolean_true_success_passes(self) -> None:
+    def test_only_boolean_true_success_on_http_200_passes(self) -> None:
         cases = {
-            'success_true': ({'success': True}, TurnstileResult.PASSED),
-            'success_string': ({'success': 'true'}, TurnstileResult.FAILED),
+            'success_true': ({'success': True}, 200, TurnstileResult.PASSED),
+            'success_string': ({'success': 'true'}, 200, TurnstileResult.FAILED),
+            'success_on_redirect': ({'success': True}, 302, TurnstileResult.FAILED),
             'duplicate_token': (
-                {'success': False, 'error-codes': ['timeout-or-duplicate']},
-                TurnstileResult.FAILED,
+                {'success': False, 'error-codes': ['timeout-or-duplicate']}, 200, TurnstileResult.FAILED,
             ),
-            'bad_request_4xx': (
-                {'success': False, 'error-codes': ['bad-request']},
-                TurnstileResult.FAILED,
-            ),
+            'bad_request_4xx': ({'success': False, 'error-codes': ['bad-request']}, 400, TurnstileResult.FAILED),
         }
-        for name, (body, expected) in cases.items():
+        for name, (body, status_code, expected) in cases.items():
             with self.subTest(case=name):
-                status_code = 400 if name == 'bad_request_4xx' else 200
-                result, _ = self.verify(siteverify_response(body, status_code=status_code))
+                result, siteverify = self.verify(siteverify_response(body, status_code=status_code))
 
                 self.assertIs(result, expected)
+                siteverify.assert_called_once()
+                self.assertIs(siteverify.call_args.kwargs['allow_redirects'], False)
 
     def test_unexpected_body_is_unavailable_with_warning(self) -> None:
         with self.assertLogs(TURNSTILE_LOGGER, level='WARNING'):
@@ -324,14 +435,27 @@ class VerifyTurnstileTokenTests(SimpleTestCase):
 
         self.assertIs(result, TurnstileResult.UNAVAILABLE)
 
-    def test_misconfigured_secret_is_logged_as_error_without_secrets(self) -> None:
-        response = siteverify_response({'success': False, 'error-codes': ['invalid-input-secret']})
+    def test_misconfigured_secret_fails_closed_with_error_log_without_secrets(self) -> None:
+        for error_code in SECRET_MISCONFIGURED_CODES:
+            with self.subTest(error_code=error_code), self.assertLogs(TURNSTILE_LOGGER, level='ERROR') as logs:
+                result, _ = self.verify(rejected_response(error_code))
 
-        with self.assertLogs(TURNSTILE_LOGGER, level='ERROR') as logs:
-            result, _ = self.verify(response)
+                self.assertIs(result, TurnstileResult.FAILED)
+                output = '\n'.join(logs.output)
+                self.assertIn(error_code, output)
+                self.assertNotIn(TEST_SECRET_KEY, output)
+                self.assertNotIn(VALID_TOKEN, output)
 
-        self.assertIs(result, TurnstileResult.UNAVAILABLE)
-        output = '\n'.join(logs.output)
-        self.assertIn('invalid-input-secret', output)
-        self.assertNotIn(TEST_SECRET_KEY, output)
-        self.assertNotIn(VALID_TOKEN, output)
+    def test_internal_error_is_retried_once(self) -> None:
+        cases = {
+            'then_passed': ((INTERNAL_ERROR_RESPONSE, PASSED_RESPONSE), TurnstileResult.PASSED),
+            'then_rejected': ((INTERNAL_ERROR_RESPONSE, REJECTED_RESPONSE), TurnstileResult.FAILED),
+            'twice': ((INTERNAL_ERROR_RESPONSE, INTERNAL_ERROR_RESPONSE), TurnstileResult.UNAVAILABLE),
+        }
+        for name, (responses, expected) in cases.items():
+            with self.subTest(case=name), self.assertLogs(TURNSTILE_LOGGER, level='WARNING'):
+                result, siteverify = self.verify(*responses)
+
+                self.assertIs(result, expected)
+                self.assertEqual(siteverify.call_count, INTERNAL_ERROR_ATTEMPTS)
+                self.assertEqual(len(set(sent_idempotency_keys(siteverify))), 1)

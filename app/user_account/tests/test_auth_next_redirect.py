@@ -188,41 +188,56 @@ class LocalSignupNextTests(TestCase):
 
 @tag('offline_external_api')
 class SocialSignupDuplicateEmailNextTests(TestCase):
-    """allauthログイン画面のnextの扱いを検証する.
+    """ログイン画面のnextの扱いを検証する.
 
     Discord登録画面のメール重複時のログイン導線は、登録有無を画面に出さないため廃止した（#652）。
+    allauth標準のログイン（/accounts/login/）は、照合せずに公開ログイン画面へ転送する（#611）。
     """
 
     def test_duplicate_email_login_link_ignores_raw_external_next(self) -> None:
-        """allauthログインが外部nextへリダイレクトしないこと."""
+        """allauthログインから転送された公開ログインが外部nextへリダイレクトしないこと."""
         external_url = 'https://evil.example.com/path'
-        login_url = reverse('account_login')
         make_user(
             user_name='external_next_login_user',
             email='external-next-login@example.com',
         )
 
-        get_response = self.client.get(login_url, {'next': external_url})
-        post_response = self.client.post(login_url, {
-            'login': 'external-next-login@example.com',
+        get_response = self.client.get(reverse('account_login'), {'next': external_url})
+        post_response = self.client.post(get_response.url, {
+            'username': 'external-next-login@example.com',
             'password': 'testpass123',
-            'next': external_url,
         })
 
-        self.assertEqual(get_response.status_code, 200)
+        self.assertEqual(get_response.status_code, 302)
+        self.assertEqual(urlparse(get_response.url).path, reverse('account:login'))
         self.assertEqual(post_response.status_code, 302)
         self.assertEqual(post_response.url, reverse('event:my_presentations'))
         self.assertNotEqual(post_response.url, external_url)
 
-    def test_allauth_login_without_membership_uses_my_presentations(self) -> None:
-        """allauthのログイン後も集会未所属ユーザーは自分の発表へ遷移する。"""
+    def test_allauth_login_post_is_redirected_without_logging_in(self) -> None:
+        """allauthログインへのPOSTは照合せずに公開ログインへ転送し、ログイン状態にしない。"""
+        user = make_user(
+            user_name='allauth_redirect_user',
+            email='allauth-redirect@example.com',
+        )
+
+        response = self.client.post(reverse('account_login'), {
+            'login': user.email,
+            'password': 'testpass123',
+        })
+
+        self.assertRedirects(response, reverse('account:login'), fetch_redirect_response=False)
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_login_without_membership_uses_my_presentations(self) -> None:
+        """ログイン後、集会未所属ユーザーは自分の発表へ遷移する。"""
         user = make_user(
             user_name='allauth_no_membership_user',
             email='allauth-no-membership@example.com',
         )
 
-        response = self.client.post(reverse('account_login'), {
-            'login': user.email,
+        response = self.client.post(reverse('account:login'), {
+            'username': user.email,
             'password': 'testpass123',
         })
 
@@ -232,16 +247,16 @@ class SocialSignupDuplicateEmailNextTests(TestCase):
             fetch_redirect_response=False,
         )
 
-    def test_allauth_login_with_membership_uses_existing_default(self) -> None:
-        """allauthのログイン後も集会所属ユーザーは既存の既定先へ遷移する。"""
+    def test_login_with_membership_uses_existing_default(self) -> None:
+        """ログイン後、集会所属ユーザーは既存の既定先へ遷移する。"""
         user = make_user(
             user_name='allauth_membership_user',
             email='allauth-membership@example.com',
         )
         make_community(name='allauth遷移テスト集会', owner=user)
 
-        response = self.client.post(reverse('account_login'), {
-            'login': user.email,
+        response = self.client.post(reverse('account:login'), {
+            'username': user.email,
             'password': 'testpass123',
         })
 
@@ -251,23 +266,32 @@ class SocialSignupDuplicateEmailNextTests(TestCase):
             fetch_redirect_response=False,
         )
 
-    def test_allauth_login_prefers_safe_next(self) -> None:
-        """allauthログインでも安全なnextが既定先より優先される。"""
+    def test_allauth_login_keeps_safe_next_for_public_login(self) -> None:
+        """allauthログインの安全なnextは公開ログインへ引き継がれ、ログイン後に既定先より優先される。"""
         user = make_user(
             user_name='allauth_next_user',
             email='allauth-next@example.com',
         )
         next_url = reverse('account:settings')
 
-        response = self.client.post(
+        redirect_response = self.client.post(
             f"{reverse('account_login')}?next={next_url}",
             {
                 'login': user.email,
                 'password': 'testpass123',
             },
         )
+        login_response = self.client.post(redirect_response.url, {
+            'username': user.email,
+            'password': 'testpass123',
+        })
 
-        self.assertRedirects(response, next_url, fetch_redirect_response=False)
+        self.assertRedirects(
+            redirect_response,
+            f"{reverse('account:login')}?next={next_url}",
+            fetch_redirect_response=False,
+        )
+        self.assertRedirects(login_response, next_url, fetch_redirect_response=False)
 
 
 @tag('offline_external_api')

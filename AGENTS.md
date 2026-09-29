@@ -83,6 +83,7 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 
 ログインが必要な動作確認時は `.env.local` の `TEST_USER_EMAIL` と `TEST_USER_PASSWORD` を参照。
 ログインは email で行う（ユーザー名ログインは廃止済み。フォームの input name は `username` のまま）。
+管理画面（`/admin/`）も公開ログイン画面（`/account/login/`）でログインしてから開く。`/admin/login/` と allauth 標準の `/accounts/login/` は公開ログイン画面へ転送する（Turnstile を通らないパスワードログインを作らないため）。
 
 ### AIエージェント向けログインスキップ
 

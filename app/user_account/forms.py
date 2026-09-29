@@ -267,9 +267,10 @@ class BootstrapAuthenticationForm(AllauthAuthenticationFormMixin, Authentication
         result = verify_turnstile_token(token, get_client_ip(request))
         if result is TurnstileResult.FAILED:
             raise forms.ValidationError(TURNSTILE_FAILED_MESSAGE, code=TURNSTILE_FAILED_ERROR_CODE)
-        # UNAVAILABLE（Cloudflare 側の障害: タイムアウト・5xx・接続失敗など）はログインを通す（fail-open）。
-        # ログイン失敗の回数制限（#594）が別に効いているので、Cloudflare の障害で誰もログインできなくなるより
-        # 可用性を優先する。障害の理由は verify_turnstile_token が warning（設定ミスは error）でログに残す。
+        # UNAVAILABLE（Cloudflare 側の障害: タイムアウト・接続失敗・5xx・JSON でない応答・再試行しても続く
+        # internal-error）はログインを通す（fail-open）。ログイン失敗の回数制限（#594）が別に効いているので、
+        # Cloudflare の障害で誰もログインできなくなるより可用性を優先する。理由は verify_turnstile_token が
+        # warning でログに残す。シークレットキーの設定ミスは FAILED として上で拒否する（fail-closed）。
 
 
 class BootstrapPasswordChangeForm(PasswordChangeForm):
