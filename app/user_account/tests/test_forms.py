@@ -201,8 +201,8 @@ class CustomSocialSignupFormTests(TestCase):
             'discord_user'
         )
 
-    def test_email_duplicate_validation(self):
-        """既存メールアドレスでエラーが発生すること."""
+    def test_registered_email_is_recorded_without_error(self):
+        """登録済みのメールアドレスはエラーにせず、登録済みとして記録すること（#652）."""
         User.objects.create_user(
             user_name='existing_user',
             email='existing@example.com',
@@ -212,12 +212,20 @@ class CustomSocialSignupFormTests(TestCase):
             sociallogin=self.mock_sociallogin,
             data={'email': 'existing@example.com', 'user_name': 'new_user'}
         )
-        self.assertFalse(form.is_valid())
-        self.assertIn('email', form.errors)
-        self.assertIn('このメールアドレスは既に登録されています', form.errors['email'][0])
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertTrue(form.account_already_exists)
 
-    def test_email_duplicate_validation_case_insensitive(self):
-        """大文字小文字を区別せずに既存メールアドレスをチェックすること."""
+    def test_unregistered_email_is_not_recorded_as_registered(self):
+        """未登録のメールアドレスは登録済みとして記録しないこと."""
+        form = CustomSocialSignupForm(
+            sociallogin=self.mock_sociallogin,
+            data={'email': 'brand-new@example.com', 'user_name': 'new_user'}
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertFalse(form.account_already_exists)
+
+    def test_registered_email_check_is_case_insensitive(self):
+        """大文字小文字を区別せずに登録済みかどうかを判定すること."""
         User.objects.create_user(
             user_name='case_test_user',
             email='Test@Example.com',
@@ -228,12 +236,11 @@ class CustomSocialSignupFormTests(TestCase):
             sociallogin=self.mock_sociallogin,
             data={'email': 'test@example.com', 'user_name': 'new_user'}
         )
-        self.assertFalse(form.is_valid())
-        self.assertIn('email', form.errors)
-        self.assertIn('このメールアドレスは既に登録されています', form.errors['email'][0])
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertTrue(form.account_already_exists)
 
-    def test_email_duplicate_validation_case_insensitive_uppercase(self):
-        """大文字で登録されたメールに対して小文字でもエラーが発生すること."""
+    def test_registered_email_check_is_case_insensitive_uppercase(self):
+        """小文字で登録されたメールに大文字で入力しても登録済みと判定し、小文字にそろえること."""
         User.objects.create_user(
             user_name='uppercase_user',
             email='user@example.com',
@@ -244,9 +251,9 @@ class CustomSocialSignupFormTests(TestCase):
             sociallogin=self.mock_sociallogin,
             data={'email': 'USER@EXAMPLE.COM', 'user_name': 'new_user'}
         )
-        self.assertFalse(form.is_valid())
-        self.assertIn('email', form.errors)
-        self.assertIn('このメールアドレスは既に登録されています', form.errors['email'][0])
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertTrue(form.account_already_exists)
+        self.assertEqual(form.cleaned_data['email'], 'user@example.com')
 
     def test_user_name_duplicate_is_allowed(self):
         """既存ユーザーと同じ user_name でもバリデーションが通ること."""
