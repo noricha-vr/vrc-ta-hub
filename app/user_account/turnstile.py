@@ -93,6 +93,10 @@ def _post_siteverify(payload: dict[str, str]) -> tuple[int, dict[str, Any]] | No
             type(exc).__name__,
         )
         return None
+    if 300 <= response.status_code < 400:
+        # 転送はたどらない。3xx は障害ではなく想定外の応答なので、fail-open に流さず検証失敗にする
+        logger.warning('Turnstile siteverify returned a redirect: status=%s', response.status_code)
+        return response.status_code, {}
     if response.status_code >= HTTP_SERVER_ERROR_MIN_STATUS:
         logger.warning(
             'Turnstile siteverify is unavailable: reason=server_error status=%s',
@@ -121,11 +125,12 @@ def _judge_outcome(status_code: int, body: dict[str, Any]) -> TurnstileResult | 
         return TurnstileResult.PASSED
     raw_codes = body.get('error-codes')
     error_codes = sorted({str(code) for code in raw_codes}) if isinstance(raw_codes, list) else []
-    if CLOUDFLARE_INTERNAL_ERROR_CODES.intersection(error_codes):
-        return None
+    # 鍵の設定ミスは内部エラーより先に見る。両方が併記されても、再試行→fail-open に流さず拒否する
     if SECRET_MISCONFIGURED_ERROR_CODES.intersection(error_codes):
         # 人が直すまで誰も通れないので error で出す（Sentry に上がる）。ボット対策を黙って外さないよう拒否する
         logger.error('Turnstile secret key is misconfigured: error_codes=%s', error_codes)
         return TurnstileResult.FAILED
+    if CLOUDFLARE_INTERNAL_ERROR_CODES.intersection(error_codes):
+        return None
     logger.info('Turnstile verification failed: status=%s error_codes=%s', status_code, error_codes)
     return TurnstileResult.FAILED

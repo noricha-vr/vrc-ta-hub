@@ -220,6 +220,28 @@ class TurnstileEnabledLoginTests(TurnstileLoginTestCase):
 
                 self.assert_rejected_by_turnstile(response)
 
+    def test_misconfigured_secret_wins_over_internal_error(self) -> None:
+        """internal-error と鍵エラーが併記されても、再試行→fail-open に流さず拒否する。"""
+        for error_code in SECRET_MISCONFIGURED_CODES:
+            mixed = rejected_response('internal-error', error_code)
+            with self.subTest(error_code=error_code), \
+                    mock.patch(SITEVERIFY_POST, return_value=mixed) as siteverify, \
+                    self.assertLogs(TURNSTILE_LOGGER, level='ERROR'):
+                response = self.post_login(token=VALID_TOKEN)
+
+                self.assert_rejected_by_turnstile(response)
+                self.assertEqual(siteverify.call_count, 1)
+
+    def test_redirect_response_rejects_login(self) -> None:
+        """3xx は障害ではないので fail-open にしない。"""
+        redirect = siteverify_response(None, status_code=302)
+        redirect.json.side_effect = ValueError
+        with mock.patch(SITEVERIFY_POST, return_value=redirect), \
+                self.assertLogs(TURNSTILE_LOGGER, level='WARNING'):
+            response = self.post_login(token=VALID_TOKEN)
+
+        self.assert_rejected_by_turnstile(response)
+
     def test_api_auth_login_url_also_requires_turnstile(self) -> None:
         with mock.patch(SITEVERIFY_POST) as siteverify:
             response = self.post_login(url=reverse('api-auth-login'))
