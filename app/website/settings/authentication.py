@@ -24,7 +24,7 @@ ACCOUNT_EMAIL_VERIFICATION = 'mandatory'
 ACCOUNT_CHANGE_EMAIL = True
 # allauth の既定値を明示して、ライブラリ更新で制限の強度が変わらないようにする。
 # - login_failed: 同一 email は5回/5分、同一IPは10回/分
-# - signup: 登録 POST は同一IPで20回/分（ローカル登録の RegisterView が消費する）
+# - signup: 登録 POST は同一IPで20回/分（ローカル登録の RegisterView と、Discord 登録フォームの is_open_for_signup が消費する）
 # - confirm_email: 確認メール・登録済み案内メール・ログイン時の再送は宛先 email ごとに3分に1通
 # allauth は action ごとに per（ip / key）単位で1つのキャッシュキーを共有するため、
 # 同じ per の rate を1つの action に複数並べない（履歴が混ざって正しく数えられない）。
