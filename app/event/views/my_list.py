@@ -10,6 +10,7 @@ from django.views.generic import ListView
 from community.services import activate_community
 from event.models import Event, EventDetail
 from event_calendar.calendar_utils import create_calendar_entry_url
+from event_calendar.models import CalendarEntry
 from utils.vrchat_time import get_vrchat_today
 
 logger = logging.getLogger(__name__)
@@ -122,7 +123,9 @@ class EventMyList(LoginRequiredMixin, ListView):
         return Event.objects.filter(
             community_id__in=community_ids,
             date__lt=today
-        ).select_related('community').order_by('-date', '-start_time')
+        ).select_related('community').prefetch_related(
+            'community__twitter_template'
+        ).order_by('-date', '-start_time')
 
     def _get_target_community_ids(self):
         """一覧の対象にする集会ID（アクティブな集会があればそれだけ）"""
@@ -145,7 +148,9 @@ class EventMyList(LoginRequiredMixin, ListView):
             Event.objects.filter(
                 community_id__in=self._get_target_community_ids(),
                 date__gte=get_vrchat_today()
-            ).select_related('community').order_by('date', 'start_time')
+            ).select_related('community').prefetch_related(
+                'community__twitter_template'
+            ).order_by('date', 'start_time')
         )
         visible = self.VISIBLE_FUTURE_EVENTS
         for index, event in enumerate(future_events):
@@ -166,10 +171,17 @@ class EventMyList(LoginRequiredMixin, ListView):
 
     def set_vrc_event_calendar_post_url(self, queryset: QuerySet) -> QuerySet:
         """イベントのGoogleフォームのURLを設定する"""
+        today = get_vrchat_today()
+        # CalendarEntry は集会単位なので、集会ごとに1回だけ取得して使い回す
+        calendar_entries = {}
         for event in queryset:
-            if get_vrchat_today() > event.date:
+            if today > event.date:
                 continue
-            event.calendar_url = create_calendar_entry_url(event)
+            if event.community_id not in calendar_entries:
+                calendar_entries[event.community_id] = CalendarEntry.get_or_create_from_event(event)
+            event.calendar_url = create_calendar_entry_url(
+                event, calendar_entry=calendar_entries[event.community_id]
+            )
         return queryset
 
     def _set_twitter_button_flags(self, events):
@@ -195,10 +207,18 @@ class EventMyList(LoginRequiredMixin, ListView):
         - can_edit_event: 集会の管理者（owner/staff）または superuser
         - vket_locked: Vket コラボ期間中で編集不可（superuser/is_staff は False）
         """
+        from vket.models import VketParticipation
         from vket.services import get_vket_lock_info
 
         user = self.request.user
         today = get_vrchat_today()
+        # 有効な Vket 参加がない集会のイベントはロックされないので、1件ずつの判定を省く
+        vket_community_ids = set(
+            VketParticipation.objects.filter(
+                community_id__in={event.community_id for event in events},
+                lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            ).values_list('community_id', flat=True)
+        )
         # community 単位で権限判定を1回にまとめる（N+1回避）
         community_edit_cache = {}
         for event in events:
@@ -209,7 +229,12 @@ class EventMyList(LoginRequiredMixin, ListView):
                 )
             event.can_edit_event = community_edit_cache[community_id] and event.date >= today
 
-            if user.is_superuser or user.is_staff:
+            # vket_locked はテンプレートで can_edit_event が True の時だけ参照する
+            if (
+                user.is_superuser or user.is_staff
+                or not event.can_edit_event
+                or community_id not in vket_community_ids
+            ):
                 event.vket_locked = False
             else:
                 locked, _ = get_vket_lock_info(event)

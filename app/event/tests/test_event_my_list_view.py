@@ -1013,3 +1013,23 @@ class EventMyListFutureEventsTest(TestCase):
         other_event = make_event(other, event_date=timezone.localdate() + timedelta(days=24))
         response = self._get()
         self.assertNotIn(other_event.id, [e.id for e in response.context['events']])
+
+    def test_query_count_does_not_grow_with_future_events(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        def count_queries():
+            self.client.force_login(self.owner)
+            self.client.get(reverse('event:my_list'))  # セッション・キャッシュを温める
+            with CaptureQueriesContext(connection) as ctx:
+                self.client.get(reverse('event:my_list'))
+            return len(ctx.captured_queries)
+
+        base = count_queries()
+        today = timezone.localdate()
+        for i in range(5, 10):
+            make_event(
+                self.community, event_date=today + timedelta(days=3 + 14 * i),
+                recurring_master=self.master,
+            )
+        self.assertEqual(count_queries(), base)
