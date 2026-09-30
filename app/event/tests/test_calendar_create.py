@@ -115,3 +115,38 @@ class CalendarCreateDuplicateTest(TestCase):
             [r for r in logs.records if r.levelname == 'ERROR'],
             '重複以外の IntegrityError が error ログに残っていない（Error Reporting から消える）',
         )
+
+
+class CalendarCreateRedirectTest(TestCase):
+    """登録後は一覧へ戻り、単発登録なら登録したイベントを ?created で渡す."""
+
+    def setUp(self):
+        self.user = make_user(user_name='calendar_redirect_owner')
+        self.community = make_community(
+            name='登録後リダイレクト集会',
+            owner=self.user,
+            start_time=time(21, 0),
+        )
+        self.client = Client()
+        self.client.force_login(self.user)
+        session = self.client.session
+        session['active_community_id'] = self.community.pk
+        session.save()
+
+    def test_single_registration_redirects_with_created_id(self):
+        event_date = timezone.localdate() + timedelta(days=10)
+        response = self.client.post(
+            reverse('event:calendar_create'),
+            {
+                'start_date': event_date.isoformat(),
+                'start_time': '21:00',
+                'duration': 60,
+                'recurrence_type': 'none',
+            },
+        )
+        event = Event.objects.get(community=self.community, date=event_date)
+        self.assertRedirects(
+            response,
+            f"{reverse('event:my_list')}?created={event.pk}",
+            fetch_redirect_response=False,
+        )

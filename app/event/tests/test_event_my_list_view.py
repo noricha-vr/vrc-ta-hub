@@ -16,7 +16,6 @@ from tests.factories import (
     make_community,
     make_community_member,
     make_event,
-    make_event_detail,
     make_user,
 )
 from vket.models import VketCollaboration, VketParticipation
@@ -919,7 +918,7 @@ class EventMyListCommunityQueryParamTest(TestCase):
 
 
 class EventMyListFutureEventsTest(TestCase):
-    """未来イベントの表示範囲（直近2つ + 手動登録 + 発表登録済み）のテスト。"""
+    """未来イベントの表示（直近2件は常に表示・それより先は「もっと見る」で開く）のテスト。"""
 
     def setUp(self):
         self.client = Client()
@@ -937,52 +936,80 @@ class EventMyListFutureEventsTest(TestCase):
             )
             for i in range(1, 5)
         ]
+        self.future_ids = [self.master.id] + [e.id for e in self.instances]
 
-    def _future_event_ids(self):
+    def _get(self, params=None):
         self.client.force_login(self.owner)
-        response = self.client.get(reverse('event:my_list'))
+        response = self.client.get(reverse('event:my_list'), params or {})
         self.assertEqual(response.status_code, 200)
+        return response
+
+    def _future_events(self, response):
         today = timezone.localdate()
-        return [e.id for e in response.context['events'] if e.date >= today]
+        return [e for e in response.context['events'] if e.date >= today]
 
-    def test_only_nearest_two_recurring_events_are_shown(self):
-        self.assertEqual(
-            self._future_event_ids(), [self.master.id, self.instances[0].id],
-        )
+    def test_all_future_events_are_listed_in_date_order(self):
+        response = self._get()
+        self.assertEqual([e.id for e in self._future_events(response)], self.future_ids)
 
-    def test_manual_event_beyond_nearest_two_is_shown(self):
+    def test_events_after_nearest_two_are_collapsed(self):
+        response = self._get()
+        collapsed = [e.is_collapsed for e in self._future_events(response)]
+        self.assertEqual(collapsed, [False, False, True, True, True])
+        self.assertFalse(response.context['open_more_future_events'])
+        self.assertContains(response, 'id="more-future-events-toggle"')
+        self.assertContains(response, '▼ もっと見る')
+        self.assertContains(response, 'js-more-future-event d-none', count=3)
+
+    def test_no_toggle_when_two_or_fewer_future_events(self):
+        Event.objects.filter(id__in=self.future_ids[2:]).delete()
+        response = self._get()
+        self.assertNotContains(response, 'id="more-future-events-toggle"')
+        self.assertNotContains(response, 'row js-more-future-event')
+
+    def test_created_collapsed_event_opens_more(self):
         manual = make_event(
             self.community, event_date=timezone.localdate() + timedelta(days=24),
         )
-        self.assertEqual(
-            self._future_event_ids(),
-            [self.master.id, self.instances[0].id, manual.id],
-        )
+        response = self._get({'created': manual.id})
+        self.assertTrue(response.context['open_more_future_events'])
+        self.assertContains(response, '▲ 閉じる')
+        self.assertNotContains(response, 'js-more-future-event d-none')
 
-    def test_recurring_event_with_detail_beyond_nearest_two_is_shown(self):
-        target = self.instances[2]
-        make_event_detail(target, applicant=self.owner, status='approved')
-        self.assertEqual(
-            self._future_event_ids(),
-            [self.master.id, self.instances[0].id, target.id],
-        )
+    def test_created_visible_event_keeps_closed(self):
+        response = self._get({'created': self.master.id})
+        self.assertFalse(response.context['open_more_future_events'])
 
-    def test_recurring_event_with_only_deleted_detail_stays_hidden(self):
-        target = self.instances[2]
-        detail = make_event_detail(target, applicant=self.owner, status='approved')
-        detail.soft_delete()
-        self.assertEqual(
-            self._future_event_ids(), [self.master.id, self.instances[0].id],
-        )
+    def test_invalid_created_param_is_ignored(self):
+        for value in ('abc', '²', '-1', ''):
+            with self.subTest(value=value):
+                response = self._get({'created': value})
+                self.assertFalse(response.context['open_more_future_events'])
 
-    def test_event_with_multiple_details_is_not_duplicated(self):
-        target = self.instances[2]
-        make_event_detail(target, applicant=self.owner, speaker='A')
-        make_event_detail(target, applicant=self.owner, speaker='B')
-        self.assertEqual(self._future_event_ids().count(target.id), 1)
+    def test_created_param_is_not_kept_in_pagination(self):
+        response = self._get({'created': self.master.id})
+        self.assertEqual(response.context['current_query_params'], '')
+
+    def test_future_events_only_on_first_page(self):
+        past_base = timezone.localdate() - timedelta(days=1)
+        Event.objects.bulk_create([
+            Event(
+                community=self.community, date=past_base - timedelta(days=offset),
+                start_time=time(21, 0), duration=60, weekday='Mon',
+            )
+            for offset in range(EventMyList.paginate_by + 1)
+        ])
+        first = self._get()
+        self.assertEqual(len(self._future_events(first)), len(self.future_ids))
+        # 過去のイベントはページ送りの件数どおり（未来のイベントに枠を取られない）
+        self.assertEqual(
+            len(first.context['events']) - len(self.future_ids), EventMyList.paginate_by,
+        )
+        second = self._get({'page': 2})
+        self.assertEqual(self._future_events(second), [])
 
     def test_other_community_events_are_not_shown(self):
         other = make_community(name='FE Other Community')
-        other_manual = make_event(other, event_date=timezone.localdate() + timedelta(days=24))
-        make_event_detail(other_manual, status='approved')
-        self.assertNotIn(other_manual.id, self._future_event_ids())
+        other_event = make_event(other, event_date=timezone.localdate() + timedelta(days=24))
+        response = self._get()
+        self.assertNotIn(other_event.id, [e.id for e in response.context['events']])

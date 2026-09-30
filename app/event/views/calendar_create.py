@@ -87,10 +87,19 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
             form.add_error(None, 'イベントの登録に失敗しました。')
             return self.form_invalid(form)
         if form.cleaned_data['recurrence_type'] == 'none':
+            # 一覧で「もっと見る」の中に畳まれる日付でも、登録したイベントが見えるように開かせる
+            self.created_event_id = events[0].pk if events else None
             messages.success(self.request, 'イベントが正常に登録されました')
         else:
             messages.success(self.request, f'開催周期を保存し、{len(events)}件の開催予定を登録しました。以後も自動生成されます。')
         return super().form_valid(form)
+
+    def get_success_url(self):
+        url = super().get_success_url()
+        created_event_id = getattr(self, 'created_event_id', None)
+        if created_event_id:
+            return f'{url}?created={created_event_id}'
+        return url
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

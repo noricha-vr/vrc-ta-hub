@@ -90,8 +90,8 @@ class EventWeekdayWriterTests(TestCase):
             },
         )
 
-        self.assertRedirects(response, reverse('event:my_list'))
         event = Event.objects.get(community=self.community, date=event_date)
+        self.assertRedirects(response, f"{reverse('event:my_list')}?created={event.pk}")
         self.assertEqual(event.weekday, weekday_code(event_date))
 
     def test_recurrence_persistence_uses_each_event_date(self):
