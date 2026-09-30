@@ -2,7 +2,7 @@ import logging
 from datetime import timedelta
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q, QuerySet
+from django.db.models import QuerySet
 from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import ListView
@@ -10,6 +10,7 @@ from django.views.generic import ListView
 from community.services import activate_community
 from event.models import Event, EventDetail
 from event_calendar.calendar_utils import create_calendar_entry_url
+from event_calendar.models import CalendarEntry
 from utils.vrchat_time import get_vrchat_today
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,8 @@ class EventMyList(LoginRequiredMixin, ListView):
     template_name = 'event/my_list.html'
     context_object_name = 'events'
     paginate_by = 20
+    # 常に表示する未来のイベント数。それより先は「もっと見る」で開く
+    VISIBLE_FUTURE_EVENTS = 2
 
     def _get_user_communities(self):
         """ユーザーが管理者である集会のID一覧を取得する"""
@@ -113,45 +116,72 @@ class EventMyList(LoginRequiredMixin, ListView):
     def get_queryset(self):
         today = get_vrchat_today()
 
-        user_community_ids = self._get_user_communities()
+        community_ids = self._get_target_community_ids()
 
-        # アクティブな集会が設定されている場合はその集会のみを対象に
-        active_community_id = self.request.session.get('active_community_id')
-        if active_community_id and active_community_id in user_community_ids:
-            community_ids = [active_community_id]
-        else:
-            # フォールバック: 全ての管理集会
-            community_ids = user_community_ids
-
-        # 未来のイベントは、定期生成で数ヶ月先まで並ぶのを避けるため直近2つに絞る。
-        # ただし手動登録したイベントと発表が登録済みのイベントは3つ目以降でも出す
-        # （出さないと特別企画の追加や発表の承認が管理画面からできなくなる）
-        future_qs = Event.objects.filter(
-            community_id__in=community_ids,
-            date__gte=today
-        ).select_related('community').order_by('date', 'start_time')
-        nearest_ids = list(future_qs.values_list('id', flat=True)[:2])
-        future_events = future_qs.filter(
-            Q(id__in=nearest_ids)
-            | Q(recurring_master__isnull=True, is_recurring_master=False)
-            | Q(details__isnull=False, details__deleted_at__isnull=True)
-        ).distinct()
-
-        # 過去のイベントを取得
-        past_events = Event.objects.filter(
+        # 未来のイベントはページ送りに含めず、1ページ目だけに get_context_data で差し込む
+        # （定期生成で数ヶ月先まで並ぶため、ページ送りに入れると過去の枠を食い、2ページ目にもこぼれる）
+        return Event.objects.filter(
             community_id__in=community_ids,
             date__lt=today
-        ).select_related('community').order_by('-date', '-start_time')
+        ).select_related('community').prefetch_related(
+            'community__twitter_template'
+        ).order_by('-date', '-start_time')
 
-        # 未来のイベントと過去のイベントを結合
-        return list(future_events) + list(past_events)
+    def _get_target_community_ids(self):
+        """一覧の対象にする集会ID（アクティブな集会があればそれだけ）"""
+        user_community_ids = self._get_user_communities()
+        active_community_id = self.request.session.get('active_community_id')
+        if active_community_id and active_community_id in user_community_ids:
+            return [active_community_id]
+        return user_community_ids
+
+    def _get_future_events(self):
+        """未来のイベントを取得し、直近の VISIBLE_FUTURE_EVENTS 件以外を畳む対象にする。
+
+        畳んだイベントは「もっと見る」で開く。登録直後（?created=<id>）に
+        登録したイベントが畳む側にあれば、最初から開いた状態にする。
+
+        Returns:
+            tuple[list, bool]: (未来のイベント, 最初から開くか)
+        """
+        future_events = list(
+            Event.objects.filter(
+                community_id__in=self._get_target_community_ids(),
+                date__gte=get_vrchat_today()
+            ).select_related('community').prefetch_related(
+                'community__twitter_template'
+            ).order_by('date', 'start_time')
+        )
+        visible = self.VISIBLE_FUTURE_EVENTS
+        for index, event in enumerate(future_events):
+            event.is_collapsed = index >= visible
+            event.show_more_button_after = (
+                index == visible - 1 and len(future_events) > visible
+            )
+
+        try:
+            created_id = int(self.request.GET.get('created', ''))
+        except ValueError:
+            created_id = None
+        open_more = any(
+            event.is_collapsed and event.id == created_id
+            for event in future_events
+        )
+        return future_events, open_more
 
     def set_vrc_event_calendar_post_url(self, queryset: QuerySet) -> QuerySet:
         """イベントのGoogleフォームのURLを設定する"""
+        today = get_vrchat_today()
+        # CalendarEntry は集会単位なので、集会ごとに1回だけ取得して使い回す
+        calendar_entries = {}
         for event in queryset:
-            if get_vrchat_today() > event.date:
+            if today > event.date:
                 continue
-            event.calendar_url = create_calendar_entry_url(event)
+            if event.community_id not in calendar_entries:
+                calendar_entries[event.community_id] = CalendarEntry.get_or_create_from_event(event)
+            event.calendar_url = create_calendar_entry_url(
+                event, calendar_entry=calendar_entries[event.community_id]
+            )
         return queryset
 
     def _set_twitter_button_flags(self, events):
@@ -177,10 +207,18 @@ class EventMyList(LoginRequiredMixin, ListView):
         - can_edit_event: 集会の管理者（owner/staff）または superuser
         - vket_locked: Vket コラボ期間中で編集不可（superuser/is_staff は False）
         """
+        from vket.models import VketParticipation
         from vket.services import get_vket_lock_info
 
         user = self.request.user
         today = get_vrchat_today()
+        # 有効な Vket 参加がない集会のイベントはロックされないので、1件ずつの判定を省く
+        vket_community_ids = set(
+            VketParticipation.objects.filter(
+                community_id__in={event.community_id for event in events},
+                lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            ).values_list('community_id', flat=True)
+        )
         # community 単位で権限判定を1回にまとめる（N+1回避）
         community_edit_cache = {}
         for event in events:
@@ -191,7 +229,12 @@ class EventMyList(LoginRequiredMixin, ListView):
                 )
             event.can_edit_event = community_edit_cache[community_id] and event.date >= today
 
-            if user.is_superuser or user.is_staff:
+            # vket_locked はテンプレートで can_edit_event が True の時だけ参照する
+            if (
+                user.is_superuser or user.is_staff
+                or not event.can_edit_event
+                or community_id not in vket_community_ids
+            ):
                 event.vket_locked = False
             else:
                 locked, _ = get_vket_lock_info(event)
@@ -240,8 +283,9 @@ class EventMyList(LoginRequiredMixin, ListView):
             str: エンコードされたクエリパラメータ
         """
         query_params = self.request.GET.copy()
-        if 'page' in query_params:
-            del query_params['page']
+        for key in ('page', 'created'):
+            if key in query_params:
+                del query_params[key]
         return query_params.urlencode()
 
     def get_context_data(self, **kwargs):
@@ -263,8 +307,13 @@ class EventMyList(LoginRequiredMixin, ListView):
         # 警告リストを取得
         context['warnings'] = self._get_warnings(active_community)
 
-        # イベントリストを取得
-        events = context['events']
+        # イベントリストを取得（1ページ目だけ未来のイベントを先頭に差し込む）
+        events = list(context['events'])
+        context['open_more_future_events'] = False
+        if context['page_obj'].number == 1:
+            future_events, open_more = self._get_future_events()
+            events = future_events + events
+            context['open_more_future_events'] = open_more
 
         # イベントにカレンダーURLを設定
         events = self.set_vrc_event_calendar_post_url(events)

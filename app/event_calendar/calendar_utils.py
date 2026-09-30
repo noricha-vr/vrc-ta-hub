@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.urls import reverse
 from django.core.cache import cache
 from functools import lru_cache
-from typing import TYPE_CHECKING, Dict, Any
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from website.constants import CACHE_TTL_HOUR
 from .models import CalendarEntry
@@ -51,18 +51,21 @@ def _get_approved_detail_summaries(event: 'Event') -> list[tuple[str, str]]:
     )
 
 
-def create_calendar_entry_url(event: 'Event') -> str:
+def create_calendar_entry_url(event: 'Event', calendar_entry: Optional[CalendarEntry] = None) -> str:
     """
     EventオブジェクトからGoogleフォームのURLを生成する
     キャッシュ有効時間: 1時間
 
     Args:
         event (Event): イベントオブジェクト
+        calendar_entry (CalendarEntry, optional): 取得済みの集会のCalendarEntry。
+            同じ集会のイベントをまとめて処理する時に渡すと、イベントごとの取得を省ける
 
     Returns:
         str: 生成されたGoogleフォームのURL
     """
-    calendar_entry = CalendarEntry.get_or_create_from_event(event)
+    if calendar_entry is None or calendar_entry.community_id != event.community_id:
+        calendar_entry = CalendarEntry.get_or_create_from_event(event)
 
     cache_key = f'calendar_entry_url_{event.id}_{calendar_entry.is_overseas_user}'
     cached_url = cache.get(cache_key)

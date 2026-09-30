@@ -134,7 +134,7 @@
 
         {# イベント一覧 #}
         {% for event in events %}
-            <div class="row">
+            <div class="row{% if event.is_collapsed %} js-more-future-event{% if not open_more_future_events %} d-none{% endif %}{% endif %}">
                 <div class="col-12 col-md-10 offset-md-1 mb-4">
                     {% now "Y-m-d" as current_date %}
                     <div class="card shadow-sm {% if event.date|date:"Y-m-d" < current_date %}bg-light{% endif %}">
@@ -308,6 +308,17 @@
                     </div>
                 </div>
             </div>
+            {% if event.show_more_button_after %}
+            <div class="row">
+                <div class="col-12 col-md-10 offset-md-1 mb-4">
+                    <button type="button" id="more-future-events-toggle"
+                            class="btn btn-outline-secondary btn-sm w-100"
+                            aria-expanded="{% if open_more_future_events %}true{% else %}false{% endif %}">
+                        {% if open_more_future_events %}▲ 閉じる{% else %}▼ もっと見る{% endif %}
+                    </button>
+                </div>
+            </div>
+            {% endif %}
         {% empty %}
             <div class="row">
                 <div class="col-12 col-md-10 offset-md-1">
@@ -388,6 +399,19 @@
 
 
     <script>
+        (function () {
+            var toggle = document.getElementById('more-future-events-toggle');
+            if (!toggle) return;
+            toggle.addEventListener('click', function () {
+                var expanded = toggle.getAttribute('aria-expanded') === 'true';
+                document.querySelectorAll('.js-more-future-event').forEach(function (row) {
+                    row.classList.toggle('d-none', expanded);
+                });
+                toggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+                toggle.textContent = expanded ? '▼ もっと見る' : '▲ 閉じる';
+            });
+        })();
+
         document.querySelectorAll('.generate-button').forEach(function(button) {
             button.addEventListener('click', function (event) {
                 event.target.disabled = true;
