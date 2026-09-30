@@ -2,7 +2,7 @@ import logging
 from datetime import timedelta
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 from django.urls import reverse
 from django.utils import timezone
 from django.views.generic import ListView
@@ -123,11 +123,19 @@ class EventMyList(LoginRequiredMixin, ListView):
             # フォールバック: 全ての管理集会
             community_ids = user_community_ids
 
-        # 未来のイベントを最大2つまで取得
-        future_events = Event.objects.filter(
+        # 未来のイベントは、定期生成で数ヶ月先まで並ぶのを避けるため直近2つに絞る。
+        # ただし手動登録したイベントと発表が登録済みのイベントは3つ目以降でも出す
+        # （出さないと特別企画の追加や発表の承認が管理画面からできなくなる）
+        future_qs = Event.objects.filter(
             community_id__in=community_ids,
             date__gte=today
-        ).select_related('community').order_by('date', 'start_time')[:2]
+        ).select_related('community').order_by('date', 'start_time')
+        nearest_ids = list(future_qs.values_list('id', flat=True)[:2])
+        future_events = future_qs.filter(
+            Q(id__in=nearest_ids)
+            | Q(recurring_master__isnull=True, is_recurring_master=False)
+            | Q(details__isnull=False, details__deleted_at__isnull=True)
+        ).distinct()
 
         # 過去のイベントを取得
         past_events = Event.objects.filter(

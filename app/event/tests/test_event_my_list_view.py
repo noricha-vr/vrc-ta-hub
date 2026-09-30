@@ -16,6 +16,7 @@ from tests.factories import (
     make_community,
     make_community_member,
     make_event,
+    make_event_detail,
     make_user,
 )
 from vket.models import VketCollaboration, VketParticipation
@@ -915,3 +916,73 @@ class EventMyListCommunityQueryParamTest(TestCase):
         )
         for event in response.context['events']:
             self.assertEqual(event.community_id, self.community_b.id)
+
+
+class EventMyListFutureEventsTest(TestCase):
+    """未来イベントの表示範囲（直近2つ + 手動登録 + 発表登録済み）のテスト。"""
+
+    def setUp(self):
+        self.client = Client()
+        self.owner = make_user(user_name='FE Owner', email='fe_owner@example.com')
+        self.community = make_community(name='FE Community', owner=self.owner)
+        today = timezone.localdate()
+        # 定期イベント（親 + 子インスタンス）を2週間おきに5回分
+        self.master = make_event(
+            self.community, event_date=today + timedelta(days=3), is_recurring_master=True,
+        )
+        self.instances = [
+            make_event(
+                self.community, event_date=today + timedelta(days=3 + 14 * i),
+                recurring_master=self.master,
+            )
+            for i in range(1, 5)
+        ]
+
+    def _future_event_ids(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('event:my_list'))
+        self.assertEqual(response.status_code, 200)
+        today = timezone.localdate()
+        return [e.id for e in response.context['events'] if e.date >= today]
+
+    def test_only_nearest_two_recurring_events_are_shown(self):
+        self.assertEqual(
+            self._future_event_ids(), [self.master.id, self.instances[0].id],
+        )
+
+    def test_manual_event_beyond_nearest_two_is_shown(self):
+        manual = make_event(
+            self.community, event_date=timezone.localdate() + timedelta(days=24),
+        )
+        self.assertEqual(
+            self._future_event_ids(),
+            [self.master.id, self.instances[0].id, manual.id],
+        )
+
+    def test_recurring_event_with_detail_beyond_nearest_two_is_shown(self):
+        target = self.instances[2]
+        make_event_detail(target, applicant=self.owner, status='approved')
+        self.assertEqual(
+            self._future_event_ids(),
+            [self.master.id, self.instances[0].id, target.id],
+        )
+
+    def test_recurring_event_with_only_deleted_detail_stays_hidden(self):
+        target = self.instances[2]
+        detail = make_event_detail(target, applicant=self.owner, status='approved')
+        detail.soft_delete()
+        self.assertEqual(
+            self._future_event_ids(), [self.master.id, self.instances[0].id],
+        )
+
+    def test_event_with_multiple_details_is_not_duplicated(self):
+        target = self.instances[2]
+        make_event_detail(target, applicant=self.owner, speaker='A')
+        make_event_detail(target, applicant=self.owner, speaker='B')
+        self.assertEqual(self._future_event_ids().count(target.id), 1)
+
+    def test_other_community_events_are_not_shown(self):
+        other = make_community(name='FE Other Community')
+        other_manual = make_event(other, event_date=timezone.localdate() + timedelta(days=24))
+        make_event_detail(other_manual, status='approved')
+        self.assertNotIn(other_manual.id, self._future_event_ids())
