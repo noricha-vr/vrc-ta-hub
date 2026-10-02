@@ -83,6 +83,7 @@ docker compose exec vrc-ta-hub python scripts/generate_custom_events.py
 
 ログインが必要な動作確認時は `.env.local` の `TEST_USER_EMAIL` と `TEST_USER_PASSWORD` を参照。
 ログインは email で行う（ユーザー名ログインは廃止済み。フォームの input name は `username` のまま）。
+管理画面（`/admin/`）も公開ログイン画面（`/account/login/`）でログインしてから開く。`/admin/login/` と allauth 標準の `/accounts/login/` は公開ログイン画面へ転送する（Turnstile を通らないパスワードログインを作らないため）。
 
 ### AIエージェント向けログインスキップ
 
@@ -108,6 +109,7 @@ docker compose run --rm --service-ports -e DEBUG_LOGIN_SKIP=true vrc-ta-hub \
 - `REQUEST_TOKEN`: バッチ処理認証用トークン
 - `DISCORD_CLIENT_ID`: Discord OAuth 用クライアント ID
 - `DISCORD_CLIENT_SECRET`: Discord OAuth 用シークレット
+- `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`: ログイン画面の Cloudflare Turnstile（ボット対策）のサイトキーとシークレットキー。2 つとも設定した時だけ有効で、どちらかが空なら無効（ローカル開発・テストは未設定のままでよい）
 
 ### 外部サービスの初期設定
 
@@ -119,6 +121,7 @@ docker compose run --rm --service-ports -e DEBUG_LOGIN_SKIP=true vrc-ta-hub \
 | Gemini API | `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/) |
 | OpenRouter API | `OPENROUTER_API_KEY` | [OpenRouter](https://openrouter.ai/) |
 | Discord OAuth | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | [Discord Developer Portal](https://discord.com/developers/applications) |
+| Cloudflare Turnstile | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | [Cloudflare Dashboard](https://dash.cloudflare.com/) の Turnstile |
 
 ### Discord OAuth設定
 - 環境変数で設定するため、DBのSocialAppは使用しない

@@ -2,10 +2,13 @@
 
 from pathlib import Path
 
+import yaml
 from django.test import SimpleTestCase
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+# gcloud の --update-env-vars で区切り文字を '|' に替える接頭辞（値にカンマを含めるため）
+ENV_VARS_DELIMITER_PREFIX = '^|^'
 
 
 class CloudBuildConfigTest(SimpleTestCase):
@@ -43,6 +46,23 @@ class CloudBuildConfigTest(SimpleTestCase):
             self.assertIn("'--memory'", config)
             self.assertIn("'1Gi'", config)
             self.assertNotIn("'512Mi'", config)
+
+    def _production_deploy_arg(self, flag: str) -> str:
+        """本番の `gcloud run deploy` ステップで flag の直後に渡す値を返す。"""
+        steps = yaml.safe_load(self.cloudbuild)['steps']
+        deploy_args = next(step['args'] for step in steps if step.get('args', [])[:2] == ['run', 'deploy'])
+        return deploy_args[deploy_args.index(flag) + 1]
+
+    def test_production_deploy_passes_turnstile_keys(self):
+        """Turnstile のサイトキー（公開値）は環境変数、シークレットキーは Secret Manager から渡す。"""
+        secrets = self._production_deploy_arg('--set-secrets').split(',')
+        env_vars_arg = self._production_deploy_arg('--update-env-vars')
+        self.assertTrue(env_vars_arg.startswith(ENV_VARS_DELIMITER_PREFIX))
+        env_vars = env_vars_arg.removeprefix(ENV_VARS_DELIMITER_PREFIX).split('|')
+
+        self.assertIn('TURNSTILE_SECRET_KEY=TURNSTILE_SECRET_KEY:latest', secrets)
+        self.assertIn('TURNSTILE_SITE_KEY=0x4AAAAAAFIx-kaCNvnLqGXv', env_vars)
+        self.assertFalse(any(item.startswith('TURNSTILE_SECRET_KEY=') for item in env_vars))
 
     def test_cloud_build_does_not_run_django_migrations(self):
         """Cloud Build は Django migration を自動実行しない。

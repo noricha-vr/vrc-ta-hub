@@ -174,5 +174,6 @@ FERNET_KEY=生成した鍵
 | `GOOGLE_CALENDAR_ID` | 推奨 | 同期先カレンダー |
 | `GEMINI_API_KEY` | 推奨 | AI コンテンツ生成 |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | 推奨 | Discord ログイン |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | 任意 | ログイン画面のボット対策（2 つとも設定した時だけ有効） |
 | `OPENROUTER_API_KEY` | 任意 | AI バックアップ |
 | `REQUEST_TOKEN` | 任意 | バッチ処理認証 |

@@ -54,15 +54,16 @@ class EmailVerificationViewTests(TestCase):
             is_staff=True,
         )
         EmailAddress.objects.filter(user=user).update(verified=False)
+        credentials = {'username': user.email, 'password': 'testpass123'}
+        admin_login_url = f"{reverse('admin:login')}?next={reverse('admin:index')}"
+        public_login_url = f"{reverse('account:login')}?next={reverse('admin:index')}"
 
-        response = self.client.post(reverse('admin:login'), {
-            'username': user.email,
-            'password': 'testpass123',
-            'next': reverse('admin:index'),
-        })
+        # 管理画面のログインは照合せずに公開ログイン画面へ転送し（#611）、そこで確認前のメールは弾かれる
+        admin_response = self.client.post(admin_login_url, credentials)
+        public_response = self.client.post(public_login_url, credentials)
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'メールアドレスの確認を完了してください')
+        self.assertRedirects(admin_response, public_login_url, fetch_redirect_response=False)
+        self.assertRedirects(public_response, '/accounts/confirm-email/', fetch_redirect_response=False)
         self.assertNotIn('_auth_user_id', self.client.session)
 
     def test_admin_created_user_has_verified_primary_email(self):
