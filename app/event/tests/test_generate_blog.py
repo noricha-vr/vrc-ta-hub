@@ -13,6 +13,8 @@ from PIL import Image
 
 from user_account.models import CustomUser
 from community.models import Community
+from event.pdf_processing import get_pdf_thumbnail_render_scale
+from event_pdf_worker import extract_pdf_text as worker_extract_pdf_text
 from event.services.content_generation_service import (
     MAX_COMBINED_SOURCE_CHARS,
     MAX_SOURCE_TEXT_CHARS,
@@ -25,6 +27,7 @@ from event.services.content_generation_service import (
 )
 from event.services.youtube_service import get_transcript
 from event.services.media_service import ensure_pdf_thumbnail
+from event.services.pdf_worker import PdfWorkerError
 from event.models import Event, EventDetail
 from tests.live_smoke import require_live_smoke
 
@@ -39,6 +42,13 @@ class ContentGenerationMemoryGuardTest(TestCase):
 
         self.assertGreater(len(reference_text), 120)
         self.assertEqual(text, reference_text[:120])
+
+    @patch(
+        "event.services.content_generation_service.run_pdf_worker",
+        side_effect=PdfWorkerError("text", "wall_timeout"),
+    )
+    def test_extract_pdf_text_omits_pdf_when_worker_times_out(self, _mock_run_pdf_worker):
+        self.assertEqual(_extract_pdf_text("/tmp/example.pdf", max_chars=120), "")
 
     def test_copy_uploaded_file_uses_chunks_without_reading_all(self):
         class ChunkOnlyFile:
@@ -84,11 +94,12 @@ class ContentGenerationMemoryGuardTest(TestCase):
             {"pages": [FakePage(f"page-{index}") for index in range(35)]},
         )
 
-        with (
-            patch("event.services.content_generation_service.PdfReader", return_value=fake_reader),
-            patch("event.services.content_generation_service.MAX_PDF_TEXT_PAGES", 5),
-        ):
-            text = _extract_pdf_text("/tmp/example.pdf", max_chars=18)
+        text = worker_extract_pdf_text(
+            "/tmp/example.pdf",
+            max_chars=18,
+            max_pages=5,
+            reader_factory=lambda _path: fake_reader,
+        )
 
         self.assertEqual(text, "page-0\npage-1\npage")
         self.assertNotIn("page-5", text)
@@ -370,13 +381,13 @@ class TestGenerateBlog(TestCase):
         self.assertTrue(valid_output.meta_description)
         self.assertTrue(valid_output.text)
 
-    @patch("event.services.media_service.pdfium.PdfDocument")
-    def test_ensure_pdf_thumbnail_creates_image_from_pdf(self, mock_pdf_document):
+    @patch("event.services.media_service.run_pdf_worker")
+    def test_ensure_pdf_thumbnail_creates_image_from_pdf(self, mock_run_pdf_worker):
         """PDFの先頭ページから16:9のサムネイル画像を作成する."""
         event_detail = self.create_event_detail(slide_file=True)
-        image = Image.new("RGB", (120, 200), color="white")
-        mock_bitmap = mock_pdf_document.return_value.__getitem__.return_value.render.return_value
-        mock_bitmap.to_pil.return_value = image
+        image_buffer = BytesIO()
+        Image.new("RGB", (120, 67), color="white").save(image_buffer, format="JPEG")
+        mock_run_pdf_worker.return_value = image_buffer.getvalue()
 
         result = ensure_pdf_thumbnail(event_detail)
 
@@ -385,38 +396,27 @@ class TestGenerateBlog(TestCase):
         event_detail.thumbnail_image.open("rb")
         with Image.open(event_detail.thumbnail_image) as thumbnail:
             self.assertEqual(thumbnail.size, (120, 67))
-        mock_pdf_document.assert_called_once()
+        self.assertEqual(mock_run_pdf_worker.call_args.args[0], "thumbnail")
+        self.assertTrue(os.path.isabs(mock_run_pdf_worker.call_args.args[1]))
 
-    @patch("event.services.media_service.pdfium.PdfDocument")
-    def test_ensure_pdf_thumbnail_uses_default_scale_for_normal_page(self, mock_pdf_document):
+    def test_pdf_thumbnail_uses_default_scale_for_normal_page(self):
         """通常サイズのPDFは既存の最大倍率でレンダリングする."""
-        event_detail = self.create_event_detail(slide_file=True)
-        mock_page = mock_pdf_document.return_value.__getitem__.return_value
-        mock_page.get_size.return_value = (600, 400)
-        image = Image.new("RGB", (120, 90), color="white")
-        mock_page.render.return_value.to_pil.return_value = image
+        class Page:
+            def get_size(self):
+                return (600, 400)
 
-        result = ensure_pdf_thumbnail(event_detail)
+        self.assertEqual(get_pdf_thumbnail_render_scale(Page()), 2.0)
 
-        self.assertTrue(result)
-        mock_page.render.assert_called_once_with(scale=2.0)
-
-    @patch("event.services.media_service.pdfium.PdfDocument")
-    def test_ensure_pdf_thumbnail_limits_scale_for_large_page(self, mock_pdf_document):
+    def test_pdf_thumbnail_limits_scale_for_large_page(self):
         """巨大なPDFページはレンダリング長辺が過大にならない倍率に抑える."""
-        event_detail = self.create_event_detail(slide_file=True)
-        mock_page = mock_pdf_document.return_value.__getitem__.return_value
-        mock_page.get_size.return_value = (4000, 2000)
-        image = Image.new("RGB", (1600, 800), color="white")
-        mock_page.render.return_value.to_pil.return_value = image
+        class Page:
+            def get_size(self):
+                return (4000, 2000)
 
-        result = ensure_pdf_thumbnail(event_detail)
+        self.assertEqual(get_pdf_thumbnail_render_scale(Page()), 0.4)
 
-        self.assertTrue(result)
-        mock_page.render.assert_called_once_with(scale=0.4)
-
-    @patch("event.services.media_service.pdfium.PdfDocument")
-    def test_ensure_pdf_thumbnail_skips_when_already_set(self, mock_pdf_document):
+    @patch("event.services.media_service.run_pdf_worker")
+    def test_ensure_pdf_thumbnail_skips_when_already_set(self, mock_run_pdf_worker):
         """既存サムネイルがある場合はPDFレンダリングしない."""
         event_detail = self.create_event_detail(slide_file=True)
         image_buffer = BytesIO()
@@ -430,10 +430,10 @@ class TestGenerateBlog(TestCase):
         result = ensure_pdf_thumbnail(event_detail)
 
         self.assertFalse(result)
-        mock_pdf_document.assert_not_called()
+        mock_run_pdf_worker.assert_not_called()
 
-    @patch("event.services.media_service.pdfium.PdfDocument")
-    def test_ensure_pdf_thumbnail_overwrites_existing_thumbnail(self, mock_pdf_document):
+    @patch("event.services.media_service.run_pdf_worker")
+    def test_ensure_pdf_thumbnail_overwrites_existing_thumbnail(self, mock_run_pdf_worker):
         """overwrite=Trueの場合は既存サムネイルがあってもPDFから再生成する."""
         event_detail = self.create_event_detail(slide_file=True)
         image_buffer = BytesIO()
@@ -443,15 +443,24 @@ class TestGenerateBlog(TestCase):
             ContentFile(image_buffer.getvalue()),
             save=False,
         )
-        image = Image.new("RGB", (160, 90), color="black")
-        mock_bitmap = mock_pdf_document.return_value.__getitem__.return_value.render.return_value
-        mock_bitmap.to_pil.return_value = image
+        image_buffer = BytesIO()
+        Image.new("RGB", (160, 90), color="black").save(image_buffer, format="JPEG")
+        mock_run_pdf_worker.return_value = image_buffer.getvalue()
 
         result = ensure_pdf_thumbnail(event_detail, overwrite=True)
 
         self.assertTrue(result)
         self.assertIn(f"event_detail_{event_detail.pk}_thumbnail", event_detail.thumbnail_image.name)
-        mock_pdf_document.assert_called_once()
+        mock_run_pdf_worker.assert_called_once()
+
+    @patch(
+        "event.services.media_service.run_pdf_worker",
+        side_effect=PdfWorkerError("thumbnail", "resource_limit"),
+    )
+    def test_ensure_pdf_thumbnail_keeps_failure_non_fatal(self, _mock_run_pdf_worker):
+        event_detail = self.create_event_detail(slide_file=True)
+
+        self.assertFalse(ensure_pdf_thumbnail(event_detail))
 
     @patch("event.services.content_generation_service.ensure_pdf_thumbnail")
     def test_apply_blog_output_sets_article_and_thumbnail(self, mock_ensure_pdf_thumbnail):

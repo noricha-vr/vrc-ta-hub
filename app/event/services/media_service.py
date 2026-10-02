@@ -4,32 +4,13 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
-from io import BytesIO
 
-import pypdfium2 as pdfium
 from django.core.files.base import ContentFile
 
 from event.models import EventDetail
-from event.thumbnail import crop_to_slide_thumbnail_aspect_ratio
+from event.services.pdf_worker import PdfWorkerError, run_pdf_worker
 
 logger = logging.getLogger(__name__)
-
-PDF_THUMBNAIL_MAX_RENDER_SCALE = 2.0
-PDF_THUMBNAIL_MAX_LONG_EDGE_PX = 1600
-
-
-def _get_pdf_thumbnail_render_scale(page) -> float:
-    """PDFページの長辺が上限を超えないレンダリング倍率を返す."""
-    try:
-        width, height = page.get_size()
-        long_edge = max(float(width), float(height))
-    except (AttributeError, TypeError, ValueError):
-        return PDF_THUMBNAIL_MAX_RENDER_SCALE
-
-    if long_edge <= 0:
-        return PDF_THUMBNAIL_MAX_RENDER_SCALE
-
-    return min(PDF_THUMBNAIL_MAX_RENDER_SCALE, PDF_THUMBNAIL_MAX_LONG_EDGE_PX / long_edge)
 
 
 def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False, overwrite: bool = False) -> bool:
@@ -49,35 +30,26 @@ def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False, overw
     temp_file_path = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
-            event_detail.slide_file.open('rb')
-            for chunk in event_detail.slide_file.chunks():
-                temp_file.write(chunk)
             temp_file_path = temp_file.name
-
-        pdf = pdfium.PdfDocument(temp_file_path)
-        try:
-            page = pdf[0]
+            event_detail.slide_file.open('rb')
             try:
-                bitmap = page.render(scale=_get_pdf_thumbnail_render_scale(page))
-                try:
-                    image = crop_to_slide_thumbnail_aspect_ratio(bitmap.to_pil().convert('RGB'))
-                finally:
-                    if hasattr(bitmap, 'close'):
-                        bitmap.close()
+                for chunk in event_detail.slide_file.chunks():
+                    temp_file.write(chunk)
             finally:
-                if hasattr(page, 'close'):
-                    page.close()
-        finally:
-            if hasattr(pdf, 'close'):
-                pdf.close()
+                close = getattr(event_detail.slide_file, 'close', None)
+                if callable(close):
+                    close()
 
-        image_buffer = BytesIO()
-        image.save(image_buffer, format='JPEG', quality=85, optimize=True)
+        image_bytes = run_pdf_worker("thumbnail", temp_file_path)
         filename = f"event_detail_{event_detail.pk or 'new'}_thumbnail.jpg"
-        event_detail.thumbnail_image.save(filename, ContentFile(image_buffer.getvalue()), save=False)
+        event_detail.thumbnail_image.save(filename, ContentFile(image_bytes), save=False)
         if save:
             event_detail.save(update_fields=['thumbnail_image'])
         return True
+    except PdfWorkerError:
+        # Keep thumbnail failure non-fatal, as before; the worker emits a fixed
+        # structured result event with a low-cardinality failure reason.
+        return False
     except Exception:
         logger.exception("PDFサムネイルの生成に失敗しました: EventDetail ID=%s", event_detail.pk)
         return False
