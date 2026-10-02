@@ -31,6 +31,15 @@ from tests.live_smoke import require_live_smoke
 logger = logging.getLogger(__name__)
 
 class ContentGenerationMemoryGuardTest(TestCase):
+    def test_extract_pdf_text_reads_real_pdf_with_character_limit(self):
+        pdf_path = os.path.join(os.path.dirname(__file__), "input_data", "perplexity.pdf")
+
+        reference_text = _extract_pdf_text(pdf_path, max_chars=240)
+        text = _extract_pdf_text(pdf_path, max_chars=120)
+
+        self.assertGreater(len(reference_text), 120)
+        self.assertEqual(text, reference_text[:120])
+
     def test_copy_uploaded_file_uses_chunks_without_reading_all(self):
         class ChunkOnlyFile:
             def __init__(self):
