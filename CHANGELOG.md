@@ -4,6 +4,10 @@
 
 ## 2026-10-02
 
+### Security
+
+- Django 5.2.17、Django REST Framework 3.17.2、Requests 2.33.0、urllib3 2.8.0 に更新し、公開済みのセキュリティ修正を取り込みました (#665)。
+
 ### Changed
 
 - PDF読み取りライブラリをpypdf 6.19.0へ更新しました (#663)。
