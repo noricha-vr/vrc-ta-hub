@@ -17,11 +17,11 @@ from openai.types.chat import (
 )
 from openai.types.shared_params import FunctionDefinition
 from pydantic import BaseModel, Field
-from pypdf import PdfReader
 
 from event.models import EventDetail
 from event.prompts import BLOG_GENERATION_TEMPLATE
 from event.services.media_service import ensure_pdf_thumbnail
+from event.services.pdf_worker import PdfWorkerError, run_pdf_worker
 from event.services.youtube_service import get_transcript
 from website.constants import (
     OPENROUTER_BASE_URL,
@@ -34,7 +34,6 @@ logger = logging.getLogger(__name__)
 MAX_SOURCE_TEXT_CHARS = 40_000
 # 文字起こし + PDF の合算上限。文字起こしを優先し、PDF は残り予算だけ使う。
 MAX_COMBINED_SOURCE_CHARS = 60_000
-MAX_PDF_TEXT_PAGES = 30
 
 
 class BlogOutput(BaseModel):
@@ -107,33 +106,13 @@ def _extract_pdf_text(temp_file_path: str, *, max_chars: int = MAX_SOURCE_TEXT_C
     if max_chars <= 0:
         return ""
 
-    reader = PdfReader(temp_file_path)
-    page_count = len(reader.pages)
-    if page_count > MAX_PDF_TEXT_PAGES:
-        logger.info(
-            "PDF text extraction limited to first %d of %d pages",
-            MAX_PDF_TEXT_PAGES,
-            page_count,
-        )
-
-    page_texts = []
-    current_chars = 0
-    for page_index, page in enumerate(reader.pages):
-        if page_index >= MAX_PDF_TEXT_PAGES:
-            break
-
-        text = page.extract_text() or ""
-        if not text:
-            continue
-
-        remaining_chars = max_chars - current_chars
-        if remaining_chars <= 0:
-            break
-
-        page_texts.append(text[:remaining_chars])
-        current_chars += min(len(text), remaining_chars) + 1
-
-    return "\n".join(page_texts)
+    try:
+        result = run_pdf_worker("text", temp_file_path, max_chars=max_chars)
+        return result.decode("utf-8")
+    except PdfWorkerError:
+        # Worker failures preserve the existing contract: omit PDF text and
+        # continue blog generation with the other available sources.
+        return ""
 
 
 def _get_transcript_with_cache(event_detail: EventDetail) -> Optional[str]:
