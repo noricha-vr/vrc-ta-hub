@@ -18,6 +18,7 @@ from tests.factories import (
     make_event,
     make_user,
 )
+from utils.vrchat_time import get_vrchat_today
 from vket.models import VketCollaboration, VketParticipation
 
 User = get_user_model()
@@ -991,7 +992,7 @@ class EventMyListFutureEventsTest(TestCase):
         self.assertEqual(response.context['current_query_params'], '')
 
     def test_future_events_only_on_first_page(self):
-        past_base = timezone.localdate() - timedelta(days=1)
+        past_base = get_vrchat_today() - timedelta(days=1)
         Event.objects.bulk_create([
             Event(
                 community=self.community, date=past_base - timedelta(days=offset),
