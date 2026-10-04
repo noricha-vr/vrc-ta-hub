@@ -38,6 +38,21 @@ class GetOAuth1Test(TestCase):
         auth = _get_oauth1()
         self.assertIsNotNone(auth)
 
+    @patch.dict("os.environ", VALID_CREDS_ENV, clear=False)
+    def test_signs_json_post_without_network(self):
+        """OAuthLib更新後も実際のOAuth1署名を生成できる。送信はしない。"""
+        request = requests.Request(
+            "POST", "https://api.x.com/2/tweets",
+            json={"text": "署名の互換性確認"}, auth=_get_oauth1(),
+        ).prepare()
+        authorization = request.headers["Authorization"].decode("ascii")
+        self.assertTrue(authorization.startswith("OAuth "))
+        self.assertIn('oauth_signature_method="HMAC-SHA1"', authorization)
+        self.assertIn('oauth_consumer_key="k"', authorization)
+        self.assertIn('oauth_token="t"', authorization)
+        self.assertRegex(authorization, r'oauth_signature="[^"]+"')
+        self.assertEqual(request.headers["Content-Type"], b"application/json")
+
     @patch.dict("os.environ", {
         "X_API_KEY": "k",
         "X_API_SECRET": "",
