@@ -8,10 +8,9 @@ from django.template.loader import render_to_string
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
-from community.models import Community
-from event.models import Event, EventDetail
 from event_calendar.calendar_utils import generate_google_calendar_url
 from ta_hub.index_cache import build_index_database_context, get_index_view_cache_key
+from tests.factories import make_community, make_event, make_event_detail
 
 
 class SpecialEventCalendarTest(TestCase):
@@ -23,15 +22,15 @@ class SpecialEventCalendarTest(TestCase):
         self.request = RequestFactory().get('/')
         self.request.user = AnonymousUser()
         self.day = date(2026, 10, 24)
-        community = Community.objects.create(
+        community = make_community(
             name='特別企画の集会', status='approved',
             poster_image='community/poster.png',
         )
-        self.event = Event.objects.create(
-            community=community, date=self.day, start_time=time(23, 30),
+        self.event = make_event(
+            community=community, event_date=self.day, start_time=time(23, 30),
             duration=90, weekday='Sat',
         )
-        self.special = EventDetail.objects.create(
+        self.special = make_event_detail(
             event=self.event, detail_type='SPECIAL', status='approved',
             theme='日付をまたぐ特別企画',
         )
