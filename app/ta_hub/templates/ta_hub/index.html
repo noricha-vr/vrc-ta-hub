@@ -412,18 +412,12 @@
                     {% for event_group in special_event_list %}
                         <div class="col-12 col-md-10 offset-md-1">
                             {% with first_special=event_group.list|first %}
-                                <a href="
-
-
-
-
-
-
-
-
-                                        {% if first_special and first_special.pk %}{% url 'event:detail' first_special.pk %}{% else %}#{% endif %}"
-                                   class="text-decoration-none d-block">
-                                    <div class="card shadow h-100" style="position: relative;">
+                                <div class="card shadow h-100 text-primary" style="position: relative;">
+                                    <a href="{% if first_special and first_special.pk %}{% url 'event:detail' first_special.pk %}{% else %}#{% endif %}"
+                                       class="text-decoration-none position-absolute w-100 h-100"
+                                       style="z-index: 1;">
+                                        <span class="visually-hidden">{{ event_group.grouper.community.name }}の特別企画を見る</span>
+                                    </a>
                                         <div class="row g-0">
                                             <div class="col-md-4">
                                                 {% if event_group.grouper.community.poster_image %}
@@ -441,7 +435,18 @@
                                                 <div class="card-body">
                                                     <div class="d-flex justify-content-between align-items-start mb-3">
                                                         <h3 class="card-title mb-0 font-monospace">{{ event_group.grouper.community.name }}</h3>
-                                                        <span class="badge bg-warning text-dark">特別企画</span>
+                                                        <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-2">
+                                                            <span class="badge bg-warning text-dark">特別企画</span>
+                                                            <a href="{{ event_group.grouper.google_calendar_url }}"
+                                                               target="_blank" rel="noopener noreferrer"
+                                                               class="btn btn-outline-primary btn-sm"
+                                                               style="position: relative; z-index: 2;"
+                                                               data-bs-toggle="tooltip" data-bs-placement="left"
+                                                               title="Googleカレンダーに予定を追加"
+                                                               aria-label="{{ event_group.grouper.community.name }}をGoogleカレンダーに追加">
+                                                                <i class="bi bi-calendar-plus" aria-hidden="true"></i>
+                                                            </a>
+                                                        </div>
                                                     </div>
                                                     <p class="card-text">
                                                         <i class="bi bi-calendar3"></i> {{ event_group.grouper.date|date:"Y/m/d" }}
@@ -480,7 +485,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                </a>
+                                </div>
                             {% endwith %}
                         </div>
                     {% endfor %}
@@ -661,9 +666,12 @@
                     {% for event_group in special_event_list %}
                         <div class="col-12 col-md-10 offset-md-1">
                             {% with first_special=event_group.list|first %}
-                                <a href="{% if first_special and first_special.pk %}{% url 'event:detail' first_special.pk %}{% else %}#{% endif %}"
-                                   class="text-decoration-none d-block">
-                                    <div class="card shadow h-100" style="position: relative;">
+                                <div class="card shadow h-100 text-primary" style="position: relative;">
+                                    <a href="{% if first_special and first_special.pk %}{% url 'event:detail' first_special.pk %}{% else %}#{% endif %}"
+                                       class="text-decoration-none position-absolute w-100 h-100"
+                                       style="z-index: 1;">
+                                        <span class="visually-hidden">{{ event_group.grouper.community.name }}の特別企画を見る</span>
+                                    </a>
                                         <div class="row g-0">
                                             <div class="col-md-4">
                                                 {% if event_group.grouper.community.poster_image %}
@@ -681,7 +689,18 @@
                                                 <div class="card-body">
                                                     <div class="d-flex justify-content-between align-items-start mb-3">
                                                         <h3 class="card-title mb-0 font-monospace">{{ event_group.grouper.community.name }}</h3>
-                                                        <span class="badge bg-warning text-dark">特別企画</span>
+                                                        <div class="d-flex align-items-center gap-2 flex-shrink-0 ms-2">
+                                                            <span class="badge bg-warning text-dark">特別企画</span>
+                                                            <a href="{{ event_group.grouper.google_calendar_url }}"
+                                                               target="_blank" rel="noopener noreferrer"
+                                                               class="btn btn-outline-primary btn-sm"
+                                                               style="position: relative; z-index: 2;"
+                                                               data-bs-toggle="tooltip" data-bs-placement="left"
+                                                               title="Googleカレンダーに予定を追加"
+                                                               aria-label="{{ event_group.grouper.community.name }}をGoogleカレンダーに追加">
+                                                                <i class="bi bi-calendar-plus" aria-hidden="true"></i>
+                                                            </a>
+                                                        </div>
                                                     </div>
                                                     <p class="card-text">
                                                         <i class="bi bi-calendar3"></i> {{ event_group.grouper.date|date:"Y/m/d" }}
@@ -720,7 +739,7 @@
                                                 </div>
                                             </div>
                                         </div>
-                                </a>
+                                </div>
                             {% endwith %}
                         </div>
                     {% endfor %}
