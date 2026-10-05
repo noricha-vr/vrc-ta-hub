@@ -16,7 +16,8 @@ def get_index_view_cache_key(day=None):
     """トップページのDB由来データキャッシュキーを返す。"""
     if day is None:
         day = get_vrchat_today()
-    return f'index_view_data_{day}'
+    # URL追加前の共有キャッシュを新旧リビジョン間で混在させない。
+    return f'index_view_data_v2_{day}'
 
 
 def clear_index_view_cache(day=None):
@@ -128,6 +129,7 @@ def build_index_database_context(request, today, cache_key):
                 'start_time': special.event.start_time,
                 'end_time': special.event.end_time,
                 'community': special.event.community,
+                'google_calendar_url': generate_google_calendar_url(request, special.event),
             },
             'h1': special.h1,
             'theme': special.theme,

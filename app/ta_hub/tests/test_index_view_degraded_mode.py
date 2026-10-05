@@ -89,7 +89,7 @@ class IndexViewDegradedModeTest(TestCase):
     def test_index_view_uses_cached_payload_when_database_is_unavailable(self, mock_post_filter):
         # キャッシュには vket_achievements を含めない（request依存のためキャッシュ対象外）
         cache.set(
-            "index_view_data_2026-04-04",
+            get_index_view_cache_key("2026-04-04"),
             {
                 "upcoming_events": [],
                 "upcoming_event_details": [],
