@@ -36,8 +36,9 @@ class NginxConfigTest(SimpleTestCase):
         )
         self.assertIn('proxy_set_header Host $django_upstream_host;', self.nginx_config)
 
-    def test_nginx_rule_covers_dev_service_preview_host(self):
-        self.assertIn('vrc\\-ta\\-hub\\-dev', self.nginx_config)
+    def test_nginx_rule_does_not_cover_retired_dev_service_host(self):
+        """廃止した開発用サービスのホストは正規ホストへ寄せない。"""
+        self.assertNotIn('vrc\\-ta\\-hub\\-dev', self.nginx_config)
 
     def test_nginx_does_not_forward_raw_cloud_run_host(self):
         self.assertNotIn('proxy_set_header Host $http_host;', self.nginx_config)

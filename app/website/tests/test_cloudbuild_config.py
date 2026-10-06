@@ -11,10 +11,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 class CloudBuildConfigTest(SimpleTestCase):
     def setUp(self):
         self.cloudbuild = (REPO_ROOT / 'cloudbuild.yaml').read_text()
-        self.cloudbuild_configs = [self.cloudbuild]
-        cloudbuild_dev_path = REPO_ROOT / 'cloudbuild-dev.yaml'
-        if cloudbuild_dev_path.exists():
-            self.cloudbuild_configs.append(cloudbuild_dev_path.read_text())
 
     def test_production_deploy_does_not_auto_assign_traffic_tag(self):
         """Cloud Build はカナリアタグ付与を行わない。タグ運用は deploy-watch に集約する。
@@ -39,10 +35,9 @@ class CloudBuildConfigTest(SimpleTestCase):
 
     def test_cloud_run_memory_limit_is_1gib(self):
         """記事生成時のPDF処理に備えCloud Runメモリ上限を1GiBにする."""
-        for config in self.cloudbuild_configs:
-            self.assertIn("'--memory'", config)
-            self.assertIn("'1Gi'", config)
-            self.assertNotIn("'512Mi'", config)
+        self.assertIn("'--memory'", self.cloudbuild)
+        self.assertIn("'1Gi'", self.cloudbuild)
+        self.assertNotIn("'512Mi'", self.cloudbuild)
 
     def test_cloud_build_does_not_run_django_migrations(self):
         """Cloud Build は Django migration を自動実行しない。
@@ -50,8 +45,7 @@ class CloudBuildConfigTest(SimpleTestCase):
         本番 schema の変更は人間が影響を確認し、デプロイ前に手動で適用する。
         判断記録: docs/research/issue-464-cloud-run-job-migration.md
         """
-        for cloudbuild in self.cloudbuild_configs:
-            self.assertNotIn('manage.py,migrate', cloudbuild)
-            self.assertNotIn('manage.py migrate', cloudbuild)
-            self.assertNotIn('jobs execute vrc-ta-hub-migrate', cloudbuild)
-            self.assertNotIn('jobs deploy vrc-ta-hub-migrate', cloudbuild)
+        self.assertNotIn('manage.py,migrate', self.cloudbuild)
+        self.assertNotIn('manage.py migrate', self.cloudbuild)
+        self.assertNotIn('jobs execute vrc-ta-hub-migrate', self.cloudbuild)
+        self.assertNotIn('jobs deploy vrc-ta-hub-migrate', self.cloudbuild)

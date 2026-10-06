@@ -250,7 +250,6 @@ tree -L 3
 │       ├── settings.py
 │       ├── urls.py
 │       └── wsgi.py
-├── cloudbuild-dev.yaml
 ├── cloudbuild.yaml
 ├── docker-compose.test.yml
 ├── docker-compose.yaml

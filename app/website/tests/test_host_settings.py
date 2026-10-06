@@ -90,7 +90,7 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             'vrc-ta-hub-mhbhtr6sha-an.a.run.app',
             pattern,
         )
-        self.assertRegex(
+        self.assertNotRegex(
             'rev-24d1224---vrc-ta-hub-dev-mhbhtr6sha-an.a.run.app',
             pattern,
         )
@@ -112,7 +112,7 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             'canary---vrc-ta-hub-mhbhtr6sha-an.a.run.app',
             pattern,
         )
-        self.assertRegex(
+        self.assertNotRegex(
             'canary---vrc-ta-hub-dev-mhbhtr6sha-an.a.run.app',
             pattern,
         )
@@ -137,7 +137,7 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             'vrc-ta-hub-332732449600.asia-northeast1.run.app',
             pattern,
         )
-        self.assertRegex(
+        self.assertNotRegex(
             'rev-24d1224---vrc-ta-hub-dev-332732449600.asia-northeast1.run.app',
             pattern,
         )
@@ -224,14 +224,14 @@ class AllowedHostsSettingsTest(SimpleTestCase):
             'django.middleware.common.CommonMiddleware',
         ],
     )
-    def test_dev_service_cloud_run_host_is_canonicalized(self):
+    def test_retired_dev_service_cloud_run_host_is_rejected(self):
+        """廃止した開発用サービスのホストは既定では許可しない。"""
         response = self.client.get(
             '/healthz/',
             HTTP_HOST='rev-24d1224---vrc-ta-hub-dev-mhbhtr6sha-an.a.run.app',
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.content.decode(), 'vrc-ta-hub.com')
+        self.assertEqual(response.status_code, 400)
 
     @override_settings(
         ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1', 'vrc-ta-hub.com'],
