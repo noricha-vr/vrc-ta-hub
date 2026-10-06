@@ -11,7 +11,6 @@ from website.hosts import get_canonical_host, normalize_host
 
 DEFAULT_CLOUD_RUN_SERVICE_NAMES = (
     'vrc-ta-hub',
-    'vrc-ta-hub-dev',
 )
 
 _ORIGINAL_VALIDATE_HOST = request_module.validate_host
