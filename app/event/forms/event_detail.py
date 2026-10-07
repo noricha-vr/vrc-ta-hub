@@ -104,6 +104,7 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
         super().__init__(*args, **kwargs)
         self.datetime_locked = False
         self.applicant_datetime_locked = False
+        self.recording_not_allowed = False
         self.datetime_lock_message = EVENT_DETAIL_DATETIME_LOCK_MESSAGE
 
         if not self.instance.pk and self.request and self.request.user.is_authenticated:
@@ -133,6 +134,10 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
             if self.applicant_datetime_locked:
                 self.fields['start_time'].disabled = True
                 self.fields['duration'].disabled = True
+                # 撮影を許可しない集会では、発表者に撮影の選択肢を出さない（申請の編集画面と同じく今の値のまま）
+                self.recording_not_allowed = self.remove_recording_policy_unless_allowed(
+                    self.instance.event.community
+                )
 
         # 既存の記事がある場合（更新時）は自動生成チェックボックスをOFFにする。
         # meta_description だけで判定すると手書きの contents / h1 を上書き再生成してしまう。

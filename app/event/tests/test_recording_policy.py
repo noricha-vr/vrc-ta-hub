@@ -330,3 +330,57 @@ class LTApplicationEditRecordingNotAllowedTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'data-field="recording_policy"')
         self.assertContains(response, 'data-testid="recording-not-allowed"')
+
+
+class EventDetailUpdateRecordingNotAllowedTest(TestCase):
+    """撮影を「許可しない」集会の承認済み発表を、発表者が発表詳細の編集画面で直す時。"""
+
+    def setUp(self):
+        self.owner = make_discord_linked_user(user_name='ng_detail_owner', email='ng_detail_owner@example.com')
+        self.applicant = make_discord_linked_user(user_name='ng_detail_speaker', email='ng_detail_speaker@example.com')
+        community = make_community(name='撮影しない集会（発表詳細）', owner=self.owner)
+        community.recording_allowed = False
+        community.save(update_fields=['recording_allowed'])
+        self.detail = make_event_detail(
+            make_event(community), applicant=self.applicant, status='approved',
+            start_time=time(22, 30), recording_policy=RecordingPolicy.FORBIDDEN,
+        )
+        self.url = reverse('event:detail_update', kwargs={'pk': self.detail.pk})
+
+    def _post(self, recording_policy):
+        return self.client.post(self.url, {
+            'detail_type': 'LT', 'theme': '発表者の編集', 'speaker': '発表者', 'start_time': '22:30',
+            'duration': 30, 'recording_policy': recording_policy,
+        })
+
+    def test_applicant_sees_note_instead_of_radios(self):
+        """発表者には撮影の選択肢を出さず、撮影されない旨を出す。"""
+        self.client.force_login(self.applicant)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('recording_policy', response.context['form'].fields)
+        self.assertNotContains(response, 'name="recording_policy"')
+        self.assertContains(response, 'data-testid="recording-not-allowed"')
+
+    def test_applicant_cannot_change_policy(self):
+        """発表者が「公開」を送っても今の値（禁止）のまま。"""
+        self.client.force_login(self.applicant)
+
+        response = self._post('public')
+
+        self.assertEqual(response.status_code, 302)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.theme, '発表者の編集')
+        self.assertEqual(self.detail.recording_policy, RecordingPolicy.FORBIDDEN)
+
+    def test_owner_can_still_change_policy(self):
+        """主催者は従来どおり選択肢を見て変えられる。"""
+        self.client.force_login(self.owner)
+
+        response = self._post('allowed')
+
+        self.assertEqual(response.status_code, 302)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.recording_policy, RecordingPolicy.ALLOWED)
