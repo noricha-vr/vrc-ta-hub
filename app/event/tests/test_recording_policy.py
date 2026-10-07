@@ -384,3 +384,17 @@ class EventDetailUpdateRecordingNotAllowedTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.detail.refresh_from_db()
         self.assertEqual(self.detail.recording_policy, RecordingPolicy.ALLOWED)
+
+    def test_applicant_can_change_policy_when_allowed(self):
+        """撮影を許可する集会なら、発表者も従来どおり選択肢を見て変えられる。"""
+        community = self.detail.event.community
+        community.recording_allowed = True
+        community.save(update_fields=['recording_allowed'])
+        self.client.force_login(self.applicant)
+
+        self.assertContains(self.client.get(self.url), 'name="recording_policy"')
+        response = self._post('allowed')
+
+        self.assertEqual(response.status_code, 302)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.recording_policy, RecordingPolicy.ALLOWED)
