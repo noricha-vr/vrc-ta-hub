@@ -124,8 +124,8 @@
                                 {% endif %}
                             </div>
 
+                            {% if form.recording_policy %}
                             <div class="mb-4">
-                                {% if form.recording_policy %}
                                 <p class="form-label fw-bold mb-1">
                                     <i class="bi bi-camera-video me-1"></i>{{ form.recording_policy.label }}
                                 </p>
@@ -138,15 +138,8 @@
                                         {% for error in form.recording_policy.errors %}{{ error }}{% endfor %}
                                     </div>
                                 {% endif %}
-                                {% else %}
-                                <p class="form-label fw-bold mb-1">
-                                    <i class="bi bi-camera-video me-1"></i>撮影
-                                </p>
-                                <p class="mb-0 text-muted small" data-testid="recording-not-allowed">
-                                    この集会は撮影を許可していないため、発表は撮影されません（撮影「禁止」で受け付けます）。
-                                </p>
-                                {% endif %}
                             </div>
+                            {% endif %}
 
                             {% if form.additional_info %}
                             <div class="mb-4">

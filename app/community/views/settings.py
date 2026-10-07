@@ -355,6 +355,20 @@ def _parse_default_recording_policy(value: str | None, current: str) -> str:
     return current
 
 
+def _resolve_default_recording_policy(
+    value: str | None, current: str, *, was_allowed: bool, allowed: bool,
+) -> str:
+    """保存するデフォルトの撮影ステータスを決める。
+
+    撮影を「許可しない」から「許可する」に切り替えた時、値が未送信・選択肢外・「禁止」なら「公開」にする
+    （許可しない間は「禁止」が入っているため）。すでに許可している集会で明示的に選んだ「禁止」は変えない。
+    """
+    policy = _parse_default_recording_policy(value, current)
+    if allowed and not was_allowed and policy == RecordingPolicy.FORBIDDEN:
+        return RecordingPolicy.PUBLIC
+    return policy
+
+
 class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     """LT申請設定更新ビュー"""
 
@@ -366,8 +380,9 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
         community = get_object_or_404(Community, pk=pk)
         accepts_lt = request.POST.get('accepts_lt_application') == 'on'
         recording_allowed = _parse_recording_allowed(request.POST.get('recording_allowed'))
-        default_recording_policy = _parse_default_recording_policy(
+        default_recording_policy = _resolve_default_recording_policy(
             request.POST.get('default_recording_policy'), community.default_recording_policy,
+            was_allowed=community.recording_allowed, allowed=recording_allowed,
         )
         lt_template = request.POST.get('lt_application_template', '').strip()
         duration_str = request.POST.get('default_lt_duration', '30').strip()

@@ -137,16 +137,7 @@
                                     </div>
                                 {% endif %}
                             {% endfor %}
-
-                            {% if form.recording_not_allowed %}
-                                <div class="mb-3 field-wrapper" data-field="recording_policy">
-                                    <label class="form-label">撮影</label>
-                                    <p class="mb-0 text-muted small" data-testid="recording-not-allowed">
-                                        この集会は撮影を許可していないため、発表は撮影されません。
-                                    </p>
-                                </div>
-                            {% endif %}
-
+                            
                             <div class="d-flex justify-content-between align-items-center">
                                 <!-- 詳細設定ボタン（開催前のLTタイプ用） -->
                                 <div id="detail-settings-toggle" style="display: none;">

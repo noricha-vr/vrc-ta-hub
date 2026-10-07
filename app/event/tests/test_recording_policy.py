@@ -271,13 +271,14 @@ class LTApplicationRecordingNotAllowedTest(TestCase):
         self.client.force_login(self.user)
 
     def test_form_hides_choices(self, _mock_send):
-        """申請フォームに撮影の選択肢を出さず、撮影されない旨を出す。"""
+        """申請フォームには撮影の項目を見出しごと出さない。"""
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('recording_policy', response.context['form'].fields)
         self.assertNotContains(response, 'name="recording_policy"')
-        self.assertContains(response, 'data-testid="recording-not-allowed"')
+        self.assertNotContains(response, '撮影されません')
+        self.assertNotContains(response, 'bi-camera-video')
 
     def test_submitted_value_is_ignored_and_saved_as_forbidden(self, _mock_send):
         """「公開」を送っても「禁止」で保存される。"""
@@ -321,15 +322,16 @@ class LTApplicationEditRecordingNotAllowedTest(TestCase):
         self.detail.refresh_from_db()
         self.assertEqual(self.detail.recording_policy, RecordingPolicy.ALLOWED)
 
-    def test_edit_page_shows_note_instead_of_radios(self):
-        """編集画面にはラジオボタンの代わりに撮影されない旨を出す。"""
+    def test_edit_page_has_no_recording_section(self):
+        """編集画面には撮影の項目を見出しごと出さない。"""
         self.client.force_login(self.applicant)
 
         response = self.client.get(reverse('account:lt_application_edit', kwargs={'pk': self.detail.pk}))
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'data-field="recording_policy"')
-        self.assertContains(response, 'data-testid="recording-not-allowed"')
+        self.assertNotContains(response, '撮影されません')
+        self.assertNotContains(response, 'bi-camera-video')
 
 
 class EventDetailUpdateRecordingNotAllowedTest(TestCase):
@@ -353,8 +355,8 @@ class EventDetailUpdateRecordingNotAllowedTest(TestCase):
             'duration': 30, 'recording_policy': recording_policy,
         })
 
-    def test_applicant_sees_note_instead_of_radios(self):
-        """発表者には撮影の選択肢を出さず、撮影されない旨を出す。"""
+    def test_applicant_sees_no_recording_section(self):
+        """発表者には撮影の項目を見出しごと出さない。"""
         self.client.force_login(self.applicant)
 
         response = self.client.get(self.url)
@@ -362,7 +364,8 @@ class EventDetailUpdateRecordingNotAllowedTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('recording_policy', response.context['form'].fields)
         self.assertNotContains(response, 'name="recording_policy"')
-        self.assertContains(response, 'data-testid="recording-not-allowed"')
+        self.assertNotContains(response, '撮影されません')
+        self.assertNotContains(response, 'bi-camera-video')
 
     def test_applicant_cannot_change_policy(self):
         """発表者が「公開」を送っても今の値（禁止）のまま。"""

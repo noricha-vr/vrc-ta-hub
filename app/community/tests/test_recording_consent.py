@@ -172,6 +172,54 @@ class DefaultRecordingPolicySettingsTest(TestCase):
         self.assertFalse(self.community.recording_allowed)
         self.assertEqual(self.community.default_recording_policy, RecordingPolicy.FORBIDDEN)
 
+    def _disallow(self, policy=RecordingPolicy.FORBIDDEN):
+        self.community.recording_allowed = False
+        self.community.default_recording_policy = policy
+        self.community.save(update_fields=['recording_allowed', 'default_recording_policy'])
+
+    def test_switching_to_allowed_turns_forbidden_into_public(self):
+        """「許可しない」から「許可する」に切り替えた時、「禁止」のままなら「公開」にする。"""
+        self._disallow()
+
+        self._post(default_recording_policy='forbidden')
+
+        self.community.refresh_from_db()
+        self.assertTrue(self.community.recording_allowed)
+        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.PUBLIC)
+
+    def test_switching_to_allowed_without_value_becomes_public(self):
+        """切り替え時にデフォルトが送られなくても「公開」にする。"""
+        self._disallow()
+
+        self._post()
+
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.PUBLIC)
+
+    def test_switching_to_allowed_keeps_allowed_choice(self):
+        """切り替え時に「許可」を選んでいればそのまま保存する。"""
+        self._disallow()
+
+        self._post(default_recording_policy='allowed')
+
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.ALLOWED)
+
+    def test_explicit_forbidden_is_kept_when_already_allowed(self):
+        """すでに「許可する」の集会で明示的に「禁止」を保存したら、次に保存しても上書きしない。"""
+        self._post(default_recording_policy='forbidden')
+        self._post(default_recording_policy='forbidden')
+
+        self.community.refresh_from_db()
+        self.assertTrue(self.community.recording_allowed)
+        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.FORBIDDEN)
+
+    def test_settings_page_selects_public_when_switching_to_allowed(self):
+        """設定画面の JS は「許可する」に切り替えた時に「公開」を選ぶ。"""
+        html = self.client.get(reverse('community:settings')).content.decode()
+
+        self.assertIn("document.getElementById('default_recording_policy_public').checked = true", html)
+
     def test_default_section_is_hidden_when_not_allowed(self):
         """「許可しない」の集会では、デフォルトの撮影ステータスを畳んで表示する。"""
         self.community.recording_allowed = False

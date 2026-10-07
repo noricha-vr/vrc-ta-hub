@@ -231,6 +231,10 @@
         var allowed = document.getElementById('recording_allowed_true');
         var section = document.getElementById('default-recording-policy-section');
         section.style.display = allowed.checked ? 'block' : 'none';
+        // 「許可する」に切り替えた時は、デフォルトの撮影ステータスを「公開」にしておく
+        if (allowed.checked) {
+            document.getElementById('default_recording_policy_public').checked = true;
+        }
     }
     </script>
 
