@@ -46,7 +46,8 @@ class RecordingPolicyFormMixin:
     """撮影の選択肢（recording_policy）を任意入力として扱うMixin。
 
     ラジオボタンは既定値が選択済みで表示されるため通常は必ず送られるが、
-    未送信・空のときは既存の値（新規は「公開」）を保ち、同意を勝手に変えない。
+    未送信・空のときは既存の値（新規は集会のデフォルト、集会が無ければ「公開」）を保ち、
+    同意を勝手に変えない。
     """
 
     def __init__(self, *args, **kwargs):
@@ -60,4 +61,17 @@ class RecordingPolicyFormMixin:
         instance = getattr(self, 'instance', None)
         if instance is not None and instance.recording_policy:
             return instance.recording_policy
+        community = getattr(self, 'community', None)
+        if community is not None:
+            return community.default_recording_policy
         return EventDetail.RecordingPolicy.PUBLIC
+
+    def remove_recording_policy_unless_allowed(self, community) -> bool:
+        """集会が撮影を許可していなければ撮影の選択肢を消す。消したら True。
+
+        登壇者には選ばせず、保存する値は呼び出し側が決める（新規は「禁止」、既存は今の値のまま）。
+        """
+        if community is None or community.recording_allowed:
+            return False
+        self.fields.pop('recording_policy', None)
+        return True

@@ -11,7 +11,7 @@ from django.db import models
 from django.utils import timezone
 from django.utils.html import strip_tags
 
-from community.constants import WEEKDAY_CHOICES
+from community.constants import WEEKDAY_CHOICES, RecordingPolicy
 from community.models import Community
 
 logger = logging.getLogger(__name__)
@@ -419,10 +419,8 @@ class EventDetail(models.Model):
         help_text='登壇者が入力した追加情報'
     )
 
-    class RecordingPolicy(models.TextChoices):
-        FORBIDDEN = 'forbidden', '禁止（撮影しない）'
-        ALLOWED = 'allowed', '許可（撮影するが公開しない）'
-        PUBLIC = 'public', '公開（撮影して YouTube で公開）'
+    # 選択肢の正本は community.constants（集会のデフォルトと共有するため）。
+    RecordingPolicy = RecordingPolicy
 
     # 自動撮影の可否。API で公開し、録画ツールがこの値を見て撮影・公開を判断する。
     # db_default: migration 適用後もしばらく動く旧リビジョンの INSERT（列を知らない）を通すため

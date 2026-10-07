@@ -143,15 +143,36 @@
                     </small>
                 </div>
                 <div class="mb-3">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="recording_allowed" name="recording_allowed"
-                               {% if community.recording_allowed %}checked{% endif %}>
-                        <label class="form-check-label fw-medium" for="recording_allowed">
-                            撮影を許可する
-                        </label>
+                    <p class="form-label fw-medium mb-1">撮影許可</p>
+                    <div class="d-flex flex-wrap gap-3" role="radiogroup" aria-label="撮影許可">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="recording_allowed_true" name="recording_allowed" value="true"
+                                   {% if community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()">
+                            <label class="form-check-label" for="recording_allowed_true">許可する</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="recording_allowed_false" name="recording_allowed" value="false"
+                                   {% if not community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()">
+                            <label class="form-check-label" for="recording_allowed_false">許可しない</label>
+                        </div>
                     </div>
                     <small class="form-text text-muted">
-                        オフにすると、この集会の発表はハブの自動撮影の対象になりません。
+                        「許可しない」にすると、この集会の発表はハブの自動撮影の対象になりません。発表申請フォームにも撮影の選択肢を出さず、「禁止」で受け付けます。
+                    </small>
+                </div>
+                <div class="mb-3" id="default-recording-policy-section" style="{% if not community.recording_allowed %}display: none;{% endif %}">
+                    <p class="form-label fw-medium mb-1">デフォルトの撮影ステータス</p>
+                    <div class="d-flex flex-column gap-1" role="radiogroup" aria-label="デフォルトの撮影ステータス">
+                        {% for value, label in recording_policy_choices %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" id="default_recording_policy_{{ value }}" name="default_recording_policy" value="{{ value }}"
+                                       {% if community.default_recording_policy == value %}checked{% endif %}>
+                                <label class="form-check-label" for="default_recording_policy_{{ value }}">{{ label }}</label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <small class="form-text text-muted">
+                        発表申請フォームで、撮影の選択肢の初期値になります。登壇者は申請時に変えられます。
                     </small>
                 </div>
                 <div id="lt-settings-detail" style="{% if not community.accepts_lt_application %}display: none;{% endif %}">
@@ -205,6 +226,11 @@
         } else {
             detailSection.style.display = 'none';
         }
+    }
+    function toggleRecordingSettings() {
+        var allowed = document.getElementById('recording_allowed_true');
+        var section = document.getElementById('default-recording-policy-section');
+        section.style.display = allowed.checked ? 'block' : 'none';
     }
     </script>
 

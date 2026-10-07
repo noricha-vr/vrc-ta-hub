@@ -132,6 +132,15 @@
                                 </div>
                             {% endfor %}
 
+                            {% if not community.recording_allowed %}
+                                <div class="mb-3">
+                                    <label class="form-label">撮影</label>
+                                    <p class="mb-0 text-muted small" data-testid="recording-not-allowed">
+                                        この集会は撮影を許可していないため、発表は撮影されません。
+                                    </p>
+                                </div>
+                            {% endif %}
+
                             <div class="d-flex justify-content-between">
                                 <a href="{% url 'account:lt_application_list' %}" class="btn btn-secondary">
                                     <i class="fa-solid fa-arrow-left me-1"></i>戻る

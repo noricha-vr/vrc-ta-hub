@@ -82,6 +82,9 @@ class LTApplicationEditForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin,
             and (self.instance.meta_description or self.instance.contents or self.instance.h1)
         )
         self.initial['generate_blog_article'] = not has_article
+        # 撮影を許可しない集会では選択肢を出さない。フィールドが無いので保存しても今の値のまま
+        if self.instance.pk and self.instance.event_id:
+            self.remove_recording_policy_unless_allowed(self.instance.event.community)
 
 
 class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
@@ -179,9 +182,18 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
                     f'追加で伝えたい情報があれば入力してください。{additional_info_guidance}'
                 )
 
+            if not self.remove_recording_policy_unless_allowed(self.community):
+                self.fields['recording_policy'].initial = self.community.default_recording_policy
+
         if self.user and self.user.is_authenticated:
             self.fields['speaker'].initial = self.user.display_label
             self.fields['x_account'].initial = self.user.x_account
+
+    def resolved_recording_policy(self) -> str:
+        """保存する撮影の値。集会が撮影を許可していなければ、送信値に関わらず「禁止」。"""
+        if self.community is not None and not self.community.recording_allowed:
+            return EventDetail.RecordingPolicy.FORBIDDEN
+        return self.cleaned_data['recording_policy']
 
     def clean_speaker(self):
         """発表者名を EventDetail.speaker と user.display_name 用に検証する。"""

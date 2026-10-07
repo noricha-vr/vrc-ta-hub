@@ -7,6 +7,8 @@ models を import せずに参照できるよう軽量モジュールとして�
 
 from datetime import date
 
+from django.db import models
+
 
 _WEEKDAY_CODES = ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun')
 
@@ -48,3 +50,15 @@ def weekday_code(value: date) -> str:
 # 発表申請の「追加情報テンプレート」を主催者が未設定の時に設定画面へ出す既定文。
 # 撮影の可否は発表ごとの選択肢（EventDetail.recording_policy）で聞くため、ここには含めない。
 DEFAULT_LT_APPLICATION_TEMPLATE = "【発表概要】\n\n【スライド公開】OK / NG"
+
+
+class RecordingPolicy(models.TextChoices):
+    """発表ごとの撮影の扱い。
+
+    EventDetail.recording_policy と、集会のデフォルト（Community.default_recording_policy）で共有する。
+    community は event を import できないため、正本はここに置く。
+    """
+
+    FORBIDDEN = 'forbidden', '禁止（撮影しない）'
+    ALLOWED = 'allowed', '許可（撮影するが公開しない）'
+    PUBLIC = 'public', '公開（撮影して YouTube で公開）'
