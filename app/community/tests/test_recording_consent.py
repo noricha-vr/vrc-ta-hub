@@ -204,9 +204,9 @@ class DefaultRecordingPolicySettingsTest(TestCase):
         html = self.client.get(reverse('community:settings')).content.decode()
 
         self.assertIn('name="default_recording_policy_chosen" value=""', html)
-        self.assertIn('onchange="markRecordingPolicyChosen()"', html)
+        self.assertIn('onchange="markRecordingPolicyTouched()"', html)
         # 戻る操作でフォームが復元された後の送信でも印を立てる
-        self.assertIn("chosen.form.addEventListener('submit', markRecordingPolicyChosen)", html)
+        self.assertIn("chosen.form.addEventListener('submit'", html)
 
     def test_switching_to_allowed_without_value_becomes_public(self):
         """切り替え時にデフォルトが送られなくても「公開」にする。"""

@@ -166,7 +166,7 @@
                         {% for value, label in recording_policy_choices %}
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" id="default_recording_policy_{{ value }}" name="default_recording_policy" value="{{ value }}"
-                                       {% if community.default_recording_policy == value %}checked{% endif %} onchange="markRecordingPolicyChosen()">
+                                       {% if community.default_recording_policy == value %}checked{% endif %} onchange="markRecordingPolicyTouched()">
                                 <label class="form-check-label" for="default_recording_policy_{{ value }}">{{ label }}</label>
                             </div>
                         {% endfor %}
@@ -229,23 +229,27 @@
             detailSection.style.display = 'none';
         }
     }
+    var recordingPolicyTouched = false;
     function toggleRecordingSettings() {
         var allowed = document.getElementById('recording_allowed_true');
         var section = document.getElementById('default-recording-policy-section');
         section.style.display = allowed.checked ? 'block' : 'none';
-        // 「許可する」に切り替えた時は、撮影ステータスの初期値を「公開」にしておく
-        if (allowed.checked) {
+        // 撮影を許可していなかった集会を「許可する」に切り替えた時は、撮影ステータスの初期値を「公開」にしておく。
+        // 許可済みの集会で保存してある値と、この画面で主催者が選んだ値は変えない
+        if (allowed.checked && !allowed.defaultChecked && !recordingPolicyTouched) {
             document.getElementById('default_recording_policy_public').checked = true;
         }
     }
-    function markRecordingPolicyChosen() {
-        document.getElementById('default_recording_policy_chosen').value = '1';
+    function markRecordingPolicyTouched() {
+        recordingPolicyTouched = true;
     }
     (function () {
         var chosen = document.getElementById('default_recording_policy_chosen');
         // JS が動く画面では、許可に切り替えた時に JS が「公開」を選ぶため、送る初期値は主催者が画面で見ていた選択そのもの。
         // 戻る操作でフォームが復元されても hidden は空に戻るので、送信の直前に印を立てる
-        chosen.form.addEventListener('submit', markRecordingPolicyChosen);
+        chosen.form.addEventListener('submit', function () {
+            chosen.value = '1';
+        });
         // 復元で撮影許可の選択だけ戻った時に、初期値の欄の表示を合わせる
         window.addEventListener('pageshow', function () {
             var section = document.getElementById('default-recording-policy-section');
