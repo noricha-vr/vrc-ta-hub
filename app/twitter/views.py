@@ -74,8 +74,10 @@ class TwitterTemplateBaseView(LoginRequiredMixin, AuthenticatedForbiddenMixin):
         アクティブな集会を使う。管理できない集会なら None。
         """
         if not hasattr(self, '_target_community'):
-            community_id = _parse_community_id(self.request.GET.get('community'))
-            if community_id is None:
+            if 'community' in self.request.GET:
+                # 指定があるのに読めない時は、別の集会に作らないようセッションへ逃がさない
+                community_id = _parse_community_id(self.request.GET.get('community'))
+            else:
                 community_id = _parse_community_id(self.request.session.get('active_community_id'))
             community = Community.objects.filter(id=community_id).first() if community_id else None
             if community and not can_manage_twitter_templates(self.request.user, community):

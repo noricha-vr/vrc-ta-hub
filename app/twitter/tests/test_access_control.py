@@ -248,6 +248,18 @@ class TemplateCreateAccessTest(TwitterAccessControlTestBase):
         self.assertFalse(TwitterTemplate.objects.filter(name='cross').exists())
 
 
+    def test_invalid_community_query_does_not_fall_back_to_session(self):
+        self.login_as(STAFF)
+        for raw in ('abc', ''):
+            with self.subTest(community=raw):
+                response = self.client.post(
+                    f"{reverse('twitter:template_create')}?community={raw}",
+                    {'name': f'invalid-{raw}', 'template': 'body'},
+                )
+                self.assertEqual(response.status_code, 403)
+                self.assertFalse(TwitterTemplate.objects.filter(name=f'invalid-{raw}').exists())
+
+
 class TemplateUpdateAccessTest(TwitterAccessControlTestBase):
     """テンプレート編集（template_update）: 集会の主催者・スタッフと superuser"""
 
