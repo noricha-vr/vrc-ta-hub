@@ -21,6 +21,7 @@ from django.views.generic import CreateView, UpdateView, ListView, DeleteView, D
 
 logger = logging.getLogger(__name__)
 
+from community.context_processors import active_community
 from community.models import Community, CommunityMember
 from event.models import Event
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
@@ -118,12 +119,9 @@ class TwitterTemplateListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # 「新規作成」はアクティブな集会に作る。集会に所属しない superuser には出さない
-        community_id = _parse_community_id(self.request.session.get('active_community_id'))
-        community = Community.objects.filter(id=community_id).first() if community_id else None
-        if community and not can_manage_twitter_templates(self.request.user, community):
-            community = None
-        context['create_community'] = community
+        # 「新規作成」はアクティブな集会に作る。選び方はヘッダーの集会切替と同じ。
+        # 集会に所属しない superuser には出さない
+        context['create_community'] = active_community(self.request).get('active_community')
         return context
 
 

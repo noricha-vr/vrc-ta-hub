@@ -180,6 +180,13 @@ class TemplateListAccessTest(TwitterAccessControlTestBase):
                 self.assertEqual(f'{create_url}?community={self.community.pk}' in html, shown)
 
 
+    def test_create_button_shown_on_first_visit_without_active_community(self):
+        """セッションに集会が無い初回アクセスでも、所属する集会に作るボタンを出す."""
+        self.client.force_login(self.staff)
+        html = self.client.get(self.url).content.decode()
+        self.assertIn(f"{reverse('twitter:template_create')}?community={self.community.pk}", html)
+
+
 class TemplateCreateAccessTest(TwitterAccessControlTestBase):
     """テンプレート作成（template_create）: 集会の主催者・スタッフと superuser"""
 
