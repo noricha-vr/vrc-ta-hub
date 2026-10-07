@@ -189,6 +189,23 @@ class DefaultRecordingPolicySettingsTest(TestCase):
         self.assertTrue(self.community.recording_allowed)
         self.assertEqual(self.community.default_recording_policy, RecordingPolicy.PUBLIC)
 
+    def test_switching_to_allowed_keeps_forbidden_chosen_by_organizer(self):
+        """切り替えと同時に主催者が「禁止」を選び直して保存したら、上書きしない。"""
+        self._disallow()
+
+        self._post(default_recording_policy='forbidden', default_recording_policy_chosen='1')
+
+        self.community.refresh_from_db()
+        self.assertTrue(self.community.recording_allowed)
+        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.FORBIDDEN)
+
+    def test_settings_page_marks_choice_made_by_organizer(self):
+        """設定画面は、主催者が初期値を選んだ時だけ印を立てる hidden を送る。"""
+        html = self.client.get(reverse('community:settings')).content.decode()
+
+        self.assertIn('name="default_recording_policy_chosen" value=""', html)
+        self.assertIn('onchange="markRecordingPolicyChosen()"', html)
+
     def test_switching_to_allowed_without_value_becomes_public(self):
         """切り替え時にデフォルトが送られなくても「公開」にする。"""
         self._disallow()

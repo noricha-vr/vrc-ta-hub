@@ -166,11 +166,13 @@
                         {% for value, label in recording_policy_choices %}
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" id="default_recording_policy_{{ value }}" name="default_recording_policy" value="{{ value }}"
-                                       {% if community.default_recording_policy == value %}checked{% endif %}>
+                                       {% if community.default_recording_policy == value %}checked{% endif %} onchange="markRecordingPolicyChosen()">
                                 <label class="form-check-label" for="default_recording_policy_{{ value }}">{{ label }}</label>
                             </div>
                         {% endfor %}
                     </div>
+                    {# 主催者が自分で選んだ時だけ 1 になる。許可に切り替えた時の「禁止」が選び直しか古い値かをサーバーが見分ける #}
+                    <input type="hidden" id="default_recording_policy_chosen" name="default_recording_policy_chosen" value="">
                     <small class="form-text text-muted">
                         発表申請フォームで、撮影の選択肢の初期値になります。登壇者は申請時に変えられます。
                     </small>
@@ -235,6 +237,9 @@
         if (allowed.checked) {
             document.getElementById('default_recording_policy_public').checked = true;
         }
+    }
+    function markRecordingPolicyChosen() {
+        document.getElementById('default_recording_policy_chosen').value = '1';
     }
     </script>
 
