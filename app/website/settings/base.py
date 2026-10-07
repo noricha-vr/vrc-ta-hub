@@ -265,6 +265,21 @@ LOGIN_REDIRECT_URL = '/event/my_list/'
 SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 
 
+# Sentry の既定の除去対象（password など）に含まれない、ログインフォームの送信値。
+# DjangoIntegration が POST 本文を event['request']['data'] に載せるため、送る前に伏せる（#611）。
+_SENTRY_SCRUBBED_REQUEST_FIELDS = frozenset({'cf-turnstile-response', 'username'})
+_SENTRY_FILTERED_VALUE = '[Filtered]'
+
+
+def _scrub_sentry_request_data(event):
+    """event の POST 本文から、ボット対策のトークンとログイン ID を伏せて返す."""
+    data = (event.get('request') or {}).get('data')
+    if isinstance(data, dict):
+        for field in _SENTRY_SCRUBBED_REQUEST_FIELDS.intersection(data):
+            data[field] = _SENTRY_FILTERED_VALUE
+    return event
+
+
 def _sentry_before_send(event, hint):  # pragma: no cover - 本番のみ呼ばれる
     """Sentry 送信前フィルタ.
 
@@ -276,18 +291,18 @@ def _sentry_before_send(event, hint):  # pragma: no cover - 本番のみ呼ば�
     """
     logger_name = event.get('logger') or ''
     if logger_name.startswith('django'):
-        return event
+        return _scrub_sentry_request_data(event)
 
     logentry = event.get('logentry') or {}
     message = logentry.get('message') or event.get('message') or ''
     if message == 'silent_failure':
-        return event
+        return _scrub_sentry_request_data(event)
 
     # `extra` 経由でセットした構造化フィールドを参照する。
     # sentry_sdk は LogRecord.is_silent を event['extra'] に伝搬する。
     extra = event.get('extra') or {}
     if extra.get('is_silent') is True:
-        return event
+        return _scrub_sentry_request_data(event)
 
     # 不明な ERROR ログはドロップ (PII / 生成物リーク防止)
     return None

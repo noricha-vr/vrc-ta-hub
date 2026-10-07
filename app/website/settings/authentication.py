@@ -75,7 +75,8 @@ SOCIALACCOUNT_FORMS = {
 }
 
 # Cloudflare Turnstile（メールアドレスでのログイン画面のボット対策）。
-# 2 つとも設定した時だけ有効。どちらかが空ならウィジェットも検証も無効にする（ローカル開発・CI は未設定で動く）。
+# 2 つとも設定した時だけ有効。2 つとも空ならウィジェットも検証も無効にする（ローカル開発・CI は未設定で動く）。
+# 片方だけの時は、DEBUG=True なら無効、本番（DEBUG=False）なら起動を止める（validate_turnstile_keys）。
 TURNSTILE_SITE_KEY = os.environ.get('TURNSTILE_SITE_KEY', '').strip()
 TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '').strip()
 # テストは環境変数に鍵があっても無効にする（有効時の振る舞いは override_settings で個別に検証する）。
