@@ -196,6 +196,15 @@ class DefaultRecordingPolicySettingsTest(TestCase):
         self.community.refresh_from_db()
         self.assertEqual(self.community.default_recording_policy, RecordingPolicy.PUBLIC)
 
+    def test_switching_to_allowed_without_value_ignores_previous_allowed(self):
+        """許可しない間に「許可」が残っていても、切り替え時に未送信なら「公開」にする。"""
+        self._disallow(RecordingPolicy.ALLOWED)
+
+        self._post()
+
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.default_recording_policy, RecordingPolicy.PUBLIC)
+
     def test_switching_to_allowed_keeps_allowed_choice(self):
         """切り替え時に「許可」を選んでいればそのまま保存する。"""
         self._disallow()

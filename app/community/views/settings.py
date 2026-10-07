@@ -360,13 +360,12 @@ def _resolve_default_recording_policy(
 ) -> str:
     """保存するデフォルトの撮影ステータスを決める。
 
-    撮影を「許可しない」から「許可する」に切り替えた時、値が未送信・選択肢外・「禁止」なら「公開」にする
-    （許可しない間は「禁止」が入っているため）。すでに許可している集会で明示的に選んだ「禁止」は変えない。
+    撮影を「許可しない」から「許可する」に切り替えた時、値が未送信・選択肢外・「禁止」なら、今の値に関わらず
+    「公開」にする（許可しない間は「禁止」などが残っているため）。すでに許可している集会で明示的に選んだ「禁止」は変えない。
     """
-    policy = _parse_default_recording_policy(value, current)
-    if allowed and not was_allowed and policy == RecordingPolicy.FORBIDDEN:
+    if allowed and not was_allowed and value not in (RecordingPolicy.ALLOWED, RecordingPolicy.PUBLIC):
         return RecordingPolicy.PUBLIC
-    return policy
+    return _parse_default_recording_policy(value, current)
 
 
 class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
