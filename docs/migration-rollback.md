@@ -138,6 +138,38 @@ python manage.py migrate user_account 0015
 
 監査または migration が停止した場合は、所有者を推測して修正せず、対象データの確認後に再実行する。
 
+### user_account 0017 / 0018 の適用前監査と戻し方
+
+`0017_emailownership` はメールアドレスの持ち主の表 `user_account_emailownership`（小文字にそろえたアドレスに unique）を作り、
+`0018_backfill_email_ownership` は主アドレスと、確認済みまたは primary の `EmailAddress` から記録を埋める。
+本番での順番（監査 → 0017 / 0018 の適用 → トラフィック切替 → 切替後の監査）は
+[deployment.md](deployment.md#メールアドレスの持ち主の表user_account-0017--0018の先行適用) を正本とする。
+
+```bash
+# 適用前（読み取り専用。表が無いので addresses と conflicts だけを出す）
+python manage.py audit_email_ownership
+python manage.py migrate user_account 0018 --plan
+python manage.py migrate user_account 0018
+# 適用後・切替後（conflicts / missing / stale がすべて 0 なら audit passed）
+python manage.py audit_email_ownership
+```
+
+0018 が止まった時:
+
+- `Email ownership conflict during email ownership migration: addresses=N` で止まる。同じアドレスを 2 人以上が持っている。
+  0017 は自動コミット済みで表は空のまま残る。持ち主を推測して直さず、対象のアカウントを確かめて解消してから 0018 を再実行する
+- 監査が `conflicts=0` なのに 0018 が `IntegrityError` で止まる時は、DB の照合順序がアクセント違いも同じ文字とみなしている
+  （`*_ai_ci`）。監査と 0018 は Python の `lower()` でアドレスを束ねるため、アクセントだけ違うアドレスは別々に数える。
+  この場合も持ち主を推測して直さない
+
+戻し方:
+
+1. 先にトラフィックを旧revisionへ戻す。旧コードは新しい表を読まないので、表が残っていても動く
+2. 表も消す時は `migrate user_account 0016`。0018 の reverse は記録を全部消し、0017 の reverse は表を消す。
+   元のアカウントデータは変わらない
+3. もう一度新revisionへ切り替える時は、旧revisionが動いていた間の変更で記録がずれている。
+   切替後に `audit_email_ownership` を流し、`missing` / `stale` が出たら `--repair` で合わせ直す（書き込みあり。`conflicts` は直さない）
+
 ## 危険な migration の見分け方
 
 PR レビュー時点で**「rollback コストが高い」**と判断するためのチェックリスト。

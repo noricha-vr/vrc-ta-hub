@@ -63,6 +63,44 @@ gcloud run jobs update vrc-ta-hub-migrate \
 所有者を推測して修正せず、[migration-rollback.md](migration-rollback.md#user_account-0015-の適用前監査)
 の監査コマンドで対象を確認してから再実行する。
 
+### メールアドレスの持ち主の表（user_account 0017 / 0018）の先行適用
+
+`user_account.0017_emailownership` は持ち主の記録 `user_account_emailownership` を作り、
+`0018_backfill_email_ownership` は既存のアカウントから記録を埋める。新しいコードは
+`CustomUser.save()` と `is_email_in_use` でこの表を読み書きするため、未適用のまま新revisionへ
+トラフィックを流すと、登録・メール変更・副アドレスの確認・プロフィール保存が500になる。
+0016と同じく、トラフィック切替より前に適用する。
+
+順番は次のとおり。監査コマンド `audit_email_ownership` はアドレスを出さず件数だけを出す。
+
+1. mainへのマージ後、`--no-traffic` の新revisionができるのを待つ
+2. `./scripts/create_migrate_job.sh` でJobを新イメージに更新する
+3. 適用前の監査（読み取り専用）。Jobの引数を差し替えて実行し、ログで `conflicts=0` を確かめてから引数を戻す
+
+   ```bash
+   gcloud run jobs update vrc-ta-hub-migrate \
+     --region=asia-northeast1 --project=vrc-ta-hub \
+     --args='^|^manage.py|audit_email_ownership'
+   gcloud run jobs execute vrc-ta-hub-migrate \
+     --region=asia-northeast1 --project=vrc-ta-hub --wait
+   gcloud run jobs update vrc-ta-hub-migrate \
+     --region=asia-northeast1 --project=vrc-ta-hub \
+     --args='^|^manage.py|migrate|--noinput'
+   ```
+
+   表が無い段階なので `addresses` と `conflicts` だけが出る。`conflicts` が1以上なら止める。
+   持ち主を推測して直さない（0018も同じ条件で止まる）
+4. 0017 / 0018を適用し（`gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --project=vrc-ta-hub --wait`）、
+   `./scripts/check_pending_migrations.sh` で未適用ゼロを確かめる
+5. トラフィックを新revisionへ切り替える
+6. 切替後の監査。3と同じ手順で流し、`conflicts=0 missing=0 stale=0` を確かめる。
+   4から5の間に旧revisionが登録・メール変更を受けると `missing` / `stale` が出る。その時は
+   引数を `--args='^|^manage.py|audit_email_ownership|--repair'` にして合わせ直す（書き込みあり。
+   `conflicts` は直さない）。最後に引数を `migrate|--noinput` へ戻す
+
+戻し方と、0018が止まった時の扱いは
+[migration-rollback.md](migration-rollback.md#user_account-0017--0018-の適用前監査と戻し方) を参照。
+
 ### DatabaseCache migrationの先行適用
 
 Cloud Runではログイン失敗回数とDRF throttleを複数インスタンス間で共有するため、
