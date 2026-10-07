@@ -161,8 +161,8 @@
                     </small>
                 </div>
                 <div class="mb-3" id="default-recording-policy-section" style="{% if not community.recording_allowed %}display: none;{% endif %}">
-                    <p class="form-label fw-medium mb-1">デフォルトの撮影ステータス</p>
-                    <div class="d-flex flex-column gap-1" role="radiogroup" aria-label="デフォルトの撮影ステータス">
+                    <p class="form-label fw-medium mb-1">撮影ステータスの初期値</p>
+                    <div class="d-flex flex-column gap-1" role="radiogroup" aria-label="撮影ステータスの初期値">
                         {% for value, label in recording_policy_choices %}
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" id="default_recording_policy_{{ value }}" name="default_recording_policy" value="{{ value }}"
@@ -231,7 +231,7 @@
         var allowed = document.getElementById('recording_allowed_true');
         var section = document.getElementById('default-recording-policy-section');
         section.style.display = allowed.checked ? 'block' : 'none';
-        // 「許可する」に切り替えた時は、デフォルトの撮影ステータスを「公開」にしておく
+        // 「許可する」に切り替えた時は、撮影ステータスの初期値を「公開」にしておく
         if (allowed.checked) {
             document.getElementById('default_recording_policy_public').checked = true;
         }

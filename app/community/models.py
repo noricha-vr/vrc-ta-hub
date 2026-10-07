@@ -134,7 +134,7 @@ class Community(models.Model):
     )
     # 発表申請フォームで撮影の選択肢を最初に選んでおく値。db_default は recording_allowed と同じ理由
     default_recording_policy = models.CharField(
-        'デフォルトの撮影ステータス',
+        '撮影ステータスの初期値',
         max_length=20,
         choices=RecordingPolicy.choices,
         default=RecordingPolicy.PUBLIC,

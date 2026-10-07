@@ -349,7 +349,7 @@ def _parse_recording_allowed(value: str | None) -> bool:
 
 
 def _parse_default_recording_policy(value: str | None, current: str) -> str:
-    """デフォルトの撮影ステータスの送信値を検証する。選択肢外・未送信は今の値を保つ。"""
+    """撮影ステータスの初期値の送信値を検証する。選択肢外・未送信は今の値を保つ。"""
     if value in RecordingPolicy.values:
         return value
     return current
@@ -358,7 +358,7 @@ def _parse_default_recording_policy(value: str | None, current: str) -> str:
 def _resolve_default_recording_policy(
     value: str | None, current: str, *, was_allowed: bool, allowed: bool,
 ) -> str:
-    """保存するデフォルトの撮影ステータスを決める。
+    """保存する撮影ステータスの初期値を決める。
 
     撮影を「許可しない」から「許可する」に切り替えた時、値が未送信・選択肢外・「禁止」なら、今の値に関わらず
     「公開」にする（許可しない間は「禁止」などが残っているため）。すでに許可している集会で明示的に選んだ「禁止」は変えない。
@@ -419,7 +419,7 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
             f'発表申請設定更新: 集会「{community.name}」、'
             f'テンプレート文字数={len(lt_template)}、デフォルトの持ち時間={duration}分、'
             f'LT開始オフセット={offset}分、撮影許可={recording_allowed}、'
-            f'デフォルトの撮影ステータス={default_recording_policy}'
+            f'撮影ステータスの初期値={default_recording_policy}'
         )
 
         return redirect('community:settings')

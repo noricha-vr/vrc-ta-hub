@@ -55,7 +55,7 @@ DEFAULT_LT_APPLICATION_TEMPLATE = "【発表概要】\n\n【スライド公開�
 class RecordingPolicy(models.TextChoices):
     """発表ごとの撮影の扱い。
 
-    EventDetail.recording_policy と、集会のデフォルト（Community.default_recording_policy）で共有する。
+    EventDetail.recording_policy と、集会の撮影ステータスの初期値（Community.default_recording_policy）で共有する。
     community は event を import できないため、正本はここに置く。
     """
 

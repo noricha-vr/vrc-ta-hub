@@ -419,7 +419,7 @@ class EventDetail(models.Model):
         help_text='登壇者が入力した追加情報'
     )
 
-    # 選択肢の正本は community.constants（集会のデフォルトと共有するため）。
+    # 選択肢の正本は community.constants（集会の撮影ステータスの初期値と共有するため）。
     RecordingPolicy = RecordingPolicy
 
     # 自動撮影の可否。API で公開し、録画ツールがこの値を見て撮影・公開を判断する。

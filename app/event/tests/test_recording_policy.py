@@ -211,7 +211,7 @@ class EventDetailFormRecordingPolicyTest(TestCase):
 
 @patch('event.notifications.send_mail', return_value=1)
 class LTApplicationCommunityDefaultTest(TestCase):
-    """申請フォームの撮影の初期値は、集会の「デフォルトの撮影ステータス」になる。"""
+    """申請フォームの撮影の初期値は、集会の「撮影ステータスの初期値」になる。"""
 
     def setUp(self):
         self.user = make_discord_linked_user(user_name='default_applicant', email='default_applicant@example.com')
@@ -223,7 +223,7 @@ class LTApplicationCommunityDefaultTest(TestCase):
         self.client.force_login(self.user)
 
     def test_form_initial_is_community_default(self, _mock_send):
-        """集会のデフォルトが「許可」なら、申請フォームは「許可」が選択済み。"""
+        """集会の撮影ステータスの初期値が「許可」なら、申請フォームは「許可」が選択済み。"""
         html = self.client.get(self.url).content.decode()
 
         self.assertRegex(html, r'<input type="radio" name="recording_policy" value="allowed"[^>]*checked')
@@ -239,7 +239,7 @@ class LTApplicationCommunityDefaultTest(TestCase):
                 self.assertEqual(form['recording_policy'].value(), value)
 
     def test_missing_value_falls_back_to_community_default(self, _mock_send):
-        """選択が送られなかった時は集会のデフォルトで保存される。"""
+        """選択が送られなかった時は集会の撮影ステータスの初期値で保存される。"""
         self.client.post(self.url, {'event': self.event.pk, 'theme': '未選択', 'speaker': '発表者'})
 
         detail = EventDetail.objects.get(event=self.event, theme='未選択')

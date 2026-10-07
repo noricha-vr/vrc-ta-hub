@@ -1,4 +1,4 @@
-"""集会の撮影許可・デフォルトの撮影ステータスの設定と、発表申請テンプレートの既定文のテスト。"""
+"""集会の撮影許可・撮影ステータスの初期値の設定と、発表申請テンプレートの既定文のテスト。"""
 
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
@@ -113,7 +113,7 @@ class RecordingAllowedSettingsViewTest(TestCase):
 
 
 class DefaultRecordingPolicySettingsTest(TestCase):
-    """集会設定の「デフォルトの撮影ステータス」（3 択）。"""
+    """集会設定の「撮影ステータスの初期値」（3 択）。"""
 
     def setUp(self):
         self.owner = make_discord_linked_user(user_name='def_owner', email='def_owner@example.com')
@@ -127,7 +127,7 @@ class DefaultRecordingPolicySettingsTest(TestCase):
         return self.client.post(self.url, data)
 
     def test_default_is_public(self):
-        """新しい集会のデフォルトの撮影ステータスは「公開」。"""
+        """新しい集会の撮影ステータスの初期値は「公開」。"""
         self.community.refresh_from_db()
 
         self.assertEqual(self.community.default_recording_policy, RecordingPolicy.PUBLIC)
@@ -141,6 +141,8 @@ class DefaultRecordingPolicySettingsTest(TestCase):
             self.assertIn(label, html)
         self.assertRegex(html, r'id="default_recording_policy_public" name="default_recording_policy" value="public"\s+checked')
         self.assertNotRegex(html, r'id="default_recording_policy_forbidden"[^>]*checked')
+        self.assertIn('撮影ステータスの初期値', html)
+        self.assertNotIn('デフォルトの撮影ステータス', html)
 
     def test_each_choice_is_saved(self):
         """3 つの値それぞれを保存できる。"""
@@ -165,7 +167,7 @@ class DefaultRecordingPolicySettingsTest(TestCase):
         self.assertEqual(self.community.default_recording_policy, RecordingPolicy.ALLOWED)
 
     def test_allowed_and_default_are_saved_together(self):
-        """撮影許可（2 択）とデフォルト（3 択）は 1 回の保存で両方入る。"""
+        """撮影許可（2 択）と撮影ステータスの初期値（3 択）は 1 回の保存で両方入る。"""
         self._post(recording_allowed='false', default_recording_policy='forbidden')
 
         self.community.refresh_from_db()
@@ -230,7 +232,7 @@ class DefaultRecordingPolicySettingsTest(TestCase):
         self.assertIn("document.getElementById('default_recording_policy_public').checked = true", html)
 
     def test_default_section_is_hidden_when_not_allowed(self):
-        """「許可しない」の集会では、デフォルトの撮影ステータスを畳んで表示する。"""
+        """「許可しない」の集会では、撮影ステータスの初期値を畳んで表示する。"""
         self.community.recording_allowed = False
         self.community.save(update_fields=['recording_allowed'])
 
@@ -369,7 +371,7 @@ class RecordingAllowedDbDefaultTest(TransactionTestCase):
 
 
 class DefaultRecordingPolicyMigrationTest(TransactionTestCase):
-    """0031: 既存の集会のデフォルトの撮影ステータスを、今の撮影許可と矛盾しない値で埋める。"""
+    """0031: 既存の集会の撮影ステータスの初期値を、今の撮影許可と矛盾しない値で埋める。"""
 
     migrate_from = [('community', '0030_remove_recording_line_from_default_lt_template')]
     migrate_to = [('community', '0031_community_default_recording_policy')]

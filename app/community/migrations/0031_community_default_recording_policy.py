@@ -2,7 +2,7 @@
 
 from django.db import migrations, models
 
-# 撮影を許可していない集会のデフォルトは「禁止」にそろえる（「公開」のままだと設定どうしが矛盾する）。
+# 撮影を許可していない集会の撮影ステータスの初期値は「禁止」にそろえる（「公開」のままだと設定どうしが矛盾する）。
 # 許可している集会は列の既定値「公開」のまま（これまでの申請フォームの初期値と同じ）。
 FORBIDDEN = 'forbidden'
 
@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='community',
             name='default_recording_policy',
-            field=models.CharField(choices=[('forbidden', '禁止（撮影しない）'), ('allowed', '許可（撮影するが公開しない）'), ('public', '公開（撮影して YouTube で公開）')], db_default='public', default='public', help_text='発表申請フォームで、撮影の選択肢の初期値になります', max_length=20, verbose_name='デフォルトの撮影ステータス'),
+            field=models.CharField(choices=[('forbidden', '禁止（撮影しない）'), ('allowed', '許可（撮影するが公開しない）'), ('public', '公開（撮影して YouTube で公開）')], db_default='public', default='public', help_text='発表申請フォームで、撮影の選択肢の初期値になります', max_length=20, verbose_name='撮影ステータスの初期値'),
         ),
         # 逆方向は列ごと消えるので何もしない
         migrations.RunPython(set_forbidden_for_disallowed_communities, migrations.RunPython.noop),
