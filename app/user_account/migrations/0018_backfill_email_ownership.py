@@ -1,6 +1,6 @@
 """Record the current owner of every email address in EmailOwnership."""
 
-from django.db import migrations
+from django.db import IntegrityError, migrations, transaction
 from django.db.models import Q
 
 # Pending email-change rows do not make their user an owner
@@ -39,10 +39,20 @@ def backfill_email_ownership(apps, schema_editor):
         raise RuntimeError(
             f'Email ownership conflict during email ownership migration: addresses={conflicts}'
         )
-    EmailOwnership.objects.bulk_create(
-        [EmailOwnership(email=email, user_id=next(iter(user_ids))) for email, user_ids in owners.items()],
-        batch_size=BATCH_SIZE,
-    )
+    try:
+        # The savepoint keeps the connection usable after the error, so this
+        # RuntimeError is what the migration reports (SQLite checks constraints on exit).
+        with transaction.atomic(using=schema_editor.connection.alias):
+            EmailOwnership.objects.bulk_create(
+                [EmailOwnership(email=email, user_id=next(iter(user_ids))) for email, user_ids in owners.items()],
+                batch_size=BATCH_SIZE,
+            )
+    except IntegrityError:
+        # MySQL puts the duplicated address in the message (1062), so drop the original error.
+        raise RuntimeError(
+            'Database constraint failed during email ownership migration; '
+            'check that the email ownership table was empty'
+        ) from None
 
 
 def remove_email_ownership(apps, schema_editor):

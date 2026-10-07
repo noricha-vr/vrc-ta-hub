@@ -182,6 +182,10 @@ class EmailOwnership(models.Model):
     allauth の条件付き一意制約（確認済みの EmailAddress は 1 行まで）は MySQL では作られず、
     CustomUser.email の一意制約も EmailAddress 側の持ち主を見ないため、この表の一意制約で両方をまとめて守る。
     行の追加・削除は user_account.email_ownership が CustomUser の保存と EmailAddress のシグナルで行う。
+
+    MySQL では 0017 で email 列を utf8mb4_bin（完全一致）にしている。キーは小文字にそろえてあるので、
+    DB の一意判定が normalize_email_key の判定と同じになる。SQLite に無い照合順序なので model には書いていない。
+    この列を変える migration を作る時は、照合順序も付け直す。
     """
 
     email = models.EmailField('メールアドレス（小文字）', unique=True)

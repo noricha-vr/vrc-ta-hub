@@ -9,8 +9,9 @@ SQLite では書き込みのトランザクションを同時に走らせられ�
 各経路の判定を差し替えて再現する。
 """
 
+from importlib import import_module
 from io import StringIO
-from unittest.mock import patch
+from unittest.mock import Mock, call, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
@@ -22,7 +23,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import IntegrityError, connection
 from django.db.migrations.executor import MigrationExecutor
-from django.test import Client, RequestFactory, TestCase, TransactionTestCase, override_settings
+from django.test import Client, RequestFactory, SimpleTestCase, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
 from allauth.account.models import EmailAddress, EmailConfirmationHMAC
@@ -33,13 +34,20 @@ from allauth.socialaccount.models import SocialAccount, SocialLogin
 
 from tests.factories import make_legacy_user, make_user
 from user_account.adapters import CustomSocialAccountAdapter
-from user_account.email_ownership import claim_email, is_email_in_use
+from user_account.email_ownership import (
+    claim_email,
+    is_email_in_use,
+    lock_owner,
+    release_unowned_emails,
+    sync_email_ownership,
+)
 from user_account.models import EmailOwnership
 from user_account.tests.utils import TEST_SOCIALACCOUNT_PROVIDERS, TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS
 
 User = get_user_model()
 
 SHARED_EMAIL = 'shared-address@example.com'
+PENDING_EMAIL = 'pending-change@example.com'
 # GitGuardian 誤検知回避: テスト専用の値を 1 行のリテラルにしない（本物の秘密ではない）
 SIGNUP_PASSWORD = 'Signup-Pass-' + '2026!'
 CONFIRM_EMAIL_SENT_PATH = '/accounts/confirm-email/'
@@ -51,6 +59,8 @@ PENDING_DISCORD_SIGNUP_SESSION_KEY = 'socialaccount_sociallogin'
 PARTIAL_UNIQUE_INDEXES = ('unique_verified_email', 'unique_primary_email')
 # 0018 が依存する allauth の migration。過去の EmailAddress モデルを得るために状態へ含める
 ALLAUTH_EMAIL_STATE = ('account', '0009_emailaddress_unique_primary_email')
+# 持ち主の表だけがあり、0018 の埋め込みの前の状態
+EMAIL_OWNERSHIP_TABLE_STATE = ('user_account', '0017_emailownership')
 
 
 def drop_partial_unique_indexes():
@@ -174,6 +184,49 @@ class EmailOwnershipConstraintTests(TestCase):
         """ログインごとの last_login の更新などに、持ち主の確認の問い合わせを足さない。"""
         with self.assertNumQueries(1):
             self.owner.save(update_fields=['last_login'])
+
+
+class EmailAddressWriteTransactionTests(TransactionTestCase):
+    """外側のトランザクションが無くても、EmailAddress の書き込みと持ち主の記録は 1 つにまとまる。
+
+    allauth は管理画面のアクションなどで atomic() の外から直接 save() を呼ぶため、その形で確かめる。
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.owner = make_user('owner', 'owner@example.com')
+
+    def test_failed_save_leaves_no_ownership_record(self):
+        EmailAddress.objects.create(user=self.owner, email=PENDING_EMAIL, verified=False, primary=False)
+
+        # pre_save で持ち主を記録した後、同じユーザーの確認待ちの行と (user, email) が重なって INSERT が失敗する
+        with self.assertRaises(IntegrityError):
+            EmailAddress.objects.create(user=self.owner, email=PENDING_EMAIL, verified=True, primary=False)
+
+        self.assertFalse(EmailOwnership.objects.filter(email=PENDING_EMAIL).exists())
+        self.assertFalse(is_email_in_use(PENDING_EMAIL))
+
+    def test_locks_the_owner_inside_a_transaction_before_writing(self):
+        """持ち主のロックは、トランザクションの中で、行を書く前に取る。
+
+        MySQL はトランザクションの外の select_for_update をエラーにするが、SQLite は素通りするので、呼んだ時の状態を見る。
+        行を書いた後に取ると、同じユーザーの並行した書き込み同士が MySQL でデッドロックする。
+        """
+        locks = []
+
+        def spy(user_id):
+            row_written = EmailAddress.objects.filter(email=PENDING_EMAIL).exists()
+            locks.append((user_id, connection.in_atomic_block, row_written))
+            lock_owner(user_id)
+
+        with patch('user_account.email_ownership.lock_owner', side_effect=spy):
+            EmailAddress.objects.create(user=self.owner, email=PENDING_EMAIL, verified=False, primary=False).delete()
+            claim_email(self.owner.pk, SHARED_EMAIL)
+            release_unowned_emails(self.owner.pk)
+            sync_email_ownership(self.owner.pk)
+
+        self.assertEqual(locks[0], (self.owner.pk, True, False))
+        self.assertTrue(all(user_id == self.owner.pk and in_transaction for user_id, in_transaction, _ in locks))
 
 
 @override_settings(EMAIL_BACKEND=LOCMEM_EMAIL_BACKEND, SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
@@ -435,3 +488,38 @@ class EmailOwnershipBackfillMigrationTests(TransactionTestCase):
         self.assertIn('addresses=1', message)
         self.assertNotIn('owner@example.com', message.lower())
         conflict.delete()
+
+    def test_hides_the_database_error_that_names_the_address(self):
+        """表に 0018 より前の記録があって一意制約に当たった時も、元の例外（MySQL の 1062 は値を含む）を出さずに止まる。"""
+        user = self.OldUser.objects.create(user_name='legacy', email='legacy@example.com')
+        executor = MigrationExecutor(connection)
+        executor.migrate([EMAIL_OWNERSHIP_TABLE_STATE])
+        table_apps = executor.loader.project_state([EMAIL_OWNERSHIP_TABLE_STATE, ALLAUTH_EMAIL_STATE]).apps
+        early = table_apps.get_model('user_account', 'EmailOwnership').objects.create(
+            email='legacy@example.com', user_id=user.pk,
+        )
+
+        with self.assertRaises(RuntimeError) as raised:
+            self._migrate_forward()
+
+        self.assertIsNone(raised.exception.__cause__)
+        self.assertTrue(raised.exception.__suppress_context__)
+        self.assertNotIn('legacy@example.com', str(raised.exception).lower())
+        early.delete()
+
+
+class EmailOwnershipCollationMigrationTests(SimpleTestCase):
+    """0017 は MySQL の時だけ email 列を完全一致の照合順序にする（SQLite には utf8mb4_bin が無い）。"""
+
+    def test_alters_the_column_only_on_mysql(self):
+        migration = import_module('user_account.migrations.0017_emailownership')
+        for vendor, expected in (('mysql', [call(migration.EXACT_MATCH_COLUMN_SQL)]), ('sqlite', [])):
+            schema_editor = Mock()
+            schema_editor.connection.vendor = vendor
+
+            migration.use_exact_match_collation_on_mysql(None, schema_editor)
+
+            self.assertEqual(schema_editor.execute.call_args_list, expected)
+        self.assertIn('COLLATE utf8mb4_bin', migration.EXACT_MATCH_COLUMN_SQL)
+        # MySQL ではトランザクションの中の DDL を Django が拒むので、この操作は atomic にしない
+        self.assertIs(migration.Migration.operations[-1].atomic, False)

@@ -4,6 +4,26 @@ import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
 
+# Exact-match collation for the ownership key on MySQL.
+EXACT_MATCH_COLUMN_SQL = (
+    'ALTER TABLE `user_account_emailownership` '
+    'MODIFY `email` varchar(254) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'
+)
+
+
+def use_exact_match_collation_on_mysql(apps, schema_editor):
+    """Compare ownership keys exactly on MySQL, as Python does.
+
+    Keys are already stripped and lower-cased (normalize_email_key), so a
+    binary collation makes the unique index agree with the audit and the
+    backfill. The default *_ai_ci collations also treat accented letters as
+    equal. The model state keeps no collation because SQLite does not know
+    utf8mb4_bin.
+    """
+    if schema_editor.connection.vendor != 'mysql':
+        return
+    schema_editor.execute(EXACT_MATCH_COLUMN_SQL)
+
 
 class Migration(migrations.Migration):
 
@@ -24,4 +44,6 @@ class Migration(migrations.Migration):
                 'verbose_name_plural': 'メールアドレスの持ち主',
             },
         ),
+        # Not atomic: on MySQL, Django wraps RunPython in a transaction and refuses DDL inside it.
+        migrations.RunPython(use_exact_match_collation_on_mysql, migrations.RunPython.noop, atomic=False),
     ]

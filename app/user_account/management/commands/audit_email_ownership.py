@@ -5,7 +5,7 @@ from itertools import chain
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
-from django.db import IntegrityError, connection, transaction
+from django.db import IntegrityError, connection
 
 from allauth.account.models import EmailAddress
 
@@ -72,15 +72,18 @@ class Command(BaseCommand):
         return counts
 
     def _repair(self) -> None:
-        """古い記録を全員分消してから記録し直す（消す前に記録すると取り合いで 1 回で収束しないため）。"""
+        """古い記録を全員分消してから記録し直す（消す前に記録すると取り合いで 1 回で収束しないため）。
+
+        どちらもユーザーごとに、そのユーザーの行をロックしたトランザクションの中で読んでから書く。
+        新revisionの保存も同じロックを取るので、稼働中に流しても保存中のアドレスの記録を消さない。
+        """
         user_ids = list(get_user_model().objects.values_list('pk', flat=True))
         for user_id in user_ids:
             release_unowned_emails(user_id)
         conflicted = 0
         for user_id in user_ids:
             try:
-                with transaction.atomic():
-                    sync_email_ownership(user_id)
+                sync_email_ownership(user_id)
             except IntegrityError:
                 conflicted += 1
         self.stdout.write(f'repair_conflicted_users={conflicted}')

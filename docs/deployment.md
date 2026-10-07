@@ -71,6 +71,17 @@ gcloud run jobs update vrc-ta-hub-migrate \
 トラフィックを流すと、登録・メール変更・副アドレスの確認・プロフィール保存が500になる。
 0016と同じく、トラフィック切替より前に適用する。
 
+記録のアドレスは前後の空白を除いて小文字にそろえてあり、0017はMySQLでこの列だけを `utf8mb4_bin`（完全一致）にする。
+DBの一意判定が、監査・0018・記録の同期と同じ判定（小文字にした値の完全一致）になる。
+アクセントだけ違うアドレスは別のアドレスとして記録する。主アドレス同士は、これまでどおり
+`CustomUser.email` の一意制約（DBの既定の照合順序）が止める。
+
+切替の窓: 0018を当ててからトラフィックの切替が終わるまで、旧revisionは記録を更新しない。
+旧revisionの変更でずれた記録（`missing` / `stale`）は `--repair` で直せる。一方、旧revisionと新revisionの
+処理が同じアドレスで交差すると、持ち主が2人になる（`conflicts`）ことがあり、これは `--repair` では直せない。
+この危険は保護の無い今の本番と同じで、広がってはいない。窓を短くするため、アクセスの少ない時間帯に行い、
+0017 / 0018を当てたら間を空けずに切り替える。
+
 順番は次のとおり。監査コマンド `audit_email_ownership` はアドレスを出さず件数だけを出す。
 
 1. mainへのマージ後、`--no-traffic` の新revisionができるのを待つ
@@ -92,11 +103,14 @@ gcloud run jobs update vrc-ta-hub-migrate \
    持ち主を推測して直さない（0018も同じ条件で止まる）
 4. 0017 / 0018を適用し（`gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --project=vrc-ta-hub --wait`）、
    `./scripts/check_pending_migrations.sh` で未適用ゼロを確かめる
-5. トラフィックを新revisionへ切り替える
+5. 間を空けずにトラフィックを新revisionへ切り替える
 6. 切替後の監査。3と同じ手順で流し、`conflicts=0 missing=0 stale=0` を確かめる。
-   4から5の間に旧revisionが登録・メール変更を受けると `missing` / `stale` が出る。その時は
-   引数を `--args='^|^manage.py|audit_email_ownership|--repair'` にして合わせ直す（書き込みあり。
-   `conflicts` は直さない）。最後に引数を `migrate|--noinput` へ戻す
+   監査は書き込みと同時に読むので、流している間の変更で数が一時的にずれることがある。0でなければもう一度流し、残ったものを扱う
+   - `missing` / `stale` だけの時は、引数を `--args='^|^manage.py|audit_email_ownership|--repair'` にして合わせ直す（書き込みあり）。
+     `--repair` はユーザーごとに、そのユーザーの行をロックしてから読み書きする。新revisionの保存も同じロックを取るので、
+     新revisionが動いている間に流してよい。最後に引数を `migrate|--noinput` へ戻す
+   - `conflicts` が1以上の時は、持ち主を推測して直さない。対象のアカウントを確かめ、人が解消してから監査をやり直す。
+     解消するまで、記録を持てない側のユーザーは、プロフィールの保存などユーザー全体の保存が失敗する
 
 戻し方と、0018が止まった時の扱いは
 [migration-rollback.md](migration-rollback.md#user_account-0017--0018-の適用前監査と戻し方) を参照。
