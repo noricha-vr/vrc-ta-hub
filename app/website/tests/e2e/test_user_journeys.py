@@ -416,3 +416,25 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
 
         invite_detail.refresh_from_db()
         self.assertEqual(invite_detail.applicant, self.applicant)
+
+    def test_recording_default_chosen_after_switch_survives_back_navigation(self) -> None:
+        """撮影を許可に切り替えて選び直した「禁止」は、戻る操作でフォームが復元された後に保存しても「禁止」のまま."""
+        self.community.recording_allowed = False
+        self.community.default_recording_policy = 'forbidden'
+        self.community.save(update_fields=['recording_allowed', 'default_recording_policy'])
+        self.login(self.owner.email, self.password)
+        settings_url = f'{self.live_server_url}{reverse("community:settings")}'
+        self.page.goto(settings_url)
+
+        self.page.locator('#recording_allowed_true').check()
+        expect(self.page.locator('#default_recording_policy_public')).to_be_checked()
+        self.page.locator('#default_recording_policy_forbidden').check()
+        self.page.goto(self.live_server_url)
+        self.page.go_back()
+        expect(self.page.locator('#default_recording_policy_forbidden')).to_be_checked()
+        self.page.locator('form:has(#recording_allowed_true) button[type=submit]').click()
+        self.page.wait_for_load_state('domcontentloaded')
+
+        self.community.refresh_from_db()
+        self.assertTrue(self.community.recording_allowed)
+        self.assertEqual(self.community.default_recording_policy, 'forbidden')
