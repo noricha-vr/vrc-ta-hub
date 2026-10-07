@@ -15,7 +15,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
-from django.views import View
+from django.utils.crypto import constant_time_compare
 from django.views.decorators.http import require_http_methods
 from django.views.generic import CreateView, UpdateView, ListView, DeleteView, DetailView, TemplateView
 
@@ -28,7 +28,7 @@ from .forms import TwitterTemplateForm
 from .models import TwitterTemplate, TweetQueue
 from .notifications import notify_tweet_post_failure
 from .scheduling import default_scheduled_at
-from .utils import format_event_info, generate_tweet, generate_tweet_url
+from .utils import format_event_info, generate_tweet
 from .services.media_service import upload_media_to_x as upload_media
 from .services.tweet_scheduling_service import (
     post_tweet_queue_item,
@@ -106,14 +106,6 @@ class TwitterTemplateListView(LoginRequiredMixin, ListView):
         return TwitterTemplate.objects.filter(community=community)
 
 
-class TweetEventView(View):
-    def get(self, request, event_pk, template_pk):
-        event = get_object_or_404(Event, pk=event_pk)
-        template = get_object_or_404(TwitterTemplate, pk=template_pk, community=event.community)
-        tweet_url = generate_tweet_url(event, template)
-        return redirect(tweet_url)
-
-
 class TwitterTemplateDeleteView(LoginRequiredMixin, AuthenticatedForbiddenMixin, DeleteView):
     model = TwitterTemplate
     success_url = reverse_lazy('twitter:template_list')
@@ -128,16 +120,31 @@ class TwitterTemplateDeleteView(LoginRequiredMixin, AuthenticatedForbiddenMixin,
         return JsonResponse({'success': True})
 
 
-class TweetEventWithTemplateView(TemplateView):
-    """ポストプレビュー画面を表示するビュー"""
+class TweetEventWithTemplateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
+    """ポストプレビュー画面を表示するビュー
+
+    閲覧はイベントの集会の主催者・スタッフと superuser に限る。
+    テンプレートはイベントと同じ集会のものだけを受け付ける。
+    """
     template_name = 'twitter/tweet_preview.html'
 
     TWITTER_INTENT_BASE_URL = "https://twitter.com/intent/tweet?text="
 
+    def get_event(self):
+        if not hasattr(self, '_event'):
+            self._event = get_object_or_404(Event, pk=self.kwargs['event_pk'])
+        return self._event
+
+    def test_func(self):
+        user = self.request.user
+        return user.is_superuser or self.get_event().community.can_edit(user)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        event = get_object_or_404(Event, pk=self.kwargs['event_pk'])
-        template = get_object_or_404(TwitterTemplate, pk=self.kwargs['template_pk'])
+        event = self.get_event()
+        template = get_object_or_404(
+            TwitterTemplate, pk=self.kwargs['template_pk'], community=event.community,
+        )
 
         # Format event info before generating tweet
         event_info = format_event_info(event)
@@ -202,7 +209,8 @@ def post_scheduled_tweets(request):
     Phase 2: ready キューを最大 1 件投稿
     """
     request_token = request.headers.get("Request-Token", "")
-    if request_token != os.environ.get("REQUEST_TOKEN", ""):
+    expected = os.environ.get("REQUEST_TOKEN", "")
+    if not expected or not constant_time_compare(request_token, expected):
         return HttpResponse("Unauthorized", status=401)
 
     return JsonResponse(

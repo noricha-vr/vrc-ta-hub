@@ -273,6 +273,9 @@ class TweetEventWithTemplateViewTest(TestCase):
             template="Test tweet template"
         )
 
+        # プレビューは集会の主催者・スタッフのみ閲覧できる
+        self.client.force_login(self.owner)
+
     def test_tweet_preview_view_returns_intent_url(self):
         """intent URLがコンテキストに含まれることを確認"""
         from unittest.mock import patch
