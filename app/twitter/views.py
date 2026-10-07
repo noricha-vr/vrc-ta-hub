@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import connections, models  # noqa: F401 - 既存テストの patch パス互換用
-from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.dateparse import parse_datetime
