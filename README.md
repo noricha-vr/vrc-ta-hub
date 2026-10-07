@@ -253,7 +253,7 @@ RustFS は本番環境の Cloudflare R2 の代替として、画像などのメ�
 | `GEMINI_API_KEY` | AIコンテンツ自動生成 | [Google AI Studio](https://aistudio.google.com/) |
 | `OPENROUTER_API_KEY` | AI処理のバックアップ | [OpenRouter](https://openrouter.ai/) |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | Discordログイン | [Discord Developer Portal](https://discord.com/developers/applications) |
-| `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | ログイン画面のボット対策（2 つとも設定した時だけ有効）。ローカル開発（`DEBUG=True`）では空のままでよく、Cloudflare のテスト用キー（必ず通る）が自動で使われる。Turnstile ごと無効にする時は `TURNSTILE_DEBUG_TEST_KEYS=false` | [Cloudflare Dashboard](https://dash.cloudflare.com/) の Turnstile |
+| `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | ログイン画面のボット対策（2 つとも設定した時だけ有効）。ローカル開発（`DEBUG=True`）では空のままでよく、Cloudflare のテスト用キー（必ず通る）が自動で使われる。鍵が空のまま Turnstile ごと無効にする時は `TURNSTILE_DEBUG_TEST_KEYS=false`（Cloud Run 上ではテスト用キーに切り替えない） | [Cloudflare Dashboard](https://dash.cloudflare.com/) の Turnstile |
 | `REQUEST_TOKEN` | カレンダー同期APIの認証 | 任意の文字列 |
 
 詳細は [docs/setup.md](docs/setup.md) を参照してください。

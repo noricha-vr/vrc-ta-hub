@@ -553,20 +553,24 @@ class ResolveTurnstileKeysTests(SimpleTestCase):
 
     def test_debug_without_keys_uses_cloudflare_test_keys(self) -> None:
         self.assertEqual(
-            resolve_turnstile_keys('', '', debug=True, use_test_keys=True),
+            resolve_turnstile_keys('', '', debug=True, use_test_keys=True, on_cloud_run=False),
             (TURNSTILE_TEST_SITE_KEY, TURNSTILE_TEST_SECRET_KEY),
         )
 
     def test_explicit_keys_production_or_opt_out_are_kept(self) -> None:
         cases = {
             # 本番で DEBUG を誤って有効にしても、明示した本物の鍵はテスト用キーに置き換えない
-            'debug_with_keys': ((TEST_SITE_KEY, TEST_SECRET_KEY), True, True, (TEST_SITE_KEY, TEST_SECRET_KEY)),
-            'production_without_keys': (('', ''), False, True, ('', '')),
-            'debug_opt_out': (('', ''), True, False, ('', '')),
+            'debug_with_keys': ((TEST_SITE_KEY, TEST_SECRET_KEY), True, True, False, (TEST_SITE_KEY, TEST_SECRET_KEY)),
+            'production_without_keys': (('', ''), False, True, False, ('', '')),
+            'debug_opt_out': (('', ''), True, False, False, ('', '')),
+            # 本番（Cloud Run）で DEBUG の誤設定と鍵の欠落が重なっても、必ず通るテスト用キーにはしない
+            'cloud_run_debug_without_keys': (('', ''), True, True, True, ('', '')),
         }
-        for name, ((site_key, secret_key), debug, use_test_keys, expected) in cases.items():
+        for name, ((site_key, secret_key), debug, use_test_keys, on_cloud_run, expected) in cases.items():
             with self.subTest(case=name):
                 self.assertEqual(
-                    resolve_turnstile_keys(site_key, secret_key, debug=debug, use_test_keys=use_test_keys),
+                    resolve_turnstile_keys(
+                        site_key, secret_key, debug=debug, use_test_keys=use_test_keys, on_cloud_run=on_cloud_run,
+                    ),
                     expected,
                 )
