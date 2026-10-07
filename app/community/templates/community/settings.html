@@ -241,6 +241,19 @@
     function markRecordingPolicyChosen() {
         document.getElementById('default_recording_policy_chosen').value = '1';
     }
+    // 戻る操作などでブラウザがフォームを復元すると、選択は戻るが hidden の印と表示は戻らない。
+    // 画面を出した時の選択（defaultChecked）と違えば主催者が選んだものとして印を立て、表示も合わせる
+    window.addEventListener('pageshow', function () {
+        var radios = document.querySelectorAll('input[name="default_recording_policy"]');
+        for (var i = 0; i < radios.length; i++) {
+            if (radios[i].checked !== radios[i].defaultChecked) {
+                markRecordingPolicyChosen();
+                break;
+            }
+        }
+        var section = document.getElementById('default-recording-policy-section');
+        section.style.display = document.getElementById('recording_allowed_true').checked ? 'block' : 'none';
+    });
     </script>
 
     <!-- メンバー管理セクション（主催者のみ） -->

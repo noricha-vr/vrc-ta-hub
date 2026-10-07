@@ -205,6 +205,8 @@ class DefaultRecordingPolicySettingsTest(TestCase):
 
         self.assertIn('name="default_recording_policy_chosen" value=""', html)
         self.assertIn('onchange="markRecordingPolicyChosen()"', html)
+        # フォーム復元で選択だけ戻った時も印を立てる
+        self.assertIn("radios[i].checked !== radios[i].defaultChecked", html)
 
     def test_switching_to_allowed_without_value_becomes_public(self):
         """切り替え時にデフォルトが送られなくても「公開」にする。"""
