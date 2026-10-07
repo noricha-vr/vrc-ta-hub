@@ -17,9 +17,11 @@
             <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary me-2">
                 <i class="bi bi-calendar-event me-2"></i>イベント管理
             </a>
-            <a href="{% url 'twitter:template_create' %}" class="btn btn-primary">
-                <i class="bi bi-plus-circle me-2"></i>新規作成
-            </a>
+            {% if create_community %}
+                <a href="{% url 'twitter:template_create' %}?community={{ create_community.pk }}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-2"></i>新規作成
+                </a>
+            {% endif %}
         </div>
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
             {% for template in templates %}
@@ -30,6 +32,7 @@
                                 <i class="bi bi-twitter-x me-2"></i>
                                 {{ template.name }}
                             </h5>
+                            <p class="card-subtitle text-muted small mb-2">{{ template.community.name }}</p>
                             <p class="card-text">{{ template.template|truncatechars:100 }}</p>
                         </div>
                         <div class="card-footer bg-transparent border-0 d-flex justify-content-between">

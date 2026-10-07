@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import connections, models  # noqa: F401 - 既存テストの patch パス互換用
-from django.http import Http404, HttpResponse, HttpResponseForbidden, JsonResponse
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.dateparse import parse_datetime
@@ -21,6 +21,7 @@ from django.views.generic import CreateView, UpdateView, ListView, DeleteView, D
 
 logger = logging.getLogger(__name__)
 
+from community.context_processors import active_community
 from community.models import Community, CommunityMember
 from event.models import Event
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
@@ -44,46 +45,64 @@ SCHEDULED_AT_MINUTE_ERROR = '予約日時は00分または30分で指定して�
 JST = ZoneInfo("Asia/Tokyo")
 
 
+def can_manage_twitter_templates(user, community) -> bool:
+    """集会の X告知テンプレートを管理（一覧・作成・編集・削除）できるかを返す。
+
+    告知画面（TweetEventWithTemplateView）と同じく、集会の主催者・スタッフと superuser に許す。
+    """
+    if not user.is_authenticated:
+        return False
+    return user.is_superuser or community.can_edit(user)
+
+
+def _parse_community_id(raw):
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 class TwitterTemplateBaseView(LoginRequiredMixin, AuthenticatedForbiddenMixin):
     model = TwitterTemplate
     form_class = TwitterTemplateForm
     template_name = 'twitter/twitter_template_form.html'
 
-    def get_active_community(self):
-        """セッションからアクティブな集会を取得"""
-        community_id = self.request.session.get('active_community_id')
-        if not community_id:
-            return None
-        community = Community.objects.filter(id=community_id).first()
-        if community and community.is_manager(self.request.user):
-            return community
-        return None
+    def get_target_community(self):
+        """テンプレートを作る先の集会を返す。
 
-    def test_func(self):
-        community = self.get_active_community()
-        return community is not None
+        クエリ文字列の community（イベント詳細からの導線）を優先し、無ければセッションの
+        アクティブな集会を使う。管理できない集会なら None。
+        """
+        if not hasattr(self, '_target_community'):
+            if 'community' in self.request.GET:
+                # 指定があるのに読めない時は、別の集会に作らないようセッションへ逃がさない
+                community_id = _parse_community_id(self.request.GET.get('community'))
+            else:
+                community_id = _parse_community_id(self.request.session.get('active_community_id'))
+            community = Community.objects.filter(id=community_id).first() if community_id else None
+            if community and not can_manage_twitter_templates(self.request.user, community):
+                community = None
+            self._target_community = community
+        return self._target_community
 
     def get_success_url(self):
         return reverse_lazy('twitter:template_list')
 
+
+class TwitterTemplateCreateView(TwitterTemplateBaseView, CreateView):
+    def test_func(self):
+        return self.get_target_community() is not None
+
     def form_valid(self, form):
-        community = self.get_active_community()
-        if not community:
-            raise Http404("集会が選択されていないか、権限がありません")
-        form.instance.community = community
+        form.instance.community = self.get_target_community()
         return super().form_valid(form)
 
 
-class TwitterTemplateCreateView(TwitterTemplateBaseView, CreateView):
-    pass
-
-
 class TwitterTemplateUpdateView(TwitterTemplateBaseView, UpdateView):
+    """編集はテンプレートの集会で判定し、集会は付け替えない。"""
+
     def test_func(self):
-        if not super().test_func():
-            return False
-        twitter_template = self.get_object()
-        return twitter_template.community.is_manager(self.request.user)
+        return can_manage_twitter_templates(self.request.user, self.get_object().community)
 
 
 class TwitterTemplateListView(LoginRequiredMixin, ListView):
@@ -92,18 +111,20 @@ class TwitterTemplateListView(LoginRequiredMixin, ListView):
     context_object_name = 'templates'
 
     def get_queryset(self):
-        """セッションからactive_community_idを取得してテンプレートを絞り込む"""
-        community_id = self.request.session.get('active_community_id')
-        if not community_id:
-            return TwitterTemplate.objects.none()
+        """superuser は全集会、それ以外は主催者・スタッフとして所属する集会のテンプレートを返す。"""
+        qs = TwitterTemplate.objects.select_related('community').order_by('community__name', 'pk')
+        user = self.request.user
+        if user.is_superuser:
+            return qs
+        community_ids = CommunityMember.objects.filter(user=user).values_list('community_id', flat=True)
+        return qs.filter(community_id__in=list(community_ids))
 
-        community = get_object_or_404(Community, id=community_id)
-
-        # メンバーシップ権限チェック
-        if not community.is_manager(self.request.user):
-            return TwitterTemplate.objects.none()
-
-        return TwitterTemplate.objects.filter(community=community)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # 「新規作成」はアクティブな集会に作る。選び方はヘッダーの集会切替と同じ。
+        # 集会に所属しない superuser には出さない
+        context['create_community'] = active_community(self.request).get('active_community')
+        return context
 
 
 class TwitterTemplateDeleteView(LoginRequiredMixin, AuthenticatedForbiddenMixin, DeleteView):
@@ -111,8 +132,7 @@ class TwitterTemplateDeleteView(LoginRequiredMixin, AuthenticatedForbiddenMixin,
     success_url = reverse_lazy('twitter:template_list')
 
     def test_func(self):
-        template = self.get_object()
-        return self.request.user.is_superuser or template.community.is_manager(self.request.user)
+        return can_manage_twitter_templates(self.request.user, self.get_object().community)
 
     def form_valid(self, form):
         self.object.delete()

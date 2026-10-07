@@ -10,7 +10,7 @@ from unittest.mock import patch
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 
 from community.models import CommunityMember
@@ -87,6 +87,9 @@ class TwitterAccessControlTestBase(TestCase):
         if role == ANONYMOUS:
             return
         self.client.force_login(self.users[role])
+        if role == SUPERUSER:
+            # 集会に所属しない superuser にはアクティブ集会が付かない（context processor が消す）
+            return
         # テンプレート系ビューはセッションのアクティブ集会を参照する
         session = self.client.session
         session['active_community_id'] = self.community.id
@@ -139,53 +142,174 @@ class TweetPreviewAccessTest(TwitterAccessControlTestBase):
 
 
 class TemplateListAccessTest(TwitterAccessControlTestBase):
-    """テンプレート一覧（template_list）: 管理する集会のテンプレートだけが見える"""
+    """テンプレート一覧（template_list）: 所属する集会のテンプレート、superuser は全部"""
 
-    def test_access_by_role(self):
-        url = reverse('twitter:template_list')
-        expected_visible = {OTHER: False, OWNER: True, STAFF: True, SUPERUSER: False}
+    url = reverse_lazy('twitter:template_list')
+
+    def test_get_by_role(self):
+        # (自分の集会のテンプレートが見えるか, 他の集会のテンプレートが見えるか)
+        expected = {
+            OTHER: (False, True), OWNER: (True, False), STAFF: (True, False), SUPERUSER: (True, True),
+        }
 
         self.login_as(ANONYMOUS)
-        self.assertRedirectsToLogin(self.client.get(url))
+        self.assertRedirectsToLogin(self.client.get(self.url))
 
-        for role, visible in expected_visible.items():
+        for role, (sees_template, sees_other) in expected.items():
             with self.subTest(role=role):
                 self.login_as(role)
-                response = self.client.get(url)
+                response = self.client.get(self.url)
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(self.template in response.context['templates'], visible)
+                self.assertEqual(self.template in response.context['templates'], sees_template)
+                self.assertEqual(self.other_template in response.context['templates'], sees_other)
+
+    def test_post_is_not_allowed(self):
+        self.login_as(ANONYMOUS)
+        self.assertRedirectsToLogin(self.client.post(self.url))
+        for role in (OTHER, OWNER, STAFF, SUPERUSER):
+            with self.subTest(role=role):
+                self.login_as(role)
+                self.assertEqual(self.client.post(self.url).status_code, 405)
+
+    def test_create_button_only_for_managed_active_community(self):
+        create_url = reverse('twitter:template_create')
+        for role, shown in ((OWNER, True), (STAFF, True), (SUPERUSER, False)):
+            with self.subTest(role=role):
+                self.login_as(role)
+                html = self.client.get(self.url).content.decode()
+                self.assertEqual(f'{create_url}?community={self.community.pk}' in html, shown)
 
 
-class TemplateCreateUpdateAccessTest(TwitterAccessControlTestBase):
-    """テンプレート作成・編集（template_create / template_update）: 集会の管理者のみ"""
+    def test_create_button_shown_on_first_visit_without_active_community(self):
+        """セッションに集会が無い初回アクセスでも、所属する集会に作るボタンを出す."""
+        self.client.force_login(self.staff)
+        html = self.client.get(self.url).content.decode()
+        self.assertIn(f"{reverse('twitter:template_create')}?community={self.community.pk}", html)
 
-    def test_access_by_role(self):
-        urls = {
-            'create': reverse('twitter:template_create'),
-            'update': reverse('twitter:template_update', kwargs={'pk': self.template.pk}),
+
+class TemplateCreateAccessTest(TwitterAccessControlTestBase):
+    """テンプレート作成（template_create）: 集会の主催者・スタッフと superuser"""
+
+    def url(self, community=None):
+        return f"{reverse('twitter:template_create')}?community={(community or self.community).pk}"
+
+    def test_get_by_role(self):
+        expected_status = {OTHER: 403, OWNER: 200, STAFF: 200, SUPERUSER: 200}
+
+        self.login_as(ANONYMOUS)
+        self.assertRedirectsToLogin(self.client.get(self.url()))
+
+        for role, status in expected_status.items():
+            with self.subTest(role=role):
+                self.login_as(role)
+                self.assertEqual(self.client.get(self.url()).status_code, status)
+
+    def test_post_by_role(self):
+        expected_created = {
+            ANONYMOUS: False, OTHER: False, OWNER: True, STAFF: True, SUPERUSER: True,
         }
-        expected_status = {OTHER: 403, OWNER: 200, STAFF: 200, SUPERUSER: 403}
+        for role, created in expected_created.items():
+            with self.subTest(role=role):
+                name = f'created-by-{role}'
+                self.login_as(role)
+                response = self.client.post(self.url(), {'name': name, 'template': 'body'})
+                if role == ANONYMOUS:
+                    self.assertRedirectsToLogin(response)
+                elif role == OTHER:
+                    self.assertEqual(response.status_code, 403)
+                else:
+                    self.assertEqual(response.status_code, 302)
+                self.assertEqual(
+                    TwitterTemplate.objects.filter(name=name, community=self.community).exists(),
+                    created,
+                )
 
-        for name, url in urls.items():
-            with self.subTest(view=name, role=ANONYMOUS):
-                self.login_as(ANONYMOUS)
-                self.assertRedirectsToLogin(self.client.get(url))
-            for role, status in expected_status.items():
-                with self.subTest(view=name, role=role):
-                    self.login_as(role)
-                    self.assertEqual(self.client.get(url).status_code, status)
+    def test_session_active_community_is_used_without_query(self):
+        self.login_as(STAFF)
+        response = self.client.post(
+            reverse('twitter:template_create'), {'name': 'from-session', 'template': 'body'},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            TwitterTemplate.objects.filter(name='from-session', community=self.community).exists(),
+        )
 
-    def test_other_community_user_cannot_update_by_post(self):
-        self.login_as(OTHER)
-        url = reverse('twitter:template_update', kwargs={'pk': self.template.pk})
-        response = self.client.post(url, {'name': 'hijacked', 'template': 'hijacked'})
+    def test_superuser_without_community_is_forbidden(self):
+        """作る先の集会が決まらない時は作れない."""
+        self.login_as(SUPERUSER)
+        self.assertEqual(self.client.get(reverse('twitter:template_create')).status_code, 403)
+
+    def test_member_cannot_create_for_another_community_by_query(self):
+        self.login_as(STAFF)
+        response = self.client.post(
+            self.url(self.other_community), {'name': 'cross', 'template': 'body'},
+        )
         self.assertEqual(response.status_code, 403)
+        self.assertFalse(TwitterTemplate.objects.filter(name='cross').exists())
+
+
+    def test_invalid_community_query_does_not_fall_back_to_session(self):
+        self.login_as(STAFF)
+        for raw in ('abc', ''):
+            with self.subTest(community=raw):
+                response = self.client.post(
+                    f"{reverse('twitter:template_create')}?community={raw}",
+                    {'name': f'invalid-{raw}', 'template': 'body'},
+                )
+                self.assertEqual(response.status_code, 403)
+                self.assertFalse(TwitterTemplate.objects.filter(name=f'invalid-{raw}').exists())
+
+
+class TemplateUpdateAccessTest(TwitterAccessControlTestBase):
+    """テンプレート編集（template_update）: 集会の主催者・スタッフと superuser"""
+
+    def url(self):
+        return reverse('twitter:template_update', kwargs={'pk': self.template.pk})
+
+    def test_get_by_role(self):
+        expected_status = {OTHER: 403, OWNER: 200, STAFF: 200, SUPERUSER: 200}
+
+        self.login_as(ANONYMOUS)
+        self.assertRedirectsToLogin(self.client.get(self.url()))
+
+        for role, status in expected_status.items():
+            with self.subTest(role=role):
+                self.login_as(role)
+                self.assertEqual(self.client.get(self.url()).status_code, status)
+
+    def test_post_by_role(self):
+        for role in ALL_ROLES:
+            with self.subTest(role=role):
+                name = f'updated-by-{role}'
+                self.login_as(role)
+                response = self.client.post(self.url(), {'name': name, 'template': 'body'})
+                self.template.refresh_from_db()
+                if role == ANONYMOUS:
+                    self.assertRedirectsToLogin(response)
+                    self.assertNotEqual(self.template.name, name)
+                elif role == OTHER:
+                    self.assertEqual(response.status_code, 403)
+                    self.assertNotEqual(self.template.name, name)
+                else:
+                    self.assertEqual(response.status_code, 302)
+                    self.assertEqual(self.template.name, name)
+                self.assertEqual(self.template.community, self.community)
+
+    def test_update_keeps_community_even_if_active_community_differs(self):
+        """2 つの集会のメンバーが、別の集会を選んだまま編集しても付け替わらない."""
+        make_community_member(self.other_community, self.staff, role=CommunityMember.Role.STAFF)
+        self.login_as(STAFF)
+        session = self.client.session
+        session['active_community_id'] = self.other_community.id
+        session.save()
+        response = self.client.post(self.url(), {'name': 'kept', 'template': 'body'})
+        self.assertEqual(response.status_code, 302)
         self.template.refresh_from_db()
-        self.assertEqual(self.template.name, 'ACL Template')
+        self.assertEqual(self.template.community, self.community)
 
 
 class TemplateDeleteAccessTest(TwitterAccessControlTestBase):
-    """テンプレート削除（template_delete）: 集会の管理者と superuser"""
+    """テンプレート削除（template_delete）: 集会の主催者・スタッフと superuser"""
 
     def test_access_by_role(self):
         expected_deleted = {
