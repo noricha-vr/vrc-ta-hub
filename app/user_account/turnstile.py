@@ -107,6 +107,10 @@ def _post_siteverify(payload: dict[str, str]) -> tuple[int, dict[str, Any]] | No
         body = response.json()
     except ValueError:
         body = None
+    if not isinstance(body, dict) and response.status_code != HTTP_OK:
+        # 4xx は Cloudflare の障害ではなく要求の拒否なので、本文が JSON でなくても fail-open に流さず検証失敗にする
+        logger.info('Turnstile siteverify rejected the request: status=%s', response.status_code)
+        return response.status_code, {}
     if not isinstance(body, dict):
         logger.warning(
             'Turnstile siteverify is unavailable: reason=unexpected_body status=%s',
@@ -128,9 +132,15 @@ def _judge_outcome(status_code: int, body: dict[str, Any]) -> TurnstileResult | 
     # 鍵の設定ミスは内部エラーより先に見る。両方が併記されても、再試行→fail-open に流さず拒否する
     if SECRET_MISCONFIGURED_ERROR_CODES.intersection(error_codes):
         # 人が直すまで誰も通れないので error で出す（Sentry に上がる）。ボット対策を黙って外さないよう拒否する
-        logger.error('Turnstile secret key is misconfigured: error_codes=%s', error_codes)
+        # 既定の Sentry フィルタ（settings/base.py の _sentry_before_send）は is_silent の付いた ERROR だけを通す
+        logger.error(
+            'Turnstile secret key is misconfigured: error_codes=%s',
+            error_codes,
+            extra={'is_silent': True},
+        )
         return TurnstileResult.FAILED
-    if CLOUDFLARE_INTERNAL_ERROR_CODES.intersection(error_codes):
+    # 内部エラーだけの時に限って再試行する。トークンの拒否などと併記されたら、fail-open に流さず拒否する
+    if error_codes and CLOUDFLARE_INTERNAL_ERROR_CODES.issuperset(error_codes):
         return None
     logger.info('Turnstile verification failed: status=%s error_codes=%s', status_code, error_codes)
     return TurnstileResult.FAILED

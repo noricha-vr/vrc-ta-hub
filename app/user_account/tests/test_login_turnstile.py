@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, urlsplit
 import requests
 from allauth.account.auth_backends import AuthenticationBackend
 from django.core.cache import cache
+from django.core.exceptions import ImproperlyConfigured
 from django.test import Client, SimpleTestCase, TestCase, override_settings, tag
 from django.urls import reverse
 
@@ -29,6 +30,7 @@ from user_account.turnstile import (
     TurnstileResult,
     verify_turnstile_token,
 )
+from website.settings.authentication import validate_turnstile_keys
 
 TEST_SITE_KEY = 'test-turnstile-site-key'
 TEST_SECRET_KEY = 'test-turnstile-secret-key'
@@ -457,12 +459,31 @@ class VerifyTurnstileTokenTests(SimpleTestCase):
 
         self.assertIs(result, TurnstileResult.UNAVAILABLE)
 
+    def test_non_json_4xx_is_rejected_without_fail_open(self) -> None:
+        for status_code in (400, 401, 403):
+            with self.subTest(status_code=status_code):
+                response = siteverify_response(None, status_code=status_code)
+                response.json.side_effect = ValueError('not json')
+
+                result, siteverify = self.verify(response)
+
+                self.assertIs(result, TurnstileResult.FAILED)
+                siteverify.assert_called_once()
+
+    def test_internal_error_with_another_error_code_is_rejected_without_retry(self) -> None:
+        result, siteverify = self.verify(rejected_response('invalid-input-response', 'internal-error'))
+
+        self.assertIs(result, TurnstileResult.FAILED)
+        siteverify.assert_called_once()
+
     def test_misconfigured_secret_fails_closed_with_error_log_without_secrets(self) -> None:
         for error_code in SECRET_MISCONFIGURED_CODES:
             with self.subTest(error_code=error_code), self.assertLogs(TURNSTILE_LOGGER, level='ERROR') as logs:
                 result, _ = self.verify(rejected_response(error_code))
 
                 self.assertIs(result, TurnstileResult.FAILED)
+                # Sentry の送信前フィルタを通るよう is_silent を付ける
+                self.assertIs(logs.records[0].is_silent, True)
                 output = '\n'.join(logs.output)
                 self.assertIn(error_code, output)
                 self.assertNotIn(TEST_SECRET_KEY, output)
@@ -481,3 +502,24 @@ class VerifyTurnstileTokenTests(SimpleTestCase):
                 self.assertIs(result, expected)
                 self.assertEqual(siteverify.call_count, INTERNAL_ERROR_ATTEMPTS)
                 self.assertEqual(len(set(sent_idempotency_keys(siteverify))), 1)
+
+
+class ValidateTurnstileKeysTests(SimpleTestCase):
+    """本番で鍵が片方だけの時に、ボット対策を黙って無効にせず起動を止める."""
+
+    def test_only_one_key_in_production_raises(self) -> None:
+        for site_key, secret_key in ((TEST_SITE_KEY, ''), ('', TEST_SECRET_KEY)):
+            with self.subTest(site_key=site_key, secret_key=secret_key):
+                with self.assertRaises(ImproperlyConfigured):
+                    validate_turnstile_keys(site_key, secret_key, debug=False)
+
+    def test_both_or_neither_key_or_debug_is_allowed(self) -> None:
+        cases = (
+            (TEST_SITE_KEY, TEST_SECRET_KEY, False),
+            ('', '', False),
+            (TEST_SITE_KEY, '', True),
+            ('', TEST_SECRET_KEY, True),
+        )
+        for site_key, secret_key, debug in cases:
+            with self.subTest(site_key=site_key, secret_key=secret_key, debug=debug):
+                validate_turnstile_keys(site_key, secret_key, debug=debug)

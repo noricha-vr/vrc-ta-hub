@@ -6,6 +6,8 @@ SOCIALACCOUNT_* / Discord OAuth プロバイダ設定 / ログイン画面の Cl
 import os
 import sys
 
+from django.core.exceptions import ImproperlyConfigured
+
 from .base import DEBUG, TESTING
 
 AUTH_USER_MODEL = 'user_account.CustomUser'
@@ -80,6 +82,20 @@ TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '').strip()
 if 'test' in sys.argv or TESTING:
     TURNSTILE_SITE_KEY = ''
     TURNSTILE_SECRET_KEY = ''
+
+
+def validate_turnstile_keys(site_key: str, secret_key: str, *, debug: bool) -> None:
+    """本番（DEBUG=False）で鍵が片方だけの時は起動を止める.
+
+    片方だけだとボット対策が黙って無効になるため（空の Secret・設定漏れ）。2 つとも空なら意図した無効として通す。
+    """
+    if not debug and bool(site_key) != bool(secret_key):
+        raise ImproperlyConfigured(
+            'TURNSTILE_SITE_KEY と TURNSTILE_SECRET_KEY は 2 つとも設定するか、2 つとも空にしてください。'
+        )
+
+
+validate_turnstile_keys(TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY, debug=DEBUG)
 
 # ソーシャルアカウントの接続解除（disconnect）を試みた場合のリダイレクト先
 # 削除ボタンはテンプレートで非表示にするが、直接アクセスされた場合の保険
