@@ -88,11 +88,9 @@ class EventDetailTweetButtonVisibilityTests(TestCase):
         self.assertIn('id="admin-actions"', html)
         self.assertNotIn(self.tweet_url, html)
 
-    def test_owner_sees_template_create_link_when_no_template(self):
-        html = self._get_html(self.bare_owner, detail=self.bare_detail)
-        self.assertIn(self.template_create_url, html)
-
-    def test_superuser_without_membership_does_not_see_template_create_link(self):
-        """テンプレート作成画面は集会メンバーだけが開けるので、superuser には出さない."""
-        html = self._get_html(self.superuser, detail=self.bare_detail)
-        self.assertNotIn(self.template_create_url, html)
+    def test_template_create_link_points_to_event_community(self):
+        """テンプレートが無い時は、イベントの集会に作るリンクを主催者と superuser に出す."""
+        expected = f'{self.template_create_url}?community={self.bare_detail.event.community.pk}'
+        for user in (self.bare_owner, self.superuser):
+            with self.subTest(user=user.user_name):
+                self.assertIn(expected, self._get_html(user, detail=self.bare_detail))
