@@ -434,6 +434,10 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
         expect(self.page.locator('#default_recording_policy_forbidden')).to_be_checked()
         # 復元直後は hidden の印が空（送信の直前に立てる）
         expect(self.page.locator('#default_recording_policy_chosen')).to_have_value('')
+        # 復元後に撮影許可を往復しても、選び直した値は変わらない
+        self.page.locator('#recording_allowed_false').check()
+        self.page.locator('#recording_allowed_true').check()
+        expect(self.page.locator('#default_recording_policy_forbidden')).to_be_checked()
         self.page.locator('form:has(#recording_allowed_true) button[type=submit]').click()
         self.page.wait_for_load_state('domcontentloaded')
 

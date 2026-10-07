@@ -250,10 +250,21 @@
         chosen.form.addEventListener('submit', function () {
             chosen.value = '1';
         });
-        // 復元で撮影許可の選択だけ戻った時に、初期値の欄の表示を合わせる
+        // 戻る操作でフォームだけ復元された時に、初期値の欄の表示と「主催者が選んだか」を復元後の選択から戻す
         window.addEventListener('pageshow', function () {
+            var allowed = document.getElementById('recording_allowed_true');
             var section = document.getElementById('default-recording-policy-section');
-            section.style.display = document.getElementById('recording_allowed_true').checked ? 'block' : 'none';
+            section.style.display = allowed.checked ? 'block' : 'none';
+            var radios = document.querySelectorAll('input[name="default_recording_policy"]');
+            for (var i = 0; i < radios.length; i++) {
+                // 画面を出した時と違う選択、または許可へ切り替え後に「公開」以外（JS は「公開」を選ぶ）なら主催者が選んだもの
+                var switchedAndChanged = allowed.checked && !allowed.defaultChecked
+                    && radios[i].checked && radios[i].value !== 'public';
+                if (radios[i].checked !== radios[i].defaultChecked || switchedAndChanged) {
+                    markRecordingPolicyTouched();
+                    break;
+                }
+            }
         });
     })();
     </script>
