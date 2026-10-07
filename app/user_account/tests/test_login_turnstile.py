@@ -30,7 +30,12 @@ from user_account.turnstile import (
     TurnstileResult,
     verify_turnstile_token,
 )
-from website.settings.authentication import validate_turnstile_keys
+from website.settings.authentication import (
+    TURNSTILE_TEST_SECRET_KEY,
+    TURNSTILE_TEST_SITE_KEY,
+    resolve_turnstile_keys,
+    validate_turnstile_keys,
+)
 
 TEST_SITE_KEY = 'test-turnstile-site-key'
 TEST_SECRET_KEY = 'test-turnstile-secret-key'
@@ -476,6 +481,24 @@ class VerifyTurnstileTokenTests(SimpleTestCase):
         self.assertIs(result, TurnstileResult.FAILED)
         siteverify.assert_called_once()
 
+    def test_each_verification_logs_result_and_error_codes_without_token(self) -> None:
+        cases = {
+            'passed': ((PASSED_RESPONSE,), VALID_TOKEN, 'passed', []),
+            'rejected': ((REJECTED_RESPONSE,), VALID_TOKEN, 'failed', ['invalid-input-response']),
+            'missing_token': ((), '', 'failed', ['missing-input-response']),
+            'outage': ((requests.ConnectionError('down'),), VALID_TOKEN, 'unavailable', []),
+        }
+        for name, (responses, token, expected_result, expected_codes) in cases.items():
+            with self.subTest(case=name), self.assertLogs(TURNSTILE_LOGGER, level='INFO') as logs:
+                self.verify(*responses, token=token)
+
+                records = [r for r in logs.records if hasattr(r, 'turnstile_result')]
+                self.assertEqual(len(records), 1)
+                self.assertEqual(records[0].turnstile_result, expected_result)
+                self.assertEqual(records[0].turnstile_error_codes, expected_codes)
+                self.assertNotIn(VALID_TOKEN, '\n'.join(logs.output))
+                self.assertNotIn(TEST_SECRET_KEY, '\n'.join(logs.output))
+
     def test_misconfigured_secret_fails_closed_with_error_log_without_secrets(self) -> None:
         for error_code in SECRET_MISCONFIGURED_CODES:
             with self.subTest(error_code=error_code), self.assertLogs(TURNSTILE_LOGGER, level='ERROR') as logs:
@@ -523,3 +546,27 @@ class ValidateTurnstileKeysTests(SimpleTestCase):
         for site_key, secret_key, debug in cases:
             with self.subTest(site_key=site_key, secret_key=secret_key, debug=debug):
                 validate_turnstile_keys(site_key, secret_key, debug=debug)
+
+
+class ResolveTurnstileKeysTests(SimpleTestCase):
+    """開発（DEBUG）で鍵が無い時だけ Cloudflare のテスト用キー（必ず通る）に切り替える."""
+
+    def test_debug_without_keys_uses_cloudflare_test_keys(self) -> None:
+        self.assertEqual(
+            resolve_turnstile_keys('', '', debug=True, use_test_keys=True),
+            (TURNSTILE_TEST_SITE_KEY, TURNSTILE_TEST_SECRET_KEY),
+        )
+
+    def test_explicit_keys_production_or_opt_out_are_kept(self) -> None:
+        cases = {
+            # 本番で DEBUG を誤って有効にしても、明示した本物の鍵はテスト用キーに置き換えない
+            'debug_with_keys': ((TEST_SITE_KEY, TEST_SECRET_KEY), True, True, (TEST_SITE_KEY, TEST_SECRET_KEY)),
+            'production_without_keys': (('', ''), False, True, ('', '')),
+            'debug_opt_out': (('', ''), True, False, ('', '')),
+        }
+        for name, ((site_key, secret_key), debug, use_test_keys, expected) in cases.items():
+            with self.subTest(case=name):
+                self.assertEqual(
+                    resolve_turnstile_keys(site_key, secret_key, debug=debug, use_test_keys=use_test_keys),
+                    expected,
+                )

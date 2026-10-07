@@ -109,7 +109,7 @@ docker compose run --rm --service-ports -e DEBUG_LOGIN_SKIP=true vrc-ta-hub \
 - `REQUEST_TOKEN`: バッチ処理認証用トークン
 - `DISCORD_CLIENT_ID`: Discord OAuth 用クライアント ID
 - `DISCORD_CLIENT_SECRET`: Discord OAuth 用シークレット
-- `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`: ログイン画面の Cloudflare Turnstile（ボット対策）のサイトキーとシークレットキー。2 つとも設定した時だけ有効で、どちらかが空なら無効（ローカル開発・テストは未設定のままでよい）
+- `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`: ログイン画面の Cloudflare Turnstile（ボット対策）のサイトキーとシークレットキー。2 つとも設定した時だけ有効。ローカル開発（`DEBUG=True`）は未設定のままでよく、Cloudflare のテスト用キー（自動操作のブラウザでも必ず通る）が自動で使われる。Turnstile ごと無効にする時は `TURNSTILE_DEBUG_TEST_KEYS=false`。テストは常に無効
 
 ### 外部サービスの初期設定
 

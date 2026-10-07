@@ -174,6 +174,7 @@ FERNET_KEY=生成した鍵
 | `GOOGLE_CALENDAR_ID` | 推奨 | 同期先カレンダー |
 | `GEMINI_API_KEY` | 推奨 | AI コンテンツ生成 |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | 推奨 | Discord ログイン |
-| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | 任意 | ログイン画面のボット対策（2 つとも設定した時だけ有効） |
+| `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | 任意 | ログイン画面のボット対策（2 つとも設定した時だけ有効）。ローカル開発（`DEBUG=True`）では空のままでよく、Cloudflare のテスト用キー（必ず通る）が自動で使われる |
+| `TURNSTILE_DEBUG_TEST_KEYS` | 任意 | `false` にすると、開発（`DEBUG=True`）でテスト用キーを使わず Turnstile ごと無効にする（既定 `true`） |
 | `OPENROUTER_API_KEY` | 任意 | AI バックアップ |
 | `REQUEST_TOKEN` | 任意 | バッチ処理認証 |

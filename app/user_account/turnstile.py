@@ -52,9 +52,24 @@ def verify_turnstile_token(token: str, remote_ip: str) -> TurnstileResult:
     シークレットキーの設定ミスも FAILED（ログインは拒否し、error ログで知らせる）。
     Cloudflare 側の障害（接続失敗・タイムアウト・5xx・JSON でない応答・再試行しても続く internal-error）は、
     理由をログに残して UNAVAILABLE を返す。UNAVAILABLE をどう扱うか（ログインを通すか）は呼び出し側が決める。
+    本番で Turnstile が効いているかを確かめられるよう、1 回の検証につき 1 行、結果とエラーコードだけを
+    構造化ログ（turnstile_result / turnstile_error_codes）に残す。トークンと secret は出さない。
     """
+    result, error_codes = _verify(token, remote_ip)
+    logger.info(
+        'Turnstile siteverify result: result=%s error_codes=%s',
+        result.value,
+        error_codes,
+        extra={'turnstile_result': result.value, 'turnstile_error_codes': error_codes},
+    )
+    return result
+
+
+def _verify(token: str, remote_ip: str) -> tuple[TurnstileResult, list[str]]:
+    """verify_turnstile_token の本体。(判定結果, Cloudflare のエラーコード) を返す."""
     if not token or len(token) > MAX_TOKEN_LENGTH:
-        return TurnstileResult.FAILED
+        # Cloudflare に問い合わせないので、トークンが無い時の Cloudflare のエラーコード名で記録する
+        return TurnstileResult.FAILED, ['missing-input-response' if not token else 'oversized-input-response']
     # 再試行でトークンの二重使用（timeout-or-duplicate）と判定されないよう、全試行で同じ idempotency_key を送る
     payload = {
         'secret': settings.TURNSTILE_SECRET_KEY,
@@ -62,19 +77,20 @@ def verify_turnstile_token(token: str, remote_ip: str) -> TurnstileResult:
         'remoteip': remote_ip,
         'idempotency_key': str(uuid.uuid4()),
     }
+    error_codes: list[str] = []
     for attempt in range(1, SITEVERIFY_MAX_ATTEMPTS + 1):
         outcome = _post_siteverify(payload)
         if outcome is None:
-            return TurnstileResult.UNAVAILABLE
-        result = _judge_outcome(*outcome)
+            return TurnstileResult.UNAVAILABLE, error_codes
+        result, error_codes = _judge_outcome(*outcome)
         if result is not None:
-            return result
+            return result, error_codes
         logger.warning(
             'Turnstile siteverify reported an internal error: attempt=%s/%s',
             attempt,
             SITEVERIFY_MAX_ATTEMPTS,
         )
-    return TurnstileResult.UNAVAILABLE
+    return TurnstileResult.UNAVAILABLE, error_codes
 
 
 def _post_siteverify(payload: dict[str, str]) -> tuple[int, dict[str, Any]] | None:
@@ -120,13 +136,13 @@ def _post_siteverify(payload: dict[str, str]) -> tuple[int, dict[str, Any]] | No
     return response.status_code, body
 
 
-def _judge_outcome(status_code: int, body: dict[str, Any]) -> TurnstileResult | None:
-    """siteverify の応答を判定する。Cloudflare の内部エラー（再試行してよい）なら None を返す.
+def _judge_outcome(status_code: int, body: dict[str, Any]) -> tuple[TurnstileResult | None, list[str]]:
+    """siteverify の応答から (判定結果, エラーコード) を返す。Cloudflare の内部エラー（再試行してよい）なら判定結果は None.
 
     トークンと secret はログに出さない。
     """
     if status_code == HTTP_OK and body.get('success') is True:
-        return TurnstileResult.PASSED
+        return TurnstileResult.PASSED, []
     raw_codes = body.get('error-codes')
     error_codes = sorted({str(code) for code in raw_codes}) if isinstance(raw_codes, list) else []
     # 鍵の設定ミスは内部エラーより先に見る。両方が併記されても、再試行→fail-open に流さず拒否する
@@ -138,9 +154,9 @@ def _judge_outcome(status_code: int, body: dict[str, Any]) -> TurnstileResult | 
             error_codes,
             extra={'is_silent': True},
         )
-        return TurnstileResult.FAILED
+        return TurnstileResult.FAILED, error_codes
     # 内部エラーだけの時に限って再試行する。トークンの拒否などと併記されたら、fail-open に流さず拒否する
     if error_codes and CLOUDFLARE_INTERNAL_ERROR_CODES.issuperset(error_codes):
-        return None
+        return None, error_codes
     logger.info('Turnstile verification failed: status=%s error_codes=%s', status_code, error_codes)
-    return TurnstileResult.FAILED
+    return TurnstileResult.FAILED, error_codes

@@ -75,11 +75,30 @@ SOCIALACCOUNT_FORMS = {
 }
 
 # Cloudflare Turnstile（メールアドレスでのログイン画面のボット対策）。
-# 2 つとも設定した時だけ有効。2 つとも空ならウィジェットも検証も無効にする（ローカル開発・CI は未設定で動く）。
-# 片方だけの時は、DEBUG=True なら無効、本番（DEBUG=False）なら起動を止める（validate_turnstile_keys）。
-TURNSTILE_SITE_KEY = os.environ.get('TURNSTILE_SITE_KEY', '').strip()
-TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '').strip()
-# テストは環境変数に鍵があっても無効にする（有効時の振る舞いは override_settings で個別に検証する）。
+# 2 つとも設定した時だけ有効。片方だけの時は、DEBUG=True なら無効、本番（DEBUG=False）なら起動を止める
+# （validate_turnstile_keys）。
+# 開発（DEBUG=True）で 2 つとも空なら、Cloudflare 公式のテスト用キー（どのホスト・自動操作のブラウザでも必ず通る）を使う。
+# 本番は鍵を明示しているので、DEBUG を誤って有効にしてもテスト用キーには切り替わらない。
+# 開発で Turnstile ごと無効にしたい時（オフラインで作業する時など）は TURNSTILE_DEBUG_TEST_KEYS=false にする。
+TURNSTILE_TEST_SITE_KEY = '1x00000000000000000000AA'
+TURNSTILE_TEST_SECRET_KEY = '1x0000000000000000000000000000000AA'
+
+
+def resolve_turnstile_keys(site_key: str, secret_key: str, *, debug: bool, use_test_keys: bool) -> tuple[str, str]:
+    """環境変数の鍵から、実際に使う (サイトキー, シークレットキー) を決める."""
+    if debug and use_test_keys and not site_key and not secret_key:
+        return TURNSTILE_TEST_SITE_KEY, TURNSTILE_TEST_SECRET_KEY
+    return site_key, secret_key
+
+
+TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY = resolve_turnstile_keys(
+    os.environ.get('TURNSTILE_SITE_KEY', '').strip(),
+    os.environ.get('TURNSTILE_SECRET_KEY', '').strip(),
+    debug=DEBUG,
+    use_test_keys=os.environ.get('TURNSTILE_DEBUG_TEST_KEYS', 'true').strip().lower() not in {'0', 'false', 'no', 'off'},
+)
+# テストは環境変数に鍵があっても無効にする（有効時の振る舞いは override_settings で個別に検証する。
+# テスト用キーでも siteverify への通信が起きるため、外部に通信しないテストでは使わない）。
 if 'test' in sys.argv or TESTING:
     TURNSTILE_SITE_KEY = ''
     TURNSTILE_SECRET_KEY = ''
