@@ -82,6 +82,12 @@ REST_FRAMEWORK = {
     # Cloud RunがXFF末尾へ付与するclient/proxyの2要素だけを信頼する。
     # 左側にユーザーが追加した値をanon throttleの識別子へ使わせない。
     'NUM_PROXIES': 2,
+    # DRF 既定の Basic 認証は使わない。メールアドレスとパスワードを照合する経路になり、ログイン画面の
+    # ボット対策（Turnstile）とログイン失敗の回数制限（#594）を通らないため（#611）。
+    # API キーは必要なビューで authentication_classes に明示する。
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle'
@@ -259,6 +265,34 @@ LOGIN_REDIRECT_URL = '/event/my_list/'
 SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 
 
+# Sentry の既定の除去対象（password など）に含まれない、ログインフォームの送信値。
+# DjangoIntegration が POST 本文を event['request']['data'] に載せるため、送る前に伏せる（#611）。
+_SENTRY_SCRUBBED_REQUEST_FIELDS = frozenset({'cf-turnstile-response', 'username'})
+_SENTRY_FILTERED_VALUE = '[Filtered]'
+
+
+def _scrub_sentry_value(value):
+    """入れ子の dict / list をたどって対象の項目を伏せる。対象の名前を含む文字列（生の本文）は丸ごと伏せる."""
+    if isinstance(value, dict):
+        return {
+            key: _SENTRY_FILTERED_VALUE if key in _SENTRY_SCRUBBED_REQUEST_FIELDS else _scrub_sentry_value(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_scrub_sentry_value(item) for item in value]
+    if isinstance(value, str) and any(field in value for field in _SENTRY_SCRUBBED_REQUEST_FIELDS):
+        return _SENTRY_FILTERED_VALUE
+    return value
+
+
+def _scrub_sentry_request_data(event):
+    """event の POST 本文から、ボット対策のトークンとログイン ID を伏せて返す."""
+    request = event.get('request')
+    if isinstance(request, dict) and 'data' in request:
+        request['data'] = _scrub_sentry_value(request['data'])
+    return event
+
+
 def _sentry_before_send(event, hint):  # pragma: no cover - 本番のみ呼ばれる
     """Sentry 送信前フィルタ.
 
@@ -270,18 +304,18 @@ def _sentry_before_send(event, hint):  # pragma: no cover - 本番のみ呼ば�
     """
     logger_name = event.get('logger') or ''
     if logger_name.startswith('django'):
-        return event
+        return _scrub_sentry_request_data(event)
 
     logentry = event.get('logentry') or {}
     message = logentry.get('message') or event.get('message') or ''
     if message == 'silent_failure':
-        return event
+        return _scrub_sentry_request_data(event)
 
     # `extra` 経由でセットした構造化フィールドを参照する。
     # sentry_sdk は LogRecord.is_silent を event['extra'] に伝搬する。
     extra = event.get('extra') or {}
     if extra.get('is_silent') is True:
-        return event
+        return _scrub_sentry_request_data(event)
 
     # 不明な ERROR ログはドロップ (PII / 生成物リーク防止)
     return None

@@ -82,6 +82,17 @@
                                     </div>
                                 {% endif %}
                             {% endfor %}
+                            {% if turnstile_site_key %}
+                                <div class="mb-3" role="group" aria-label="ボット対策の確認" aria-describedby="turnstile-help">
+                                    <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-size="flexible"></div>
+                                    <div id="turnstile-help" class="form-text">ボット対策の確認です。通常は自動で完了します。確認が表示された場合は、画面の指示に従ってください。</div>
+                                    <noscript>
+                                        <div class="alert alert-warning mt-2 mb-0">
+                                            JavaScript が無効なため、ボット対策の確認ができずログインできません。ブラウザの設定で JavaScript を有効にしてください。
+                                        </div>
+                                    </noscript>
+                                </div>
+                            {% endif %}
                             <button type="submit" class="btn btn-primary w-100">
                                 <i class="fas fa-sign-in-alt me-2"></i>ログイン
                             </button>
@@ -94,4 +105,10 @@
             </div>
         </div>
     </div>
+{% endblock %}
+
+{% block extra_js %}
+    {% if turnstile_site_key %}
+        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    {% endif %}
 {% endblock %}

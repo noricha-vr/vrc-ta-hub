@@ -221,3 +221,44 @@ class SentryBeforeSendFilterTests(SimpleTestCase):
             "extra": {"is_silent": True, "event_type": "blog_generation_failed_on_create"},
         }
         self.assertIsNotNone(settings_base._sentry_before_send(event, {}))
+
+    def test_login_form_token_and_id_are_scrubbed_from_request_data(self):
+        # DjangoIntegration が POST 本文を載せる。ボット対策のトークンとログイン ID は Sentry に送らない（#611）
+        for event in (
+            {'logger': 'user_account.turnstile', 'extra': {'is_silent': True}},
+            {'logger': 'django.request'},
+            {'logentry': {'message': 'silent_failure'}},
+        ):
+            event['request'] = {
+                'data': {'cf-turnstile-response': 'token-value', 'username': 'user@example.com', 'remember': 'on'},
+            }
+            with self.subTest(event=event):
+                sent = settings_base._sentry_before_send(event, {})
+
+                self.assertEqual(
+                    sent['request']['data'],
+                    {'cf-turnstile-response': '[Filtered]', 'username': '[Filtered]', 'remember': 'on'},
+                )
+
+    def test_login_form_fields_are_scrubbed_from_nested_or_raw_request_data(self):
+        cases = {
+            'nested_dict': (
+                {'form': {'cf-turnstile-response': 'token-value', 'username': 'user@example.com', 'remember': 'on'}},
+                {'form': {'cf-turnstile-response': '[Filtered]', 'username': '[Filtered]', 'remember': 'on'}},
+            ),
+            'list': (
+                [{'cf-turnstile-response': 'token-value'}, 'other'],
+                [{'cf-turnstile-response': '[Filtered]'}, 'other'],
+            ),
+            'raw_body': (
+                'username=user%40example.com&cf-turnstile-response=token-value',
+                '[Filtered]',
+            ),
+            'unrelated_raw_body': ('title=hello', 'title=hello'),
+        }
+        for name, (data, expected) in cases.items():
+            event = {'logger': 'django.security.DisallowedHost', 'request': {'data': data}}
+            with self.subTest(case=name):
+                sent = settings_base._sentry_before_send(event, {})
+
+                self.assertEqual(sent['request']['data'], expected)
