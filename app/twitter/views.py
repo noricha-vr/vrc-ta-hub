@@ -15,6 +15,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
+from django.utils.crypto import constant_time_compare
 from django.views.decorators.http import require_http_methods
 from django.views.generic import CreateView, UpdateView, ListView, DeleteView, DetailView, TemplateView
 
@@ -209,7 +210,7 @@ def post_scheduled_tweets(request):
     """
     request_token = request.headers.get("Request-Token", "")
     expected = os.environ.get("REQUEST_TOKEN", "")
-    if not expected or request_token != expected:
+    if not expected or not constant_time_compare(request_token, expected):
         return HttpResponse("Unauthorized", status=401)
 
     return JsonResponse(
