@@ -271,12 +271,25 @@ _SENTRY_SCRUBBED_REQUEST_FIELDS = frozenset({'cf-turnstile-response', 'username'
 _SENTRY_FILTERED_VALUE = '[Filtered]'
 
 
+def _scrub_sentry_value(value):
+    """入れ子の dict / list をたどって対象の項目を伏せる。対象の名前を含む文字列（生の本文）は丸ごと伏せる."""
+    if isinstance(value, dict):
+        return {
+            key: _SENTRY_FILTERED_VALUE if key in _SENTRY_SCRUBBED_REQUEST_FIELDS else _scrub_sentry_value(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_scrub_sentry_value(item) for item in value]
+    if isinstance(value, str) and any(field in value for field in _SENTRY_SCRUBBED_REQUEST_FIELDS):
+        return _SENTRY_FILTERED_VALUE
+    return value
+
+
 def _scrub_sentry_request_data(event):
     """event の POST 本文から、ボット対策のトークンとログイン ID を伏せて返す."""
-    data = (event.get('request') or {}).get('data')
-    if isinstance(data, dict):
-        for field in _SENTRY_SCRUBBED_REQUEST_FIELDS.intersection(data):
-            data[field] = _SENTRY_FILTERED_VALUE
+    request = event.get('request')
+    if isinstance(request, dict) and 'data' in request:
+        request['data'] = _scrub_sentry_value(request['data'])
     return event
 
 

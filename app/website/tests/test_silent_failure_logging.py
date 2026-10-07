@@ -239,3 +239,26 @@ class SentryBeforeSendFilterTests(SimpleTestCase):
                     sent['request']['data'],
                     {'cf-turnstile-response': '[Filtered]', 'username': '[Filtered]', 'remember': 'on'},
                 )
+
+    def test_login_form_fields_are_scrubbed_from_nested_or_raw_request_data(self):
+        cases = {
+            'nested_dict': (
+                {'form': {'cf-turnstile-response': 'token-value', 'username': 'user@example.com', 'remember': 'on'}},
+                {'form': {'cf-turnstile-response': '[Filtered]', 'username': '[Filtered]', 'remember': 'on'}},
+            ),
+            'list': (
+                [{'cf-turnstile-response': 'token-value'}, 'other'],
+                [{'cf-turnstile-response': '[Filtered]'}, 'other'],
+            ),
+            'raw_body': (
+                'username=user%40example.com&cf-turnstile-response=token-value',
+                '[Filtered]',
+            ),
+            'unrelated_raw_body': ('title=hello', 'title=hello'),
+        }
+        for name, (data, expected) in cases.items():
+            event = {'logger': 'django.security.DisallowedHost', 'request': {'data': data}}
+            with self.subTest(case=name):
+                sent = settings_base._sentry_before_send(event, {})
+
+                self.assertEqual(sent['request']['data'], expected)
