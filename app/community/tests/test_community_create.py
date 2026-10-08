@@ -191,6 +191,25 @@ class CommunityCreateViewTest(TestCase):
         self.assertTemplateUsed(response, 'community/create.html')
 
     @patch('community.views.manage.requests.post')
+    def test_new_community_starts_with_recording_allowed_and_public(self, mock_discord_post):
+        """登録した集会は撮影「許可する」・撮影ステータスの初期値「公開」で始まり、設定画面でも「公開」が選ばれている."""
+        mock_discord_post.return_value = MagicMock(status_code=200)
+        self.client.force_login(self.user)
+
+        response = self.client.post(self.create_url, self._make_post_data(name='撮影初期値の集会'))
+
+        self.assertEqual(response.status_code, 302)
+        community = Community.objects.get(name='撮影初期値の集会')
+        self.assertTrue(community.recording_allowed)
+        self.assertEqual(community.default_recording_policy, 'public')
+        session = self.client.session
+        session['active_community_id'] = community.pk
+        session.save()
+        html = self.client.get(reverse('community:settings')).content.decode()
+        self.assertRegex(html, r'id="default_recording_policy_public" name="default_recording_policy" value="public"\s+checked')
+        self.assertNotRegex(html, r'id="default_recording_policy_allowed"[^>]*checked')
+
+    @patch('community.views.manage.requests.post')
     def test_community_creation_via_post(self, mock_discord_post):
         """POSTリクエストで集会が作成されることをテスト.
 

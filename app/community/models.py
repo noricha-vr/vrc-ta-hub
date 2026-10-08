@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from ta_hub.libs import DEFAULT_MAX_SIZE, resize_and_convert_image
 
+from .constants import RecordingPolicy
 from .encrypted_fields import EncryptedTextField
 
 
@@ -130,6 +131,15 @@ class Community(models.Model):
         default=True,
         db_default=True,
         help_text='オフにすると、この集会の発表はハブの自動撮影の対象になりません',
+    )
+    # 発表申請フォームで撮影の選択肢を最初に選んでおく値。db_default は recording_allowed と同じ理由
+    default_recording_policy = models.CharField(
+        '撮影ステータスの初期値',
+        max_length=20,
+        choices=RecordingPolicy.choices,
+        default=RecordingPolicy.PUBLIC,
+        db_default=RecordingPolicy.PUBLIC,
+        help_text='発表申請フォームで、撮影の選択肢の初期値になります',
     )
 
     class Meta:

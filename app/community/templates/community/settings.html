@@ -143,15 +143,38 @@
                     </small>
                 </div>
                 <div class="mb-3">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="recording_allowed" name="recording_allowed"
-                               {% if community.recording_allowed %}checked{% endif %}>
-                        <label class="form-check-label fw-medium" for="recording_allowed">
-                            撮影を許可する
-                        </label>
+                    <p class="form-label fw-medium mb-1">撮影許可</p>
+                    <div class="d-flex flex-wrap gap-3" role="radiogroup" aria-label="撮影許可">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="recording_allowed_true" name="recording_allowed" value="true"
+                                   {% if community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()">
+                            <label class="form-check-label" for="recording_allowed_true">許可する</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="recording_allowed_false" name="recording_allowed" value="false"
+                                   {% if not community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()">
+                            <label class="form-check-label" for="recording_allowed_false">許可しない</label>
+                        </div>
                     </div>
                     <small class="form-text text-muted">
-                        オフにすると、この集会の発表はハブの自動撮影の対象になりません。
+                        「許可しない」にすると、この集会の発表はハブの自動撮影の対象になりません。発表申請フォームにも撮影の選択肢を出さず、「禁止」で受け付けます。
+                    </small>
+                </div>
+                <div class="mb-3" id="default-recording-policy-section" style="{% if not community.recording_allowed %}display: none;{% endif %}">
+                    <p class="form-label fw-medium mb-1">撮影ステータスの初期値</p>
+                    <div class="d-flex flex-column gap-1" role="radiogroup" aria-label="撮影ステータスの初期値">
+                        {% for value, label in recording_policy_choices %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" id="default_recording_policy_{{ value }}" name="default_recording_policy" value="{{ value }}"
+                                       {% if community.default_recording_policy == value %}checked{% endif %} onchange="markRecordingPolicyTouched()">
+                                <label class="form-check-label" for="default_recording_policy_{{ value }}">{{ label }}</label>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {# JS が動いた送信で 1 になる。許可に切り替えた時の「禁止」が、画面で選ばれていた値か（1）、JS の無い送信で残っていた古い値かをサーバーが見分ける #}
+                    <input type="hidden" id="default_recording_policy_chosen" name="default_recording_policy_chosen" value="">
+                    <small class="form-text text-muted">
+                        発表申請フォームで、撮影の選択肢の初期値になります。登壇者は申請時に変えられます。
                     </small>
                 </div>
                 <div id="lt-settings-detail" style="{% if not community.accepts_lt_application %}display: none;{% endif %}">
@@ -206,6 +229,44 @@
             detailSection.style.display = 'none';
         }
     }
+    var recordingPolicyTouched = false;
+    function toggleRecordingSettings() {
+        var allowed = document.getElementById('recording_allowed_true');
+        var section = document.getElementById('default-recording-policy-section');
+        section.style.display = allowed.checked ? 'block' : 'none';
+        // 撮影を許可していなかった集会を「許可する」に切り替えた時は、撮影ステータスの初期値を「公開」にしておく。
+        // 許可済みの集会で保存してある値と、この画面で主催者が選んだ値は変えない
+        if (allowed.checked && !allowed.defaultChecked && !recordingPolicyTouched) {
+            document.getElementById('default_recording_policy_public').checked = true;
+        }
+    }
+    function markRecordingPolicyTouched() {
+        recordingPolicyTouched = true;
+    }
+    (function () {
+        var chosen = document.getElementById('default_recording_policy_chosen');
+        // JS が動く画面では、許可に切り替えた時に JS が「公開」を選ぶため、送る初期値は主催者が画面で見ていた選択そのもの。
+        // 戻る操作でフォームが復元されても hidden は空に戻るので、送信の直前に印を立てる
+        chosen.form.addEventListener('submit', function () {
+            chosen.value = '1';
+        });
+        // 戻る操作でフォームだけ復元された時に、初期値の欄の表示と「主催者が選んだか」を復元後の選択から戻す
+        window.addEventListener('pageshow', function () {
+            var allowed = document.getElementById('recording_allowed_true');
+            var section = document.getElementById('default-recording-policy-section');
+            section.style.display = allowed.checked ? 'block' : 'none';
+            var radios = document.querySelectorAll('input[name="default_recording_policy"]');
+            for (var i = 0; i < radios.length; i++) {
+                // 画面を出した時と違う選択、または許可へ切り替え後に「公開」以外（JS は「公開」を選ぶ）なら主催者が選んだもの
+                var switchedAndChanged = allowed.checked && !allowed.defaultChecked
+                    && radios[i].checked && radios[i].value !== 'public';
+                if (radios[i].checked !== radios[i].defaultChecked || switchedAndChanged) {
+                    markRecordingPolicyTouched();
+                    break;
+                }
+            }
+        });
+    })();
     </script>
 
     <!-- メンバー管理セクション（主催者のみ） -->
