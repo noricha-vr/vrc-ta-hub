@@ -78,11 +78,11 @@ class LTApplicationRecordingPolicyTest(TestCase):
 
         self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
 
-    def test_missing_value_falls_back_to_public(self, _mock_send):
-        """選択が送られなかった時は既定の「公開」で保存される。"""
+    def test_missing_value_is_saved_as_forbidden(self, _mock_send):
+        """選択が送られなかった（撮影の選択肢を見ていない）時は「禁止」で保存される。"""
         detail = self._apply('未選択の発表')
 
-        self.assertEqual(detail.recording_policy, RecordingPolicy.PUBLIC)
+        self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
 
     def test_invalid_value_is_rejected(self, _mock_send):
         """選択肢にない値はフォームのエラーになる。"""
@@ -238,12 +238,26 @@ class LTApplicationCommunityDefaultTest(TestCase):
 
                 self.assertEqual(form['recording_policy'].value(), value)
 
-    def test_missing_value_falls_back_to_community_default(self, _mock_send):
-        """選択が送られなかった時は集会の撮影ステータスの初期値で保存される。"""
+    def test_missing_value_is_saved_as_forbidden(self, _mock_send):
+        """選択が送られなかった（撮影の選択肢を見ていない）時は、集会の初期値ではなく「禁止」で保存される。"""
         self.client.post(self.url, {'event': self.event.pk, 'theme': '未選択', 'speaker': '発表者'})
 
         detail = EventDetail.objects.get(event=self.event, theme='未選択')
-        self.assertEqual(detail.recording_policy, RecordingPolicy.ALLOWED)
+        self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
+
+    def test_form_opened_before_recording_was_allowed_is_saved_as_forbidden(self, _mock_send):
+        """撮影を許可しない間に開いたフォームを、主催者が許可した後に送っても「公開」にならない。"""
+        self.community.recording_allowed = False
+        self.community.save(update_fields=['recording_allowed'])
+        self.assertNotContains(self.client.get(self.url), 'name="recording_policy"')
+        self.community.recording_allowed = True
+        self.community.default_recording_policy = RecordingPolicy.PUBLIC
+        self.community.save(update_fields=['recording_allowed', 'default_recording_policy'])
+
+        self.client.post(self.url, {'event': self.event.pk, 'theme': '許可前に開いた', 'speaker': '発表者'})
+
+        detail = EventDetail.objects.get(event=self.event, theme='許可前に開いた')
+        self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
 
     def test_speaker_can_change_from_default(self, _mock_send):
         """初期値と違う値を選べばその値で保存される。"""
