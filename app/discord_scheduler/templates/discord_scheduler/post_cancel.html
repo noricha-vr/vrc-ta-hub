@@ -1,0 +1,20 @@
+{% extends 'ta_hub/base.html' %}
+{% load tz %}
+{% block meta %}
+    <title>Discord投稿予約の取消 - VRChat 技術・学術系イベントHub</title>
+    <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+{% block main %}
+    {% timezone 'Asia/Tokyo' %}
+    <div class="container my-4" style="max-width: 800px;">
+        <h1 class="h3 fw-bold mb-3">この投稿予約を取り消しますか？</h1>
+        <p class="text-muted">投稿予定：{{ post.scheduled_at|date:'Y/m/d H:i' }}（日本時間）</p>
+        <div class="border rounded p-3 mb-4" style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ post.content }}</div>
+        <form method="post" class="d-flex flex-wrap gap-2">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">予約を取り消す</button>
+            <a href="{% url 'discord_scheduler:post_list' %}" class="btn btn-outline-secondary">戻る</a>
+        </form>
+    </div>
+    {% endtimezone %}
+{% endblock %}

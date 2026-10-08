@@ -77,6 +77,12 @@ DISCORD_WEBHOOK_URL=ウェブフックURL
 DISCORD_REPORT_WEBHOOK_URL=レポート用ウェブフックURL
 ```
 
+### Discord予約投稿（任意）
+
+運営向けの「Discord予約投稿」は、告知先チャンネル専用の設定を使用する。
+`DISCORD_SCHEDULED_WEBHOOK_URL` と毎分の定期実行を設定すると利用できる。
+設定・操作手順は [Discord予約投稿](discord-scheduled-posts.md) を参照。
+
 ## X API（任意）
 
 イベント情報の自動ツイートに使用。開発時は未設定でも動作する。

@@ -1,0 +1,90 @@
+{% extends 'ta_hub/base.html' %}
+{% load tz %}
+{% block meta %}
+    <title>Discord投稿予約 - VRChat 技術・学術系イベントHub</title>
+    <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+{% block main %}
+    {% timezone 'Asia/Tokyo' %}
+    <div class="container my-4" style="max-width: 1000px;">
+        {% include 'ta_hub/messages.html' %}
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+            <h1 class="h3 fw-bold mb-0">Discord投稿予約</h1>
+            {% if destination_ready %}<a href="{% url 'discord_scheduler:post_create' %}" class="btn btn-primary">投稿を予約する</a>{% endif %}
+        </div>
+        {% if destination_ready %}
+            <p class="text-muted mb-1">投稿先：<a href="{{ channel_url }}" target="_blank" rel="noopener noreferrer">指定のDiscordチャンネル</a></p>
+        {% else %}
+            <div class="alert alert-warning" role="alert">投稿先の設定が必要です。設定が完了すると予約できます。</div>
+        {% endif %}
+        <p class="text-muted small mb-4">日時はすべて日本時間（JST）です。指定日時以降に順次投稿します。</p>
+
+        <h2 class="h5 fw-bold mb-3">これからの投稿</h2>
+        {% for post in pending_posts %}
+            <article class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                        <div>
+                            <span class="fw-bold">{{ post.scheduled_at|date:'Y/m/d H:i' }}</span>
+                            {% if post.status == 'sending' %}<span class="badge bg-info text-dark ms-2">送信中</span>{% else %}<span class="badge bg-primary ms-2">予約済み</span>{% endif %}
+                        </div>
+                        {% if post.status == 'scheduled' %}
+                            <div class="d-flex gap-2">
+                                <a href="{% url 'discord_scheduler:post_edit' post.pk %}" class="btn btn-sm btn-outline-primary">編集</a>
+                                <a href="{% url 'discord_scheduler:post_cancel' post.pk %}" class="btn btn-sm btn-outline-secondary">取り消す</a>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% if post.error_message %}<p class="small text-muted mb-2">{{ post.error_message }}</p>{% endif %}
+                    <div style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ post.content }}</div>
+                </div>
+            </article>
+        {% empty %}
+            <p class="text-muted border rounded p-4">投稿予定はありません。</p>
+        {% endfor %}
+
+        <h2 class="h5 fw-bold mt-5 mb-3">投稿履歴</h2>
+        {% for post in history_page %}
+            <article class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                        <div>
+                            <span class="text-muted small">予定 {{ post.scheduled_at|date:'Y/m/d H:i' }}</span>
+                            {% if post.status == 'sent' %}
+                                <span class="badge bg-success ms-2">送信済み</span>
+                            {% elif post.status == 'failed' %}
+                                <span class="badge bg-danger ms-2">失敗</span>
+                            {% elif post.status == 'needs_review' %}
+                                <span class="badge bg-warning text-dark ms-2">要確認</span>
+                            {% else %}
+                                <span class="badge bg-secondary ms-2">取消済み</span>
+                            {% endif %}
+                        </div>
+                        {% if post.status == 'sent' and post.message_url %}
+                            <a href="{{ post.message_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">Discordで開く</a>
+                        {% endif %}
+                    </div>
+                    {% if post.sent_at %}<p class="small text-muted mb-2">送信日時 {{ post.sent_at|date:'Y/m/d H:i' }}</p>{% endif %}
+                    {% if post.status == 'needs_review' %}
+                        <p class="text-warning-emphasis small mb-2">投稿できたか確認が必要です。再度予約する前に、Discordのチャンネルを確認してください。</p>
+                    {% endif %}
+                    {% if post.error_message %}<p class="small text-danger mb-2">{{ post.error_message }}</p>{% endif %}
+                    <details>
+                        <summary class="small">投稿本文を確認</summary>
+                        <div class="mt-2" style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ post.content }}</div>
+                    </details>
+                </div>
+            </article>
+        {% empty %}
+            <p class="text-muted">投稿履歴はまだありません。</p>
+        {% endfor %}
+        {% if history_page.has_other_pages %}
+            <nav aria-label="投稿履歴のページ" class="d-flex align-items-center justify-content-center gap-3 mt-3">
+                {% if history_page.has_previous %}<a href="?page={{ history_page.previous_page_number }}" class="btn btn-sm btn-outline-secondary">前へ</a>{% endif %}
+                <span class="small">{{ history_page.number }} / {{ history_page.paginator.num_pages }}</span>
+                {% if history_page.has_next %}<a href="?page={{ history_page.next_page_number }}" class="btn btn-sm btn-outline-secondary">次へ</a>{% endif %}
+            </nav>
+        {% endif %}
+    </div>
+    {% endtimezone %}
+{% endblock %}

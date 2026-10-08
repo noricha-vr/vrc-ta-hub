@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'user_account',
     'event_calendar',
     'twitter',
+    'discord_scheduler',
     'news',
     'guide',
     'vket',

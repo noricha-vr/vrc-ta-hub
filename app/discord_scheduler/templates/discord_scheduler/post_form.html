@@ -1,0 +1,41 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}
+    <title>{% if is_edit %}Discord投稿の予約を編集{% else %}Discord投稿を予約{% endif %} - VRChat 技術・学術系イベントHub</title>
+    <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+{% block main %}
+    <div class="container my-4" style="max-width: 800px;">
+        <a href="{% url 'discord_scheduler:post_list' %}" class="d-inline-block mb-3">&larr; 予約一覧へ戻る</a>
+        <h1 class="h3 fw-bold mb-3">{% if is_edit %}Discord投稿の予約を編集{% else %}Discord投稿を予約{% endif %}</h1>
+        {% if destination_ready %}
+            <p class="text-muted">投稿先：<a href="{{ channel_url }}" target="_blank" rel="noopener noreferrer">指定のDiscordチャンネル</a></p>
+        {% else %}
+            <div class="alert alert-warning" role="alert">投稿先の設定が必要です。設定が完了すると予約できます。</div>
+        {% endif %}
+        <form method="post">
+            {% csrf_token %}
+            {% for error in form.non_field_errors %}
+                <div class="alert alert-danger" role="alert">{{ error }}</div>
+            {% endfor %}
+            <fieldset{% if not destination_ready %} disabled{% endif %}>
+                <div class="mb-4">
+                    <label for="{{ form.content.id_for_label }}" class="form-label fw-bold">{{ form.content.label }}</label>
+                    {{ form.content }}
+                    {% for error in form.content.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    <div class="form-text">URL・DiscordのMarkdownが使えます。最大2,000文字（絵文字は2文字分になる場合があります）。</div>
+                    <details class="mt-2 small text-muted">
+                        <summary>メンションを入れる場合</summary>
+                        <p class="mb-0 mt-1">ユーザーは <code>&lt;@ユーザーID&gt;</code>、ロールは <code>&lt;@&amp;ロールID&gt;</code> と入力します。<code>@everyone</code>・<code>@here</code> も通知対象になるため、必要な場合だけ記載してください。</p>
+                    </details>
+                </div>
+                <div class="mb-4" style="max-width: 360px;">
+                    <label for="{{ form.scheduled_at.id_for_label }}" class="form-label fw-bold">{{ form.scheduled_at.label }}</label>
+                    {{ form.scheduled_at }}
+                    {% for error in form.scheduled_at.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    <div class="form-text">指定日時以降に順次投稿します。</div>
+                </div>
+                <button type="submit" class="btn btn-primary px-4">{% if is_edit %}予約を更新する{% else %}予約する{% endif %}</button>
+            </fieldset>
+        </form>
+    </div>
+{% endblock %}

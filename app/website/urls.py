@@ -45,6 +45,7 @@ urlpatterns = [
     path('accounts/login/', redirect_to_public_login),
     path('accounts/', include('allauth.urls')),
     path('twitter/', include('twitter.urls')),
+    path('discord-posts/', include('discord_scheduler.urls')),
     path('api/v1/', include('api_v1.urls')),
     # Keep DRF's logout and password endpoints, while preventing its login view
     # from bypassing allauth's mandatory email-verification login stage.

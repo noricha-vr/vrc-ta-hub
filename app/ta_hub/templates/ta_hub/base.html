@@ -407,6 +407,11 @@
                                 <li><a class="dropdown-item" href="{% url 'account:settings' %}">
                                     <i class="bi bi-gear me-2"></i>アカウント設定
                                 </a></li>
+                                {% if user.is_staff or user.is_superuser %}
+                                    <li><a class="dropdown-item" href="{% url 'discord_scheduler:post_list' %}">
+                                        <i class="bi bi-discord me-2" aria-hidden="true"></i>Discord予約投稿
+                                    </a></li>
+                                {% endif %}
                                 <li>
                                     <form method="post" action="{% url 'account:logout' %}" class="m-0">
                                         {% csrf_token %}

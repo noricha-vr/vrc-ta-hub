@@ -55,3 +55,10 @@ ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', DEFAULT_FROM_EMAIL)
 # Discord Webhook（管理者通知用）
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')
 DISCORD_REPORT_WEBHOOK_URL = os.environ.get('DISCORD_REPORT_WEBHOOK_URL', '')
+
+# 運営が作成するDiscord予約投稿。管理者通知のWebhookとは別の投稿先を使う。
+DISCORD_SCHEDULED_WEBHOOK_URL = os.environ.get('DISCORD_SCHEDULED_WEBHOOK_URL', '').strip()
+DISCORD_SCHEDULED_CHANNEL_URL = os.environ.get(
+    'DISCORD_SCHEDULED_CHANNEL_URL',
+    'https://discord.com/channels/1143765879377645628/1304472925058891899',
+).strip().rstrip('/')
