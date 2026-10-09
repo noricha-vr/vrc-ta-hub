@@ -5,15 +5,18 @@
 
 import json
 from datetime import date, timedelta
+from io import BytesIO
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.messages import get_messages
+from django.core.files.base import ContentFile
 from django.db import DatabaseError, connection
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
+from PIL import Image
 
 from event.forms import EventDetailForm, LTApplicationEditForm
 from event.models import EventDetail, article_body_hash
@@ -30,6 +33,7 @@ from event.services.content_generation_service import (
     generate_blog,
     save_generated_article,
 )
+from event.services.media_service import ensure_pdf_thumbnail
 from event.views.helpers import extract_video_id
 from event.youtube_urls import youtube_video_id
 from tests.factories import make_community, make_discord_linked_user, make_event, make_event_detail, make_user
@@ -81,15 +85,16 @@ class ArticleBodyHashTest(TestCase):
     def test_form_round_trip_does_not_change_hash(self):
         """textarea の CRLF とフォームの前後空白の除去では、ハッシュは変わらない。"""
         self.assertEqual(
-            article_body_hash('タイトル', '一行目\n二行目'),
-            article_body_hash(' タイトル ', '一行目\r\n二行目\r\n'),
+            article_body_hash('タイトル', '一行目\n二行目', '要約'),
+            article_body_hash(' タイトル ', '一行目\r\n二行目\r\n', ' 要約\r\n'),
         )
 
-    def test_title_or_body_edit_changes_hash(self):
-        """タイトルか本文を書き換えるとハッシュが変わる。"""
-        original = article_body_hash('タイトル', '本文')
-        self.assertNotEqual(original, article_body_hash('直したタイトル', '本文'))
-        self.assertNotEqual(original, article_body_hash('タイトル', '直した本文'))
+    def test_title_body_or_summary_edit_changes_hash(self):
+        """タイトル・本文・要約のどれを書き換えてもハッシュが変わる。"""
+        original = article_body_hash('タイトル', '本文', '要約')
+        self.assertNotEqual(original, article_body_hash('直したタイトル', '本文', '要約'))
+        self.assertNotEqual(original, article_body_hash('タイトル', '直した本文', '要約'))
+        self.assertNotEqual(original, article_body_hash('タイトル', '本文', '直した要約'))
 
     def test_state_is_none_without_article(self):
         self.assertEqual(self.detail.article_state(), ArticleState.NONE)
@@ -104,6 +109,14 @@ class ArticleBodyHashTest(TestCase):
         self.detail.h1, self.detail.contents = 'タイトル', '本文'
         self.detail.record_generated_article()
         self.detail.contents = '発表者が直した本文'
+
+        self.assertEqual(self.detail.article_state(), ArticleState.MANUAL)
+
+    def test_state_is_manual_after_summary_edit(self):
+        """要約だけを直した記事も手動扱いにする（次の生成で要約を上書きしない）。"""
+        self.detail.h1, self.detail.contents, self.detail.meta_description = 'タイトル', '本文', '要約'
+        self.detail.record_generated_article()
+        self.detail.meta_description = '管理画面で直した要約'
 
         self.assertEqual(self.detail.article_state(), ArticleState.MANUAL)
 
@@ -592,7 +605,9 @@ class ArticleGenerationQueueTest(TestCase):
         self.assertEqual(detail.meta_description, GENERATED['meta_description'])
         self.assertEqual(detail.article_source_video_id, VIDEO_ID)
         self.assertEqual(detail.article_source_slide_name, SLIDE_NAME)
-        self.assertEqual(detail.article_body_hash, article_body_hash(detail.h1, detail.contents))
+        self.assertEqual(
+            detail.article_body_hash, article_body_hash(detail.h1, detail.contents, detail.meta_description),
+        )
         self.assertIsNotNone(detail.article_generated_at)
         self.assertIsNone(detail.article_generation_requested_at)
         self.assertEqual(detail.article_state(), ArticleState.AUTO)
@@ -701,6 +716,25 @@ class ArticleGenerationQueueTest(TestCase):
         detail.refresh_from_db()
         self.assertEqual(detail.contents, '発表者が直した本文')
         self.assertIsNone(detail.article_generation_requested_at)
+
+    def test_does_not_overwrite_summary_edited_by_hand(self, openai_class, *_mocks):
+        """管理画面や API で要約だけを直した記事も、次の生成で上書きしない。"""
+        openai_class.return_value = _openrouter_client()
+        detail = self._due_detail(h1='生成した記事', contents='生成した本文', meta_description='生成した要約')
+        detail.save(update_fields=detail.record_generated_article())
+        detail.meta_description = '管理画面で直した要約'
+        detail.save()
+        detail.youtube_url = OTHER_VIDEO_URL
+        detail.save()
+        self._make_due(detail)
+
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['skipped_manual'], 1)
+        openai_class.return_value.chat.completions.create.assert_not_called()
+        detail.refresh_from_db()
+        self.assertEqual(detail.meta_description, '管理画面で直した要約')
+        self.assertEqual(detail.h1, '生成した記事')
 
     def test_edit_during_generation_is_not_overwritten(self, openai_class, *_mocks):
         """生成中に発表者が本文を書いたら、生成結果で上書きしない。"""
@@ -1277,7 +1311,32 @@ class StaleEditFormTest(TestCase):
         rendered = str(LTApplicationEditForm(instance=self.detail)['article_snapshot'])
 
         self.assertIn('type="hidden"', rendered)
-        self.assertIn(article_body_hash('', ''), rendered)
+        self.assertIn(article_body_hash('', '', ''), rendered)
+
+    def test_summary_edited_after_opening_is_kept_with_user_edit(self):
+        """画面を開いた後に要約だけが直されても、利用者の本文の編集は保存し、直された要約は残す。"""
+        opened = LTApplicationEditForm(instance=EventDetail.objects.get(pk=self.detail.pk))
+        EventDetail.objects.filter(pk=self.detail.pk).update(meta_description='管理画面で直した要約')
+
+        self._submit(opened['article_snapshot'].value(), contents='利用者が書いた本文')
+
+        self.assertEqual(self.detail.contents, '利用者が書いた本文')
+        self.assertEqual(self.detail.meta_description, '管理画面で直した要約')
+
+    def test_form_without_summary_field_does_not_write_summary(self):
+        """要約の欄が無い画面の保存は要約を書かない（読み込んだ後に直された要約を古い値で戻さない）。"""
+        snapshot = LTApplicationEditForm(instance=EventDetail.objects.get(pk=self.detail.pk))['article_snapshot']
+        data = {'theme': '直したテーマ', 'speaker': '発表者', 'h1': '', 'contents': '',
+                'article_snapshot': snapshot.value()}
+        form = LTApplicationEditForm(data=data, instance=EventDetail.objects.get(pk=self.detail.pk))
+        EventDetail.objects.filter(pk=self.detail.pk).update(meta_description='保存の直前に直した要約')
+        self.assertTrue(form.is_valid(), form.errors)
+
+        form.save()
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.theme, '直したテーマ')
+        self.assertEqual(self.detail.meta_description, '保存の直前に直した要約')
 
 
 @patch('event.services.content_generation_service.ensure_pdf_thumbnail', return_value=False)
@@ -1366,6 +1425,17 @@ class SaveGeneratedArticleTest(TestCase):
         self.assertEqual(self.detail.h1, '')
         self.assertIsNone(self.detail.article_generated_at)
         _thumbnail.assert_not_called()
+
+    def test_does_not_overwrite_summary_edited_while_generating(self, _thumbnail):
+        """生成を待つ間に要約だけが直されても、直した要約を優先して保存しない。"""
+        started = EventDetail.objects.get(pk=self.detail.pk)
+        EventDetail.objects.filter(pk=self.detail.pk).update(meta_description='生成中に直した要約')
+
+        self.assertEqual(save_generated_article(started, self.OUTPUT), EDITED)
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.meta_description, '生成中に直した要約')
+        self.assertEqual(self.detail.h1, '')
 
     def test_inputs_changed_while_generating_leaves_regeneration_to_queue(self, _thumbnail):
         """生成を待つ間に動画が差し替わったら、記事は書くが生成元は記録せず、生成待ちの印を付ける。"""
@@ -1511,6 +1581,87 @@ class GenerateOnSaveEditedTest(TestCase):
         })
 
         self._assert_edit_kept(response)
+
+
+class ThumbnailStoreTest(TestCase):
+    """PDF のサムネイルは、作り終えた時に行のサムネイルが空の時だけ書く（作る間に上げられた画像を上書きしない）。"""
+
+    UPLOADED = 'thumbnail/uploaded.jpg'
+
+    def setUp(self):
+        self.detail = make_event_detail(make_event(make_community(name='サムネイルの集会')), status='approved')
+        self.detail.slide_file.save('thumbnail-test.pdf', ContentFile(b'%PDF-1.4\n%%EOF'), save=True)
+        self.storage = EventDetail._meta.get_field('thumbnail_image').storage
+
+    @staticmethod
+    def _jpeg() -> bytes:
+        buffer = BytesIO()
+        Image.new('RGB', (16, 9), color='white').save(buffer, format='JPEG')
+        return buffer.getvalue()
+
+    def _upload_while_rendering(self, *args, **kwargs):
+        """PDF から画像を作っている間に、利用者がサムネイルを上げる。"""
+        EventDetail.objects.filter(pk=self.detail.pk).update(thumbnail_image=self.UPLOADED)
+        return self._jpeg()
+
+    def _db_thumbnail(self) -> str:
+        return EventDetail.objects.values_list('thumbnail_image', flat=True).get(pk=self.detail.pk)
+
+    @patch('event.services.media_service.run_pdf_worker')
+    def test_stores_thumbnail_when_row_is_still_empty(self, run_pdf_worker):
+        run_pdf_worker.return_value = self._jpeg()
+        loaded = EventDetail.objects.get(pk=self.detail.pk)
+
+        self.assertTrue(ensure_pdf_thumbnail(loaded, save=True))
+
+        self.assertTrue(loaded.thumbnail_image.name.startswith('thumbnail/event_detail_'))
+        self.assertEqual(self._db_thumbnail(), loaded.thumbnail_image.name)
+
+    @patch('event.services.media_service.run_pdf_worker')
+    def test_keeps_thumbnail_uploaded_while_rendering(self, run_pdf_worker):
+        """作る間に上げられた画像は上書きせず、作った画像はストレージから消す（孤児にしない）。"""
+        run_pdf_worker.side_effect = self._upload_while_rendering
+        loaded = EventDetail.objects.get(pk=self.detail.pk)
+
+        with patch.object(self.storage, 'delete', wraps=self.storage.delete) as delete:
+            self.assertFalse(ensure_pdf_thumbnail(loaded, save=True))
+
+        self.assertEqual(self._db_thumbnail(), self.UPLOADED)
+        self.assertEqual(loaded.thumbnail_image.name, self.UPLOADED)
+        delete.assert_called_once()
+        created_name = delete.call_args.args[0]
+        self.assertTrue(created_name.startswith('thumbnail/event_detail_'))
+        self.assertFalse(self.storage.exists(created_name))
+
+    @patch('event.services.media_service.run_pdf_worker')
+    def test_overwrite_still_replaces_existing_thumbnail(self, run_pdf_worker):
+        """overwrite（PDF サムネイルのバックフィルの --force）は、これまでどおり今の画像を置き換える。"""
+        run_pdf_worker.return_value = self._jpeg()
+        EventDetail.objects.filter(pk=self.detail.pk).update(thumbnail_image=self.UPLOADED)
+        loaded = EventDetail.objects.get(pk=self.detail.pk)
+
+        self.assertTrue(ensure_pdf_thumbnail(loaded, save=True, overwrite=True))
+
+        self.assertTrue(self._db_thumbnail().startswith('thumbnail/event_detail_'))
+
+    @patch('event.services.media_service.run_pdf_worker')
+    def test_generate_button_keeps_thumbnail_uploaded_while_rendering(self, run_pdf_worker):
+        """生成ボタン（save_generated_article）の後のサムネイル作成も、上げられた画像を上書きしない。"""
+        run_pdf_worker.side_effect = self._upload_while_rendering
+        output = BlogOutput(title='生成した記事', meta_description='要約', text='本文')
+
+        self.assertEqual(save_generated_article(EventDetail.objects.get(pk=self.detail.pk), output), SAVED)
+
+        self.assertEqual(self._db_thumbnail(), self.UPLOADED)
+
+    @patch('event.services.media_service.run_pdf_worker')
+    def test_queue_keeps_thumbnail_uploaded_while_rendering(self, run_pdf_worker):
+        """自動生成のキューが記事を書いた後のサムネイル作成も、上げられた画像を上書きしない。"""
+        run_pdf_worker.side_effect = self._upload_while_rendering
+
+        article_generation._after_generated(self.detail.pk)
+
+        self.assertEqual(self._db_thumbnail(), self.UPLOADED)
 
 
 def _link_vket_presentation(detail: EventDetail, applied_by) -> None:

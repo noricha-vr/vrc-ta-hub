@@ -20,7 +20,7 @@ from openai.types.chat import (
 from openai.types.shared_params import FunctionDefinition
 from pydantic import BaseModel, Field, PrivateAttr
 
-from event.models import EventDetail, article_body_hash, article_generation_request_values
+from event.models import EventDetail, article_generation_request_values
 from event.prompts import BLOG_GENERATION_TEMPLATE
 from event.services.media_service import ensure_pdf_thumbnail
 from event.services.pdf_worker import PdfWorkerError, run_pdf_worker
@@ -122,7 +122,7 @@ def save_generated_article(event_detail: EventDetail, blog_output: BlogOutput) -
     """生成ボタンや保存と同時の生成の結果を保存する。
 
     LLM を待つ間（10〜20 秒）に発表者が記事化を NG に変えたり記事を書き換えたりすることがあるので、
-    行ロックで読み直し、NG なら書かず、記事（タイトルと本文）が生成を始めた時から変わっていれば
+    行ロックで読み直し、NG なら書かず、記事（タイトル・本文・要約）が生成を始めた時から変わっていれば
     書き換えた内容を優先して書かない（キューの手動編集の保護と同じ考え方）。
     動画・PDF が変わっていた時は記事を書くが、生成元は記録せず生成待ちの印も外さない（set_generated_article）。
     書くのは記事の列と生成の記録の列だけで、呼ぶ前に読んだ古い値で他の列を戻さない。
@@ -141,13 +141,13 @@ def save_generated_article(event_detail: EventDetail, blog_output: BlogOutput) -
     if not blog_output.title:
         return EMPTY
     used_sources = blog_output.sources.used_sources if blog_output.sources else ('', '')
-    started_hash = article_body_hash(event_detail.h1, event_detail.contents)
+    started_hash = event_detail.current_article_hash()
     started_inputs = event_detail.article_sources()
     with transaction.atomic():
         current = EventDetail.all_objects.select_for_update().get(pk=event_detail.pk)
         if current.is_article_ng:
             return REFUSED
-        if article_body_hash(current.h1, current.contents) != started_hash:
+        if current.current_article_hash() != started_hash:
             return EDITED
         inputs_changed = current.article_sources() != started_inputs
         current.save(update_fields=set_generated_article(

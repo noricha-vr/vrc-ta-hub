@@ -57,14 +57,20 @@ def article_is_empty(h1: Optional[str], contents: Optional[str]) -> bool:
     return not _normalize_article_text(h1 or '') and not _normalize_article_text(contents or '')
 
 
-def article_body_hash(h1: str, contents: str) -> str:
-    """記事の本文（タイトルと内容）の SHA-256 を返す。
+def article_body_hash(h1: str, contents: str, meta_description: str) -> str:
+    """記事（タイトル・本文・要約）の SHA-256 を返す。
 
+    生成で書く 3 列のどれを手で直しても自動生成のままと判定しないよう、3 列とも含める
+    （要約だけを管理画面や API で直した記事も、次の生成で上書きしない）。
     ブラウザの textarea は改行を CRLF で送り、フォームは前後の空白を落とすため、
     何も変えずに保存しただけで本文が変わる。正規化してから計算し、手動編集と誤判定しない。
     """
     payload = json.dumps(
-        [_normalize_article_text(h1), _normalize_article_text(contents)],
+        [
+            _normalize_article_text(h1),
+            _normalize_article_text(contents),
+            _normalize_article_text(meta_description),
+        ],
         ensure_ascii=False,
     )
     return hashlib.sha256(payload.encode('utf-8')).hexdigest()
@@ -795,14 +801,19 @@ class EventDetail(models.Model):
         """今の記事が未生成・自動生成のまま・手動で作成/編集済みのどれかを返す。
 
         タイトルも本文も空なら、ハッシュが残っていても未生成（空にした記事も自動で作り直せる）。
+        要約は空かどうかの判定に入れない（要約の欄が無い編集画面でも、記事を空にして作り直せるように）。
         ハッシュが無いのに本文がある記事（この機能より前の記事や手書きの記事）は、
         自動で上書きしないよう手動扱いにする。
         """
         if article_is_empty(self.h1, self.contents):
             return self.ArticleState.NONE
-        if self.article_body_hash and article_body_hash(self.h1, self.contents) == self.article_body_hash:
+        if self.article_body_hash and self.current_article_hash() == self.article_body_hash:
             return self.ArticleState.AUTO
         return self.ArticleState.MANUAL
+
+    def current_article_hash(self) -> str:
+        """今の記事の 3 列（タイトル・本文・要約）のハッシュ。"""
+        return article_body_hash(self.h1, self.contents, self.meta_description)
 
     def article_sources(self) -> tuple[str, str]:
         """今ある生成の入力（動画 ID と PDF の保存名）を返す。無い方は空文字。"""
@@ -845,7 +856,7 @@ class EventDetail(models.Model):
             変更した列名。
         """
         self.article_source_video_id, self.article_source_slide_name = sources
-        self.article_body_hash = article_body_hash(self.h1, self.contents)
+        self.article_body_hash = self.current_article_hash()
         self.article_generated_at = generated_at or timezone.now()
         return [
             'article_source_video_id',

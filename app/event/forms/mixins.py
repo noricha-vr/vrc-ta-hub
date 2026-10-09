@@ -86,17 +86,28 @@ class EventDetailMediaFormMixin:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # 今の DB の記事（タイトルと本文）のハッシュ。画面には hidden で持たせ、送信時の DB の値と比べる
+        # 今の DB の記事のハッシュ。画面には hidden で持たせ、送信時の DB の値と比べる
         self._article_hash_now = self._article_hash(self.instance)
         self.fields[ARTICLE_SNAPSHOT_FIELD] = forms.CharField(
             widget=forms.HiddenInput, required=False, initial=self._article_hash_now,
         )
 
-    @staticmethod
-    def _article_hash(instance) -> str:
+    @property
+    def _shows_meta_description(self) -> bool:
+        """この画面に要約（meta_description）の欄があるか。"""
+        return 'meta_description' in self.fields
+
+    def _article_hash(self, instance) -> str:
+        """この画面で扱う記事の列のハッシュ（モデルと同じ article_body_hash で計算する）。
+
+        要約の欄が無い画面では、要約の枠を空にして計算する。利用者が変えられない要約まで比べると、
+        画面を開いた後にキューが要約ごと記事を作り直した時に「利用者が記事を変えた」と誤って判定し、
+        古い画面の値で記事を消してしまう。その画面の保存では要約を書かない（``_update_fields``）。
+        """
         if instance is None or instance._state.adding:
             return ''
-        return article_body_hash(instance.h1, instance.contents)
+        meta_description = instance.meta_description if self._shows_meta_description else ''
+        return article_body_hash(instance.h1, instance.contents, meta_description)
 
     def clean_slide_file(self):
         return validate_and_sanitize_pdf(self.cleaned_data.get('slide_file'))
@@ -119,11 +130,14 @@ class EventDetailMediaFormMixin:
         return self._article_hash_now != opened
 
     def _update_fields(self, keeps_article: bool) -> list[str]:
-        """既存の発表の保存で書く列。生成管理の列は書かず、記事の列は必要な時だけ書く。"""
-        fields = EventDetail.fields_without_article_control()
-        if keeps_article:
-            fields = [name for name in fields if name not in ARTICLE_BODY_FIELDS]
-        return fields
+        """既存の発表の保存で書く列。生成管理の列は書かず、記事の列は必要な時だけ書く。
+
+        要約の欄が無い画面は要約を書かず、DB の要約をそのまま残す（管理画面や API で直した要約を戻さない）。
+        """
+        skipped = set(ARTICLE_BODY_FIELDS) if keeps_article else set()
+        if not self._shows_meta_description:
+            skipped.add('meta_description')
+        return [name for name in EventDetail.fields_without_article_control() if name not in skipped]
 
     def save(self, commit=True):
         if commit and not self.instance._state.adding:
