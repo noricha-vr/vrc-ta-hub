@@ -1453,6 +1453,17 @@ class SaveGeneratedArticleTest(TestCase):
         self.assertIsNotNone(self.detail.article_generation_requested_at)
         self.assertEqual(article_generation._skip_reason(self.detail), '')
 
+    def test_all_inputs_removed_while_generating_is_not_saved(self, _thumbnail):
+        """生成を待つ間に動画・PDF が全部外されたら、外された素材の記事は保存しない。"""
+        self._make_auto_target()
+        started = EventDetail.objects.get(pk=self.detail.pk)
+        EventDetail.objects.filter(pk=self.detail.pk).update(youtube_url='', slide_file='')
+
+        self.assertEqual(save_generated_article(started, self._output_from(VIDEO_ID)), EDITED)
+
+        self.detail.refresh_from_db()
+        self.assertNotEqual(self.detail.h1, '生成した記事')
+
     def test_inputs_changed_while_generating_keeps_existing_mark(self, _thumbnail):
         """入力が変わった時の生成待ちの印（処理中の締切を含む）は外さず、そのまま残す。"""
         self._make_auto_target()
@@ -1616,6 +1627,22 @@ class ThumbnailStoreTest(TestCase):
 
         self.assertTrue(loaded.thumbnail_image.name.startswith('thumbnail/event_detail_'))
         self.assertEqual(self._db_thumbnail(), loaded.thumbnail_image.name)
+
+    @patch('event.services.media_service.run_pdf_worker')
+    def test_does_not_store_thumbnail_of_replaced_pdf(self, run_pdf_worker):
+        """作る間に PDF が差し替えられたら、古い PDF の画像は書かずにストレージから消す。"""
+        def replace_pdf_while_rendering(*args, **kwargs):
+            EventDetail.objects.filter(pk=self.detail.pk).update(slide_file='slide/replaced.pdf')
+            return self._jpeg()
+
+        run_pdf_worker.side_effect = replace_pdf_while_rendering
+        loaded = EventDetail.objects.get(pk=self.detail.pk)
+
+        with patch.object(self.storage, 'delete', wraps=self.storage.delete) as delete:
+            self.assertFalse(ensure_pdf_thumbnail(loaded, save=True))
+
+        self.assertIn(self._db_thumbnail(), ('', None))
+        delete.assert_called_once()
 
     @patch('event.services.media_service.run_pdf_worker')
     def test_keeps_thumbnail_uploaded_while_rendering(self, run_pdf_worker):

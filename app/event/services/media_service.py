@@ -28,6 +28,8 @@ def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False, overw
     """
     if (event_detail.thumbnail_image and not overwrite) or not event_detail.slide_file:
         return False
+    # 画像を作る間に PDF が差し替えられたら、古い PDF の画像を書かないよう、元の PDF の名前を覚えておく
+    source_slide_name = event_detail.slide_file.name
 
     temp_file_path = None
     try:
@@ -50,7 +52,7 @@ def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False, overw
         if overwrite:
             event_detail.save(update_fields=['thumbnail_image'])
             return True
-        return _store_thumbnail_if_empty(event_detail)
+        return _store_thumbnail_if_empty(event_detail, source_slide_name)
     except PdfWorkerError:
         # Keep thumbnail failure non-fatal, as before; the worker emits a fixed
         # structured result event with a low-cardinality failure reason.
@@ -63,8 +65,8 @@ def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False, overw
             os.unlink(temp_file_path)
 
 
-def _store_thumbnail_if_empty(event_detail: EventDetail) -> bool:
-    """作った画像を、今の行のサムネイルが空の時だけ書く（条件付き UPDATE）。
+def _store_thumbnail_if_empty(event_detail: EventDetail, source_slide_name: str) -> bool:
+    """作った画像を、今の行のサムネイルが空で、PDF が作り始めた時のままの時だけ書く（条件付き UPDATE）。
 
     PDF から画像を作る間（数秒）に利用者がサムネイルを上げることがあるので、読み込んだ時の値ではなく
     書く時の行の値で決める。書けなかった時は、作った画像をストレージから消して孤児にしない。
@@ -76,7 +78,8 @@ def _store_thumbnail_if_empty(event_detail: EventDetail) -> bool:
     """
     created_name = event_detail.thumbnail_image.name
     stored = EventDetail.all_objects.filter(
-        Q(thumbnail_image='') | Q(thumbnail_image__isnull=True), pk=event_detail.pk,
+        Q(thumbnail_image='') | Q(thumbnail_image__isnull=True),
+        pk=event_detail.pk, slide_file=source_slide_name,
     ).update(thumbnail_image=created_name)
     if stored:
         return True

@@ -46,7 +46,7 @@ EMPTY = 'empty'
 REFUSED = 'refused'
 EDITED = 'edited'
 # EDITED の時に画面に出す文言（生成ボタン・発表の編集・発表申請の編集で共通）
-ARTICLE_EDITED_MESSAGE = '生成している間に記事が編集されたため、生成した記事は保存しませんでした。'
+ARTICLE_EDITED_MESSAGE = '生成している間に記事が編集されたか動画・PDF が外されたため、生成した記事は保存しませんでした。'
 
 
 @dataclass(frozen=True)
@@ -136,7 +136,7 @@ def save_generated_article(event_detail: EventDetail, blog_output: BlogOutput) -
 
     Returns:
         ``SAVED``（保存した）/ ``EMPTY``（生成結果が空）/ ``REFUSED``（記事化 NG になっていた）/
-        ``EDITED``（生成している間に記事が書き換えられていた）
+        ``EDITED``（生成している間に記事が書き換えられていた、または動画・PDF が全部外された）
     """
     if not blog_output.title:
         return EMPTY
@@ -149,7 +149,11 @@ def save_generated_article(event_detail: EventDetail, blog_output: BlogOutput) -
             return REFUSED
         if current.current_article_hash() != started_hash:
             return EDITED
-        inputs_changed = current.article_sources() != started_inputs
+        current_inputs = current.article_sources()
+        if current_inputs != started_inputs and current_inputs == ('', ''):
+            # 生成している間に動画・PDF が全部外された。外された素材の記事は残さない
+            return EDITED
+        inputs_changed = current_inputs != started_inputs
         current.save(update_fields=set_generated_article(
             current, blog_output, used_sources, inputs_changed=inputs_changed,
         ))
