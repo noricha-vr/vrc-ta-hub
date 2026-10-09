@@ -152,7 +152,8 @@ class NoticeListView(LoginRequiredMixin, View):
                 'unacked_receipts': unacked_receipts,
                 'other_receipts': other_receipts,
                 'open_notice_id': open_notice_id,
-                'scroll_to_open': requested_open_id is not None,
+                # 確認直後はメッセージ（残り件数）が見えるよう、スクロールしない
+                'scroll_to_open': requested_open_id is not None and not len(messages.get_messages(request)),
                 'community': community,
             },
         )

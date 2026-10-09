@@ -110,6 +110,8 @@ class NoticeListAckTests(NoticeUxTestBase):
         response = self.client.post(self._ack_url(receipt), follow=True)
 
         self.assertContains(response, '確認しました。未確認のお知らせはもうありません。')
+        # 確認直後はメッセージが見えるよう、開いたお知らせへスクロールしない
+        self.assertFalse(response.context['scroll_to_open'])
         self.assertContains(response, '未確認のお知らせはありません')
         self.assertEqual(response.context['unacked_receipts'], [])
 
