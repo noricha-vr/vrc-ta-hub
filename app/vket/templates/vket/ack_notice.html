@@ -28,6 +28,12 @@
                 </div>
                 <h1 class="h3 fw-bold mb-2">確認しました</h1>
                 <p class="text-muted">ありがとうございます。確認を記録しました。</p>
+            {% elif not notice.requires_ack %}
+                <div class="display-1 text-primary mb-3">
+                    <i class="fas fa-bell"></i>
+                </div>
+                <h1 class="h3 fw-bold mb-2">お知らせ</h1>
+                <p class="text-muted">このお知らせは確認ボタンを押す必要はありません。</p>
             {% elif already_acked %}
                 <div class="display-1 text-success mb-3">
                     <i class="fas fa-check-circle"></i>
@@ -53,7 +59,7 @@
                 </div>
             </div>
 
-            {% if receipt.acknowledged_at %}
+            {% if receipt.acknowledged_at or not notice.requires_ack %}
                 <div class="d-flex justify-content-center gap-2 flex-wrap mt-4">
                     <a href="{% url 'vket:notice_list' pk=collaboration_id %}?open={{ receipt.notice.id }}"
                        class="btn btn-outline-secondary">

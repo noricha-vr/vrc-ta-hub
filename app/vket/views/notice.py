@@ -117,6 +117,23 @@ def _parse_open_param(value) -> int | None:
         return None
 
 
+def _activate_community_of_open_notice(request, collaboration) -> None:
+    """?open= のお知らせが、選択中ではないが自分の所属する集会宛てなら、その集会に切り替える"""
+    open_notice_id = _parse_open_param(request.GET.get('open'))
+    if open_notice_id is None:
+        return
+    community_ids = list(
+        VketNoticeReceipt.objects.filter(
+            notice_id=open_notice_id,
+            participation__collaboration=collaboration,
+            participation__community__members__user=request.user,
+        ).values_list('participation__community_id', flat=True).distinct()
+    )
+    if not community_ids or request.session.get('active_community_id') in community_ids:
+        return
+    activate_community(request.session, request.user, community_ids[0])
+
+
 def _resolve_open_notice(request, receipts, unacked_receipts) -> tuple[int | None, bool]:
     """開いておくお知らせと、そこへスクロールするかを返す
 
@@ -151,6 +168,7 @@ class NoticeListView(LoginRequiredMixin, View):
         if not _is_vket_admin(request.user):
             collaborations = collaborations.exclude(phase=VketCollaboration.Phase.DRAFT)
         collaboration = get_object_or_404(collaborations, pk=pk)
+        _activate_community_of_open_notice(request, collaboration)
         community, _membership = _get_active_membership(request)
         receipts = self._load_receipts(collaboration, community)
 
@@ -236,17 +254,13 @@ class NoticeListView(LoginRequiredMixin, View):
 
 
 class NoticeListAckView(LoginRequiredMixin, View):
-    """主催者向け: お知らせ一覧から自分の集会の receipt を確認済みにする（POST のみ）"""
+    """主催者向け: お知らせ一覧から、自分が所属する集会の receipt を確認済みにする（POST のみ）"""
 
     def post(self, request, pk: int, receipt_id: int):
-        community, _membership = _get_active_membership(request)
-        if community is None:
-            return _redirect_to_notice_list(pk, None)
-
-        receipts = VketNoticeReceipt.objects.select_related('participation').filter(
+        receipts = VketNoticeReceipt.objects.select_related('participation__collaboration').filter(
             pk=receipt_id,
             participation__collaboration_id=pk,
-            participation__community=community,
+            participation__community__members__user=request.user,
             notice__requires_ack=True,
         )
         if not _is_vket_admin(request.user):
@@ -254,8 +268,10 @@ class NoticeListAckView(LoginRequiredMixin, View):
             receipts = receipts.exclude(
                 participation__collaboration__phase=VketCollaboration.Phase.DRAFT
             )
-        receipt = get_object_or_404(receipts)
+        receipt = get_object_or_404(receipts.distinct())
         acknowledged = _acknowledge_receipt(receipt, request.user)
+        # 戻り先はこの receipt の集会の一覧（選択中の集会が別なら切り替える）
+        _can_open_notice_list_for(request, receipt.participation)
         return _ack_result_redirect(request, receipt, acknowledged)
 
 
@@ -320,7 +336,8 @@ class ManageNoticeListView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Temp
             'total': total,
             'acked': acked,
             'unacked': total - acked,
-            'acked_percent': round(acked * 100 / total) if total else 0,
+            # 切り捨てにし、未確認が残っている間は 100% にしない
+            'acked_percent': acked * 100 // total if total else 0,
             'scope_label': target_scope_label(notice.target_scope),
             'unacked_mentions': unacked_mentions,
             'unacked_community_names': unacked_community_names,
@@ -408,13 +425,15 @@ class ManageNoticeCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Vi
             messages.error(request, 'タイトルと本文は必須です。')
             return redirect('vket:manage_notice_list', pk=pk)
 
-        if target_scope not in dict(VketNotice.TargetScope.choices):
-            target_scope = VketNotice.TargetScope.ALL_PARTICIPANTS
+        if target_scope not in CREATABLE_TARGET_SCOPES:
+            messages.error(request, '配信対象の指定が正しくありません。')
+            return redirect('vket:manage_notice_list', pk=pk)
 
         with transaction.atomic():
             # 同じコラボへの作成を直列化し、二重送信の判定と作成の間に割り込ませない
             VketCollaboration.objects.select_for_update().filter(pk=collaboration.pk).first()
-            if self._recent_duplicate_exists(collaboration, request.user, title, body, target_scope):
+            content = {'title': title, 'body': body, 'target_scope': target_scope, 'requires_ack': requires_ack}
+            if self._recent_duplicate_exists(collaboration, request.user, content):
                 messages.info(request, '同じ内容のお知らせを作成したばかりのため、もう1件は作りませんでした。')
                 return redirect('vket:manage_notice_list', pk=pk)
 
@@ -432,15 +451,14 @@ class ManageNoticeCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Vi
         return redirect('vket:manage_notice_list', pk=pk)
 
     @staticmethod
-    def _recent_duplicate_exists(collaboration, user, title: str, body: str, target_scope: str) -> bool:
+    def _recent_duplicate_exists(collaboration, user, content: dict) -> bool:
+        """タイトル・本文・配信対象・確認必須がすべて同じお知らせを、直前に作ったか"""
         since = timezone.now() - timedelta(seconds=NOTICE_DUPLICATE_WINDOW_SECONDS)
         return VketNotice.objects.filter(
             collaboration=collaboration,
             created_by=user,
-            title=title,
-            body=body,
-            target_scope=target_scope,
             created_at__gte=since,
+            **content,
         ).exists()
 
     @staticmethod
@@ -488,8 +506,8 @@ class ManageNoticeUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Vi
 class AckNoticeView(View):
     """ログイン不要: お知らせ確認（ACK）ビュー
 
-    GET: お知らせ内容を表示し確認ボタンを提示（状態変更なし）
-    POST: 確認済みに変更（Discordプレビュー・スキャナによる誤ACK防止）
+    GET: お知らせ内容を表示し確認ボタンを提示（状態変更なし）。確認不要のお知らせはボタンを出さない
+    POST: 確認済みに変更（Discordプレビュー・スキャナによる誤ACK防止）。確認不要のお知らせは何もせず表示へ戻す
     """
 
     template_name = 'vket/ack_notice.html'
@@ -498,7 +516,6 @@ class AckNoticeView(View):
         receipt = get_object_or_404(
             VketNoticeReceipt.objects.select_related('notice', 'participation'),
             ack_token=ack_token,
-            notice__requires_ack=True,
         )
         is_acked = receipt.acknowledged_at is not None
         return render(
@@ -516,10 +533,11 @@ class AckNoticeView(View):
 
     def post(self, request, ack_token):
         receipt = get_object_or_404(
-            VketNoticeReceipt.objects.select_related('participation__collaboration'),
+            VketNoticeReceipt.objects.select_related('notice', 'participation__collaboration'),
             ack_token=ack_token,
-            notice__requires_ack=True,
         )
+        if not receipt.notice.requires_ack:
+            return redirect('vket:ack_notice', ack_token=receipt.ack_token)
         acknowledged = _acknowledge_receipt(receipt, request.user)
 
         # その集会のメンバーなら、選択中の集会をそこへ切り替えて一覧へ戻し、残り件数と次の未確認を出す

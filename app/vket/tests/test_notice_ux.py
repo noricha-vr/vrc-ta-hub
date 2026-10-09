@@ -554,16 +554,27 @@ class ReviewFollowUpAckTests(NoticeUxTestBase):
         receipt.refresh_from_db()
         self.assertIsNone(receipt.acknowledged_at)
 
-    def test_token_url_rejects_ack_not_required(self):
+    def test_token_url_shows_ack_not_required_notice_without_button(self):
         receipt = self._make_receipt('確認不要', requires_ack=False)
 
-        get_response = self.client.get(self._token_url(receipt))
-        post_response = self.client.post(self._token_url(receipt))
+        response = self.client.get(self._token_url(receipt))
 
-        self.assertEqual(get_response.status_code, 404)
-        self.assertEqual(post_response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '確認不要の本文')
+        self.assertContains(response, 'お知らせ一覧で詳細を見る')
+        self.assertNotContains(response, 'csrfmiddlewaretoken')
+        self.assertNotContains(response, '確認しましたか')
+
+    def test_token_url_post_does_nothing_for_ack_not_required(self):
+        receipt = self._make_receipt('確認不要', requires_ack=False)
+
+        response = self.client.post(self._token_url(receipt))
+
+        self.assertRedirects(response, self._token_url(receipt))
         receipt.refresh_from_db()
         self.assertIsNone(receipt.acknowledged_at)
+        self.participation.refresh_from_db()
+        self.assertIsNone(self.participation.last_acknowledged_at)
 
 
 class ReviewFollowUpCreateTests(NoticeUxTestBase):
@@ -669,3 +680,113 @@ class ManageNoticeListQueryTests(NoticeUxTestBase):
 
         self.assertEqual(response.context['notice_stats'][0]['remind_text'], '')
         self.assertNotContains(response, 'data-remind-text="')
+
+
+class SecondReviewTests(NoticeUxTestBase):
+    """2 回目のレビュー指摘 1・2・3・4・7・8"""
+
+    def setUp(self):
+        super().setUp()
+        # 所属する 2 つ目の集会（選択中はこちらにしておく）
+        self.second_community = make_community(name='選択中の集会')
+        make_community_member(self.second_community, self.owner, role=CommunityMember.Role.OWNER)
+        self.second_participation = VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.second_community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session['active_community_id'] = self.second_community.pk
+        session.save()
+
+    def test_open_link_for_other_member_community_switches_community(self):
+        receipt = self._make_receipt('もう一方の集会あて')
+
+        response = self.client.get(f'{self.list_url}?open={receipt.notice_id}')
+
+        self.assertEqual(response.context['community'], self.community)
+        self.assertEqual(self.client.session['active_community_id'], self.community.pk)
+        self.assertEqual(response.context['open_notice_id'], receipt.notice_id)
+        self.assertTrue(response.context['scroll_to_open'])
+
+    def test_open_link_for_non_member_community_is_ignored(self):
+        stranger_community = make_community(name='所属していない集会')
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration, community=stranger_community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+        receipt = self._make_receipt('よその集会あて', participation=participation)
+
+        response = self.client.get(f'{self.list_url}?open={receipt.notice_id}')
+
+        self.assertEqual(response.context['community'], self.second_community)
+        self.assertEqual(self.client.session['active_community_id'], self.second_community.pk)
+        self.assertIsNone(response.context['open_notice_id'])
+
+    def test_ack_from_list_accepts_receipt_of_non_active_member_community(self):
+        receipt = self._make_receipt('もう一方の集会あて')
+
+        response = self.client.post(self._ack_url(receipt))
+
+        self.assertRedirects(response, f'{self.list_url}?open={receipt.notice_id}&acked=1')
+        receipt.refresh_from_db()
+        self.assertIsNotNone(receipt.acknowledged_at)
+        followed = self.client.get(response['Location'])
+        self.assertEqual(followed.context['community'], self.community)
+
+    def test_same_content_with_other_requires_ack_is_created(self):
+        self.client.force_login(self.admin)
+        url = reverse('vket:manage_notice_create', kwargs={'pk': self.collaboration.pk})
+        data = {'title': '確認必須だけ違う', 'body': '本文', 'target_scope': 'all'}
+
+        self.client.post(url, data=data)
+        self.client.post(url, data={**data, 'requires_ack': '1'})
+
+        self.assertEqual(VketNotice.objects.filter(title='確認必須だけ違う').count(), 2)
+
+    def test_manual_and_unknown_target_scope_are_rejected(self):
+        self.client.force_login(self.admin)
+        url = reverse('vket:manage_notice_create', kwargs={'pk': self.collaboration.pk})
+
+        for scope in [VketNotice.TargetScope.MANUAL, 'unknown']:
+            with self.subTest(scope=scope):
+                response = self.client.post(
+                    url, data={'title': f'対象 {scope}', 'body': '本文', 'target_scope': scope}
+                )
+                self.assertEqual(response.status_code, 302)
+                self.assertFalse(VketNotice.objects.filter(title=f'対象 {scope}').exists())
+                self.assertIn('配信対象の指定が正しくありません。', _messages(response))
+
+    def test_acked_percent_is_floored(self):
+        receipt = self._make_receipt('3集会中2集会が確認')
+        receipt.acknowledged_at = timezone.now()
+        receipt.save(update_fields=['acknowledged_at'])
+        VketNoticeReceipt.objects.create(
+            notice=receipt.notice, participation=self.second_participation, acknowledged_at=timezone.now()
+        )
+        third = VketParticipation.objects.create(
+            collaboration=self.collaboration, community=make_community(name='未確認の集会'),
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+        VketNoticeReceipt.objects.create(notice=receipt.notice, participation=third)
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
+        )
+
+        stat = response.context['notice_stats'][0]
+        self.assertEqual((stat['acked'], stat['total']), (2, 3))
+        self.assertEqual(stat['acked_percent'], 66)
+
+    def test_status_page_uses_shared_unacked_query(self):
+        self._make_receipt('古い未確認', participation=self.second_participation, minutes_ago=10)
+        newest = self._make_receipt('新しい未確認', participation=self.second_participation, minutes_ago=1)
+        self._make_receipt('確認済み', participation=self.second_participation, acked=True)
+        self._make_receipt('確認不要', participation=self.second_participation, requires_ack=False)
+
+        response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))
+
+        self.assertEqual(response.context['unacked_count'], 2)
+        self.assertEqual(response.context['first_unacked_notice_id'], newest.notice_id)
