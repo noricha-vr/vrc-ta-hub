@@ -22,6 +22,7 @@ from .notice import (
     ManageNoticeCreateView,
     ManageNoticeListView,
     ManageNoticeUpdateView,
+    NoticeListAckView,
     NoticeListView,
 )
 from .presentation import (
@@ -65,6 +66,7 @@ __all__ = [
     'ManageNoticeCreateView',
     'ManageNoticeListView',
     'ManageNoticeUpdateView',
+    'NoticeListAckView',
     'NoticeListView',
     # presentation
     'ManagePresentationDeleteView',
