@@ -98,10 +98,20 @@
                                 <i class="fas fa-handshake text-white fa-lg"></i>
                                 <span class="text-white fw-bold">{{ vket_banner.message }}</span>
                             </div>
-                            <a href="{% url vket_banner.url_name vket_banner.url_pk %}"
-                               class="btn btn-light fw-bold px-4 vket-banner-btn">
-                                <i class="{{ vket_banner.button_icon }} me-1"></i>{{ vket_banner.button_text }}
-                            </a>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% if vket_banner.show_participation_link %}
+                                <a href="{% url vket_banner.url_name vket_banner.url_pk %}"
+                                   class="btn btn-light fw-bold px-4 vket-banner-btn">
+                                    <i class="{{ vket_banner.button_icon }} me-1"></i>{{ vket_banner.button_text }}
+                                </a>
+                                {% endif %}
+                                {% if vket_banner.is_vket_admin %}
+                                <a href="{% url 'vket:manage' vket_banner.url_pk %}"
+                                   class="btn btn-light fw-bold px-4 vket-banner-btn">
+                                    <i class="fas fa-gear me-1"></i>管理画面を開く
+                                </a>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -192,7 +202,7 @@
                                                             </a>
                                                         {% endfor %}
                                                     {% else %}
-                                                        <a href="{% url 'twitter:template_create' %}"
+                                                        <a href="{% url 'twitter:template_create' %}?community={{ event.community.pk }}"
                                                            class="btn btn-outline-primary">
                                                             <i class="bi bi-twitter-x"></i> 告知テンプレートを作成
                                                         </a>

@@ -18,8 +18,15 @@ from allauth.socialaccount.forms import SignupForm as SocialSignupForm
 from community.constants import WEEKDAY_CHOICES
 from community.models import Community
 from community.models import TAGS, PLATFORM_CHOICES
+from ta_hub.utils import get_client_ip
 from .email_ownership import is_email_in_use
 from .models import CustomUser
+from .turnstile import (
+    RESPONSE_FIELD_NAME as TURNSTILE_RESPONSE_FIELD_NAME,
+    TurnstileResult,
+    is_turnstile_enabled,
+    verify_turnstile_token,
+)
 from .vrchat import normalize_vrchat_user_id
 
 logger = logging.getLogger(__name__)
@@ -29,6 +36,8 @@ X_URL_PREFIX_RE = re.compile(r'^https?://(?:www\.)?(?:x|twitter)\.com/', re.IGNO
 EMAIL_CHANGE_RATE_LIMIT_ACTION = 'manage_email'
 # 確認メール・登録済みの案内メール・ログイン時の再送が共有する、宛先 email 単位の送信制限
 CONFIRM_EMAIL_RATE_LIMIT_ACTION = 'confirm_email'
+TURNSTILE_FAILED_ERROR_CODE = 'turnstile_failed'
+TURNSTILE_FAILED_MESSAGE = 'ボット対策の確認に失敗しました。もう一度お試しください。'
 
 
 def consume_email_change_rate_limit(request: HttpRequest, user: CustomUser) -> bool:
@@ -246,6 +255,24 @@ class BootstrapAuthenticationForm(AllauthAuthenticationFormMixin, Authentication
         for name, field in self.fields.items():
             if name != 'remember':
                 field.widget.attrs.update({'class': 'form-control'})
+
+    def authenticate_user(self, email, password):
+        """Turnstile が有効なら、回数制限の消費後・パスワード照合前に検証してから認証する。"""
+        adapter = get_adapter()
+        if is_turnstile_enabled():
+            adapter.login_challenge = self.verify_turnstile
+        return adapter.authenticate(self.request, email=email, password=password)
+
+    def verify_turnstile(self, request):
+        """送られたトークンを Cloudflare で検証し、不正ならログインさせない。"""
+        token = self.data.get(TURNSTILE_RESPONSE_FIELD_NAME) or ''
+        result = verify_turnstile_token(token, get_client_ip(request))
+        if result is TurnstileResult.FAILED:
+            raise forms.ValidationError(TURNSTILE_FAILED_MESSAGE, code=TURNSTILE_FAILED_ERROR_CODE)
+        # UNAVAILABLE（Cloudflare 側の障害: タイムアウト・接続失敗・5xx・JSON でない応答・再試行しても続く
+        # internal-error）はログインを通す（fail-open）。ログイン失敗の回数制限（#594）が別に効いているので、
+        # Cloudflare の障害で誰もログインできなくなるより可用性を優先する。理由は verify_turnstile_token が
+        # warning でログに残す。シークレットキーの設定ミスは FAILED として上で拒否する（fail-closed）。
 
 
 class BootstrapPasswordChangeForm(PasswordChangeForm):

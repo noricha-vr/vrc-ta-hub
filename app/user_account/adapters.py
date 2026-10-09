@@ -1,5 +1,7 @@
 """Discord OAuth用のカスタムアダプター."""
 import logging
+from collections.abc import Callable
+from typing import Any
 
 from allauth.account.adapter import DefaultAccountAdapter
 # 登録済みアドレスへの応答は allauth の自動登録と同じ内部フローを使う（session.py と同じく固定版に依存）。
@@ -34,6 +36,23 @@ class ConfirmationEmailDeliveryError(Exception):
 
 class CustomAccountAdapter(DefaultAccountAdapter):
     """ログイン後の既定リダイレクト先を集会所属状況で切り替える。"""
+
+    # パスワード照合の前に行う追加確認（request を受け取り、失敗なら ValidationError を投げる）。
+    # 公開ログインフォームだけが Turnstile の検証を入れる（管理画面と allauth 標準のログインは公開ログイン画面へ
+    # 転送している: website/urls.py）。ログイン済みの再認証では None のまま。
+    # get_adapter() は呼ぶたびに新しいインスタンスを返すので、設定はその 1 回の認証だけに効く。
+    login_challenge: Callable[[HttpRequest], None] | None = None
+
+    def pre_authenticate(self, request: HttpRequest, **credentials: Any) -> None:
+        """ログイン失敗の回数制限（#594）を消費してから、追加確認を行う。
+
+        先に回数を数えるので、追加確認の失敗も失敗1回として残る（allauth が消費を戻すのは認証成功時だけ）。
+        制限中は allauth がここで too_many_login_attempts を出すため、追加確認（外部への問い合わせ）もしない。
+        追加確認に失敗したら ValidationError がそのまま伝わり、パスワードは照合しない。
+        """
+        super().pre_authenticate(request, **credentials)
+        if self.login_challenge is not None:
+            self.login_challenge(request)
 
     def get_client_ip(self, request: HttpRequest) -> str:
         """Cloud Runの信頼済みXFF契約から安全にclient IPを返す。

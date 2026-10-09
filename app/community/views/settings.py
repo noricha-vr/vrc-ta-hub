@@ -16,7 +16,7 @@ from website.discord_webhook import (
     post_discord_webhook,
 )
 
-from ..constants import DEFAULT_LT_APPLICATION_TEMPLATE
+from ..constants import DEFAULT_LT_APPLICATION_TEMPLATE, RecordingPolicy
 from ..models import Community, CommunityMember, CommunityInvitation, INVITATION_EXPIRATION_DAYS
 
 logger = logging.getLogger(__name__)
@@ -79,6 +79,7 @@ class CommunitySettingsView(LoginRequiredMixin, TemplateView):
             context['lt_application_template_display'] = (
                 community.lt_application_template or DEFAULT_LT_APPLICATION_TEMPLATE
             )
+            context['recording_policy_choices'] = RecordingPolicy.choices
 
         return context
 
@@ -338,6 +339,39 @@ class LTApplicationListView(LoginRequiredMixin, View):
         return redirect('event:my_list')
 
 
+# 撮影許可の 2 択（ラジオ）の値。'on' は切り替えスイッチだった頃の画面から送られる値。
+RECORDING_ALLOWED_TRUE_VALUES = ('true', 'on')
+
+
+def _parse_recording_allowed(value: str | None) -> bool:
+    """撮影許可の送信値を bool にする（未送信はスイッチがオフだった頃と同じく False）。"""
+    return value in RECORDING_ALLOWED_TRUE_VALUES
+
+
+def _parse_default_recording_policy(value: str | None, current: str) -> str:
+    """撮影ステータスの初期値の送信値を検証する。選択肢外・未送信は今の値を保つ。"""
+    if value in RecordingPolicy.values:
+        return value
+    return current
+
+
+def _resolve_default_recording_policy(
+    value: str | None, current: str, *, was_allowed: bool, allowed: bool, chosen: bool,
+) -> str:
+    """保存する撮影ステータスの初期値を決める。
+
+    撮影を「許可しない」から「許可する」に切り替えた時、値が未送信・選択肢外、または画面で選ばれていない
+    「禁止」（JS の無い送信で、許可しない間に入っていた値のまま）なら、今の値に関わらず「公開」にする。
+    画面で選ばれていた値（chosen。切り替え時は JS が「公開」を選ぶ）と、すでに許可している集会で保存する値はそのまま使う。
+    """
+    if allowed and not was_allowed:
+        if value not in RecordingPolicy.values:
+            return RecordingPolicy.PUBLIC
+        if value == RecordingPolicy.FORBIDDEN and not chosen:
+            return RecordingPolicy.PUBLIC
+    return _parse_default_recording_policy(value, current)
+
+
 class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     """LT申請設定更新ビュー"""
 
@@ -348,7 +382,12 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
     def post(self, request, pk):
         community = get_object_or_404(Community, pk=pk)
         accepts_lt = request.POST.get('accepts_lt_application') == 'on'
-        recording_allowed = request.POST.get('recording_allowed') == 'on'
+        recording_allowed = _parse_recording_allowed(request.POST.get('recording_allowed'))
+        default_recording_policy = _resolve_default_recording_policy(
+            request.POST.get('default_recording_policy'), community.default_recording_policy,
+            was_allowed=community.recording_allowed, allowed=recording_allowed,
+            chosen=request.POST.get('default_recording_policy_chosen') == '1',
+        )
         lt_template = request.POST.get('lt_application_template', '').strip()
         duration_str = request.POST.get('default_lt_duration', '30').strip()
         offset_str = request.POST.get('lt_start_offset_minutes', '30').strip()
@@ -367,12 +406,14 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
 
         community.accepts_lt_application = accepts_lt
         community.recording_allowed = recording_allowed
+        community.default_recording_policy = default_recording_policy
         community.lt_application_template = lt_template
         community.default_lt_duration = duration
         community.lt_start_offset_minutes = offset
         community.save(update_fields=[
             'accepts_lt_application',
             'recording_allowed',
+            'default_recording_policy',
             'lt_application_template',
             'default_lt_duration',
             'lt_start_offset_minutes',
@@ -382,7 +423,8 @@ class UpdateLTSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View
         logger.info(
             f'発表申請設定更新: 集会「{community.name}」、'
             f'テンプレート文字数={len(lt_template)}、デフォルトの持ち時間={duration}分、'
-            f'LT開始オフセット={offset}分、撮影許可={recording_allowed}'
+            f'LT開始オフセット={offset}分、撮影許可={recording_allowed}、'
+            f'撮影ステータスの初期値={default_recording_policy}'
         )
 
         return redirect('community:settings')

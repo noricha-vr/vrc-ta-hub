@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load markdown_extras %}
+{% load markdown_extras static %}
 {% block meta %}
     <title>お知らせ確認 - VRChat 技術・学術系イベントHub</title>
 {% endblock %}
@@ -22,12 +22,24 @@
     </style>
     <div class="container my-4" style="max-width: 600px;">
         <div class="text-center py-5">
-            {% if already_acked %}
+            {% if just_acked %}
+                <div class="display-1 text-success mb-3">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h1 class="h3 fw-bold mb-2">確認しました</h1>
+                <p class="text-muted">ありがとうございます。確認を記録しました。</p>
+            {% elif not notice.requires_ack %}
+                <div class="display-1 text-primary mb-3">
+                    <i class="fas fa-bell"></i>
+                </div>
+                <h1 class="h3 fw-bold mb-2">お知らせ</h1>
+                <p class="text-muted">確認ボタンを押す必要はありません。</p>
+            {% elif already_acked %}
                 <div class="display-1 text-success mb-3">
                     <i class="fas fa-check-circle"></i>
                 </div>
                 <h1 class="h3 fw-bold mb-2">確認済みです</h1>
-                <p class="text-muted">このお知らせはすでに確認済みです。</p>
+                <p class="text-muted">このお知らせは {{ receipt.acknowledged_at|date:"Y/m/d H:i" }} に確認されています。</p>
             {% else %}
                 <div class="display-1 text-warning mb-3">
                     <i class="fas fa-bell"></i>
@@ -47,11 +59,8 @@
                 </div>
             </div>
 
-            {% if receipt.acknowledged_at %}
-                <div class="mt-3 text-muted small">
-                    確認日時: {{ receipt.acknowledged_at|date:"Y/m/d H:i" }}
-                </div>
-                <div class="d-flex justify-content-center gap-2 flex-wrap mt-3">
+            {% if receipt.acknowledged_at or not notice.requires_ack %}
+                <div class="d-flex justify-content-center gap-2 flex-wrap mt-4">
                     <a href="{% url 'vket:notice_list' pk=collaboration_id %}?open={{ receipt.notice.id }}"
                        class="btn btn-outline-secondary">
                         <i class="fas fa-bell me-1"></i>お知らせ一覧で詳細を見る
@@ -61,7 +70,7 @@
                     </a>
                 </div>
             {% else %}
-                <form method="post" class="mt-4">
+                <form method="post" class="mt-4 js-submit-once" data-loading-text="送信中…">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-success btn-lg px-5">
                         <i class="fas fa-check me-2"></i>確認しました
@@ -70,4 +79,8 @@
             {% endif %}
         </div>
     </div>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="{% static 'vket/js/submit_once.js' %}"></script>
 {% endblock %}

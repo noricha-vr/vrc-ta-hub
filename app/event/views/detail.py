@@ -12,7 +12,11 @@ from analytics.models import PageAnalytics
 from community.constants import WEEKDAY_CHOICES
 from event.services.markdown_processor import convert_markdown
 from event.models import EventDetail
-from event.views.helpers import can_manage_event_detail, extract_video_info
+from event.views.helpers import (
+    can_manage_event_detail,
+    extract_video_info,
+    is_event_detail_admin,
+)
 from utils.vrchat_time import get_vrchat_today
 from website.constants import CACHE_TTL_HOUR
 
@@ -76,6 +80,9 @@ class EventDetailView(DetailView):
             self.request.user,
             event_detail,
         )
+        # X告知ボタンは告知画面（TweetEventWithTemplateView）と同じく、
+        # 集会の主催者・スタッフと superuser に出す
+        context['can_tweet_event'] = is_event_detail_admin(self.request.user, event_detail)
 
         # アクセス解析は集会運営データのため、閲覧権限は集会の管理者(owner/staff)または
         # superuser に限定する。can_manage_event_detail は「承認済みLTの応募者本人」も含む

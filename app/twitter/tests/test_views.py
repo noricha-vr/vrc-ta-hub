@@ -108,10 +108,9 @@ class TwitterTemplateListViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Test Template")
 
-    def test_no_active_community_returns_empty_list(self):
-        """active_community_idがない場合は空のリストを返す"""
+    def test_no_active_community_still_lists_member_templates(self):
+        """active_community_id が無くても、所属する集会のテンプレートは見える"""
         self.client.force_login(self.owner)
-        # セッションを空にする
         session = self.client.session
         if 'active_community_id' in session:
             del session['active_community_id']
@@ -120,7 +119,7 @@ class TwitterTemplateListViewTest(TestCase):
         url = reverse('twitter:template_list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Test Template")
+        self.assertContains(response, "Test Template")
 
 
 class TwitterTemplateCreateViewTest(TestCase):
@@ -272,6 +271,9 @@ class TweetEventWithTemplateViewTest(TestCase):
             name="Tweet Preview Template",
             template="Test tweet template"
         )
+
+        # プレビューは集会の主催者・スタッフのみ閲覧できる
+        self.client.force_login(self.owner)
 
     def test_tweet_preview_view_returns_intent_url(self):
         """intent URLがコンテキストに含まれることを確認"""
