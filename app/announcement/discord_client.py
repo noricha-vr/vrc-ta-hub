@@ -5,8 +5,8 @@
 
 送り直してよい（retryable）のは、本文が Discord に届いていないと言える失敗だけにする。
 - HTTP 429（Discord が受け付けずに断った）
-- 接続を張る前の失敗（接続のタイムアウト・接続の拒否・名前解決・TLS のハンドシェイク）
-5xx・応答待ちのタイムアウト・送った後の切断は、届いたかどうか分からない。自動で送り直すと
+- 接続を張る前の失敗（接続のタイムアウト・接続の拒否・名前解決）
+5xx・TLS のエラー・応答待ちのタイムアウト・送った後の切断は、届いたかどうか分からない。自動で送り直すと
 二重に届くおそれがあるため送り直さず、チャンネルを確認してからの再送（人の判断）に任せる。
 
 webhook の URL はトークンを含む秘密の値なので、戻り値・ログ・例外の文字列に含めない。
@@ -95,8 +95,8 @@ def _result_from_exception(error: requests.RequestException) -> SendResult:
 
 def _failed_before_sending(error: requests.RequestException) -> bool:
     """接続を張る前に失敗したか（本文が Discord に届いていないと言えるか）。"""
-    # TLS のハンドシェイクの失敗（SSLError）も、本文を送る前に止まっている
-    if isinstance(error, (requests.ConnectTimeout, requests.exceptions.SSLError)):
+    # SSLError は応答の受信中にも起きるので、送る前とは言えない（届いたか分からない扱い）
+    if isinstance(error, requests.ConnectTimeout):
         return True
     if not isinstance(error, requests.ConnectionError) or not error.args:
         return False

@@ -345,17 +345,19 @@ class RetryAndFailureTests(TestCase):
         self.assertIn('接続できませんでした', message.last_error)
 
     @patch(POST_PATH)
-    def test_tls_handshake_failure_is_retried(self, mock_post):
-        mock_post.side_effect = requests.exceptions.SSLError('handshake failure')
+    def test_tls_error_is_not_retried_because_it_may_have_arrived(self, mock_post):
+        # SSLError は応答の受信中にも起きるので、自動では送り直さない
+        mock_post.side_effect = requests.exceptions.SSLError('record layer failure')
         message = make_message(scheduled_at=NOW - timedelta(minutes=1))
 
         result = process_due_messages(now=NOW)
 
         message.refresh_from_db()
-        self.assertEqual(result['retrying'], 1)
-        self.assertEqual(message.status, Status.SCHEDULED)
-        self.assertEqual(message.next_attempt_at, NOW + delivery.RETRY_DELAYS[0])
-        self.assertIn('接続できませんでした（SSLError）', message.last_error)
+        self.assertEqual(result['failed'], 1)
+        self.assertEqual(message.status, Status.FAILED)
+        self.assertIn('届いている可能性', message.last_error)
+        process_due_messages(now=NOW + timedelta(hours=1))
+        self.assertEqual(mock_post.call_count, 1)
 
     @patch(POST_PATH)
     def test_read_timeout_is_not_retried_because_it_may_have_arrived(self, mock_post):
