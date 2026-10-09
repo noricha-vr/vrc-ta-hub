@@ -461,9 +461,7 @@
                                                                     <div class="d-flex justify-content-between align-items-start">
                                                                         <div>
                                                                             <h5 class="mb-1 fs-5 fw-bold text-primary">
-                                                                                {% if special.h1 %}
-                                                                                    {{ special.h1 }}{% else %}
-                                                                                    {{ special.theme }}{% endif %}
+                                                                                {{ special.title }}
                                                                             </h5>
                                                                             {% if special.meta_description %}
                                                                                 <p class="mb-0 text-muted small">{{ special.meta_description|truncatechars:150 }}</p>
@@ -715,9 +713,7 @@
                                                                     <div class="d-flex justify-content-between align-items-start">
                                                                         <div>
                                                                             <h5 class="mb-1 fs-5 fw-bold text-primary">
-                                                                                {% if special.h1 %}
-                                                                                    {{ special.h1 }}{% else %}
-                                                                                    {{ special.theme }}{% endif %}
+                                                                                {{ special.title }}
                                                                             </h5>
                                                                             {% if special.meta_description %}
                                                                                 <p class="mb-0 text-muted small">{{ special.meta_description|truncatechars:150 }}</p>

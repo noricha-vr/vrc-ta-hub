@@ -10,17 +10,11 @@ INDEX_VISIBLE_DETAIL_TYPES = {'LT', 'SPECIAL'}
 
 @receiver(pre_save, sender=EventDetail)
 def remember_event_detail_index_type(sender, instance, **kwargs):
-    """保存前の種別を保持し、LT/SPECIALから別種別へ変わるケースも拾う。"""
-    instance._old_index_detail_type = None
-    if not instance.pk:
-        return
+    """保存前の種別を保持し、LT/SPECIALから別種別へ変わるケースも拾う。
 
-    try:
-        old = EventDetail.objects.only('detail_type').get(pk=instance.pk)
-    except EventDetail.DoesNotExist:
-        return
-
-    instance._old_index_detail_type = old.detail_type
+    保存前の値は event・twitter のシグナルと共有する（``EventDetail.previous_values``。保存ごとに 1 回だけ読む）。
+    """
+    instance._old_index_detail_type = instance.previous_values().get('detail_type')
 
 
 def _touches_index_visible_detail(instance):

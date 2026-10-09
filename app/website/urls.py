@@ -40,6 +40,7 @@ urlpatterns = [
     path('analytics/', include('analytics.urls')),
     path('account/', include('user_account.urls')),
     path('vket/', include('vket.urls')),
+    path('announcement/', include('announcement.urls')),
     # Redirect allauth default signup to custom register page
     path('accounts/signup/', RedirectView.as_view(url='/account/register/', permanent=False, query_string=True)),
     path('accounts/login/', redirect_to_public_login),

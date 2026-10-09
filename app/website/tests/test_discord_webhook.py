@@ -5,7 +5,11 @@ from unittest.mock import MagicMock, patch
 import requests
 from django.test import SimpleTestCase
 
-from website.discord_webhook import post_discord_webhook
+from website.discord_webhook import (
+    discord_webhook_url_validator,
+    is_discord_webhook_url,
+    post_discord_webhook,
+)
 
 
 class DiscordWebhookTest(SimpleTestCase):
@@ -100,3 +104,33 @@ class DiscordWebhookTest(SimpleTestCase):
         self.assertNotIn("secret-token", logs)
         self.assertNotIn("request failed", logs)
         self.assertNotIn("Traceback", logs)
+
+
+class DiscordWebhookUrlValidatorTest(SimpleTestCase):
+    """集会の通知先と告知の送信先で共通に使う webhook URL の検証."""
+
+    def test_accepts_only_discord_com_webhooks(self):
+        self.assertTrue(is_discord_webhook_url("https://discord.com/api/webhooks/1/token"))
+        for url in (
+            "https://discordapp.com/api/webhooks/1/token",
+            "https://ptb.discord.com/api/webhooks/1/token",
+            "https://canary.discord.com/api/webhooks/1/token",
+            "http://discord.com/api/webhooks/1/token",
+            "https://example.com/api/webhooks/1/token",
+            "",
+        ):
+            with self.subTest(url=url):
+                self.assertFalse(is_discord_webhook_url(url))
+
+    def test_community_webhook_field_uses_shared_validator(self):
+        """集会の通知先の検証は、共通の validator と同じもの（挙動は以前と同じ正規表現・文言）."""
+        from community.models import Community
+
+        validators = Community._meta.get_field("notification_webhook_url").validators
+
+        self.assertIn(discord_webhook_url_validator, validators)
+        self.assertEqual(discord_webhook_url_validator.regex.pattern, r"^https://discord\.com/api/webhooks/")
+        self.assertEqual(
+            discord_webhook_url_validator.message,
+            "Discord Webhook URL は https://discord.com/api/webhooks/ で始まる必要があります。",
+        )

@@ -14,7 +14,7 @@
 
 ## 特別企画
 {% for special in markdown_special_events %}
-- [{{ special.h1|default:special.theme }}]({{ site_base }}event/detail/{{ special.pk }}/) — {{ special.event.date|date:"Y-m-d" }}
+- [{{ special.title }}]({{ site_base }}event/detail/{{ special.pk }}/) — {{ special.event.date|date:"Y-m-d" }}
 {% endfor %}
 
 ---

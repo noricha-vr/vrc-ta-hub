@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 import os
 import re
@@ -13,6 +15,7 @@ from django.utils.html import strip_tags
 
 from community.constants import WEEKDAY_CHOICES, RecordingPolicy
 from community.models import Community
+from event.youtube_urls import youtube_video_id
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,76 @@ def _strip_markdown(text: str) -> str:
     for pattern, replacement in _MARKDOWN_STRIP_PATTERNS:
         text = pattern.sub(replacement, text)
     return re.sub(r'\s+', ' ', strip_tags(text)).strip()
+
+
+def _normalize_article_text(text: str) -> str:
+    """フォーム保存で変わる改行コード（CRLF）と前後の空白を揃える。"""
+    return (text or '').replace('\r\n', '\n').replace('\r', '\n').strip()
+
+
+def article_is_empty(h1: Optional[str], contents: Optional[str]) -> bool:
+    """記事のタイトルも本文も空か（空白・改行だけの時も空とみなす）。"""
+    return not _normalize_article_text(h1 or '') and not _normalize_article_text(contents or '')
+
+
+def article_body_hash(h1: str, contents: str, meta_description: str) -> str:
+    """記事（タイトル・本文・要約）の SHA-256 を返す。
+
+    生成で書く 3 列のどれを手で直しても自動生成のままと判定しないよう、3 列とも含める
+    （要約だけを管理画面や API で直した記事も、次の生成で上書きしない）。
+    ブラウザの textarea は改行を CRLF で送り、フォームは前後の空白を落とすため、
+    何も変えずに保存しただけで本文が変わる。正規化してから計算し、手動編集と誤判定しない。
+    """
+    payload = json.dumps(
+        [
+            _normalize_article_text(h1),
+            _normalize_article_text(contents),
+            _normalize_article_text(meta_description),
+        ],
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(payload.encode('utf-8')).hexdigest()
+
+
+def related_event_details_cache_key(community_id: int) -> str:
+    """発表詳細ページの「他の発表もチェック！」のキャッシュキー。中身は集会ごとに決まる。"""
+    return f'related_event_details_community_{community_id}'
+
+
+# 記事の自動生成が管理する列。フォームの保存やフル保存では書き戻さない
+# （開いていた画面・読み込んだ時の古い値で、キューが書いた値を消さない）
+ARTICLE_CONTROL_FIELDS = (
+    'article_generation_requested_at',
+    'article_generation_attempts',
+    'article_generation_deferrals',
+    'article_generation_last_error',
+    'article_generated_at',
+    'article_source_video_id',
+    'article_source_slide_name',
+    'article_body_hash',
+    'article_published_notified_at',
+)
+# 記事の列。フル保存では、読み込んだ時から変えていなければ書かない（その間にキューが作った記事を戻さない）
+ARTICLE_BODY_FIELDS = ('h1', 'contents', 'meta_description')
+# 却下された発表の申請状態。記事の自動生成と、記事の公開の通知の対象外
+REJECTED_STATUS = 'rejected'
+
+
+def article_generation_request_values(now: Optional[datetime] = None) -> dict:
+    """生成待ちの印を新しく付ける時の列の値。試行・見送りの回数とエラーは数え直す。"""
+    return {
+        'article_generation_requested_at': now or timezone.now(),
+        'article_generation_attempts': 0,
+        'article_generation_deferrals': 0,
+        'article_generation_last_error': '',
+    }
+
+# 保存前の値を見るシグナル（event / ta_hub / twitter）が使う列。保存ごとに 1 回の SELECT で読む
+PREVIOUS_VALUE_FIELDS = (
+    'status', 'slide_url', 'youtube_url', 'slide_file', 'speaker', 'theme', 'start_time',
+    'detail_type', 'event_id', 'event__date', 'event__community_id', 'article_consent', 'h1', 'contents',
+)
+_PREVIOUS_VALUES_NOT_LOADED = object()
 
 
 def slide_file_upload_to(instance, filename):
@@ -368,6 +441,20 @@ class EventDetail(models.Model):
         ('rejected', '却下'),
     ]
 
+    class ArticleConsent(models.TextChoices):
+        """発表者本人が選ぶ、発表の記事化の可否。"""
+
+        UNANSWERED = 'unanswered', '未回答'
+        OK = 'ok', '記事化 OK（スライド画像の掲載を含む）'
+        NG = 'ng', '記事化 NG'
+
+    class ArticleState(models.TextChoices):
+        """記事の書き手。自動生成で上書きしてよいかの判定に使う（保存はしない）。"""
+
+        NONE = 'none', '未生成'
+        AUTO = 'auto', '自動生成のまま'
+        MANUAL = 'manual', '手動で作成・編集済み'
+
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
     # NULL = 生存。タイムスタンプ入り = soft delete 済み。
@@ -432,6 +519,44 @@ class EventDetail(models.Model):
         db_default=RecordingPolicy.PUBLIC,
     )
 
+    # 記事化の同意。発表者本人だけが選ぶ。既存行は「未回答」で、今までどおり記事を表示し自動生成はしない。
+    # 以下の NOT NULL 列の db_default も、migration 適用後に動く旧リビジョンの INSERT を通すため
+    article_consent = models.CharField(
+        '記事化',
+        max_length=16,
+        choices=ArticleConsent.choices,
+        default=ArticleConsent.UNANSWERED,
+        db_default=ArticleConsent.UNANSWERED,
+    )
+    # 記事の自動生成の待ち行列。NULL = 待ちなし。この時刻を過ぎたものから処理する
+    # （処理中は締切、失敗時は次の再試行の時刻が入る）
+    article_generation_requested_at = models.DateTimeField(
+        '記事の生成待ち', null=True, blank=True, db_index=True,
+    )
+    article_generation_attempts = models.PositiveSmallIntegerField(
+        '記事の生成の試行回数', default=0, db_default=0,
+    )
+    # 字幕が付くのを待って見送った回数。失敗の回数（attempts）とは分けて数える
+    article_generation_deferrals = models.PositiveSmallIntegerField(
+        '記事の生成の字幕待ちの回数', default=0, db_default=0,
+    )
+    article_generation_last_error = models.CharField(
+        '記事の生成の最後のエラー', max_length=255, blank=True, default='', db_default='',
+    )
+    # 生成した記事の記録。本文のハッシュが今の本文と違えば、手動で編集されたとみなす
+    article_generated_at = models.DateTimeField('記事の生成日時', null=True, blank=True)
+    article_source_video_id = models.CharField(
+        '記事の生成元の動画 ID', max_length=32, blank=True, default='', db_default='',
+    )
+    article_source_slide_name = models.CharField(
+        '記事の生成元の PDF', max_length=255, blank=True, default='', db_default='',
+    )
+    article_body_hash = models.CharField(
+        '記事の本文のハッシュ', max_length=64, blank=True, default='', db_default='',
+    )
+    # 自動生成した記事を発表者に知らせた日時。知らせるのは最初の 1 回だけ（作り直しでは送らない）
+    article_published_notified_at = models.DateTimeField('記事の公開を知らせた日時', null=True, blank=True)
+
     # soft delete 用マネージャ。`objects` は既存挙動互換（生存のみ）、
     # `all_objects` は削除済みを含む全件。Django は宣言順の最初の Manager を
     # default_manager として扱うため、`objects` を先に置く。
@@ -450,6 +575,80 @@ class EventDetail(models.Model):
 
     def __str__(self):
         return f"{self.event} - {self.theme} - {self.speaker}"
+
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+        instance._remember_article_body()
+        return instance
+
+    def refresh_from_db(self, *args, **kwargs):
+        super().refresh_from_db(*args, **kwargs)
+        self._remember_article_body()
+
+    def _remember_article_body(self) -> None:
+        """読み込んだ時（保存した時）の記事の列の値を覚える。読み込んでいない列は覚えない。"""
+        self._loaded_article_body = {
+            name: self.__dict__[name] for name in ARTICLE_BODY_FIELDS if name in self.__dict__
+        }
+
+    def save(self, *args, **kwargs):
+        if self._is_full_update(kwargs):
+            kwargs['update_fields'] = self._update_fields_for_full_save()
+        # 保存前の値は保存ごとに 1 回だけ読み、pre_save の各シグナルで使い回す
+        self._previous_values = _PREVIOUS_VALUES_NOT_LOADED
+        try:
+            super().save(*args, **kwargs)
+        finally:
+            self._previous_values = None
+        self._remember_article_body()
+
+    def _is_full_update(self, kwargs) -> bool:
+        """既存の行を update_fields 無しで保存するか（承認・管理画面・API・Vket の公開など）。"""
+        return (
+            kwargs.get('update_fields') is None
+            and not kwargs.get('force_insert')
+            and not self._state.adding
+            and self.pk is not None
+        )
+
+    def _update_fields_for_full_save(self) -> list[str]:
+        """フル保存で書く列。生成管理の列と、読み込んだ時から変えていない記事の列は書かない。
+
+        LLM の生成やキューを待つ間に読み込んだ古いインスタンスを保存しても、その間にキューが書いた
+        生成管理の列や記事を古い値で戻さないため。読み込んでいない（遅延）列も Django と同じく書かない。
+        """
+        loaded = getattr(self, '_loaded_article_body', None) or {}
+        skipped = set(ARTICLE_CONTROL_FIELDS)
+        skipped.update(name for name, value in loaded.items() if getattr(self, name) == value)
+        deferred = self.get_deferred_fields()
+        return [
+            field.name for field in self._meta.concrete_fields
+            if not field.primary_key and field.name not in skipped and field.attname not in deferred
+        ]
+
+    def previous_values(self) -> dict:
+        """保存前の DB の値（``PREVIOUS_VALUE_FIELDS``）。新規や行が無い時は空の dict。
+
+        pre_save のシグナルから呼ぶ。保存の途中では 1 回だけ問い合わせて使い回す。
+        """
+        cached = getattr(self, '_previous_values', None)
+        if cached is not None and cached is not _PREVIOUS_VALUES_NOT_LOADED:
+            return cached
+        values = {}
+        if self.pk is not None:
+            values = EventDetail.objects.filter(pk=self.pk).values(*PREVIOUS_VALUE_FIELDS).first() or {}
+        if cached is _PREVIOUS_VALUES_NOT_LOADED:
+            self._previous_values = values
+        return values
+
+    @classmethod
+    def fields_without_article_control(cls) -> list[str]:
+        """記事の自動生成が管理する列を除いた列名。フォームの保存の ``update_fields`` に使う。"""
+        return [
+            field.name for field in cls._meta.concrete_fields
+            if not field.primary_key and field.name not in ARTICLE_CONTROL_FIELDS
+        ]
 
     def soft_delete(self):
         """deleted_at を現在時刻でマークする（論理削除）。
@@ -487,7 +686,10 @@ class EventDetail(models.Model):
 
     @property
     def title(self):
-        return self.h1 if self.h1 else self.theme
+        """画面に出すタイトル。記事化 NG の発表は記事のタイトル（h1）を使わずテーマにする。"""
+        if self.h1 and not self.is_article_ng:
+            return self.h1
+        return self.theme
 
     @property
     def end_time(self):
@@ -497,22 +699,18 @@ class EventDetail(models.Model):
 
     @property
     def video_id(self) -> Optional[str]:
-        if self.youtube_url:
-            # 正規表現を使ってvideo_idを抽出
-            match = re.search(r'(?:v=|\/)([0-9A-Za-z_-]{11}).*', self.youtube_url)
-            if match:
-                return match.group(1)
-        return None
+        """YouTube の動画 ID。Discord のメッセージリンクなど YouTube 以外の URL では None。"""
+        return youtube_video_id(self.youtube_url)
 
-    @staticmethod
-    def materials_q() -> models.Q:
+    @classmethod
+    def materials_q(cls) -> models.Q:
         """記事・動画・スライドのいずれかを持つ発表を選ぶ Q を返す。
 
         発表一覧の既定表示（「資料あり」）と ``has_materials`` の判定を
-        同じ定義に揃えるため、条件はここだけで定義する。
+        同じ定義に揃えるため、条件はここだけで定義する。記事化 NG の記事は表示しないので数えない。
         """
         return (
-            models.Q(contents__gt='')
+            (models.Q(contents__gt='') & ~models.Q(article_consent=cls.ArticleConsent.NG))
             | (models.Q(youtube_url__isnull=False) & ~models.Q(youtube_url=''))
             | (models.Q(slide_url__isnull=False) & ~models.Q(slide_url=''))
             | (models.Q(slide_file__isnull=False) & ~models.Q(slide_file=''))
@@ -521,7 +719,17 @@ class EventDetail(models.Model):
     @property
     def has_materials(self) -> bool:
         """``materials_q()`` と同じ条件をインスタンス側で判定する。"""
-        return bool(self.contents or self.youtube_url or self.slide_url or self.slide_file)
+        return bool(self.has_article or self.youtube_url or self.slide_url or self.slide_file)
+
+    @property
+    def has_article(self) -> bool:
+        """表示できる記事の本文があるか。記事化 NG の発表は本文があっても False。"""
+        return bool(self.contents) and not self.is_article_ng
+
+    @property
+    def visible_meta_description(self) -> str:
+        """画面に出してよい記事の要約（meta_description）。記事化 NG の発表は空文字。"""
+        return '' if self.is_article_ng else (self.meta_description or '')
 
     def get_excerpt(self, length: int = EXCERPT_LENGTH) -> str:
         """一覧カードに出す抜粋テキストを返す。
@@ -533,14 +741,129 @@ class EventDetail(models.Model):
             length: 最大文字数。超える場合は末尾を ``…`` に置き換える。
 
         Returns:
-            抜粋文字列。素材が無ければ空文字。
+            抜粋文字列。素材が無い時と、記事化 NG の発表は空文字。
         """
+        if self.is_article_ng:
+            return ''
         source = (self.meta_description or '').strip()
         if not source:
             source = _strip_markdown(self.contents or '')
         if len(source) <= length:
             return source
         return source[:length - 1].rstrip() + '…'
+
+    @property
+    def is_article_ng(self) -> bool:
+        """発表者が記事化を NG にしているか。NG なら記事を生成も表示もしない。"""
+        return self.article_consent == self.ArticleConsent.NG
+
+    @property
+    def can_auto_generate_article(self) -> bool:
+        """記事の自動生成の対象か（判定は ``is_auto_generation_target``）。"""
+        return self.is_auto_generation_target(
+            detail_type=self.detail_type,
+            article_consent=self.article_consent,
+            status=self.status,
+            deleted_at=self.deleted_at,
+            has_slide=bool(self.slide_file),
+            youtube_url=self.youtube_url,
+        )
+
+    @classmethod
+    def is_auto_generation_target(cls, *, detail_type, article_consent, status, deleted_at,
+                                  has_slide: bool, youtube_url) -> bool:
+        """記事化 OK の発表で、却下・削除されておらず、YouTube 動画か PDF があるか。
+
+        保存前の値（``previous_values``）でも同じ判定をするため、列の値を受け取る。
+        youtube_url が Discord のメッセージリンクの時は字幕が取れないので、動画ありとは数えない。
+        """
+        return (
+            detail_type == 'LT'
+            and article_consent == cls.ArticleConsent.OK
+            and status != REJECTED_STATUS
+            and deleted_at is None
+            and bool(has_slide or youtube_video_id(youtube_url))
+        )
+
+    @classmethod
+    def article_notifiable_q(cls) -> models.Q:
+        """記事の公開を発表者に知らせてよい発表（記事化 OK で、却下も論理削除もされていない）。
+
+        通知日時を入れる UPDATE の条件に使い、知らせる直前に NG・却下・削除へ変わった発表には送らない。
+        同意・申請状態・削除の条件は ``is_auto_generation_target`` と揃える。
+        """
+        return (
+            models.Q(article_consent=cls.ArticleConsent.OK, deleted_at__isnull=True)
+            & ~models.Q(status=REJECTED_STATUS)
+        )
+
+    def article_state(self) -> str:
+        """今の記事が未生成・自動生成のまま・手動で作成/編集済みのどれかを返す。
+
+        タイトルも本文も空なら、ハッシュが残っていても未生成（空にした記事も自動で作り直せる）。
+        要約は空かどうかの判定に入れない（要約の欄が無い編集画面でも、記事を空にして作り直せるように）。
+        ハッシュが無いのに本文がある記事（この機能より前の記事や手書きの記事）は、
+        自動で上書きしないよう手動扱いにする。
+        """
+        if article_is_empty(self.h1, self.contents):
+            return self.ArticleState.NONE
+        if self.article_body_hash and self.current_article_hash() == self.article_body_hash:
+            return self.ArticleState.AUTO
+        return self.ArticleState.MANUAL
+
+    def current_article_hash(self) -> str:
+        """今の記事の 3 列（タイトル・本文・要約）のハッシュ。"""
+        return article_body_hash(self.h1, self.contents, self.meta_description)
+
+    def article_sources(self) -> tuple[str, str]:
+        """今ある生成の入力（動画 ID と PDF の保存名）を返す。無い方は空文字。"""
+        slide_name = self.slide_file.name if self.slide_file else ''
+        return self.video_id or '', slide_name or ''
+
+    def record_generated_article(self, used_sources: Optional[tuple[str, str]] = None,
+                                 generated_at=None) -> list[str]:
+        """今の本文を生成した記事として記録し、生成待ちの印を外す。
+
+        Args:
+            used_sources: 生成に中身を使えた入力（動画 ID, PDF の保存名）。字幕が取れなかった動画は空文字にする。
+                省略時は今ある入力をそのまま記録する。
+            generated_at: 生成日時。省略時は現在時刻。
+
+        Returns:
+            変更した列名。``save(update_fields=...)`` に渡す（フル保存では生成管理の列は書かれない）。
+        """
+        sources = used_sources if used_sources is not None else self.article_sources()
+        fields = self.record_generated_body(sources=sources, generated_at=generated_at)
+        self.article_generation_requested_at = None
+        self.article_generation_attempts = 0
+        self.article_generation_deferrals = 0
+        self.article_generation_last_error = ''
+        return [
+            *fields,
+            'article_generation_requested_at',
+            'article_generation_attempts',
+            'article_generation_deferrals',
+            'article_generation_last_error',
+        ]
+
+    def record_generated_body(self, sources: tuple[str, str] = ('', ''), generated_at=None) -> list[str]:
+        """今の本文を自動生成の記事として記録する。生成待ちの印には触らない。
+
+        生成している間に動画・PDF が変わった時は、生成元を空のまま記録する。記事は自動生成のまま
+        （手動扱いにしてキューを止めない）で、生成元が今の入力と合わないので、キューが新しい入力で作り直す。
+
+        Returns:
+            変更した列名。
+        """
+        self.article_source_video_id, self.article_source_slide_name = sources
+        self.article_body_hash = self.current_article_hash()
+        self.article_generated_at = generated_at or timezone.now()
+        return [
+            'article_source_video_id',
+            'article_source_slide_name',
+            'article_body_hash',
+            'article_generated_at',
+        ]
 
 
 class MaterialUploadReminderLog(models.Model):

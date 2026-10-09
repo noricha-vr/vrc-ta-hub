@@ -189,7 +189,9 @@ class BackfillRecordingPolicyMigrationTest(TransactionTestCase):
         self.event = make_event(make_community(name='移行の集会'))
 
     def tearDown(self):
-        MigrationExecutor(connection).migrate(self.migrate_to)
+        # 後から足された migration も含めて最新まで戻す。0032 で止めると、後続のテストで新しい列が無くなる
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
         super().tearDown()
 
     def _make(self, additional_info, **extra):

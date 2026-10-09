@@ -52,7 +52,7 @@ class LTApplicationRecordingPolicyTest(TestCase):
         self.url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
 
     def _apply(self, theme, **extra):
-        data = {'event': self.event.pk, 'theme': theme, 'speaker': '発表者'}
+        data = {'event': self.event.pk, 'theme': theme, 'speaker': '発表者', 'article_consent': 'ok'}
         data.update(extra)
         self.client.force_login(self.user)
         response = self.client.post(self.url, data)
@@ -240,7 +240,7 @@ class LTApplicationCommunityDefaultTest(TestCase):
 
     def test_missing_value_is_saved_as_forbidden(self, _mock_send):
         """選択が送られなかった（撮影の選択肢を見ていない）時は、集会の初期値ではなく「禁止」で保存される。"""
-        self.client.post(self.url, {'event': self.event.pk, 'theme': '未選択', 'speaker': '発表者'})
+        self.client.post(self.url, {'event': self.event.pk, 'theme': '未選択', 'speaker': '発表者', 'article_consent': 'ok'})
 
         detail = EventDetail.objects.get(event=self.event, theme='未選択')
         self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
@@ -254,16 +254,17 @@ class LTApplicationCommunityDefaultTest(TestCase):
         self.community.default_recording_policy = RecordingPolicy.PUBLIC
         self.community.save(update_fields=['recording_allowed', 'default_recording_policy'])
 
-        self.client.post(self.url, {'event': self.event.pk, 'theme': '許可前に開いた', 'speaker': '発表者'})
+        self.client.post(self.url, {'event': self.event.pk, 'theme': '許可前に開いた', 'speaker': '発表者', 'article_consent': 'ok'})
 
         detail = EventDetail.objects.get(event=self.event, theme='許可前に開いた')
         self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
 
     def test_speaker_can_change_from_default(self, _mock_send):
         """初期値と違う値を選べばその値で保存される。"""
-        self.client.post(
-            self.url, {'event': self.event.pk, 'theme': '変更', 'speaker': '発表者', 'recording_policy': 'public'},
-        )
+        self.client.post(self.url, {
+            'event': self.event.pk, 'theme': '変更', 'speaker': '発表者',
+            'recording_policy': 'public', 'article_consent': 'ok',
+        })
 
         detail = EventDetail.objects.get(event=self.event, theme='変更')
         self.assertEqual(detail.recording_policy, RecordingPolicy.PUBLIC)
@@ -296,9 +297,10 @@ class LTApplicationRecordingNotAllowedTest(TestCase):
 
     def test_submitted_value_is_ignored_and_saved_as_forbidden(self, _mock_send):
         """「公開」を送っても「禁止」で保存される。"""
-        response = self.client.post(
-            self.url, {'event': self.event.pk, 'theme': '送信', 'speaker': '発表者', 'recording_policy': 'public'},
-        )
+        response = self.client.post(self.url, {
+            'event': self.event.pk, 'theme': '送信', 'speaker': '発表者',
+            'recording_policy': 'public', 'article_consent': 'ok',
+        })
 
         self.assertEqual(response.status_code, 302)
         detail = EventDetail.objects.get(event=self.event, theme='送信')
@@ -306,7 +308,7 @@ class LTApplicationRecordingNotAllowedTest(TestCase):
 
     def test_without_value_is_saved_as_forbidden(self, _mock_send):
         """何も送らなくても「禁止」で保存される。"""
-        self.client.post(self.url, {'event': self.event.pk, 'theme': '未送信', 'speaker': '発表者'})
+        self.client.post(self.url, {'event': self.event.pk, 'theme': '未送信', 'speaker': '発表者', 'article_consent': 'ok'})
 
         detail = EventDetail.objects.get(event=self.event, theme='未送信')
         self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)

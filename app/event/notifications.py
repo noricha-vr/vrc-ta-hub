@@ -204,6 +204,118 @@ def notify_applicant_of_result(
     _send_discord_notification_for_result(event_detail, schedule_changes)
 
 
+def notify_applicant_of_article_published(event_detail: EventDetail, recipient) -> bool:
+    """自動生成した記事を発表者に知らせる（申請結果の通知と同じくメールと集会の Discord）。
+
+    メールには確認・修正用の編集ページへのリンクを入れる。承認前の発表は記事がまだ公開されないため、
+    メールの文面を「作成しました」に変え、集会の Discord には流さない。
+    メールを送れなかった時は Discord にも流さない（送り直した時に 2 回流れないように）。
+
+    Args:
+        event_detail: 記事を作った発表
+        recipient: メールの宛先。発表者本人（Vket 由来の発表は申し込んだ人）。
+            呼び出し側が event.material_upload_reminders.get_material_reminder_recipient で決める。
+
+    Returns:
+        メールを送れた時 True。呼び出し側は False なら通知日時を戻して送り直せるようにする。
+    """
+    is_published = event_detail.status == 'approved'
+    edit_url = build_site_url(
+        reverse('account:lt_application_edit', kwargs={'pk': event_detail.pk})
+    )
+    article_url = build_site_url(reverse('event:detail', kwargs={'pk': event_detail.pk}))
+
+    sent = _send_article_published_email(event_detail, recipient, edit_url, article_url, is_published)
+    if sent and is_published:
+        _send_discord_notification_for_article(event_detail, edit_url, article_url)
+    return sent
+
+
+def _send_article_published_email(
+    event_detail: EventDetail, recipient, edit_url: str, article_url: str, is_published: bool
+) -> bool:
+    """記事を作成したことを発表者にメールで知らせる。送れた時 True."""
+    if not recipient or not recipient.email:
+        logger.warning(
+            "記事公開通知: 宛先またはメールアドレスがありません。EventDetail ID=%s",
+            event_detail.pk,
+        )
+        return False
+
+    community = event_detail.event.community
+    action = '公開しました' if is_published else '作成しました'
+    context = {
+        'applicant': recipient,
+        'community': community,
+        'event_detail': event_detail,
+        'edit_url': edit_url,
+        'article_url': article_url,
+        'is_published': is_published,
+    }
+    html_message = render_to_string('event/email/article_published.html', context)
+
+    try:
+        sent = send_mail(
+            subject=f"[{community.name}] 発表の記事を{action}",
+            message='',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient.email],
+            html_message=html_message,
+        )
+        if sent:
+            logger.info("記事公開通知メール送信成功: 申請ID=%s", event_detail.pk)
+            return True
+        logger.warning("記事公開通知メール送信失敗: 申請ID=%s", event_detail.pk)
+        return False
+    except Exception as e:
+        logger.error("記事公開通知メール送信エラー: 申請ID=%s: %s", event_detail.pk, e)
+        return False
+
+
+def _send_discord_notification_for_article(
+    event_detail: EventDetail, edit_url: str, article_url: str
+) -> None:
+    """記事の公開を集会の Discord Webhook に知らせる."""
+    community = event_detail.event.community
+    webhook_url = community.notification_webhook_url
+    if not webhook_url:
+        return
+
+    message = {
+        "embeds": [{
+            "title": "📝 発表の記事を公開しました",
+            "url": article_url,
+            "description": f"**{event_detail.h1 or event_detail.theme}**",
+            "color": 3447003,
+            "fields": [
+                {"name": "👤 発表者", "value": event_detail.speaker, "inline": True},
+                {"name": "📅 開催日", "value": str(event_detail.event.date), "inline": True},
+                {"name": "✏️ 確認・修正（発表者向け）", "value": edit_url, "inline": False},
+            ],
+            "footer": {"text": community.name},
+        }],
+        "allowed_mentions": {"parse": []},
+    }
+
+    try:
+        post_discord_webhook(webhook_url, message)
+        logger.info(
+            "Discord Webhook通知成功（記事公開）: community_id=%s event_detail_id=%s",
+            community.pk,
+            event_detail.pk,
+        )
+    except Exception as error:
+        error_type, status_code = get_webhook_error_context(error)
+        logger.error(
+            "Discord Webhook通知エラー（記事公開）: "
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk,
+            event_detail.pk,
+            error_type,
+            status_code,
+        )
+
+
 def _send_discord_notification_for_new_application(
     event_detail: EventDetail, review_url: str
 ) -> None:

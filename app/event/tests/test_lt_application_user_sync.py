@@ -55,6 +55,7 @@ class LTApplicationUserSyncTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'X-sync',
             'speaker': 'NewName',
+            'article_consent': 'ok',
             'duration': 15,
             'x_account': 'noricha_vr',
         })
@@ -76,6 +77,7 @@ class LTApplicationUserSyncTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'normalize',
             'speaker': 'OriginalName',
+            'article_consent': 'ok',
             'duration': 15,
             'x_account': 'https://x.com/noricha_vr',
         })
@@ -92,6 +94,7 @@ class LTApplicationUserSyncTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'empty-x',
             'speaker': 'OriginalName',
+            'article_consent': 'ok',
             'duration': 15,
             'x_account': '',
         })
@@ -113,6 +116,7 @@ class LTApplicationUserSyncTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'dup',
             'speaker': 'TakenName',
+            'article_consent': 'ok',
             'duration': 15,
         })
         self.assertEqual(response.status_code, 302)
@@ -130,6 +134,7 @@ class LTApplicationUserSyncTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'same',
             'speaker': 'OriginalName',
+            'article_consent': 'ok',
             'duration': 15,
         })
         self.assertEqual(response.status_code, 302)
@@ -143,6 +148,7 @@ class LTApplicationUserSyncTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'bad',
             'speaker': 'has space',
+            'article_consent': 'ok',
             'duration': 15,
         })
         self.assertEqual(response.status_code, 302)
