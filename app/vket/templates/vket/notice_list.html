@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load markdown_extras %}
+{% load markdown_extras static %}
 {% block meta %}
     <title>{{ collaboration.name }} お知らせ - VRChat 技術・学術系イベントHub</title>
 {% endblock %}
@@ -84,18 +84,10 @@
             opened.closest('.accordion-item').scrollIntoView({block: 'start'});
         }
         {% endif %}
-        document.querySelectorAll('.notice-ack-form').forEach(function(form) {
-            form.addEventListener('submit', function() {
-                var btn = form.querySelector('button[type="submit"]');
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>送信中…';
-            });
-        });
-    });
-    // 戻るボタンで戻った時にボタンが押せないまま残らないようにする
-    window.addEventListener('pageshow', function(event) {
-        if (!event.persisted) { return; }
-        window.location.reload();
     });
     </script>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="{% static 'vket/js/submit_once.js' %}"></script>
 {% endblock %}

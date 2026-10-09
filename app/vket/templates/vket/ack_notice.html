@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load markdown_extras %}
+{% load markdown_extras static %}
 {% block meta %}
     <title>お知らせ確認 - VRChat 技術・学術系イベントHub</title>
 {% endblock %}
@@ -64,7 +64,7 @@
                     </a>
                 </div>
             {% else %}
-                <form method="post" class="mt-4" id="ackForm">
+                <form method="post" class="mt-4 js-submit-once" data-loading-text="送信中…">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-success btn-lg px-5">
                         <i class="fas fa-check me-2"></i>確認しました
@@ -73,15 +73,8 @@
             {% endif %}
         </div>
     </div>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var form = document.getElementById('ackForm');
-        if (!form) { return; }
-        form.addEventListener('submit', function() {
-            var btn = form.querySelector('button[type="submit"]');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>送信中…';
-        });
-    });
-    </script>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="{% static 'vket/js/submit_once.js' %}"></script>
 {% endblock %}

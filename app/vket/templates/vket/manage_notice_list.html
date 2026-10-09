@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load markdown_extras %}
+{% load markdown_extras static %}
 {% block meta %}
     <title>{{ collaboration.name }} お知らせ管理 - VRChat 技術・学術系イベントHub</title>
 {% endblock %}
@@ -194,8 +194,9 @@
                             <div class="col-12 col-md-6">
                                 <label class="form-label fw-bold">配信対象</label>
                                 <select name="target_scope" class="form-select">
-                                    <option value="all">全参加者</option>
-                                    <option value="unacked">まだ一度も確認していない参加者</option>
+                                    {% for value, label in target_scope_options %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                             <div class="col-12 col-md-6 d-flex align-items-end">
@@ -271,24 +272,6 @@
             document.getElementById('noticeEditForm').action = button.getAttribute('data-edit-url');
         });
 
-        document.querySelectorAll('form.js-submit-once').forEach(function(form) {
-            form.addEventListener('submit', function() {
-                var btn = form.querySelector('button[type="submit"]');
-                btn.dataset.originalHtml = btn.innerHTML;
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>'
-                    + form.dataset.loadingText;
-            });
-        });
-        // 戻るボタンで戻った時に送信ボタンが押せないまま残らないようにする
-        window.addEventListener('pageshow', function() {
-            document.querySelectorAll('form.js-submit-once button[type="submit"]').forEach(function(btn) {
-                if (!btn.dataset.originalHtml) { return; }
-                btn.disabled = false;
-                btn.innerHTML = btn.dataset.originalHtml;
-            });
-        });
-
         var toastEl = document.getElementById('copyToast');
         function showCopyToast(message) {
             toastEl.querySelector('.toast-body').textContent = message;
@@ -319,4 +302,8 @@
         });
     });
     </script>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="{% static 'vket/js/submit_once.js' %}"></script>
 {% endblock %}

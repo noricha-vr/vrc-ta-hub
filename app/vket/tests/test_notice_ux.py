@@ -2,8 +2,11 @@
 
 from datetime import timedelta
 
+from allauth.socialaccount.models import SocialAccount
 from django.contrib.messages import get_messages
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -15,6 +18,7 @@ from vket.models import (
     VketNoticeReceipt,
     VketParticipation,
 )
+from vket.constants import CREATABLE_TARGET_SCOPES, TARGET_SCOPE_LABELS
 from vket.views.notice import NOTICE_DUPLICATE_WINDOW_SECONDS
 
 
@@ -95,7 +99,7 @@ class NoticeListAckTests(NoticeUxTestBase):
 
         response = self.client.post(self._ack_url(newer))
 
-        self.assertRedirects(response, f'{self.list_url}?open={older.notice_id}')
+        self.assertRedirects(response, f'{self.list_url}?open={older.notice_id}&acked=1')
         newer.refresh_from_db()
         self.assertIsNotNone(newer.acknowledged_at)
         self.assertEqual(newer.acknowledged_by, self.owner)
@@ -275,12 +279,12 @@ class AckTokenFlowTests(NoticeUxTestBase):
 
         response = self.client.post(self._token_url(receipt))
 
-        self.assertRedirects(response, f'{self.list_url}?open={other.notice_id}')
+        self.assertRedirects(response, f'{self.list_url}?open={other.notice_id}&acked=1')
         self.assertIn('確認しました。残り 1 件です。', _messages(response))
 
 
 class ManageNoticeCreateDuplicateTests(NoticeUxTestBase):
-    """項目4: 同じ人が数秒以内に同じタイトルで作ったら 2 件目を作らない"""
+    """項目4: 同じ人が数秒以内に同じ内容で作ったら 2 件目を作らない"""
 
     def _post(self, title='二重作成テスト'):
         return self.client.post(
@@ -300,7 +304,7 @@ class ManageNoticeCreateDuplicateTests(NoticeUxTestBase):
         self.assertEqual(VketNotice.objects.filter(title='二重作成テスト').count(), 1)
         self.assertEqual(VketNoticeReceipt.objects.filter(notice__title='二重作成テスト').count(), 1)
         self.assertIn(
-            '同じタイトルのお知らせを作成したばかりのため、もう1件は作りませんでした。',
+            '同じ内容のお知らせを作成したばかりのため、もう1件は作りませんでした。',
             _messages(response),
         )
 
@@ -436,3 +440,232 @@ class ParticipationStatusUnackedLinkTests(NoticeUxTestBase):
             f'href="{self.list_url}?open={newest.notice_id}"\n'
             '                   class="btn btn-sm btn-warning ms-2 text-nowrap flex-shrink-0"',
         )
+
+
+class ReviewFollowUpAckTests(NoticeUxTestBase):
+    """レビュー指摘 1・2・3・4・10: 確認の記録・戻り先・開くお知らせ"""
+
+    def _token_url(self, receipt, query=''):
+        return reverse('vket:ack_notice', kwargs={'ack_token': receipt.ack_token}) + query
+
+    def test_anonymous_token_ack_keeps_previous_acknowledged_by(self):
+        VketParticipation.objects.filter(pk=self.participation.pk).update(last_acknowledged_by=self.owner)
+        receipt = self._make_receipt('未ログインで確認')
+
+        self.client.post(self._token_url(receipt))
+
+        self.participation.refresh_from_db()
+        receipt.refresh_from_db()
+        self.assertIsNotNone(receipt.acknowledged_at)
+        self.assertIsNone(receipt.acknowledged_by)
+        self.assertIsNotNone(self.participation.last_acknowledged_at)
+        self.assertEqual(self.participation.last_acknowledged_by, self.owner)
+
+    def test_deep_link_scrolls_even_when_other_flash_message_exists(self):
+        acked = self._make_receipt('確認済み', acked=True)
+        target = self._make_receipt('深いリンクの先')
+        self.client.force_login(self.owner)
+        # 別の操作で出たフラッシュメッセージが残っている状態を作る
+        self.client.post(self._ack_url(acked))
+
+        response = self.client.get(f'{self.list_url}?open={target.notice_id}')
+
+        self.assertIn('このお知らせは前に確認済みです。', [str(m) for m in response.context['messages']])
+        self.assertEqual(response.context['open_notice_id'], target.notice_id)
+        self.assertTrue(response.context['scroll_to_open'])
+
+    def test_redirect_from_ack_does_not_scroll(self):
+        target = self._make_receipt('次の未確認')
+        self.client.force_login(self.owner)
+
+        response = self.client.get(f'{self.list_url}?open={target.notice_id}&acked=1')
+
+        self.assertEqual(response.context['open_notice_id'], target.notice_id)
+        self.assertFalse(response.context['scroll_to_open'])
+
+    def test_open_param_not_delivered_falls_back_to_first_unacked(self):
+        unacked = self._make_receipt('自分の未確認')
+        other_notice = VketNotice.objects.create(
+            collaboration=self.collaboration, title='届いていない', body='本文', requires_ack=True
+        )
+        self.client.force_login(self.owner)
+
+        response = self.client.get(f'{self.list_url}?open={other_notice.pk}')
+
+        self.assertEqual(response.context['open_notice_id'], unacked.notice_id)
+        self.assertFalse(response.context['scroll_to_open'])
+
+    def test_token_ack_by_member_with_other_active_community_goes_to_list(self):
+        second = make_community(name='選択中の別集会')
+        make_community_member(second, self.owner, role=CommunityMember.Role.OWNER)
+        receipt = self._make_receipt('選択中と違う集会あて')
+        self.client.force_login(self.owner)
+        session = self.client.session
+        session['active_community_id'] = second.pk
+        session.save()
+
+        response = self.client.post(self._token_url(receipt))
+
+        self.assertRedirects(response, f'{self.list_url}?open={receipt.notice_id}&acked=1')
+        self.assertEqual(self.client.session['active_community_id'], self.community.pk)
+        followed = self.client.get(response['Location'])
+        self.assertEqual(followed.context['community'], self.community)
+
+    def test_token_ack_by_non_member_goes_to_done_page(self):
+        stranger = make_user(user_name='notice_ux_stranger', email='notice_ux_stranger@example.com')
+        receipt = self._make_receipt('メンバー以外')
+        self.client.force_login(stranger)
+
+        response = self.client.post(self._token_url(receipt))
+
+        self.assertRedirects(response, self._token_url(receipt, '?done=1'))
+
+    def test_token_ack_in_draft_collaboration_goes_to_done_page_for_non_admin(self):
+        VketCollaboration.objects.filter(pk=self.collaboration.pk).update(
+            phase=VketCollaboration.Phase.DRAFT
+        )
+        receipt = self._make_receipt('下書きコラボ')
+        self.client.force_login(self.owner)
+
+        response = self.client.post(self._token_url(receipt))
+
+        self.assertRedirects(response, self._token_url(receipt, '?done=1'))
+
+    def test_cannot_ack_from_list_in_draft_collaboration(self):
+        VketCollaboration.objects.filter(pk=self.collaboration.pk).update(
+            phase=VketCollaboration.Phase.DRAFT
+        )
+        receipt = self._make_receipt('下書きコラボ')
+        self.client.force_login(self.owner)
+
+        response = self.client.post(self._ack_url(receipt))
+
+        self.assertEqual(response.status_code, 404)
+        receipt.refresh_from_db()
+        self.assertIsNone(receipt.acknowledged_at)
+
+    def test_cannot_ack_from_list_when_ack_not_required(self):
+        receipt = self._make_receipt('確認不要', requires_ack=False)
+        self.client.force_login(self.owner)
+
+        response = self.client.post(self._ack_url(receipt))
+
+        self.assertEqual(response.status_code, 404)
+        receipt.refresh_from_db()
+        self.assertIsNone(receipt.acknowledged_at)
+
+    def test_token_url_rejects_ack_not_required(self):
+        receipt = self._make_receipt('確認不要', requires_ack=False)
+
+        get_response = self.client.get(self._token_url(receipt))
+        post_response = self.client.post(self._token_url(receipt))
+
+        self.assertEqual(get_response.status_code, 404)
+        self.assertEqual(post_response.status_code, 404)
+        receipt.refresh_from_db()
+        self.assertIsNone(receipt.acknowledged_at)
+
+
+class ReviewFollowUpCreateTests(NoticeUxTestBase):
+    """レビュー指摘 5・6・8: 二重作成の判定・送信中の共通 JS・配信対象のラベル"""
+
+    def _post(self, **overrides):
+        data = {'title': '同じタイトル', 'body': '本文', 'target_scope': 'all', 'requires_ack': '1'}
+        data.update(overrides)
+        return self.client.post(
+            reverse('vket:manage_notice_create', kwargs={'pk': self.collaboration.pk}), data=data
+        )
+
+    def test_same_title_with_edited_body_is_created(self):
+        self.client.force_login(self.admin)
+
+        self._post()
+        self._post(body='本文を直した')
+
+        self.assertEqual(VketNotice.objects.filter(title='同じタイトル').count(), 2)
+
+    def test_same_title_with_other_target_scope_is_created(self):
+        self.client.force_login(self.admin)
+
+        self._post()
+        self._post(target_scope='unacked')
+
+        self.assertEqual(VketNotice.objects.filter(title='同じタイトル').count(), 2)
+
+    def test_three_pages_use_shared_submit_once_script(self):
+        receipt = self._make_receipt('送信中の表示')
+        self.client.force_login(self.owner)
+        pages = [self.client.get(self.list_url)]
+        pages.append(self.client.get(reverse('vket:ack_notice', kwargs={'ack_token': receipt.ack_token})))
+        self.client.force_login(self.admin)
+        pages.append(self.client.get(
+            reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
+        ))
+
+        for response in pages:
+            with self.subTest(path=response.wsgi_request.path):
+                self.assertContains(response, 'vket/js/submit_once.js', count=1)
+                self.assertContains(response, 'js-submit-once')
+                self.assertNotContains(response, "addEventListener('pageshow'")
+
+    def test_target_scope_options_come_from_shared_constant(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
+        )
+
+        expected = [(value, TARGET_SCOPE_LABELS[value]) for value in CREATABLE_TARGET_SCOPES]
+        self.assertEqual(response.context['target_scope_options'], expected)
+        for value, label in expected:
+            self.assertContains(response, f'<option value="{value}">{label}</option>', html=True)
+
+
+class ManageNoticeListQueryTests(NoticeUxTestBase):
+    """レビュー指摘 7: メンションの問い合わせをお知らせ数・集会数で増やさない"""
+
+    # セッション・ユーザー・コラボ・お知らせ・prefetch 3段・メンバー・SocialAccount と、テンプレートの付随分
+    MAX_QUERIES = 15
+
+    def _add_unacked_fallback_community(self, index, notice):
+        member = make_user(user_name=f'notice_ux_member{index}', email=f'notice_ux_member{index}@example.com')
+        community = make_community(name=f'メンション未設定{index}', owner=member)
+        SocialAccount.objects.create(user=member, provider='discord', uid=f'9000{index}')
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration, community=community,
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+        )
+        VketNoticeReceipt.objects.create(notice=notice, participation=participation)
+
+    def _count_queries(self):
+        url = reverse('vket:manage_notice_list', kwargs={'pk': self.collaboration.pk})
+        with CaptureQueriesContext(connection) as ctx:
+            response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        return len(ctx.captured_queries), response
+
+    def test_query_count_does_not_grow_with_notices_and_communities(self):
+        self.client.force_login(self.admin)
+        first = self._make_receipt('1件目').notice
+        self._add_unacked_fallback_community(0, first)
+        small, _ = self._count_queries()
+
+        for i in range(1, 4):
+            notice = self._make_receipt(f'{i + 1}件目').notice
+            for j in range(3):
+                self._add_unacked_fallback_community(i * 10 + j, notice)
+        large, response = self._count_queries()
+
+        self.assertEqual(large, small)
+        self.assertLessEqual(large, self.MAX_QUERIES)
+        mentions = response.context['notice_stats'][0]['unacked_mentions']
+        self.assertIn('<@900031>', mentions)
+
+    def test_remind_text_is_empty_when_all_acked(self):
+        self._make_receipt('全員確認済み', acked=True)
+        self.client.force_login(self.admin)
+
+        _, response = self._count_queries()
+
+        self.assertEqual(response.context['notice_stats'][0]['remind_text'], '')
+        self.assertNotContains(response, 'data-remind-text="')
