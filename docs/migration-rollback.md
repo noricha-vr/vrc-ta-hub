@@ -142,6 +142,8 @@ python manage.py migrate user_account 0015
 
 `0017_emailownership` はメールアドレスの持ち主の表 `user_account_emailownership`（小文字にそろえたアドレスに unique）を作り、
 MySQL ではこの列を `utf8mb4_bin`（完全一致）にする。DB の一意判定が、監査と 0018 の判定（小文字にした値の完全一致）と同じになる。
+一方、登録やメール変更の事前判定（`is_email_in_use`）は `CustomUser` と `EmailAddress` も `__iexact`（DB の照合順序）で見るため、記録の完全一致とは一致しない。
+アクセントだけ違うアドレスは、記録では別のアドレスになるが、事前判定では使用中と判定される（安全側）。
 `0018_backfill_email_ownership` は主アドレスと、確認済みまたは primary の `EmailAddress` から記録を埋める。
 本番での順番（監査 → 0017 / 0018 の適用 → トラフィック切替 → 切替後の監査）と切替の窓の注意は
 [deployment.md](deployment.md#メールアドレスの持ち主の表user_account-0017--0018の先行適用) を正本とする。

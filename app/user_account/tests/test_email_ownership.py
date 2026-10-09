@@ -185,6 +185,20 @@ class EmailOwnershipConstraintTests(TestCase):
         with self.assertNumQueries(1):
             self.owner.save(update_fields=['last_login'])
 
+    def test_moving_a_row_to_another_user_releases_the_old_owner(self):
+        """管理画面などで確認済みの行の user を付け替えて確認を外すと、旧ユーザーの記録も消える。"""
+        address = add_verified_secondary(self.owner, SHARED_EMAIL)
+        other = make_user('other', 'other@example.com')
+
+        address.user = other
+        address.verified = False
+        address.save()
+
+        self.assertEqual(recorded_owners(SHARED_EMAIL), set())
+        out = StringIO()
+        call_command('audit_email_ownership', stdout=out)
+        self.assertIn('missing=0 stale=0', out.getvalue())
+
 
 class EmailAddressWriteTransactionTests(TransactionTestCase):
     """外側のトランザクションが無くても、EmailAddress の書き込みと持ち主の記録は 1 つにまとまる。
@@ -227,6 +241,42 @@ class EmailAddressWriteTransactionTests(TransactionTestCase):
 
         self.assertEqual(locks[0], (self.owner.pk, True, False))
         self.assertTrue(all(user_id == self.owner.pk and in_transaction for user_id, in_transaction, _ in locks))
+
+    def test_bulk_delete_locks_the_owner_before_deleting(self):
+        """管理画面の一括削除などの QuerySet.delete() も、行を消す前に持ち主をロックする（保存と同じ順番）。
+
+        QuerySet.delete() とユーザー削除のカスケードはモデルの delete() を通らないので、包みではなく pre_delete で取る。
+        """
+        add_verified_secondary(self.owner, SHARED_EMAIL)
+        locks = []
+
+        def spy(user_id):
+            row_present = EmailAddress.objects.filter(email=SHARED_EMAIL).exists()
+            locks.append((user_id, connection.in_atomic_block, row_present))
+            lock_owner(user_id)
+
+        with patch('user_account.email_ownership.lock_owner', side_effect=spy):
+            EmailAddress.objects.filter(email=SHARED_EMAIL).delete()
+
+        self.assertEqual(locks[0], (self.owner.pk, True, True))
+        self.assertFalse(EmailOwnership.objects.filter(email=SHARED_EMAIL).exists())
+
+    def test_moving_a_row_locks_both_owners_in_id_order_before_writing(self):
+        """user を付け替える保存は、書く前に旧ユーザーと新ユーザーを id の昇順でロックする（2 人をロックする書き込み同士で循環しない）。"""
+        address = EmailAddress.objects.create(user=self.owner, email=PENDING_EMAIL, verified=False, primary=False)
+        other = make_user('other', 'other@example.com')
+        locks = []
+
+        def spy(user_id):
+            locks.append((user_id, EmailAddress.objects.get(pk=address.pk).user_id))
+            lock_owner(user_id)
+
+        address.user = other
+        with patch('user_account.email_ownership.lock_owner', side_effect=spy):
+            address.save()
+
+        # id の小さい旧ユーザーから大きい新ユーザーへ付け替え、新ユーザーを先に取る実装と区別する。2 件とも行はまだ旧ユーザーのもの
+        self.assertEqual(locks[:2], [(self.owner.pk, self.owner.pk), (other.pk, self.owner.pk)])
 
 
 @override_settings(EMAIL_BACKEND=LOCMEM_EMAIL_BACKEND, SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
