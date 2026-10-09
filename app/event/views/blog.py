@@ -6,12 +6,21 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
 from django.views.generic import View
 
-from event.services.content_generation_service import apply_blog_output_to_event_detail, generate_blog
+from event.services.content_generation_service import (
+    ARTICLE_EDITED_MESSAGE,
+    EDITED,
+    REFUSED,
+    SAVED,
+    generate_blog,
+    save_generated_article,
+)
 from event.models import EventDetail
 from event.views.helpers import can_manage_event_detail
 from website.settings import GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
+
+ARTICLE_NG_MESSAGE = "発表者が記事化を NG にしているため、記事は生成できません。"
 
 # BigQueryクライアントの遅延初期化
 # CI環境でモジュールインポート時にGCP認証エラーが発生するのを防ぐ
@@ -59,17 +68,23 @@ class GenerateBlogView(LoginRequiredMixin, View):
                 messages.error(request, "記事の自動生成は発表タイプのみ利用可能です。")
                 return redirect('event:detail', pk=event_detail.id)
 
+            # 発表者が記事化を NG にした発表は、ボタンを出していなくてもサーバ側で断る
+            if event_detail.is_article_ng:
+                messages.error(request, ARTICLE_NG_MESSAGE)
+                return redirect('event:detail', pk=event_detail.id)
+
             # BlogOutputモデルを受け取る
             blog_output = generate_blog(event_detail, model=GEMINI_MODEL)
 
-            # 空でないことを確認
-            if apply_blog_output_to_event_detail(event_detail, blog_output):
-                event_detail.save()
-
+            # 生成を待つ間に NG へ変わっていたら書かない。書くのは記事の列だけ（古い値で他の列を戻さない）
+            outcome = save_generated_article(event_detail, blog_output)
+            if outcome == SAVED:
                 logger.info(f"ブログ記事が生成されました。: {event_detail.id}")
-                logger.info(f"ブログ記事のメタディスクリプション: {event_detail.meta_description}")
-
                 messages.success(request, "ブログ記事が生成されました。")
+            elif outcome == REFUSED:
+                messages.error(request, ARTICLE_NG_MESSAGE)
+            elif outcome == EDITED:
+                messages.warning(request, ARTICLE_EDITED_MESSAGE)
             else:
                 logger.warning(f"ブログ記事の生成に失敗しました（空の結果）: {event_detail.id}")
                 messages.warning(request, "ブログ記事の生成に失敗しました。")

@@ -16,8 +16,9 @@ def get_index_view_cache_key(day=None):
     """トップページのDB由来データキャッシュキーを返す。"""
     if day is None:
         day = get_vrchat_today()
-    # URL追加前の共有キャッシュを新旧リビジョン間で混在させない。
-    return f'index_view_data_v2_{day}'
+    # 中身の形が変わる時は版を上げ、共有キャッシュを新旧リビジョン間で混在させない
+    # （v2: カレンダーの URL 追加、v3: 特別企画の h1 を記事化 NG を考慮した title に置き換え）。
+    return f'index_view_data_v3_{day}'
 
 
 def clear_index_view_cache(day=None):
@@ -131,10 +132,11 @@ def build_index_database_context(request, today, cache_key):
                 'community': special.event.community,
                 'google_calendar_url': generate_google_calendar_url(request, special.event),
             },
-            'h1': special.h1,
+            # 記事化 NG の記事はタイトル・要約・本文を出さない（EventDetail.title / visible_meta_description / has_article）
+            'title': special.title,
             'theme': special.theme,
-            'meta_description': special.meta_description,
-            'contents': special.contents,  # 記事本文を追加
+            'meta_description': special.visible_meta_description,
+            'contents': special.contents if special.has_article else '',  # 記事本文を追加
         }
         special_events_data.append(special_dict)
 

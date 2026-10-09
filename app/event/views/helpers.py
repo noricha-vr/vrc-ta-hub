@@ -1,6 +1,7 @@
 import re
 
 from event.models import EventDetail
+from event.youtube_urls import youtube_video_id
 
 
 def _can_applicant_edit_approved_lt(user, event_detail: EventDetail) -> bool:
@@ -36,16 +37,13 @@ def can_manage_event_detail(user, event_detail: EventDetail) -> bool:
 def extract_video_id(youtube_url):
     """YouTube URLからvideo_idを抽出する関数。
 
+    判定は EventDetail.video_id（記事の自動生成・一覧のサムネイル）と共通の
+    event.youtube_urls.youtube_video_id に任せる（live / shorts も動画、channel は動画ではない）。
+
     Note:
         タイムスタンプも取得したい場合は extract_video_info() を使用してください。
     """
-    if not youtube_url:
-        return None
-    pattern = r'(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})'
-    match = re.search(pattern, youtube_url)
-    if match:
-        return match.group(1)
-    return None
+    return youtube_video_id(youtube_url)
 
 
 def extract_video_info(youtube_url):

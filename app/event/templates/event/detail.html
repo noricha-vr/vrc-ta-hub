@@ -1,15 +1,16 @@
 {% extends 'ta_hub/base.html' %}
 {% load image_tags %}
 {% block meta %}
+    {# 記事化 NG の発表は、タイトルがテーマになり（EventDetail.title）、記事の要約（meta_description）も出さない #}
     <title>{{ event_detail.title }} - VRChat 技術・学術系イベントHub</title>
     <meta name="twitter:title" content="{{ event_detail.title }} - VRChat 技術・学術系イベントHub">
     <meta property="og:title" content="{{ event_detail.title }} - VRChat 技術・学術系イベントHub">
     <meta name="description"
-          content="{{ event_detail }} {{ event_detail.meta_description }}">
+          content="{{ event_detail }}{% if article_visible %} {{ event_detail.meta_description }}{% endif %}">
     <meta name="twitter:description"
-          content="{{ event_detail }} {{ event_detail.meta_description }}">
+          content="{{ event_detail }}{% if article_visible %} {{ event_detail.meta_description }}{% endif %}">
     <meta property="og:description"
-          content="{{ event_detail }} {{ event_detail.meta_description }}">
+          content="{{ event_detail }}{% if article_visible %} {{ event_detail.meta_description }}{% endif %}">
     {% if event_detail.thumbnail_image %}
         <meta property="og:image" content="{{ event_detail.thumbnail_image.url }}">
         <meta name="twitter:image" content="{{ event_detail.thumbnail_image.url }}">
@@ -173,10 +174,8 @@
                                class="btn btn-primary me-2">イベント一覧</a>
                         {% endif %}
 
-                        {# 注意: Djangoテンプレートのif文では括弧を使わないこと。括弧を使うとTemplateSyntaxErrorが発生します #}
-                        {# 誤: {% if condition and (condition2 or condition3) %} #}
-                        {# 正: {% if condition and condition2 or condition and condition3 %} #}
-                        {% if event_detail.detail_type == 'LT' and event_detail.youtube_url or event_detail.detail_type == 'LT' and event_detail.slide_file %}
+                        {# 発表で動画か PDF があり、発表者が記事化を NG にしていない時だけ出す（判定は view） #}
+                        {% if can_generate_article %}
                             <form method="post" action="{% url 'event:generate_blog' event_detail.id %}">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-primary me-2" id="generate-button">
@@ -215,11 +214,18 @@
 
                     {% if event_detail.detail_type == 'LT' %}
                         <div class="mt-3" id="lt-article-notes">
-                            <ul>
-                                <li>希望の記事が作成されない場合、「記事生成」ボタンを押して再生成が可能です</li>
-                                <li>記事の生成には約10〜20秒ほどかかります</li>
-                                <li>「編集」機能を使用して、マークダウン形式で自由に編集できます</li>
-                            </ul>
+                            <p class="mb-2" id="article-consent-status">
+                                発表の記事化: {{ event_detail.get_article_consent_display }}
+                            </p>
+                            {% if article_visible %}
+                                <ul>
+                                    <li>希望の記事が作成されない場合、「記事生成」ボタンを押して再生成が可能です</li>
+                                    <li>記事の生成には約10〜20秒ほどかかります</li>
+                                    <li>「編集」機能を使用して、マークダウン形式で自由に編集できます</li>
+                                </ul>
+                            {% else %}
+                                <p class="text-muted">発表者が記事化を NG にしているため、記事の生成と表示はしません。</p>
+                            {% endif %}
                         </div>
                     {% endif %}
 

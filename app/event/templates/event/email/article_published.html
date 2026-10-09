@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #ffffff;
+        }
+        .header {
+            margin-bottom: 30px;
+            border-bottom: 2px solid #0066cc;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            color: #0066cc;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 1.15em;
+            background-color: #0066cc;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+            text-align: center;
+        }
+        .article {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid #e1e4e8;
+        }
+        .article table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .article td {
+            padding: 8px 0;
+            border-bottom: 1px solid #e1e4e8;
+        }
+        .article td:first-child {
+            font-weight: bold;
+            width: 120px;
+            color: #666;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e4e8;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>発表の記事を{% if is_published %}公開しました{% else %}作成しました{% endif %}</h1>
+    </div>
+
+    <div class="content">
+        <p>{{ applicant.display_label }} 様</p>
+
+        <p>{{ community.name }}での発表の動画・スライドから、記事を自動で作成しました。</p>
+        {% if is_published %}
+            <p>記事はハブで公開しています。</p>
+        {% else %}
+            <p>記事は、発表の申請が承認されると公開されます。</p>
+        {% endif %}
+
+        <div class="article">
+            <table>
+                <tr>
+                    <td>記事のタイトル</td>
+                    <td>{{ event_detail.h1 }}</td>
+                </tr>
+                <tr>
+                    <td>発表のテーマ</td>
+                    <td>{{ event_detail.theme }}</td>
+                </tr>
+                <tr>
+                    <td>開催日</td>
+                    <td>{{ event_detail.event.date|date:"Y年n月j日" }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <p>確認・修正はこちら。内容に誤りがあれば、編集ページで直せます。</p>
+        <p><a href="{{ edit_url }}" class="button">記事を確認・修正する</a></p>
+        {% if is_published %}
+            <p><a href="{{ article_url }}">公開中の記事を見る</a></p>
+        {% endif %}
+
+        <p>修正した記事は、あとから動画やスライドを追加しても自動では書き換えません。</p>
+        <p>記事の掲載をやめたい場合は、編集ページの「発表の記事化」で「記事化 NG」を選んでください。記事を表示しなくなります。</p>
+    </div>
+
+    <div class="footer">
+        <p>このメールは {{ community.name }} から自動送信されています。</p>
+        <p>VRC技術学術系Hub</p>
+    </div>
+</body>
+</html>

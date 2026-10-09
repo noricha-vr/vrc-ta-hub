@@ -14,15 +14,24 @@ from ..datetime_lock import (
 from ..models import EventDetail, Event
 from ..thumbnail import SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT
 from .mixins import (
+    ARTICLE_CONSENT_CHOICES,
+    ARTICLE_CONSENT_HELP_TEXT,
+    ARTICLE_CONSENT_LABEL,
+    ARTICLE_CONSENT_REQUIRED_MESSAGE,
     RECORDING_POLICY_HELP_TEXT,
     RECORDING_POLICY_LABEL,
+    ArticleConsentFormMixin,
     EventDetailMediaFormMixin,
     RecordingPolicyFormMixin,
+    article_consent_widget,
     recording_policy_widget,
+    configure_article_generation_field,
 )
 
 
-class LTApplicationEditForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms.ModelForm):
+class LTApplicationEditForm(
+    EventDetailMediaFormMixin, RecordingPolicyFormMixin, ArticleConsentFormMixin, forms.ModelForm
+):
     """LT申請者が自分の申請内容を編集するフォーム"""
 
     generate_blog_article = forms.BooleanField(
@@ -35,8 +44,8 @@ class LTApplicationEditForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin,
 
     class Meta:
         model = EventDetail
-        fields = ['theme', 'speaker', 'recording_policy', 'slide_file', 'slide_url', 'thumbnail_image', 'youtube_url',
-                  'h1', 'contents', 'generate_blog_article']
+        fields = ['theme', 'speaker', 'recording_policy', 'article_consent', 'slide_file', 'slide_url',
+                  'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article']
         widgets = {
             'theme': forms.TextInput(attrs={'class': 'form-control'}),
             'speaker': forms.TextInput(attrs={
@@ -50,12 +59,15 @@ class LTApplicationEditForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin,
             'h1': forms.TextInput(attrs={'class': 'form-control'}),
             'contents': forms.Textarea(attrs={'class': 'form-control', 'rows': '8'}),
             'recording_policy': recording_policy_widget(),
+            'article_consent': article_consent_widget(),
         }
         labels = {
             'recording_policy': RECORDING_POLICY_LABEL,
+            'article_consent': ARTICLE_CONSENT_LABEL,
         }
         help_texts = {
             'recording_policy': RECORDING_POLICY_HELP_TEXT,
+            'article_consent': ARTICLE_CONSENT_HELP_TEXT,
             'contents': '※ Markdown形式で記述してください。',
             'h1': '※ 空のときはテーマが使われます。',
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
@@ -82,6 +94,8 @@ class LTApplicationEditForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin,
             and (self.instance.meta_description or self.instance.contents or self.instance.h1)
         )
         self.initial['generate_blog_article'] = not has_article
+        # NG なら生成のチェックボックスを出さず、OK なら自動生成に任せる（保存時の生成と二重にしない）
+        configure_article_generation_field(self, self.instance)
         # 撮影を許可しない集会では選択肢を出さない。フィールドが無いので保存しても今の値のまま
         if self.instance.pk and self.instance.event_id:
             self.remove_recording_policy_unless_allowed(self.instance.event.community)
@@ -136,6 +150,15 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
         required=False,
         widget=recording_policy_widget(),
         help_text=RECORDING_POLICY_HELP_TEXT,
+    )
+
+    # 発表者本人の意思で選んでもらうため、初期値は置かない
+    article_consent = forms.ChoiceField(
+        label=ARTICLE_CONSENT_LABEL,
+        choices=ARTICLE_CONSENT_CHOICES,
+        widget=article_consent_widget(),
+        help_text=ARTICLE_CONSENT_HELP_TEXT,
+        error_messages={'required': ARTICLE_CONSENT_REQUIRED_MESSAGE},
     )
 
     additional_info = forms.CharField(

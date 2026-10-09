@@ -18,9 +18,10 @@ from event_pdf_worker import extract_pdf_text as worker_extract_pdf_text
 from event.services.content_generation_service import (
     MAX_COMBINED_SOURCE_CHARS,
     MAX_SOURCE_TEXT_CHARS,
+    SAVED,
     BlogOutput,
-    apply_blog_output_to_event_detail,
     generate_blog,
+    save_generated_article,
     _copy_uploaded_file_to_temp_path,
     _extract_pdf_text,
     _limit_source_text,
@@ -463,8 +464,8 @@ class TestGenerateBlog(TestCase):
         self.assertFalse(ensure_pdf_thumbnail(event_detail))
 
     @patch("event.services.content_generation_service.ensure_pdf_thumbnail")
-    def test_apply_blog_output_sets_article_and_thumbnail(self, mock_ensure_pdf_thumbnail):
-        """記事生成結果を反映するときに未設定サムネイルも補完する."""
+    def test_save_generated_article_sets_article_and_thumbnail(self, mock_ensure_pdf_thumbnail):
+        """記事生成結果を保存し、保存が確定した後に未設定サムネイルも補完する."""
         event_detail = self.create_event_detail(slide_file=True)
         blog_output = BlogOutput(
             title="生成タイトル",
@@ -472,33 +473,36 @@ class TestGenerateBlog(TestCase):
             text="生成本文",
         )
 
-        result = apply_blog_output_to_event_detail(event_detail, blog_output)
+        result = save_generated_article(event_detail, blog_output)
 
-        self.assertTrue(result)
+        self.assertEqual(result, SAVED)
+        event_detail.refresh_from_db()
         self.assertEqual(event_detail.h1, "生成タイトル")
         self.assertEqual(event_detail.contents, "生成本文")
         self.assertEqual(event_detail.meta_description, "生成ディスクリプション")
-        mock_ensure_pdf_thumbnail.assert_called_once_with(event_detail)
+        mock_ensure_pdf_thumbnail.assert_called_once()
+        self.assertEqual(mock_ensure_pdf_thumbnail.call_args.args[0].pk, event_detail.pk)
+        self.assertEqual(mock_ensure_pdf_thumbnail.call_args.kwargs, {'save': True})
 
     @patch("event.services.content_generation_service.ensure_pdf_thumbnail")
-    def test_apply_blog_output_skips_thumbnail_generation_when_already_set(self, mock_ensure_pdf_thumbnail):
-        """既存サムネイルがある記事反映ではPDFレンダリングを再実行しない."""
+    def test_save_generated_article_skips_thumbnail_generation_when_already_set(self, mock_ensure_pdf_thumbnail):
+        """既存サムネイルがある記事の保存ではPDFレンダリングを再実行しない."""
         event_detail = self.create_event_detail(slide_file=True)
-        event_detail.thumbnail_image = "thumbnail/existing.jpg"
+        EventDetail.objects.filter(pk=event_detail.pk).update(thumbnail_image="thumbnail/existing.jpg")
         blog_output = BlogOutput(
             title="生成タイトル",
             meta_description="生成ディスクリプション",
             text="生成本文",
         )
 
-        result = apply_blog_output_to_event_detail(event_detail, blog_output)
+        result = save_generated_article(event_detail, blog_output)
 
-        self.assertTrue(result)
+        self.assertEqual(result, SAVED)
         mock_ensure_pdf_thumbnail.assert_not_called()
 
     @patch("event.services.content_generation_service.ensure_pdf_thumbnail", return_value=False)
-    def test_apply_blog_output_succeeds_when_thumbnail_generation_fails(self, mock_ensure_pdf_thumbnail):
-        """PDFサムネイル生成失敗時も記事フィールドの反映は成功させる."""
+    def test_save_generated_article_succeeds_when_thumbnail_generation_fails(self, mock_ensure_pdf_thumbnail):
+        """PDFサムネイル生成失敗時も記事フィールドの保存は成功させる."""
         event_detail = self.create_event_detail(slide_file=True)
         blog_output = BlogOutput(
             title="生成タイトル",
@@ -506,13 +510,14 @@ class TestGenerateBlog(TestCase):
             text="生成本文",
         )
 
-        result = apply_blog_output_to_event_detail(event_detail, blog_output)
+        result = save_generated_article(event_detail, blog_output)
 
-        self.assertTrue(result)
+        self.assertEqual(result, SAVED)
+        event_detail.refresh_from_db()
         self.assertEqual(event_detail.h1, "生成タイトル")
         self.assertEqual(event_detail.contents, "生成本文")
         self.assertEqual(event_detail.meta_description, "生成ディスクリプション")
-        mock_ensure_pdf_thumbnail.assert_called_once_with(event_detail)
+        mock_ensure_pdf_thumbnail.assert_called_once()
 
     @require_live_smoke("GOOGLE_API_KEY")
     def test_get_transcript(self):

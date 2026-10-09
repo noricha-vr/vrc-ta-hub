@@ -61,7 +61,7 @@ def _build_markdown_context(database_context, today):
         {
             **special,
             "event": _build_markdown_event(special["event"]),
-            "h1": _escape_markdown_text(special["h1"]),
+            "title": _escape_markdown_text(special["title"]),
             "theme": _escape_markdown_text(special["theme"]),
         }
         for special in database_context["special_events"]

@@ -61,6 +61,8 @@
                               data-has-existing-slide-file="{% if form.instance.slide_file %}true{% else %}false{% endif %}"
                               data-has-existing-youtube-url="{% if form.instance.youtube_url %}true{% else %}false{% endif %}">
                             {% csrf_token %}
+                            {# 画面を開いた時点の記事のハッシュなど（保存時に、その後に作られた記事を消さないため） #}
+                            {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
                             {% if form.datetime_locked %}
                                 <div class="alert alert-warning" role="alert">
                                     {{ form.datetime_lock_message }}
@@ -75,6 +77,17 @@
                                 </ol>
                                 スライドURLは任意です。URL入力のみでは記事は生成されません。
                             </div>
+                            {# 記事化の同意は発表者が申請・編集画面で選ぶ。この画面では表示だけ #}
+                            {% if form.instance.pk and form.instance.detail_type == 'LT' %}
+                                <p class="mb-3" id="article-consent-status">
+                                    発表の記事化（発表者が選択）: {{ form.instance.get_article_consent_display }}
+                                    {% if form.instance.is_article_ng %}
+                                        <span class="text-muted">（記事の生成と表示はしません）</span>
+                                    {% elif form.article_auto_generation %}
+                                        <span class="text-muted" id="article-auto-generation-note">（スライドPDFか動画を登録すると記事を自動で作ります）</span>
+                                    {% endif %}
+                                </p>
+                            {% endif %}
                             <!-- detail_type フィールドを特別に表示 -->
                             <div class="mb-4">
                                 <label class="form-label fw-bold">{{ form.detail_type.label }}</label>
@@ -97,7 +110,7 @@
                             </div>
                             
                             <!-- その他のフィールド -->
-                            {% for field in form %}
+                            {% for field in form.visible_fields %}
                                 {% if field.name != 'detail_type' %}
                                     <div class="mb-3 field-wrapper" data-field="{{ field.name }}">
                                         {% if field.name == 'generate_blog_article' %}
