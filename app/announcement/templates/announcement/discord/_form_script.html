@@ -1,0 +1,20 @@
+<script>
+(() => {
+    const body = document.querySelector('[data-role="discord-body"]');
+    if (!body) return;
+    const count = document.querySelector('[data-role="body-count"]');
+    const counter = document.querySelector('[data-role="body-counter"]');
+    const confirmBlock = document.querySelector('[data-role="mass-mention-confirm"]');
+    const maxLength = Number(body.getAttribute('maxlength'));
+    const massMention = /@(everyone|here)/;
+    const update = () => {
+        // サーバーと同じく、文字（コードポイント）単位で数える
+        const length = [...body.value].length;
+        count.textContent = length;
+        counter.classList.toggle('text-danger', maxLength > 0 && length > maxLength);
+        confirmBlock.classList.toggle('d-none', !massMention.test(body.value));
+    };
+    body.addEventListener('input', update);
+    update();
+})();
+</script>

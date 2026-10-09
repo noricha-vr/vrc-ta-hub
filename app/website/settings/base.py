@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'news',
     'guide',
     'vket',
+    'announcement',
     'django_bootstrap5',
     'api_v1',
     'django_filters',

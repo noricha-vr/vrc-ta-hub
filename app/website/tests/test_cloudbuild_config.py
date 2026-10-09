@@ -59,6 +59,14 @@ class CloudBuildConfigTest(SimpleTestCase):
         self.assertIn('TURNSTILE_SITE_KEY=0x4AAAAAAFIx-kaCNvnLqGXv', env_vars)
         self.assertFalse(any(item.startswith('TURNSTILE_SECRET_KEY=') for item in env_vars))
 
+    def test_production_deploy_passes_announce_webhook_from_secret_manager(self):
+        """Discord 告知の予約送信の送信先は Secret Manager から渡し、環境変数に平文で置かない。"""
+        secrets = self._production_deploy_arg('--set-secrets').split(',')
+        env_vars = self._production_deploy_arg('--update-env-vars')
+
+        self.assertIn('DISCORD_ANNOUNCE_WEBHOOK_URL=DISCORD_ANNOUNCE_WEBHOOK_URL:latest', secrets)
+        self.assertNotIn('DISCORD_ANNOUNCE_WEBHOOK_URL', env_vars)
+
     def test_cloud_build_does_not_run_django_migrations(self):
         """Cloud Build は Django migration を自動実行しない。
 
