@@ -36,13 +36,13 @@ def remember_article_previous_values(sender, instance, raw=False, update_fields=
 
 
 @receiver(post_save, sender=EventDetail)
-def handle_article_changes(sender, instance, raw=False, **kwargs):
+def handle_article_changes(sender, instance, created=False, raw=False, **kwargs):
     """関連一覧のキャッシュを消し、必要なら記事の生成待ちの印を付ける。"""
     old = getattr(instance, '_article_previous', None)
     instance._article_previous = None
     if raw or old is None:
         return
-    _clear_related_cache_if_changed(instance, old)
+    _clear_related_cache_if_changed(instance, old, created)
     _request_article_generation_if_needed(instance, old)
 
 
@@ -61,6 +61,7 @@ def _request_article_generation_if_needed(instance: EventDetail, old: dict) -> N
     marked = {
         'article_generation_requested_at': timezone.now(),
         'article_generation_attempts': 0,
+        'article_generation_deferrals': 0,
         'article_generation_last_error': '',
     }
     EventDetail.all_objects.filter(pk=instance.pk).update(**marked)
@@ -95,16 +96,32 @@ def _article_inputs_changed(instance: EventDetail, old: dict) -> bool:
     return bool(video_id) and video_id != youtube_video_id(old.get('youtube_url'))
 
 
-def _clear_related_cache_if_changed(instance: EventDetail, old: dict) -> None:
-    """記事のタイトル（h1）か記事化の同意が変わったら、その集会の関連一覧のキャッシュを消す。
+def _related_list_changed(instance: EventDetail, old: dict, created: bool) -> bool:
+    """関連一覧に出る内容が変わりうる保存か（h1・記事化の同意・承認状態・論理削除と復元）。
 
-    NG に変えた発表の h1 を、キャッシュの寿命（1 時間）の間ほかの発表のページに出し続けないため。
+    旧値は論理削除されていない行からだけ読むので、既存の行で旧値が無いのは論理削除からの復元。
+    """
+    if created:
+        return bool(instance.h1)
+    if not old:
+        return True
+    return (
+        (old.get('h1') or '') != (instance.h1 or '')
+        or old.get('article_consent') != instance.article_consent
+        or old.get('status') != instance.status
+        or instance.deleted_at is not None
+    )
+
+
+def _clear_related_cache_if_changed(instance: EventDetail, old: dict, created: bool) -> None:
+    """関連一覧に出る内容が変わったら、その集会の関連一覧のキャッシュを消す。
+
+    NG に変えた発表の h1 や、却下・論理削除した発表を、キャッシュの寿命（1 時間）の間
+    ほかの発表のページに出し続けないため。
     消すのはコミットの後（ta_hub のトップページのキャッシュと同じ）。コミット前に消すと、その間に
     別のリクエストが古い内容でキャッシュを作り直すことがある。
     """
-    h1_changed = (old.get('h1') or '') != (instance.h1 or '')
-    consent_changed = bool(old) and old.get('article_consent') != instance.article_consent
-    if not (h1_changed or consent_changed):
+    if not _related_list_changed(instance, old, created):
         return
     community_ids = {old.get('event__community_id')}
     if old.get('event_id') != instance.event_id:

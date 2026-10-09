@@ -18,7 +18,7 @@ from openai.types.chat import (
     ChatCompletionToolParam,
 )
 from openai.types.shared_params import FunctionDefinition
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from event.models import EventDetail
 from event.prompts import BLOG_GENERATION_TEMPLATE
@@ -46,14 +46,6 @@ EMPTY = 'empty'
 REFUSED = 'refused'
 
 
-class BlogOutput(BaseModel):
-    """ブログ記事の出力形式を定義するPydanticモデル"""
-    title: str = Field(description="ブログ記事のタイトル。SEOを意識した40文字以内の魅力的なタイトル。")
-    meta_description: str = Field(
-        description="ブログ記事のメタディスクリプション。120文字以内でコンテンツの要約を記述。")
-    text: str = Field(description="ブログ記事の本文。マークダウン形式で記述された1000〜1800文字の記事。")
-
-
 @dataclass(frozen=True)
 class BlogSources:
     """記事生成に渡す入力（字幕と PDF のテキスト）と、中身を使えた入力の識別子。"""
@@ -76,16 +68,25 @@ class BlogSources:
         return self.video_id, self.slide_name
 
 
-def _used_sources_after_generation(event_detail: EventDetail) -> tuple[str, str]:
-    """生成ボタン等で作った記事の生成元。字幕は今の動画の字幕が取れていた時だけ記録する。"""
-    video_id = event_detail.video_id or ''
-    transcript_used = bool(
-        video_id
-        and event_detail.cached_transcript
-        and event_detail.cached_transcript_video_id == video_id
-    )
-    slide_name = event_detail.slide_file.name if event_detail.slide_file else ''
-    return (video_id if transcript_used else ''), slide_name
+class BlogOutput(BaseModel):
+    """ブログ記事の出力形式を定義するPydanticモデル"""
+    title: str = Field(description="ブログ記事のタイトル。SEOを意識した40文字以内の魅力的なタイトル。")
+    meta_description: str = Field(
+        description="ブログ記事のメタディスクリプション。120文字以内でコンテンツの要約を記述。")
+    text: str = Field(description="ブログ記事の本文。マークダウン形式で記述された1000〜1800文字の記事。")
+    # generate_blog が生成に使った入力。生成元の記録に使う（関数呼び出しのスキーマには出ない）
+    _sources: Optional[BlogSources] = PrivateAttr(default=None)
+
+    @property
+    def sources(self) -> Optional[BlogSources]:
+        """この記事を作るのに使った入力。generate_blog 以外で作った時は None。"""
+        return self._sources
+
+
+def _with_sources(blog_output: BlogOutput, sources: BlogSources) -> BlogOutput:
+    """生成結果に、生成に使った入力を持たせる。"""
+    blog_output._sources = sources
+    return blog_output
 
 
 def set_generated_article(event_detail: EventDetail, blog_output: BlogOutput,
@@ -113,16 +114,18 @@ def save_generated_article(event_detail: EventDetail, blog_output: BlogOutput) -
     NG なら書かない。書くのは記事の列と生成の記録の列だけで、呼ぶ前に読んだ古い値で他の列を戻さない。
     サムネイルはストレージに書くので、保存が確定した後に作る。
 
+    生成元に記録するのは、generate_blog が実際に中身を使えた入力だけ（キューと同じ判定）。
+
     Args:
-        event_detail: 生成に使ったイベント詳細（字幕のキャッシュが入っている）
-        blog_output: 記事生成結果
+        event_detail: 記事を作ったイベント詳細
+        blog_output: 記事生成結果（generate_blog が使った入力を持つ）
 
     Returns:
         ``SAVED``（保存した）/ ``EMPTY``（生成結果が空）/ ``REFUSED``（記事化 NG になっていた）
     """
     if not blog_output.title:
         return EMPTY
-    used_sources = _used_sources_after_generation(event_detail)
+    used_sources = blog_output.sources.used_sources if blog_output.sources else ('', '')
     with transaction.atomic():
         current = EventDetail.all_objects.select_for_update().get(pk=event_detail.pk)
         if current.is_article_ng:
@@ -222,7 +225,7 @@ def _get_transcript_with_cache(event_detail: EventDetail) -> Optional[str]:
 def fetch_transcript(event_detail: EventDetail) -> Optional[str]:
     """YouTube 動画の字幕をキャッシュ優先で取る。動画が無い時は取りに行かずに空文字。
 
-    取れた字幕はキャッシュされるので、続けて collect_blog_sources を呼んでも YouTube API は呼ばない。
+    取った字幕は collect_blog_sources に渡す（取れなかった時に YouTube API を呼び直さないため）。
     """
     if not event_detail.video_id:
         return ''
@@ -249,17 +252,28 @@ def _read_slide_text(event_detail: EventDetail, max_chars: int) -> str:
             os.unlink(temp_file_path)
 
 
-def collect_blog_sources(event_detail: EventDetail) -> BlogSources:
+class _NotFetched:
+    """字幕をまだ取りに行っていないことを表す（None は「取りに行ったが無かった」なので区別する）。"""
+
+
+_NOT_FETCHED = _NotFetched()
+
+
+def collect_blog_sources(event_detail: EventDetail,
+                         transcript: Optional[str] | _NotFetched = _NOT_FETCHED) -> BlogSources:
     """記事生成の入力を集める。字幕を優先し、PDF は合算上限の残り予算だけ使う。
 
     Args:
         event_detail: 対象のイベント詳細
+        transcript: 先に取った字幕（fetch_transcript の結果）。渡すと字幕を取り直さない。
+            省略時はここで取る
 
     Returns:
         プロンプトに埋め込む字幕・PDFテキストと、記事に載せるスライドURL
     """
-    # 再生成時のAPI再取得を避けてキャッシュを優先
-    transcript = _get_transcript_with_cache(event_detail)
+    if isinstance(transcript, _NotFetched):
+        # 再生成時のAPI再取得を避けてキャッシュを優先
+        transcript = _get_transcript_with_cache(event_detail)
     limited_transcript = _limit_source_text(transcript) if transcript else ""
     pdf_budget = max(MAX_COMBINED_SOURCE_CHARS - len(limited_transcript), 0)
     pdf_url = event_detail.slide_url or (event_detail.slide_file.url if event_detail.slide_file else "")
@@ -407,7 +421,7 @@ JSONオブジェクトだけを```json ... ```ブロックで出力してくだ�
                 try:
                     blog_output = BlogOutput.model_validate_json(blog_output_json)
                     logger.info("Successfully parsed BlogOutput from function call response")
-                    return blog_output
+                    return _with_sources(blog_output, sources)
                 except Exception as validate_error:
                     logger.warning(f"Failed to validate BlogOutput from function call: {str(validate_error)}")
                     # 検証に失敗した場合、JSONとして解析して手動でモデルを作成
@@ -415,7 +429,7 @@ JSONオブジェクトだけを```json ... ```ブロックで出力してくだ�
                         output_data = json.loads(blog_output_json)
                         blog_output = BlogOutput(**output_data)
                         logger.info("Created BlogOutput manually from function call data")
-                        return blog_output
+                        return _with_sources(blog_output, sources)
                     except Exception as e:
                         logger.error(f"Failed to parse function call response: {str(e)}")
                         # 失敗した場合は通常のJSONパース処理に続く
@@ -511,7 +525,7 @@ JSONオブジェクトだけを```json ... ```ブロックで出力してくだ�
             try:
                 blog_output = BlogOutput(**output_data)
                 logger.info('Parsed BlogOutput: ' + str(blog_output))
-                return blog_output
+                return _with_sources(blog_output, sources)
             except Exception as validation_error:
                 # Pydanticのバリデーションエラーなど
                 logger.error(f"Failed to create BlogOutput from parsed JSON: {str(validation_error)}")

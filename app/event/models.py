@@ -70,10 +70,12 @@ def related_event_details_cache_key(community_id: int) -> str:
     return f'related_event_details_community_{community_id}'
 
 
-# 記事の自動生成が管理する列。フォームの保存では書き戻さない（開いていた画面の古い値で消さない）
+# 記事の自動生成が管理する列。フォームの保存やフル保存では書き戻さない
+# （開いていた画面・読み込んだ時の古い値で、キューが書いた値を消さない）
 ARTICLE_CONTROL_FIELDS = (
     'article_generation_requested_at',
     'article_generation_attempts',
+    'article_generation_deferrals',
     'article_generation_last_error',
     'article_generated_at',
     'article_source_video_id',
@@ -81,6 +83,8 @@ ARTICLE_CONTROL_FIELDS = (
     'article_body_hash',
     'article_published_notified_at',
 )
+# 記事の列。フル保存では、読み込んだ時から変えていなければ書かない（その間にキューが作った記事を戻さない）
+ARTICLE_BODY_FIELDS = ('h1', 'contents', 'meta_description')
 
 # 保存前の値を見るシグナル（event / ta_hub / twitter）が使う列。保存ごとに 1 回の SELECT で読む
 PREVIOUS_VALUE_FIELDS = (
@@ -509,6 +513,10 @@ class EventDetail(models.Model):
     article_generation_attempts = models.PositiveSmallIntegerField(
         '記事の生成の試行回数', default=0, db_default=0,
     )
+    # 字幕が付くのを待って見送った回数。失敗の回数（attempts）とは分けて数える
+    article_generation_deferrals = models.PositiveSmallIntegerField(
+        '記事の生成の字幕待ちの回数', default=0, db_default=0,
+    )
     article_generation_last_error = models.CharField(
         '記事の生成の最後のエラー', max_length=255, blank=True, default='', db_default='',
     )
@@ -545,13 +553,56 @@ class EventDetail(models.Model):
     def __str__(self):
         return f"{self.event} - {self.theme} - {self.speaker}"
 
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        instance = super().from_db(db, field_names, values)
+        instance._remember_article_body()
+        return instance
+
+    def refresh_from_db(self, *args, **kwargs):
+        super().refresh_from_db(*args, **kwargs)
+        self._remember_article_body()
+
+    def _remember_article_body(self) -> None:
+        """読み込んだ時（保存した時）の記事の列の値を覚える。読み込んでいない列は覚えない。"""
+        self._loaded_article_body = {
+            name: self.__dict__[name] for name in ARTICLE_BODY_FIELDS if name in self.__dict__
+        }
+
     def save(self, *args, **kwargs):
+        if self._is_full_update(kwargs):
+            kwargs['update_fields'] = self._update_fields_for_full_save()
         # 保存前の値は保存ごとに 1 回だけ読み、pre_save の各シグナルで使い回す
         self._previous_values = _PREVIOUS_VALUES_NOT_LOADED
         try:
             super().save(*args, **kwargs)
         finally:
             self._previous_values = None
+        self._remember_article_body()
+
+    def _is_full_update(self, kwargs) -> bool:
+        """既存の行を update_fields 無しで保存するか（承認・管理画面・API・Vket の公開など）。"""
+        return (
+            kwargs.get('update_fields') is None
+            and not kwargs.get('force_insert')
+            and not self._state.adding
+            and self.pk is not None
+        )
+
+    def _update_fields_for_full_save(self) -> list[str]:
+        """フル保存で書く列。生成管理の列と、読み込んだ時から変えていない記事の列は書かない。
+
+        LLM の生成やキューを待つ間に読み込んだ古いインスタンスを保存しても、その間にキューが書いた
+        生成管理の列や記事を古い値で戻さないため。読み込んでいない（遅延）列も Django と同じく書かない。
+        """
+        loaded = getattr(self, '_loaded_article_body', None) or {}
+        skipped = set(ARTICLE_CONTROL_FIELDS)
+        skipped.update(name for name, value in loaded.items() if getattr(self, name) == value)
+        deferred = self.get_deferred_fields()
+        return [
+            field.name for field in self._meta.concrete_fields
+            if not field.primary_key and field.name not in skipped and field.attname not in deferred
+        ]
 
     def previous_values(self) -> dict:
         """保存前の DB の値（``PREVIOUS_VALUE_FIELDS``）。新規や行が無い時は空の dict。
@@ -739,7 +790,7 @@ class EventDetail(models.Model):
             generated_at: 生成日時。省略時は現在時刻。
 
         Returns:
-            変更した列名。``save(update_fields=...)`` に渡す。
+            変更した列名。``save(update_fields=...)`` に渡す（フル保存では生成管理の列は書かれない）。
         """
         sources = used_sources if used_sources is not None else self.article_sources()
         self.article_source_video_id, self.article_source_slide_name = sources
@@ -747,6 +798,7 @@ class EventDetail(models.Model):
         self.article_generated_at = generated_at or timezone.now()
         self.article_generation_requested_at = None
         self.article_generation_attempts = 0
+        self.article_generation_deferrals = 0
         self.article_generation_last_error = ''
         return [
             'article_source_video_id',
@@ -755,6 +807,7 @@ class EventDetail(models.Model):
             'article_generated_at',
             'article_generation_requested_at',
             'article_generation_attempts',
+            'article_generation_deferrals',
             'article_generation_last_error',
         ]
 

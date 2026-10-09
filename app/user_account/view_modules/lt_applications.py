@@ -68,12 +68,14 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
         instance = form.instance
 
         # 判定は保存後の値で行う（同じ送信で記事化を NG / OK に変えた時も拾う）
-        if instance.can_auto_generate_article:
-            # 記事化 OK の発表はキュー（Cloud Scheduler）が作る。ここでも作ると二重になる
+        if self._should_generate_now(form):
+            # チェックボックスで明示的に頼まれた時は、記事化 OK に変えた送信でもここで作る
+            # （手動の記事はキューが作らないため）。保存すると生成待ちの印は外れ、キューとは重ならない
+            self._generate_now(instance)
+        elif instance.can_auto_generate_article:
+            # 記事化 OK の発表はキュー（Cloud Scheduler）が作る
             queued = instance.article_generation_requested_at is not None
             messages.success(self.request, ARTICLE_QUEUED_MESSAGE if queued else UPDATED_MESSAGE)
-        elif self._should_generate_now(form):
-            self._generate_now(instance)
         else:
             messages.success(self.request, UPDATED_MESSAGE)
 

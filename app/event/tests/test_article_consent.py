@@ -3,6 +3,7 @@
 申請・編集フォームでの保存、主催者画面での表示だけの扱い、NG の発表の非表示と生成の拒否を確かめる。
 """
 
+import json
 import re
 from datetime import date, timedelta
 from unittest.mock import patch
@@ -219,15 +220,37 @@ class LTApplicationEditViewArticleConsentTest(TestCase):
 
     @patch('event.services.content_generation_service.ensure_pdf_thumbnail', return_value=False)
     @patch('event.services.content_generation_service.generate_blog')
-    def test_switching_unanswered_to_ok_leaves_generation_to_queue(self, mock_generate_blog, _thumbnail):
-        """未回答のまま開いた画面で OK に変えて送っても、保存時には生成しない（キューが作る）。"""
+    def test_switching_unanswered_to_ok_without_checkbox_leaves_generation_to_queue(self, mock_generate_blog,
+                                                                                    _thumbnail):
+        """未回答のまま開いた画面で OK に変え、チェックを入れずに送ったら、保存時には作らずキューに任せる。"""
         EventDetail.objects.filter(pk=self.detail.pk).update(article_consent=ArticleConsent.UNANSWERED)
 
-        self._post(article_consent='ok', generate_blog_article='on')
+        self._post(article_consent='ok')
 
         mock_generate_blog.assert_not_called()
         self.detail.refresh_from_db()
         self.assertIsNotNone(self.detail.article_generation_requested_at)
+
+    @patch('event.services.content_generation_service.ensure_pdf_thumbnail', return_value=False)
+    @patch('event.services.content_generation_service.generate_blog')
+    def test_explicit_checkbox_generates_even_when_switching_to_ok(self, mock_generate_blog, _thumbnail):
+        """同じ送信で OK に変えても、「記事を自動生成する」に明示的にチェックしたら保存時に作る。
+
+        手動で書いた記事はキューが作らないので、チェックを優先しないと記事が作られないまま残る。
+        """
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            article_consent=ArticleConsent.UNANSWERED, contents='発表者が書いた記事',
+        )
+        mock_generate_blog.return_value = BlogOutput(title='生成した記事', meta_description='要約', text='本文')
+
+        self._post(article_consent='ok', generate_blog_article='on', contents='発表者が書いた記事')
+
+        mock_generate_blog.assert_called_once()
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.h1, '生成した記事')
+        self.assertEqual(self.detail.article_consent, ArticleConsent.OK)
+        # 保存で生成待ちの印は外れ、キューとは重ならない
+        self.assertIsNone(self.detail.article_generation_requested_at)
 
     @patch('event.services.content_generation_service.ensure_pdf_thumbnail', return_value=False)
     @patch('event.services.content_generation_service.generate_blog')
@@ -447,6 +470,26 @@ class ArticleNgOtherScreensTest(TestCase):
         self._set_ng_consent(ArticleConsent.OK)
         self.assertIsNone(cache.get(key))
 
+    def test_related_cache_is_cleared_when_deleted_restored_or_status_changes(self):
+        """論理削除・復元・承認状態の変更でも、集会の関連一覧のキャッシュを消す（却下・削除した発表を出し続けない）。"""
+        other = make_event_detail(self.event, status='approved', theme='別の発表', h1='別の発表の記事')
+        key = related_event_details_cache_key(self.community.pk)
+        url = reverse('event:detail', kwargs={'pk': self.ng.pk})
+
+        for change in ('delete', 'restore', 'reject'):
+            with self.subTest(change=change):
+                self.client.get(url)
+                self.assertIsNotNone(cache.get(key))
+                with self.captureOnCommitCallbacks(execute=True):
+                    if change == 'delete':
+                        other.soft_delete()
+                    elif change == 'restore':
+                        other.restore()
+                    else:
+                        other.status = 'rejected'
+                        other.save()
+                self.assertIsNone(cache.get(key))
+
     def test_search_does_not_match_ng_title(self):
         """発表一覧の検索は、記事化 NG の発表の記事のタイトル（h1）では当てない。"""
         by_title = self.client.get(reverse('event:detail_history'), {'q': '一覧に出してはいけない記事'})
@@ -583,3 +626,18 @@ class EventDetailPageArticleConsentTest(TestCase):
         mock_generate_blog.assert_not_called()
         self.detail.refresh_from_db()
         self.assertEqual(self.detail.h1, self.H1)
+
+    def test_blog_structured_data_hides_ng_article(self):
+        """ブログの構造化データ（BlogPosting）も、記事化 NG なら要約と本文を出さない。"""
+        EventDetail.objects.filter(pk=self.detail.pk).update(detail_type='BLOG')
+
+        self._set_consent(ArticleConsent.NG)
+        ng_data = json.loads(self.client.get(self.url).context['structured_data_json'])
+        self._set_consent(ArticleConsent.OK)
+        ok_data = json.loads(self.client.get(self.url).context['structured_data_json'])
+
+        self.assertNotIn('articleBody', ng_data)
+        self.assertNotIn(self.SUMMARY, ng_data['description'])
+        self.assertNotIn(self.H1, ng_data['headline'])
+        self.assertIn(self.BODY, ok_data['articleBody'])
+        self.assertEqual(ok_data['description'], self.SUMMARY)

@@ -16,11 +16,12 @@ from django.utils import timezone
 from event.forms import EventDetailForm, LTApplicationEditForm
 from event.models import EventDetail, article_body_hash
 from event.services import article_generation
-from event.services.article_generation import MAX_ATTEMPTS, process_article_generation_queue
+from event.services.article_generation import MAX_ATTEMPTS, MAX_DEFERRALS, process_article_generation_queue
 from event.services.content_generation_service import (
     REFUSED,
     SAVED,
     BlogOutput,
+    generate_blog,
     save_generated_article,
 )
 from event.views.helpers import extract_video_id
@@ -122,6 +123,9 @@ class YouTubeVideoIdTest(SimpleTestCase):
         f'https://www.youtube.com/watch?v={VIDEO_ID}',
         f'https://www.youtube.com/watch?v={VIDEO_ID}?t=123',  # ? が 2 つある崩れた URL
         f'https://youtu.be/{VIDEO_ID}?t=30',
+        f'https://youtu.be/{VIDEO_ID}&t=30',  # ? ではなく & で続く崩れた URL
+        f'https://www.youtu.be/{VIDEO_ID}',
+        f'https://www.youtube.com/v/{VIDEO_ID}&hl=ja',
         f'https://www.youtube.com/live/{VIDEO_ID}?si=share',
         f'https://m.youtube.com/watch?v={VIDEO_ID}&t=1m',
         f'https://www.youtube.com/shorts/{VIDEO_ID}',
@@ -572,7 +576,7 @@ class ArticleGenerationQueueTest(TestCase):
         get_transcript.side_effect = lambda video_id, language='ja': None
         openai_class.return_value = _openrouter_client()
         detail = self._due_detail()
-        EventDetail.objects.filter(pk=detail.pk).update(article_generation_attempts=MAX_ATTEMPTS - 1)
+        EventDetail.objects.filter(pk=detail.pk).update(article_generation_deferrals=MAX_DEFERRALS)
 
         result = process_article_generation_queue()
 
@@ -600,7 +604,8 @@ class ArticleGenerationQueueTest(TestCase):
     def test_does_not_overwrite_manually_edited_article(self, openai_class, *_mocks):
         openai_class.return_value = _openrouter_client()
         detail = self._due_detail(h1='生成した記事', contents='生成した本文')
-        detail.record_generated_article()
+        fields = detail.record_generated_article()
+        detail.save(update_fields=fields)
         detail.contents = '発表者が直した本文'
         detail.save()
         self._make_due(detail)
@@ -758,9 +763,12 @@ class ArticleGenerationQueueTest(TestCase):
         self.assertEqual(detail.h1, '')
 
     def test_gives_up_after_max_attempts(self, openai_class, get_transcript, *_mocks):
+        """字幕を待ちきった後、入力が無いまま失敗が上限に達したら諦めて印を外す。"""
         get_transcript.side_effect = lambda video_id, language='ja': None
         detail = self._due_detail(slide_file='')
-        EventDetail.objects.filter(pk=detail.pk).update(article_generation_attempts=MAX_ATTEMPTS - 1)
+        EventDetail.objects.filter(pk=detail.pk).update(
+            article_generation_attempts=MAX_ATTEMPTS - 1, article_generation_deferrals=MAX_DEFERRALS,
+        )
 
         result = process_article_generation_queue()
 
@@ -892,6 +900,224 @@ class ArticleGenerationQueueTest(TestCase):
             result = process_article_generation_queue(limit=2)
 
         self.assertEqual(result['processed'], 2)
+
+    def test_deferral_is_not_counted_as_a_failed_attempt(self, openai_class, get_transcript, *_mocks):
+        """字幕待ちの見送りは失敗の回数に数えず、見送りの回数として数える。"""
+        get_transcript.side_effect = lambda video_id, language='ja': None
+        detail = self._due_detail(slide_file='')
+
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['deferred'], 1)
+        self.assertEqual(result['results'][0]['deferrals'], 1)
+        detail.refresh_from_db()
+        self.assertEqual(detail.article_generation_attempts, 0)
+        self.assertEqual(detail.article_generation_deferrals, 1)
+
+    def test_failure_after_waiting_for_transcript_is_retried(self, openai_class, get_transcript, *_mocks):
+        """字幕を待ちきった後の本当の生成で 1 回失敗しても、すぐには諦めずに再試行する。"""
+        get_transcript.side_effect = lambda video_id, language='ja': None
+        client = MagicMock()
+        client.chat.completions.create.return_value.choices = [
+            MagicMock(message=MagicMock(content=None, tool_calls=None))
+        ]
+        openai_class.return_value = client
+        detail = self._due_detail()
+        EventDetail.objects.filter(pk=detail.pk).update(article_generation_deferrals=MAX_DEFERRALS)
+
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['failed'], 1)
+        self.assertFalse(result['results'][0]['gave_up'])
+        detail.refresh_from_db()
+        self.assertEqual(detail.article_generation_attempts, 1)
+        self.assertGreater(detail.article_generation_requested_at, timezone.now())
+
+    def test_transcript_is_fetched_once_on_the_last_wait(self, openai_class, get_transcript, *_mocks):
+        """字幕を待ちきって PDF だけで作る回でも、字幕は 1 回しか取りに行かない。"""
+        get_transcript.side_effect = lambda video_id, language='ja': None
+        openai_class.return_value = _openrouter_client()
+        detail = self._due_detail()
+        EventDetail.objects.filter(pk=detail.pk).update(article_generation_deferrals=MAX_DEFERRALS)
+
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['generated'], 1)
+        self.assertEqual(get_transcript.call_count, 1)
+
+    def test_failed_email_is_sent_again_next_time(self, openai_class, *_mocks):
+        """メールを送れなかったら通知日時を戻し、次に記事を作った時に送り直す。Discord も送れた時だけ。"""
+        send_mail = _mocks[3]
+        send_mail.return_value = 0
+        openai_class.return_value = _openrouter_client()
+        detail = self._due_detail(youtube_url='')
+
+        process_article_generation_queue()
+
+        detail.refresh_from_db()
+        self.assertIsNone(detail.article_published_notified_at)
+
+        send_mail.return_value = 1
+        detail.youtube_url = VIDEO_URL
+        detail.save()
+        self._make_due(detail)
+        process_article_generation_queue()
+
+        self.assertEqual(send_mail.call_count, 2)
+        detail.refresh_from_db()
+        self.assertIsNotNone(detail.article_published_notified_at)
+
+
+class FullSaveProtectionTest(TestCase):
+    """承認・管理画面・API などのフル保存は、生成管理の列と、読み込み時から変えていない記事の列を書かない。"""
+
+    def setUp(self):
+        self.detail = make_event_detail(
+            make_event(make_community(name='フル保存の集会')), status='pending', theme='テーマ',
+        )
+
+    def test_full_save_does_not_write_back_generation_columns(self):
+        stale = EventDetail.objects.get(pk=self.detail.pk)
+        notified = timezone.now()
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            article_generation_requested_at=notified, article_generation_attempts=2,
+            article_body_hash='x' * 64, article_published_notified_at=notified,
+        )
+
+        stale.status = 'approved'
+        stale.save()
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.status, 'approved')
+        self.assertIsNotNone(self.detail.article_generation_requested_at)
+        self.assertEqual(self.detail.article_generation_attempts, 2)
+        self.assertEqual(self.detail.article_body_hash, 'x' * 64)
+        self.assertIsNotNone(self.detail.article_published_notified_at)
+
+    def test_full_save_does_not_write_back_unchanged_article(self):
+        """読み込んだ後にキューが作った記事を、記事を変えていない古いインスタンスの保存で戻さない。"""
+        stale = EventDetail.objects.get(pk=self.detail.pk)
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            h1='キューが作った記事', contents='キューが作った本文', meta_description='キューが作った要約',
+        )
+
+        stale.theme = '直したテーマ'
+        stale.save()
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.theme, '直したテーマ')
+        self.assertEqual(self.detail.h1, 'キューが作った記事')
+        self.assertEqual(self.detail.contents, 'キューが作った本文')
+        self.assertEqual(self.detail.meta_description, 'キューが作った要約')
+
+    def test_full_save_writes_article_changed_in_memory(self):
+        stale = EventDetail.objects.get(pk=self.detail.pk)
+
+        stale.contents = '手で直した本文'
+        stale.save()
+        stale.theme = 'もう一度保存'
+        stale.save()
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.contents, '手で直した本文')
+        self.assertEqual(self.detail.theme, 'もう一度保存')
+
+    def test_insert_writes_every_column(self):
+        detail = make_event_detail(
+            make_event(make_community(name='新規の集会')),
+            h1='新規の記事', article_generation_attempts=3,
+        )
+
+        detail.refresh_from_db()
+        self.assertEqual(detail.h1, '新規の記事')
+        self.assertEqual(detail.article_generation_attempts, 3)
+
+
+@override_settings(GEMINI_MODEL='test-model')
+@patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}, clear=False)
+@patch('event.services.content_generation_service.ensure_pdf_thumbnail', return_value=False)
+@patch('event.services.content_generation_service._copy_uploaded_file_to_temp_path', return_value='/tmp/none.pdf')
+@patch('event.services.content_generation_service._extract_pdf_text', return_value='')
+@patch('event.services.content_generation_service.get_transcript', side_effect=_fake_transcript)
+@patch('event.services.content_generation_service.OpenAI')
+class GeneratedSourcesTest(TestCase):
+    """生成ボタン等の保存も、generate_blog が実際に中身を使えた入力だけを生成元に記録する。"""
+
+    def test_slide_whose_text_could_not_be_read_is_not_recorded(self, openai_class, *_mocks):
+        openai_class.return_value = _openrouter_client()
+        detail = make_event_detail(
+            make_event(make_community(name='生成元の集会')), status='approved',
+            youtube_url=VIDEO_URL, slide_file=SLIDE_NAME,
+        )
+
+        blog_output = generate_blog(detail, model='test-model')
+        save_generated_article(detail, blog_output)
+
+        self.assertIsNotNone(blog_output.sources)
+        detail.refresh_from_db()
+        self.assertEqual(detail.article_source_video_id, VIDEO_ID)
+        self.assertEqual(detail.article_source_slide_name, '')
+
+    def test_sources_are_not_part_of_the_llm_schema(self, *_mocks):
+        """生成に使った入力は BlogOutput に持たせるが、LLM に渡す関数のスキーマには出さない。"""
+        self.assertEqual(
+            set(BlogOutput.model_json_schema()['properties']), {'title', 'meta_description', 'text'},
+        )
+
+
+class StaleEditFormTest(TestCase):
+    """編集画面を開いた後にキューが記事を作っても、テーマを直して保存しただけで記事を消さない。"""
+
+    def setUp(self):
+        self.detail = make_event_detail(
+            make_event(make_community(name='古い画面の集会')), status='approved',
+            article_consent=ArticleConsent.OK,
+        )
+
+    def _open_then_generate(self):
+        """画面を開き（hidden の値を控え）、その後にキューが記事を作る。"""
+        opened = LTApplicationEditForm(instance=EventDetail.objects.get(pk=self.detail.pk))
+        snapshot = opened['article_snapshot'].value()
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            h1='キューが作った記事', contents='キューが作った本文', meta_description='キューが作った要約',
+        )
+        return snapshot
+
+    def _submit(self, snapshot, **extra):
+        data = {'theme': '直したテーマ', 'speaker': '発表者', 'h1': '', 'contents': '', 'article_snapshot': snapshot}
+        data.update(extra)
+        form = LTApplicationEditForm(data=data, instance=EventDetail.objects.get(pk=self.detail.pk))
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+        self.detail.refresh_from_db()
+
+    def test_article_generated_after_opening_is_kept(self):
+        self._submit(self._open_then_generate())
+
+        self.assertEqual(self.detail.theme, '直したテーマ')
+        self.assertEqual(self.detail.h1, 'キューが作った記事')
+        self.assertEqual(self.detail.contents, 'キューが作った本文')
+        self.assertEqual(self.detail.meta_description, 'キューが作った要約')
+
+    def test_user_edit_of_article_wins(self):
+        """利用者が記事の欄を実際に変えた時は、利用者の編集を優先して書く。"""
+        self._submit(self._open_then_generate(), contents='利用者が書いた本文')
+
+        self.assertEqual(self.detail.contents, '利用者が書いた本文')
+
+    def test_form_without_snapshot_writes_as_before(self):
+        """hidden の無い古い画面（デプロイ前に開いた画面）は今までどおり書く。"""
+        self._open_then_generate()
+
+        self._submit('', contents='古い画面の本文')
+
+        self.assertEqual(self.detail.contents, '古い画面の本文')
+
+    def test_snapshot_is_rendered_as_hidden_input(self):
+        rendered = str(LTApplicationEditForm(instance=self.detail)['article_snapshot'])
+
+        self.assertIn('type="hidden"', rendered)
+        self.assertIn(article_body_hash('', ''), rendered)
 
 
 @patch('event.services.content_generation_service.ensure_pdf_thumbnail', return_value=False)

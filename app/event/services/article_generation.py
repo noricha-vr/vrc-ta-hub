@@ -34,9 +34,11 @@ DEFAULT_BATCH_SIZE = 1
 MAX_BATCH_SIZE = 2
 # 1 件目を終えた時にこれを過ぎていたら 2 件目を始めない。uWSGI の http-timeout（120 秒）内に収める
 BATCH_TIME_BUDGET_SECONDS = 30
-# 最後の回は、字幕を待たずに取れた入力だけで作る
+# 生成に失敗した時に試す回数の上限（これを超えたら諦める）
 MAX_ATTEMPTS = 5
-# 失敗・字幕待ちの再試行は 10・20・40・80 分後。字幕が付くまで待てるよう間隔を空ける
+# 字幕が付くのを待って見送る回数の上限。失敗とは別に数え、超えたら取れた入力だけで作る
+MAX_DEFERRALS = 4
+# 失敗・字幕待ちの再試行は 10・20・40・80 分後（それぞれの回数で決める）。字幕が付くまで待てるよう間隔を空ける
 RETRY_BASE_DELAY = timedelta(minutes=10)
 # 処理中の締切。過ぎても終わっていなければ（プロセスが落ちた等）次の呼び出しで拾い直す
 CLAIM_LEASE = timedelta(minutes=15)
@@ -59,6 +61,7 @@ class ArticleGenerationResult:
     outcome: str
     reason: str = ''
     attempts: int = 0
+    deferrals: int = 0
     gave_up: bool = False
 
 
@@ -146,11 +149,12 @@ def _process_one(pk: int, lease_until: datetime) -> ArticleGenerationResult:
 def _process_claimed(detail: EventDetail, lease_until: datetime) -> ArticleGenerationResult:
     """取った 1 件を生成し、結果を記録する。"""
     attempts = detail.article_generation_attempts
+    deferrals = detail.article_generation_deferrals
     skip_reason = _skip_reason(detail)
     if skip_reason:
-        _release(detail.pk, lease_until, reset_attempts=True)
+        _release(detail.pk, lease_until, reset_counts=True)
         outcome = SKIPPED_MANUAL if skip_reason == 'manual_edit' else SKIPPED
-        return _log_result(detail.pk, attempts, outcome, skip_reason)
+        return _log_result(detail.pk, attempts, outcome, skip_reason, deferrals=deferrals)
     if attempts > MAX_ATTEMPTS:
         # 処理中にプロセスが落ち続ける等で、締切切れの拾い直しが上限を超えた
         _release(detail.pk, lease_until, error='max_attempts')
@@ -158,6 +162,8 @@ def _process_claimed(detail: EventDetail, lease_until: datetime) -> ArticleGener
 
     try:
         blog_output, sources = _generate(detail)
+    except ArticleGenerationDeferred as deferral:
+        return _schedule_deferral(detail, lease_until, deferral)
     except ArticleGenerationError as error:
         return _schedule_retry(detail.pk, attempts, lease_until, error)
     except Exception as error:
@@ -170,7 +176,7 @@ def _process_claimed(detail: EventDetail, lease_until: datetime) -> ArticleGener
     outcome, reason = _store_article(detail.pk, lease_until, blog_output, sources)
     if outcome == GENERATED:
         _after_generated(detail.pk)
-    return _log_result(detail.pk, attempts, outcome, reason)
+    return _log_result(detail.pk, attempts, outcome, reason, deferrals=deferrals)
 
 
 def _skip_reason(detail: EventDetail) -> str:
@@ -190,13 +196,13 @@ def _skip_reason(detail: EventDetail) -> str:
 def _generate(detail: EventDetail) -> tuple[BlogOutput, BlogSources]:
     """その時点で揃っている字幕と PDF をすべて使って記事を作る。
 
-    字幕を先に取り、動画があるのに字幕がまだ無い時は、PDF を読まずに上限の回まで待つ
-    （最後の回は取れた入力だけで作る）。
+    字幕を先に取り、動画があるのに字幕がまだ無い時は、PDF を読まずに MAX_DEFERRALS 回まで待つ
+    （それを過ぎたら取れた入力だけで作る）。取った字幕は渡して、取り直さない。
     """
     transcript = fetch_transcript(detail)
-    if detail.video_id and not transcript and detail.article_generation_attempts < MAX_ATTEMPTS:
+    if detail.video_id and not transcript and detail.article_generation_deferrals < MAX_DEFERRALS:
         raise ArticleGenerationDeferred('waiting_for_transcript')
-    sources = collect_blog_sources(detail)
+    sources = collect_blog_sources(detail, transcript)
     if not sources.has_text:
         # 文字の無い PDF など。入力無しでは記事を作らない
         raise ArticleGenerationError('no_source_text')
@@ -215,10 +221,10 @@ def _store_article(pk: int, lease_until: datetime, blog_output: BlogOutput,
             # 処理中に新しい入力が来た（次の呼び出しで作り直す）か、手動の生成で印が外れた
             return SKIPPED, 'superseded'
         if not current.can_auto_generate_article:
-            _release(pk, lease_until, reset_attempts=True)
+            _release(pk, lease_until, reset_counts=True)
             return SKIPPED, 'not_eligible'
         if current.article_state() == EventDetail.ArticleState.MANUAL:
-            _release(pk, lease_until, reset_attempts=True)
+            _release(pk, lease_until, reset_counts=True)
             return SKIPPED_MANUAL, 'manual_edit'
         current.save(update_fields=set_generated_article(current, blog_output, sources.used_sources))
     return GENERATED, ''
@@ -254,6 +260,7 @@ def _notify_first_time(detail: EventDetail) -> None:
 
     宛先が無い時は通知日時を入れない（後で宛先ができた時に知らせられるように）。
     先に通知日時を入れた 1 件だけが送る（作り直しや重なった呼び出しでは送らない）。
+    メールを送れなかった時は通知日時を戻し、次に記事を作った時に送り直す。
     """
     try:
         recipient = get_material_reminder_recipient(detail)
@@ -263,16 +270,31 @@ def _notify_first_time(detail: EventDetail) -> None:
                 extra={'event_type': 'article_published_notification_skipped', 'event_detail_id': detail.pk},
             )
             return
+        notified_at = timezone.now()
         first_time = EventDetail.all_objects.filter(
             pk=detail.pk, article_published_notified_at__isnull=True,
-        ).update(article_published_notified_at=timezone.now())
-        if first_time:
-            notify_applicant_of_article_published(detail, recipient)
+        ).update(article_published_notified_at=notified_at)
+        if first_time and not _send_published_notification(detail, recipient):
+            EventDetail.all_objects.filter(
+                pk=detail.pk, article_published_notified_at=notified_at,
+            ).update(article_published_notified_at=None)
     except Exception:
         logger.exception(
             'article_published_notification_failed',
             extra={'event_type': 'article_published_notification_failed', 'event_detail_id': detail.pk},
         )
+
+
+def _send_published_notification(detail: EventDetail, recipient) -> bool:
+    """記事の公開を知らせる。メールを送れた時だけ True（SMTP の一時的な失敗などは False）。"""
+    try:
+        return notify_applicant_of_article_published(detail, recipient)
+    except Exception:
+        logger.exception(
+            'article_published_notification_failed',
+            extra={'event_type': 'article_published_notification_failed', 'event_detail_id': detail.pk},
+        )
+        return False
 
 
 def _unexpected(error: Exception) -> ArticleGenerationError:
@@ -297,37 +319,61 @@ def _record_unexpected_failure(pk: int, lease_until: datetime, error: Exception)
         return _log_result(pk, 0, FAILED, _unexpected(error).reason)
 
 
+def _retry_at(count: int) -> datetime:
+    """count 回目（1 始まり）の後の再試行の時刻。10・20・40・80 分と間を空ける。"""
+    delay: timedelta = RETRY_BASE_DELAY * (2 ** max(count - 1, 0))
+    return timezone.now() + delay
+
+
 def _schedule_retry(pk: int, attempts: int, lease_until: datetime,
                     error: ArticleGenerationError) -> ArticleGenerationResult:
-    """失敗・字幕待ちを記録し、上限までは間を空けて再試行する。上限に達したら印を外す。"""
+    """失敗を記録し、上限までは間を空けて再試行する。上限に達したら印を外す。"""
     gave_up = attempts >= MAX_ATTEMPTS
-    retry_at = None if gave_up else timezone.now() + RETRY_BASE_DELAY * (2 ** max(attempts - 1, 0))
     EventDetail.all_objects.filter(pk=pk, article_generation_requested_at=lease_until).update(
-        article_generation_requested_at=retry_at,
+        article_generation_requested_at=None if gave_up else _retry_at(attempts),
         article_generation_last_error=error.reason[:LAST_ERROR_MAX_LENGTH],
     )
-    outcome = DEFERRED if isinstance(error, ArticleGenerationDeferred) else FAILED
-    return _log_result(pk, attempts, outcome, error.reason, gave_up=gave_up)
+    return _log_result(pk, attempts, FAILED, error.reason, gave_up=gave_up)
 
 
-def _release(pk: int, lease_until: datetime, *, error: str = '', reset_attempts: bool = False) -> None:
+def _schedule_deferral(detail: EventDetail, lease_until: datetime,
+                       deferral: ArticleGenerationDeferred) -> ArticleGenerationResult:
+    """字幕待ちを記録し、間を空けて試し直す。
+
+    見送りは失敗に数えない（取った時に足した試行回数を戻し、見送りの回数を足す）。
+    失敗とは別に数えるので、字幕を待った後の本当の生成で失敗しても、すぐには諦めない。
+    """
+    deferrals = detail.article_generation_deferrals + 1
+    EventDetail.all_objects.filter(pk=detail.pk, article_generation_requested_at=lease_until).update(
+        article_generation_requested_at=_retry_at(deferrals),
+        article_generation_attempts=F('article_generation_attempts') - 1,
+        article_generation_deferrals=F('article_generation_deferrals') + 1,
+        article_generation_last_error=deferral.reason[:LAST_ERROR_MAX_LENGTH],
+    )
+    attempts = detail.article_generation_attempts - 1
+    return _log_result(detail.pk, attempts, DEFERRED, deferral.reason, deferrals=deferrals)
+
+
+def _release(pk: int, lease_until: datetime, *, error: str = '', reset_counts: bool = False) -> None:
     """生成待ちの印を外す。処理中の締切が自分の入れたものの時だけ（新しい印は残す）。"""
     fields: dict = {'article_generation_requested_at': None}
     if error:
         fields['article_generation_last_error'] = error
-    if reset_attempts:
+    if reset_counts:
         fields['article_generation_attempts'] = 0
+        fields['article_generation_deferrals'] = 0
     EventDetail.all_objects.filter(pk=pk, article_generation_requested_at=lease_until).update(**fields)
 
 
 def _log_result(pk: int, attempts: int, outcome: str, reason: str = '', *,
-                gave_up: bool = False) -> ArticleGenerationResult:
+                deferrals: int = 0, gave_up: bool = False) -> ArticleGenerationResult:
     """1 件の結果を構造化ログに出して返す。"""
     result = ArticleGenerationResult(
         event_detail_id=pk,
         outcome=outcome,
         reason=reason,
         attempts=attempts,
+        deferrals=deferrals,
         gave_up=gave_up,
     )
     log = logger.warning if outcome == FAILED else logger.info

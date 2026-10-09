@@ -83,6 +83,8 @@
                               data-has-existing-slide-file="{% if object.slide_file %}true{% else %}false{% endif %}"
                               data-has-existing-youtube-url="{% if object.youtube_url %}true{% else %}false{% endif %}">
                             {% csrf_token %}
+                            {# 画面を開いた時点の記事のハッシュなど（保存時に、その後に作られた記事を消さないため） #}
+                            {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
 
                             <div class="alert alert-info" role="note">
                                 <strong>記事生成の流れ:</strong>
@@ -99,7 +101,7 @@
                                 {% endif %}
                             </div>
 
-                            {% for field in form %}
+                            {% for field in form.visible_fields %}
                                 <div class="mb-3 field-wrapper" data-field="{{ field.name }}">
                                     {% if field.name == 'generate_blog_article' %}
                                         <div class="form-check form-switch d-flex align-items-center">

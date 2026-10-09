@@ -145,8 +145,10 @@ class EventDetailView(DetailView):
                     # ロゴとして最初の画像を使用（適切なロゴがない場合のフォールバック）
                     publisher_obj["logo"] = {"@type": "ImageObject", "url": images[0]}
 
-                # メタディスクリプションのフォールバック
-                description = (event_detail.meta_description or event_detail.theme or event_detail.title or "").strip()
+                # メタディスクリプションのフォールバック（記事化 NG の記事の要約は使わない）
+                description = (
+                    event_detail.visible_meta_description or event_detail.theme or event_detail.title or ""
+                ).strip()
 
                 structured_data: Dict = {
                     "@context": "https://schema.org",
@@ -166,9 +168,9 @@ class EventDetailView(DetailView):
                 if images:
                     structured_data["image"] = images
 
-                # 可能なら本文も追加（長すぎる場合はカット）
+                # 可能なら本文も追加（長すぎる場合はカット）。記事化 NG の記事の本文は出さない
                 max_article_body_length = 10000
-                if event_detail.contents:
+                if event_detail.has_article:
                     body_text = event_detail.contents
                     if len(body_text) > max_article_body_length:
                         body_text = body_text[:max_article_body_length]

@@ -39,8 +39,9 @@ def _save_and_report(request, event_detail: EventDetail, blog_output) -> None:
 def _should_generate_on_save(form) -> bool:
     """保存と同時に記事を作るか（チェックボックスが ON の発表で、動画か PDF がある時）。
 
-    記事化 NG の発表はチェックボックスを出していなくてもサーバ側で断る。記事化 OK で自動生成の
-    対象になる発表は、キュー（Cloud Scheduler）が作るので、ここで作ると二重になる。
+    記事化 NG の発表はチェックボックスを出していなくてもサーバ側で断る。チェックボックスで明示的に
+    頼まれた時は記事化 OK の発表でもここで作る（記事化 OK の発表にはふつうチェックボックスを出さず、
+    キュー（Cloud Scheduler）が作る）。保存すると生成待ちの印は外れ、キューとは重ならない。
     判定は保存後の値で行う。
     """
     instance = form.instance
@@ -48,7 +49,6 @@ def _should_generate_on_save(form) -> bool:
         form.cleaned_data.get('generate_blog_article', False)
         and instance.detail_type == 'LT'
         and not instance.is_article_ng
-        and not instance.can_auto_generate_article
         and (instance.slide_file or instance.youtube_url)
     )
 
@@ -140,9 +140,6 @@ class EventDetailUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Upd
     def form_valid(self, form):
         response = super().form_valid(form)
 
-        if form.instance.can_auto_generate_article and form.instance.article_generation_requested_at:
-            # 記事化 OK の発表は自動生成のキューが作る（保存時には作らない）
-            messages.info(self.request, ARTICLE_QUEUED_MESSAGE)
         # チェックボックスがONで、LTタイプで、PDFまたは動画がセットされている場合は自動生成
         if _should_generate_on_save(form):
             try:
@@ -160,6 +157,9 @@ class EventDetailUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Upd
                     },
                 )
                 messages.error(self.request, "記事の自動生成中にエラーが発生しました")
+        elif form.instance.can_auto_generate_article and form.instance.article_generation_requested_at:
+            # 記事化 OK の発表は自動生成のキューが作る（保存時には作らない）
+            messages.info(self.request, ARTICLE_QUEUED_MESSAGE)
 
         return response
 

@@ -9,7 +9,10 @@ EventDetailForm と LTApplicationEditForm でスライドPDF・サムネ画像�
 from django import forms
 
 from ..form_validators import validate_and_sanitize_pdf, validate_thumbnail_image
-from ..models import EventDetail
+from ..models import ARTICLE_BODY_FIELDS, EventDetail, article_body_hash
+
+# 編集画面を開いた時点の記事のハッシュを持たせる hidden の項目
+ARTICLE_SNAPSHOT_FIELD = 'article_snapshot'
 
 RECORDING_POLICY_LABEL = '撮影'
 RECORDING_POLICY_HELP_TEXT = 'ハブの自動撮影で、この発表をどう扱うかを選んでください。'
@@ -78,7 +81,22 @@ class EventDetailMediaFormMixin:
     """スライドPDF・サムネ画像の検証と保存後処理を共通化するMixin。
 
     EventDetailForm と LTApplicationEditForm の両方で同一実装が重複していたため抽出。
+    既存の発表の保存では、画面を開いている間に記事の自動生成が書いた値を、開いた時の古い値で戻さない。
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 今の DB の記事（タイトルと本文）のハッシュ。画面には hidden で持たせ、送信時の DB の値と比べる
+        self._article_hash_now = self._article_hash(self.instance)
+        self.fields[ARTICLE_SNAPSHOT_FIELD] = forms.CharField(
+            widget=forms.HiddenInput, required=False, initial=self._article_hash_now,
+        )
+
+    @staticmethod
+    def _article_hash(instance) -> str:
+        if instance is None or instance._state.adding:
+            return ''
+        return article_body_hash(instance.h1, instance.contents)
 
     def clean_slide_file(self):
         return validate_and_sanitize_pdf(self.cleaned_data.get('slide_file'))
@@ -86,12 +104,31 @@ class EventDetailMediaFormMixin:
     def clean_thumbnail_image(self):
         return validate_thumbnail_image(self.cleaned_data.get('thumbnail_image'))
 
+    def _keeps_article_in_db(self) -> bool:
+        """記事の 3 列を書かずに DB の値を残すか。
+
+        画面を開いた後に DB の記事が変わり（キューが記事を作った等）、利用者が記事の欄を変えていない時。
+        利用者が記事の欄を変えた時は、利用者の編集を優先して書く。hidden の無い古い画面は今までどおり書く。
+        """
+        opened = self.cleaned_data.get(ARTICLE_SNAPSHOT_FIELD) or ''
+        if not opened:
+            return False
+        if self._article_hash(self.instance) != opened:
+            # construct_instance の後なので、ここでの instance の記事は送信された値
+            return False
+        return self._article_hash_now != opened
+
+    def _update_fields(self) -> list[str]:
+        """既存の発表の保存で書く列。生成管理の列は書かず、記事の列は必要な時だけ書く。"""
+        fields = EventDetail.fields_without_article_control()
+        if self._keeps_article_in_db():
+            fields = [name for name in fields if name not in ARTICLE_BODY_FIELDS]
+        return fields
+
     def save(self, commit=True):
         if commit and not self.instance._state.adding:
             instance = super().save(commit=False)
-            # 記事の自動生成が管理する列は書き戻さない。画面を開いている間に自動生成が書いた値を、
-            # 開いた時の古い値で消さないため（新規作成は通常どおり全列を書く）
-            instance.save(update_fields=EventDetail.fields_without_article_control())
+            instance.save(update_fields=self._update_fields())
             self._save_m2m()
         else:
             instance = super().save(commit=commit)
