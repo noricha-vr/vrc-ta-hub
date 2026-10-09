@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.templatetags.static import static
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -34,6 +37,79 @@ from .helpers import (
 
 DEFAULT_NOTICE_OG_IMAGE_URL = DEFAULT_NEWS_IMAGE_URL
 
+# 同じ管理者が同じタイトルのお知らせをこの秒数以内に作ったら、2件目を作らない（二重送信対策）
+NOTICE_DUPLICATE_WINDOW_SECONDS = 10
+
+# 一覧の要約に出す未確認集会名の数（残りは「ほか N 集会」）
+UNACKED_NAMES_PREVIEW_LIMIT = 3
+
+# 配信対象の表示名。モデルの choices を変えると migration が要るため画面側で正確な言葉に差し替える
+TARGET_SCOPE_LABELS = {
+    VketNotice.TargetScope.ALL_PARTICIPANTS: '全参加者',
+    VketNotice.TargetScope.UNACKED: 'まだ一度も確認していない参加者',
+    VketNotice.TargetScope.MANUAL: '手動選択',
+}
+
+ACK_DONE_PARAM = 'done'
+
+
+def _is_unacked(receipt) -> bool:
+    return receipt.notice.requires_ack and receipt.acknowledged_at is None
+
+
+def _acknowledge_receipt(receipt, user) -> bool:
+    """receipt を確認済みにする。今回確認した時だけ True（確認済みなら何もしない）"""
+    now = timezone.now()
+    acknowledged_by = user if user.is_authenticated else None
+    updated = VketNoticeReceipt.objects.filter(
+        pk=receipt.pk, acknowledged_at__isnull=True
+    ).update(acknowledged_at=now, acknowledged_by=acknowledged_by, updated_at=now)
+    if not updated:
+        return False
+
+    # 参加レコードのlast_acknowledged_at/byも更新（進捗管理・監査用）
+    VketParticipation.objects.filter(pk=receipt.participation_id).update(
+        last_acknowledged_at=now,
+        last_acknowledged_by=acknowledged_by,
+        updated_at=now,
+    )
+    return True
+
+
+def _unacked_receipts(participation):
+    return VketNoticeReceipt.objects.filter(
+        participation=participation,
+        notice__requires_ack=True,
+        acknowledged_at__isnull=True,
+    ).order_by('-created_at')
+
+
+def _redirect_to_notice_list(collaboration_id: int, open_notice_id: int | None):
+    url = reverse('vket:notice_list', kwargs={'pk': collaboration_id})
+    if open_notice_id:
+        url = f'{url}?open={open_notice_id}'
+    return redirect(url)
+
+
+def _ack_result_redirect(request, receipt, acknowledged: bool):
+    """確認後の行き先。一覧へ戻し、確認結果と残り件数を出して次の未確認を開く"""
+    remaining = list(_unacked_receipts(receipt.participation_id).values_list('notice_id', flat=True))
+    if acknowledged and remaining:
+        messages.success(request, f'確認しました。残り {len(remaining)} 件です。')
+    elif acknowledged:
+        messages.success(request, '確認しました。未確認のお知らせはもうありません。')
+    else:
+        messages.info(request, 'このお知らせは前に確認済みです。')
+    open_notice_id = remaining[0] if remaining else receipt.notice_id
+    return _redirect_to_notice_list(receipt.participation.collaboration_id, open_notice_id)
+
+
+def _parse_open_param(value) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
 
 @method_decorator([never_cache, vary_on_cookie], name='dispatch')
 class NoticeListView(LoginRequiredMixin, View):
@@ -55,19 +131,17 @@ class NoticeListView(LoginRequiredMixin, View):
         if not _is_vket_admin(request.user):
             collaborations = collaborations.exclude(phase=VketCollaboration.Phase.DRAFT)
         collaboration = get_object_or_404(collaborations, pk=pk)
-        community, membership = _get_active_membership(request)
+        community, _membership = _get_active_membership(request)
+        receipts = self._load_receipts(collaboration, community)
 
-        receipts = []
-        if community:
-            participation = VketParticipation.objects.filter(
-                collaboration=collaboration, community=community
-            ).first()
-            if participation:
-                receipts = (
-                    VketNoticeReceipt.objects.filter(participation=participation)
-                    .select_related('notice')
-                    .order_by('-created_at')
-                )
+        unacked_receipts = [r for r in receipts if _is_unacked(r)]
+        other_receipts = [r for r in receipts if not _is_unacked(r)]
+        requested_open_id = _parse_open_param(request.GET.get('open'))
+        open_notice_id = requested_open_id
+        if open_notice_id is None and unacked_receipts:
+            open_notice_id = unacked_receipts[0].notice_id
+        for receipt in receipts:
+            receipt.is_open = receipt.notice_id == open_notice_id
 
         return render(
             request,
@@ -75,8 +149,27 @@ class NoticeListView(LoginRequiredMixin, View):
             {
                 'collaboration': collaboration,
                 'receipts': receipts,
+                'unacked_receipts': unacked_receipts,
+                'other_receipts': other_receipts,
+                'open_notice_id': open_notice_id,
+                'scroll_to_open': requested_open_id is not None,
                 'community': community,
             },
+        )
+
+    @staticmethod
+    def _load_receipts(collaboration, community) -> list:
+        if community is None:
+            return []
+        participation = VketParticipation.objects.filter(
+            collaboration=collaboration, community=community
+        ).first()
+        if participation is None:
+            return []
+        return list(
+            VketNoticeReceipt.objects.filter(participation=participation)
+            .select_related('notice')
+            .order_by('-created_at')
         )
 
     def _render_public_shell(self, request, pk: int):
@@ -125,6 +218,24 @@ class NoticeListView(LoginRequiredMixin, View):
         )
 
 
+class NoticeListAckView(LoginRequiredMixin, View):
+    """主催者向け: お知らせ一覧から自分の集会の receipt を確認済みにする（POST のみ）"""
+
+    def post(self, request, pk: int, receipt_id: int):
+        community, _membership = _get_active_membership(request)
+        if community is None:
+            return _redirect_to_notice_list(pk, None)
+
+        receipt = get_object_or_404(
+            VketNoticeReceipt.objects.select_related('participation'),
+            pk=receipt_id,
+            participation__collaboration_id=pk,
+            participation__community=community,
+        )
+        acknowledged = _acknowledge_receipt(receipt, request.user)
+        return _ack_result_redirect(request, receipt, acknowledged)
+
+
 class ManageNoticeListView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
     """運営向け: お知らせ管理一覧ビュー"""
 
@@ -143,53 +254,7 @@ class ManageNoticeListView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Temp
             .prefetch_related('receipts__participation__community')
             .order_by('-created_at')
         )
-
-        # prefetch済みのreceiptsをPython側で集計してN+1を回避
-        notice_stats = []
-        for notice in notices:
-            receipts = list(notice.receipts.all())
-            total = len(receipts)
-            acked = sum(1 for r in receipts if r.acknowledged_at is not None)
-
-            # 未ACKのコミュニティからDiscordメンション文字列を収集
-            unacked_mentions = []
-            unacked_community_names = []
-            if notice.requires_ack:
-                seen_community_ids = set()
-                for r in receipts:
-                    if r.acknowledged_at is not None:
-                        continue
-                    community = r.participation.community
-                    if community.id in seen_community_ids:
-                        continue
-                    seen_community_ids.add(community.id)
-                    unacked_community_names.append(community.name)
-                    mention_type = community.discord_mention_type
-                    if mention_type == community.DiscordMentionType.ROLE and community.discord_mention_role_id:
-                        unacked_mentions.append(f'<@&{community.discord_mention_role_id}>')
-                    elif mention_type == community.DiscordMentionType.USERS:
-                        for uid in community.discord_mention_user_ids:
-                            unacked_mentions.append(f'<@{uid}>')
-                    else:
-                        # メンション未設定: メンバーのDiscord IDからメンション生成
-                        member_user_ids = CommunityMember.objects.filter(
-                            community=community
-                        ).values_list('user_id', flat=True)
-                        discord_ids = SocialAccount.objects.filter(
-                            user_id__in=member_user_ids, provider='discord'
-                        ).values_list('uid', flat=True)
-                        for did in discord_ids:
-                            unacked_mentions.append(f'<@{did}>')
-
-            notice_stats.append(
-                {
-                    'notice': notice,
-                    'total': total,
-                    'acked': acked,
-                    'unacked_mentions': unacked_mentions,
-                    'unacked_community_names': unacked_community_names,
-                }
-            )
+        notice_stats = [self._build_notice_stat(notice) for notice in notices]
 
         context.update(
             {
@@ -198,6 +263,73 @@ class ManageNoticeListView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Temp
             }
         )
         return context
+
+    def _build_notice_stat(self, notice) -> dict:
+        # prefetch済みのreceiptsをPython側で集計してN+1を回避
+        receipts = list(notice.receipts.all())
+        total = len(receipts)
+        acked = sum(1 for r in receipts if r.acknowledged_at is not None)
+
+        unacked_mentions = []
+        unacked_community_names = []
+        if notice.requires_ack:
+            unacked_communities = _unacked_communities(receipts)
+            unacked_community_names = [c.name for c in unacked_communities]
+            for community in unacked_communities:
+                unacked_mentions.extend(_community_mentions(community))
+
+        return {
+            'notice': notice,
+            'total': total,
+            'acked': acked,
+            'unacked': total - acked,
+            'acked_percent': round(acked * 100 / total) if total else 0,
+            'scope_label': TARGET_SCOPE_LABELS.get(notice.target_scope, notice.get_target_scope_display()),
+            'unacked_mentions': unacked_mentions,
+            'unacked_community_names': unacked_community_names,
+            'unacked_names_preview': unacked_community_names[:UNACKED_NAMES_PREVIEW_LIMIT],
+            'unacked_names_rest': max(len(unacked_community_names) - UNACKED_NAMES_PREVIEW_LIMIT, 0),
+            'remind_text': _build_remind_text(self.request, notice, unacked_mentions),
+        }
+
+
+def _unacked_communities(receipts) -> list:
+    communities = []
+    seen_community_ids = set()
+    for r in receipts:
+        if r.acknowledged_at is not None:
+            continue
+        community = r.participation.community
+        if community.id in seen_community_ids:
+            continue
+        seen_community_ids.add(community.id)
+        communities.append(community)
+    return communities
+
+
+def _community_mentions(community) -> list[str]:
+    """集会のDiscordメンション文字列を返す"""
+    mention_type = community.discord_mention_type
+    if mention_type == community.DiscordMentionType.ROLE and community.discord_mention_role_id:
+        return [f'<@&{community.discord_mention_role_id}>']
+    if mention_type == community.DiscordMentionType.USERS:
+        return [f'<@{uid}>' for uid in community.discord_mention_user_ids]
+    # メンション未設定: メンバーのDiscord IDからメンション生成
+    member_user_ids = CommunityMember.objects.filter(
+        community=community
+    ).values_list('user_id', flat=True)
+    discord_ids = SocialAccount.objects.filter(
+        user_id__in=member_user_ids, provider='discord'
+    ).values_list('uid', flat=True)
+    return [f'<@{did}>' for did in discord_ids]
+
+
+def _build_remind_text(request, notice, mentions: list[str]) -> str:
+    """Discord に貼ればそのまま使えるリマインド文（メンション + 【要確認】タイトル + 一覧URL）"""
+    path = reverse('vket:notice_list', kwargs={'pk': notice.collaboration_id})
+    url = request.build_absolute_uri(f'{path}?open={notice.id}')
+    lines = [' '.join(mentions), f'【要確認】{notice.title}', url]
+    return '\n'.join(line for line in lines if line)
 
 
 class ManageNoticeCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
@@ -220,15 +352,38 @@ class ManageNoticeCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Vi
         if target_scope not in dict(VketNotice.TargetScope.choices):
             target_scope = VketNotice.TargetScope.ALL_PARTICIPANTS
 
-        notice = VketNotice.objects.create(
-            collaboration=collaboration,
-            title=title,
-            body=body,
-            target_scope=target_scope,
-            requires_ack=requires_ack,
-            created_by=request.user,
-        )
+        with transaction.atomic():
+            # 同じコラボへの作成を直列化し、二重送信の判定と作成の間に割り込ませない
+            VketCollaboration.objects.select_for_update().filter(pk=collaboration.pk).first()
+            if self._recent_duplicate_exists(collaboration, request.user, title):
+                messages.info(request, '同じタイトルのお知らせを作成したばかりのため、もう1件は作りませんでした。')
+                return redirect('vket:manage_notice_list', pk=pk)
 
+            notice = VketNotice.objects.create(
+                collaboration=collaboration,
+                title=title,
+                body=body,
+                target_scope=target_scope,
+                requires_ack=requires_ack,
+                created_by=request.user,
+            )
+            self._create_receipts(notice, collaboration, target_scope)
+
+        messages.success(request, 'お知らせを作成しました。')
+        return redirect('vket:manage_notice_list', pk=pk)
+
+    @staticmethod
+    def _recent_duplicate_exists(collaboration, user, title: str) -> bool:
+        since = timezone.now() - timedelta(seconds=NOTICE_DUPLICATE_WINDOW_SECONDS)
+        return VketNotice.objects.filter(
+            collaboration=collaboration,
+            created_by=user,
+            title=title,
+            created_at__gte=since,
+        ).exists()
+
+    @staticmethod
+    def _create_receipts(notice, collaboration, target_scope: str) -> None:
         # 対象参加者にReceiptを自動生成
         participations = VketParticipation.objects.filter(
             collaboration=collaboration,
@@ -242,9 +397,6 @@ class ManageNoticeCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Vi
             for p in participations
         ]
         VketNoticeReceipt.objects.bulk_create(receipts)
-
-        messages.success(request, 'お知らせを作成しました。')
-        return redirect('vket:manage_notice_list', pk=pk)
 
 
 class ManageNoticeUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
@@ -286,43 +438,33 @@ class AckNoticeView(View):
             VketNoticeReceipt.objects.select_related('notice', 'participation'),
             ack_token=ack_token,
         )
+        is_acked = receipt.acknowledged_at is not None
         return render(
             request,
             self.template_name,
             {
                 'receipt': receipt,
                 'notice': receipt.notice,
-                'already_acked': receipt.acknowledged_at is not None,
+                'already_acked': is_acked,
+                # 今押して確認した直後かどうか（表示の言い分けだけに使い、状態は変えない）
+                'just_acked': is_acked and request.GET.get(ACK_DONE_PARAM) == '1',
                 'collaboration_id': receipt.participation.collaboration_id,
             },
         )
 
     def post(self, request, ack_token):
-        receipt = get_object_or_404(VketNoticeReceipt, ack_token=ack_token)
-        already_acked = receipt.acknowledged_at is not None
-
-        if not already_acked:
-            now = timezone.now()
-            receipt.acknowledged_at = now
-            # ログイン中であれば確認者を記録
-            if request.user.is_authenticated:
-                receipt.acknowledged_by = request.user
-            receipt.save(update_fields=['acknowledged_at', 'acknowledged_by', 'updated_at'])
-
-            # 参加レコードのlast_acknowledged_at/byも更新（進捗管理・監査用）
-            participation = receipt.participation
-            participation.last_acknowledged_at = now
-            if request.user.is_authenticated:
-                participation.last_acknowledged_by = request.user
-            participation.save(update_fields=['last_acknowledged_at', 'last_acknowledged_by', 'updated_at'])
-
-        return render(
-            request,
-            self.template_name,
-            {
-                'receipt': receipt,
-                'notice': receipt.notice,
-                'already_acked': True,
-                'collaboration_id': receipt.participation.collaboration_id,
-            },
+        receipt = get_object_or_404(
+            VketNoticeReceipt.objects.select_related('participation'),
+            ack_token=ack_token,
         )
+        acknowledged = _acknowledge_receipt(receipt, request.user)
+
+        # 自分の集会の受信記録なら一覧へ戻し、残り件数と次の未確認を出す
+        community, _membership = _get_active_membership(request)
+        if community is not None and community.pk == receipt.participation.community_id:
+            return _ack_result_redirect(request, receipt, acknowledged)
+
+        url = reverse('vket:ack_notice', kwargs={'ack_token': receipt.ack_token})
+        if acknowledged:
+            url = f'{url}?{ACK_DONE_PARAM}=1'
+        return redirect(url)

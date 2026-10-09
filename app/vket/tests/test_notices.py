@@ -104,11 +104,11 @@ class VketNoticeTests(TestCase):
         response = self.client.post(
             reverse('vket:ack_notice', kwargs={'ack_token': str(receipt.ack_token)})
         )
-        self.assertEqual(response.status_code, 200)
+        # POST は 200 で再描画せずリダイレクトする（再送信の警告を出さない）
+        self.assertEqual(response.status_code, 302)
 
         receipt.refresh_from_db()
         self.assertIsNotNone(receipt.acknowledged_at)
-        self.assertTrue(response.context['already_acked'])
 
     def test_ack_notice_view_shows_already_acked(self):
         """2回目のアクセスはalready_acked=Trueになる"""

@@ -32,7 +32,7 @@
                         <th style="min-width: 200px;">タイトル</th>
                         <th style="min-width: 100px;">対象</th>
                         <th style="min-width: 80px;">要確認</th>
-                        <th style="min-width: 100px;">ACK状況</th>
+                        <th style="min-width: 240px;">確認状況</th>
                         <th style="min-width: 130px;">作成日時</th>
                         <th style="min-width: 110px;">操作</th>
                     </tr>
@@ -44,7 +44,7 @@
                                 <div class="fw-bold">{{ stat.notice.title }}</div>
                                 <div class="text-muted small">{{ stat.notice.body|truncatechars:60 }}</div>
                             </td>
-                            <td class="small">{{ stat.notice.get_target_scope_display }}</td>
+                            <td class="small">{{ stat.scope_label }}</td>
                             <td class="text-center">
                                 {% if stat.notice.requires_ack %}
                                     <i class="fas fa-check-circle text-success"></i>
@@ -54,13 +54,26 @@
                             </td>
                             <td class="small">
                                 {% if stat.notice.requires_ack and stat.total > 0 %}
-                                    <span class="text-success">{{ stat.acked }}</span>/{{ stat.total }}確認
+                                    <div class="d-flex align-items-baseline gap-2">
+                                        {% if stat.unacked %}
+                                            <span class="fs-6 fw-bold text-danger-emphasis text-nowrap">未確認 {{ stat.unacked }}</span>
+                                        {% else %}
+                                            <span class="fs-6 fw-bold text-success text-nowrap"><i class="fas fa-check-circle me-1"></i>全集会確認済み</span>
+                                        {% endif %}
+                                        <span class="text-muted text-nowrap">{{ stat.acked }}/{{ stat.total }}確認</span>
+                                    </div>
+                                    <div class="progress my-1" style="height: 6px;" role="progressbar"
+                                         aria-label="確認済みの割合" aria-valuenow="{{ stat.acked_percent }}"
+                                         aria-valuemin="0" aria-valuemax="100">
+                                        <div class="progress-bar bg-success" style="width: {{ stat.acked_percent }}%"></div>
+                                    </div>
                                     {% if stat.unacked_community_names %}
-                                        <button class="btn btn-sm btn-outline-warning ms-1 btn-copy-mentions"
-                                                title="未確認: {{ stat.unacked_community_names|join:', ' }}"
-                                                data-mentions="{{ stat.unacked_mentions|join:' ' }}"
-                                                data-names="{{ stat.unacked_community_names|join:', ' }}">
-                                            <i class="fas fa-at"></i>
+                                        <div class="text-muted">
+                                            {{ stat.unacked_names_preview|join:"、" }}{% if stat.unacked_names_rest %} ほか {{ stat.unacked_names_rest }} 集会{% endif %}
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-outline-warning text-dark mt-1 btn-copy-remind"
+                                                data-remind-text="{{ stat.remind_text }}">
+                                            <i class="fas fa-copy me-1"></i>未確認 {{ stat.unacked_community_names|length }} 集会にリマインド文をコピー
                                         </button>
                                     {% endif %}
                                 {% else %}
@@ -110,22 +123,28 @@
                             <div class="modal-body">
                                 <dl class="row small mb-3">
                                     <dt class="col-sm-3">対象</dt>
-                                    <dd class="col-sm-9">{{ stat.notice.get_target_scope_display }}</dd>
+                                    <dd class="col-sm-9">{{ stat.scope_label }}</dd>
                                     <dt class="col-sm-3">要確認</dt>
                                     <dd class="col-sm-9">
                                         {% if stat.notice.requires_ack %}あり{% else %}なし{% endif %}
                                     </dd>
-                                    <dt class="col-sm-3">ACK状況</dt>
+                                    <dt class="col-sm-3">確認状況</dt>
                                     <dd class="col-sm-9">
                                         {% if stat.notice.requires_ack and stat.total > 0 %}
-                                            {{ stat.acked }}/{{ stat.total }}確認
+                                            未確認 {{ stat.unacked }}（{{ stat.acked }}/{{ stat.total }}確認）
                                         {% else %}
                                             <span class="text-muted">--</span>
                                         {% endif %}
                                     </dd>
                                     {% if stat.unacked_community_names %}
-                                        <dt class="col-sm-3">未確認集会</dt>
-                                        <dd class="col-sm-9">{{ stat.unacked_community_names|join:', ' }}</dd>
+                                        <dt class="col-sm-3">未確認の集会</dt>
+                                        <dd class="col-sm-9">
+                                            <ul class="list-unstyled mb-0 unacked-community-list">
+                                                {% for name in stat.unacked_community_names %}
+                                                    <li><i class="fas fa-circle-exclamation text-warning me-1"></i>{{ name }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </dd>
                                     {% endif %}
                                     <dt class="col-sm-3">作成日時</dt>
                                     <dd class="col-sm-9">{{ stat.notice.created_at|date:"Y/m/d H:i" }}</dd>
@@ -156,9 +175,10 @@
                 </div>
                 <div class="modal-body">
                     <p class="text-muted small">
-                        ACK確認が必要な場合は「確認必須」にチェックを入れてください。
+                        主催者に「確認しました」を押してもらいたい時は「確認必須」にチェックを入れてください。
                     </p>
-                    <form method="post" action="{% url 'vket:manage_notice_create' collaboration.id %}" id="noticeCreateForm">
+                    <form method="post" action="{% url 'vket:manage_notice_create' collaboration.id %}" id="noticeCreateForm"
+                          class="js-submit-once" data-loading-text="作成中…">
                         {% csrf_token %}
                         <div class="mb-3">
                             <label class="form-label fw-bold">タイトル <span class="text-danger">*</span></label>
@@ -175,14 +195,14 @@
                                 <label class="form-label fw-bold">配信対象</label>
                                 <select name="target_scope" class="form-select">
                                     <option value="all">全参加者</option>
-                                    <option value="unacked">未確認者のみ</option>
+                                    <option value="unacked">まだ一度も確認していない参加者</option>
                                 </select>
                             </div>
                             <div class="col-12 col-md-6 d-flex align-items-end">
                                 <div class="form-check">
                                     <input class="form-check-input" type="checkbox" name="requires_ack" id="requiresAck" value="1" checked>
                                     <label class="form-check-label fw-bold" for="requiresAck">
-                                        確認必須（ACKリンクを含める）
+                                        確認必須（主催者の一覧に「確認しました」ボタンを出す）
                                     </label>
                                 </div>
                             </div>
@@ -210,7 +230,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form method="post" id="noticeEditForm">
+                    <form method="post" id="noticeEditForm" class="js-submit-once" data-loading-text="更新中…">
                         {% csrf_token %}
                         <div class="mb-3">
                             <label class="form-label fw-bold">タイトル <span class="text-danger">*</span></label>
@@ -232,6 +252,15 @@
         </div>
     </div>
 
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="copyToast" class="toast align-items-center text-bg-dark border-0" role="status" aria-live="polite" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body"></div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="閉じる"></button>
+            </div>
+        </div>
+    </div>
+
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         const editModal = document.getElementById('noticeEditModal');
@@ -242,31 +271,50 @@
             document.getElementById('noticeEditForm').action = button.getAttribute('data-edit-url');
         });
 
-        document.querySelectorAll('.btn-copy-mentions').forEach(function(btn) {
+        document.querySelectorAll('form.js-submit-once').forEach(function(form) {
+            form.addEventListener('submit', function() {
+                var btn = form.querySelector('button[type="submit"]');
+                btn.dataset.originalHtml = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>'
+                    + form.dataset.loadingText;
+            });
+        });
+        // 戻るボタンで戻った時に送信ボタンが押せないまま残らないようにする
+        window.addEventListener('pageshow', function() {
+            document.querySelectorAll('form.js-submit-once button[type="submit"]').forEach(function(btn) {
+                if (!btn.dataset.originalHtml) { return; }
+                btn.disabled = false;
+                btn.innerHTML = btn.dataset.originalHtml;
+            });
+        });
+
+        var toastEl = document.getElementById('copyToast');
+        function showCopyToast(message) {
+            toastEl.querySelector('.toast-body').textContent = message;
+            bootstrap.Toast.getOrCreateInstance(toastEl, {delay: 2500}).show();
+        }
+        function copyText(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                return navigator.clipboard.writeText(text);
+            }
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return ok ? Promise.resolve() : Promise.reject();
+        }
+        document.querySelectorAll('.btn-copy-remind').forEach(function(btn) {
             btn.addEventListener('click', function() {
-                const text = this.getAttribute('data-mentions');
-                function onSuccess() {
-                    btn.classList.replace('btn-outline-warning', 'btn-success');
-                    var icon = btn.querySelector('i');
-                    icon.classList.replace('fa-at', 'fa-check');
-                    setTimeout(function() {
-                        btn.classList.replace('btn-success', 'btn-outline-warning');
-                        icon.classList.replace('fa-check', 'fa-at');
-                    }, 1500);
-                }
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(text).then(onSuccess);
-                } else {
-                    var ta = document.createElement('textarea');
-                    ta.value = text;
-                    ta.style.position = 'fixed';
-                    ta.style.opacity = '0';
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-                    onSuccess();
-                }
+                copyText(btn.getAttribute('data-remind-text')).then(function() {
+                    showCopyToast('リマインド文をコピーしました。Discord に貼り付けて送ってください。');
+                }, function() {
+                    showCopyToast('コピーできませんでした。もう一度お試しください。');
+                });
             });
         });
     });
