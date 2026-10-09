@@ -1,0 +1,3 @@
+# 本体のロックを制約にする（Dependabot は --constraint をヘッダーから引き継がないので、ファイル内に書く）
+-c requirements.txt
+playwright==1.61.0
