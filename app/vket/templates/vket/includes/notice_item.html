@@ -1,0 +1,51 @@
+{% load markdown_extras %}
+{% with notice=receipt.notice is_open=receipt.is_open %}
+<div class="accordion-item">
+    <h3 class="accordion-header">
+        <button class="accordion-button{% if not is_open %} collapsed{% endif %}" type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#notice-{{ notice.id }}"
+                aria-expanded="{% if is_open %}true{% else %}false{% endif %}"
+                aria-controls="notice-{{ notice.id }}">
+            <span class="d-flex justify-content-between align-items-center gap-2 w-100 me-2">
+                <span class="notice-title-text">
+                    <span class="fw-bold">{{ notice.title }}</span>
+                    <span class="text-muted small text-nowrap ms-1">{{ receipt.created_at|date:"Y/m/d" }}</span>
+                </span>
+                {% if notice.requires_ack %}
+                    {% if receipt.acknowledged_at %}
+                        <span class="badge bg-success flex-shrink-0">
+                            <i class="fas fa-check me-1"></i>確認済み
+                        </span>
+                    {% else %}
+                        <span class="badge bg-warning text-dark flex-shrink-0">
+                            <i class="fas fa-exclamation-circle me-1"></i>要確認
+                        </span>
+                    {% endif %}
+                {% endif %}
+            </span>
+        </button>
+    </h3>
+    <div id="notice-{{ notice.id }}" class="accordion-collapse collapse{% if is_open %} show{% endif %}"
+         data-bs-parent="#{{ accordion_id }}">
+        <div class="accordion-body">
+            <div class="notice-body">{{ notice.body|markdown }}</div>
+            {% if notice.requires_ack and not receipt.acknowledged_at %}
+                <form method="post" action="{% url 'vket:notice_list_ack' collaboration.pk receipt.pk %}"
+                      data-loading-text="送信中…"
+                      class="notice-ack-form js-submit-once border-top pt-3 mt-3 d-flex flex-wrap align-items-center gap-2">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success fw-bold text-nowrap">
+                        <i class="fas fa-check me-1"></i>確認しました
+                    </button>
+                    <span class="text-muted small">内容を読んだら押してください。</span>
+                </form>
+            {% elif receipt.acknowledged_at %}
+                <div class="mt-2 text-muted small">
+                    <i class="fas fa-check me-1"></i>{{ receipt.acknowledged_at|date:"Y/m/d H:i" }} に確認済み
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endwith %}

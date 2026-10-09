@@ -17,6 +17,7 @@ from ..models import (
     VketParticipation,
     VketPresentation,
 )
+from .notice import _unacked_receipts
 from .helpers import (
     _build_schedule_context,
     _get_active_membership,
@@ -155,10 +156,12 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 )
 
         unacked_count = 0
+        first_unacked_notice_id = None
         if participation:
-            unacked_count = participation.notice_receipts.filter(
-                notice__requires_ack=True, acknowledged_at__isnull=True
-            ).count()
+            unacked = _unacked_receipts(participation)
+            unacked_count = unacked.count()
+            # 警告から最初の未確認お知らせを直接開くため（一覧の並びと同じ新しい順）
+            first_unacked_notice_id = unacked.values_list('notice_id', flat=True).first()
 
         # progressの選択肢をリスト化してテンプレートに渡す
         progress_steps = [
@@ -197,6 +200,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'progress_steps': progress_steps,
                 'latest_notices': latest_notices,
                 'unacked_count': unacked_count,
+                'first_unacked_notice_id': first_unacked_notice_id,
                 'collaborations': collaborations,
                 'is_admin': _is_vket_admin(request.user),
                 'stage_url': _resolve_stage_url(collaboration),
