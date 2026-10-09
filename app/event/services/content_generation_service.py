@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
+from django.db import transaction
 from openai import OpenAI
 from openai.types.chat import (
     ChatCompletionMessageParam,
@@ -35,6 +36,14 @@ logger = logging.getLogger(__name__)
 MAX_SOURCE_TEXT_CHARS = 40_000
 # 文字起こし + PDF の合算上限。文字起こしを優先し、PDF は残り予算だけ使う。
 MAX_COMBINED_SOURCE_CHARS = 60_000
+# 生成結果を保存する時の列の長さ（これを超えると MySQL で DataError になる）
+H1_MAX_LENGTH = EventDetail._meta.get_field('h1').max_length
+META_DESCRIPTION_MAX_LENGTH = EventDetail._meta.get_field('meta_description').max_length
+
+# save_generated_article の結果
+SAVED = 'saved'
+EMPTY = 'empty'
+REFUSED = 'refused'
 
 
 class BlogOutput(BaseModel):
@@ -79,28 +88,49 @@ def _used_sources_after_generation(event_detail: EventDetail) -> tuple[str, str]
     return (video_id if transcript_used else ''), slide_name
 
 
-def apply_blog_output_to_event_detail(event_detail: EventDetail, blog_output: BlogOutput) -> bool:
-    """記事生成結果とPDFサムネイルをEventDetailに反映する.
+def set_generated_article(event_detail: EventDetail, blog_output: BlogOutput,
+                          used_sources: tuple[str, str]) -> list[str]:
+    """生成した記事を列に入れ、生成元と本文のハッシュを記録して生成待ちの印を外す。
 
-    生成元と本文のハッシュも記録し、生成待ちの印を外す（自動生成のままの記事として扱う）。
+    LLM が列の長さを超えるタイトル・要約を返すことがあるので切り詰める（MySQL で DataError になるため）。
+
+    Returns:
+        ``save(update_fields=...)`` に渡す列名（記事の列と、生成の記録の列だけ）。
+    """
+    event_detail.h1 = blog_output.title[:H1_MAX_LENGTH]
+    event_detail.contents = blog_output.text
+    event_detail.meta_description = blog_output.meta_description[:META_DESCRIPTION_MAX_LENGTH]
+    return [
+        'h1', 'contents', 'meta_description', 'updated_at',
+        *event_detail.record_generated_article(used_sources=used_sources),
+    ]
+
+
+def save_generated_article(event_detail: EventDetail, blog_output: BlogOutput) -> str:
+    """生成ボタンや保存と同時の生成の結果を保存する。
+
+    LLM を待つ間（10〜20 秒）に発表者が記事化を NG に変えることがあるので、行ロックで読み直して
+    NG なら書かない。書くのは記事の列と生成の記録の列だけで、呼ぶ前に読んだ古い値で他の列を戻さない。
+    サムネイルはストレージに書くので、保存が確定した後に作る。
 
     Args:
-        event_detail: 更新対象のイベント詳細
+        event_detail: 生成に使ったイベント詳細（字幕のキャッシュが入っている）
         blog_output: 記事生成結果
 
     Returns:
-        記事タイトルがあり、反映した場合はTrue
+        ``SAVED``（保存した）/ ``EMPTY``（生成結果が空）/ ``REFUSED``（記事化 NG になっていた）
     """
     if not blog_output.title:
-        return False
-
-    event_detail.h1 = blog_output.title
-    event_detail.contents = blog_output.text
-    event_detail.meta_description = blog_output.meta_description
-    event_detail.record_generated_article(used_sources=_used_sources_after_generation(event_detail))
-    if not event_detail.thumbnail_image:
-        ensure_pdf_thumbnail(event_detail)
-    return True
+        return EMPTY
+    used_sources = _used_sources_after_generation(event_detail)
+    with transaction.atomic():
+        current = EventDetail.all_objects.select_for_update().get(pk=event_detail.pk)
+        if current.is_article_ng:
+            return REFUSED
+        current.save(update_fields=set_generated_article(current, blog_output, used_sources))
+    if not current.thumbnail_image:
+        ensure_pdf_thumbnail(current, save=True)
+    return SAVED
 
 
 def _copy_uploaded_file_to_temp_path(uploaded_file, *, suffix: str = '.pdf') -> str:
@@ -187,6 +217,16 @@ def _get_transcript_with_cache(event_detail: EventDetail) -> Optional[str]:
         logger.warning(f"No transcript found for video {video_id}")
 
     return transcript
+
+
+def fetch_transcript(event_detail: EventDetail) -> Optional[str]:
+    """YouTube 動画の字幕をキャッシュ優先で取る。動画が無い時は取りに行かずに空文字。
+
+    取れた字幕はキャッシュされるので、続けて collect_blog_sources を呼んでも YouTube API は呼ばない。
+    """
+    if not event_detail.video_id:
+        return ''
+    return _get_transcript_with_cache(event_detail)
 
 
 def _read_slide_text(event_detail: EventDetail, max_chars: int) -> str:

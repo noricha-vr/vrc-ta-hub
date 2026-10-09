@@ -7,14 +7,17 @@ import re
 from datetime import date, timedelta
 from unittest.mock import patch
 
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages import get_messages
 from django.core.cache import cache
-from django.test import TestCase
+from django.template.loader import render_to_string
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
 from event.forms import EventDetailForm, LTApplicationEditForm
-from event.models import EventDetail
+from event.models import EventDetail, related_event_details_cache_key
 from event.services.content_generation_service import BlogOutput
+from ta_hub.index_cache import build_index_database_context, get_index_view_cache_key
 from tests.factories import (
     make_community,
     make_discord_linked_user,
@@ -383,14 +386,20 @@ class ArticleNgOtherScreensTest(TestCase):
         self.assertNotContains(response, self.BODY)
         self.assertNotContains(response, '</i>記事</span>')
 
+    def _set_ng_consent(self, consent):
+        """発表者の編集と同じく save() で同意を変える（保存のシグナルが関連一覧のキャッシュを消す）。"""
+        detail = EventDetail.objects.get(pk=self.ng.pk)
+        detail.article_consent = consent
+        detail.save()
+
     def test_related_list_hides_ng_title_even_when_cached(self):
         """関連一覧のキャッシュを作った後に NG に変わっても、その h1 を出さない。"""
         other = make_event_detail(self.event, status='approved', theme='別の発表', h1='別の発表の記事')
         url = reverse('event:detail', kwargs={'pk': other.pk})
-        EventDetail.objects.filter(pk=self.ng.pk).update(article_consent=ArticleConsent.OK)
+        self._set_ng_consent(ArticleConsent.OK)
         self.assertContains(self.client.get(url), self.H1)
 
-        EventDetail.objects.filter(pk=self.ng.pk).update(article_consent=ArticleConsent.NG)
+        self._set_ng_consent(ArticleConsent.NG)
 
         self.assertNotContains(self.client.get(url), self.H1)
 
@@ -400,6 +409,90 @@ class ArticleNgOtherScreensTest(TestCase):
         response = self.client.get(reverse('event:detail', kwargs={'pk': other.pk}))
 
         self.assertNotContains(response, self.H1)
+
+    def test_related_list_cache_does_not_hide_the_first_viewed_detail(self):
+        """最初に見た発表を除いた結果をキャッシュしない（同じ集会の他のページでは、その発表も出す）。"""
+        first = make_event_detail(self.event, status='approved', theme='最初の発表', h1='最初に見た発表の記事')
+        second = make_event_detail(self.event, status='approved', theme='次の発表', h1='次に見た発表の記事')
+
+        first_page = self.client.get(reverse('event:detail', kwargs={'pk': first.pk}))
+        second_page = self.client.get(reverse('event:detail', kwargs={'pk': second.pk}))
+
+        self.assertContains(first_page, '次に見た発表の記事')
+        self.assertContains(second_page, '最初に見た発表の記事')
+        related_ids = [item['id'] for item in second_page.context['related_event_details']]
+        self.assertNotIn(second.pk, related_ids)
+
+    def test_related_cache_is_cleared_only_when_title_or_consent_changes(self):
+        """h1 か記事化の同意が変わった時だけ、集会の関連一覧のキャッシュを消す（読むたびに問い合わせない）。"""
+        other = make_event_detail(self.event, status='approved', theme='別の発表', h1='別の発表の記事')
+        key = related_event_details_cache_key(self.community.pk)
+        self.client.get(reverse('event:detail', kwargs={'pk': other.pk}))
+        self.assertIsNotNone(cache.get(key))
+
+        other.theme = 'テーマだけ直した'
+        other.save()
+        self.assertIsNotNone(cache.get(key))
+
+        other.h1 = '直した記事のタイトル'
+        other.save()
+        self.assertIsNone(cache.get(key))
+
+        self.client.get(reverse('event:detail', kwargs={'pk': other.pk}))
+        self._set_ng_consent(ArticleConsent.OK)
+        self.assertIsNone(cache.get(key))
+
+    def test_search_does_not_match_ng_title(self):
+        """発表一覧の検索は、記事化 NG の発表の記事のタイトル（h1）では当てない。"""
+        by_title = self.client.get(reverse('event:detail_history'), {'q': '一覧に出してはいけない記事'})
+        by_theme = self.client.get(reverse('event:detail_history'), {'q': 'NG の発表のテーマ'})
+
+        self.assertNotIn(self.ng, list(by_title.context['event_details']))
+        self.assertIn(self.ng, list(by_theme.context['event_details']))
+        self.assertNotContains(by_theme, self.H1)
+
+    def test_community_page_hides_ng_article(self):
+        """集会ページの「記事・特別企画」も、記事化 NG ならタイトル（h1）と要約を出さない。"""
+        make_event_detail(
+            self.event, detail_type='SPECIAL', status='approved', theme='特別企画のテーマ',
+            h1='出してはいけない特別企画の記事', meta_description='出してはいけない特別企画の要約',
+            article_consent=ArticleConsent.NG,
+        )
+
+        response = self.client.get(reverse('community:detail', kwargs={'pk': self.community.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '特別企画のテーマ')
+        self.assertNotContains(response, '出してはいけない特別企画の記事')
+        self.assertNotContains(response, '出してはいけない特別企画の要約')
+
+
+class IndexSpecialArticleNgTest(TestCase):
+    """トップページの特別企画も、記事化 NG ならタイトル（h1）と要約を出さない。"""
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        self.day = date.today() + timedelta(days=1)
+        community = make_community(name='トップの集会', poster_image='community/poster.png')
+        self.special = make_event_detail(
+            make_event(community, event_date=self.day), detail_type='SPECIAL', status='approved',
+            theme='トップの特別企画のテーマ', h1='トップに出してはいけない記事',
+            meta_description='トップに出してはいけない要約', article_consent=ArticleConsent.NG,
+        )
+
+    def test_index_hides_ng_special_article(self):
+        request = RequestFactory().get('/')
+        request.user = AnonymousUser()
+        context = build_index_database_context(request, self.day, get_index_view_cache_key(self.day))
+
+        special = context['special_events'][0]
+        self.assertEqual(special['title'], 'トップの特別企画のテーマ')
+        self.assertEqual(special['meta_description'], '')
+        html = render_to_string('ta_hub/index.html', context, request=request)
+        self.assertIn('トップの特別企画のテーマ', html)
+        self.assertNotIn('トップに出してはいけない記事', html)
+        self.assertNotIn('トップに出してはいけない要約', html)
 
 
 class EventDetailPageArticleConsentTest(TestCase):

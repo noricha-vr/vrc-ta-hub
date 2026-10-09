@@ -11,7 +11,7 @@ from analytics import services as analytics_services
 from analytics.models import PageAnalytics
 from community.constants import WEEKDAY_CHOICES
 from event.services.markdown_processor import convert_markdown
-from event.models import EventDetail
+from event.models import EventDetail, related_event_details_cache_key
 from event.views.helpers import (
     can_manage_event_detail,
     extract_video_info,
@@ -21,6 +21,9 @@ from utils.vrchat_time import get_vrchat_today
 from website.constants import CACHE_TTL_HOUR
 
 logger = logging.getLogger(__name__)
+
+# 「他の発表もチェック！」に出す件数
+RELATED_ITEMS = 6
 
 
 class EventDetailView(DetailView):
@@ -198,43 +201,30 @@ class EventDetailView(DetailView):
             ),
         }
 
-    def _fetch_related_event_details(self, event_detail: EventDetail) -> List[EventDetail]:
-        # キャッシュキーを生成
-        cache_key = f'related_event_details_{event_detail.event_id}'
+    def _fetch_related_event_details(self, event_detail: EventDetail) -> List[Dict]:
+        """同じ集会の、記事のある他の発表（新しい順に最大 RELATED_ITEMS 件）。
+
+        中身は集会ごとに決まるので集会単位で 1 時間キャッシュし、表示中の発表はキャッシュを読んだ後に除く
+        （除いた結果をキャッシュすると、最初に見た発表が同じ集会の他のページで出なくなる）。
+        h1 か記事化の同意が変わるとキャッシュは event.signals が消す。
+        """
+        cache_key = related_event_details_cache_key(event_detail.event.community_id)
         related_event_details = cache.get(cache_key)
-        if related_event_details is not None:
-            # キャッシュした後に記事化 NG に変わった発表の h1 を出さない
-            return _without_article_ng(related_event_details)
-
-        max_related_items = 6
-        # キャッシュがない場合のみDBクエリを実行。記事化 NG の発表は記事のタイトル（h1）を出さないので除く
-        related_event_details = list(
-            EventDetail.objects
-            .filter(
-                event__community=event_detail.event.community,
-                status='approved',
-                h1__isnull=False,
-                h1__gt=''  # より効率的な空文字列の除外
+        if related_event_details is None:
+            # 表示中の発表を後で除いても RELATED_ITEMS 件残るよう、1 件多く取る。
+            # 記事化 NG の発表は記事のタイトル（h1）を出さないので除く
+            related_event_details = list(
+                EventDetail.objects
+                .filter(
+                    event__community_id=event_detail.event.community_id,
+                    status='approved',
+                    h1__isnull=False,
+                    h1__gt=''  # より効率的な空文字列の除外
+                )
+                .exclude(article_consent=EventDetail.ArticleConsent.NG)
+                .order_by('-created_at')
+                .values('id', 'h1')[:RELATED_ITEMS + 1]
             )
-            .exclude(id=event_detail.id)
-            .exclude(article_consent=EventDetail.ArticleConsent.NG)
-            .order_by('-created_at')
-            .values('id', 'h1')[:max_related_items]
-        )
+            cache.set(cache_key, related_event_details, CACHE_TTL_HOUR)
 
-        # 1時間キャッシュする
-        cache.set(cache_key, related_event_details, CACHE_TTL_HOUR)
-        return related_event_details
-
-
-def _without_article_ng(related_event_details: List[Dict]) -> List[Dict]:
-    """関連の発表から、今は記事化 NG の発表を除く（キャッシュの寿命中に同意が変わっても出さない）。"""
-    if not related_event_details:
-        return related_event_details
-    ng_ids = set(
-        EventDetail.objects.filter(
-            pk__in=[item['id'] for item in related_event_details],
-            article_consent=EventDetail.ArticleConsent.NG,
-        ).values_list('pk', flat=True)
-    )
-    return [item for item in related_event_details if item['id'] not in ng_ids]
+        return [item for item in related_event_details if item['id'] != event_detail.id][:RELATED_ITEMS]

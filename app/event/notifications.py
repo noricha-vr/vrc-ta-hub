@@ -204,11 +204,16 @@ def notify_applicant_of_result(
     _send_discord_notification_for_result(event_detail, schedule_changes)
 
 
-def notify_applicant_of_article_published(event_detail: EventDetail) -> None:
+def notify_applicant_of_article_published(event_detail: EventDetail, recipient) -> None:
     """自動生成した記事を発表者に知らせる（申請結果の通知と同じくメールと集会の Discord）。
 
     メールには確認・修正用の編集ページへのリンクを入れる。承認前の発表は記事がまだ公開されないため、
     メールの文面を「作成しました」に変え、集会の Discord には流さない。
+
+    Args:
+        event_detail: 記事を作った発表
+        recipient: メールの宛先。発表者本人（Vket 由来の発表は申し込んだ人）。
+            呼び出し側が event.material_upload_reminders.get_material_reminder_recipient で決める。
     """
     is_published = event_detail.status == 'approved'
     edit_url = build_site_url(
@@ -216,19 +221,18 @@ def notify_applicant_of_article_published(event_detail: EventDetail) -> None:
     )
     article_url = build_site_url(reverse('event:detail', kwargs={'pk': event_detail.pk}))
 
-    _send_article_published_email(event_detail, edit_url, article_url, is_published)
+    _send_article_published_email(event_detail, recipient, edit_url, article_url, is_published)
     if is_published:
         _send_discord_notification_for_article(event_detail, edit_url, article_url)
 
 
 def _send_article_published_email(
-    event_detail: EventDetail, edit_url: str, article_url: str, is_published: bool
+    event_detail: EventDetail, recipient, edit_url: str, article_url: str, is_published: bool
 ) -> None:
     """記事を作成したことを発表者にメールで知らせる."""
-    applicant = event_detail.applicant
-    if not applicant or not applicant.email:
+    if not recipient or not recipient.email:
         logger.warning(
-            "記事公開通知: 申請者またはメールアドレスがありません。EventDetail ID=%s",
+            "記事公開通知: 宛先またはメールアドレスがありません。EventDetail ID=%s",
             event_detail.pk,
         )
         return
@@ -236,7 +240,7 @@ def _send_article_published_email(
     community = event_detail.event.community
     action = '公開しました' if is_published else '作成しました'
     context = {
-        'applicant': applicant,
+        'applicant': recipient,
         'community': community,
         'event_detail': event_detail,
         'edit_url': edit_url,
@@ -250,7 +254,7 @@ def _send_article_published_email(
             subject=f"[{community.name}] 発表の記事を{action}",
             message='',
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[applicant.email],
+            recipient_list=[recipient.email],
             html_message=html_message,
         )
         if sent:

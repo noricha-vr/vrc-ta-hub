@@ -7,7 +7,7 @@ from django.urls import reverse_lazy
 from django.views.generic import CreateView, UpdateView, DeleteView
 
 from event.forms import EventDetailForm
-from event.services.content_generation_service import apply_blog_output_to_event_detail, generate_blog
+from event.services.content_generation_service import REFUSED, SAVED, generate_blog, save_generated_article
 from event.models import Event, EventDetail
 from event.views.helpers import can_manage_event_detail
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
@@ -16,6 +16,24 @@ from website.settings import GEMINI_MODEL
 logger = logging.getLogger(__name__)
 
 ARTICLE_QUEUED_MESSAGE = "記事は自動で作成します。できあがったら発表者にメールでお知らせします。"
+ARTICLE_REFUSED_MESSAGE = "生成している間に発表者が記事化を NG にしたため、記事は保存しませんでした。"
+
+
+def _save_and_report(request, event_detail: EventDetail, blog_output) -> None:
+    """生成結果を保存し、結果をメッセージで知らせる。
+
+    保存は記事の列だけを書き、生成を待つ間に記事化が NG になっていたら書かない
+    （save_generated_article）。フォームのインスタンスをそのまま save() すると古い値で戻すため。
+    """
+    outcome = save_generated_article(event_detail, blog_output)
+    if outcome == SAVED:
+        messages.success(request, "記事を自動生成しました。")
+        logger.info(f"記事を自動生成しました: {event_detail.id}")
+    elif outcome == REFUSED:
+        messages.error(request, ARTICLE_REFUSED_MESSAGE)
+    else:
+        logger.warning(f"記事の自動生成に失敗しました（空の結果）: {event_detail.id}")
+        messages.warning(request, "記事の自動生成に失敗しました。")
 
 
 def _should_generate_on_save(form) -> bool:
@@ -70,14 +88,7 @@ class EventDetailCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Cre
             try:
                 from event.services.content_generation_service import generate_blog as generate_blog_func
                 blog_output = generate_blog_func(form.instance, model=GEMINI_MODEL)
-                # 空でないことを確認
-                if apply_blog_output_to_event_detail(form.instance, blog_output):
-                    form.instance.save()
-                    messages.success(self.request, "記事を自動生成しました。")
-                    logger.info(f"記事を自動生成しました: {form.instance.id}")
-                else:
-                    logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
-                    messages.warning(self.request, "記事の自動生成に失敗しました。")
+                _save_and_report(self.request, form.instance, blog_output)
             except Exception:
                 # silent failure: 記事生成失敗はユーザー操作 (詳細作成) を止めない設計。
                 # Sentry で連発検知できるよう is_silent=True を付与する。
@@ -136,14 +147,7 @@ class EventDetailUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Upd
         if _should_generate_on_save(form):
             try:
                 blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
-                # 空でないことを確認
-                if apply_blog_output_to_event_detail(form.instance, blog_output):
-                    form.instance.save()
-                    messages.success(self.request, "記事を自動生成しました。")
-                    logger.info(f"記事を自動生成しました: {form.instance.id}")
-                else:
-                    logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
-                    messages.warning(self.request, "記事の自動生成に失敗しました。")
+                _save_and_report(self.request, form.instance, blog_output)
             except Exception:
                 # silent failure: 更新操作で記事生成が失敗してもフォーム送信は成功させる。
                 # Sentry/監視で同種エラー連発を検知できるよう is_silent=True を付与。

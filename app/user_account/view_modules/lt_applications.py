@@ -90,16 +90,27 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
         )
 
     def _generate_now(self, instance):
-        """保存と同時に記事を作る（記事化が未回答の発表のこれまでの動き）。"""
+        """保存と同時に記事を作る（記事化が未回答の発表のこれまでの動き）。
+
+        保存は記事の列だけを書き、生成を待つ間に記事化が NG になっていたら書かない
+        （save_generated_article）。instance をそのまま save() すると古い値で戻すため。
+        """
         try:
             from django.conf import settings as django_settings
-            from event.services.content_generation_service import apply_blog_output_to_event_detail, generate_blog
+            from event.services.content_generation_service import (
+                REFUSED,
+                SAVED,
+                generate_blog,
+                save_generated_article,
+            )
 
             blog_output = generate_blog(instance, model=django_settings.GEMINI_MODEL)
-            if apply_blog_output_to_event_detail(instance, blog_output):
-                instance.save()
+            outcome = save_generated_article(instance, blog_output)
+            if outcome == SAVED:
                 messages.success(self.request, "発表申請情報を更新し、記事を自動生成しました。")
                 logger.info(f"記事を自動生成しました: {instance.id}")
+            elif outcome == REFUSED:
+                messages.warning(self.request, "発表申請情報を更新しました。記事化が NG のため、記事は保存しませんでした。")
             else:
                 logger.warning(f"記事の自動生成に失敗しました（空の結果）: {instance.id}")
                 messages.warning(self.request, "発表申請情報を更新しましたが、記事の自動生成に失敗しました。")

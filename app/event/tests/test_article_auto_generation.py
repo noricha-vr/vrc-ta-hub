@@ -7,17 +7,26 @@ import json
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
-from django.db import connection
+from django.db import DatabaseError, connection
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
 from event.forms import EventDetailForm, LTApplicationEditForm
-from event.models import EventDetail, article_body_hash, youtube_video_id
+from event.models import EventDetail, article_body_hash
 from event.services import article_generation
 from event.services.article_generation import MAX_ATTEMPTS, process_article_generation_queue
+from event.services.content_generation_service import (
+    REFUSED,
+    SAVED,
+    BlogOutput,
+    save_generated_article,
+)
+from event.views.helpers import extract_video_id
+from event.youtube_urls import youtube_video_id
 from tests.factories import make_community, make_event, make_event_detail, make_user
+from vket.models import VketCollaboration, VketParticipation, VketPresentation
 
 ArticleConsent = EventDetail.ArticleConsent
 ArticleState = EventDetail.ArticleState
@@ -109,26 +118,39 @@ class ArticleBodyHashTest(TestCase):
 class YouTubeVideoIdTest(SimpleTestCase):
     """動画 ID は YouTube の URL からだけ取り出す（Discord のメッセージリンクは動画なし）。"""
 
+    VIDEO_URLS = (
+        f'https://www.youtube.com/watch?v={VIDEO_ID}',
+        f'https://www.youtube.com/watch?v={VIDEO_ID}?t=123',  # ? が 2 つある崩れた URL
+        f'https://youtu.be/{VIDEO_ID}?t=30',
+        f'https://www.youtube.com/live/{VIDEO_ID}?si=share',
+        f'https://m.youtube.com/watch?v={VIDEO_ID}&t=1m',
+        f'https://www.youtube.com/shorts/{VIDEO_ID}',
+        f'https://www.youtube.com/embed/{VIDEO_ID}',
+    )
+    NOT_VIDEO_URLS = (
+        'https://discord.com/channels/123456789012345678/234567890123456789/345678901234567890',
+        f'https://example.com/watch?v={VIDEO_ID}',
+        'https://www.youtube.com/channel/UCabcdefghijklmnopqrstuv',
+        'https://www.youtube.com/@handle',
+        '',
+        None,
+    )
+
     def test_youtube_urls(self):
-        for url in (
-            f'https://www.youtube.com/watch?v={VIDEO_ID}',
-            f'https://youtu.be/{VIDEO_ID}?t=30',
-            f'https://www.youtube.com/live/{VIDEO_ID}?si=share',
-            f'https://m.youtube.com/watch?v={VIDEO_ID}&t=1m',
-            f'https://www.youtube.com/shorts/{VIDEO_ID}',
-        ):
+        for url in self.VIDEO_URLS:
             with self.subTest(url=url):
                 self.assertEqual(youtube_video_id(url), VIDEO_ID)
 
     def test_non_youtube_urls(self):
-        for url in (
-            'https://discord.com/channels/123456789012345678/234567890123456789/345678901234567890',
-            f'https://example.com/watch?v={VIDEO_ID}',
-            '',
-            None,
-        ):
+        for url in self.NOT_VIDEO_URLS:
             with self.subTest(url=url):
                 self.assertIsNone(youtube_video_id(url))
+
+    def test_detail_page_and_model_agree(self):
+        """詳細ページの埋め込み（extract_video_id）と EventDetail.video_id の判定が同じ。"""
+        for url in self.VIDEO_URLS + self.NOT_VIDEO_URLS:
+            with self.subTest(url=url):
+                self.assertEqual(extract_video_id(url), EventDetail(youtube_url=url).video_id)
 
 
 class PreviousValuesTest(TestCase):
@@ -339,6 +361,44 @@ class ArticleGenerationRequestTest(TestCase):
 
                 self.assertIsNone(self._requested_at(detail))
 
+    def test_marks_when_rejected_presentation_is_approved(self):
+        """却下から承認に変わって対象になった時も印を付ける（承認画面と同じ update_fields）。"""
+        detail = self._detail(status='rejected', youtube_url=VIDEO_URL)
+        self.assertIsNone(self._requested_at(detail))
+
+        detail.status = 'approved'
+        detail.save(update_fields=['status', 'updated_at'])
+
+        self.assertIsNotNone(self._requested_at(detail))
+
+    def test_marks_when_restored_from_soft_delete(self):
+        """論理削除から復元して対象に戻った時も印を付ける（restore の update_fields は deleted_at だけ）。"""
+        detail = self._detail(youtube_url=VIDEO_URL)
+        detail.soft_delete()
+        EventDetail.all_objects.filter(pk=detail.pk).update(article_generation_requested_at=None)
+
+        detail.restore()
+
+        self.assertIsNotNone(self._requested_at(detail))
+
+    def test_marks_when_detail_type_becomes_presentation(self):
+        detail = self._detail(detail_type='SPECIAL', youtube_url=VIDEO_URL)
+        self.assertIsNone(self._requested_at(detail))
+
+        detail.detail_type = 'LT'
+        detail.save()
+
+        self.assertIsNotNone(self._requested_at(detail))
+
+    def test_does_not_mark_when_target_saves_without_input_change(self):
+        """対象のまま入力も変わらない保存（テーマの修正など）では印を付けない。"""
+        detail = self._as_generated(self._detail(youtube_url=VIDEO_URL))
+
+        detail.theme = '直したテーマ'
+        detail.save()
+
+        self.assertIsNone(self._requested_at(detail))
+
     def test_marks_emptied_article_when_input_changes(self):
         """記事を空にした後に入力が変われば、ハッシュが残っていても作り直す（手動扱いで固定しない）。"""
         detail = self._as_generated(self._detail(youtube_url=VIDEO_URL))
@@ -484,8 +544,9 @@ class ArticleGenerationQueueTest(TestCase):
         send_mail.assert_called_once()
         self.assertIsNotNone(detail.article_published_notified_at)
 
-    def test_waits_for_transcript_when_video_is_added(self, openai_class, get_transcript, *_mocks):
-        """PDF で作った後に動画が来ても、字幕がまだ無ければ作り直さずに待つ。"""
+    def test_waits_for_transcript_when_video_is_added(self, openai_class, get_transcript, extract_pdf_text,
+                                                      copy_to_temp, *_mocks):
+        """PDF で作った後に動画が来ても、字幕がまだ無ければ作り直さずに待つ（待つ時は PDF も読まない）。"""
         get_transcript.side_effect = lambda video_id, language='ja': None
         detail = self._due_detail(h1='PDF の記事', contents='PDF から作った本文', youtube_url='')
         fields = detail.record_generated_article(used_sources=('', SLIDE_NAME))
@@ -499,6 +560,8 @@ class ArticleGenerationQueueTest(TestCase):
         self.assertEqual(result['deferred'], 1)
         self.assertEqual(result['results'][0]['reason'], 'waiting_for_transcript')
         openai_class.return_value.chat.completions.create.assert_not_called()
+        copy_to_temp.assert_not_called()
+        extract_pdf_text.assert_not_called()
         detail.refresh_from_db()
         self.assertEqual(detail.contents, 'PDF から作った本文')
         self.assertEqual(detail.article_generation_last_error, 'waiting_for_transcript')
@@ -731,6 +794,189 @@ class ArticleGenerationQueueTest(TestCase):
         self.assertIsNotNone(claimed)
         self.assertIsNone(article_generation._claim_next(timezone.now()))
 
+    def test_long_llm_title_and_summary_are_truncated(self, openai_class, *_mocks):
+        """LLM が列より長いタイトル・要約を返しても、切り詰めて保存する（MySQL の DataError を防ぐ）。"""
+        openai_class.return_value = _openrouter_client(
+            {**GENERATED, 'title': 'タ' * 300, 'meta_description': '要' * 300},
+        )
+        detail = self._due_detail()
+
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['generated'], 1)
+        detail.refresh_from_db()
+        self.assertEqual(len(detail.h1), 255)
+        self.assertEqual(len(detail.meta_description), 255)
+        self.assertEqual(detail.article_state(), ArticleState.AUTO)
+
+    def test_error_in_one_item_does_not_stop_the_batch(self, openai_class, *_mocks):
+        """1 件目の保存で DB エラーが出ても失敗として記録し、2 件目へ進む（リースのまま残さない）。"""
+        openai_class.return_value = _openrouter_client()
+        first = self._due_detail(theme='1 件目')
+        second = self._due_detail(theme='2 件目')
+        self._make_due(first, minutes_ago=20)
+        self._make_due(second, minutes_ago=10)
+        real_store = article_generation._store_article
+
+        def fail_first(pk, *args):
+            if pk == first.pk:
+                raise DatabaseError('boom')
+            return real_store(pk, *args)
+
+        with patch.object(article_generation, '_store_article', side_effect=fail_first):
+            result = process_article_generation_queue(limit=2)
+
+        self.assertEqual([r['outcome'] for r in result['results']], ['failed', 'generated'])
+        self.assertEqual(result['results'][0]['reason'], 'error:DatabaseError')
+        first.refresh_from_db()
+        self.assertEqual(first.article_generation_last_error, 'error:DatabaseError')
+        # 処理中の締切（15 分後）ではなく、再試行の時刻（10 分後）が入っている
+        self.assertLess(first.article_generation_requested_at, timezone.now() + timedelta(minutes=12))
+
+    def test_unexpected_error_is_recorded_as_failure(self, openai_class, *_mocks):
+        detail = self._due_detail()
+
+        with patch.object(article_generation, '_process_claimed', side_effect=DatabaseError('boom')):
+            result = process_article_generation_queue()
+
+        self.assertEqual(result['failed'], 1)
+        detail.refresh_from_db()
+        self.assertEqual(detail.article_generation_last_error, 'error:DatabaseError')
+        self.assertLess(detail.article_generation_requested_at, timezone.now() + timedelta(minutes=12))
+
+    def test_vket_presentation_notifies_applied_by_user(self, openai_class, *_mocks):
+        """applicant の無い Vket 由来の発表は、申し込んだ人に知らせる（資料リマインドと同じ宛先）。"""
+        send_mail = _mocks[3]
+        openai_class.return_value = _openrouter_client()
+        organizer = make_user(user_name='vket_owner', email='vket_owner@example.com')
+        detail = self._due_detail(applicant=None)
+        _link_vket_presentation(detail, organizer)
+
+        process_article_generation_queue()
+
+        self.assertEqual(send_mail.call_args.kwargs['recipient_list'], ['vket_owner@example.com'])
+        detail.refresh_from_db()
+        self.assertIsNotNone(detail.article_published_notified_at)
+
+    def test_without_recipient_notified_at_stays_empty(self, openai_class, *_mocks):
+        """宛先が無い時は送らず、通知日時も入れない（後で宛先ができた時に知らせられる）。"""
+        send_mail = _mocks[3]
+        openai_class.return_value = _openrouter_client()
+        detail = self._due_detail(applicant=None)
+
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['generated'], 1)
+        send_mail.assert_not_called()
+        detail.refresh_from_db()
+        self.assertIsNone(detail.article_published_notified_at)
+
+    def test_second_item_is_not_started_after_time_budget(self, openai_class, *_mocks):
+        """1 件目を終えた時点で時間の予算を過ぎていたら、limit=2 でも 2 件目は始めない。"""
+        openai_class.return_value = _openrouter_client()
+        self._due_detail(theme='1 件目')
+        self._due_detail(theme='2 件目')
+
+        with patch.object(article_generation, '_monotonic', side_effect=[0.0, 31.0]):
+            result = process_article_generation_queue(limit=2)
+
+        self.assertEqual(result['processed'], 1)
+        self.assertEqual(result['pending'], 1)
+
+    def test_second_item_runs_within_time_budget(self, openai_class, *_mocks):
+        openai_class.return_value = _openrouter_client()
+        self._due_detail(theme='1 件目')
+        self._due_detail(theme='2 件目')
+
+        with patch.object(article_generation, '_monotonic', side_effect=[0.0, 10.0]):
+            result = process_article_generation_queue(limit=2)
+
+        self.assertEqual(result['processed'], 2)
+
+
+@patch('event.services.content_generation_service.ensure_pdf_thumbnail', return_value=False)
+class SaveGeneratedArticleTest(TestCase):
+    """生成ボタン・保存と同時の生成の保存は、記事の列だけを書き、NG に変わっていたら書かない。"""
+
+    OUTPUT = BlogOutput(title='生成した記事', meta_description='要約', text='本文')
+
+    def setUp(self):
+        self.owner = make_user(user_name='save_owner', email='save_owner@example.com')
+        self.detail = make_event_detail(
+            make_event(make_community(name='保存の集会', owner=self.owner)),
+            status='approved',
+            youtube_url=VIDEO_URL,
+        )
+
+    def test_does_not_write_back_columns_changed_while_generating(self, _thumbnail):
+        stale = EventDetail.objects.get(pk=self.detail.pk)
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            theme='生成中に直したテーマ', article_published_notified_at=timezone.now(),
+        )
+
+        self.assertEqual(save_generated_article(stale, self.OUTPUT), SAVED)
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.h1, '生成した記事')
+        self.assertEqual(self.detail.theme, '生成中に直したテーマ')
+        self.assertIsNotNone(self.detail.article_published_notified_at)
+
+    def test_refuses_when_consent_became_ng_while_generating(self, _thumbnail):
+        stale = EventDetail.objects.get(pk=self.detail.pk)
+        EventDetail.objects.filter(pk=self.detail.pk).update(article_consent=ArticleConsent.NG)
+
+        self.assertEqual(save_generated_article(stale, self.OUTPUT), REFUSED)
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.h1, '')
+        self.assertEqual(self.detail.article_consent, ArticleConsent.NG)
+
+    def test_truncates_long_title_and_summary(self, _thumbnail):
+        output = BlogOutput(title='タ' * 300, meta_description='要' * 300, text='本文')
+
+        save_generated_article(self.detail, output)
+
+        self.detail.refresh_from_db()
+        self.assertEqual(len(self.detail.h1), 255)
+        self.assertEqual(len(self.detail.meta_description), 255)
+        self.assertEqual(self.detail.article_state(), ArticleState.AUTO)
+
+    @patch('event.views.blog.generate_blog')
+    def test_generate_button_does_not_publish_when_consent_became_ng(self, mock_generate_blog, _thumbnail):
+        """生成ボタンを押した後、生成を待つ間に NG へ変えられたら、同意を戻さず記事も書かない。"""
+        def flip_to_ng(*args, **kwargs):
+            EventDetail.objects.filter(pk=self.detail.pk).update(article_consent=ArticleConsent.NG)
+            return self.OUTPUT
+
+        mock_generate_blog.side_effect = flip_to_ng
+        self.client.force_login(self.owner)
+
+        self.client.post(reverse('event:generate_blog', kwargs={'pk': self.detail.pk}))
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.article_consent, ArticleConsent.NG)
+        self.assertEqual(self.detail.h1, '')
+
+
+def _link_vket_presentation(detail: EventDetail, applied_by) -> None:
+    """applicant の無い Vket 由来の発表にする（申し込んだ人が発表の持ち主になる）。"""
+    collaboration = VketCollaboration.objects.create(
+        slug=f'article-vket-{detail.pk}',
+        name='記事の Vket',
+        period_start=date.today() - timedelta(days=2),
+        period_end=date.today() + timedelta(days=2),
+        registration_deadline=date.today() - timedelta(days=30),
+        lt_deadline=date.today() - timedelta(days=10),
+    )
+    participation = VketParticipation.objects.create(
+        collaboration=collaboration, community=detail.event.community, applied_by=applied_by,
+    )
+    VketPresentation.objects.create(
+        participation=participation,
+        published_event_detail=detail,
+        status=VketPresentation.Status.CONFIRMED,
+    )
+
 
 @patch('event.notifications.post_discord_webhook')
 @patch('event.notifications.send_mail', return_value=1)
@@ -754,9 +1000,10 @@ class ArticlePublishedNotificationTest(TestCase):
 
         detail = self._detail('approved')
 
-        notify_applicant_of_article_published(detail)
+        notify_applicant_of_article_published(detail, self.applicant)
 
         self.assertIn('発表の記事を公開しました', send_mail.call_args.kwargs['subject'])
+        self.assertEqual(send_mail.call_args.kwargs['recipient_list'], ['notify@example.com'])
         html = send_mail.call_args.kwargs['html_message']
         self.assertIn(reverse('account:lt_application_edit', kwargs={'pk': detail.pk}), html)
         self.assertIn(reverse('event:detail', kwargs={'pk': detail.pk}), html)
@@ -767,7 +1014,7 @@ class ArticlePublishedNotificationTest(TestCase):
     def test_pending_article_says_created_and_skips_discord(self, send_mail, post_webhook):
         from event.notifications import notify_applicant_of_article_published
 
-        notify_applicant_of_article_published(self._detail('pending'))
+        notify_applicant_of_article_published(self._detail('pending'), self.applicant)
 
         self.assertIn('発表の記事を作成しました', send_mail.call_args.kwargs['subject'])
         self.assertIn('承認されると公開されます', send_mail.call_args.kwargs['html_message'])

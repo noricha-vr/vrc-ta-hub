@@ -6,7 +6,6 @@ import re
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional
-from urllib.parse import urlparse
 
 import filetype
 from django.core.exceptions import ValidationError
@@ -16,6 +15,7 @@ from django.utils.html import strip_tags
 
 from community.constants import WEEKDAY_CHOICES, RecordingPolicy
 from community.models import Community
+from event.youtube_urls import youtube_video_id
 
 logger = logging.getLogger(__name__)
 
@@ -65,22 +65,9 @@ def article_body_hash(h1: str, contents: str) -> str:
     return hashlib.sha256(payload.encode('utf-8')).hexdigest()
 
 
-# 動画 ID を取り出してよいホスト。youtube_url には Discord のメッセージリンクも入る
-_YOUTUBE_HOSTS = ('youtube.com', 'youtu.be', 'youtube-nocookie.com')
-# watch?v= / youtu.be/ / live/ / shorts/ / embed/ の後ろにある 11 文字の ID
-_YOUTUBE_VIDEO_ID_PATTERN = re.compile(r'(?:v=|\/)([0-9A-Za-z_-]{11})')
-
-
-def youtube_video_id(url: Optional[str]) -> Optional[str]:
-    """YouTube の URL から動画 ID を返す。YouTube 以外の URL（Discord のリンク等）は None。"""
-    if not url:
-        return None
-    parsed = urlparse(url if '://' in url else f'https://{url}')
-    host = (parsed.hostname or '').lower()
-    if not any(host == allowed or host.endswith(f'.{allowed}') for allowed in _YOUTUBE_HOSTS):
-        return None
-    match = _YOUTUBE_VIDEO_ID_PATTERN.search(url)
-    return match.group(1) if match else None
+def related_event_details_cache_key(community_id: int) -> str:
+    """発表詳細ページの「他の発表もチェック！」のキャッシュキー。中身は集会ごとに決まる。"""
+    return f'related_event_details_community_{community_id}'
 
 
 # 記事の自動生成が管理する列。フォームの保存では書き戻さない（開いていた画面の古い値で消さない）
@@ -98,7 +85,7 @@ ARTICLE_CONTROL_FIELDS = (
 # 保存前の値を見るシグナル（event / ta_hub / twitter）が使う列。保存ごとに 1 回の SELECT で読む
 PREVIOUS_VALUE_FIELDS = (
     'status', 'slide_url', 'youtube_url', 'slide_file', 'speaker', 'theme', 'start_time',
-    'detail_type', 'event_id', 'event__date', 'article_consent',
+    'detail_type', 'event_id', 'event__date', 'event__community_id', 'article_consent', 'h1',
 )
 _PREVIOUS_VALUES_NOT_LOADED = object()
 
@@ -665,6 +652,11 @@ class EventDetail(models.Model):
         """表示できる記事の本文があるか。記事化 NG の発表は本文があっても False。"""
         return bool(self.contents) and not self.is_article_ng
 
+    @property
+    def visible_meta_description(self) -> str:
+        """画面に出してよい記事の要約（meta_description）。記事化 NG の発表は空文字。"""
+        return '' if self.is_article_ng else (self.meta_description or '')
+
     def get_excerpt(self, length: int = EXCERPT_LENGTH) -> str:
         """一覧カードに出す抜粋テキストを返す。
 
@@ -693,16 +685,30 @@ class EventDetail(models.Model):
 
     @property
     def can_auto_generate_article(self) -> bool:
-        """記事の自動生成の対象か（記事化 OK の発表で、却下・削除されておらず、YouTube 動画か PDF がある）。
+        """記事の自動生成の対象か（判定は ``is_auto_generation_target``）。"""
+        return self.is_auto_generation_target(
+            detail_type=self.detail_type,
+            article_consent=self.article_consent,
+            status=self.status,
+            deleted_at=self.deleted_at,
+            has_slide=bool(self.slide_file),
+            youtube_url=self.youtube_url,
+        )
 
+    @classmethod
+    def is_auto_generation_target(cls, *, detail_type, article_consent, status, deleted_at,
+                                  has_slide: bool, youtube_url) -> bool:
+        """記事化 OK の発表で、却下・削除されておらず、YouTube 動画か PDF があるか。
+
+        保存前の値（``previous_values``）でも同じ判定をするため、列の値を受け取る。
         youtube_url が Discord のメッセージリンクの時は字幕が取れないので、動画ありとは数えない。
         """
         return (
-            self.detail_type == 'LT'
-            and self.article_consent == self.ArticleConsent.OK
-            and self.status != 'rejected'
-            and self.deleted_at is None
-            and bool(self.slide_file or self.video_id)
+            detail_type == 'LT'
+            and article_consent == cls.ArticleConsent.OK
+            and status != 'rejected'
+            and deleted_at is None
+            and bool(has_slide or youtube_video_id(youtube_url))
         )
 
     def article_state(self) -> str:
