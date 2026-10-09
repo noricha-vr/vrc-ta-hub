@@ -278,6 +278,7 @@ Dependabot（uv エコシステム）は `requirements.in` と `requirements.txt
 
    ```bash
    uv pip compile --python-version 3.12 requirements.in -o requirements.txt
+   uv pip compile --python-version 3.12 requirements-e2e.in -o requirements-e2e.txt
    ```
 
 3. `requirements.in` と `requirements.txt` を同じコミットに含める（CI の lint が両者の版のずれを検出します）

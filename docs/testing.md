@@ -162,11 +162,13 @@ Chromium で次の主要ユーザー導線を検証する。
 ### 依存関係の更新と導入
 
 E2E 専用依存は `requirements-e2e.in` に追加する。本体依存との整合を保つため、
-`requirements-e2e.in` の先頭の `-c requirements.txt` で本体の lock を制約にして専用 lock を生成する。
+`requirements-e2e.in` は先頭で本体の入力を `-r requirements.in` で取り込み、本体の lock を
+`-c requirements.txt` で制約にする（E2E の lock は本体の依存も含み、共通の版は本体と一致する）。
+本体の lock を作り直したら E2E の lock も続けて作り直す。
 
 ```bash
-# E2E 専用 lock を再生成
-uv pip compile requirements-e2e.in -o requirements-e2e.txt
+# E2E 専用 lock を再生成（本体の requirements.txt を先に作り直す）
+uv pip compile --python-version 3.12 requirements-e2e.in -o requirements-e2e.txt
 ```
 
 CI は `uv pip sync --system requirements.txt requirements-e2e.txt` で本体と
