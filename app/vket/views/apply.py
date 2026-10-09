@@ -129,14 +129,10 @@ class ApplyView(LoginRequiredMixin, View):
 
         try:
             with transaction.atomic():
-                # 同時の申込みが両方通らないよう、コラボの行をロックしてから判定・保存する
-                locked_collaboration = VketCollaboration.objects.select_for_update().get(
-                    pk=collaboration.pk
+                self._check_schedule_under_lock(
+                    request.user, collaboration, community, participation, permissions,
+                    form.cleaned_data,
                 )
-                if permissions.can_edit_schedule and not self._is_privileged_user(request.user):
-                    self._ensure_no_schedule_conflict(
-                        locked_collaboration, community, participation, form.cleaned_data,
-                    )
                 participation = self._save_participation(
                     request=request,
                     collaboration=collaboration,
@@ -189,35 +185,63 @@ class ApplyView(LoginRequiredMixin, View):
         )
 
     @staticmethod
+    def _needs_schedule_check(
+        user,
+        permissions: VketApplyPermissions,
+        participation: VketParticipation | None,
+        cleaned: dict,
+    ) -> bool:
+        """主催者が有効な参加の希望の時間を変える時だけ True。
+
+        発表情報だけの保存（希望を変えない）、管理者の保存、辞退・不参加の参加は
+        判定しない。運営が重なりを作った後でも、希望を変えない保存は止めない。
+        """
+        if not permissions.can_edit_schedule or ApplyView._is_privileged_user(user):
+            return False
+        if participation is None:
+            return True
+        if participation.lifecycle != VketParticipation.Lifecycle.ACTIVE:
+            return False
+        return (
+            cleaned['requested_date'],
+            cleaned['requested_start_time'],
+            cleaned['requested_duration'],
+        ) != (
+            participation.requested_date,
+            participation.requested_start_time,
+            participation.requested_duration,
+        )
+
+    @classmethod
+    def _check_schedule_under_lock(
+        cls, user, collaboration, community, participation, permissions, cleaned,
+    ) -> None:
+        """日程を判定する時だけコラボの行をロックし、参加を読み直した値で判定する"""
+        if not cls._needs_schedule_check(user, permissions, participation, cleaned):
+            return
+        # 同時の申込みが両方通らないよう、コラボの行をロックしてから判定する
+        locked = VketCollaboration.objects.select_for_update().get(pk=collaboration.pk)
+        current = VketParticipation.objects.filter(
+            collaboration=collaboration, community=community,
+        ).first()
+        if cls._needs_schedule_check(user, permissions, current, cleaned):
+            cls._ensure_no_schedule_conflict(locked, community, current, cleaned)
+
+    @staticmethod
     def _ensure_no_schedule_conflict(
         collaboration: VketCollaboration,
         community: Community,
         participation: VketParticipation | None,
         cleaned: dict,
     ) -> None:
-        """希望の時間を変えた時だけ、他の集会の枠と重なっていないか確かめる。
-
-        希望を変えていない保存（発表情報だけの更新など）は、運営が重なりを
-        作った後でも止めない。
-        """
-        requested = (
-            cleaned['requested_date'],
-            cleaned['requested_start_time'],
-            cleaned['requested_duration'],
-        )
-        if participation is not None and requested == (
-            participation.requested_date,
-            participation.requested_start_time,
-            participation.requested_duration,
-        ):
-            return
+        """希望の時間が、他の集会の有効な参加の枠と重なっていないか確かめる"""
         candidate = ScheduleBlock(
             participation_id=participation.pk if participation else None,
             community_id=community.pk,
             community_name=community.name,
-            date=requested[0],
-            start=requested[1],
-            duration=requested[2],
+            date=cleaned['requested_date'],
+            start=cleaned['requested_start_time'],
+            duration=cleaned['requested_duration'],
         )
         conflicts = find_conflicts(collaboration, candidate)
         if not conflicts:

@@ -19,10 +19,11 @@ from .models import VketCollaboration, VketParticipation
 DEFAULT_DURATION_MINUTES = 60
 SCHEDULE_BUFFER_SETTING_KEY = 'schedule_buffer_minutes'
 MAX_SCHEDULE_BUFFER_MINUTES = 120
-# 公開同期で「重なりを承知で公開する」を選んだことを表す POST の項目
+# 確定・公開同期で「重なりを承知で〜する」を選んだことを表す POST の項目
 ALLOW_OVERLAP_FIELD = 'allow_overlap'
+# 承知した時に画面に出ていた重なりの組（conflicts_signature / pairs_signature の値）
+OVERLAP_SIGNATURE_FIELD = 'overlap_signature'
 
-_BASE_DATE = date(2000, 1, 1)
 _EPOCH = datetime(1970, 1, 1)
 _ONE_MINUTE = timedelta(minutes=1)
 
@@ -83,19 +84,6 @@ def set_schedule_buffer_minutes(collaboration: VketCollaboration, minutes: int) 
         locked.settings_json = settings
         locked.save(update_fields=['settings_json', 'updated_at'])
     collaboration.settings_json = settings
-
-
-def ranges_conflict(
-    start1: time,
-    duration1: int,
-    start2: time,
-    duration2: int,
-    buffer_minutes: int = 0,
-) -> bool:
-    """同じ日に始まる 2 つの時間帯が、前後に間隔を足したうえで重なるかを返す"""
-    a = ScheduleBlock(None, 0, '', _BASE_DATE, start1, duration1)
-    b = ScheduleBlock(None, 0, '', _BASE_DATE, start2, duration2)
-    return blocks_conflict(a, b, buffer_minutes)
 
 
 def blocks_conflict(a: ScheduleBlock, b: ScheduleBlock, buffer_minutes: int = 0) -> bool:
@@ -183,17 +171,55 @@ def find_conflicting_pairs(
     ]
 
 
-def find_publish_target_conflicts(
+def is_fully_confirmed(participation: VketParticipation) -> bool:
+    """確定日程（日付・開始時刻・開催時間）が揃っている参加なら True"""
+    return (
+        participation.confirmed_date is not None
+        and participation.confirmed_start_time is not None
+        and participation.confirmed_duration is not None
+    )
+
+
+def confirmed_conflicting_pairs(
     collaboration: VketCollaboration,
+    participations: Iterable[VketParticipation],
 ) -> list[tuple[ScheduleBlock, ScheduleBlock]]:
-    """公開同期の対象（有効かつ確定日程が揃った参加）のうち、重なっている組を返す"""
-    targets = collaboration.participations.filter(
-        lifecycle=VketParticipation.Lifecycle.ACTIVE,
-        confirmed_date__isnull=False,
-        confirmed_start_time__isnull=False,
-        confirmed_duration__isnull=False,
-    ).select_related('community')
+    """読み込み済みの参加のうち、確定済みの枠どうしで重なっている組を返す（公開同期の対象）"""
+    targets = [p for p in participations if is_fully_confirmed(p)]
     return find_conflicting_pairs(blocks_from(targets), get_schedule_buffer_minutes(collaboration))
+
+
+def split_conflicts(
+    blocks: Iterable[ScheduleBlock],
+) -> tuple[list[ScheduleBlock], list[ScheduleBlock]]:
+    """重なっている相手を、確定済みの枠と希望だけ（未確定）の枠に分ける"""
+    blocks = list(blocks)
+    return (
+        [b for b in blocks if b.is_confirmed],
+        [b for b in blocks if not b.is_confirmed],
+    )
+
+
+def conflicts_signature(blocks: Iterable[ScheduleBlock]) -> str:
+    """画面に出した重なりの相手を表す文字列（相手の参加 id の並び）"""
+    return ','.join(str(pid) for pid in sorted(b.participation_id for b in blocks))
+
+
+def pairs_signature(pairs: Iterable[tuple[ScheduleBlock, ScheduleBlock]]) -> str:
+    """画面に出した重なりの組を表す文字列（参加 id の組の並び）"""
+    keys = sorted(
+        '-'.join(str(pid) for pid in sorted((a.participation_id, b.participation_id)))
+        for a, b in pairs
+    )
+    return ','.join(keys)
+
+
+def is_overlap_acknowledged(data, signature: str) -> bool:
+    """承知のチェックがあり、送られた組が今の重なりの組と一致する時だけ True"""
+    return (
+        data.get(ALLOW_OVERLAP_FIELD) == '1'
+        and data.get(OVERLAP_SIGNATURE_FIELD, '') == signature
+    )
 
 
 def format_block_range(block: ScheduleBlock) -> str:
@@ -202,12 +228,21 @@ def format_block_range(block: ScheduleBlock) -> str:
     return f'{block.start:%H:%M}〜{next_day}{block.end:%H:%M}'
 
 
+def _date_prefix(block: ScheduleBlock, base: date) -> str:
+    """基準の日から見た相手の日付の書き方（同じ日なら無し）"""
+    if block.date == base:
+        return ''
+    if block.date == base + timedelta(days=1):
+        return '翌'
+    return f'{block.date.month}/{block.date.day} '
+
+
 def format_pair(a: ScheduleBlock, b: ScheduleBlock) -> str:
-    """重なっている組を運営向けの 1 行にする"""
+    """重なっている組を運営向けの 1 行にする。相手が別の日なら日付を付ける"""
     return (
         f'{a.date.strftime("%Y/%m/%d")} '
         f'{a.community_name}（{format_block_range(a)}）と '
-        f'{b.community_name}（{format_block_range(b)}）'
+        f'{b.community_name}（{_date_prefix(b, a.date)}{format_block_range(b)}）'
     )
 
 

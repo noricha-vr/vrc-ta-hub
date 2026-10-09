@@ -240,7 +240,8 @@
                                     <li>{{ pair }}</li>
                                 {% endfor %}
                             </ul>
-                            <p class="small mb-2">重なりがあるままでは公開同期は実行されません。意図して同じ時間に行う場合だけ、次を選んでください。</p>
+                            <p class="small mb-2">重なりを解消してから公開してください。意図して同じ時間に行う場合だけ、次を選ぶと上の組を承知のうえで公開します。</p>
+                            <input type="hidden" name="{{ overlap_signature_field }}" value="{{ publish_overlap_signature }}">
                             <div class="form-check mb-0">
                                 <input class="form-check-input" type="checkbox" name="{{ allow_overlap_field }}"
                                        value="1" id="allow-overlap">

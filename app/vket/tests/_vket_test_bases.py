@@ -165,5 +165,11 @@ class VketManageViewsBase(TestCase):
             confirmed_duration=60,
         )
 
+    def _move_other_participations_to_last_day(self, keep: VketParticipation) -> None:
+        """確定のテストで、確定済みの枠との重なり（#695 で確認が要る）に当たらないよう他の参加を最終日へ退かす"""
+        VketParticipation.objects.filter(collaboration=self.collaboration).exclude(
+            pk=keep.pk,
+        ).update(confirmed_date=self.collaboration.period_end)
+
     def tearDown(self):
         cache.clear()
