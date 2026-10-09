@@ -82,6 +82,30 @@
                     </div>
                 </div>
 
+                {% if permissions.can_edit_schedule %}
+                    <style>#busy-slots-list li:last-child { border-bottom: 0 !important; }</style>
+                    <section id="busy-slots" class="rounded-3 border p-3 mb-3" style="max-width: 36rem;" aria-live="polite"
+                             data-buffer-minutes="{{ schedule_buffer_minutes }}">
+                        <h3 class="h6 fw-bold mb-2">
+                            <i class="far fa-clock me-1 text-muted"></i><span id="busy-slots-title">埋まっている時間</span>
+                        </h3>
+                        <p id="busy-slots-prompt" class="small text-muted mb-0">
+                            日付を選ぶと、その日に他の集会が申し込んでいる時間を表示します。
+                        </p>
+                        <p id="busy-slots-none" class="small mb-0 d-none">
+                            <i class="fas fa-check text-success me-1"></i>まだ他の集会の申込みはありません。
+                        </p>
+                        <ul id="busy-slots-list" class="list-unstyled small mb-0 d-none"></ul>
+                        {% if schedule_buffer_minutes %}
+                            <p class="small text-muted mt-2 mb-0">
+                                集会の前後 {{ schedule_buffer_minutes }} 分は入れ替えの時間として空けてください。
+                            </p>
+                        {% endif %}
+                        <p id="busy-slots-conflict" class="small text-danger fw-bold mt-2 mb-0 d-none" role="alert"></p>
+                    </section>
+                    {{ busy_blocks_by_date|json_script:"busy-blocks-data" }}
+                {% endif %}
+
                 <div class="row g-3 mb-4">
                     <div class="col-12 col-md-4">
                         {% bootstrap_field form.requested_start_time %}
@@ -202,6 +226,93 @@
     </div>
 
     <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var panel = document.getElementById('busy-slots');
+        var dataEl = document.getElementById('busy-blocks-data');
+        if (!panel || !dataEl) return;
+
+        var busyByDate = JSON.parse(dataEl.textContent);
+        var bufferMinutes = parseInt(panel.dataset.bufferMinutes || '0', 10);
+        var title = document.getElementById('busy-slots-title');
+        var prompt = document.getElementById('busy-slots-prompt');
+        var none = document.getElementById('busy-slots-none');
+        var list = document.getElementById('busy-slots-list');
+        var conflict = document.getElementById('busy-slots-conflict');
+        var startInput = document.getElementById('id_requested_start_time');
+        var durationInput = document.getElementById('id_requested_duration');
+
+        function toMinutes(value) {
+            if (!value) return null;
+            var parts = value.split(':');
+            return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+        }
+
+        function selectedDate() {
+            var checked = document.querySelector('input[name="requested_date"]:checked');
+            return checked ? checked.value : '';
+        }
+
+        function selectedLabel() {
+            var checked = document.querySelector('input[name="requested_date"]:checked');
+            var label = checked && checked.closest('label');
+            return label ? label.textContent.trim() : '';
+        }
+
+        function overlaps(block, start, duration) {
+            if (start === null || !duration) return false;
+            return start < block.end_minutes + bufferMinutes
+                && block.start_minutes < start + duration + bufferMinutes;
+        }
+
+        function render() {
+            var date = selectedDate();
+            var blocks = busyByDate[date] || [];
+            var start = startInput ? toMinutes(startInput.value) : null;
+            var duration = durationInput ? parseInt(durationInput.value, 10) : 0;
+            var conflicted = [];
+
+            title.textContent = date ? selectedLabel() + ' の埋まっている時間' : '埋まっている時間';
+            prompt.classList.toggle('d-none', !!date);
+            none.classList.toggle('d-none', !date || blocks.length > 0);
+            list.classList.toggle('d-none', blocks.length === 0);
+            list.replaceChildren();
+            blocks.forEach(function(block) {
+                var isConflict = overlaps(block, start, duration);
+                if (isConflict) conflicted.push(block.name);
+                var item = document.createElement('li');
+                item.className = 'd-flex align-items-baseline gap-2 py-1 border-bottom'
+                    + (isConflict ? ' text-danger fw-bold' : '');
+                var time = document.createElement('span');
+                time.className = 'text-nowrap';
+                time.style.fontVariantNumeric = 'tabular-nums';
+                time.textContent = block.start + '〜' + block.end;
+                var name = document.createElement('span');
+                name.className = 'text-break';
+                name.textContent = block.name;
+                item.append(time, name);
+                if (isConflict) {
+                    var badge = document.createElement('span');
+                    badge.className = 'badge text-bg-danger ms-auto';
+                    badge.textContent = '重なり';
+                    item.append(badge);
+                }
+                list.append(item);
+            });
+
+            conflict.classList.toggle('d-none', conflicted.length === 0);
+            conflict.textContent = conflicted.length
+                ? '選んだ時間は' + conflicted.join('、') + 'と重なっています。空いている時間を選んでください。'
+                : '';
+        }
+
+        document.querySelectorAll('input[name="requested_date"]').forEach(function(radio) {
+            radio.addEventListener('change', render);
+        });
+        if (startInput) startInput.addEventListener('input', render);
+        if (durationInput) durationInput.addEventListener('change', render);
+        render();
+    });
+
     document.addEventListener('DOMContentLoaded', function() {
         var addBtn = document.getElementById('add-lt-btn');
         if (!addBtn) return;

@@ -17,6 +17,7 @@ from ..models import (
     VketCollaboration,
     VketParticipation,
 )
+from ..schedule import block_for, find_conflicting_pairs, format_pair, get_schedule_buffer_minutes
 from .helpers import _is_vket_admin
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,16 @@ class ManagePublishView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
             return HttpResponseForbidden(
                 'フェーズが「確定」でないため公開処理を実行できません。'
             )
+
+        overlapping_pairs = self._find_overlapping_targets(collaboration)
+        if overlapping_pairs:
+            messages.error(
+                request,
+                '時間が重なっている集会があるため、公開同期を実行しませんでした。'
+                '重なりを解消してから、もう一度実行してください: '
+                + ' / '.join(format_pair(a, b) for a, b in overlapping_pairs),
+            )
+            return redirect('vket:manage', pk=collaboration.pk)
 
         published_count = 0
 
@@ -79,3 +90,15 @@ class ManagePublishView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
             f'公開処理完了: {published_count}件のイベントを公開しました。',
         )
         return redirect('vket:manage', pk=collaboration.pk)
+
+    @staticmethod
+    def _find_overlapping_targets(collaboration: VketCollaboration):
+        """公開対象（有効かつ確定日程が揃った参加）のうち、時間が重なっている組を返す"""
+        targets = collaboration.participations.filter(
+            lifecycle=VketParticipation.Lifecycle.ACTIVE,
+            confirmed_date__isnull=False,
+            confirmed_start_time__isnull=False,
+            confirmed_duration__isnull=False,
+        ).select_related('community')
+        blocks = [block for p in targets if (block := block_for(p)) is not None]
+        return find_conflicting_pairs(blocks, get_schedule_buffer_minutes(collaboration))

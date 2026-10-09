@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
-from itertools import combinations, groupby
 
 from django.db.models import Prefetch, Q
 from django.utils import timezone
@@ -15,6 +14,13 @@ from ..models import (
     VketCollaboration,
     VketParticipation,
     VketPresentation,
+)
+from ..schedule import (
+    block_for,
+    find_conflicting_pairs,
+    format_pair,
+    get_schedule_buffer_minutes,
+    ranges_conflict,
 )
 
 logger = logging.getLogger(__name__)
@@ -87,13 +93,8 @@ def _apply_permissions_for_user(user, collaboration: VketCollaboration) -> VketA
 def _time_ranges_overlap(
     start1: time, duration1_minutes: int, start2: time, duration2_minutes: int
 ) -> bool:
-    """2つの時間帯が重複するか判定する"""
-    base = timezone.localdate()
-    s1 = datetime.combine(base, start1)
-    e1 = s1 + timedelta(minutes=duration1_minutes)
-    s2 = datetime.combine(base, start2)
-    e2 = s2 + timedelta(minutes=duration2_minutes)
-    return s1 < e2 and s2 < e1
+    """2つの時間帯が重複するか判定する（判定本体は vket.schedule.ranges_conflict）"""
+    return ranges_conflict(start1, duration1_minutes, start2, duration2_minutes)
 
 
 def _shift_time(t: time, delta: timedelta) -> time:
@@ -277,7 +278,6 @@ def _build_schedule_context(
                 occupancy[key] = occupancy.get(key, 0) + 1
 
     rows = []
-    overlap_warnings: list[str] = []
 
     lt_slots_by_pid: dict[int, dict[int, list[time]]] = {}
     lt_slot_communities: dict[tuple, set[str]] = {}
@@ -311,19 +311,19 @@ def _build_schedule_context(
                     f'{p_date.strftime("%Y/%m/%d")} {p.community.name} の発表開始時刻（{lt_time.strftime("%H:%M")}）が開催時間（{p_start.strftime("%H:%M")}〜{end_time.strftime("%H:%M")}）の範囲外です'
                 )
 
-    # 同日に重複する参加のペアワーニング
-    for d, group in groupby(participations, key=lambda p: effective_data[p.id]['date']):
-        parts_on_date = list(group)
-        for p1, p2 in combinations(parts_on_date, 2):
-            eff1, eff2 = effective_data[p1.id], effective_data[p2.id]
-            if _time_ranges_overlap(
-                eff1['start_time'], eff1['duration'],
-                eff2['start_time'], eff2['duration'],
-            ):
-                overlap_start = max(eff1['start_time'], eff2['start_time'])
-                overlap_warnings.append(
-                    f'{d.strftime("%Y/%m/%d")} {overlap_start.strftime("%H:%M")} {p1.community.name} と {p2.community.name} が重複'
-                )
+    # 同日に重複する参加のペアワーニング（有効な参加だけを、入れ替えの間隔込みで判定）
+    active_blocks = [
+        block
+        for p in participations
+        if p.lifecycle == VketParticipation.Lifecycle.ACTIVE
+        and (block := block_for(p)) is not None
+    ]
+    overlap_warnings = [
+        f'{format_pair(a, b)} が重なっています'
+        for a, b in find_conflicting_pairs(
+            active_blocks, get_schedule_buffer_minutes(collaboration)
+        )
+    ]
 
     for (d, idx), communities in sorted(
         lt_slot_communities.items(), key=lambda x: (x[0][0], x[0][1])

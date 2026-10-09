@@ -21,11 +21,19 @@ from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from ta_hub.index_cache import clear_index_view_cache
 from vket.services import clear_participation_publication, sync_participation_publication
 
-from ..forms import VketManageParticipationForm
+from ..forms import VketManageParticipationForm, VketScheduleSettingsForm
 from ..models import (
     VketCollaboration,
     VketParticipation,
     VketPresentation,
+)
+from ..schedule import (
+    ScheduleBlock,
+    block_for,
+    find_conflicts,
+    format_pair,
+    get_schedule_buffer_minutes,
+    set_schedule_buffer_minutes,
 )
 from .helpers import (
     _build_schedule_context,
@@ -230,72 +238,32 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
         participation.confirmed_start_time = form.cleaned_data['confirmed_start_time']
         participation.confirmed_duration = form.cleaned_data['confirmed_duration']
         participation.schedule_adjusted_by_admin = True
+
+        conflicts = self._find_schedule_conflicts(collaboration, participation)
+        if conflicts:
+            # 入れ替えの途中を許すため保存はするが、日程の確定（記録・発表の確定・公開同期）はしない
+            participation.save(update_fields=self.SAVE_ONLY_FIELDS)
+            self._update_presentation_times(request, participation)
+            messages.warning(request, self._conflict_message(participation, conflicts))
+            return redirect('vket:manage', pk=collaboration.pk)
+
         participation.progress = VketParticipation.Progress.REHEARSAL
         participation.schedule_confirmed_at = timezone.now()
-
         participation.save(
-            update_fields=[
-                'lifecycle',
-                'confirmed_date',
-                'confirmed_start_time',
-                'confirmed_duration',
-                'admin_note',
-                'schedule_adjusted_by_admin',
-                'progress',
-                'schedule_confirmed_at',
-                'updated_at',
-            ]
+            update_fields=[*self.SAVE_ONLY_FIELDS, 'progress', 'schedule_confirmed_at']
         )
-
-        pres_pattern = re.compile(r'^pres_(\d+)_start_time$')
-        pres_updates = {}
-        for key, value in request.POST.items():
-            m = pres_pattern.match(key)
-            if m and value:
-                pres_updates[int(m.group(1))] = value
-
-        allowed_presentation_ids = set(
-            participation.presentations.filter(
-                pk__in=pres_updates.keys(),
-                status=VketPresentation.Status.CONFIRMED,
-            ).values_list('id', flat=True)
-        )
+        # 確定済みだった発表の時刻を先に更新する（DRAFT は時刻入力欄が無いため対象外）
+        self._update_presentation_times(request, participation)
 
         # DRAFT のLTを一括確定
         participation.presentations.filter(
             status=VketPresentation.Status.DRAFT,
         ).update(status=VketPresentation.Status.CONFIRMED)
 
-        changed_index_detail = False
-
-        # 発表ごとの確定開始時刻を更新する。EventDetail への反映は公開同期でまとめて行う。
-        if pres_updates:
-            allowed_presentations = {
-                pres.pk: pres
-                for pres in participation.presentations.select_related(
-                    'published_event_detail'
-                ).filter(
-                    pk__in=allowed_presentation_ids,
-                    status=VketPresentation.Status.CONFIRMED,
-                )
-            }
-
-            for pres_id, time_str in pres_updates.items():
-                pres = allowed_presentations.get(pres_id)
-                if pres is None:
-                    continue
-                try:
-                    new_time = datetime.strptime(time_str, '%H:%M').time()
-                    pres.confirmed_start_time = new_time
-                    pres.save(update_fields=['confirmed_start_time', 'updated_at'])
-                except (ValueError, KeyError):
-                    logger.warning('VketPresentation #%d の start_time パース失敗: %s', pres_id, time_str)
-
         with transaction.atomic():
             sync_result = sync_participation_publication(participation)
-            changed_index_detail = sync_result.changed_index_data
 
-        if changed_index_detail:
+        if sync_result.changed_index_data:
             clear_index_view_cache()
 
         messages.success(
@@ -303,6 +271,63 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
             f'{participation.community.name} の日程を確定しました。',
         )
         return redirect('vket:manage', pk=collaboration.pk)
+
+    SAVE_ONLY_FIELDS = [
+        'lifecycle',
+        'confirmed_date',
+        'confirmed_start_time',
+        'confirmed_duration',
+        'admin_note',
+        'schedule_adjusted_by_admin',
+        'updated_at',
+    ]
+
+    @staticmethod
+    def _find_schedule_conflicts(
+        collaboration: VketCollaboration, participation: VketParticipation
+    ) -> list[ScheduleBlock]:
+        """確定しようとしている枠と重なる、他の集会の有効な参加の枠を返す"""
+        candidate = block_for(participation)
+        if candidate is None:
+            return []
+        return find_conflicts(collaboration, candidate)
+
+    @staticmethod
+    def _conflict_message(
+        participation: VketParticipation, conflicts: list[ScheduleBlock]
+    ) -> str:
+        """確定を見送った時の運営向けメッセージ"""
+        candidate = block_for(participation)
+        pairs = ' / '.join(format_pair(candidate, block) for block in conflicts)
+        return (
+            f'{participation.community.name} の日程を保存しましたが、他の集会と時間が重なっているため'
+            f'確定していません（{pairs}）。重なりを解消してから、もう一度「確定」を押してください。'
+        )
+
+    @staticmethod
+    def _update_presentation_times(request, participation: VketParticipation) -> None:
+        """確定済みの発表の確定開始時刻を更新する。EventDetail への反映は公開同期で行う"""
+        pres_pattern = re.compile(r'^pres_(\d+)_start_time$')
+        pres_updates = {}
+        for key, value in request.POST.items():
+            m = pres_pattern.match(key)
+            if m and value:
+                pres_updates[int(m.group(1))] = value
+        if not pres_updates:
+            return
+
+        allowed_presentations = participation.presentations.filter(
+            pk__in=pres_updates.keys(),
+            status=VketPresentation.Status.CONFIRMED,
+        )
+        for pres in allowed_presentations:
+            time_str = pres_updates[pres.pk]
+            try:
+                pres.confirmed_start_time = datetime.strptime(time_str, '%H:%M').time()
+            except ValueError:
+                logger.warning('VketPresentation #%d の start_time パース失敗: %s', pres.pk, time_str)
+                continue
+            pres.save(update_fields=['confirmed_start_time', 'updated_at'])
 
 
 class ManageScheduleView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
@@ -315,5 +340,32 @@ class ManageScheduleView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Templa
         context = super().get_context_data(**kwargs)
         collaboration = get_object_or_404(VketCollaboration, pk=kwargs['pk'])
         schedule_ctx = _build_schedule_context(collaboration, include_requested=True)
-        context.update({'collaboration': collaboration, **schedule_ctx})
+        settings_form = VketScheduleSettingsForm(
+            initial={'schedule_buffer_minutes': get_schedule_buffer_minutes(collaboration)}
+        )
+        context.update({
+            'collaboration': collaboration,
+            'settings_form': settings_form,
+            **schedule_ctx,
+        })
         return context
+
+
+class ManageScheduleSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
+    """運営向け: 入れ替えの間隔（分）を settings_json に保存する"""
+
+    def test_func(self):
+        return _is_vket_admin(self.request.user)
+
+    def post(self, request, pk: int):
+        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        form = VketScheduleSettingsForm(request.POST)
+        if not form.is_valid():
+            errors = [str(e) for errs in form.errors.values() for e in errs]
+            messages.error(request, '入れ替えの間隔を保存できませんでした: ' + ' / '.join(errors))
+            return redirect('vket:manage_schedule', pk=collaboration.pk)
+
+        minutes = form.cleaned_data['schedule_buffer_minutes']
+        set_schedule_buffer_minutes(collaboration, minutes)
+        messages.success(request, f'入れ替えの間隔を {minutes} 分にしました。')
+        return redirect('vket:manage_schedule', pk=collaboration.pk)

@@ -10,6 +10,7 @@ from community.models import Community
 from event.models import Event
 
 from .models import VketCollaboration, VketParticipation
+from .schedule import MAX_SCHEDULE_BUFFER_MINUTES
 
 
 def _format_participation_date_choice(value: date) -> tuple[str, str]:
@@ -196,7 +197,7 @@ class VketApplyForm(forms.Form):
         if requested_duration is None or requested_duration <= 0:
             raise forms.ValidationError('希望開催時間（分）は正の値を選択してください。')
 
-        # 注: 確定前はEventを作らないため、イベント重複チェックは不要。
+        # 他の集会との時間の重なりは、ビューでコラボの行をロックしてから判定する。
 
         return cleaned
 
@@ -267,3 +268,15 @@ class VketManageParticipationForm(forms.Form):
         if not cleaned.get('confirmed_duration'):
             self.add_error('confirmed_duration', '確定開催時間を選択してください。')
         return cleaned
+
+
+class VketScheduleSettingsForm(forms.Form):
+    """運営向けのコラボ日程設定（入れ替えの間隔）フォーム"""
+
+    schedule_buffer_minutes = forms.IntegerField(
+        label='入れ替えの間隔（分）',
+        min_value=0,
+        max_value=MAX_SCHEDULE_BUFFER_MINUTES,
+        help_text='前の集会の終了から次の集会の開始までに空ける時間です。0 分なら続けて申し込めます。',
+        widget=forms.NumberInput(attrs={'class': 'form-control form-control-sm', 'step': 5}),
+    )

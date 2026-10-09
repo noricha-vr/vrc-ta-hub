@@ -18,11 +18,21 @@ from ..models import (
     VketParticipation,
     VketPresentation,
 )
+from ..schedule import (
+    ScheduleBlock,
+    busy_blocks_by_date,
+    find_conflicts,
+    get_schedule_buffer_minutes,
+)
 from .helpers import (
     _apply_permissions_for_user,
     _build_schedule_context,
     _get_active_membership,
 )
+
+
+class ScheduleConflictError(ValueError):
+    """主催者の希望の時間が、他の集会の枠と重なっている"""
 
 
 class ApplyView(LoginRequiredMixin, View):
@@ -67,24 +77,7 @@ class ApplyView(LoginRequiredMixin, View):
             permissions=permissions,
             user=request.user,
         )
-        schedule_ctx = _build_schedule_context(collaboration, include_requested=True)
-        return render(
-            request,
-            self.template_name,
-            {
-                'collaboration': collaboration,
-                'community': community,
-                'participation': participation,
-                'form': form,
-                'formset': formset,
-                'permissions': permissions,
-                'is_late_lt_submission': self._is_late_lt_submission(
-                    collaboration,
-                    permissions,
-                ),
-                **schedule_ctx,
-            },
-        )
+        return self._render(request, collaboration, community, participation, form, formset, permissions)
 
     def post(self, request, pk: int):
         collaboration = get_object_or_404(VketCollaboration, pk=pk)
@@ -130,27 +123,20 @@ class ApplyView(LoginRequiredMixin, View):
         )
 
         if not (form.is_valid() and formset.is_valid()):
-            schedule_ctx = _build_schedule_context(collaboration, include_requested=True)
-            return render(
-                request,
-                self.template_name,
-                {
-                    'collaboration': collaboration,
-                    'community': community,
-                    'participation': participation,
-                    'form': form,
-                    'formset': formset,
-                    'permissions': permissions,
-                    'is_late_lt_submission': self._is_late_lt_submission(
-                        collaboration,
-                        permissions,
-                    ),
-                    **schedule_ctx,
-                },
+            return self._render(
+                request, collaboration, community, participation, form, formset, permissions,
             )
 
         try:
             with transaction.atomic():
+                # 同時の申込みが両方通らないよう、コラボの行をロックしてから判定・保存する
+                locked_collaboration = VketCollaboration.objects.select_for_update().get(
+                    pk=collaboration.pk
+                )
+                if permissions.can_edit_schedule and not self._is_privileged_user(request.user):
+                    self._ensure_no_schedule_conflict(
+                        locked_collaboration, community, participation, form.cleaned_data,
+                    )
                 participation = self._save_participation(
                     request=request,
                     collaboration=collaboration,
@@ -162,25 +148,80 @@ class ApplyView(LoginRequiredMixin, View):
                 )
         except ValueError as e:
             form.add_error(None, str(e))
-            return render(
-                request,
-                self.template_name,
-                {
-                    'collaboration': collaboration,
-                    'community': community,
-                    'participation': participation,
-                    'form': form,
-                    'formset': formset,
-                    'permissions': permissions,
-                    'is_late_lt_submission': self._is_late_lt_submission(
-                        collaboration,
-                        permissions,
-                    ),
-                },
+            return self._render(
+                request, collaboration, community, participation, form, formset, permissions,
             )
 
         messages.success(request, '参加登録を保存しました。')
         return redirect('vket:status', pk=collaboration.pk)
+
+    def _render(
+        self, request, collaboration, community, participation, form, formset, permissions,
+    ):
+        """申込みフォームを日程表・空き表示つきで描画する"""
+        schedule_ctx = _build_schedule_context(collaboration, include_requested=True)
+        return render(
+            request,
+            self.template_name,
+            {
+                'collaboration': collaboration,
+                'community': community,
+                'participation': participation,
+                'form': form,
+                'formset': formset,
+                'permissions': permissions,
+                'is_late_lt_submission': self._is_late_lt_submission(
+                    collaboration,
+                    permissions,
+                ),
+                'busy_blocks_by_date': busy_blocks_by_date(
+                    collaboration, exclude_community_id=community.pk,
+                ),
+                'schedule_buffer_minutes': get_schedule_buffer_minutes(collaboration),
+                **schedule_ctx,
+            },
+        )
+
+    @staticmethod
+    def _ensure_no_schedule_conflict(
+        collaboration: VketCollaboration,
+        community: Community,
+        participation: VketParticipation | None,
+        cleaned: dict,
+    ) -> None:
+        """希望の時間を変えた時だけ、他の集会の枠と重なっていないか確かめる。
+
+        希望を変えていない保存（発表情報だけの更新など）は、運営が重なりを
+        作った後でも止めない。
+        """
+        requested = (
+            cleaned['requested_date'],
+            cleaned['requested_start_time'],
+            cleaned['requested_duration'],
+        )
+        if participation is not None and requested == (
+            participation.requested_date,
+            participation.requested_start_time,
+            participation.requested_duration,
+        ):
+            return
+        candidate = ScheduleBlock(
+            participation_id=participation.pk if participation else None,
+            community_id=community.pk,
+            community_name=community.name,
+            date=requested[0],
+            start=requested[1],
+            duration=requested[2],
+        )
+        conflicts = find_conflicts(collaboration, candidate)
+        if not conflicts:
+            return
+        names = '、'.join(dict.fromkeys(block.community_name for block in conflicts))
+        message = f'その時間は{names}が申込み済みです。'
+        buffer_minutes = get_schedule_buffer_minutes(collaboration)
+        if buffer_minutes:
+            message += f'前後 {buffer_minutes} 分は入れ替えの時間として空けてください。'
+        raise ScheduleConflictError(message + '空いている時間を選んでください。')
 
     def _build_formset(
         self,

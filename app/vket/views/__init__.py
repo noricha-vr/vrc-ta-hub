@@ -14,6 +14,7 @@ from .helpers import (
 )
 from .manage import (
     ManageParticipationUpdateView,
+    ManageScheduleSettingsView,
     ManageScheduleView,
     ManageView,
 )
@@ -59,6 +60,7 @@ __all__ = [
     'ApplyView',
     # manage
     'ManageParticipationUpdateView',
+    'ManageScheduleSettingsView',
     'ManageScheduleView',
     'ManageView',
     # notice

@@ -15,6 +15,29 @@
 
         {% include 'vket/includes/manage_tabs.html' with active_tab='schedule' %}
 
+        <form method="post" action="{% url 'vket:manage_schedule_settings' collaboration.id %}"
+              class="card card-body shadow-sm my-3" data-testid="schedule-settings-form">
+            {% csrf_token %}
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-sm-auto">
+                    <label for="{{ settings_form.schedule_buffer_minutes.id_for_label }}" class="form-label fw-bold small mb-1">
+                        {{ settings_form.schedule_buffer_minutes.label }}
+                    </label>
+                    <div class="input-group input-group-sm" style="max-width: 10rem;">
+                        {{ settings_form.schedule_buffer_minutes }}
+                        <span class="input-group-text">分</span>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-auto">
+                    <button class="btn btn-outline-primary btn-sm" type="submit">保存</button>
+                </div>
+            </div>
+            <div class="form-text mb-0">
+                {{ settings_form.schedule_buffer_minutes.help_text }}
+                主催者の申込みと、日程の確定・公開同期の重なりの判定に使います。
+            </div>
+        </form>
+
         {% include 'vket/includes/schedule_table.html' with show_warnings=True show_legend=True %}
     </div>
 {% endblock %}
