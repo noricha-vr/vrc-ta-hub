@@ -157,6 +157,15 @@ def notify_applicant_of_result(
     else:
         guide_url = build_site_url(guide_path)
 
+    article_url = ''
+    if event_detail.status == 'approved':
+        published_detail = EventDetail.all_objects.filter(
+            EventDetail.article_notifiable_q(), pk=event_detail.pk, status='approved',
+        ).first()
+        if published_detail and published_detail.article_state() != EventDetail.ArticleState.NONE:
+            article_path = reverse('event:detail', kwargs={'pk': event_detail.pk})
+            article_url = request.build_absolute_uri(article_path) if request else build_site_url(article_path)
+
     context = {
         'applicant': applicant,
         'community': community,
@@ -167,6 +176,7 @@ def notify_applicant_of_result(
         'list_url': list_url,
         'is_approved': event_detail.status == 'approved',
         'schedule_changes': schedule_changes or [],
+        'article_url': article_url,
     }
 
     if event_detail.status == 'approved':

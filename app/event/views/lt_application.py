@@ -247,6 +247,10 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
             schedule_changes=schedule_changes,
         )
 
+        if action == 'approve':
+            from event.services.article_generation import notify_article_on_approval
+            notify_article_on_approval(self.event_detail.pk)
+
         messages.success(self.request, f'申請を{status_text}しました。')
         logger.info(
             f'発表申請{status_text}: EventDetail ID={self.event_detail.pk}, '
@@ -313,20 +317,25 @@ class LTApplicationApproveView(LoginRequiredMixin, View):
             messages.error(request, 'この申請を承認する権限がありません。')
             return redirect('event:my_list')
 
-        # 既に処理済みの場合
-        if event_detail.status != 'pending':
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({'success': False, 'error': 'この申請は既に処理されています。'}, status=400)
-            messages.info(request, 'この申請は既に処理されています。')
-            return redirect('event:my_list')
+        with transaction.atomic():
+            # 審査ページと同じく、承認した 1 件だけが通知する。申請者の編集も巻き戻さない。
+            event_detail = EventDetail.objects.select_for_update().select_related(
+                'event__community', 'applicant'
+            ).get(pk=pk)
+            if event_detail.status != 'pending':
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'error': 'この申請は既に処理されています。'}, status=400)
+                messages.info(request, 'この申請は既に処理されています。')
+                return redirect('event:my_list')
 
-        # 承認処理
-        event_detail.status = 'approved'
-        event_detail.save()
+            event_detail.status = 'approved'
+            event_detail.save(update_fields=['status', 'updated_at'])
 
         # 申請者に通知
         from event.notifications import notify_applicant_of_result
         notify_applicant_of_result(event_detail, request=request)
+        from event.services.article_generation import notify_article_on_approval
+        notify_article_on_approval(event_detail.pk)
 
         logger.info(
             f'発表申請承認: EventDetail ID={event_detail.pk}, '

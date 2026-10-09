@@ -13,11 +13,12 @@ from datetime import datetime, timedelta
 from django.conf import settings
 from django.db import transaction
 from django.db.models import F
+from django.urls import reverse
 from django.utils import timezone
 
 from event.material_upload_reminders import get_material_reminder_recipient
 from event.models import EventDetail, article_generation_request_values
-from event.notifications import notify_applicant_of_article_published
+from event.notifications import _send_discord_notification_for_article, notify_applicant_of_article_published
 from event.services.content_generation_service import (
     BlogOutput,
     BlogSources,
@@ -27,6 +28,7 @@ from event.services.content_generation_service import (
     set_generated_article,
 )
 from event.services.media_service import ensure_pdf_thumbnail
+from website.constants import build_site_url
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +266,31 @@ def _after_generated(pk: int) -> None:
     _notify_first_time(pk)
 
 
+def notify_article_on_approval(pk: int) -> None:
+    """承認で公開になった記事を知らせる。承認前にメール済みなら Discord だけに流す。
+
+    承認の状態変更を行った 1 件だけが呼ぶ。送る直前に読み直し、記事を空にした発表や
+    記事化 NG・却下・論理削除へ変わった発表には送らない。失敗しても承認は取り消さない。
+    """
+    try:
+        detail = EventDetail.all_objects.filter(
+            EventDetail.article_notifiable_q(), pk=pk, status='approved',
+        ).select_related('event__community', 'applicant').first()
+        if detail is None or detail.article_state() == EventDetail.ArticleState.NONE:
+            return
+        if detail.article_published_notified_at is None:
+            _notify_first_time(pk)
+        else:
+            edit_url = build_site_url(reverse('account:lt_application_edit', kwargs={'pk': pk}))
+            article_url = build_site_url(reverse('event:detail', kwargs={'pk': pk}))
+            _send_discord_notification_for_article(detail, edit_url, article_url)
+    except Exception:
+        logger.exception(
+            'article_approval_notification_failed',
+            extra={'event_type': 'article_approval_notification_failed', 'event_detail_id': pk},
+        )
+
+
 def _notify_first_time(pk: int) -> None:
     """発表者（Vket 由来の発表は申し込んだ人）に、最初の 1 回だけ記事の公開を知らせる。
 
@@ -274,7 +301,11 @@ def _notify_first_time(pk: int) -> None:
     メールを送れなかった時は通知日時を戻し、次に記事を作った時に送り直す。
     """
     try:
-        detail = EventDetail.all_objects.select_related('event__community', 'applicant').get(pk=pk)
+        detail = EventDetail.all_objects.filter(
+            EventDetail.article_notifiable_q(), pk=pk,
+        ).select_related('event__community', 'applicant').first()
+        if detail is None or detail.article_state() == EventDetail.ArticleState.NONE:
+            return
         recipient = get_material_reminder_recipient(detail)
         if recipient is None or not recipient.email:
             logger.warning(

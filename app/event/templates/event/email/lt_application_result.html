@@ -214,6 +214,11 @@
         </div>
 
         {% if is_approved %}
+            {% if article_url %}
+                <p>発表の記事も公開しました。</p>
+                <p><a href="{{ article_url }}">公開中の記事を見る</a></p>
+                <p>内容に誤りがあれば、<a href="{{ detail_url }}">編集ページ</a>で直せます。</p>
+            {% endif %}
             <div class="next-steps">
                 <h3>発表の準備</h3>
                 <ol>
