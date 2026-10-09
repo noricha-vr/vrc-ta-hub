@@ -11,7 +11,7 @@ from analytics import services as analytics_services
 from analytics.models import PageAnalytics
 from community.constants import WEEKDAY_CHOICES
 from event.services.markdown_processor import convert_markdown
-from event.models import EventDetail
+from event.models import EventDetail, related_event_details_cache_key
 from event.views.helpers import (
     can_manage_event_detail,
     extract_video_info,
@@ -21,6 +21,9 @@ from utils.vrchat_time import get_vrchat_today
 from website.constants import CACHE_TTL_HOUR
 
 logger = logging.getLogger(__name__)
+
+# 「他の発表もチェック！」に出す件数
+RELATED_ITEMS = 6
 
 
 class EventDetailView(DetailView):
@@ -53,7 +56,7 @@ class EventDetailView(DetailView):
         context['start_time'] = start_time
         context['is_discord'] = event_detail.youtube_url.startswith(
             'https://discord.com/') if event_detail.youtube_url else False
-        context['html_content'] = convert_markdown(event_detail.contents)
+        context.update(self._article_context(event_detail))
         context['related_event_details'] = self._fetch_related_event_details(event_detail)
 
         # コミュニティの開催情報を追加
@@ -142,8 +145,10 @@ class EventDetailView(DetailView):
                     # ロゴとして最初の画像を使用（適切なロゴがない場合のフォールバック）
                     publisher_obj["logo"] = {"@type": "ImageObject", "url": images[0]}
 
-                # メタディスクリプションのフォールバック
-                description = (event_detail.meta_description or event_detail.theme or event_detail.title or "").strip()
+                # メタディスクリプションのフォールバック（記事化 NG の記事の要約は使わない）
+                description = (
+                    event_detail.visible_meta_description or event_detail.theme or event_detail.title or ""
+                ).strip()
 
                 structured_data: Dict = {
                     "@context": "https://schema.org",
@@ -163,9 +168,9 @@ class EventDetailView(DetailView):
                 if images:
                     structured_data["image"] = images
 
-                # 可能なら本文も追加（長すぎる場合はカット）
+                # 可能なら本文も追加（長すぎる場合はカット）。記事化 NG の記事の本文は出さない
                 max_article_body_length = 10000
-                if event_detail.contents:
+                if event_detail.has_article:
                     body_text = event_detail.contents
                     if len(body_text) > max_article_body_length:
                         body_text = body_text[:max_article_body_length]
@@ -180,28 +185,48 @@ class EventDetailView(DetailView):
 
         return context
 
-    def _fetch_related_event_details(self, event_detail: EventDetail) -> List[EventDetail]:
-        # キャッシュキーを生成
-        cache_key = f'related_event_details_{event_detail.event_id}'
+    @staticmethod
+    def _article_context(event_detail: EventDetail) -> Dict:
+        """記事の表示と生成ボタンの出し分け。記事化 NG の発表は本文（contents）と要約を出さない。
+
+        タイトルは EventDetail.title が NG の時にテーマを返す。本文のデータは消さず、
+        表示だけを止める（発表者が OK に戻せば元どおり表示する）。
+        """
+        article_visible = not event_detail.is_article_ng
+        return {
+            'article_visible': article_visible,
+            'html_content': convert_markdown(event_detail.contents) if article_visible else '',
+            'can_generate_article': (
+                article_visible
+                and event_detail.detail_type == 'LT'
+                and bool(event_detail.youtube_url or event_detail.slide_file)
+            ),
+        }
+
+    def _fetch_related_event_details(self, event_detail: EventDetail) -> List[Dict]:
+        """同じ集会の、記事のある他の発表（新しい順に最大 RELATED_ITEMS 件）。
+
+        中身は集会ごとに決まるので集会単位で 1 時間キャッシュし、表示中の発表はキャッシュを読んだ後に除く
+        （除いた結果をキャッシュすると、最初に見た発表が同じ集会の他のページで出なくなる）。
+        h1 か記事化の同意が変わるとキャッシュは event.signals が消す。
+        """
+        cache_key = related_event_details_cache_key(event_detail.event.community_id)
         related_event_details = cache.get(cache_key)
         if related_event_details is None:
-            max_related_items = 6
-            cache_timeout_seconds = CACHE_TTL_HOUR
-            # キャッシュがない場合のみDBクエリを実行
+            # 表示中の発表を後で除いても RELATED_ITEMS 件残るよう、1 件多く取る。
+            # 記事化 NG の発表は記事のタイトル（h1）を出さないので除く
             related_event_details = list(
                 EventDetail.objects
                 .filter(
-                    event__community=event_detail.event.community,
+                    event__community_id=event_detail.event.community_id,
                     status='approved',
                     h1__isnull=False,
                     h1__gt=''  # より効率的な空文字列の除外
                 )
-                .exclude(id=event_detail.id)
+                .exclude(article_consent=EventDetail.ArticleConsent.NG)
                 .order_by('-created_at')
-                .values('id', 'h1')[:max_related_items]
+                .values('id', 'h1')[:RELATED_ITEMS + 1]
             )
+            cache.set(cache_key, related_event_details, CACHE_TTL_HOUR)
 
-            # 1時間キャッシュする
-            cache.set(cache_key, related_event_details, cache_timeout_seconds)
-
-        return related_event_details
+        return [item for item in related_event_details if item['id'] != event_detail.id][:RELATED_ITEMS]

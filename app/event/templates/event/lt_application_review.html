@@ -61,6 +61,10 @@
                                     <th scope="row" class="bg-light">撮影</th>
                                     <td>{{ event_detail.get_recording_policy_display }}</td>
                                 </tr>
+                                <tr>
+                                    <th scope="row" class="bg-light">発表の記事化</th>
+                                    <td>{{ event_detail.get_article_consent_display }}</td>
+                                </tr>
                                 {# 代理申請でのみ意味がある情報なので、発表者と同名なら出さない #}
                                 {% if event_detail.applicant and event_detail.applicant.display_label != event_detail.speaker %}
                                 <tr>

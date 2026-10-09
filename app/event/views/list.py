@@ -256,7 +256,8 @@ class EventDetailPastList(ListView):
         if keyword:
             queryset = queryset.filter(
                 Q(theme__icontains=keyword)
-                | Q(h1__icontains=keyword)
+                # 記事化 NG の発表は記事のタイトル（h1）を出さないので、h1 では当てない
+                | (Q(h1__icontains=keyword) & ~Q(article_consent=EventDetail.ArticleConsent.NG))
                 | Q(speaker__icontains=keyword)
                 | Q(event__community__name__icontains=keyword)
             )

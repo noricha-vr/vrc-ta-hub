@@ -115,6 +115,7 @@ class LTApplicationFormTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'Test Theme',
             'speaker': 'TestSpeaker',
+            'article_consent': 'ok',
         })
 
         # リダイレクト確認
@@ -153,6 +154,7 @@ class LTApplicationFormTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'Offset30',
             'speaker': 'Speaker',
+            'article_consent': 'ok',
         })
 
         event_detail = EventDetail.objects.get(event=self.future_event, theme='Offset30')
@@ -170,6 +172,7 @@ class LTApplicationFormTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'Duration Override Attempt',
             'speaker': 'Speaker',
+            'article_consent': 'ok',
             'duration': 5,
         })
 
@@ -221,6 +224,7 @@ class LTApplicationFormTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'Offset45',
             'speaker': 'Speaker',
+            'article_consent': 'ok',
         })
 
         event_detail = EventDetail.objects.get(event=self.future_event, theme='Offset45')
@@ -240,6 +244,7 @@ class LTApplicationFormTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'Offset0',
             'speaker': 'Speaker',
+            'article_consent': 'ok',
         })
 
         event_detail = EventDetail.objects.get(event=self.future_event, theme='Offset0')
@@ -263,6 +268,7 @@ class LTApplicationFormTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'Second LT',
             'speaker': 'Speaker',
+            'article_consent': 'ok',
         })
         second_lt = EventDetail.objects.get(event=self.future_event, theme='Second LT')
         self.assertEqual(second_lt.start_time, time(22, 45))
@@ -271,6 +277,7 @@ class LTApplicationFormTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'Third LT',
             'speaker': 'Speaker',
+            'article_consent': 'ok',
         })
         third_lt = EventDetail.objects.get(event=self.future_event, theme='Third LT')
         self.assertEqual(third_lt.start_time, time(23, 15))
@@ -293,6 +300,7 @@ class LTApplicationFormTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'New LT',
             'speaker': 'Speaker',
+            'article_consent': 'ok',
         })
 
         new_lt = EventDetail.objects.get(event=self.future_event, theme='New LT')
@@ -323,6 +331,7 @@ class LTApplicationFormTest(TestCase):
             'event': self.future_event.pk,
             'theme': 'New LT',
             'speaker': 'Speaker',
+            'article_consent': 'ok',
         })
 
         new_lt = EventDetail.objects.get(event=self.future_event, theme='New LT')
@@ -351,6 +360,7 @@ class LTApplicationFormTest(TestCase):
             'event': overnight_event.pk,
             'theme': 'After Midnight LT',
             'speaker': 'Speaker',
+            'article_consent': 'ok',
         })
 
         new_lt = EventDetail.objects.get(event=overnight_event, theme='After Midnight LT')
@@ -1392,6 +1402,7 @@ class LTApplicationAdditionalInfoTest(TestCase):
             'event': self.event_with_template.pk,
             'theme': 'Test Theme',
             'speaker': 'TestSpeaker',
+            'article_consent': 'ok',
             'additional_info': '【発表概要】\n\n【対象者】\n',  # テンプレートと同一
         })
 
@@ -1410,6 +1421,7 @@ class LTApplicationAdditionalInfoTest(TestCase):
             'event': self.event_with_template.pk,
             'theme': 'Test Theme',
             'speaker': 'TestSpeaker',
+            'article_consent': 'ok',
             'additional_info': '【発表概要】VRChatの技術について発表します。【対象者】初心者向け。',
         })
 
@@ -1436,6 +1448,7 @@ class LTApplicationAdditionalInfoTest(TestCase):
             'event': self.event_without_template.pk,
             'theme': 'Test Theme',
             'speaker': 'TestSpeaker',
+            'article_consent': 'ok',
             # additional_info は未入力
         })
 
@@ -1462,6 +1475,7 @@ class LTApplicationAdditionalInfoTest(TestCase):
             'event': self.event_without_template.pk,
             'theme': 'Free Info Theme',
             'speaker': 'TestSpeaker',
+            'article_consent': 'ok',
             'additional_info': '事前共有したい補足情報です。',
         })
 

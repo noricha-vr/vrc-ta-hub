@@ -40,37 +40,22 @@ def track_community_status_change(sender, instance, **kwargs):
 
 @receiver(pre_save, sender=EventDetail)
 def track_event_detail_status_change(sender, instance, **kwargs):
-    """EventDetail の旧値を保持する。"""
-    instance._old_status = None
-    instance._old_slide_url = ""
-    instance._old_youtube_url = ""
-    instance._old_slide_file = ""
-    instance._old_speaker = ""
-    instance._old_theme = ""
-    instance._old_start_time = None
-    instance._old_detail_type = None
-    instance._old_event_id = None
-    instance._old_event_date = None
+    """EventDetail の旧値を保持する。
 
-    if instance.pk:
-        try:
-            old = EventDetail.objects.select_related('event').only(
-                'status', 'slide_url', 'youtube_url', 'slide_file', 'speaker', 'theme',
-                'start_time', 'detail_type', 'event_id', 'event__date',
-            ).get(pk=instance.pk)
-            instance._old_status = old.status
-            instance._old_slide_url = old.slide_url or ""
-            instance._old_youtube_url = old.youtube_url or ""
-            instance._old_slide_file = str(old.slide_file) if old.slide_file else ""
-            instance._old_speaker = old.speaker or ""
-            instance._old_theme = old.theme or ""
-            instance._old_start_time = old.start_time
-            instance._old_detail_type = old.detail_type
-            instance._old_event_id = old.event_id
-            instance._old_event_date = old.event.date
-        except EventDetail.DoesNotExist:
-            # 削除直後など旧値が存在しない正常系では差分なしとして続行する。
-            pass
+    保存前の値は event・ta_hub のシグナルと共有する（``EventDetail.previous_values``。保存ごとに 1 回だけ読む）。
+    新規や削除直後など旧値が無い時は空の dict になり、差分なしとして続行する。
+    """
+    old = instance.previous_values()
+    instance._old_status = old.get('status')
+    instance._old_slide_url = old.get('slide_url') or ""
+    instance._old_youtube_url = old.get('youtube_url') or ""
+    instance._old_slide_file = old.get('slide_file') or ""
+    instance._old_speaker = old.get('speaker') or ""
+    instance._old_theme = old.get('theme') or ""
+    instance._old_start_time = old.get('start_time')
+    instance._old_detail_type = old.get('detail_type')
+    instance._old_event_id = old.get('event_id')
+    instance._old_event_date = old.get('event__date')
 
 @receiver(post_save, sender=Community)
 def queue_new_community_tweet(sender, instance, created, **kwargs):
