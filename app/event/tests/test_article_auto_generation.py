@@ -373,6 +373,27 @@ class ArticleGenerationQueueTest(TestCase):
         self.assertEqual(detail.h1, '')
         self.assertIsNotNone(detail.article_generation_requested_at)
 
+    def test_deleted_during_generation_is_skipped(self, openai_class, *_mocks):
+        """生成中に発表が論理削除されたら書き込まず、印を外して呼び出しを正常に終える。"""
+        client = _openrouter_client()
+        detail = self._due_detail()
+        completion = client.chat.completions.create.return_value
+
+        def delete_then_respond(*args, **kwargs):
+            EventDetail.objects.get(pk=detail.pk).soft_delete()
+            return completion
+
+        client.chat.completions.create.side_effect = delete_then_respond
+        openai_class.return_value = client
+
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['skipped'], 1)
+        self.assertEqual(result['results'][0]['reason'], 'not_eligible')
+        deleted = EventDetail.all_objects.get(pk=detail.pk)
+        self.assertEqual(deleted.h1, '')
+        self.assertIsNone(deleted.article_generation_requested_at)
+
     def test_skips_when_already_generated_from_same_inputs(self, openai_class, *_mocks):
         openai_class.return_value = _openrouter_client()
         detail = self._due_detail(h1='生成した記事', contents='生成した本文')

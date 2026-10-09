@@ -161,7 +161,8 @@ def _store_article(detail: EventDetail, lease_until: datetime, blog_output: Blog
         ensure_pdf_thumbnail(detail)
 
     with transaction.atomic():
-        current = EventDetail.objects.select_for_update().get(pk=detail.pk)
+        # 処理中に論理削除された発表も取り、対象外として印を外す（objects だと取れずに落ちる）
+        current = EventDetail.all_objects.select_for_update().get(pk=detail.pk)
         if current.article_generation_requested_at != lease_until:
             # 処理中に新しい入力が来た（次の呼び出しで作り直す）か、手動の生成で印が外れた
             return SKIPPED, 'superseded'
@@ -193,7 +194,7 @@ def _record_failure(detail: EventDetail, lease_until: datetime, reason: str) -> 
     attempts = detail.article_generation_attempts
     gave_up = attempts >= MAX_ATTEMPTS
     retry_at = None if gave_up else timezone.now() + RETRY_BASE_DELAY * (2 ** max(attempts - 1, 0))
-    EventDetail.objects.filter(pk=detail.pk, article_generation_requested_at=lease_until).update(
+    EventDetail.all_objects.filter(pk=detail.pk, article_generation_requested_at=lease_until).update(
         article_generation_requested_at=retry_at,
         article_generation_last_error=reason[:LAST_ERROR_MAX_LENGTH],
     )
@@ -207,7 +208,7 @@ def _release(pk: int, lease_until: datetime, *, error: str = '', reset_attempts:
         fields['article_generation_last_error'] = error
     if reset_attempts:
         fields['article_generation_attempts'] = 0
-    EventDetail.objects.filter(pk=pk, article_generation_requested_at=lease_until).update(**fields)
+    EventDetail.all_objects.filter(pk=pk, article_generation_requested_at=lease_until).update(**fields)
 
 
 def _notify_published(event_detail_id: int) -> None:
