@@ -67,6 +67,10 @@ cryptography==50.0.2
     #   -c requirements.txt
     #   -r requirements.in
     #   pyjwt
+defusedxml==0.7.1
+    # via
+    #   -c requirements.txt
+    #   youtube-transcript-api
 distro==1.9.0
     # via
     #   -c requirements.txt
@@ -524,7 +528,7 @@ webencodings==0.5.1
     #   -c requirements.txt
     #   bleach
     #   tinycss2
-youtube-transcript-api==0.6.2
+youtube-transcript-api==1.2.4
     # via
     #   -c requirements.txt
     #   -r requirements.in
