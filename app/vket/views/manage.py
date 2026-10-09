@@ -9,6 +9,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Case, Exists, IntegerField, OuterRef, Prefetch, When
 from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
@@ -21,16 +22,32 @@ from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from ta_hub.index_cache import clear_index_view_cache
 from vket.services import clear_participation_publication, sync_participation_publication
 
-from ..forms import VketManageParticipationForm
+from ..forms import VketManageParticipationForm, VketScheduleSettingsForm
 from ..models import (
     VketCollaboration,
     VketParticipation,
     VketPresentation,
 )
+from ..schedule import (
+    ALLOW_OVERLAP_FIELD,
+    OVERLAP_SIGNATURE_FIELD,
+    ScheduleBlock,
+    block_for,
+    conflicts_signature,
+    confirmed_conflicting_pairs,
+    find_conflicts,
+    format_pair,
+    get_schedule_buffer_minutes,
+    is_overlap_acknowledged,
+    pairs_signature,
+    set_schedule_buffer_minutes,
+    split_conflicts,
+)
 from .helpers import (
     _build_schedule_context,
     _is_vket_admin,
 )
+from .overlap import OverlapConfirmation, record_acknowledged_overlap, render_overlap_confirmation
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +149,7 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
                 'discord_mentions': discord_mentions,
                 'publication_drift_participations': publication_drift_participations,
                 'publication_missing_event_participations': publication_missing_event_participations,
+                **self._publish_overlap_context(collaboration, participations),
                 # progressラベルの辞書（テンプレートで参照可能）
                 'progress_choices': dict(VketParticipation.Progress.choices),
                 'lifecycle_choices': dict(VketParticipation.Lifecycle.choices),
@@ -140,6 +158,22 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
             }
         )
         return context
+
+    @staticmethod
+    def _publish_overlap_context(collaboration: VketCollaboration, participations) -> dict:
+        """公開同期の前に見せる、確定日程どうしの重なり（確定フェーズの時だけ）。
+
+        読み込み済みの参加から計算し、追加のクエリを出さない。
+        """
+        pairs = []
+        if collaboration.phase == VketCollaboration.Phase.LOCKED:
+            pairs = confirmed_conflicting_pairs(collaboration, participations)
+        return {
+            'publish_overlap_pairs': [format_pair(a, b) for a, b in pairs],
+            'publish_overlap_signature': pairs_signature(pairs),
+            'allow_overlap_field': ALLOW_OVERLAP_FIELD,
+            'overlap_signature_field': OVERLAP_SIGNATURE_FIELD,
+        }
 
     @staticmethod
     def _build_discord_mentions(participations) -> dict[str, str]:
@@ -229,6 +263,76 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
         participation.confirmed_date = form.cleaned_data['confirmed_date']
         participation.confirmed_start_time = form.cleaned_data['confirmed_start_time']
         participation.confirmed_duration = form.cleaned_data['confirmed_duration']
+
+        # 確定はその場で公開イベントも作るので、確定済みの枠との重なりはここで止める
+        with transaction.atomic():
+            # ロックを待つ間に入れ替えの間隔が変わることがあるので、ロック後の行で判定する
+            collaboration = VketCollaboration.objects.select_for_update().get(pk=collaboration.pk)
+            candidate, confirmed, requested = self._split_schedule_conflicts(
+                collaboration, participation,
+            )
+            confirmed_lines = [format_pair(candidate, block) for block in confirmed]
+            signature = conflicts_signature(confirmed)
+            if confirmed and not is_overlap_acknowledged(request.POST, signature):
+                return render_overlap_confirmation(
+                    request, collaboration, self._confirmation(collaboration, participation),
+                    confirmed_lines, signature,
+                )
+            changed_index_detail = self._confirm_schedule(request, participation)
+
+        if changed_index_detail:
+            clear_index_view_cache()
+
+        messages.success(
+            request,
+            f'{participation.community.name} の日程を確定しました。',
+        )
+        if confirmed:
+            record_acknowledged_overlap(
+                request, '確定', confirmed_lines,
+                {'collaboration_id': collaboration.id, 'participation_id': participation.id},
+            )
+        if requested:
+            lines = ' / '.join(format_pair(candidate, block) for block in requested)
+            messages.warning(
+                request,
+                f'{participation.community.name} は未確定の申込みと重なっています（{lines}）。'
+                '相手の日程を確定する時に、もう一度確かめてください。',
+            )
+        return redirect('vket:manage', pk=collaboration.pk)
+
+    @staticmethod
+    def _split_schedule_conflicts(
+        collaboration: VketCollaboration, participation: VketParticipation
+    ) -> tuple[ScheduleBlock | None, list[ScheduleBlock], list[ScheduleBlock]]:
+        """確定する枠と、重なる相手（確定済み / 希望だけ）を返す"""
+        candidate = block_for(participation)
+        if candidate is None:
+            return None, [], []
+        confirmed, requested = split_conflicts(find_conflicts(collaboration, candidate))
+        return candidate, confirmed, requested
+
+    @staticmethod
+    def _confirmation(
+        collaboration: VketCollaboration, participation: VketParticipation
+    ) -> OverlapConfirmation:
+        return OverlapConfirmation(
+            title=f'{participation.community.name} の日程の確定',
+            lead=(
+                'この日程は、ほかの集会の確定済みの日程と重なっています。確定すると、すぐに公開イベントにも'
+                '反映されます。入れ替えの途中や、意図して同じ時間に行う場合だけ、承知のうえで確定してください。'
+            ),
+            checkbox_label='重なりを承知で確定する',
+            submit_label='確定する',
+            action_url=reverse(
+                'vket:manage_participation_update',
+                kwargs={'pk': collaboration.pk, 'participation_id': participation.pk},
+            ),
+        )
+
+    @staticmethod
+    def _confirm_schedule(request, participation: VketParticipation) -> bool:
+        """日程を確定し、発表の確定と公開同期まで行う。トップページの更新が要れば True"""
         participation.schedule_adjusted_by_admin = True
         participation.progress = VketParticipation.Progress.REHEARSAL
         participation.schedule_confirmed_at = timezone.now()
@@ -266,8 +370,6 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
             status=VketPresentation.Status.DRAFT,
         ).update(status=VketPresentation.Status.CONFIRMED)
 
-        changed_index_detail = False
-
         # 発表ごとの確定開始時刻を更新する。EventDetail への反映は公開同期でまとめて行う。
         if pres_updates:
             allowed_presentations = {
@@ -293,16 +395,7 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
 
         with transaction.atomic():
             sync_result = sync_participation_publication(participation)
-            changed_index_detail = sync_result.changed_index_data
-
-        if changed_index_detail:
-            clear_index_view_cache()
-
-        messages.success(
-            request,
-            f'{participation.community.name} の日程を確定しました。',
-        )
-        return redirect('vket:manage', pk=collaboration.pk)
+        return sync_result.changed_index_data
 
 
 class ManageScheduleView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
@@ -315,5 +408,32 @@ class ManageScheduleView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Templa
         context = super().get_context_data(**kwargs)
         collaboration = get_object_or_404(VketCollaboration, pk=kwargs['pk'])
         schedule_ctx = _build_schedule_context(collaboration, include_requested=True)
-        context.update({'collaboration': collaboration, **schedule_ctx})
+        settings_form = VketScheduleSettingsForm(
+            initial={'schedule_buffer_minutes': get_schedule_buffer_minutes(collaboration)}
+        )
+        context.update({
+            'collaboration': collaboration,
+            'settings_form': settings_form,
+            **schedule_ctx,
+        })
         return context
+
+
+class ManageScheduleSettingsView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
+    """運営向け: 入れ替えの間隔（分）を settings_json に保存する"""
+
+    def test_func(self):
+        return _is_vket_admin(self.request.user)
+
+    def post(self, request, pk: int):
+        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        form = VketScheduleSettingsForm(request.POST)
+        if not form.is_valid():
+            errors = [str(e) for errs in form.errors.values() for e in errs]
+            messages.error(request, '入れ替えの間隔を保存できませんでした: ' + ' / '.join(errors))
+            return redirect('vket:manage_schedule', pk=collaboration.pk)
+
+        minutes = form.cleaned_data['schedule_buffer_minutes']
+        set_schedule_buffer_minutes(collaboration, minutes)
+        messages.success(request, f'入れ替えの間隔を {minutes} 分にしました。')
+        return redirect('vket:manage_schedule', pk=collaboration.pk)

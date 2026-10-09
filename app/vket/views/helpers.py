@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
-from itertools import combinations, groupby
 
 from django.db.models import Prefetch, Q
 from django.utils import timezone
@@ -15,6 +14,13 @@ from ..models import (
     VketCollaboration,
     VketParticipation,
     VketPresentation,
+)
+from ..schedule import (
+    block_for,
+    blocks_from,
+    find_conflicting_pairs,
+    format_pair,
+    get_schedule_buffer_minutes,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,18 +90,6 @@ def _apply_permissions_for_user(user, collaboration: VketCollaboration) -> VketA
     return VketApplyPermissions(can_edit_schedule=can_edit_schedule, can_edit_lt=can_edit_lt)
 
 
-def _time_ranges_overlap(
-    start1: time, duration1_minutes: int, start2: time, duration2_minutes: int
-) -> bool:
-    """2つの時間帯が重複するか判定する"""
-    base = timezone.localdate()
-    s1 = datetime.combine(base, start1)
-    e1 = s1 + timedelta(minutes=duration1_minutes)
-    s2 = datetime.combine(base, start2)
-    e2 = s2 + timedelta(minutes=duration2_minutes)
-    return s1 < e2 and s2 < e1
-
-
 def _shift_time(t: time, delta: timedelta) -> time:
     """時刻を指定分だけシフトする（日跨ぎはエラー）"""
     base = timezone.localdate()
@@ -124,7 +118,9 @@ def _build_schedule_context(
         collaboration: 対象コラボ
         include_requested: True なら requested_* のみの参加も含める
     """
-    empty = {'slots': [], 'rows': [], 'overlap_warnings': [], 'warnings': []}
+    empty = {
+        'slots': [], 'rows': [], 'overlap_warnings': [], 'warnings': [], 'schedule_blocks': [],
+    }
 
     # クエリ: confirmed があるもの + (オプション) requested のみのもの
     q_confirmed = Q(confirmed_date__isnull=False, confirmed_start_time__isnull=False)
@@ -163,22 +159,21 @@ def _build_schedule_context(
         )
     )
 
+    # 各参加の「表示用」日程を決定（判定と同じ block_for: confirmed 優先、なければ requested）
+    blocks_by_pid = {p.id: block for p in participations if (block := block_for(p)) is not None}
+    participations = [p for p in participations if p.id in blocks_by_pid]
     if not participations:
         return empty
 
-    # 各参加の「表示用」日程を決定（confirmed 優先、なければ requested）
-    effective_data: dict[int, dict] = {}
-    for p in participations:
-        is_confirmed = p.confirmed_date is not None and p.confirmed_start_time is not None
-        e_date = p.confirmed_date if is_confirmed else p.requested_date
-        e_start = p.confirmed_start_time if is_confirmed else p.requested_start_time
-        e_duration = (p.confirmed_duration if is_confirmed else p.requested_duration) or 60
-        effective_data[p.id] = {
-            'date': e_date,
-            'start_time': e_start,
-            'duration': e_duration,
-            'is_confirmed': is_confirmed,
+    effective_data: dict[int, dict] = {
+        pid: {
+            'date': block.date,
+            'start_time': block.start,
+            'duration': block.duration,
+            'is_confirmed': block.is_confirmed,
         }
+        for pid, block in blocks_by_pid.items()
+    }
 
     # date でソート
     participations.sort(key=lambda p: (
@@ -261,23 +256,18 @@ def _build_schedule_context(
             return None
         return idx
 
-    # 日付×スロットごとの占有数
-    occupancy: dict[tuple, int] = {}
-    for p in participations:
-        eff = effective_data[p.id]
-        p_start = eff['start_time']
-        p_duration = eff['duration']
-        start_dt = datetime.combine(base, p_start)
-        end_dt = start_dt + timedelta(minutes=p_duration)
-        for idx, slot in enumerate(slots):
-            slot_start = datetime.combine(base, slot.start)
-            slot_end = datetime.combine(base, slot.end)
-            if slot_start < end_dt and slot_end > start_dt:
-                key = (eff['date'], idx)
-                occupancy[key] = occupancy.get(key, 0) + 1
+    # 重なりの警告と表の赤いセルは、同じ判定（有効な参加だけ・入れ替えの間隔込み）から作る
+    buffer_minutes = get_schedule_buffer_minutes(collaboration)
+    schedule_blocks = blocks_from(participations)
+    conflicting_pairs = find_conflicting_pairs(schedule_blocks, buffer_minutes)
+    overlap_warnings = [f'{format_pair(a, b)} が重なっています' for a, b in conflicting_pairs]
+    partners_by_pid: dict[int, list] = {}
+    for a, b in conflicting_pairs:
+        partners_by_pid.setdefault(a.participation_id, []).append(b)
+        partners_by_pid.setdefault(b.participation_id, []).append(a)
+    gap = timedelta(minutes=buffer_minutes)
 
     rows = []
-    overlap_warnings: list[str] = []
 
     lt_slots_by_pid: dict[int, dict[int, list[time]]] = {}
     lt_slot_communities: dict[tuple, set[str]] = {}
@@ -311,20 +301,6 @@ def _build_schedule_context(
                     f'{p_date.strftime("%Y/%m/%d")} {p.community.name} の発表開始時刻（{lt_time.strftime("%H:%M")}）が開催時間（{p_start.strftime("%H:%M")}〜{end_time.strftime("%H:%M")}）の範囲外です'
                 )
 
-    # 同日に重複する参加のペアワーニング
-    for d, group in groupby(participations, key=lambda p: effective_data[p.id]['date']):
-        parts_on_date = list(group)
-        for p1, p2 in combinations(parts_on_date, 2):
-            eff1, eff2 = effective_data[p1.id], effective_data[p2.id]
-            if _time_ranges_overlap(
-                eff1['start_time'], eff1['duration'],
-                eff2['start_time'], eff2['duration'],
-            ):
-                overlap_start = max(eff1['start_time'], eff2['start_time'])
-                overlap_warnings.append(
-                    f'{d.strftime("%Y/%m/%d")} {overlap_start.strftime("%H:%M")} {p1.community.name} と {p2.community.name} が重複'
-                )
-
     for (d, idx), communities in sorted(
         lt_slot_communities.items(), key=lambda x: (x[0][0], x[0][1])
     ):
@@ -342,12 +318,18 @@ def _build_schedule_context(
         event_start = datetime.combine(base, p_start)
         event_end = event_start + timedelta(minutes=p_duration)
         lt_slots = lt_slots_by_pid.get(p.id, {})
+        partners = partners_by_pid.get(p.id, [])
         cells = []
         for idx, slot in enumerate(slots):
             slot_start = datetime.combine(base, slot.start)
             slot_end = datetime.combine(base, slot.end)
             occupied = slot_start < event_end and slot_end > event_start
-            overlap = occupied and occupancy.get((p_date, idx), 0) > 1
+            # 相手の枠（間隔込み）にかかるセルだけを赤くする
+            cell_start = datetime.combine(p_date, slot.start)
+            cell_end = cell_start + timedelta(minutes=slot_minutes)
+            overlap = occupied and any(
+                cell_start < q.end_dt + gap and q.start_dt - gap < cell_end for q in partners
+            )
             lt_times_in_slot = sorted(lt_slots.get(idx, []))
             lt_overlap = bool(lt_times_in_slot) and len(lt_slot_communities.get((p_date, idx), set())) > 1
             lt_tooltip = ', '.join([t.strftime('%H:%M') for t in lt_times_in_slot]) if lt_times_in_slot else ''
@@ -372,4 +354,5 @@ def _build_schedule_context(
         'rows': rows,
         'overlap_warnings': overlap_warnings,
         'warnings': warnings,
+        'schedule_blocks': schedule_blocks,
     }
