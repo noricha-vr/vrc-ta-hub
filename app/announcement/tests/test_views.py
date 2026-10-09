@@ -150,9 +150,10 @@ class EditViewTests(StaffTestCase):
         self.assertEqual(self.message.last_error, '')
 
     def test_waiting_retry_message_body_can_be_fixed_without_changing_time(self):
-        """時刻を過ぎて再試行を待っている予約も、日時を変えなければ本文だけ直せる。"""
+        """時刻を過ぎて再試行を待っている予約も、日時を変えなければ本文だけ直せる。試行の状態は保つ。"""
         past = (timezone.localtime(timezone.now()) - timedelta(minutes=3)).replace(second=0, microsecond=0)
         DiscordScheduledMessage.objects.filter(pk=self.message.pk).update(scheduled_at=past)
+        next_attempt_at = self.message.next_attempt_at
 
         response = self.client.post(
             self.detail_url(self.message),
@@ -163,7 +164,19 @@ class EditViewTests(StaffTestCase):
         self.message.refresh_from_db()
         self.assertEqual(self.message.body, '直した本文')
         self.assertEqual(self.message.scheduled_at, past)
-        self.assertEqual(self.message.attempt_count, 0)
+        # 本文だけの編集で、再試行の上限と待ち時間を素通りさせない
+        self.assertEqual(self.message.attempt_count, 1)
+        self.assertEqual(self.message.next_attempt_at, next_attempt_at)
+        self.assertEqual(self.message.last_error, 'Discord が HTTP 503 を返しました。')
+
+    def test_changing_time_starts_the_attempts_over(self):
+        value, expected = _future(days=6)
+
+        self.client.post(self.detail_url(self.message), {'body': '元の本文', 'scheduled_at': value})
+
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.scheduled_at, expected)
+        self.assertEqual((self.message.attempt_count, self.message.next_attempt_at, self.message.last_error), (0, None, ''))
 
     def test_moving_time_into_the_past_is_rejected_on_edit(self):
         past = (timezone.localtime(timezone.now()) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')

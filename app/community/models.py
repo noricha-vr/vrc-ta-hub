@@ -2,11 +2,11 @@ import secrets
 import uuid
 from datetime import timedelta
 
-from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
 
 from ta_hub.libs import DEFAULT_MAX_SIZE, resize_and_convert_image
+from website.discord_webhook import discord_webhook_url_validator
 
 from .constants import RecordingPolicy
 from .encrypted_fields import EncryptedTextField
@@ -74,12 +74,7 @@ class Community(models.Model):
         'Discord Webhook URL',
         blank=True,
         default='',
-        validators=[
-            RegexValidator(
-                regex=r'^https://discord\.com/api/webhooks/',
-                message='Discord Webhook URL は https://discord.com/api/webhooks/ で始まる必要があります。',
-            )
-        ],
+        validators=[discord_webhook_url_validator],
     )
 
     class DiscordMentionType(models.TextChoices):

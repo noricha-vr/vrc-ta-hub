@@ -19,10 +19,18 @@ def contains_mass_mention(body: str) -> bool:
     return any(token in body for token in MASS_MENTION_TOKENS)
 
 
+def editable_conditions() -> dict:
+    """編集・取り消し・送信の対象になる条件（予約中で、送信処理に取られていない）。
+
+    QuerySet.editable() と、インスタンスの is_editable / is_sending の両方がここから作る。
+    """
+    return {'status': DiscordScheduledMessage.Status.SCHEDULED, 'lease_token': ''}
+
+
 class DiscordScheduledMessageQuerySet(models.QuerySet):
     def editable(self):
         """予約中で、送信処理に取られていない予約に絞る（編集・取り消し・送信の対象）。"""
-        return self.filter(status=DiscordScheduledMessage.Status.SCHEDULED, lease_token='')
+        return self.filter(**editable_conditions())
 
     def due(self, now):
         """送信日時と再試行の待ち時間を過ぎ、いま送ってよい予約に絞る。"""
@@ -98,14 +106,14 @@ class DiscordScheduledMessage(models.Model):
         return f'#{self.pk} {self.get_status_display()} {scheduled_at:%Y-%m-%d %H:%M}'
 
     @property
-    def is_sending(self) -> bool:
-        """送信処理がこの予約を取って送っている最中か。"""
-        return self.status == self.Status.SCHEDULED and bool(self.lease_token)
+    def is_editable(self) -> bool:
+        """編集・取り消しできるか（QuerySet.editable() と同じ条件）。"""
+        return all(getattr(self, name) == value for name, value in editable_conditions().items())
 
     @property
-    def is_editable(self) -> bool:
-        """編集・取り消しできるか（予約中で、送信処理中でない）。"""
-        return self.status == self.Status.SCHEDULED and not self.lease_token
+    def is_sending(self) -> bool:
+        """送信処理がこの予約を取って送っている最中か（予約中のうち、編集できる条件から外れているもの）。"""
+        return self.status == self.Status.SCHEDULED and not self.is_editable
 
     @property
     def can_resend(self) -> bool:

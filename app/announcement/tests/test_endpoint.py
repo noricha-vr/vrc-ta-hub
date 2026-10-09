@@ -53,6 +53,7 @@ class SendScheduledEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
             'sent': 1,
+            'sent_unrecorded': 0,
             'retrying': 0,
             'failed': 0,
             'skipped': 0,

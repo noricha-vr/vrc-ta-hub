@@ -113,17 +113,20 @@ class ScheduledMessageDetailView(StaffRequiredMixin, View):
 
 
 def _apply_edit(pk: int, form: DiscordScheduledMessageForm) -> bool:
-    """予約中で送信処理に取られていない時だけ、編集内容を保存する（送信処理と競合しないよう条件付き UPDATE）。"""
-    updated = DiscordScheduledMessage.objects.editable().filter(pk=pk).update(
-        body=form.cleaned_data['body'],
-        scheduled_at=form.cleaned_data['scheduled_at'],
-        mention_everyone_confirmed=form.mention_everyone_confirmed,
-        attempt_count=0,
-        next_attempt_at=None,
-        last_error='',
-        updated_at=timezone.now(),
-    )
-    return bool(updated)
+    """予約中で送信処理に取られていない時だけ、編集内容を保存する（送信処理と競合しないよう条件付き UPDATE）。
+
+    送信日時を変えた時だけ、新しい予約として試行回数・次の試行時刻・エラーを戻す。
+    本文だけの編集では保ち、再試行の上限と待ち時間を編集で素通りできないようにする。
+    """
+    fields = {
+        'body': form.cleaned_data['body'],
+        'scheduled_at': form.cleaned_data['scheduled_at'],
+        'mention_everyone_confirmed': form.mention_everyone_confirmed,
+        'updated_at': timezone.now(),
+    }
+    if form.scheduled_at_changed:
+        fields.update(attempt_count=0, next_attempt_at=None, last_error='')
+    return bool(DiscordScheduledMessage.objects.editable().filter(pk=pk).update(**fields))
 
 
 class ScheduledMessageCancelView(StaffRequiredMixin, View):

@@ -130,6 +130,11 @@ class DiscordScheduledMessageForm(forms.ModelForm):
         return cleaned_data
 
     @property
+    def scheduled_at_changed(self) -> bool:
+        """保存済みの送信日時から変えたか（作成の時は常に True）。"""
+        return self.cleaned_data.get('scheduled_at') != self._saved_scheduled_at
+
+    @property
     def mention_everyone_confirmed(self) -> bool:
         """保存する「全員への通知を確認済み」の値（本文に全員宛てのメンションがあり、確認した時だけ True）。"""
         body = self.cleaned_data.get('body') or ''

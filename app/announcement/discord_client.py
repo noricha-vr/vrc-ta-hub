@@ -21,8 +21,8 @@ import requests
 from django.conf import settings
 from urllib3.exceptions import ConnectTimeoutError, NewConnectionError
 
-# 告知チャンネルの webhook として受け付ける URL の形（設定の取り違えで別の宛先へ送らないため）
-WEBHOOK_URL_PATTERN = re.compile(r'\Ahttps://(?:ptb\.|canary\.)?discord(?:app)?\.com/api/webhooks/\S+\Z')
+from website.discord_webhook import is_discord_webhook_url
+
 CONNECT_TIMEOUT_SECONDS = 5
 READ_TIMEOUT_SECONDS = 10
 HTTP_TOO_MANY_REQUESTS = 429
@@ -60,7 +60,8 @@ def send_announcement(content: str, *, mention_everyone: bool) -> SendResult:
     webhook_url = getattr(settings, 'DISCORD_ANNOUNCE_WEBHOOK_URL', '') or ''
     if not webhook_url:
         return SendResult(ok=False, error=WEBHOOK_NOT_CONFIGURED_ERROR)
-    if not WEBHOOK_URL_PATTERN.match(webhook_url):
+    # 設定の取り違えで別の宛先へ送らないよう、集会の通知先と同じ検証（discord.com のみ）を通す
+    if not is_discord_webhook_url(webhook_url):
         return SendResult(ok=False, error=WEBHOOK_INVALID_ERROR)
 
     payload = {

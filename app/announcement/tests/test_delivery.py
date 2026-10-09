@@ -6,8 +6,9 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import requests
-from django.db import DatabaseError
+from django.db import DatabaseError, connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from urllib3.exceptions import MaxRetryError, NewConnectionError
 
 from announcement import delivery
@@ -137,8 +138,8 @@ class DoubleSendPreventionTests(TestCase):
         self.assertEqual(message.status, Status.SENT)
 
     @patch(POST_PATH)
-    def test_lost_claim_ends_the_run_without_retaking_the_same_row(self, mock_post):
-        """リースを付けられなかった行は送らず、同じ行を取り直し続けずにその回を終える。"""
+    def test_lost_claim_is_not_retaken_in_the_same_run(self, mock_post):
+        """リースを付けられなかった行は送らず、その回では候補から外して取り直さない。"""
         message = make_message(scheduled_at=NOW - timedelta(minutes=1))
         due_calls = []
 
@@ -153,10 +154,41 @@ class DoubleSendPreventionTests(TestCase):
             result = process_due_messages(now=NOW)
 
         mock_post.assert_not_called()
-        self.assertEqual(len(due_calls), 2)
-        self.assertEqual(result['results'], [])
+        # 選ぶ → 取り損ねる → 外して選び直す（候補なし）の 3 回だけ
+        self.assertEqual(len(due_calls), 3)
+        self.assertEqual(result['skipped'], 1)
+        self.assertEqual(result['results'], [{'id': message.pk, 'outcome': 'skipped', 'reason': 'claimed_by_another_run'}])
         message.refresh_from_db()
         self.assertEqual(message.attempt_count, 0)
+
+    @patch(POST_PATH)
+    def test_lost_claim_moves_on_to_the_next_message(self, mock_post):
+        """先を越された行があっても、その回を止めずに次の予約を送る。"""
+        mock_post.return_value = discord_response()
+        taken = make_message(body='先を越される予約', scheduled_at=NOW - timedelta(minutes=2))
+        other = make_message(body='次の予約', scheduled_at=NOW - timedelta(minutes=1))
+        original_due = DiscordScheduledMessage.objects.due
+        due_calls = []
+
+        def due_taken_by_another_run_once(now):
+            due_calls.append(now)
+            if len(due_calls) == 2:
+                # 1 件目にリースを付ける直前に、別の実行がその行を取った
+                DiscordScheduledMessage.objects.filter(pk=taken.pk).update(
+                    lease_token='another-run', lease_expires_at=NOW + timedelta(minutes=5),
+                )
+            return original_due(now)
+
+        with patch.object(DiscordScheduledMessage.objects, 'due', side_effect=due_taken_by_another_run_once):
+            result = process_due_messages(now=NOW)
+
+        mock_post.assert_called_once()
+        self.assertEqual(mock_post.call_args.kwargs['json']['content'], '次の予約')
+        other.refresh_from_db()
+        taken.refresh_from_db()
+        self.assertEqual(other.status, Status.SENT)
+        self.assertEqual((taken.status, taken.lease_token), (Status.SCHEDULED, 'another-run'))
+        self.assertEqual((result['sent'], result['skipped']), (1, 1))
 
     @patch(POST_PATH)
     def test_expired_lease_is_failed_without_resending(self, mock_post):
@@ -177,6 +209,43 @@ class DoubleSendPreventionTests(TestCase):
         self.assertEqual(message.lease_token, '')
         self.assertEqual(result['failed'], 1)
         self.assertEqual(result['results'][0]['reason'], 'lease_expired')
+
+
+@override_settings(DISCORD_ANNOUNCE_WEBHOOK_URL=FAKE_WEBHOOK_URL)
+class ExpiredLeaseTests(TestCase):
+    @patch(POST_PATH)
+    def test_expired_leases_are_failed_in_one_update_and_logged_together(self, mock_post):
+        expired = [
+            make_message(
+                scheduled_at=NOW - timedelta(minutes=10),
+                lease_token=f'crashed-run-{index}',
+                lease_expires_at=NOW - timedelta(seconds=1),
+                attempt_count=1,
+            )
+            for index in range(2)
+        ]
+        still_running = make_message(
+            scheduled_at=NOW - timedelta(minutes=1), lease_token='running', lease_expires_at=NOW + timedelta(minutes=4),
+        )
+
+        with CaptureQueriesContext(connection) as queries, \
+                self.assertLogs('announcement.delivery', level='WARNING') as logs:
+            result = process_due_messages(now=NOW)
+
+        updates = [
+            query['sql'] for query in queries.captured_queries
+            if query['sql'].lstrip().upper().startswith('UPDATE') and 'discord_scheduled_message' in query['sql']
+        ]
+        self.assertEqual(len(updates), 1)
+        expired_ids = sorted(message.pk for message in expired)
+        self.assertEqual(sorted(DiscordScheduledMessage.objects.filter(status=Status.FAILED).values_list('pk', flat=True)), expired_ids)
+        still_running.refresh_from_db()
+        self.assertEqual(still_running.status, Status.SCHEDULED)
+        record = next(record for record in logs.records if record.getMessage().startswith('Discord scheduled message leases expired'))
+        self.assertEqual(record.expired_lease_count, 2)
+        self.assertEqual(sorted(record.expired_lease_ids), expired_ids)
+        self.assertEqual(result['failed'], 2)
+        mock_post.assert_not_called()
 
 
 @override_settings(DISCORD_ANNOUNCE_WEBHOOK_URL=FAKE_WEBHOOK_URL)
@@ -315,16 +384,25 @@ class RetryAndFailureTests(TestCase):
         self.assertIn('DISCORD_ANNOUNCE_WEBHOOK_URL', message.last_error)
         self.assertEqual(result['failed'], 1)
 
-    @override_settings(DISCORD_ANNOUNCE_WEBHOOK_URL='https://example.com/api/webhooks/1/x')
     @patch(POST_PATH)
-    def test_non_discord_webhook_is_not_called(self, mock_post):
-        message = make_message(scheduled_at=NOW - timedelta(minutes=1))
+    def test_only_discord_com_webhook_is_called(self, mock_post):
+        """集会の通知先と同じ検証で、discord.com の webhook だけに送る。"""
+        rejected = [
+            'https://example.com/api/webhooks/1/x',
+            'https://discordapp.com/api/webhooks/1/x',
+            'https://ptb.discord.com/api/webhooks/1/x',
+            'https://canary.discord.com/api/webhooks/1/x',
+        ]
+        for webhook_url in rejected:
+            with self.subTest(webhook_url=webhook_url), override_settings(DISCORD_ANNOUNCE_WEBHOOK_URL=webhook_url):
+                message = make_message(scheduled_at=NOW - timedelta(minutes=1))
 
-        process_due_messages(now=NOW)
+                process_due_messages(now=NOW)
 
-        mock_post.assert_not_called()
-        message.refresh_from_db()
-        self.assertEqual(message.status, Status.FAILED)
+                mock_post.assert_not_called()
+                message.refresh_from_db()
+                self.assertEqual(message.status, Status.FAILED)
+                self.assertIn('Discord の webhook の形式ではありません', message.last_error)
 
 
 @override_settings(DISCORD_ANNOUNCE_WEBHOOK_URL=FAKE_WEBHOOK_URL)
@@ -474,3 +552,105 @@ class UnexpectedErrorTests(TestCase):
         self.assertEqual(self.first.status, Status.FAILED)
         self.assertEqual(result['failed'], 1)
         mock_post.assert_not_called()
+
+
+def _steal_lease(message_id):
+    """リースの期限切れの処理が先に走り、予約を失敗にしてリースを外した状態にする。"""
+    DiscordScheduledMessage.objects.filter(pk=message_id).update(
+        status=Status.FAILED, last_error=delivery.ABANDONED_LEASE_ERROR, lease_token='', lease_expires_at=None,
+    )
+
+
+@override_settings(DISCORD_ANNOUNCE_WEBHOOK_URL=FAKE_WEBHOOK_URL)
+class RecordingTests(TestCase):
+    """送信の結果を記録する時の扱い（リースを失っていた時・記録で例外が出た時）。"""
+
+    def setUp(self):
+        self.message = make_message(scheduled_at=NOW - timedelta(minutes=2))
+
+    @patch(POST_PATH)
+    def test_sent_after_lease_was_lost_is_reported_without_rewriting_the_row(self, mock_post):
+        def post_while_lease_expires(*args, **kwargs):
+            _steal_lease(self.message.pk)
+            return discord_response()
+
+        mock_post.side_effect = post_while_lease_expires
+
+        with self.assertLogs('announcement.delivery', level='ERROR') as logs:
+            result = process_due_messages(now=NOW)
+
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.status, Status.FAILED)
+        self.assertEqual(self.message.discord_message_id, '')
+        self.assertEqual(result['results'], [{
+            'id': self.message.pk, 'outcome': 'sent_unrecorded',
+            'discord_message_id': FAKE_DISCORD_MESSAGE_ID, 'reason': 'lease_lost',
+        }])
+        self.assertEqual((result['sent'], result['sent_unrecorded'], result['failed']), (0, 1, 0))
+        record = next(record for record in logs.records if 'could not be recorded' in record.getMessage())
+        self.assertEqual(record.scheduled_message_id, self.message.pk)
+        self.assertEqual(record.discord_message_id, FAKE_DISCORD_MESSAGE_ID)
+        self.assertNotIn(FAKE_WEBHOOK_TOKEN, '\n'.join(logs.output))
+
+    @patch(POST_PATH)
+    def test_record_error_after_sent_is_reported_as_sent_unrecorded(self, mock_post):
+        mock_post.return_value = discord_response()
+        later = make_message(body='後の予約', scheduled_at=NOW - timedelta(minutes=1))
+        original_record_sent = delivery._record_sent
+        record_calls = []
+
+        def record_sent_failing_once(*args, **kwargs):
+            record_calls.append(args)
+            if len(record_calls) == 1:
+                raise DatabaseError('connection lost')
+            return original_record_sent(*args, **kwargs)
+
+        with patch('announcement.delivery._record_sent', side_effect=record_sent_failing_once), \
+                self.assertLogs('announcement.delivery', level='ERROR') as logs:
+            result = process_due_messages(now=NOW)
+
+        first = result['results'][0]
+        self.assertEqual((first['id'], first['outcome']), (self.message.pk, 'sent_unrecorded'))
+        self.assertEqual(first['discord_message_id'], FAKE_DISCORD_MESSAGE_ID)
+        self.assertEqual((first['reason'], first['error_type']), ('record_failed', 'DatabaseError'))
+        record = next(record for record in logs.records if 'could not be recorded' in record.getMessage())
+        self.assertEqual(record.discord_message_id, FAKE_DISCORD_MESSAGE_ID)
+        # 送れた予約の行は書き換えない（リースの期限切れの処理に任せる）。残りの予約は送る
+        self.message.refresh_from_db()
+        later.refresh_from_db()
+        self.assertEqual(self.message.status, Status.SCHEDULED)
+        self.assertNotEqual(self.message.lease_token, '')
+        self.assertEqual(later.status, Status.SENT)
+        self.assertEqual(mock_post.call_count, 2)
+
+    @patch(POST_PATH)
+    def test_record_error_after_rate_limit_does_not_say_it_may_have_arrived(self, mock_post):
+        mock_post.return_value = discord_response(429, {'message': 'You are being rate limited.'})
+
+        with patch('announcement.delivery._release_for_retry', side_effect=DatabaseError('connection lost')):
+            result = process_due_messages(now=NOW)
+
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.status, Status.FAILED)
+        self.assertIn('HTTP 429', self.message.last_error)
+        self.assertIn('Discord には届いていない', self.message.last_error)
+        self.assertNotIn('届いている可能性', self.message.last_error)
+        self.assertEqual(result['results'][0]['outcome'], 'failed')
+        self.assertEqual(result['results'][0]['stage'], 'recording')
+
+    @patch(POST_PATH)
+    def test_retry_is_not_counted_when_the_lease_was_lost(self, mock_post):
+        def rate_limited_while_lease_expires(*args, **kwargs):
+            _steal_lease(self.message.pk)
+            return discord_response(429, {'message': 'You are being rate limited.'})
+
+        mock_post.side_effect = rate_limited_while_lease_expires
+
+        result = process_due_messages(now=NOW)
+
+        self.assertEqual(result['retrying'], 0)
+        self.assertEqual(result['results'][0]['outcome'], 'failed')
+        self.assertEqual(result['results'][0]['reason'], 'lease_lost')
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.last_error, delivery.ABANDONED_LEASE_ERROR)
+        self.assertIsNone(self.message.next_attempt_at)
