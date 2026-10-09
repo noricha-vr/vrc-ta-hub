@@ -237,7 +237,7 @@ def notify_applicant_of_article_published(event_detail: EventDetail, recipient) 
 
     sent = _send_article_published_email(event_detail, recipient, edit_url, article_url, is_published)
     if sent and is_published:
-        _send_discord_notification_for_article(event_detail, edit_url, article_url)
+        send_discord_notification_for_article(event_detail, edit_url, article_url)
     return sent
 
 
@@ -282,7 +282,7 @@ def _send_article_published_email(
         return False
 
 
-def _send_discord_notification_for_article(
+def send_discord_notification_for_article(
     event_detail: EventDetail, edit_url: str, article_url: str
 ) -> None:
     """記事の公開を集会の Discord Webhook に知らせる."""

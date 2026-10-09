@@ -9,6 +9,7 @@ import logging
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
+from functools import partial
 
 from django.conf import settings
 from django.db import transaction
@@ -18,7 +19,7 @@ from django.utils import timezone
 
 from event.material_upload_reminders import get_material_reminder_recipient
 from event.models import EventDetail, article_generation_request_values
-from event.notifications import _send_discord_notification_for_article, notify_applicant_of_article_published
+from event.notifications import notify_applicant_of_article_published, send_discord_notification_for_article
 from event.services.content_generation_service import (
     BlogOutput,
     BlogSources,
@@ -266,24 +267,43 @@ def _after_generated(pk: int) -> None:
     _notify_first_time(pk)
 
 
-def notify_article_on_approval(pk: int) -> None:
-    """承認で公開になった記事を知らせる。承認前にメール済みなら Discord だけに流す。
+def schedule_article_notification_on_approval(detail: EventDetail) -> None:
+    """承認前の行ロック中に記事の通知担当を決め、コミット後に送る。
 
-    承認の状態変更を行った 1 件だけが呼ぶ。送る直前に読み直し、記事を空にした発表や
-    記事化 NG・却下・論理削除へ変わった発表には送らない。失敗しても承認は取り消さない。
+    pending を確認した承認トランザクション内で、status を変える前に呼ぶ。
+    通知日時があれば承認前の作成メールなので Discord だけ、なければここで日時を入れ、
+    公開メールと Discord の担当を取る。生成側の通知日時の取得も同じ行ロックで待つ。
     """
+    if detail.status != 'pending' or detail.article_state() == EventDetail.ArticleState.NONE:
+        return
+    if not EventDetail.all_objects.filter(EventDetail.article_notifiable_q(), pk=detail.pk).exists():
+        return
+    notified_at = None
+    if detail.article_published_notified_at is None:
+        notified_at = timezone.now()
+        EventDetail.all_objects.filter(pk=detail.pk).update(article_published_notified_at=notified_at)
+        detail.article_published_notified_at = notified_at
+    transaction.on_commit(partial(_send_article_approval_notification, detail.pk, notified_at))
+
+
+def _send_article_approval_notification(pk: int, notified_at: datetime | None) -> None:
+    """承認時に決めた担当で送る。送る直前の同意・公開状態と記事本文を読み直す。"""
     try:
         detail = EventDetail.all_objects.filter(
             EventDetail.article_notifiable_q(), pk=pk, status='approved',
         ).select_related('event__community', 'applicant').first()
         if detail is None or detail.article_state() == EventDetail.ArticleState.NONE:
             return
-        if detail.article_published_notified_at is None:
-            _notify_first_time(pk)
+        if notified_at is not None:
+            recipient = get_material_reminder_recipient(detail)
+            if not _send_published_notification(detail, recipient):
+                EventDetail.all_objects.filter(
+                    pk=pk, article_published_notified_at=notified_at,
+                ).update(article_published_notified_at=None)
         else:
             edit_url = build_site_url(reverse('account:lt_application_edit', kwargs={'pk': pk}))
             article_url = build_site_url(reverse('event:detail', kwargs={'pk': pk}))
-            _send_discord_notification_for_article(detail, edit_url, article_url)
+            send_discord_notification_for_article(detail, edit_url, article_url)
     except Exception:
         logger.exception(
             'article_approval_notification_failed',
@@ -314,10 +334,17 @@ def _notify_first_time(pk: int) -> None:
             )
             return
         notified_at = timezone.now()
-        first_time = EventDetail.all_objects.filter(
-            EventDetail.article_notifiable_q(), pk=pk, article_published_notified_at__isnull=True,
-        ).update(article_published_notified_at=notified_at)
-        if first_time and not _send_published_notification(detail, recipient):
+        with transaction.atomic():
+            first_time = EventDetail.all_objects.filter(
+                EventDetail.article_notifiable_q(), pk=pk, article_published_notified_at__isnull=True,
+            ).update(article_published_notified_at=notified_at)
+            if not first_time:
+                return
+            # UPDATE が取った行ロック中に読み直す。承認前の取得なら作成メールだけを送り、
+            # 承認後の取得なら公開メールと Discord を送る（取得前の status は使わない）。
+            detail = EventDetail.all_objects.select_related('event__community', 'applicant').get(pk=pk)
+            recipient = get_material_reminder_recipient(detail)
+        if not _send_published_notification(detail, recipient):
             EventDetail.all_objects.filter(
                 pk=pk, article_published_notified_at=notified_at,
             ).update(article_published_notified_at=None)

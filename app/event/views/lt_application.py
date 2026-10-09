@@ -228,6 +228,8 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
 
             if action == 'approve':
                 schedule_changes = self._apply_schedule_changes(form)
+                from event.services.article_generation import schedule_article_notification_on_approval
+                schedule_article_notification_on_approval(locked)
                 locked.status = 'approved'
                 status_text = '承認'
                 update_fields = ['status', 'event', 'start_time', 'duration', 'updated_at']
@@ -246,10 +248,6 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
             request=self.request,
             schedule_changes=schedule_changes,
         )
-
-        if action == 'approve':
-            from event.services.article_generation import notify_article_on_approval
-            notify_article_on_approval(self.event_detail.pk)
 
         messages.success(self.request, f'申請を{status_text}しました。')
         logger.info(
@@ -328,14 +326,14 @@ class LTApplicationApproveView(LoginRequiredMixin, View):
                 messages.info(request, 'この申請は既に処理されています。')
                 return redirect('event:my_list')
 
+            from event.services.article_generation import schedule_article_notification_on_approval
+            schedule_article_notification_on_approval(event_detail)
             event_detail.status = 'approved'
             event_detail.save(update_fields=['status', 'updated_at'])
 
         # 申請者に通知
         from event.notifications import notify_applicant_of_result
         notify_applicant_of_result(event_detail, request=request)
-        from event.services.article_generation import notify_article_on_approval
-        notify_article_on_approval(event_detail.pk)
 
         logger.info(
             f'発表申請承認: EventDetail ID={event_detail.pk}, '

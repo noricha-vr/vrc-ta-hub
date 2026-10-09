@@ -1,13 +1,15 @@
 """承認で公開になった記事の通知を、審査ページと一覧の両方で確かめる。"""
 from unittest.mock import patch
 
+from django.db import transaction
+from django.db.models import QuerySet
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from event.models import EventDetail
 from event.notifications import notify_applicant_of_result
-from event.services.article_generation import _notify_first_time, notify_article_on_approval
+from event.services.article_generation import _notify_first_time, schedule_article_notification_on_approval
 from tests.factories import make_community, make_discord_linked_user, make_event, make_event_detail
 
 
@@ -36,7 +38,7 @@ class ArticleApprovalNotificationTest(TestCase):
         values.update(changes)
         return make_event_detail(self.event, **values)
 
-    def _post(self, detail, endpoint, action='approve'):
+    def _post(self, detail, endpoint, action='approve', execute_callbacks=True):
         data = {
             'action': action,
             'event': detail.event_id,
@@ -44,7 +46,8 @@ class ArticleApprovalNotificationTest(TestCase):
             'duration': detail.duration,
             'rejection_reason': '集会の趣旨と合いません' if action == 'reject' else '',
         }
-        return self.client.post(reverse(f'event:{endpoint}', kwargs={'pk': detail.pk}), data)
+        with self.captureOnCommitCallbacks(execute=execute_callbacks):
+            return self.client.post(reverse(f'event:{endpoint}', kwargs={'pk': detail.pk}), data)
 
     def _article_posts(self, post_webhook):
         return [
@@ -161,23 +164,33 @@ class ArticleApprovalNotificationTest(TestCase):
 
     def test_changes_before_notification_are_read_again(self, send_mail, post_webhook):
         """承認と同時に NG・削除・却下・記事なしになった場合は最新行で判断する。"""
-        for changes in (
-            {'article_consent': EventDetail.ArticleConsent.NG},
-            {'deleted_at': timezone.now()},
-            {'status': 'rejected'},
-            {'h1': '', 'contents': ''},
-        ):
-            for notified_at in (None, timezone.now()):
-                with self.subTest(changes=changes, notified=bool(notified_at)):
-                    detail = self._detail(status='approved', article_published_notified_at=notified_at)
-                    EventDetail.all_objects.filter(pk=detail.pk).update(**changes)
-                    notify_article_on_approval(detail.pk)
-                    send_mail.assert_not_called()
-                    post_webhook.assert_not_called()
-                    notify_applicant_of_result(detail)
-                    self.assertNotIn('記事も公開しました', send_mail.call_args.kwargs['html_message'])
-                    send_mail.reset_mock()
-                    post_webhook.reset_mock()
+        for endpoint in ('lt_application_review', 'lt_application_approve'):
+            for changes in (
+                {'article_consent': EventDetail.ArticleConsent.NG},
+                {'deleted_at': timezone.now()},
+                {'status': 'rejected'},
+                {'h1': '', 'contents': ''},
+            ):
+                for notified_at in (None, timezone.now()):
+                    with self.subTest(endpoint=endpoint, changes=changes, notified=bool(notified_at)):
+                        detail = self._detail(article_published_notified_at=notified_at)
+                        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+                            self.assertEqual(self._post(detail, endpoint, execute_callbacks=False).status_code, 302)
+                        self.assertTrue(callbacks)
+                        send_mail.reset_mock()
+                        post_webhook.reset_mock()
+                        EventDetail.all_objects.filter(pk=detail.pk).update(**changes)
+
+                        for callback in callbacks:
+                            callback()
+
+                        send_mail.assert_not_called()
+                        post_webhook.assert_not_called()
+                        detail.refresh_from_db()
+                        notify_applicant_of_result(detail)
+                        self.assertNotIn('記事も公開しました', send_mail.call_args.kwargs['html_message'])
+                        send_mail.reset_mock()
+                        post_webhook.reset_mock()
 
     def test_notification_failure_does_not_cancel_approval(self, send_mail, post_webhook):
         """記事通知の例外をログに残し、両経路とも承認を完了する。"""
@@ -185,7 +198,7 @@ class ArticleApprovalNotificationTest(TestCase):
             with self.subTest(endpoint=endpoint):
                 detail = self._detail(article_published_notified_at=timezone.now())
                 with patch(
-                    'event.services.article_generation._send_discord_notification_for_article',
+                    'event.services.article_generation.send_discord_notification_for_article',
                     side_effect=RuntimeError('notification failed'),
                 ), self.assertLogs('event.services.article_generation', level='ERROR'):
                     self.assertEqual(self._post(detail, endpoint).status_code, 302)
@@ -200,3 +213,150 @@ class ArticleApprovalNotificationTest(TestCase):
             self.assertEqual(self._post(detail, 'lt_application_approve').status_code, 302)
         send_mail.assert_not_called()
         post_webhook.assert_not_called()
+
+    def test_generation_after_approval_does_not_send_again(self, send_mail, post_webhook):
+        """承認側が通知日時を取って送信済みなら、生成側はメールも Discord も重ねない。"""
+        for endpoint in ('lt_application_review', 'lt_application_approve'):
+            with self.subTest(endpoint=endpoint):
+                detail = self._detail()
+                self.assertEqual(self._post(detail, endpoint).status_code, 302)
+                send_mail.reset_mock()
+
+                _notify_first_time(detail.pk)
+
+                send_mail.assert_not_called()
+                self.assertEqual(len(self._article_posts(post_webhook)), 1)
+                post_webhook.reset_mock()
+
+    def test_approval_claim_blocks_generation_before_commit_callback(self, send_mail, post_webhook):
+        """承認トランザクションで取った通知日時は、コミット後の送信前にも生成側が取れない。"""
+        for endpoint in ('lt_application_review', 'lt_application_approve'):
+            with self.subTest(endpoint=endpoint):
+                detail = self._detail()
+                with self.captureOnCommitCallbacks(execute=False) as callbacks:
+                    self.assertEqual(self._post(detail, endpoint, execute_callbacks=False).status_code, 302)
+                self.assertTrue(callbacks)
+                detail.refresh_from_db()
+                self.assertEqual(detail.status, 'approved')
+                self.assertIsNotNone(detail.article_published_notified_at)
+                send_mail.reset_mock()
+                post_webhook.reset_mock()
+
+                _notify_first_time(detail.pk)
+
+                send_mail.assert_not_called()
+                post_webhook.assert_not_called()
+                for callback in callbacks:
+                    callback()
+                send_mail.assert_called_once()
+                self.assertIn('公開しました', send_mail.call_args.kwargs['subject'])
+                self.assertEqual(len(self._article_posts(post_webhook)), 1)
+                send_mail.reset_mock()
+                post_webhook.reset_mock()
+
+    def test_generation_cannot_claim_inside_approval_transaction(self, send_mail, post_webhook):
+        """承認側が担当を取った後、status の保存前でも生成側の取得は失敗する。"""
+        for endpoint in ('lt_application_review', 'lt_application_approve'):
+            with self.subTest(endpoint=endpoint):
+                detail = self._detail()
+
+                def claim_then_generate(locked):
+                    self.assertTrue(transaction.get_connection().in_atomic_block)
+                    self.assertEqual(locked.status, 'pending')
+                    schedule_article_notification_on_approval(locked)
+                    current = EventDetail.all_objects.get(pk=locked.pk)
+                    self.assertEqual(current.status, 'pending')
+                    self.assertIsNotNone(current.article_published_notified_at)
+                    _notify_first_time(locked.pk)
+                    send_mail.assert_not_called()
+                    post_webhook.assert_not_called()
+
+                with patch(
+                    'event.services.article_generation.schedule_article_notification_on_approval',
+                    side_effect=claim_then_generate,
+                ):
+                    self.assertEqual(self._post(detail, endpoint).status_code, 302)
+                self.assertEqual(send_mail.call_count, 2)
+                self.assertEqual(len(self._article_posts(post_webhook)), 1)
+                send_mail.reset_mock()
+                post_webhook.reset_mock()
+
+    def test_generation_uses_status_at_claim(self, send_mail, post_webhook):
+        """生成側が pending を読んでも、取得時に approved なら公開メールと Discord を送る。"""
+        detail = self._detail()
+        original_update = QuerySet.update
+
+        def approve_before_claim(queryset, **changes):
+            if changes.get('article_published_notified_at') is not None:
+                original_update(EventDetail.all_objects.filter(pk=detail.pk), status='approved')
+            return original_update(queryset, **changes)
+
+        with patch.object(QuerySet, 'update', autospec=True, side_effect=approve_before_claim):
+            _notify_first_time(detail.pk)
+
+        send_mail.assert_called_once()
+        self.assertIn('公開しました', send_mail.call_args.kwargs['subject'])
+        self.assertEqual(len(self._article_posts(post_webhook)), 1)
+
+    def test_rollback_discards_approval_notification_and_claim(self, send_mail, post_webhook):
+        """承認がロールバックされた場合は通知日時もコールバックも残さない。"""
+        detail = self._detail()
+        with self.captureOnCommitCallbacks(execute=True) as callbacks:
+            with transaction.atomic():
+                locked = EventDetail.objects.select_for_update().get(pk=detail.pk)
+                schedule_article_notification_on_approval(locked)
+                locked.status = 'approved'
+                locked.save(update_fields=['status'])
+                transaction.set_rollback(True)
+
+        self.assertEqual(callbacks, [])
+        detail.refresh_from_db()
+        self.assertEqual(detail.status, 'pending')
+        self.assertIsNone(detail.article_published_notified_at)
+        send_mail.assert_not_called()
+        post_webhook.assert_not_called()
+
+    def test_discord_only_notification_uses_latest_article(self, send_mail, post_webhook):
+        """作成メール済みの公開通知は、送信直前に読み直した本文で作る。"""
+        detail = self._detail(article_published_notified_at=timezone.now())
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            self._post(detail, 'lt_application_approve', execute_callbacks=False)
+        EventDetail.all_objects.filter(pk=detail.pk).update(h1='送信前に直した記事')
+        send_mail.reset_mock()
+        post_webhook.reset_mock()
+
+        for callback in callbacks:
+            callback()
+
+        send_mail.assert_not_called()
+        self.assertEqual(self._article_posts(post_webhook)[0]['description'], '**送信前に直した記事**')
+
+    def test_failed_approval_email_releases_only_its_own_claim(self, send_mail, post_webhook):
+        """承認時のメール失敗は自分の通知日時だけを戻し、他の取得を消さない。"""
+        for replaced in (False, True):
+            with self.subTest(replaced=replaced):
+                detail = self._detail()
+                with self.captureOnCommitCallbacks(execute=False) as callbacks:
+                    self._post(detail, 'lt_application_approve', execute_callbacks=False)
+                detail.refresh_from_db()
+                claimed_at = detail.article_published_notified_at
+                self.assertIsNotNone(claimed_at)
+                replaced_at = timezone.now()
+
+                def fail_email(**kwargs):
+                    if replaced:
+                        EventDetail.all_objects.filter(pk=detail.pk).update(
+                            article_published_notified_at=replaced_at,
+                        )
+                    return 0
+
+                send_mail.reset_mock()
+                post_webhook.reset_mock()
+                send_mail.side_effect = fail_email
+                for callback in callbacks:
+                    callback()
+                detail.refresh_from_db()
+                self.assertEqual(detail.article_published_notified_at, replaced_at if replaced else None)
+                post_webhook.assert_not_called()
+                send_mail.side_effect = None
+                send_mail.reset_mock()
