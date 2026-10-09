@@ -6,6 +6,9 @@ from django.test import TransactionTestCase
 
 from allauth.account.models import EmailAddress
 
+# The allauth migration that 0015 depends on; include it to get a historical EmailAddress.
+ALLAUTH_EMAIL_STATE = ('account', '0009_emailaddress_unique_primary_email')
+
 
 class EmailAddressBackfillMigrationTests(TransactionTestCase):
     """Exercise the migration from the immediately preceding app state."""
@@ -16,10 +19,15 @@ class EmailAddressBackfillMigrationTests(TransactionTestCase):
     def setUp(self):
         self.executor = MigrationExecutor(connection)
         self.executor.migrate(self.migrate_from)
-        self.old_apps = self.executor.loader.project_state(self.migrate_from).apps
+        self.old_apps = self.executor.loader.project_state(self.migrate_from + [ALLAUTH_EMAIL_STATE]).apps
+        # Create rows through the historical model: the current model's email
+        # ownership signals need the EmailOwnership table, which 0014 lacks.
+        self.OldEmailAddress = self.old_apps.get_model('account', 'EmailAddress')
 
     def tearDown(self):
-        MigrationExecutor(connection).migrate(self.migrate_to)
+        # Later tests need the latest schema (e.g. EmailOwnership), not just 0015.
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
         super().tearDown()
 
     def _migrate_forward(self):
@@ -32,7 +40,7 @@ class EmailAddressBackfillMigrationTests(TransactionTestCase):
         User = self.old_apps.get_model('user_account', 'CustomUser')
         user = User.objects.create(user_name='legacy', email='Legacy@Example.com')
         new_user = User.objects.create(user_name='new', email='new@example.com')
-        stale = EmailAddress.objects.create(
+        stale = self.OldEmailAddress.objects.create(
             user_id=user.pk,
             email='legacy@example.com',
             verified=False,
@@ -57,7 +65,7 @@ class EmailAddressBackfillMigrationTests(TransactionTestCase):
         User = self.old_apps.get_model('user_account', 'CustomUser')
         target = User.objects.create(user_name='target', email='target@example.com')
         owner = User.objects.create(user_name='owner', email='owner@example.com')
-        conflict = EmailAddress.objects.create(
+        conflict = self.OldEmailAddress.objects.create(
             user_id=owner.pk,
             email=target.email,
             verified=False,

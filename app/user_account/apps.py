@@ -11,3 +11,8 @@ class UserAccountConfig(AppConfig):
         """アプリケーション起動時の処理."""
         # シグナルハンドラーを登録するためにadaptersをインポート
         from user_account import adapters  # noqa: F401
+        # EmailAddress の保存・削除で、メールアドレスの持ち主の記録を合わせるシグナルを登録し、
+        # 保存・削除と記録の読み書きを 1 つのトランザクションにまとめる
+        from user_account.email_ownership import wrap_email_address_writes
+
+        wrap_email_address_writes()

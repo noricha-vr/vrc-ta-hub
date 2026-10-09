@@ -1,3 +1,4 @@
+import logging
 import re
 
 from django import forms
@@ -28,6 +29,7 @@ from .turnstile import (
 )
 from .vrchat import normalize_vrchat_user_id
 
+logger = logging.getLogger(__name__)
 
 X_HANDLE_RE = re.compile(r'^[A-Za-z0-9_]{1,15}\Z')
 X_URL_PREFIX_RE = re.compile(r'^https?://(?:www\.)?(?:x|twitter)\.com/', re.IGNORECASE)
@@ -516,7 +518,7 @@ class CustomSocialSignupForm(SocialSignupForm):
         """保存の直前にもう一度確かめてから保存する。登録済みなら保存せず None を返す。
 
         clean_email の判定の後に、別リクエストが同じアドレスを登録した競合に備える。
-        CustomUser.email の一意制約違反も、登録済みと同じ扱いにする（ローカル登録と同じ）。
+        持ち主の一意制約（CustomUser.email・EmailOwnership）の違反も、登録済みと同じ扱いにする（ローカル登録と同じ）。
         """
         try:
             with transaction.atomic():
@@ -526,4 +528,5 @@ class CustomSocialSignupForm(SocialSignupForm):
         except IntegrityError:
             if not is_email_in_use(email):
                 raise
+            logger.warning('Discord signup form conflicted with another account')
             return None

@@ -160,6 +160,46 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         if self.email:
             self.email = self.__class__.objects.normalize_email(self.email).lower()
 
+    def save(self, *args, **kwargs):
+        """保存と同じトランザクションで、メールアドレスの持ち主の記録（EmailOwnership）を合わせる。
+
+        別ユーザーが持ち主のアドレスなら EmailOwnership の一意制約で IntegrityError になり、保存ごと取り消される。
+        email を含まない部分更新（ログイン時の last_login など）は持ち主を変えないので合わせない。
+        """
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'email' not in update_fields:
+            return super().save(*args, **kwargs)
+        from user_account.email_ownership import sync_email_ownership
+
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            sync_email_ownership(self.pk)
+
+
+class EmailOwnership(models.Model):
+    """メールアドレスの持ち主（主アドレスまたは確認済み・primary の EmailAddress）を、アドレスごとに 1 人に限る.
+
+    allauth の条件付き一意制約（確認済みの EmailAddress は 1 行まで）は MySQL では作られず、
+    CustomUser.email の一意制約も EmailAddress 側の持ち主を見ないため、この表の一意制約で両方をまとめて守る。
+    行の追加・削除は user_account.email_ownership が CustomUser の保存と EmailAddress のシグナルで行う。
+
+    MySQL では 0017 で email 列を utf8mb4_bin（完全一致）にしている。キーは小文字にそろえてあるので、
+    DB の一意判定が normalize_email_key の判定と同じになる。SQLite に無い照合順序なので model には書いていない。
+    この列を変える migration を作る時は、照合順序も付け直す。
+    """
+
+    email = models.EmailField('メールアドレス（小文字）', unique=True)
+    user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='email_ownerships',
+        verbose_name='持ち主',
+    )
+
+    class Meta:
+        verbose_name = 'メールアドレスの持ち主'
+        verbose_name_plural = 'メールアドレスの持ち主'
+
 
 class APIKey(models.Model):
     SCOPE_READ = "read"
