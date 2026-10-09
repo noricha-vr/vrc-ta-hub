@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import tempfile
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
@@ -44,8 +45,24 @@ class BlogOutput(BaseModel):
     text: str = Field(description="ブログ記事の本文。マークダウン形式で記述された1000〜1800文字の記事。")
 
 
+@dataclass(frozen=True)
+class BlogSources:
+    """記事生成に渡す入力（字幕と PDF のテキスト）。"""
+
+    transcript: str
+    pdf_content: str
+    pdf_url: str
+
+    @property
+    def has_text(self) -> bool:
+        """字幕か PDF のどちらかのテキストが取れたか。"""
+        return bool(self.transcript or self.pdf_content)
+
+
 def apply_blog_output_to_event_detail(event_detail: EventDetail, blog_output: BlogOutput) -> bool:
     """記事生成結果とPDFサムネイルをEventDetailに反映する.
+
+    生成元と本文のハッシュも記録し、生成待ちの印を外す（自動生成のままの記事として扱う）。
 
     Args:
         event_detail: 更新対象のイベント詳細
@@ -60,6 +77,7 @@ def apply_blog_output_to_event_detail(event_detail: EventDetail, blog_output: Bl
     event_detail.h1 = blog_output.title
     event_detail.contents = blog_output.text
     event_detail.meta_description = blog_output.meta_description
+    event_detail.record_generated_article()
     if not event_detail.thumbnail_image:
         ensure_pdf_thumbnail(event_detail)
     return True
@@ -151,12 +169,54 @@ def _get_transcript_with_cache(event_detail: EventDetail) -> Optional[str]:
     return transcript
 
 
-def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
+def _read_slide_text(event_detail: EventDetail, max_chars: int) -> str:
+    """スライドPDFのテキストを上限内で取り出す。読めない時は空文字。"""
+    if not event_detail.slide_file:
+        return ""
+
+    temp_file_path = None
+    try:
+        temp_file_path = _copy_uploaded_file_to_temp_path(event_detail.slide_file)
+        pdf_content = _extract_pdf_text(temp_file_path, max_chars=max_chars)
+        logger.info(f"Extracted PDF content: {len(pdf_content)} chars")
+        return pdf_content
+    except Exception as e:
+        logger.warning(f"Error loading PDF for EventDetail {event_detail.pk}: {e}")
+        return ""
+    finally:
+        # 一時ファイルを確実に削除
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+
+
+def collect_blog_sources(event_detail: EventDetail) -> BlogSources:
+    """記事生成の入力を集める。字幕を優先し、PDF は合算上限の残り予算だけ使う。
+
+    Args:
+        event_detail: 対象のイベント詳細
+
+    Returns:
+        プロンプトに埋め込む字幕・PDFテキストと、記事に載せるスライドURL
+    """
+    # 再生成時のAPI再取得を避けてキャッシュを優先
+    transcript = _get_transcript_with_cache(event_detail)
+    limited_transcript = _limit_source_text(transcript) if transcript else ""
+    pdf_budget = max(MAX_COMBINED_SOURCE_CHARS - len(limited_transcript), 0)
+    pdf_url = event_detail.slide_url or (event_detail.slide_file.url if event_detail.slide_file else "")
+    return BlogSources(
+        transcript=limited_transcript,
+        pdf_content=_read_slide_text(event_detail, pdf_budget),
+        pdf_url=pdf_url,
+    )
+
+
+def generate_blog(event_detail: EventDetail, model=None, sources: Optional[BlogSources] = None) -> BlogOutput:
     """EventDetailに関連付けられた情報をもとにOpenRouter経由でブログ記事を生成する関数
 
     Args:
         event_detail (EventDetail): ブログ記事を生成するための情報を含むEventDetailオブジェクト
         model (str): 使用するOpenRouterモデル名。Noneの場合は環境変数から取得
+        sources (BlogSources): 呼び出し側で集めた入力。Noneの場合はここで集める
 
     Returns:
         BlogOutput: タイトル、メタディスクリプション、本文を含むPydanticモデル
@@ -184,35 +244,14 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
 
         logger.info(f"Using OpenRouter with model: {model}")
 
-        # YouTube動画から文字起こしを取得（再生成時のAPI再取得を避けてキャッシュを優先）
-        transcript = _get_transcript_with_cache(event_detail)
-
-        # プロンプトに埋め込む文字起こしを先に確定させ、PDF は合算上限の残り予算だけ使う
-        limited_transcript = _limit_source_text(transcript) if transcript else ""
-        pdf_budget = max(MAX_COMBINED_SOURCE_CHARS - len(limited_transcript), 0)
-
-        # PDFの内容とURLを取得
-        pdf_content = ""
-        pdf_url = event_detail.slide_url or (event_detail.slide_file.url if event_detail.slide_file else "")
-
-        if event_detail.slide_file:
-            temp_file_path = None
-            try:
-                temp_file_path = _copy_uploaded_file_to_temp_path(event_detail.slide_file)
-                # PyPDFを使用してPDFの内容を抽出
-                pdf_content = _extract_pdf_text(temp_file_path, max_chars=pdf_budget)
-                logger.info(f"Extracted PDF content: {len(pdf_content)} chars")
-            except Exception as e:
-                logger.warning(f"Error loading PDF for EventDetail {event_detail.pk}: {e}")
-            finally:
-                # 一時ファイルを確実に削除
-                if temp_file_path and os.path.exists(temp_file_path):
-                    os.unlink(temp_file_path)
+        # 字幕とPDFのテキスト。自動生成は入力の有無を先に確かめるため、集めた結果を渡してくる
+        if sources is None:
+            sources = collect_blog_sources(event_detail)
 
         # プロンプトテンプレートを作成
         prompt_text = BLOG_GENERATION_TEMPLATE.format(
-            transcript=limited_transcript or "文字起こしはありません。",
-            pdf_content=pdf_content or "PDFコンテンツはありません。",
+            transcript=sources.transcript or "文字起こしはありません。",
+            pdf_content=sources.pdf_content or "PDFコンテンツはありません。",
             date=(
                 f"{event_detail.event.date.year}年"
                 f"{event_detail.event.date.month}月"
@@ -222,7 +261,7 @@ def generate_blog(event_detail: EventDetail, model=None) -> BlogOutput:
             community_name=event_detail.event.community.name,
             speaker=event_detail.speaker,
             theme=event_detail.theme,
-            pdf_url=pdf_url or "なし",
+            pdf_url=sources.pdf_url or "なし",
             format_instructions=""  # 不要
         )
         # Function Calling 未対応モデルのフォールバック用。フィールド制約は

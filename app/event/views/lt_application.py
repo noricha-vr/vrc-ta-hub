@@ -141,6 +141,7 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
                 applicant=user,
                 additional_info=form.cleaned_data.get('additional_info', ''),
                 recording_policy=form.resolved_recording_policy(),
+                article_consent=form.cleaned_data['article_consent'],
             )
 
         # 主催者に通知

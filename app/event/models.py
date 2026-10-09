@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 import os
 import re
@@ -42,6 +44,24 @@ def _strip_markdown(text: str) -> str:
     for pattern, replacement in _MARKDOWN_STRIP_PATTERNS:
         text = pattern.sub(replacement, text)
     return re.sub(r'\s+', ' ', strip_tags(text)).strip()
+
+
+def _normalize_article_text(text: str) -> str:
+    """フォーム保存で変わる改行コード（CRLF）と前後の空白を揃える。"""
+    return (text or '').replace('\r\n', '\n').replace('\r', '\n').strip()
+
+
+def article_body_hash(h1: str, contents: str) -> str:
+    """記事の本文（タイトルと内容）の SHA-256 を返す。
+
+    ブラウザの textarea は改行を CRLF で送り、フォームは前後の空白を落とすため、
+    何も変えずに保存しただけで本文が変わる。正規化してから計算し、手動編集と誤判定しない。
+    """
+    payload = json.dumps(
+        [_normalize_article_text(h1), _normalize_article_text(contents)],
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(payload.encode('utf-8')).hexdigest()
 
 
 def slide_file_upload_to(instance, filename):
@@ -368,6 +388,20 @@ class EventDetail(models.Model):
         ('rejected', '却下'),
     ]
 
+    class ArticleConsent(models.TextChoices):
+        """発表者本人が選ぶ、発表の記事化の可否。"""
+
+        UNANSWERED = 'unanswered', '未回答'
+        OK = 'ok', '記事化 OK（スライド画像の掲載を含む）'
+        NG = 'ng', '記事化 NG'
+
+    class ArticleState(models.TextChoices):
+        """記事の書き手。自動生成で上書きしてよいかの判定に使う（保存はしない）。"""
+
+        NONE = 'none', '未生成'
+        AUTO = 'auto', '自動生成のまま'
+        MANUAL = 'manual', '手動で作成・編集済み'
+
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
     # NULL = 生存。タイムスタンプ入り = soft delete 済み。
@@ -430,6 +464,38 @@ class EventDetail(models.Model):
         choices=RecordingPolicy.choices,
         default=RecordingPolicy.PUBLIC,
         db_default=RecordingPolicy.PUBLIC,
+    )
+
+    # 記事化の同意。発表者本人だけが選ぶ。既存行は「未回答」で、今までどおり記事を表示し自動生成はしない。
+    # 以下の NOT NULL 列の db_default も、migration 適用後に動く旧リビジョンの INSERT を通すため
+    article_consent = models.CharField(
+        '記事化',
+        max_length=16,
+        choices=ArticleConsent.choices,
+        default=ArticleConsent.UNANSWERED,
+        db_default=ArticleConsent.UNANSWERED,
+    )
+    # 記事の自動生成の待ち行列。NULL = 待ちなし。この時刻を過ぎたものから処理する
+    # （処理中は締切、失敗時は次の再試行の時刻が入る）
+    article_generation_requested_at = models.DateTimeField(
+        '記事の生成待ち', null=True, blank=True, db_index=True,
+    )
+    article_generation_attempts = models.PositiveSmallIntegerField(
+        '記事の生成の試行回数', default=0, db_default=0,
+    )
+    article_generation_last_error = models.CharField(
+        '記事の生成の最後のエラー', max_length=255, blank=True, default='', db_default='',
+    )
+    # 生成した記事の記録。本文のハッシュが今の本文と違えば、手動で編集されたとみなす
+    article_generated_at = models.DateTimeField('記事の生成日時', null=True, blank=True)
+    article_source_video_id = models.CharField(
+        '記事の生成元の動画 ID', max_length=32, blank=True, default='', db_default='',
+    )
+    article_source_slide_name = models.CharField(
+        '記事の生成元の PDF', max_length=255, blank=True, default='', db_default='',
+    )
+    article_body_hash = models.CharField(
+        '記事の本文のハッシュ', max_length=64, blank=True, default='', db_default='',
     )
 
     # soft delete 用マネージャ。`objects` は既存挙動互換（生存のみ）、
@@ -541,6 +607,63 @@ class EventDetail(models.Model):
         if len(source) <= length:
             return source
         return source[:length - 1].rstrip() + '…'
+
+    @property
+    def is_article_ng(self) -> bool:
+        """発表者が記事化を NG にしているか。NG なら記事を生成も表示もしない。"""
+        return self.article_consent == self.ArticleConsent.NG
+
+    @property
+    def can_auto_generate_article(self) -> bool:
+        """記事の自動生成の対象か（記事化 OK の発表で、却下・削除されておらず、動画か PDF がある）。"""
+        return (
+            self.detail_type == 'LT'
+            and self.article_consent == self.ArticleConsent.OK
+            and self.status != 'rejected'
+            and self.deleted_at is None
+            and bool(self.slide_file or self.youtube_url)
+        )
+
+    def article_state(self) -> str:
+        """今の記事が未生成・自動生成のまま・手動で作成/編集済みのどれかを返す。
+
+        ハッシュが無いのに本文がある記事（この機能より前の記事や手書きの記事）は、
+        自動で上書きしないよう手動扱いにする。
+        """
+        if self.article_body_hash:
+            if article_body_hash(self.h1, self.contents) == self.article_body_hash:
+                return self.ArticleState.AUTO
+            return self.ArticleState.MANUAL
+        if _normalize_article_text(self.h1) or _normalize_article_text(self.contents):
+            return self.ArticleState.MANUAL
+        return self.ArticleState.NONE
+
+    def article_sources(self) -> tuple[str, str]:
+        """記事の生成元になる動画 ID と PDF の識別子（保存名）を返す。無い方は空文字。"""
+        slide_name = self.slide_file.name if self.slide_file else ''
+        return self.video_id or '', slide_name or ''
+
+    def record_generated_article(self, generated_at=None) -> list[str]:
+        """今の本文を生成した記事として記録し、生成待ちの印を外す。
+
+        Returns:
+            変更した列名。``save(update_fields=...)`` に渡す。
+        """
+        self.article_source_video_id, self.article_source_slide_name = self.article_sources()
+        self.article_body_hash = article_body_hash(self.h1, self.contents)
+        self.article_generated_at = generated_at or timezone.now()
+        self.article_generation_requested_at = None
+        self.article_generation_attempts = 0
+        self.article_generation_last_error = ''
+        return [
+            'article_source_video_id',
+            'article_source_slide_name',
+            'article_body_hash',
+            'article_generated_at',
+            'article_generation_requested_at',
+            'article_generation_attempts',
+            'article_generation_last_error',
+        ]
 
 
 class MaterialUploadReminderLog(models.Model):

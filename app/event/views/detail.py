@@ -53,7 +53,7 @@ class EventDetailView(DetailView):
         context['start_time'] = start_time
         context['is_discord'] = event_detail.youtube_url.startswith(
             'https://discord.com/') if event_detail.youtube_url else False
-        context['html_content'] = convert_markdown(event_detail.contents)
+        context.update(self._article_context(event_detail))
         context['related_event_details'] = self._fetch_related_event_details(event_detail)
 
         # コミュニティの開催情報を追加
@@ -179,6 +179,24 @@ class EventDetailView(DetailView):
             logger.warning(f"Failed to prepare structured data for EventDetail id={event_detail.id}: {str(e)}")
 
         return context
+
+    @staticmethod
+    def _article_context(event_detail: EventDetail) -> Dict:
+        """記事の表示と生成ボタンの出し分け。記事化 NG の発表は本文（h1 / contents）を出さない。
+
+        本文のデータは消さず、表示だけを止める（発表者が OK に戻せば元どおり表示する）。
+        """
+        article_visible = not event_detail.is_article_ng
+        return {
+            'article_visible': article_visible,
+            'display_title': event_detail.title if article_visible else event_detail.theme,
+            'html_content': convert_markdown(event_detail.contents) if article_visible else '',
+            'can_generate_article': (
+                article_visible
+                and event_detail.detail_type == 'LT'
+                and bool(event_detail.youtube_url or event_detail.slide_file)
+            ),
+        }
 
     def _fetch_related_event_details(self, event_detail: EventDetail) -> List[EventDetail]:
         # キャッシュキーを生成

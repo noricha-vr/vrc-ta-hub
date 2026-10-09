@@ -16,6 +16,7 @@ from .mixins import (
     EventDetailMediaFormMixin,
     RecordingPolicyFormMixin,
     recording_policy_widget,
+    remove_article_generation_if_ng,
 )
 
 
@@ -141,6 +142,8 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
         if self.instance and self.instance.pk:
             if self.instance.meta_description or self.instance.contents or self.instance.h1:
                 self.fields['generate_blog_article'].initial = False
+        # 記事化の同意は発表者だけが選ぶ。主催者のフォームには項目を置かず、NG なら生成も出さない
+        remove_article_generation_if_ng(self, self.instance)
 
 
     def clean(self):

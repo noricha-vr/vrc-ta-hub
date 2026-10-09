@@ -50,6 +50,7 @@ class EventDetailCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Cre
         generate_blog_flag = form.cleaned_data.get('generate_blog_article', False)
         if (generate_blog_flag and
             form.instance.detail_type == 'LT' and
+                not form.instance.is_article_ng and
                 (form.instance.slide_file or form.instance.youtube_url)):
             try:
                 from event.services.content_generation_service import generate_blog as generate_blog_func
@@ -114,9 +115,11 @@ class EventDetailUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Upd
         response = super().form_valid(form)
 
         # チェックボックスがONで、LTタイプで、PDFまたは動画がセットされている場合は自動生成
+        # 発表者が記事化を NG にした発表は、チェックボックスを出していなくてもサーバ側で断る
         generate_blog_flag = form.cleaned_data.get('generate_blog_article', False)
         if (generate_blog_flag and
             form.instance.detail_type == 'LT' and
+                not form.instance.is_article_ng and
                 (form.instance.slide_file or form.instance.youtube_url)):
             try:
                 blog_output = generate_blog(form.instance, model=GEMINI_MODEL)

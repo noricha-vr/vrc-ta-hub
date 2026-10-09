@@ -106,7 +106,7 @@
                                         {% if field.help_text %}
                                             <div class="form-text ms-5">{{ field.help_text }}</div>
                                         {% endif %}
-                                    {% elif field.name == 'recording_policy' %}
+                                    {% elif field.name == 'recording_policy' or field.name == 'article_consent' %}
                                         <label class="form-label">{{ field.label }}</label>
                                         {% include "event/includes/recording_policy_radios.html" with field=field %}
                                         {% if field.help_text %}
@@ -156,6 +156,10 @@
     <script>
         (function() {
             const checkbox = document.getElementById('id_generate_blog_article');
+            // 記事化 NG の発表ではチェックボックスを出さない
+            if (!checkbox) {
+                return;
+            }
             const h1Wrapper = document.querySelector('.field-wrapper[data-field="h1"]');
             const contentsWrapper = document.querySelector('.field-wrapper[data-field="contents"]');
 

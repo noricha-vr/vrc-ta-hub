@@ -13,6 +13,8 @@ from website.settings import GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
 
+ARTICLE_NG_MESSAGE = "発表者が記事化を NG にしているため、記事は生成できません。"
+
 # BigQueryクライアントの遅延初期化
 # CI環境でモジュールインポート時にGCP認証エラーが発生するのを防ぐ
 _bigquery_client = None
@@ -57,6 +59,11 @@ class GenerateBlogView(LoginRequiredMixin, View):
             # LTタイプのみ記事生成を許可
             if event_detail.detail_type != 'LT':
                 messages.error(request, "記事の自動生成は発表タイプのみ利用可能です。")
+                return redirect('event:detail', pk=event_detail.id)
+
+            # 発表者が記事化を NG にした発表は、ボタンを出していなくてもサーバ側で断る
+            if event_detail.is_article_ng:
+                messages.error(request, ARTICLE_NG_MESSAGE)
                 return redirect('event:detail', pk=event_detail.id)
 
             # BlogOutputモデルを受け取る

@@ -63,9 +63,11 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
     def form_valid(self, form):
         response = super().form_valid(form)
 
+        # 同じ送信で記事化を NG に変えた時も生成しないよう、保存後の同意を見る
         generate_blog_flag = form.cleaned_data.get('generate_blog_article', False)
         if (
             generate_blog_flag
+            and not form.instance.is_article_ng
             and (form.instance.slide_file or form.instance.youtube_url)
         ):
             try:

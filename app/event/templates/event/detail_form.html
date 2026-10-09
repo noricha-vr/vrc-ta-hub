@@ -75,6 +75,15 @@
                                 </ol>
                                 スライドURLは任意です。URL入力のみでは記事は生成されません。
                             </div>
+                            {# 記事化の同意は発表者が申請・編集画面で選ぶ。この画面では表示だけ #}
+                            {% if form.instance.pk and form.instance.detail_type == 'LT' %}
+                                <p class="mb-3" id="article-consent-status">
+                                    発表の記事化（発表者が選択）: {{ form.instance.get_article_consent_display }}
+                                    {% if form.instance.is_article_ng %}
+                                        <span class="text-muted">（記事の生成と表示はしません）</span>
+                                    {% endif %}
+                                </p>
+                            {% endif %}
                             <!-- detail_type フィールドを特別に表示 -->
                             <div class="mb-4">
                                 <label class="form-label fw-bold">{{ form.detail_type.label }}</label>
