@@ -4,7 +4,6 @@
 pagePath を内部コンテンツに紐付けて PageAnalytics に冪等に蓄積する。
 """
 import logging
-import secrets
 from datetime import date, datetime, timedelta
 
 from django.conf import settings
@@ -14,6 +13,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_GET
 
 from community.models import Community
+from ta_hub.request_token import is_authorized_request
 
 from .ga4_client import fetch_page_report, fetch_poster_click_report
 from .models import PageAnalytics, PosterClick
@@ -32,20 +32,10 @@ def _parse_target_date(request) -> date:
     return timezone.localdate() - timedelta(days=1)
 
 
-def _is_authorized(request) -> bool:
-    """Request-Token を定数時間比較で検証する（fail-closed）。"""
-    expected = settings.REQUEST_TOKEN or ''
-    provided = request.headers.get('Request-Token', '')
-    # トークン未設定（空）時は誰も通さない。設定ミスによる認可バイパスを防ぐ
-    if not expected:
-        return False
-    return secrets.compare_digest(provided, expected)
-
-
 @require_GET
 def sync_analytics(request):
     """GA4 からページ別アクセスデータを取得して蓄積する。"""
-    if not _is_authorized(request):
+    if not is_authorized_request(request):
         return HttpResponse('Unauthorized', status=401)
 
     try:

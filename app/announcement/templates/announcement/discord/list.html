@@ -1,0 +1,76 @@
+{% extends 'ta_hub/base.html' %}
+{% load tz %}
+
+{% block meta %}
+    <title>Discord 告知の予約送信 - VRC技術学術Hub</title>
+    <meta name="robots" content="noindex">
+    <style>
+        .announce-excerpt {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            word-break: break-word;
+        }
+    </style>
+{% endblock %}
+
+{% block main %}
+{% timezone "Asia/Tokyo" %}
+<div class="container my-4 my-md-5" style="max-width: 880px;">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h1 class="h3 fw-bold mb-1">Discord 告知の予約送信</h1>
+            <p class="text-muted small mb-0">告知チャンネルへ、日時（日本時間）を決めてメッセージを送ります。</p>
+        </div>
+        <a href="{% url 'announcement:discord_create' %}" class="btn btn-primary">
+            <i class="fas fa-plus me-1"></i>新しく予約する
+        </a>
+    </div>
+
+    {% include 'ta_hub/messages.html' %}
+
+    {% if scheduled_messages %}
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2 small" data-testid="announce-counts">
+            <span class="badge rounded-pill text-bg-primary">予約中 {{ scheduled_count }} 件</span>
+            {% if failed_count %}
+                <span class="badge rounded-pill text-bg-danger">失敗 {{ failed_count }} 件</span>
+            {% endif %}
+            <span class="text-muted ms-auto">全 {{ paginator.count }} 件</span>
+        </div>
+
+        <div class="list-group shadow-sm">
+            {% for message in scheduled_messages %}
+                <a href="{% url 'announcement:discord_detail' message.pk %}"
+                   class="list-group-item list-group-item-action py-3"
+                   data-testid="announce-item">
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                        <span class="badge {{ message.status_badge_class }}">{{ message.status_label }}</span>
+                        <span class="fw-bold">{{ message.scheduled_at|date:"Y/m/d（D）H:i" }}</span>
+                        {% if message.mention_everyone_confirmed %}
+                            <span class="badge text-bg-warning"><i class="fas fa-bullhorn me-1"></i>全員に通知</span>
+                        {% endif %}
+                        {% if message.is_waiting_retry %}
+                            <span class="small text-danger"><i class="fas fa-rotate-right me-1"></i>再試行待ち</span>
+                        {% endif %}
+                    </div>
+                    <div class="announce-excerpt text-body-secondary small">{{ message.body|truncatechars:140 }}</div>
+                </a>
+            {% endfor %}
+        </div>
+
+        {% if page_obj.has_other_pages %}
+            {% include 'ta_hub/pagination.html' %}
+        {% endif %}
+    {% else %}
+        <div class="card border-0 bg-body-tertiary text-center py-4" data-testid="announce-empty">
+            <div class="card-body">
+                <i class="fa-brands fa-discord fa-2x text-secondary mb-3"></i>
+                <p class="fw-bold mb-1">予約はまだありません</p>
+                <p class="text-muted small mb-0">「新しく予約する」から、本文と送信日時を決めて予約できます。</p>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endtimezone %}
+{% endblock %}

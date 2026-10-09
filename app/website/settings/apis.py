@@ -55,3 +55,5 @@ ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', DEFAULT_FROM_EMAIL)
 # Discord Webhook（管理者通知用）
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')
 DISCORD_REPORT_WEBHOOK_URL = os.environ.get('DISCORD_REPORT_WEBHOOK_URL', '')
+# 告知チャンネル（Discord 告知の予約送信の送信先）。未設定なら予約は送らずに失敗として記録する
+DISCORD_ANNOUNCE_WEBHOOK_URL = os.environ.get('DISCORD_ANNOUNCE_WEBHOOK_URL', '')

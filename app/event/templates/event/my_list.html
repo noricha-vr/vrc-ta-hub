@@ -85,6 +85,11 @@
                 <i class="fas fa-eye"></i> 公開ページ
             </a>
             {% endif %}
+            {% if user.is_staff or user.is_superuser %}
+            <a href="{% url 'announcement:discord_list' %}" class="btn btn-outline-secondary" data-testid="discord-announce-link">
+                <i class="fa-brands fa-discord"></i> Discord 告知の予約
+            </a>
+            {% endif %}
         </div>
 
         {# Vketコラボバナー #}
