@@ -355,6 +355,7 @@ class EventMyList(LoginRequiredMixin, ListView):
             dict or None: バナー表示に必要な情報。非表示の場合はNone
         """
         from vket.models import VketCollaboration, VketParticipation
+        from vket.views.helpers import _is_vket_admin
 
         today = timezone.localdate()
         collaboration = (
@@ -370,10 +371,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         if not collaboration:
             return None
 
-        is_vket_admin = (
-            self.request.user.is_authenticated
-            and (self.request.user.is_superuser or self.request.user.is_staff)
-        )
+        is_vket_admin = _is_vket_admin(self.request.user)
 
         has_participation = False
         if community:
@@ -408,11 +406,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         else:
             return None
 
-        if is_vket_admin:
-            url_name = 'vket:manage'
-            button_text = '管理画面を開く'
-            button_icon = 'fas fa-gear'
-        elif (
+        if (
             not has_participation
             and phase == VketCollaboration.Phase.ENTRY_OPEN
         ):
@@ -432,4 +426,7 @@ class EventMyList(LoginRequiredMixin, ListView):
             'button_text': button_text,
             'button_icon': button_icon,
             'has_participation': has_participation,
+            # 申込・参加状況のページは集会の選択が前提なので、所属が無ければ出さない
+            'show_participation_link': community is not None,
+            'is_vket_admin': is_vket_admin,
         }
