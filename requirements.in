@@ -15,7 +15,7 @@ google-analytics-data==0.22.0
 django-bootstrap5==25.3
 pysqlite3==0.5.3
 markdown==3.11
-youtube-transcript-api==0.6.2
+youtube-transcript-api==1.2.4
 bleach==6.4.0
 tinycss2==1.4.0
 beautifulsoup4==4.12.3
