@@ -31,8 +31,7 @@ from .helpers import (
 )
 
 
-PUBLIC_NOTICE_COLLABORATION_PK = 1
-PUBLIC_NOTICE_OG_IMAGE = 'vket/images/og/vket-2026-summer-notices-v1.png'
+DEFAULT_NOTICE_OG_IMAGE_URL = 'https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg'
 
 
 @method_decorator([never_cache, vary_on_cookie], name='dispatch')
@@ -43,11 +42,6 @@ class NoticeListView(LoginRequiredMixin, View):
     public_template_name = 'vket/notice_public.html'
 
     def dispatch(self, request, *args, **kwargs):
-        if (
-            not request.user.is_authenticated
-            and kwargs['pk'] != PUBLIC_NOTICE_COLLABORATION_PK
-        ):
-            return self.handle_no_permission()
         return View.dispatch(self, request, *args, **kwargs)
 
     def get(self, request, pk: int):
@@ -80,16 +74,26 @@ class NoticeListView(LoginRequiredMixin, View):
         )
 
     def _render_public_shell(self, request, pk: int):
-        collaboration = get_object_or_404(
-            VketCollaboration.objects.exclude(phase=VketCollaboration.Phase.DRAFT),
-            pk=pk,
+        collaboration = (
+            VketCollaboration.objects.exclude(phase=VketCollaboration.Phase.DRAFT)
+            .filter(pk=pk)
+            .first()
         )
-        static_path = static(PUBLIC_NOTICE_OG_IMAGE)
-        og_image_url = static_path
-        if not static_path.startswith(('http://', 'https://', '//')):
-            if not static_path.startswith('/'):
-                static_path = f'/{static_path}'
-            og_image_url = request.build_absolute_uri(static_path)
+        if collaboration is None:
+            return self.handle_no_permission()
+
+        notice_settings = collaboration.settings_json
+        if not isinstance(notice_settings, dict):
+            notice_settings = {}
+        image_path = notice_settings.get('notice_og_image')
+        og_image_url = DEFAULT_NOTICE_OG_IMAGE_URL
+        if image_path:
+            static_path = static(image_path)
+            og_image_url = static_path
+            if not static_path.startswith(('http://', 'https://', '//')):
+                if not static_path.startswith('/'):
+                    static_path = f'/{static_path}'
+                og_image_url = request.build_absolute_uri(static_path)
         description = (
             f'{collaboration.name}の開催準備や発表に関するお知らせを確認できます。'
             'お知らせの内容を見るにはログインが必要です。'

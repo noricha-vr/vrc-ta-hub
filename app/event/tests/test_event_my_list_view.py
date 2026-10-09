@@ -412,6 +412,20 @@ class VketBannerTests(TestCase):
         session['active_community_id'] = self.community.id
         session.save()
 
+    def _assert_banner_links(self, response, collaboration, expected_url_names):
+        self.assertEqual(response.status_code, 200)
+        for url_name in ('vket:apply', 'vket:status', 'vket:manage'):
+            link = f'href="{reverse(url_name, args=[collaboration.pk])}"'
+            if url_name in expected_url_names:
+                self.assertContains(response, link, count=1)
+            else:
+                self.assertNotContains(response, link)
+        self.assertContains(
+            response,
+            'class="btn btn-light fw-bold px-4 vket-banner-btn"',
+            count=len(expected_url_names),
+        )
+
     def test_banner_shows_for_entry_open(self):
         """ENTRY_OPENフェーズでバナーが表示される"""
         today = timezone.localdate()
@@ -561,6 +575,7 @@ class VketBannerTests(TestCase):
         self.assertIsNotNone(banner)
         self.assertEqual(banner['url_name'], 'vket:status')
         self.assertEqual(banner['button_text'], '参加状況を確認')
+        self._assert_banner_links(response, collab, {'vket:status'})
 
     def test_banner_entry_open_without_participation_links_to_apply(self):
         """ENTRY_OPENで未参加の場合はapplyページへリンクする"""
@@ -582,9 +597,10 @@ class VketBannerTests(TestCase):
         self.assertIsNotNone(banner)
         self.assertEqual(banner['url_name'], 'vket:apply')
         self.assertEqual(banner['button_text'], '参加申し込み')
+        self._assert_banner_links(response, banner['collaboration'], {'vket:apply'})
 
     def test_staff_banner_links_to_manage_without_participation(self):
-        """Hub運営スタッフは未参加でもmy_listのバナーから管理画面へ遷移できる"""
+        """集会に所属する未参加スタッフには申込と管理画面の両方を表示する"""
         self.user.is_staff = True
         self.user.save(update_fields=['is_staff'])
         today = timezone.localdate()
@@ -603,10 +619,52 @@ class VketBannerTests(TestCase):
         self.assertEqual(response.status_code, 200)
         banner = response.context['vket_banner']
         self.assertIsNotNone(banner)
-        self.assertEqual(banner['url_name'], 'vket:manage')
-        self.assertEqual(banner['button_text'], '管理画面を開く')
-        self.assertEqual(banner['button_icon'], 'fas fa-gear')
+        self.assertEqual(banner['url_name'], 'vket:apply')
+        self.assertEqual(banner['button_text'], '参加申し込み')
+        self._assert_banner_links(
+            response, banner['collaboration'], {'vket:apply', 'vket:manage'},
+        )
         self.assertContains(response, '管理画面を開く')
+
+    def test_admin_banner_with_community_shows_participant_and_manage_links(self):
+        """スタッフ・superuserは参加状況とフェーズに応じた参加側リンクも使える"""
+        today = timezone.localdate()
+        collaboration = VketCollaboration.objects.create(
+            slug='banner-admin-both-links',
+            name='Vket 管理者リンクテスト',
+            period_start=today + timedelta(days=14),
+            period_end=today + timedelta(days=21),
+            registration_deadline=today + timedelta(days=5),
+            lt_deadline=today + timedelta(days=10),
+            phase=VketCollaboration.Phase.ENTRY_OPEN,
+        )
+        for role in ('is_staff', 'is_superuser'):
+            self.user.is_staff = role == 'is_staff'
+            self.user.is_superuser = role == 'is_superuser'
+            self.user.save(update_fields=['is_staff', 'is_superuser'])
+            for phase, participated, participant_link in (
+                (VketCollaboration.Phase.ENTRY_OPEN, False, 'vket:apply'),
+                (VketCollaboration.Phase.ENTRY_OPEN, True, 'vket:status'),
+                (VketCollaboration.Phase.SCHEDULING, False, 'vket:status'),
+            ):
+                with self.subTest(role=role, phase=phase, participated=participated):
+                    collaboration.phase = phase
+                    collaboration.save(update_fields=['phase'])
+                    VketParticipation.objects.filter(collaboration=collaboration).delete()
+                    if participated:
+                        VketParticipation.objects.create(
+                            collaboration=collaboration, community=self.community,
+                        )
+                    self._login_and_set_community()
+                    response = self.client.get(reverse('event:my_list'))
+                    self._assert_banner_links(
+                        response, collaboration, {participant_link, 'vket:manage'},
+                    )
+                    self.assertContains(response, '管理画面を開く')
+                    self.assertContains(
+                        response,
+                        '参加申し込み' if participant_link == 'vket:apply' else '参加状況を確認',
+                    )
 
     def test_staff_banner_links_to_manage_without_active_community(self):
         """Hub運営スタッフは集会未選択でもmy_listのバナーから管理画面へ遷移できる"""
@@ -626,15 +684,18 @@ class VketBannerTests(TestCase):
             lt_deadline=today + timedelta(days=10),
             phase=VketCollaboration.Phase.ENTRY_OPEN,
         )
-        self.client.force_login(banner_staff)
-        response = self.client.get(reverse('event:my_list'))
-
-        self.assertEqual(response.status_code, 200)
-        banner = response.context['vket_banner']
-        self.assertIsNotNone(banner)
-        self.assertEqual(banner['url_name'], 'vket:manage')
-        self.assertEqual(banner['button_text'], '管理画面を開く')
-        self.assertContains(response, '管理画面を開く')
+        for role in ('is_staff', 'is_superuser'):
+            with self.subTest(role=role):
+                banner_staff.is_staff = role == 'is_staff'
+                banner_staff.is_superuser = role == 'is_superuser'
+                banner_staff.save(update_fields=['is_staff', 'is_superuser'])
+                self.client.force_login(banner_staff)
+                response = self.client.get(reverse('event:my_list'))
+                banner = response.context['vket_banner']
+                self.assertIsNotNone(banner)
+                self._assert_banner_links(response, banner['collaboration'], {'vket:manage'})
+                self.assertContains(response, '管理画面を開く')
+                self.assertNotContains(response, '参加状況を確認')
 
     def test_banner_scheduling_phase_shows_lt_deadline(self):
         """SCHEDULINGフェーズでLT締切情報が表示される"""

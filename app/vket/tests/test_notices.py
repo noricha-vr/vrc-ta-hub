@@ -143,11 +143,11 @@ class VketNoticeTests(TestCase):
         self.assertContains(response, detail_url)
         self.assertContains(response, 'お知らせ一覧で詳細を見る')
 
-    def test_anonymous_notice_list_redirects_other_pk_without_db_query(self):
-        """公開対象外のpkは存在確認せずログインへリダイレクトする"""
+    def test_anonymous_notice_list_redirects_missing_pk(self):
+        """存在しないコラボはログインへリダイレクトする"""
         url = reverse('vket:notice_list', kwargs={'pk': 9999})
 
-        with self.assertNumQueries(0):
+        with self.assertNumQueries(1):
             response = self.client.get(url)
 
         self.assertRedirects(
@@ -188,19 +188,71 @@ class VketNoticeTests(TestCase):
         for table in private_tables:
             self.assertNotIn(table.lower(), sql)
 
-    def test_anonymous_notice_list_is_404_for_draft(self):
-        """公開対象pkでも下書きコラボは公開しない"""
+    def test_anonymous_notice_list_redirects_for_draft(self):
+        """下書きコラボは存在を公開せずログインへリダイレクトする"""
         self.collaboration.phase = VketCollaboration.Phase.DRAFT
         self.collaboration.save(update_fields=['phase'])
 
-        response = self.client.get(
-            reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
-        )
+        url = reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
+        response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 404)
+        self.assertRedirects(
+            response,
+            f'{settings.LOGIN_URL}?next={url}',
+            fetch_redirect_response=False,
+        )
+        self.assertNotContains(response, self.collaboration.name, status_code=302)
+
+    def test_anonymous_notice_list_public_shell_for_second_collaboration_all_non_draft_phases(self):
+        """pk=2でも下書き以外の全フェーズで公開シェルと共通OGPを返す"""
+        today = timezone.localdate()
+        collaboration = VketCollaboration.objects.create(
+            pk=2,
+            slug='vket-2026-winter-notice-test',
+            name='Vket 2026 Winter',
+            period_start=today,
+            period_end=today + timedelta(days=7),
+            registration_deadline=today + timedelta(days=1),
+            lt_deadline=today + timedelta(days=3),
+        )
+        url = reverse('vket:notice_list', kwargs={'pk': collaboration.pk})
+        for phase in VketCollaboration.Phase.values:
+            if phase == VketCollaboration.Phase.DRAFT:
+                continue
+            with self.subTest(phase=phase):
+                collaboration.phase = phase
+                collaboration.save(update_fields=['phase'])
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertTemplateUsed(response, 'vket/notice_public.html')
+                self.assertContains(response, collaboration.name)
+                self.assertContains(
+                    response,
+                    '<meta property="og:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg">',
+                    html=True,
+                )
+                self.assertNotContains(response, self.notice.body)
+
+    def test_anonymous_notice_list_falls_back_to_common_image_without_setting(self):
+        """Summerも画像設定がない場合はサイト共通OGPを使う"""
+        url = reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
+        for notice_settings in (None, {}, {'notice_og_image': ''}):
+            with self.subTest(notice_settings=notice_settings):
+                self.collaboration.settings_json = notice_settings
+                self.collaboration.save(update_fields=['settings_json'])
+                response = self.client.get(url)
+                self.assertContains(
+                    response,
+                    'https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg',
+                    count=2,
+                )
+                self.assertNotContains(response, 'vket-2026-summer-notices-v1.png')
 
     def test_anonymous_notice_list_has_page_specific_meta(self):
-        """公開シェルは採用OGPを絶対URLで出力する"""
+        """公開シェルはsettings_jsonのOGP画像を絶対URLで出力する"""
+        image_path = 'vket/images/og/vket-2026-summer-notices-v1.png'
+        self.collaboration.settings_json = {'notice_og_image': image_path}
+        self.collaboration.save(update_fields=['settings_json'])
         url = reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
         response = self.client.get(f'{url}?open={self.notice.pk}')
         image_url = 'http://testserver/static/vket/images/og/vket-2026-summer-notices-v1.png'
@@ -217,8 +269,9 @@ class VketNoticeTests(TestCase):
         self.assertContains(response, f'<meta property="og:url" content="https://vrc-ta-hub.com{url}">', html=True)
 
         cdn_url = 'https://cdn.example.com/vket-2026-summer-notices-v1.png'
-        with patch('vket.views.notice.static', return_value=cdn_url):
+        with patch('vket.views.notice.static', return_value=cdn_url) as static_mock:
             cdn_response = self.client.get(url)
+        static_mock.assert_called_once_with(image_path)
         self.assertContains(cdn_response, cdn_url, count=2)
         self.assertNotContains(cdn_response, f'/{cdn_url}')
 

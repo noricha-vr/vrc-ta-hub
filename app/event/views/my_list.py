@@ -408,11 +408,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         else:
             return None
 
-        if is_vket_admin:
-            url_name = 'vket:manage'
-            button_text = '管理画面を開く'
-            button_icon = 'fas fa-gear'
-        elif (
+        if (
             not has_participation
             and phase == VketCollaboration.Phase.ENTRY_OPEN
         ):
@@ -432,4 +428,6 @@ class EventMyList(LoginRequiredMixin, ListView):
             'button_text': button_text,
             'button_icon': button_icon,
             'has_participation': has_participation,
+            'show_participation_link': community is not None or not is_vket_admin,
+            'is_vket_admin': is_vket_admin,
         }
