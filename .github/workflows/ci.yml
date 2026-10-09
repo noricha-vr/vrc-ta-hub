@@ -62,6 +62,7 @@ jobs:
           bash scripts/tests/test_db_pull_restore.sh
           bash scripts/tests/test_run_tests.sh
           python -m unittest scripts.tests.test_run_live_smoke
+          python -m unittest scripts.tests.test_requirements_layout
 
   test:
     needs: [isolation-gate, lint]
@@ -99,10 +100,10 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          cache-dependency-glob: "requirements.lock"
+          cache-dependency-glob: "requirements.txt"
 
       - name: Install dependencies (locked)
-        run: uv pip sync --system requirements.lock
+        run: uv pip sync --system requirements.txt
 
       - name: Check for missing migrations
         working-directory: app
@@ -151,10 +152,10 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          cache-dependency-glob: "requirements*.lock"
+          cache-dependency-glob: "requirements*.txt"
 
       - name: Install dependencies (locked)
-        run: uv pip sync --system requirements.lock requirements-e2e.lock
+        run: uv pip sync --system requirements.txt requirements-e2e.txt
 
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
@@ -216,10 +217,10 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-          cache-dependency-glob: "requirements.lock"
+          cache-dependency-glob: "requirements.txt"
 
       - name: Install dependencies (locked)
-        run: uv pip sync --system requirements.lock
+        run: uv pip sync --system requirements.txt
 
       - name: Run mypy (warn-only, app/event/services/)
         working-directory: app

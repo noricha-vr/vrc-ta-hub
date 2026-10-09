@@ -161,15 +161,17 @@ Chromium で次の主要ユーザー導線を検証する。
 
 ### 依存関係の更新と導入
 
-E2E 専用依存は `requirements-e2e.txt` に追加する。本体依存との整合を保つため、
-`requirements.lock` を制約として専用 lock を生成する。
+E2E 専用依存は `requirements-e2e.in` に追加する。本体依存との整合を保つため、
+`requirements-e2e.in` は先頭で本体の入力を `-r requirements.in` で取り込み、本体の lock を
+`-c requirements.txt` で制約にする（E2E の lock は本体の依存も含み、共通の版は本体と一致する）。
+本体の lock を作り直したら E2E の lock も続けて作り直す。
 
 ```bash
-# E2E 専用 lock を再生成
-uv pip compile requirements-e2e.txt --constraint requirements.lock -o requirements-e2e.lock
+# E2E 専用 lock を再生成（本体の requirements.txt を先に作り直す）
+uv pip compile --python-version 3.12 requirements-e2e.in -o requirements-e2e.txt
 ```
 
-CI は `uv pip sync --system requirements.lock requirements-e2e.lock` で本体と
+CI は `uv pip sync --system requirements.txt requirements-e2e.txt` で本体と
 E2E の依存を同時に導入し、`python -m playwright install --with-deps chromium`
 で Chromium とシステム依存を導入する。
 
@@ -177,7 +179,7 @@ E2E の依存を同時に導入し、`python -m playwright install --with-deps c
 
 ```bash
 docker compose -f docker-compose.test.yml run --rm --build test /bin/sh -c \
-  "pip install --no-deps -r /app/requirements-e2e.lock && \
+  "pip install --no-deps -r /app/requirements-e2e.txt && \
    python -m playwright install --with-deps chromium && \
    python manage.py test website.tests.e2e.test_user_journeys \
      --tag=e2e --noinput --verbosity=2"

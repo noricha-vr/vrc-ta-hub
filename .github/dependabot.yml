@@ -1,0 +1,37 @@
+# 依存の更新 PR を週 1 回 Dependabot に作らせる。patch / minor は groups で 1 本にまとめ、
+# .github/workflows/dependabot-automerge.yml の dependabot-policy が判定して auto-merge を予約する。
+# major・高リスク（課金・認証）・マニフェストと lockfile 以外の変更は needs-decision ラベルが付き、人間判断。
+version: 2
+updates:
+  # uv: requirements.in / requirements-e2e.in（入力）と requirements.txt / requirements-e2e.txt
+  # （uv pip compile の出力。本番と CI が入れる）の両方を書き換える。
+  # pip エコシステムは pip-compile で作り直すので、uv で生成したロックには uv を使う
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:                 # 週 1 回の更新は patch と minor を 1 本にまとめる
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      security:                        # security updates も同じエコシステムで 1 本にまとめる
+        applies-to: security-updates
+        update-types: ["minor", "patch"]
+    labels: ["dependencies"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        update-types: ["minor", "patch"]
+    labels: ["dependencies"]

@@ -142,3 +142,7 @@ backup/
 dumps/
 .playwright-cli/
 .prrepo/
+
+# uv の project モードは使わない（pyproject.toml に [project] が無い）。uv run などが作る空の uv.lock を
+# 追跡すると、Dependabot（uv エコシステム）が間接依存の security update でこれを更新しようとして失敗するため
+/uv.lock

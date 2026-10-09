@@ -265,33 +265,37 @@ RustFS は本番環境の Cloudflare R2 の代替として、画像などのメ�
 
 | ファイル | 役割 | 更新方法 |
 |----------|------|----------|
-| `requirements.txt` | 直接依存（人間が編集） | パッケージ追加時はバージョン固定必須（例: `django==5.2.14`） |
-| `requirements.lock` | 間接依存を含む全ピン（自動生成） | `uv pip compile requirements.txt -o requirements.lock` |
+| `requirements.in` | 直接依存（人間が編集） | パッケージ追加時はバージョン固定必須（例: `django==5.2.14`） |
+| `requirements.txt` | 間接依存を含む全ピン（自動生成） | `uv pip compile --python-version 3.12 requirements.in -o requirements.txt` |
+
+Dependabot（uv エコシステム）は `requirements.in` と `requirements.txt` の両方を書き換えます。
+`requirements.txt` を手で編集しないでください。
 
 #### パッケージを追加・更新する
 
-1. `requirements.txt` に `==` でバージョン固定して追記
+1. `requirements.in` に `==` でバージョン固定して追記
 2. ロックファイルを再生成
 
    ```bash
-   uv pip compile requirements.txt -o requirements.lock
+   uv pip compile --python-version 3.12 requirements.in -o requirements.txt
+   uv pip compile --python-version 3.12 requirements-e2e.in -o requirements-e2e.txt
    ```
 
-3. `requirements.txt` と `requirements.lock` を同じコミットに含める
+3. `requirements.in` と `requirements.txt` を同じコミットに含める（CI の lint が両者の版のずれを検出します）
 
 #### 本番 / CI で使う
 
-本番（Dockerfile）と CI（GitHub Actions）は `requirements.lock` を使ってインストールします。
+本番（Dockerfile）と CI（GitHub Actions）は `requirements.txt` を使ってインストールします。
 
 ```bash
 # CI（uv 経由・lock を厳密に同期）
-uv pip sync --system requirements.lock
+uv pip sync --system requirements.txt
 
 # ローカル開発で lock を厳密に再現したい場合
-uv pip sync requirements.lock
+uv pip sync requirements.txt
 ```
 
-`requirements.lock` には間接依存のバージョンもすべて固定されているため、
+`requirements.txt` には間接依存のバージョンもすべて固定されているため、
 ビルドのたびに依存解決が走らず、誰がどの環境でビルドしても同じ依存ツリーになります。
 
 ### テスト環境のセットアップ

@@ -1,0 +1,6 @@
+# 本体の入力を取り込み、本体のロックを制約にする。
+# -r があると Dependabot は本体を先にコンパイルし、更新後の本体ロックを -c で読む（-c だけだと順序が決まらず、共有の依存の更新が衝突する）。
+# --constraint はヘッダーから引き継がれないので、ファイル内に書く。
+-r requirements.in
+-c requirements.txt
+playwright==1.61.0
