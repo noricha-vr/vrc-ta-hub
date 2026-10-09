@@ -301,7 +301,7 @@
                 var block = payload.blocks[entry.index];
                 var isConflict = !!conflictedSet[entry.index];
                 var item = document.createElement('li');
-                item.className = 'd-flex align-items-baseline gap-2 py-1 border-bottom'
+                item.className = 'd-flex flex-wrap align-items-baseline column-gap-2 py-1 border-bottom'
                     + (isConflict ? ' text-danger fw-bold' : '');
                 var time = document.createElement('span');
                 time.className = 'text-nowrap';
@@ -309,6 +309,8 @@
                 time.textContent = entry.label;
                 var name = document.createElement('span');
                 name.className = 'text-break';
+                // 狭い幅では集会名を途中で折らず、時間帯の下の行へ送る
+                name.style.flex = '1 1 9em';
                 name.textContent = block.name;
                 item.append(time, name);
                 if (isConflict) {
