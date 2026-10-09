@@ -55,12 +55,15 @@ gcloud run jobs update vrc-ta-hub-migrate \
 ```
 
 任意の管理コマンドも同じ Job で実行できます。Job の引数を一時的に差し替え、
-`execute --wait` の後にその実行の標準出力・標準エラーのログを表示し、終了時に元の引数へ戻します。
+`execute --async` で実行名を取って完了まで待ち、その実行の標準出力・標準エラーのログを表示し、
+終了時に元の引数へ戻します。実行が失敗した時も、ログを表示してからエラーで終わります。
+ログは同じ内容が 2 回続けて取れるまで読み直します（Cloud Logging の取り込み遅延）。
+`EXPECT_LOG_PREFIX` を指定すると、その文字列で始まる行が現れるまで成功にしません。
 ログを取得できない場合や復元に失敗した場合はエラーになります。
 
 ```bash
 # 実行前に KEEP_COMMUNITY_ID_A / KEEP_COMMUNITY_ID_B に残す集会の ID を設定する
-./scripts/run_manage_command.sh apply_recording_opt_in \
+EXPECT_LOG_PREFIX=RECORDING_OPT_IN_DONE ./scripts/run_manage_command.sh apply_recording_opt_in \
   --keep-community-id "$KEEP_COMMUNITY_ID_A" --keep-community-id "$KEEP_COMMUNITY_ID_B" --dry-run
 ```
 

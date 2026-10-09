@@ -9,6 +9,8 @@ LOG_RETRIES="${LOG_RETRIES:-10}"
 LOG_RETRY_INTERVAL_SEC="${LOG_RETRY_INTERVAL_SEC:-6}"
 WAIT_RETRIES="${WAIT_RETRIES:-360}"
 WAIT_INTERVAL_SEC="${WAIT_INTERVAL_SEC:-10}"
+# 指定すると、この文字列で始まる行がログに現れるまで成功にしない（コマンドの完了の印）
+EXPECT_LOG_PREFIX="${EXPECT_LOG_PREFIX:-}"
 
 die() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -17,7 +19,7 @@ die() {
 
 # 算術式に入る値は数字だけ受け付ける（bash は算術式の中の文字列を評価する）
 for name in LOG_RETRIES LOG_RETRY_INTERVAL_SEC WAIT_RETRIES WAIT_INTERVAL_SEC; do
-  [[ "${!name}" =~ ^[0-9]{1,4}$ ]] || die "$name must be a number."
+  [[ "${!name}" =~ ^(0|[1-9][0-9]{0,3})$ ]] || die "$name must be a decimal number."
 done
 
 [[ $# -gt 0 ]] || die "Usage: $0 <manage.py arguments...>"
@@ -93,13 +95,24 @@ for ((attempt = 1; attempt <= LOG_RETRIES; attempt++)); do
       --project="$PROJECT_ID" --order=asc --limit=10000 \
       --format='value(textPayload)' 2>/dev/null || true
   )"
-  [[ -z "$LOG_LINES" || "$LOG_LINES" != "$PREVIOUS" ]] || break
+  if [[ -n "$LOG_LINES" && "$LOG_LINES" == "$PREVIOUS" ]]; then
+    [[ -z "$EXPECT_LOG_PREFIX" ]] && break
+    has_marker=''
+    while IFS= read -r line; do
+      [[ "$line" != "$EXPECT_LOG_PREFIX"* ]] || has_marker=1
+    done <<< "$LOG_LINES"
+    [[ -z "$has_marker" ]] || break
+  fi
   PREVIOUS="$LOG_LINES"
   LOG_LINES=''
   if ((attempt < LOG_RETRIES)); then
     sleep "$LOG_RETRY_INTERVAL_SEC"
   fi
 done
-[[ -n "$LOG_LINES" ]] || die "Command output in logs for $EXECUTION was empty or still changing."
+if [[ -z "$LOG_LINES" ]]; then
+  # 出せる分は出してから失敗にする（取り込み途中・完了の印なし）
+  [[ -z "$PREVIOUS" ]] || printf '%s\n' "$PREVIOUS"
+  die "Command output in logs for $EXECUTION was empty, still changing, or missing ${EXPECT_LOG_PREFIX:-output}."
+fi
 printf '%s\n' "$LOG_LINES"
 [[ "$SUCCEEDED" == yes ]] || die "Failed to execute $JOB_NAME ($EXECUTION)."

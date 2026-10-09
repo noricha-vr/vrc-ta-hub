@@ -73,18 +73,22 @@ case "$*" in
       printf 'line %s\n' "$count"
       exit 0
     fi
+    if [[ "$MOCK_CASE" == slow_ingest && "$count" -le 2 ]]; then
+      printf 'RECORDING_OPT_IN_BACKUP {"communities": {}, "event_details": {}}\n'
+      exit 0
+    fi
     if [[ "$MOCK_CASE" == partial_logs && "$count" -eq 1 ]]; then
       printf 'RECORDING_OPT_IN_BACKUP {"communities": {}, "event_details": {}}\n'
       exit 0
     fi
-    printf 'RECORDING_OPT_IN_BACKUP {"communities": {}, "event_details": {}}\n変更はありません。\n'
+    printf 'RECORDING_OPT_IN_BACKUP {"communities": {}, "event_details": {}}\n変更はありません。\nRECORDING_OPT_IN_DONE dry_run=True\n'
     ;;
   *) exit 99 ;;
 esac
 EOF
 chmod +x "$TMP_DIR/gcloud"
 export PATH="$TMP_DIR:$PATH"
-export LOG_RETRIES=3 LOG_RETRY_INTERVAL_SEC=0 WAIT_RETRIES=3 WAIT_INTERVAL_SEC=0
+export LOG_RETRIES=5 LOG_RETRY_INTERVAL_SEC=0 WAIT_RETRIES=3 WAIT_INTERVAL_SEC=0
 export CLOUDSDK_CONFIG="$TMP_DIR/gcloud-config" CLOUDSDK_ACTIVE_CONFIG_NAME='caller-config'
 unset PROJECT_ID REGION JOB_NAME
 TEST_COUNT=0
@@ -147,6 +151,15 @@ done
 
 run_case delayed_logs 0 showmigrations --plan
 [[ "$(cat "$LOG_COUNT_FILE")" -eq 3 ]] || fail 'Logs should be retried until they are stable'
+
+# 途中のログが 2 回同じでも、完了の印が出るまで成功にしない。
+EXPECT_LOG_PREFIX=RECORDING_OPT_IN_DONE run_case slow_ingest 0 apply_recording_opt_in --keep-community-id 19 --dry-run
+assert_contains "$TMP_DIR/stdout" 'RECORDING_OPT_IN_DONE'
+[[ "$(cat "$LOG_COUNT_FILE")" -eq 4 ]] || fail 'Should wait for the completion marker'
+EXPECT_LOG_PREFIX=NO_SUCH_MARKER run_case success 2 showmigrations --plan
+assert_contains "$TMP_DIR/stdout" '変更はありません。'
+assert_contains "$TMP_DIR/stderr" 'NO_SUCH_MARKER'
+assert_restored
 assert_contains "$TMP_DIR/stdout" 'RECORDING_OPT_IN_BACKUP '
 assert_restored
 
@@ -165,7 +178,7 @@ assert_contains "$TMP_DIR/stdout" '変更はありません。'
 assert_contains "$TMP_DIR/stderr" 'job-execution-this-call'
 assert_restored
 
-for value in 'a[$(touch "$TMP_DIR/injected")]' '-1' '1e9'; do
+for value in 'a[$(touch "$TMP_DIR/injected")]' '-1' '1e9' '08'; do
   LOG_RETRIES="$value" run_case success 2 showmigrations --plan
   [[ ! -s "$CALLS_FILE" ]] || fail "Invalid LOG_RETRIES should fail before gcloud: $value"
 done

@@ -45,6 +45,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        self._apply(options)
+        # 本番では Job のログから結果を読む。取り込み途中のログで判断しないよう、最後まで出たことを示す。
+        self.stdout.write(f'RECORDING_OPT_IN_DONE dry_run={options["dry_run"]}')
+
+    def _apply(self, options):
         keep_ids = set(options['keep_community_id'])
         communities = Community._base_manager.all()
         kept_communities = list(communities.filter(pk__in=keep_ids).order_by('pk').values(
@@ -137,8 +142,8 @@ class Command(BaseCommand):
             converted_count = sum(row['event__community_id'] == keep_id for row in b_rows)
             remaining_public_count = kept_details.filter(recording_policy=policy.PUBLIC).count() - converted_count
             self.stdout.write(
-                # 集会名は主催者が入力した値。改行・制御文字で偽の行を作らせないよう JSON 文字列で出す。
-                f'残す Community: id={keep_id} 名前={json.dumps(community["name"], ensure_ascii=False)} recording_allowed={community["recording_allowed"]} / '
+                # 集会名は主催者が入力した値。改行や U+2028 などで偽の行を作らせないよう、ASCII の JSON 文字列で出す。
+                f'残す Community: id={keep_id} 名前={json.dumps(community["name"])} recording_allowed={community["recording_allowed"]} / '
                 f'既定値のまま public（書き換え前）={default_count}件 / '
                 f'書き換え後に public のまま（予定）={remaining_public_count}件 '
                 f'(defaults_before={cutoff.isoformat()})'

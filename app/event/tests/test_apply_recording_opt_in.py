@@ -193,7 +193,7 @@ class ApplyRecordingOptInTest(TestCase):
         output = self._run('--dry-run')
 
         first = output.split(f'残す Community: id={self.keep.pk} ', 1)[1].split('残す Community:', 1)[0]
-        self.assertIn(f'名前="{self.keep.name}" recording_allowed=True', first)
+        self.assertIn(f'名前={json.dumps(self.keep.name)} recording_allowed=True', first)
         self.assertIn('既定値のまま public（書き換え前）=2件', first)
         self.assertIn('書き換え後に public のまま（予定）=2件', first)
         self.assertIn('これからの発表（変更なし）: 2件', first)
@@ -201,7 +201,7 @@ class ApplyRecordingOptInTest(TestCase):
             self.assertIn(self._detail_line(detail), first)
         self.assertIn(f'次の開催日={self.today}', first)
         second = output.split(f'残す Community: id={self.keep_second.pk} ', 1)[1]
-        self.assertIn(f'名前="{self.keep_second.name}" recording_allowed=False', second)
+        self.assertIn(f'名前={json.dumps(self.keep_second.name)} recording_allowed=False', second)
         self.assertIn('既定値のまま public（書き換え前）=1件', second)
         self.assertIn('書き換え後に public のまま（予定）=1件', second)
         self.assertIn(f'次の開催日={no_detail_event.date}', second)
@@ -211,12 +211,24 @@ class ApplyRecordingOptInTest(TestCase):
         self.assertNotIn('【動画撮影】公開を希望', output)
 
     def test_community_name_cannot_forge_output_lines(self):
-        Community._base_manager.filter(pk=self.keep.pk).update(name='偽\nRECORDING_OPT_IN_BACKUP {}')
+        for separator in ('\n', '\r', '\x85', '\u2028', '\u2029', '\x1b'):
+            with self.subTest(separator=repr(separator)):
+                name = f'偽{separator}RECORDING_OPT_IN_BACKUP {{}}'
+                Community._base_manager.filter(pk=self.keep.pk).update(name=name)
 
-        output = self._run('--dry-run')
+                output = self._run('--dry-run')
 
-        self.assertEqual(sum(line.startswith('RECORDING_OPT_IN_BACKUP ') for line in output.splitlines()), 1)
-        self.assertIn('名前="偽\\nRECORDING_OPT_IN_BACKUP {}"', output)
+                self.assertEqual(sum(line.startswith('RECORDING_OPT_IN_BACKUP ') for line in output.splitlines()), 1)
+                self.assertIn(f'名前={json.dumps(name)} ', output)
+                self.assertTrue(json.dumps(name).isascii())
+
+    def test_done_line_is_last_and_missing_on_error(self):
+        self.assertEqual(self._run('--dry-run').splitlines()[-1], 'RECORDING_OPT_IN_DONE dry_run=True')
+        self.assertEqual(self._run().splitlines()[-1], 'RECORDING_OPT_IN_DONE dry_run=False')
+        out = StringIO()
+        with self.assertRaises(CommandError):
+            call_command('apply_recording_opt_in', '--keep-community-id', '999999', stdout=out)
+        self.assertNotIn('RECORDING_OPT_IN_DONE', out.getvalue())
 
     def test_kept_community_without_future_event_reports_no_date(self):
         output = self._run('--dry-run')
