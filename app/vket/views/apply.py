@@ -34,6 +34,10 @@ from .helpers import (
 class ScheduleConflictError(ValueError):
     """主催者の希望の時間が、他の集会の枠と重なっている"""
 
+    def __init__(self, message: str, collaboration: VketCollaboration):
+        super().__init__(message)
+        self.collaboration = collaboration
+
 
 class ApplyView(LoginRequiredMixin, View):
     template_name = 'vket/apply.html'
@@ -143,6 +147,8 @@ class ApplyView(LoginRequiredMixin, View):
                     formset_data=formset.cleaned_data,
                 )
         except ValueError as e:
+            if isinstance(e, ScheduleConflictError):
+                collaboration = e.collaboration
             form.add_error(None, str(e))
             return self._render(
                 request, collaboration, community, participation, form, formset, permissions,
@@ -160,9 +166,12 @@ class ApplyView(LoginRequiredMixin, View):
         if permissions.can_edit_schedule:
             # 日程表で読んだ参加から作り、空き表示のために追加のクエリを出さない
             busy = busy_payload(
-                block
-                for block in schedule_ctx['schedule_blocks']
-                if block.community_id != community.pk
+                (
+                    block
+                    for block in schedule_ctx['schedule_blocks']
+                    if block.community_id != community.pk
+                ),
+                buffer_minutes=get_schedule_buffer_minutes(collaboration),
             )
         return render(
             request,
@@ -251,7 +260,7 @@ class ApplyView(LoginRequiredMixin, View):
         buffer_minutes = get_schedule_buffer_minutes(collaboration)
         if buffer_minutes:
             message += f'前後 {buffer_minutes} 分は入れ替えの時間として空けてください。'
-        raise ScheduleConflictError(message + '空いている時間を選んでください。')
+        raise ScheduleConflictError(message + '空いている時間を選んでください。', collaboration)
 
     def _build_formset(
         self,

@@ -127,6 +127,52 @@ class BusyPayloadTests(TestCase):
         payload = busy_payload([_block('夜集会', self.day, time(23, 0), 60, 1)])
         self.assertNotIn(self.next_day.isoformat(), payload['days'])
 
+    def test_buffer_after_block_is_shown_on_next_day(self):
+        """23:55 終了の枠は、間隔 10 分なら翌日の 00:05 まで埋まっていると表示する"""
+        payload = busy_payload(
+            [_block('深夜集会', self.day, time(23, 30), 25, 1)], buffer_minutes=10,
+        )
+
+        self.assertEqual(
+            payload['days'][self.day.isoformat()], [{'index': 0, 'label': '23:20〜翌00:05'}],
+        )
+        self.assertEqual(
+            payload['days'][self.next_day.isoformat()],
+            [{'index': 0, 'label': '〜00:05（前日から）'}],
+        )
+        # JS の判定は前後に間隔を足すため、判定用の開始・終了は枠そのものを渡す
+        self.assertEqual(payload['blocks'][0]['end_abs'] - payload['blocks'][0]['start_abs'], 25)
+
+    def test_buffer_not_reaching_next_day_is_not_shown_there(self):
+        """間隔を足しても翌日にかからない枠は、翌日の欄には出さない"""
+        for duration in (19, 20):
+            with self.subTest(duration=duration):
+                payload = busy_payload(
+                    [_block('夜集会', self.day, time(23, 30), duration, 1)], buffer_minutes=10,
+                )
+                self.assertNotIn(self.next_day.isoformat(), payload['days'])
+
+    def test_buffer_before_block_is_shown_on_previous_day(self):
+        """翌日 00:05 開始の枠は、間隔 10 分なら前日の 23:55 から表示する"""
+        payload = busy_payload(
+            [_block('朝集会', self.next_day, time(0, 5), 30, 1)], buffer_minutes=10,
+        )
+
+        self.assertEqual(
+            payload['days'][self.day.isoformat()], [{'index': 0, 'label': '23:55〜翌00:45'}],
+        )
+        self.assertEqual(
+            payload['days'][self.next_day.isoformat()],
+            [{'index': 0, 'label': '〜00:45（前日から）'}],
+        )
+
+    def test_buffer_starting_at_midnight_does_not_touch_previous_day(self):
+        """入れ替えの時間がちょうど 00:00 に始まる枠は、前日の欄には出さない"""
+        payload = busy_payload(
+            [_block('朝集会', self.next_day, time(0, 10), 30, 1)], buffer_minutes=10,
+        )
+        self.assertNotIn(self.day.isoformat(), payload['days'])
+
 
 class BufferSettingTests(TestCase):
     def setUp(self):
@@ -371,6 +417,74 @@ class VketApplyScheduleOverlapTests(VketApplyFlowBase):
         # 読み直した値では希望は変わっていないので、重なりの判定はせずに保存を通す
         self.assertTrue(_locked_collaboration(spy))
         self.assertEqual(response.status_code, 302)
+
+    def test_conflict_render_uses_buffer_reread_after_lock(self):
+        """ロック待ち中に間隔が増えた時は、重複エラーの再表示にも新しい間隔を使う"""
+        tomorrow = self.today + timedelta(days=1)
+        make_event(
+            self.community, event_date=tomorrow, start_time='00:00', duration=60, weekday='',
+            accepts_lt_application=True,
+        )
+        self.other.requested_start_time = time(23, 30)
+        self.other.requested_duration = 25
+        self.other.save()
+
+        def concurrent_update():
+            VketCollaboration.objects.filter(pk=self.collaboration.pk).update(
+                settings_json={'schedule_buffer_minutes': 10},
+            )
+
+        with _spy_select_for_update(on_lock=concurrent_update) as spy:
+            response = self._post_apply('00:00', on_date=tomorrow)
+
+        self.assertTrue(_locked_collaboration(spy))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '前後 10 分は入れ替えの時間として空けてください。')
+        self.assertEqual(response.context['schedule_buffer_minutes'], 10)
+        self.assertEqual(get_schedule_buffer_minutes(response.context['collaboration']), 10)
+        self.assertContains(response, 'data-buffer-minutes="10"')
+        self.assertEqual(
+            response.context['busy_payload']['days'][tomorrow.isoformat()],
+            [{'index': 0, 'label': '〜00:05（前日から）'}],
+        )
+        self.assertIsNone(self._own_participation())
+
+    def test_conflict_render_shows_previous_day_block_with_buffer(self):
+        """前日の枠が間隔込みで翌日にかかる時は、選んだ翌日の埋まっている時間に出す"""
+        tomorrow = self.today + timedelta(days=1)
+        make_event(
+            self.community, event_date=tomorrow, start_time='00:00', duration=60, weekday='',
+            accepts_lt_application=True,
+        )
+        self.collaboration.settings_json = {'schedule_buffer_minutes': 10}
+        self.collaboration.save(update_fields=['settings_json'])
+        self.other.requested_start_time = time(23, 30)
+        self.other.requested_duration = 25
+        self.other.save()
+
+        response = self._post_apply('00:00', on_date=tomorrow)
+
+        self.assertContains(response, 'その時間はゲーム開発集会が申込み済みです。')
+        self.assertEqual(
+            response.context['busy_payload']['days'][tomorrow.isoformat()],
+            [{'index': 0, 'label': '〜00:05（前日から）'}],
+        )
+        self.assertEqual(response.context['busy_payload']['blocks'][0]['name'], 'ゲーム開発集会')
+        self.assertIsNone(self._own_participation())
+
+    def test_apply_page_omits_previous_day_block_not_reaching_next_day(self):
+        """前日の枠が間隔込みでも翌日に届かない時は、翌日の欄には出さない"""
+        tomorrow = self.today + timedelta(days=1)
+        self.collaboration.settings_json = {'schedule_buffer_minutes': 10}
+        self.collaboration.save(update_fields=['settings_json'])
+        self.other.requested_start_time = time(23, 30)
+        self.other.requested_duration = 20
+        self.other.save()
+
+        response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(tomorrow.isoformat(), response.context['busy_payload']['days'])
 
     def test_apply_page_shows_busy_blocks_of_other_communities(self):
         """申込みフォームに、他の集会の埋まっている時間帯（集会名と時間だけ）を出す"""

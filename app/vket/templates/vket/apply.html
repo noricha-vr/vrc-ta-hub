@@ -99,6 +99,7 @@
                         {% if schedule_buffer_minutes %}
                             <p class="small text-muted mt-2 mb-0">
                                 集会の前後 {{ schedule_buffer_minutes }} 分は入れ替えの時間として空けてください。
+                                埋まっている時間には、この間隔も含めています。
                             </p>
                         {% endif %}
                         <p id="busy-slots-conflict" class="small text-danger fw-bold mt-2 mb-0 d-none" role="alert"></p>
