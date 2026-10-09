@@ -266,7 +266,8 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
 
         # 確定はその場で公開イベントも作るので、確定済みの枠との重なりはここで止める
         with transaction.atomic():
-            VketCollaboration.objects.select_for_update().get(pk=collaboration.pk)
+            # ロックを待つ間に入れ替えの間隔が変わることがあるので、ロック後の行で判定する
+            collaboration = VketCollaboration.objects.select_for_update().get(pk=collaboration.pk)
             candidate, confirmed, requested = self._split_schedule_conflicts(
                 collaboration, participation,
             )

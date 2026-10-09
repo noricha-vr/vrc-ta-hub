@@ -471,6 +471,33 @@ class VketAdminScheduleOverlapTests(TestCase):
         self.b.save(update_fields=['confirmed_start_time'])
         return f'{min(self.a.pk, self.b.pk)}-{max(self.a.pk, self.b.pk)}'
 
+    def _set_buffer_while_waiting_for_lock(self, minutes: int):
+        """ロックを待つ間に、別のリクエストが入れ替えの間隔を変えたことにする"""
+        def change():
+            VketCollaboration.objects.filter(pk=self.collaboration.pk).update(
+                settings_json={'stage_url': 'https://example.com/stage', 'schedule_buffer_minutes': minutes},
+            )
+        return change
+
+    def test_row_confirm_uses_buffer_read_after_lock(self):
+        """ロックを待つ間に間隔が増えたら、ロック後の間隔で判定して隣の枠との確定を止める"""
+        new_one = self._participation('集会C', time(23, 0), confirmed=False)
+
+        with _spy_select_for_update(on_lock=self._set_buffer_while_waiting_for_lock(15)):
+            response = self._update(new_one, '23:00')
+
+        self.assertContains(response, '重なりを承知で確定する')
+        new_one.refresh_from_db()
+        self.assertIsNone(new_one.confirmed_start_time)
+
+    def test_publish_uses_buffer_read_after_lock(self):
+        """ロックを待つ間に間隔が増えたら、ロック後の間隔で隣り合う確定済みの枠を重なりとして止める"""
+        with _spy_select_for_update(on_lock=self._set_buffer_while_waiting_for_lock(15)):
+            response = self._publish()
+
+        self.assertContains(response, '重なりを承知で公開する')
+        self.assertFalse(Event.objects.filter(community__in=[self.a.community, self.b.community]).exists())
+
     def test_row_confirm_with_confirmed_overlap_is_blocked_without_acknowledgement(self):
         """確定済みの枠と重なる確定は、承知が無ければ何も保存せず、組と承知のチェックを出す"""
         new_one = self._participation('集会C', time(23, 0), confirmed=False)

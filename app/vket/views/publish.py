@@ -48,7 +48,8 @@ class ManagePublishView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
         published_count = 0
 
         with transaction.atomic():
-            VketCollaboration.objects.select_for_update().get(pk=collaboration.pk)
+            # ロックを待つ間に入れ替えの間隔が変わることがあるので、ロック後の行で判定する
+            collaboration = VketCollaboration.objects.select_for_update().get(pk=collaboration.pk)
             participations = list(
                 collaboration.participations.filter(
                     lifecycle=VketParticipation.Lifecycle.ACTIVE
