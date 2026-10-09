@@ -204,10 +204,9 @@ class VketNoticeTests(TestCase):
         self.assertNotContains(response, self.collaboration.name, status_code=302)
 
     def test_anonymous_notice_list_public_shell_for_second_collaboration_all_non_draft_phases(self):
-        """pk=2でも下書き以外の全フェーズで公開シェルと共通OGPを返す"""
+        """2件目以降のコラボでも下書き以外の全フェーズで公開シェルと共通OGPを返す"""
         today = timezone.localdate()
         collaboration = VketCollaboration.objects.create(
-            pk=2,
             slug='vket-2026-winter-notice-test',
             name='Vket 2026 Winter',
             period_start=today,
@@ -236,7 +235,15 @@ class VketNoticeTests(TestCase):
     def test_anonymous_notice_list_falls_back_to_common_image_without_setting(self):
         """Summerも画像設定がない場合はサイト共通OGPを使う"""
         url = reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
-        for notice_settings in (None, {}, {'notice_og_image': ''}):
+        for notice_settings in (
+            None,
+            {},
+            [],
+            {'notice_og_image': ''},
+            {'notice_og_image': '   '},
+            {'notice_og_image': 123},
+            {'notice_og_image': ['a.png']},
+        ):
             with self.subTest(notice_settings=notice_settings):
                 self.collaboration.settings_json = notice_settings
                 self.collaboration.save(update_fields=['settings_json'])
@@ -247,6 +254,31 @@ class VketNoticeTests(TestCase):
                     count=2,
                 )
                 self.assertNotContains(response, 'vket-2026-summer-notices-v1.png')
+
+    def test_anonymous_notice_list_uses_absolute_image_url_as_is(self):
+        """settings_jsonの画像が絶対URLならstatic()を通さずそのまま使う"""
+        image_url = 'https://data.vrc-ta-hub.com/images/vket-winter-notices.png'
+        self.collaboration.settings_json = {'notice_og_image': image_url}
+        self.collaboration.save(update_fields=['settings_json'])
+        url = reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
+        response = self.client.get(url)
+        self.assertContains(
+            response,
+            f'<meta property="og:image" content="{image_url}">',
+            html=True,
+        )
+
+    def test_logged_in_non_admin_cannot_see_draft_notice_list(self):
+        """下書きのコラボは管理者以外にはログイン後も404にする"""
+        self.collaboration.phase = VketCollaboration.Phase.DRAFT
+        self.collaboration.save(update_fields=['phase'])
+        url = reverse('vket:notice_list', kwargs={'pk': self.collaboration.pk})
+
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+        self.client.force_login(self.superuser)
+        self.assertEqual(self.client.get(url).status_code, 200)
 
     def test_anonymous_notice_list_has_page_specific_meta(self):
         """公開シェルはsettings_jsonのOGP画像を絶対URLで出力する"""

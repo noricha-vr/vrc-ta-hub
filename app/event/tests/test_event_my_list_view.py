@@ -666,6 +666,25 @@ class VketBannerTests(TestCase):
                         '参加申し込み' if participant_link == 'vket:apply' else '参加状況を確認',
                     )
 
+    def test_banner_without_community_hides_participant_link(self):
+        """集会に所属しない一般ユーザーには、集会選択が前提の申込リンクを出さない"""
+        loner = make_user(user_name='vket_banner_loner', email='vket_banner_loner@example.com')
+        today = timezone.localdate()
+        collaboration = VketCollaboration.objects.create(
+            slug='banner-loner',
+            name='Loner Collab',
+            period_start=today + timedelta(days=14),
+            period_end=today + timedelta(days=21),
+            registration_deadline=today + timedelta(days=5),
+            lt_deadline=today + timedelta(days=10),
+            phase=VketCollaboration.Phase.ENTRY_OPEN,
+        )
+        self.client.force_login(loner)
+        response = self.client.get(reverse('event:my_list'))
+        banner = response.context['vket_banner']
+        self.assertIsNotNone(banner)
+        self._assert_banner_links(response, collaboration, set())
+
     def test_staff_banner_links_to_manage_without_active_community(self):
         """Hub運営スタッフは集会未選択でもmy_listのバナーから管理画面へ遷移できる"""
         banner_staff = User.objects.create_user(

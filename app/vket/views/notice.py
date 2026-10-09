@@ -17,6 +17,7 @@ from django.views.generic import TemplateView
 from allauth.socialaccount.models import SocialAccount
 
 from community.models import CommunityMember
+from website.constants import DEFAULT_NEWS_IMAGE_URL
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 
 from ..models import (
@@ -31,7 +32,7 @@ from .helpers import (
 )
 
 
-DEFAULT_NOTICE_OG_IMAGE_URL = 'https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg'
+DEFAULT_NOTICE_OG_IMAGE_URL = DEFAULT_NEWS_IMAGE_URL
 
 
 @method_decorator([never_cache, vary_on_cookie], name='dispatch')
@@ -42,13 +43,18 @@ class NoticeListView(LoginRequiredMixin, View):
     public_template_name = 'vket/notice_public.html'
 
     def dispatch(self, request, *args, **kwargs):
+        # 未ログインでもリンクプレビュー用の公開シェルを返すため、LoginRequiredMixin の判定を飛ばす。
+        # ログイン誘導は handle_no_permission を _render_public_shell から使う。
         return View.dispatch(self, request, *args, **kwargs)
 
     def get(self, request, pk: int):
         if not request.user.is_authenticated:
             return self._render_public_shell(request, pk)
 
-        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        collaborations = VketCollaboration.objects.all()
+        if not _is_vket_admin(request.user):
+            collaborations = collaborations.exclude(phase=VketCollaboration.Phase.DRAFT)
+        collaboration = get_object_or_404(collaborations, pk=pk)
         community, membership = _get_active_membership(request)
 
         receipts = []
@@ -86,8 +92,13 @@ class NoticeListView(LoginRequiredMixin, View):
         if not isinstance(notice_settings, dict):
             notice_settings = {}
         image_path = notice_settings.get('notice_og_image')
+        if not isinstance(image_path, str):
+            image_path = ''
+        image_path = image_path.strip()
         og_image_url = DEFAULT_NOTICE_OG_IMAGE_URL
-        if image_path:
+        if image_path.startswith(('http://', 'https://')):
+            og_image_url = image_path
+        elif image_path:
             static_path = static(image_path)
             og_image_url = static_path
             if not static_path.startswith(('http://', 'https://', '//')):
