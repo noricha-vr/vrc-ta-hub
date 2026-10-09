@@ -16,7 +16,7 @@ BODY_TEXTAREA_ROWS = 10
 
 PAST_DATETIME_ERROR = '過去の日時は指定できません。今より後の日時を選んでください。'
 MASS_MENTION_CONFIRM_ERROR = (
-    '本文に @everyone または @here があります。サーバーの全員に通知されることを確認して、チェックを入れてください。'
+    'チェックを入れてください。全員に通知しない場合は、本文から @everyone / @here を消してください。'
 )
 
 
@@ -67,7 +67,7 @@ class DiscordScheduledMessageForm(forms.ModelForm):
     )
     scheduled_at = JSTDateTimeLocalField(label='送信日時（日本時間）')
     confirm_mass_mention = forms.BooleanField(
-        label='@everyone / @here で、サーバーの全員に通知されることを確認しました',
+        label='送るとサーバーの全員に通知されることを確認しました',
         required=False,
         widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
     )

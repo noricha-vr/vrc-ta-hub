@@ -3,15 +3,15 @@
 {% endif %}
 
 <div class="mb-4">
-    <label for="{{ form.body.id_for_label }}" class="form-label fw-bold">{{ form.body.label }}</label>
+    <div class="d-flex justify-content-between align-items-baseline gap-2">
+        <label for="{{ form.body.id_for_label }}" class="form-label fw-bold">{{ form.body.label }}</label>
+        <span class="small text-muted" data-role="body-counter"><span data-role="body-count">{{ form.body.value|default:""|length }}</span> / {{ form.body.field.max_length }} 文字</span>
+    </div>
     {{ form.body }}
     {% for error in form.body.errors %}
         <div class="invalid-feedback d-block">{{ error }}</div>
     {% endfor %}
-    <div class="d-flex flex-wrap justify-content-between gap-2 form-text">
-        <span>ロールとユーザーのメンションは、そのまま通知されます。</span>
-        <span data-role="body-counter"><span data-role="body-count">{{ form.body.value|default:""|length }}</span> / {{ form.body.field.max_length }} 文字</span>
-    </div>
+    <div class="form-text">ロールとユーザーのメンションは、そのまま通知されます。</div>
 </div>
 
 <div class="mb-4">
@@ -26,7 +26,7 @@
 <div class="mb-1 {% if not form.shows_mass_mention_confirm %}d-none{% endif %}" data-role="mass-mention-confirm">
     <div class="alert {% if form.confirm_mass_mention.errors %}alert-danger{% else %}alert-warning{% endif %} mb-0">
         <p class="small mb-2">
-            <i class="fas fa-bullhorn me-1"></i>本文に @everyone または @here があります。送るとサーバーの全員に通知されます。
+            <i class="fas fa-bullhorn me-1"></i>本文に @everyone または @here があります。
         </p>
         <div class="form-check mb-0">
             {{ form.confirm_mass_mention }}

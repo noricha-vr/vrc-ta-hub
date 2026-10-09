@@ -12,7 +12,7 @@
     <a href="{% url 'announcement:discord_list' %}" class="small text-decoration-none">
         <i class="fas fa-arrow-left me-1"></i>予約の一覧
     </a>
-    <div class="d-flex flex-wrap align-items-center gap-2 mt-2 mb-3">
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-2 {% if form %}mb-2{% else %}mb-3{% endif %}">
         <h1 class="h3 fw-bold mb-0">{{ message.scheduled_at|date:"Y/m/d（D）H:i" }} の告知</h1>
         <span class="badge {{ message.status_badge_class }}" data-testid="announce-status">{{ message.status_label }}</span>
     </div>
@@ -44,76 +44,81 @@
         </div>
     {% endif %}
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <dl class="row mb-0 small">
-                <dt class="col-sm-4 col-md-3 text-muted fw-normal">送信日時</dt>
-                <dd class="col-sm-8 col-md-9">
-                    {{ message.scheduled_at|date:"Y/m/d（D）H:i" }}（日本時間）
-                    {% if message.is_editable %}
-                        <div class="text-muted">指定した時刻から最大 1 分ほど遅れて届くことがあります。</div>
+    {# 予約中は「編集する」で、表示（案内・情報・本文・操作）と編集フォームを入れ替える（同じ本文や案内を 2 か所に出さない） #}
+    <div id="announce-view" {% if form %}class="collapse announce-edit-toggle{% if not form.is_bound %} show{% endif %}"{% endif %}>
+        {% if form %}
+            <p class="text-muted small mb-3">日本時間で送ります。指定した時刻から最大 1 分ほど遅れて届くことがあります。</p>
+        {% endif %}
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <dl class="row mb-0 small">
+                    {% if message.sent_at %}
+                        <dt class="col-sm-4 col-md-3 text-muted fw-normal">送った日時</dt>
+                        <dd class="col-sm-8 col-md-9">{{ message.sent_at|date:"Y/m/d（D）H:i:s" }}</dd>
                     {% endif %}
-                </dd>
-                {% if message.sent_at %}
-                    <dt class="col-sm-4 col-md-3 text-muted fw-normal">送った日時</dt>
-                    <dd class="col-sm-8 col-md-9">{{ message.sent_at|date:"Y/m/d（D）H:i:s" }}</dd>
-                {% endif %}
-                {% if message.discord_message_id %}
-                    <dt class="col-sm-4 col-md-3 text-muted fw-normal">メッセージ ID</dt>
-                    <dd class="col-sm-8 col-md-9"><code>{{ message.discord_message_id }}</code></dd>
-                {% endif %}
-                <dt class="col-sm-4 col-md-3 text-muted fw-normal">全員への通知</dt>
-                <dd class="col-sm-8 col-md-9">
-                    {% if message.mention_everyone_confirmed %}
-                        <span class="badge text-bg-warning"><i class="fas fa-bullhorn me-1"></i>あり</span> @everyone / @here で全員に通知します
-                    {% else %}
-                        なし
+                    {% if message.discord_message_id %}
+                        <dt class="col-sm-4 col-md-3 text-muted fw-normal">メッセージ ID</dt>
+                        <dd class="col-sm-8 col-md-9"><code>{{ message.discord_message_id }}</code></dd>
                     {% endif %}
-                </dd>
-                {% if message.attempt_count %}
-                    <dt class="col-sm-4 col-md-3 text-muted fw-normal">送信を試みた回数</dt>
-                    <dd class="col-sm-8 col-md-9">{{ message.attempt_count }} 回</dd>
-                {% endif %}
-                <dt class="col-sm-4 col-md-3 text-muted fw-normal">作成</dt>
-                <dd class="col-sm-8 col-md-9 mb-0">
-                    {{ message.created_by.display_label|default:"（不明なユーザー）" }}・{{ message.created_at|date:"Y/m/d H:i" }}
-                </dd>
-            </dl>
+                    <dt class="col-sm-4 col-md-3 text-muted fw-normal">全員への通知</dt>
+                    <dd class="col-sm-8 col-md-9">
+                        {% if message.mention_everyone_confirmed %}
+                            <span class="badge text-bg-warning"><i class="fas fa-bullhorn me-1"></i>あり</span> @everyone / @here で全員に通知します
+                        {% else %}
+                            なし
+                        {% endif %}
+                    </dd>
+                    {% if message.attempt_count %}
+                        <dt class="col-sm-4 col-md-3 text-muted fw-normal">送信を試みた回数</dt>
+                        <dd class="col-sm-8 col-md-9">{{ message.attempt_count }} 回</dd>
+                    {% endif %}
+                    <dt class="col-sm-4 col-md-3 text-muted fw-normal">作成</dt>
+                    <dd class="col-sm-8 col-md-9 mb-0">
+                        {{ message.created_by.display_label|default:"（不明なユーザー）" }}・{{ message.created_at|date:"Y/m/d H:i" }}
+                    </dd>
+                </dl>
+            </div>
         </div>
-    </div>
 
-    <div class="card shadow-sm mb-3">
-        <div class="card-header bg-transparent d-flex justify-content-between small">
-            <span class="fw-bold">本文</span>
-            <span class="text-muted">{{ message.body|length }} 文字</span>
+        <div class="card shadow-sm mb-3">
+            <div class="card-header bg-transparent d-flex justify-content-between small">
+                <span class="fw-bold">本文</span>
+                <span class="text-muted">{{ message.body|length }} 文字</span>
+            </div>
+            <div class="card-body">
+                <div style="white-space: pre-wrap; word-break: break-word;" data-testid="announce-body">{{ message.body }}</div>
+            </div>
         </div>
-        <div class="card-body">
-            <div style="white-space: pre-wrap; word-break: break-word;" data-testid="announce-body">{{ message.body }}</div>
-        </div>
+
+        {% if form %}
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target=".announce-edit-toggle"
+                        aria-controls="announce-view announce-edit" aria-expanded="false">
+                    <i class="fas fa-pen me-1"></i>編集する
+                </button>
+                <form method="post" action="{% url 'announcement:discord_cancel' message.pk %}" class="ms-auto"
+                      onsubmit="return confirm('この予約を取り消します。取り消した予約は送られません。よろしいですか？');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger">
+                        <i class="fas fa-ban me-1"></i>予約を取り消す
+                    </button>
+                </form>
+            </div>
+        {% endif %}
     </div>
 
     {% if form %}
-        <div class="d-flex flex-wrap gap-2 mb-3">
-            <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#announce-edit"
-                    aria-controls="announce-edit" aria-expanded="{% if form.is_bound %}true{% else %}false{% endif %}">
-                <i class="fas fa-pen me-1"></i>編集する
-            </button>
-            <form method="post" action="{% url 'announcement:discord_cancel' message.pk %}" class="ms-auto"
-                  onsubmit="return confirm('この予約を取り消します。取り消した予約は送られません。よろしいですか？');">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-outline-danger">
-                    <i class="fas fa-ban me-1"></i>予約を取り消す
-                </button>
-            </form>
-        </div>
-
-        <div class="collapse{% if form.is_bound %} show{% endif %}" id="announce-edit">
-            <form method="post" class="card shadow-sm" data-testid="announce-edit-form">
+        <div class="collapse announce-edit-toggle{% if form.is_bound %} show{% endif %}" id="announce-edit">
+            <form method="post" class="card shadow-sm mt-2" data-testid="announce-edit-form">
                 {% csrf_token %}
                 <div class="card-body p-3 p-md-4">
                     {% include 'announcement/discord/_form_fields.html' %}
                 </div>
-                <div class="card-footer bg-transparent d-flex justify-content-end py-3">
+                <div class="card-footer bg-transparent d-flex flex-column-reverse flex-sm-row justify-content-sm-end gap-2 py-3">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target=".announce-edit-toggle"
+                            aria-controls="announce-view announce-edit">
+                        編集をやめる
+                    </button>
                     <button type="submit" class="btn btn-primary px-4">
                         <i class="fas fa-floppy-disk me-1"></i>変更を保存
                     </button>
