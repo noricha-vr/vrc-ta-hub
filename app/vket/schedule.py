@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 from itertools import combinations
 
@@ -257,24 +257,31 @@ def _minutes_since_epoch(value: datetime) -> int:
     return int((value - _EPOCH).total_seconds() // 60)
 
 
-def busy_payload(blocks: Iterable[ScheduleBlock]) -> dict:
+def busy_payload(blocks: Iterable[ScheduleBlock], buffer_minutes: int = 0) -> dict:
     """申込みフォームの空き表示用のデータを返す。
 
     blocks は判定用の枠の一覧（1970-01-01 からの分で開始・終了を持つ）、
-    days は日付ごとに、その日に一部でもかかる枠の番号と表示を持つ。
+    days は日付ごとに、入れ替えの間隔込みで一部でもかかる枠の番号と表示を持つ。
     集会名と時間帯だけを含め、それ以外の参加情報は出さない。
     """
     items: list[dict] = []
     days: dict[str, list[dict]] = {}
+    gap = timedelta(minutes=buffer_minutes)
     for index, block in enumerate(blocks):
         items.append({
             'name': block.community_name,
             'start_abs': _minutes_since_epoch(block.start_dt),
             'end_abs': _minutes_since_epoch(block.end_dt),
         })
-        for day in block.touched_dates():
+        # 判定用の開始・終了はそのままに、表示だけ前後の入れ替えの時間を含める
+        display_start = block.start_dt - gap
+        display_block = replace(
+            block, date=display_start.date(), start=display_start.time(),
+            duration=block.duration + buffer_minutes * 2,
+        )
+        for day in display_block.touched_dates():
             days.setdefault(day.isoformat(), []).append({
                 'index': index,
-                'label': _day_label(block, day),
+                'label': _day_label(display_block, day),
             })
     return {'blocks': items, 'days': days}
