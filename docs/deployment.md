@@ -72,6 +72,7 @@ EXPECT_LOG_PREFIX=RECORDING_OPT_IN_DONE ./scripts/run_manage_command.sh apply_re
 引数に `|` は使えません。同じ Job の引数を変更する処理は同時に実行しないでください。
 撮影の変更前に `community.0032_alter_community_recording_allowed_default` を適用し、
 dry-run の対象件数・URL があり変更しない発表・残す集会の報告を確認してください。
+移行コマンドは、新しいリビジョンにトラフィックを 100% 切り替えた後に実行します（切替前は旧リビジョンが `recording_allowed=True` で集会を作れるため）。冪等なので、切替後にもう一度流しても差分だけを当てます。
 `--keep-community-id` は必須で、撮影許可を残す集会の ID ごとに繰り返して指定します。
 名前による指定はできません。指定した ID が一つでも存在しなければ、変更前にエラーになります。
 残す集会の現在の撮影許可はそのまま維持し、それ以外の集会の撮影許可をオフにします。
