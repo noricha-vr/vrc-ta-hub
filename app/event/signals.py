@@ -9,6 +9,7 @@
 """
 
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -98,6 +99,8 @@ def _clear_related_cache_if_changed(instance: EventDetail, old: dict) -> None:
     """記事のタイトル（h1）か記事化の同意が変わったら、その集会の関連一覧のキャッシュを消す。
 
     NG に変えた発表の h1 を、キャッシュの寿命（1 時間）の間ほかの発表のページに出し続けないため。
+    消すのはコミットの後（ta_hub のトップページのキャッシュと同じ）。コミット前に消すと、その間に
+    別のリクエストが古い内容でキャッシュを作り直すことがある。
     """
     h1_changed = (old.get('h1') or '') != (instance.h1 or '')
     consent_changed = bool(old) and old.get('article_consent') != instance.article_consent
@@ -110,4 +113,4 @@ def _clear_related_cache_if_changed(instance: EventDetail, old: dict) -> None:
         )
     keys = [related_event_details_cache_key(community_id) for community_id in community_ids if community_id]
     if keys:
-        cache.delete_many(keys)
+        transaction.on_commit(lambda: cache.delete_many(keys))

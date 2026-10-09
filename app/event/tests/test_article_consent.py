@@ -387,10 +387,11 @@ class ArticleNgOtherScreensTest(TestCase):
         self.assertNotContains(response, '</i>記事</span>')
 
     def _set_ng_consent(self, consent):
-        """発表者の編集と同じく save() で同意を変える（保存のシグナルが関連一覧のキャッシュを消す）。"""
+        """発表者の編集と同じく save() で同意を変える（保存のシグナルがコミット後に関連一覧のキャッシュを消す）。"""
         detail = EventDetail.objects.get(pk=self.ng.pk)
         detail.article_consent = consent
-        detail.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            detail.save()
 
     def test_related_list_hides_ng_title_even_when_cached(self):
         """関連一覧のキャッシュを作った後に NG に変わっても、その h1 を出さない。"""
@@ -431,11 +432,15 @@ class ArticleNgOtherScreensTest(TestCase):
         self.assertIsNotNone(cache.get(key))
 
         other.theme = 'テーマだけ直した'
-        other.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            other.save()
         self.assertIsNotNone(cache.get(key))
 
         other.h1 = '直した記事のタイトル'
-        other.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            other.save()
+            # コミットするまでは消さない（その間に古い内容で作り直されないように）
+            self.assertIsNotNone(cache.get(key))
         self.assertIsNone(cache.get(key))
 
         self.client.get(reverse('event:detail', kwargs={'pk': other.pk}))
