@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 
-from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from event.material_upload_reminders import send_material_upload_reminders
+from ta_hub.request_token import is_authorized_request
 
 
 def _result_to_dict(result):
@@ -31,9 +31,7 @@ def _parse_target_date(value):
 @require_http_methods(["GET", "POST"])
 def send_material_upload_reminders_view(request):
     """Cloud Scheduler から呼び出し、発表翌日の資料アップロード依頼を送る。"""
-    request_token = request.headers.get("Request-Token", "")
-    expected = settings.REQUEST_TOKEN or ""
-    if not expected or request_token != expected:
+    if not is_authorized_request(request):
         return HttpResponse("Unauthorized", status=401)
 
     target_date, error = _parse_target_date(request.GET.get("date"))

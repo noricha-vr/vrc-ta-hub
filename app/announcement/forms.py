@@ -21,14 +21,22 @@ MASS_MENTION_CONFIRM_ERROR = (
 
 
 class DiscordContentField(forms.CharField):
-    """改行を LF にそろえてから文字数を数える本文の欄。
+    """改行を LF にそろえ、文字（コードポイント）単位で上限を確かめる本文の欄。
 
     ブラウザはテキストエリアの改行を CRLF で送るため、そのまま数えると Discord より多く数えてしまう。
+    textarea の maxlength はブラウザが UTF-16 の単位で数える（絵文字などを 2 文字と数える）ため付けない。
+    上限はサーバーの検証と、同じ数え方をする文字数カウンタ（data-max-length を読む）に任せる。
     """
 
     def to_python(self, value):
         value = super().to_python(value)
         return value.replace('\r\n', '\n').replace('\r', '\n')
+
+    def widget_attrs(self, widget):
+        attrs = super().widget_attrs(widget)
+        attrs.pop('maxlength', None)
+        attrs['data-max-length'] = str(self.max_length)
+        return attrs
 
 
 class JSTDateTimeLocalField(forms.DateTimeField):
@@ -79,9 +87,18 @@ class DiscordScheduledMessageForm(forms.ModelForm):
     def __init__(self, *args, now=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._now = now
-        # 過去の日時をブラウザ側でも選びにくくする（判定の正はサーバー側の clean_scheduled_at）
-        current = timezone.localtime(now or timezone.now(), JST)
-        self.fields['scheduled_at'].widget.attrs['min'] = current.strftime(DATETIME_LOCAL_FORMAT)
+        # 編集の時は、保存済みの送信日時（入力で書き換わる前の値）と比べる
+        self._saved_scheduled_at = self.instance.scheduled_at if self.instance.pk else None
+        current = self._current_time()
+        if self._saved_scheduled_at is None or self._saved_scheduled_at > current:
+            # 過去の日時をブラウザ側でも選びにくくする（判定の正はサーバー側の clean_scheduled_at）。
+            # 保存済みの日時が過ぎている予約では、日時を変えずに本文だけ直せるよう付けない
+            self.fields['scheduled_at'].widget.attrs['min'] = (
+                timezone.localtime(current, JST).strftime(DATETIME_LOCAL_FORMAT)
+            )
+
+    def _current_time(self):
+        return self._now or timezone.now()
 
     def full_clean(self):
         super().full_clean()
@@ -97,7 +114,11 @@ class DiscordScheduledMessageForm(forms.ModelForm):
 
     def clean_scheduled_at(self):
         scheduled_at = self.cleaned_data['scheduled_at'].replace(second=0, microsecond=0)
-        if scheduled_at <= (self._now or timezone.now()):
+        saved = self._saved_scheduled_at
+        if saved is not None and scheduled_at == saved.replace(second=0, microsecond=0):
+            # 編集で日時を変えていない時は、過ぎていても通す（再試行待ちなどの予約の本文だけを直せるように）
+            return saved
+        if scheduled_at <= self._current_time():
             raise ValidationError(PAST_DATETIME_ERROR)
         return scheduled_at
 

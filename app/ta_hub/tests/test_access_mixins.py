@@ -6,7 +6,8 @@ from django.test import RequestFactory, TestCase
 from django.urls import URLPattern, URLResolver, get_resolver
 from django.views import View
 
-from ta_hub.access_mixins import AuthenticatedForbiddenMixin
+from ta_hub.access_mixins import AuthenticatedForbiddenMixin, StaffRequiredMixin
+from tests.factories import make_user
 
 
 User = get_user_model()
@@ -24,6 +25,11 @@ class _AllowedView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
     def test_func(self):
         return True
 
+    def get(self, request):
+        return HttpResponse('ok')
+
+
+class _StaffOnlyView(StaffRequiredMixin, View):
     def get(self, request):
         return HttpResponse('ok')
 
@@ -89,3 +95,34 @@ class AuthenticatedForbiddenMixinTests(TestCase):
         walk(get_resolver().url_patterns)
 
         self.assertEqual(risky_views, [])
+
+
+class StaffRequiredMixinTests(TestCase):
+    """運営スタッフ（is_staff または superuser）だけを通す共通の mixin。"""
+
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def _get(self, user):
+        request = self.factory.get('/staff-only/')
+        request.user = user
+        return _StaffOnlyView.as_view()(request)
+
+    def test_anonymous_is_sent_to_login(self):
+        response = self._get(AnonymousUser())
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/account/login/', response.url)
+
+    def test_logged_in_user_without_staff_gets_403(self):
+        member = make_user(user_name='member', email='member@example.com')
+
+        self.assertEqual(self._get(member).status_code, 403)
+
+    def test_staff_and_superuser_are_allowed(self):
+        staff = make_user(user_name='staff', email='staff@example.com', is_staff=True)
+        root = make_user(user_name='root', email='root@example.com', is_superuser=True)
+
+        for user in (staff, root):
+            with self.subTest(user=user.user_name):
+                self.assertEqual(self._get(user).status_code, 200)

@@ -6,16 +6,17 @@ from datetime import timedelta
 from unittest.mock import patch
 
 import requests
+from django.db import DatabaseError
 from django.test import TestCase, override_settings
 from urllib3.exceptions import MaxRetryError, NewConnectionError
 
 from announcement import delivery
 from announcement.delivery import (
-    LEASE_DURATION,
     MAX_MESSAGES_PER_RUN,
     MAX_SEND_ATTEMPTS,
     process_due_messages,
 )
+from announcement.discord_client import SendResult
 from announcement.models import DiscordScheduledMessage
 
 from ._helpers import (
@@ -80,6 +81,7 @@ class SendDueMessageTests(TestCase):
         result = process_due_messages(now=NOW)
 
         self.assertEqual(result['sent'], MAX_MESSAGES_PER_RUN)
+        self.assertEqual(result['skipped'], 1)
         sent_bodies = [call.kwargs['json']['content'] for call in mock_post.call_args_list]
         self.assertEqual(sent_bodies, [f'告知 {index}' for index in range(MAX_MESSAGES_PER_RUN, 0, -1)])
         messages[0].refresh_from_db()
@@ -135,29 +137,26 @@ class DoubleSendPreventionTests(TestCase):
         self.assertEqual(message.status, Status.SENT)
 
     @patch(POST_PATH)
-    def test_message_lost_to_another_run_while_claiming_is_skipped(self, mock_post):
-        """候補に選んだ直後に別の実行がリースを付けたら、送らずにスキップとして数える。"""
+    def test_lost_claim_ends_the_run_without_retaking_the_same_row(self, mock_post):
+        """リースを付けられなかった行は送らず、同じ行を取り直し続けずにその回を終える。"""
         message = make_message(scheduled_at=NOW - timedelta(minutes=1))
-        original_due = DiscordScheduledMessage.objects.due
-        claimed_by_other = []
+        due_calls = []
 
-        def due_then_taken(now):
-            queryset = original_due(now)
-            if not claimed_by_other:
-                claimed_by_other.append(True)
-                candidates = list(queryset.values_list('pk', flat=True))
-                DiscordScheduledMessage.objects.filter(pk=message.pk).update(
-                    lease_token='another-run', lease_expires_at=NOW + LEASE_DURATION,
-                )
-                return DiscordScheduledMessage.objects.filter(pk__in=candidates)
-            return queryset
+        def due_but_never_claimable(now):
+            due_calls.append(now)
+            if len(due_calls) % 2 == 1:
+                # 選ぶ時は候補に出るが、リースを付ける時には別の実行に先を越されている
+                return DiscordScheduledMessage.objects.filter(pk=message.pk)
+            return DiscordScheduledMessage.objects.none()
 
-        with patch.object(DiscordScheduledMessage.objects, 'due', side_effect=due_then_taken):
+        with patch.object(DiscordScheduledMessage.objects, 'due', side_effect=due_but_never_claimable):
             result = process_due_messages(now=NOW)
 
         mock_post.assert_not_called()
-        self.assertEqual(result['skipped'], 1)
-        self.assertEqual(result['results'][0]['outcome'], 'skipped')
+        self.assertEqual(len(due_calls), 2)
+        self.assertEqual(result['results'], [])
+        message.refresh_from_db()
+        self.assertEqual(message.attempt_count, 0)
 
     @patch(POST_PATH)
     def test_expired_lease_is_failed_without_resending(self, mock_post):
@@ -183,8 +182,27 @@ class DoubleSendPreventionTests(TestCase):
 @override_settings(DISCORD_ANNOUNCE_WEBHOOK_URL=FAKE_WEBHOOK_URL)
 class RetryAndFailureTests(TestCase):
     @patch(POST_PATH)
-    def test_server_error_is_retried_later_and_fails_after_limit(self, mock_post):
-        mock_post.return_value = discord_response(503, {'message': 'Service Unavailable'})
+    def test_server_error_is_not_retried_because_it_may_have_arrived(self, mock_post):
+        """5xx は Discord 側で作られたかどうか分からないので、自動では送り直さない。"""
+        for status_code in (500, 502, 503, 504):
+            with self.subTest(status_code=status_code):
+                mock_post.reset_mock()
+                mock_post.return_value = discord_response(status_code, {'message': 'Server Error'})
+                message = make_message(scheduled_at=NOW - timedelta(minutes=1))
+
+                result = process_due_messages(now=NOW)
+                process_due_messages(now=NOW + timedelta(hours=1))
+
+                mock_post.assert_called_once()
+                message.refresh_from_db()
+                self.assertEqual(result['failed'], 1)
+                self.assertEqual(message.status, Status.FAILED)
+                self.assertIn(f'HTTP {status_code}', message.last_error)
+                self.assertIn('チャンネルを確認してから再送', message.last_error)
+
+    @patch(POST_PATH)
+    def test_rate_limit_is_retried_later_and_fails_after_limit(self, mock_post):
+        mock_post.return_value = discord_response(429, {'message': 'You are being rate limited.'})
         message = make_message(scheduled_at=NOW - timedelta(minutes=1))
 
         first = process_due_messages(now=NOW)
@@ -194,7 +212,7 @@ class RetryAndFailureTests(TestCase):
         self.assertEqual(message.status, Status.SCHEDULED)
         self.assertEqual(message.attempt_count, 1)
         self.assertEqual(message.next_attempt_at, NOW + delivery.RETRY_DELAYS[0])
-        self.assertIn('HTTP 503', message.last_error)
+        self.assertIn('HTTP 429', message.last_error)
 
         # 待ち時間の間は送らない
         process_due_messages(now=NOW + timedelta(minutes=1))
@@ -256,6 +274,19 @@ class RetryAndFailureTests(TestCase):
         self.assertEqual(result['retrying'], 1)
         self.assertEqual(message.status, Status.SCHEDULED)
         self.assertIn('接続できませんでした', message.last_error)
+
+    @patch(POST_PATH)
+    def test_tls_handshake_failure_is_retried(self, mock_post):
+        mock_post.side_effect = requests.exceptions.SSLError('handshake failure')
+        message = make_message(scheduled_at=NOW - timedelta(minutes=1))
+
+        result = process_due_messages(now=NOW)
+
+        message.refresh_from_db()
+        self.assertEqual(result['retrying'], 1)
+        self.assertEqual(message.status, Status.SCHEDULED)
+        self.assertEqual(message.next_attempt_at, NOW + delivery.RETRY_DELAYS[0])
+        self.assertIn('接続できませんでした（SSLError）', message.last_error)
 
     @patch(POST_PATH)
     def test_read_timeout_is_not_retried_because_it_may_have_arrived(self, mock_post):
@@ -376,3 +407,70 @@ class DeliveryLoggingTests(TestCase):
         self.assertEqual(summary[0].delivery_sent_count, 1)
         self.assertEqual(summary[0].delivery_failed_count, 0)
         self.assertEqual(summary[0].delivery_skipped_count, 0)
+
+
+@override_settings(DISCORD_ANNOUNCE_WEBHOOK_URL=FAKE_WEBHOOK_URL)
+class UnexpectedErrorTests(TestCase):
+    """1 件の予期しない例外で、残りの予約とまとめのログを止めない。"""
+
+    def setUp(self):
+        self.first = make_message(body='先の予約', scheduled_at=NOW - timedelta(minutes=2))
+        self.second = make_message(body='後の予約', scheduled_at=NOW - timedelta(minutes=1))
+
+    def test_error_while_sending_fails_that_message_and_continues(self):
+        sent = SendResult(ok=True, message_id=FAKE_DISCORD_MESSAGE_ID)
+        side_effect = [RuntimeError(f'boom {FAKE_WEBHOOK_URL}'), sent]
+
+        with patch('announcement.delivery.send_announcement', side_effect=side_effect), \
+                self.assertLogs('announcement', level='INFO') as logs:
+            result = process_due_messages(now=NOW)
+
+        self.first.refresh_from_db()
+        self.second.refresh_from_db()
+        self.assertEqual(self.first.status, Status.FAILED)
+        self.assertIn('送信中に予期しないエラーが起きました（RuntimeError）', self.first.last_error)
+        self.assertIn('チャンネルを確認してから再送', self.first.last_error)
+        self.assertEqual(self.first.lease_token, '')
+        self.assertEqual(self.second.status, Status.SENT)
+        self.assertEqual((result['failed'], result['sent']), (1, 1))
+        self.assertTrue(any('Discord scheduled messages processed' in line for line in logs.output))
+        for text in (self.first.last_error, json.dumps(result, ensure_ascii=False), '\n'.join(logs.output)):
+            self.assertNotIn(FAKE_WEBHOOK_TOKEN, text)
+
+    @patch(POST_PATH)
+    def test_error_before_sending_returns_message_to_retry(self, mock_post):
+        mock_post.return_value = discord_response()
+        original_get = DiscordScheduledMessage.objects.get
+        get_calls = []
+
+        def get_failing_once(*args, **kwargs):
+            get_calls.append(kwargs)
+            if len(get_calls) == 1:
+                raise DatabaseError('connection lost')
+            return original_get(*args, **kwargs)
+
+        with patch.object(DiscordScheduledMessage.objects, 'get', side_effect=get_failing_once):
+            result = process_due_messages(now=NOW)
+
+        self.first.refresh_from_db()
+        self.second.refresh_from_db()
+        self.assertEqual(self.first.status, Status.SCHEDULED)
+        self.assertEqual(self.first.lease_token, '')
+        self.assertEqual(self.first.next_attempt_at, NOW + delivery.RETRY_DELAYS[0])
+        self.assertIn('送る前に予期しないエラーが起きました（DatabaseError）', self.first.last_error)
+        self.assertEqual(self.second.status, Status.SENT)
+        self.assertEqual((result['retrying'], result['sent']), (1, 1))
+        mock_post.assert_called_once()
+
+    @patch(POST_PATH)
+    def test_error_before_sending_fails_when_no_attempts_are_left(self, mock_post):
+        DiscordScheduledMessage.objects.filter(pk=self.first.pk).update(attempt_count=MAX_SEND_ATTEMPTS - 1)
+        DiscordScheduledMessage.objects.filter(pk=self.second.pk).update(status=Status.CANCELED)
+
+        with patch.object(DiscordScheduledMessage.objects, 'get', side_effect=DatabaseError('connection lost')):
+            result = process_due_messages(now=NOW)
+
+        self.first.refresh_from_db()
+        self.assertEqual(self.first.status, Status.FAILED)
+        self.assertEqual(result['failed'], 1)
+        mock_post.assert_not_called()

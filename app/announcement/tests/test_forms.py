@@ -67,6 +67,51 @@ class ScheduledAtFieldTests(TestCase):
         self.assertIn('scheduled_at', form.errors)
 
 
+class EditScheduledAtTests(TestCase):
+    """編集では、日時を変えていない時だけ過ぎた日時でも通す（作成は今までどおり未来だけ）。"""
+
+    def setUp(self):
+        # NOW（11/1 12:00）より前の、時刻を過ぎた予約（再試行待ちなど）
+        self.message = make_message(
+            body='元の本文', scheduled_at=jst(2026, 10, 31, 20, 0), attempt_count=1,
+        )
+
+    def test_unchanged_past_time_is_accepted(self):
+        form = _form(body='直した本文', scheduled_at='2026-10-31T20:00', instance=self.message)
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['scheduled_at'], jst(2026, 10, 31, 20, 0))
+
+    def test_unchanged_time_keeps_saved_seconds(self):
+        saved = jst(2026, 10, 31, 20, 0) + timedelta(seconds=30)
+        self.message.scheduled_at = saved
+        self.message.save()
+
+        form = _form(scheduled_at='2026-10-31T20:00', instance=self.message)
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['scheduled_at'], saved)
+
+    def test_changed_past_time_is_rejected(self):
+        form = _form(scheduled_at='2026-10-31T21:00', instance=self.message)
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('scheduled_at', form.errors)
+
+    def test_changed_future_time_is_accepted(self):
+        form = _form(scheduled_at='2026-11-02T20:00', instance=self.message)
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['scheduled_at'], jst(2026, 11, 2, 20, 0))
+
+    def test_past_message_form_has_no_min_attribute(self):
+        """過ぎた日時のまま保存できるよう、ブラウザの min で止めない。"""
+        rendered = str(DiscordScheduledMessageForm(instance=self.message, now=NOW)['scheduled_at'])
+
+        self.assertIn('value="2026-10-31T20:00"', rendered)
+        self.assertNotIn('min=', rendered)
+
+
 class BodyFieldTests(TestCase):
     def test_body_up_to_discord_limit_is_accepted(self):
         self.assertTrue(_form(body='あ' * DISCORD_CONTENT_MAX_LENGTH).is_valid())
@@ -86,6 +131,18 @@ class BodyFieldTests(TestCase):
 
     def test_empty_body_is_rejected(self):
         self.assertFalse(_form(body='   ').is_valid())
+
+    def test_characters_are_counted_by_code_point(self):
+        """絵文字（UTF-16 では 2 単位）も 1 文字と数える。カウンタと同じ数え方。"""
+        self.assertTrue(_form(body='😀' * DISCORD_CONTENT_MAX_LENGTH).is_valid())
+        self.assertFalse(_form(body='😀' * (DISCORD_CONTENT_MAX_LENGTH + 1)).is_valid())
+
+    def test_textarea_has_no_browser_maxlength(self):
+        """ブラウザの maxlength は UTF-16 単位で効くので付けず、上限はカウンタ用の属性で渡す。"""
+        rendered = str(DiscordScheduledMessageForm(now=NOW)['body'])
+
+        self.assertNotIn('maxlength', rendered)
+        self.assertIn(f'data-max-length="{DISCORD_CONTENT_MAX_LENGTH}"', rendered)
 
 
 class MassMentionConfirmationTests(TestCase):

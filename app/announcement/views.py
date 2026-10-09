@@ -1,21 +1,22 @@
 """Discord 告知の予約送信: 運営スタッフ用の画面と、Cloud Scheduler から呼ぶ送信エンドポイント。"""
 from __future__ import annotations
 
-from django.conf import settings
+import copy
+
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Case, Count, DateTimeField, F, IntegerField, Q, Value, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
-from django.utils.crypto import constant_time_compare
 from django.views import View
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 from django.views.generic import CreateView, ListView
 
-from ta_hub.access_mixins import AuthenticatedForbiddenMixin
+from ta_hub.access_mixins import StaffRequiredMixin
+from ta_hub.request_token import is_authorized_request
 
 from .delivery import process_due_messages
 from .forms import DiscordScheduledMessageForm
@@ -30,14 +31,6 @@ CANCELED_MESSAGE = '予約を取り消しました。'
 RESENT_MESSAGE = '予約中に戻しました。1 分ほどで告知チャンネルへ送ります。'
 NOT_EDITABLE_ERROR = 'この予約は編集・取り消しできません。送信済み・取り消し済みか、送信処理中です。'
 NOT_RESENDABLE_ERROR = '再送できるのは、送信に失敗した予約だけです。'
-
-
-class StaffRequiredMixin(LoginRequiredMixin, AuthenticatedForbiddenMixin):
-    """運営スタッフ（is_staff または superuser）だけが使える。未ログインはログインへ、それ以外は 403。"""
-
-    def test_func(self):
-        user = self.request.user
-        return user.is_staff or user.is_superuser
 
 
 def _detail_redirect(pk: int):
@@ -100,8 +93,9 @@ class ScheduledMessageDetailView(StaffRequiredMixin, View):
         if not message.is_editable:
             messages.error(request, NOT_EDITABLE_ERROR)
             return _detail_redirect(pk)
-        # 入力エラーで再表示する時に、保存済みの内容と入力中の内容が混ざらないよう別のインスタンスを渡す
-        form = DiscordScheduledMessageForm(request.POST, instance=self._get_message(pk))
+        # フォームの検証は入力値をインスタンスへ書き込むので、写しを渡して保存済みの表示と混ぜない
+        # （DB から読み直さない）
+        form = DiscordScheduledMessageForm(request.POST, instance=copy.copy(message))
         if not form.is_valid():
             return self._render(message, form)
         if _apply_edit(pk, form):
@@ -170,12 +164,13 @@ class ScheduledMessageResendView(StaffRequiredMixin, View):
         return _detail_redirect(pk)
 
 
+# Cookie ではなく Request-Token ヘッダーで認証するので、CSRF の検査は外す
+# （外さないと、Cloud Scheduler の既定の POST が CSRF で 403 になる）
+@csrf_exempt
 @never_cache
-@require_GET
+@require_http_methods(['GET', 'POST'])
 def send_scheduled_messages(request):
     """Cloud Scheduler から 1 分ごとに呼び、送信日時を過ぎた予約を告知チャンネルへ送る。"""
-    request_token = request.headers.get('Request-Token', '')
-    expected = settings.REQUEST_TOKEN or ''
-    if not expected or not constant_time_compare(request_token, expected):
+    if not is_authorized_request(request):
         return HttpResponse('Unauthorized', status=401)
     return JsonResponse(process_due_messages())

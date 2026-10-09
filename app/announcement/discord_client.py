@@ -3,6 +3,12 @@
 再試行は予約の側（delivery）が間を空けて行う。共通の website.discord_webhook はその場で
 最大 3 回送り直すため、Discord に届いたのに応答だけ失われた時に同じ告知が二重に届く。そのため使わない。
 
+送り直してよい（retryable）のは、本文が Discord に届いていないと言える失敗だけにする。
+- HTTP 429（Discord が受け付けずに断った）
+- 接続を張る前の失敗（接続のタイムアウト・接続の拒否・名前解決・TLS のハンドシェイク）
+5xx・応答待ちのタイムアウト・送った後の切断は、届いたかどうか分からない。自動で送り直すと
+二重に届くおそれがあるため送り直さず、チャンネルを確認してからの再送（人の判断）に任せる。
+
 webhook の URL はトークンを含む秘密の値なので、戻り値・ログ・例外の文字列に含めない。
 requests の例外の文字列には URL が入るため、例外は型の名前だけを使う。
 """
@@ -25,6 +31,8 @@ HTTP_SERVER_ERROR_MIN = 500
 ERROR_DETAIL_MAX_LENGTH = 200
 URL_IN_TEXT_PATTERN = re.compile(r'https?://\S+')
 
+# 届いたかどうか分からない失敗に添える案内
+MAY_HAVE_ARRIVED_GUIDE = '届いている可能性があるため、チャンネルを確認してから再送してください。'
 WEBHOOK_NOT_CONFIGURED_ERROR = '送信先の webhook（DISCORD_ANNOUNCE_WEBHOOK_URL）が設定されていません。'
 WEBHOOK_INVALID_ERROR = '送信先の webhook の設定が Discord の webhook の形式ではありません。'
 
@@ -78,20 +86,16 @@ def _result_from_exception(error: requests.RequestException) -> SendResult:
         return SendResult(
             ok=False, error=f'Discord に接続できませんでした（{error_type}）。', retryable=True,
         )
-    # 送った後の失敗（応答待ちのタイムアウト・切断など）は、届いたかどうか分からない。
-    # 自動で送り直すと二重に届くおそれがあるため、失敗として人の確認に回す
+    # 送った後の失敗（応答待ちのタイムアウト・切断など）は、届いたかどうか分からない
     return SendResult(
-        ok=False,
-        error=(
-            f'Discord の応答を確認できませんでした（{error_type}）。'
-            '届いている可能性があるため、チャンネルを確認してから再送してください。'
-        ),
+        ok=False, error=f'Discord の応答を確認できませんでした（{error_type}）。{MAY_HAVE_ARRIVED_GUIDE}',
     )
 
 
 def _failed_before_sending(error: requests.RequestException) -> bool:
     """接続を張る前に失敗したか（本文が Discord に届いていないと言えるか）。"""
-    if isinstance(error, requests.ConnectTimeout):
+    # TLS のハンドシェイクの失敗（SSLError）も、本文を送る前に止まっている
+    if isinstance(error, (requests.ConnectTimeout, requests.exceptions.SSLError)):
         return True
     if not isinstance(error, requests.ConnectionError) or not error.args:
         return False
@@ -103,9 +107,14 @@ def _result_from_response(response: requests.Response) -> SendResult:
     status_code = response.status_code
     if 200 <= status_code < 300:
         return SendResult(ok=True, message_id=_message_id(response))
-    retryable = status_code == HTTP_TOO_MANY_REQUESTS or status_code >= HTTP_SERVER_ERROR_MIN
     error = f'Discord が HTTP {status_code} を返しました{_error_detail(response)}。'
-    return SendResult(ok=False, error=error, retryable=retryable)
+    if status_code == HTTP_TOO_MANY_REQUESTS:
+        # 混雑で断られた（受け付けていない）ので、時間をおいて送り直してよい
+        return SendResult(ok=False, error=error, retryable=True)
+    if status_code >= HTTP_SERVER_ERROR_MIN:
+        # 5xx は Discord 側で作られたかどうか分からないので、送り直さない
+        return SendResult(ok=False, error=f'{error}{MAY_HAVE_ARRIVED_GUIDE}')
+    return SendResult(ok=False, error=error)
 
 
 def _json_object(response: requests.Response) -> dict:

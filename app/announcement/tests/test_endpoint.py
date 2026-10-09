@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import timedelta
 from unittest.mock import patch
 
-from django.test import TestCase, override_settings
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -65,8 +65,38 @@ class SendScheduledEndpointTests(TestCase):
         self.assertIn('no-cache', response['Cache-Control'])
 
     @patch(POST_PATH)
-    def test_post_is_not_allowed(self, mock_post):
-        response = self.client.post(self.url, HTTP_REQUEST_TOKEN=REQUEST_TOKEN)
+    def test_post_from_scheduler_is_accepted_without_csrf_cookie(self, mock_post):
+        """Cloud Scheduler の既定の POST は Cookie も CSRF トークンも持たない。トークンだけで通す。"""
+        mock_post.return_value = discord_response()
+        scheduler = Client(enforce_csrf_checks=True)
+
+        response = scheduler.post(self.url, HTTP_REQUEST_TOKEN=REQUEST_TOKEN)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['sent'], 1)
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.status, DiscordScheduledMessage.Status.SENT)
+
+    @patch(POST_PATH)
+    def test_post_without_token_is_rejected(self, mock_post):
+        scheduler = Client(enforce_csrf_checks=True)
+
+        for headers in ({}, {'HTTP_REQUEST_TOKEN': 'wrong-token'}):
+            with self.subTest(headers=headers):
+                self.assertEqual(scheduler.post(self.url, **headers).status_code, 401)
+        mock_post.assert_not_called()
+
+    @patch(POST_PATH)
+    def test_other_methods_are_not_allowed(self, mock_post):
+        response = self.client.put(self.url, HTTP_REQUEST_TOKEN=REQUEST_TOKEN)
 
         self.assertEqual(response.status_code, 405)
         mock_post.assert_not_called()
+
+    def test_unexpected_error_still_returns_summary(self):
+        with patch('announcement.delivery.send_announcement', side_effect=RuntimeError('boom')):
+            response = self.client.get(self.url, HTTP_REQUEST_TOKEN=REQUEST_TOKEN)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['failed'], 1)
+        self.assertEqual(response.json()['results'][0]['reason'], 'unexpected_error')

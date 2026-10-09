@@ -1,4 +1,4 @@
-from django.contrib.auth.mixins import UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.http import HttpResponseForbidden
 
 
@@ -13,3 +13,14 @@ class AuthenticatedForbiddenMixin(UserPassesTestMixin):
         if self.request.user.is_authenticated:
             return HttpResponseForbidden(self.get_permission_denied_message())
         return super().handle_no_permission()
+
+
+class StaffRequiredMixin(LoginRequiredMixin, AuthenticatedForbiddenMixin):
+    """運営スタッフ（is_staff または superuser）だけを通す。
+
+    未ログインはログイン画面へ送り、ログイン済みで権限が無い人には 403 を返す。
+    """
+
+    def test_func(self):
+        user = self.request.user
+        return user.is_staff or user.is_superuser

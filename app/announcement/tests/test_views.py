@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from datetime import timedelta, timezone as dt_timezone
 
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -146,6 +148,44 @@ class EditViewTests(StaffTestCase):
         self.assertEqual(self.message.attempt_count, 0)
         self.assertIsNone(self.message.next_attempt_at)
         self.assertEqual(self.message.last_error, '')
+
+    def test_waiting_retry_message_body_can_be_fixed_without_changing_time(self):
+        """時刻を過ぎて再試行を待っている予約も、日時を変えなければ本文だけ直せる。"""
+        past = (timezone.localtime(timezone.now()) - timedelta(minutes=3)).replace(second=0, microsecond=0)
+        DiscordScheduledMessage.objects.filter(pk=self.message.pk).update(scheduled_at=past)
+
+        response = self.client.post(
+            self.detail_url(self.message),
+            {'body': '直した本文', 'scheduled_at': past.strftime('%Y-%m-%dT%H:%M')},
+        )
+
+        self.assertRedirects(response, self.detail_url(self.message))
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.body, '直した本文')
+        self.assertEqual(self.message.scheduled_at, past)
+        self.assertEqual(self.message.attempt_count, 0)
+
+    def test_moving_time_into_the_past_is_rejected_on_edit(self):
+        past = (timezone.localtime(timezone.now()) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')
+
+        response = self.client.post(self.detail_url(self.message), {'body': '直した本文', 'scheduled_at': past})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '過去の日時は指定できません')
+        self.message.refresh_from_db()
+        self.assertEqual(self.message.body, '元の本文')
+
+    def test_edit_reads_the_message_only_once(self):
+        value, _ = _future()
+
+        with CaptureQueriesContext(connection) as queries:
+            self.client.post(self.detail_url(self.message), {'body': '新しい本文', 'scheduled_at': value})
+
+        reads = [
+            query['sql'] for query in queries.captured_queries
+            if query['sql'].lstrip().upper().startswith('SELECT') and 'discord_scheduled_message' in query['sql']
+        ]
+        self.assertEqual(len(reads), 1)
 
     def test_adding_everyone_on_edit_requires_confirmation(self):
         value, _ = _future()
