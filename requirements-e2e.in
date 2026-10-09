@@ -3,4 +3,4 @@
 # --constraint はヘッダーから引き継がれないので、ファイル内に書く。
 -r requirements.in
 -c requirements.txt
-playwright==1.61.0
+playwright==1.63.0
