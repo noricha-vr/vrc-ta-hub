@@ -103,7 +103,7 @@
                         {% endif %}
                         <p id="busy-slots-conflict" class="small text-danger fw-bold mt-2 mb-0 d-none" role="alert"></p>
                     </section>
-                    {{ busy_blocks_by_date|json_script:"busy-blocks-data" }}
+                    {{ busy_payload|json_script:"busy-blocks-data" }}
                 {% endif %}
 
                 <div class="row g-3 mb-4">
@@ -231,7 +231,8 @@
         var dataEl = document.getElementById('busy-blocks-data');
         if (!panel || !dataEl) return;
 
-        var busyByDate = JSON.parse(dataEl.textContent);
+        var payload = JSON.parse(dataEl.textContent);
+        var MINUTES_PER_DAY = 24 * 60;
         var bufferMinutes = parseInt(panel.dataset.bufferMinutes || '0', 10);
         var title = document.getElementById('busy-slots-title');
         var prompt = document.getElementById('busy-slots-prompt');
@@ -258,34 +259,54 @@
             return label ? label.textContent.trim() : '';
         }
 
-        function overlaps(block, start, duration) {
-            if (start === null || !duration) return false;
-            return start < block.end_minutes + bufferMinutes
-                && block.start_minutes < start + duration + bufferMinutes;
+        // サーバーの判定（vket/schedule.py の blocks_conflict）と同じく、
+        // 1970-01-01 からの分で開始・終了を比べ、日付をまたぐ枠も間隔込みで判定する
+        function minutesSinceEpoch(isoDate, minutesOfDay) {
+            var parts = isoDate.split('-');
+            var days = Date.UTC(+parts[0], +parts[1] - 1, +parts[2]) / 86400000;
+            return days * MINUTES_PER_DAY + minutesOfDay;
+        }
+
+        function overlaps(block, start, end) {
+            return start < block.end_abs + bufferMinutes
+                && block.start_abs < end + bufferMinutes;
+        }
+
+        function conflictedIndexes(date) {
+            var startOfDay = date && startInput ? toMinutes(startInput.value) : null;
+            var duration = durationInput ? parseInt(durationInput.value, 10) : 0;
+            var result = {};
+            if (startOfDay === null || !duration) return result;
+            var start = minutesSinceEpoch(date, startOfDay);
+            payload.blocks.forEach(function(block, index) {
+                if (overlaps(block, start, start + duration)) result[index] = true;
+            });
+            return result;
         }
 
         function render() {
             var date = selectedDate();
-            var blocks = busyByDate[date] || [];
-            var start = startInput ? toMinutes(startInput.value) : null;
-            var duration = durationInput ? parseInt(durationInput.value, 10) : 0;
-            var conflicted = [];
+            var entries = (date && payload.days[date]) || [];
+            var conflictedSet = conflictedIndexes(date);
+            var conflicted = Object.keys(conflictedSet).map(function(index) {
+                return payload.blocks[index].name;
+            });
 
             title.textContent = date ? selectedLabel() + ' の埋まっている時間' : '埋まっている時間';
             prompt.classList.toggle('d-none', !!date);
-            none.classList.toggle('d-none', !date || blocks.length > 0);
-            list.classList.toggle('d-none', blocks.length === 0);
+            none.classList.toggle('d-none', !date || entries.length > 0);
+            list.classList.toggle('d-none', entries.length === 0);
             list.replaceChildren();
-            blocks.forEach(function(block) {
-                var isConflict = overlaps(block, start, duration);
-                if (isConflict) conflicted.push(block.name);
+            entries.forEach(function(entry) {
+                var block = payload.blocks[entry.index];
+                var isConflict = !!conflictedSet[entry.index];
                 var item = document.createElement('li');
                 item.className = 'd-flex align-items-baseline gap-2 py-1 border-bottom'
                     + (isConflict ? ' text-danger fw-bold' : '');
                 var time = document.createElement('span');
                 time.className = 'text-nowrap';
                 time.style.fontVariantNumeric = 'tabular-nums';
-                time.textContent = block.start + '〜' + block.end;
+                time.textContent = entry.label;
                 var name = document.createElement('span');
                 name.className = 'text-break';
                 name.textContent = block.name;

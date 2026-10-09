@@ -31,7 +31,6 @@ class VketManageViewsTests(VketManageViewsBase):
             confirmed_start_time='21:00',
             confirmed_duration=60,
         )
-        self._move_other_participations_to_last_day(participation)
         presentation = VketPresentation.objects.create(
             participation=participation,
             order=0,
@@ -72,7 +71,6 @@ class VketManageViewsTests(VketManageViewsBase):
     def test_manage_participation_update_updates_published_presentation_start_time(self):
         """公開済み発表の開始時刻はVketPresentationとEventDetailに同期される"""
         self.client.force_login(self.superuser)
-        self._move_other_participations_to_last_day(self.participation1)
         detail = EventDetail.objects.create(
             event=self.event1,
             detail_type='LT',
@@ -167,7 +165,6 @@ class VketManageViewsTests(VketManageViewsBase):
     def test_manage_participation_update_repairs_foreign_event_detail(self):
         """同参加の発表に紐づく別イベントのEventDetailは公開イベントへ付け替える"""
         self.client.force_login(self.superuser)
-        self._move_other_participations_to_last_day(self.participation1)
         foreign_detail = EventDetail.objects.create(
             event=self.event2,
             detail_type='LT',

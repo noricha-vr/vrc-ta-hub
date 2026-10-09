@@ -14,12 +14,109 @@ from vket.models import VketCollaboration, VketParticipation
 from vket.schedule import (
     ScheduleBlock,
     block_for,
+    blocks_conflict,
+    busy_payload,
     find_conflicts,
     get_schedule_buffer_minutes,
     ranges_conflict,
+    set_schedule_buffer_minutes,
 )
 
 from ._vket_test_bases import VketApplyFlowBase
+
+
+def _block(name: str, day, start: time, duration: int, community_id: int = 0) -> ScheduleBlock:
+    return ScheduleBlock(
+        participation_id=None, community_id=community_id, community_name=name,
+        date=day, start=start, duration=duration,
+    )
+
+
+class CrossMidnightTests(TestCase):
+    """日付をまたぐ枠の判定と空き表示"""
+
+    def setUp(self):
+        self.day = timezone.localdate()
+        self.next_day = self.day + timedelta(days=1)
+
+    def test_block_crossing_midnight_conflicts_with_next_day_block(self):
+        """23:30 から 90 分の枠は、翌日 00:30 からの枠と重なる"""
+        late = _block('深夜集会', self.day, time(23, 30), 90, 1)
+        early = _block('朝集会', self.next_day, time(0, 30), 60, 2)
+        self.assertTrue(blocks_conflict(late, early))
+        self.assertFalse(blocks_conflict(late, _block('朝集会', self.next_day, time(1, 0), 60, 2)))
+
+    def test_buffer_applies_across_midnight(self):
+        """前日 23:50 に終わる枠と翌日 00:00 からの枠は、間隔 15 分なら重なる"""
+        late = _block('深夜集会', self.day, time(22, 50), 60, 1)
+        early = _block('朝集会', self.next_day, time(0, 0), 60, 2)
+        self.assertFalse(blocks_conflict(late, early))
+        self.assertTrue(blocks_conflict(late, early, buffer_minutes=15))
+
+    def test_busy_payload_shows_block_continuing_from_previous_day(self):
+        """空き表示は、前日から続く枠も翌日の欄に「（前日から）」として出す"""
+        payload = busy_payload([_block('深夜集会', self.day, time(23, 30), 90, 1)])
+
+        self.assertEqual(
+            payload['days'][self.day.isoformat()], [{'index': 0, 'label': '23:30〜翌01:00'}],
+        )
+        self.assertEqual(
+            payload['days'][self.next_day.isoformat()],
+            [{'index': 0, 'label': '〜01:00（前日から）'}],
+        )
+        block = payload['blocks'][0]
+        self.assertEqual(block['name'], '深夜集会')
+        self.assertEqual(block['end_abs'] - block['start_abs'], 90)
+
+    def test_block_ending_at_midnight_does_not_touch_next_day(self):
+        """ちょうど 0:00 に終わる枠は翌日の欄に出さない"""
+        payload = busy_payload([_block('夜集会', self.day, time(23, 0), 60, 1)])
+        self.assertNotIn(self.next_day.isoformat(), payload['days'])
+
+
+class BufferSettingTests(TestCase):
+    def setUp(self):
+        today = timezone.localdate()
+        self.collaboration = VketCollaboration.objects.create(
+            slug='vket-buffer-setting', name='設定確認', period_start=today,
+            period_end=today + timedelta(days=7), registration_deadline=today,
+            lt_deadline=today, settings_json={'stage_url': 'https://example.com/stage'},
+        )
+
+    def test_non_dict_settings_read_as_zero(self):
+        """settings_json が dict でない時は既定値 0 を返す"""
+        for value in (['schedule_buffer_minutes', 15], 'schedule_buffer_minutes'):
+            self.collaboration.settings_json = value
+            self.assertEqual(get_schedule_buffer_minutes(self.collaboration), 0)
+
+    def test_non_dict_settings_are_rebuilt_on_write(self):
+        """settings_json が dict でない時は dict として作り直して保存する"""
+        VketCollaboration.objects.filter(pk=self.collaboration.pk).update(settings_json=['broken'])
+
+        set_schedule_buffer_minutes(self.collaboration, 10)
+
+        self.collaboration.refresh_from_db()
+        self.assertEqual(self.collaboration.settings_json, {'schedule_buffer_minutes': 10})
+
+    def test_write_keeps_keys_updated_by_others_meanwhile(self):
+        """読んだ後に他のキーが更新されていても、その更新を消さない"""
+        stale = VketCollaboration.objects.get(pk=self.collaboration.pk)
+        VketCollaboration.objects.filter(pk=self.collaboration.pk).update(
+            settings_json={'stage_url': 'https://example.com/stage', 'notice_og_image': 'og.png'},
+        )
+
+        set_schedule_buffer_minutes(stale, 5)
+
+        self.collaboration.refresh_from_db()
+        self.assertEqual(
+            self.collaboration.settings_json,
+            {
+                'stage_url': 'https://example.com/stage',
+                'notice_og_image': 'og.png',
+                'schedule_buffer_minutes': 5,
+            },
+        )
+        self.assertEqual(stale.settings_json['schedule_buffer_minutes'], 5)
 
 
 class RangesConflictTests(TestCase):
@@ -60,9 +157,9 @@ class VketApplyScheduleOverlapTests(VketApplyFlowBase):
         self.client.force_login(self.owner)
         self._set_active_community()
 
-    def _post_apply(self, start: str, duration: str = '60', client=None):
+    def _post_apply(self, start: str, duration: str = '60', client=None, on_date=None):
         data = {
-            'requested_date': self.today.isoformat(),
+            'requested_date': (on_date or self.today).isoformat(),
             'requested_start_time': start,
             'requested_duration': duration,
             'organizer_note': '',
@@ -181,20 +278,64 @@ class VketApplyScheduleOverlapTests(VketApplyFlowBase):
 
         self.assertEqual(self._post_apply('21:00').status_code, 302)
 
+    def test_organizer_is_blocked_by_block_crossing_midnight(self):
+        """前日 23:30 から 90 分の枠と、翌日 00:30 からの申込みは重なりとして止める"""
+        tomorrow = self.today + timedelta(days=1)
+        make_event(
+            self.community, event_date=tomorrow, start_time='00:30', duration=60, weekday='',
+            accepts_lt_application=True,
+        )
+        self.other.requested_start_time = time(23, 30)
+        self.other.requested_duration = 90
+        self.other.save()
+
+        response = self._post_apply('00:30', on_date=tomorrow)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'その時間はゲーム開発集会が申込み済みです。')
+        self.assertEqual(self._post_apply('01:00', on_date=tomorrow).status_code, 302)
+
     def test_apply_page_shows_busy_blocks_of_other_communities(self):
         """申込みフォームに、他の集会の埋まっている時間帯（集会名と時間だけ）を出す"""
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
 
-        busy = response.context['busy_blocks_by_date']
-        self.assertEqual(
-            busy[self.today.isoformat()],
-            [{
-                'start': '21:00', 'end': '22:00', 'start_minutes': 1260,
-                'end_minutes': 1320, 'name': 'ゲーム開発集会',
-            }],
-        )
+        busy = response.context['busy_payload']
+        self.assertEqual(busy['days'][self.today.isoformat()], [{'index': 0, 'label': '21:00〜22:00'}])
+        self.assertEqual(busy['blocks'][0]['name'], 'ゲーム開発集会')
+        self.assertEqual(set(busy['blocks'][0]), {'name', 'start_abs', 'end_abs'})
         self.assertContains(response, 'id="busy-blocks-data"')
         self.assertContains(response, 'id="busy-slots"')
+
+    def test_busy_payload_reuses_schedule_participations(self):
+        """空き表示は日程表で読んだ参加から作り、参加を読み直さない"""
+        with mock.patch('vket.schedule.active_blocks') as reread:
+            response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        reread.assert_not_called()
+        self.assertIn(self.today.isoformat(), response.context['busy_payload']['days'])
+
+    def test_busy_payload_is_not_built_when_schedule_is_locked(self):
+        """日程を編集できない時は空き表示を作らない"""
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            requested_date=self.today,
+            requested_start_time='22:00',
+            requested_duration=60,
+            confirmed_date=self.today,
+            confirmed_start_time='22:00',
+            confirmed_duration=60,
+            progress=VketParticipation.Progress.APPLIED,
+        )
+
+        with mock.patch('vket.views.apply.busy_payload') as build:
+            response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        build.assert_not_called()
+        self.assertIsNone(response.context['busy_payload'])
+        self.assertNotContains(response, 'id="busy-slots"')
 
 
 class VketAdminScheduleOverlapTests(TestCase):
@@ -247,8 +388,8 @@ class VketAdminScheduleOverlapTests(TestCase):
             follow=True,
         )
 
-    def test_admin_can_save_overlapping_schedule_but_it_is_not_confirmed(self):
-        """運営は重なる時間でも保存できるが、日程の確定（記録・公開同期）はしない"""
+    def test_row_confirm_with_overlap_confirms_and_warns(self):
+        """行の「確定」は重なっても止めずに確定し、重なっている組を警告で出す"""
         new_one = self._participation('集会C', time(23, 0))
         new_one.schedule_confirmed_at = None
         new_one.progress = VketParticipation.Progress.APPLIED
@@ -259,23 +400,51 @@ class VketAdminScheduleOverlapTests(TestCase):
         new_one.refresh_from_db()
         self.assertEqual(new_one.confirmed_start_time, time(22, 30))
         self.assertEqual(new_one.admin_note, '入れ替え中')
-        self.assertIsNone(new_one.schedule_confirmed_at)
-        self.assertEqual(new_one.progress, VketParticipation.Progress.APPLIED)
-        self.assertIsNone(new_one.published_event_id)
-        self.assertContains(response, '確定していません')
-        self.assertContains(response, '集会B')
+        self.assertIsNotNone(new_one.schedule_confirmed_at)
+        self.assertEqual(new_one.progress, VketParticipation.Progress.REHEARSAL)
+        self.assertContains(response, '集会C の日程を確定しました。')
+        self.assertContains(response, '他の集会と時間が重なっています')
+        self.assertContains(response, '集会C（22:30〜23:30）と 集会B（22:00〜23:00）')
+
+    def test_row_confirm_without_overlap_has_no_warning(self):
+        """重なりが無ければ警告は出さない"""
+        response = self._update(self.a, '20:00')
+
+        self.assertContains(response, '集会A の日程を確定しました。')
+        self.assertNotContains(response, '他の集会と時間が重なっています')
 
     def test_admin_can_swap_two_slots(self):
-        """入れ替えの途中は重なっても保存でき、解消後の確定で確定される"""
+        """入れ替えの途中は重なっても保存でき、最後は両方の枠が入れ替わる"""
         self._update(self.a, '22:00')
-        self._update(self.b, '21:00')
-        response = self._update(self.a, '22:00')
+        response = self._update(self.b, '21:00')
 
         self.a.refresh_from_db()
         self.b.refresh_from_db()
         self.assertEqual(self.a.confirmed_start_time, time(22, 0))
         self.assertEqual(self.b.confirmed_start_time, time(21, 0))
-        self.assertContains(response, '集会A の日程を確定しました。')
+        self.assertNotContains(response, '他の集会と時間が重なっています')
+
+    def test_schedule_table_red_cells_follow_same_judgement(self):
+        """日程表の赤いセルは警告と同じ判定（有効な参加だけ・間隔込み）で決まる"""
+        url = reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk})
+        withdrawn = self._participation('集会D', time(21, 0))
+        withdrawn.lifecycle = VketParticipation.Lifecycle.WITHDRAWN
+        withdrawn.save(update_fields=['lifecycle'])
+
+        context = self.client.get(url).context
+        self.assertEqual(context['overlap_warnings'], [])
+        self.assertFalse(any(cell['overlap'] for row in context['rows'] for cell in row['cells']))
+
+        self.collaboration.settings_json = {'schedule_buffer_minutes': 10}
+        self.collaboration.save(update_fields=['settings_json'])
+        context = self.client.get(url).context
+        red_rows = {
+            row['participation'].community.name
+            for row in context['rows']
+            if any(cell['overlap'] for cell in row['cells'])
+        }
+        self.assertEqual(len(context['overlap_warnings']), 1)
+        self.assertEqual(red_rows, {'集会A', '集会B'})
 
     def test_schedule_page_warns_overlap_with_buffer(self):
         """日程画面の警告も共通の判定（間隔込み）を使う"""
@@ -303,9 +472,42 @@ class VketAdminScheduleOverlapTests(TestCase):
 
         self.assertContains(response, '公開同期を実行しませんでした')
         self.assertContains(response, '集会A（21:00〜22:00）と 集会B（21:30〜22:30）')
+        self.assertContains(response, '重なりを承知で公開する')
         self.assertFalse(Event.objects.filter(community__in=[self.a.community, self.b.community]).exists())
         self.a.refresh_from_db()
         self.assertNotEqual(self.a.progress, VketParticipation.Progress.DONE)
+
+    def test_publish_with_allow_overlap_flag_publishes_and_records_pairs(self):
+        """「重なりを承知で公開する」を付けた時だけ公開し、承知した組をログと画面に残す"""
+        self.b.confirmed_start_time = time(21, 30)
+        self.b.save(update_fields=['confirmed_start_time'])
+        self.collaboration.phase = VketCollaboration.Phase.LOCKED
+        self.collaboration.save(update_fields=['phase'])
+
+        with self.assertLogs('vket.views.publish', level='WARNING') as logs:
+            response = self.client.post(
+                reverse('vket:manage_publish', kwargs={'pk': self.collaboration.pk}),
+                data={'allow_overlap': '1'},
+                follow=True,
+            )
+
+        self.assertContains(response, '2件のイベントを公開しました')
+        self.assertContains(response, '次の重なりを承知で公開しました')
+        record = next(r for r in logs.records if '重なりを承知で公開' in r.getMessage())
+        self.assertEqual(record.overlapping_participation_ids, [[self.a.pk, self.b.pk]])
+
+    def test_manage_page_shows_publish_overlap_checkbox_only_with_overlap(self):
+        """確定フェーズの管理画面は、重なりがある時だけ組と承知のチェックを出す"""
+        self.collaboration.phase = VketCollaboration.Phase.LOCKED
+        self.collaboration.save(update_fields=['phase'])
+        url = reverse('vket:manage', kwargs={'pk': self.collaboration.pk})
+        self.assertNotContains(self.client.get(url), 'name="allow_overlap"')
+
+        self.b.confirmed_start_time = time(21, 30)
+        self.b.save(update_fields=['confirmed_start_time'])
+        response = self.client.get(url)
+        self.assertContains(response, 'name="allow_overlap"')
+        self.assertContains(response, '集会A（21:00〜22:00）と 集会B（21:30〜22:30）')
 
     def test_publish_runs_when_no_overlap(self):
         """重なりが無ければ公開同期を実行する"""

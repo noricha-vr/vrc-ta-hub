@@ -10,7 +10,6 @@ from .helpers import (
     _get_visible_collaborations,
     _is_vket_admin,
     _shift_time,
-    _time_ranges_overlap,
 )
 from .manage import (
     ManageParticipationUpdateView,
@@ -52,7 +51,6 @@ __all__ = [
     '_get_visible_collaborations',
     '_is_vket_admin',
     '_shift_time',
-    '_time_ranges_overlap',
     # public
     'CollaborationDetailView',
     'CollaborationListView',

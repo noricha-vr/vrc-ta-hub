@@ -28,9 +28,11 @@ from ..models import (
     VketPresentation,
 )
 from ..schedule import (
+    ALLOW_OVERLAP_FIELD,
     ScheduleBlock,
     block_for,
     find_conflicts,
+    find_publish_target_conflicts,
     format_pair,
     get_schedule_buffer_minutes,
     set_schedule_buffer_minutes,
@@ -140,6 +142,8 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
                 'discord_mentions': discord_mentions,
                 'publication_drift_participations': publication_drift_participations,
                 'publication_missing_event_participations': publication_missing_event_participations,
+                'publish_overlap_pairs': self._publish_overlap_pairs(collaboration),
+                'allow_overlap_field': ALLOW_OVERLAP_FIELD,
                 # progressラベルの辞書（テンプレートで参照可能）
                 'progress_choices': dict(VketParticipation.Progress.choices),
                 'lifecycle_choices': dict(VketParticipation.Lifecycle.choices),
@@ -148,6 +152,13 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
             }
         )
         return context
+
+    @staticmethod
+    def _publish_overlap_pairs(collaboration: VketCollaboration) -> list[str]:
+        """公開同期の前に見せる、確定日程どうしの重なり（確定フェーズの時だけ）"""
+        if collaboration.phase != VketCollaboration.Phase.LOCKED:
+            return []
+        return [format_pair(a, b) for a, b in find_publish_target_conflicts(collaboration)]
 
     @staticmethod
     def _build_discord_mentions(participations) -> dict[str, str]:
@@ -238,55 +249,88 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
         participation.confirmed_start_time = form.cleaned_data['confirmed_start_time']
         participation.confirmed_duration = form.cleaned_data['confirmed_duration']
         participation.schedule_adjusted_by_admin = True
-
-        conflicts = self._find_schedule_conflicts(collaboration, participation)
-        if conflicts:
-            # 入れ替えの途中を許すため保存はするが、日程の確定（記録・発表の確定・公開同期）はしない
-            participation.save(update_fields=self.SAVE_ONLY_FIELDS)
-            self._update_presentation_times(request, participation)
-            messages.warning(request, self._conflict_message(participation, conflicts))
-            return redirect('vket:manage', pk=collaboration.pk)
-
         participation.progress = VketParticipation.Progress.REHEARSAL
         participation.schedule_confirmed_at = timezone.now()
+
         participation.save(
-            update_fields=[*self.SAVE_ONLY_FIELDS, 'progress', 'schedule_confirmed_at']
+            update_fields=[
+                'lifecycle',
+                'confirmed_date',
+                'confirmed_start_time',
+                'confirmed_duration',
+                'admin_note',
+                'schedule_adjusted_by_admin',
+                'progress',
+                'schedule_confirmed_at',
+                'updated_at',
+            ]
         )
-        # 確定済みだった発表の時刻を先に更新する（DRAFT は時刻入力欄が無いため対象外）
-        self._update_presentation_times(request, participation)
+
+        pres_pattern = re.compile(r'^pres_(\d+)_start_time$')
+        pres_updates = {}
+        for key, value in request.POST.items():
+            m = pres_pattern.match(key)
+            if m and value:
+                pres_updates[int(m.group(1))] = value
+
+        allowed_presentation_ids = set(
+            participation.presentations.filter(
+                pk__in=pres_updates.keys(),
+                status=VketPresentation.Status.CONFIRMED,
+            ).values_list('id', flat=True)
+        )
 
         # DRAFT のLTを一括確定
         participation.presentations.filter(
             status=VketPresentation.Status.DRAFT,
         ).update(status=VketPresentation.Status.CONFIRMED)
 
+        changed_index_detail = False
+
+        # 発表ごとの確定開始時刻を更新する。EventDetail への反映は公開同期でまとめて行う。
+        if pres_updates:
+            allowed_presentations = {
+                pres.pk: pres
+                for pres in participation.presentations.select_related(
+                    'published_event_detail'
+                ).filter(
+                    pk__in=allowed_presentation_ids,
+                    status=VketPresentation.Status.CONFIRMED,
+                )
+            }
+
+            for pres_id, time_str in pres_updates.items():
+                pres = allowed_presentations.get(pres_id)
+                if pres is None:
+                    continue
+                try:
+                    new_time = datetime.strptime(time_str, '%H:%M').time()
+                    pres.confirmed_start_time = new_time
+                    pres.save(update_fields=['confirmed_start_time', 'updated_at'])
+                except (ValueError, KeyError):
+                    logger.warning('VketPresentation #%d の start_time パース失敗: %s', pres_id, time_str)
+
         with transaction.atomic():
             sync_result = sync_participation_publication(participation)
+            changed_index_detail = sync_result.changed_index_data
 
-        if sync_result.changed_index_data:
+        if changed_index_detail:
             clear_index_view_cache()
 
         messages.success(
             request,
             f'{participation.community.name} の日程を確定しました。',
         )
+        conflicts = self._find_schedule_conflicts(collaboration, participation)
+        if conflicts:
+            messages.warning(request, self._conflict_message(participation, conflicts))
         return redirect('vket:manage', pk=collaboration.pk)
-
-    SAVE_ONLY_FIELDS = [
-        'lifecycle',
-        'confirmed_date',
-        'confirmed_start_time',
-        'confirmed_duration',
-        'admin_note',
-        'schedule_adjusted_by_admin',
-        'updated_at',
-    ]
 
     @staticmethod
     def _find_schedule_conflicts(
         collaboration: VketCollaboration, participation: VketParticipation
     ) -> list[ScheduleBlock]:
-        """確定しようとしている枠と重なる、他の集会の有効な参加の枠を返す"""
+        """確定した枠と重なる、他の集会の有効な参加の枠を返す"""
         candidate = block_for(participation)
         if candidate is None:
             return []
@@ -296,38 +340,14 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
     def _conflict_message(
         participation: VketParticipation, conflicts: list[ScheduleBlock]
     ) -> str:
-        """確定を見送った時の運営向けメッセージ"""
+        """重なったまま確定した時の運営向けの警告"""
         candidate = block_for(participation)
         pairs = ' / '.join(format_pair(candidate, block) for block in conflicts)
         return (
-            f'{participation.community.name} の日程を保存しましたが、他の集会と時間が重なっているため'
-            f'確定していません（{pairs}）。重なりを解消してから、もう一度「確定」を押してください。'
+            f'{participation.community.name} は他の集会と時間が重なっています（{pairs}）。'
+            '公開同期は重なりが解消されるまで止まります。意図して同じ時間に行う場合は、'
+            '公開同期で「重なりを承知で公開する」を選んでください。'
         )
-
-    @staticmethod
-    def _update_presentation_times(request, participation: VketParticipation) -> None:
-        """確定済みの発表の確定開始時刻を更新する。EventDetail への反映は公開同期で行う"""
-        pres_pattern = re.compile(r'^pres_(\d+)_start_time$')
-        pres_updates = {}
-        for key, value in request.POST.items():
-            m = pres_pattern.match(key)
-            if m and value:
-                pres_updates[int(m.group(1))] = value
-        if not pres_updates:
-            return
-
-        allowed_presentations = participation.presentations.filter(
-            pk__in=pres_updates.keys(),
-            status=VketPresentation.Status.CONFIRMED,
-        )
-        for pres in allowed_presentations:
-            time_str = pres_updates[pres.pk]
-            try:
-                pres.confirmed_start_time = datetime.strptime(time_str, '%H:%M').time()
-            except ValueError:
-                logger.warning('VketPresentation #%d の start_time パース失敗: %s', pres.pk, time_str)
-                continue
-            pres.save(update_fields=['confirmed_start_time', 'updated_at'])
 
 
 class ManageScheduleView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):

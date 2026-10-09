@@ -277,7 +277,6 @@ class VketManageViewsTests(VketManageViewsBase):
             requested_start_time='22:00',
             requested_duration=60,
         )
-        self._move_other_participations_to_last_day(participation)
         existing_event = Event.objects.create(
             community=community,
             date=self.collaboration.period_start,
@@ -455,7 +454,6 @@ class VketManageViewsTests(VketManageViewsBase):
     def test_manage_participation_update_approves_existing_pending_detail(self):
         """既存のpending EventDetailは確定時にapprovedへ同期される"""
         self.client.force_login(self.superuser)
-        self._move_other_participations_to_last_day(self.participation1)
         detail = EventDetail.objects.create(
             event=self.event1,
             detail_type='LT',

@@ -20,7 +20,7 @@ from ..models import (
 )
 from ..schedule import (
     ScheduleBlock,
-    busy_blocks_by_date,
+    busy_payload,
     find_conflicts,
     get_schedule_buffer_minutes,
 )
@@ -160,6 +160,14 @@ class ApplyView(LoginRequiredMixin, View):
     ):
         """申込みフォームを日程表・空き表示つきで描画する"""
         schedule_ctx = _build_schedule_context(collaboration, include_requested=True)
+        busy = None
+        if permissions.can_edit_schedule:
+            # 日程表で読んだ参加から作り、空き表示のために追加のクエリを出さない
+            busy = busy_payload(
+                block
+                for block in schedule_ctx['schedule_blocks']
+                if block.community_id != community.pk
+            )
         return render(
             request,
             self.template_name,
@@ -174,9 +182,7 @@ class ApplyView(LoginRequiredMixin, View):
                     collaboration,
                     permissions,
                 ),
-                'busy_blocks_by_date': busy_blocks_by_date(
-                    collaboration, exclude_community_id=community.pk,
-                ),
+                'busy_payload': busy,
                 'schedule_buffer_minutes': get_schedule_buffer_minutes(collaboration),
                 **schedule_ctx,
             },
