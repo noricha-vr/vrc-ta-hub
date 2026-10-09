@@ -92,6 +92,11 @@
                                     <li>その後、公開用のスライドURLがある場合は貼り付けます。</li>
                                 </ol>
                                 スライドURLは任意です。URL入力のみでは記事は生成されません。
+                                {% if form.article_auto_generation %}
+                                    <p class="mb-0 mt-2" id="article-auto-generation-note">
+                                        記事化 OK の発表は、スライドPDFか動画を登録すると記事を自動で作ります（数分かかります）。できあがったらメールでお知らせします。
+                                    </p>
+                                {% endif %}
                             </div>
 
                             {% for field in form %}

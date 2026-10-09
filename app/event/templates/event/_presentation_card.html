@@ -52,7 +52,8 @@
                     {% if detail.slide_file or detail.slide_url %}
                         <span class="badge bg-light text-success border"><i class="bi bi-file-text me-1" aria-hidden="true"></i>スライド</span>
                     {% endif %}
-                    {% if detail.contents %}
+                    {# 記事化 NG の発表は本文があっても記事を出さないので、バッジも出さない #}
+                    {% if detail.has_article %}
                         <span class="badge bg-light text-success border"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>記事</span>
                     {% endif %}
                 </div>

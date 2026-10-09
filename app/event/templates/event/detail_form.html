@@ -81,6 +81,8 @@
                                     発表の記事化（発表者が選択）: {{ form.instance.get_article_consent_display }}
                                     {% if form.instance.is_article_ng %}
                                         <span class="text-muted">（記事の生成と表示はしません）</span>
+                                    {% elif form.article_auto_generation %}
+                                        <span class="text-muted" id="article-auto-generation-note">（スライドPDFか動画を登録すると記事を自動で作ります）</span>
                                     {% endif %}
                                 </p>
                             {% endif %}

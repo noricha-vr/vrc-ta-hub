@@ -8,7 +8,7 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from event.models import EventDetail
+from event.models import EventDetail, youtube_video_id
 
 # これらの列を含む保存だけ、印を付けるかを判定する
 ARTICLE_TRIGGER_FIELDS = frozenset({'slide_file', 'youtube_url', 'article_consent'})
@@ -16,7 +16,10 @@ ARTICLE_TRIGGER_FIELDS = frozenset({'slide_file', 'youtube_url', 'article_consen
 
 @receiver(pre_save, sender=EventDetail)
 def remember_article_trigger_values(sender, instance, raw=False, update_fields=None, **kwargs):
-    """保存前の動画・PDF・同意を退避する。自動生成の対象にならない保存では DB を読まない。"""
+    """保存前の動画・PDF・同意を退避する。自動生成の対象にならない保存では DB を読まない。
+
+    保存前の値は ta_hub・twitter のシグナルと共有する（``EventDetail.previous_values``。保存ごとに 1 回だけ読む）。
+    """
     instance._article_trigger_old = None
     if raw:
         return
@@ -24,15 +27,7 @@ def remember_article_trigger_values(sender, instance, raw=False, update_fields=N
         return
     if not instance.can_auto_generate_article:
         return
-    if instance.pk is None:
-        instance._article_trigger_old = {}
-        return
-    old = (
-        EventDetail.all_objects.filter(pk=instance.pk)
-        .values('slide_file', 'youtube_url', 'article_consent')
-        .first()
-    )
-    instance._article_trigger_old = old or {}
+    instance._article_trigger_old = instance.previous_values()
 
 
 @receiver(post_save, sender=EventDetail)
@@ -62,11 +57,14 @@ def request_article_generation(sender, instance, raw=False, **kwargs):
 
 
 def _article_inputs_changed(instance: EventDetail, old: dict) -> bool:
-    """同意が OK に変わったか、動画・PDF が新しく入った・変わったか。外しただけの時は含めない。"""
+    """同意が OK に変わったか、YouTube 動画・PDF が新しく入った・変わったか。外しただけの時は含めない。
+
+    動画は URL ではなく動画 ID で比べる（再生位置 ?t= の付け替えや Discord のリンクでは作り直さない）。
+    """
     if old.get('article_consent') != EventDetail.ArticleConsent.OK:
         return True
     slide_name = instance.slide_file.name if instance.slide_file else ''
     if slide_name and slide_name != (old.get('slide_file') or ''):
         return True
-    youtube_url = instance.youtube_url or ''
-    return bool(youtube_url) and youtube_url != (old.get('youtube_url') or '')
+    video_id = instance.video_id
+    return bool(video_id) and video_id != youtube_video_id(old.get('youtube_url'))

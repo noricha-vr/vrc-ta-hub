@@ -13,6 +13,9 @@ from event.models import EventDetail
 
 logger = logging.getLogger(__name__)
 
+UPDATED_MESSAGE = '発表申請情報を更新しました。'
+ARTICLE_QUEUED_MESSAGE = '発表申請情報を更新しました。記事は自動で作成し、できあがったらメールでお知らせします。'
+
 
 def _owned_lt_condition(user) -> Q:
     """ユーザーが自分のLTとして扱える条件。
@@ -62,33 +65,47 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
 
     def form_valid(self, form):
         response = super().form_valid(form)
+        instance = form.instance
 
-        # 同じ送信で記事化を NG に変えた時も生成しないよう、保存後の同意を見る
-        generate_blog_flag = form.cleaned_data.get('generate_blog_article', False)
-        if (
-            generate_blog_flag
-            and not form.instance.is_article_ng
-            and (form.instance.slide_file or form.instance.youtube_url)
-        ):
-            try:
-                from django.conf import settings as django_settings
-                from event.services.content_generation_service import apply_blog_output_to_event_detail, generate_blog
-
-                blog_output = generate_blog(form.instance, model=django_settings.GEMINI_MODEL)
-                if apply_blog_output_to_event_detail(form.instance, blog_output):
-                    form.instance.save()
-                    messages.success(self.request, "発表申請情報を更新し、記事を自動生成しました。")
-                    logger.info(f"記事を自動生成しました: {form.instance.id}")
-                else:
-                    logger.warning(f"記事の自動生成に失敗しました（空の結果）: {form.instance.id}")
-                    messages.warning(self.request, "発表申請情報を更新しましたが、記事の自動生成に失敗しました。")
-            except Exception as e:
-                logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
-                messages.error(self.request, "発表申請情報を更新しましたが、記事の自動生成中にエラーが発生しました。")
+        # 判定は保存後の値で行う（同じ送信で記事化を NG / OK に変えた時も拾う）
+        if instance.can_auto_generate_article:
+            # 記事化 OK の発表はキュー（Cloud Scheduler）が作る。ここでも作ると二重になる
+            queued = instance.article_generation_requested_at is not None
+            messages.success(self.request, ARTICLE_QUEUED_MESSAGE if queued else UPDATED_MESSAGE)
+        elif self._should_generate_now(form):
+            self._generate_now(instance)
         else:
-            messages.success(self.request, '発表申請情報を更新しました。')
+            messages.success(self.request, UPDATED_MESSAGE)
 
         return response
+
+    @staticmethod
+    def _should_generate_now(form) -> bool:
+        """チェックボックスで記事の生成を頼まれ、動画か PDF がある（記事化 NG を除く）。"""
+        instance = form.instance
+        return bool(
+            form.cleaned_data.get('generate_blog_article', False)
+            and not instance.is_article_ng
+            and (instance.slide_file or instance.youtube_url)
+        )
+
+    def _generate_now(self, instance):
+        """保存と同時に記事を作る（記事化が未回答の発表のこれまでの動き）。"""
+        try:
+            from django.conf import settings as django_settings
+            from event.services.content_generation_service import apply_blog_output_to_event_detail, generate_blog
+
+            blog_output = generate_blog(instance, model=django_settings.GEMINI_MODEL)
+            if apply_blog_output_to_event_detail(instance, blog_output):
+                instance.save()
+                messages.success(self.request, "発表申請情報を更新し、記事を自動生成しました。")
+                logger.info(f"記事を自動生成しました: {instance.id}")
+            else:
+                logger.warning(f"記事の自動生成に失敗しました（空の結果）: {instance.id}")
+                messages.warning(self.request, "発表申請情報を更新しましたが、記事の自動生成に失敗しました。")
+        except Exception as e:
+            logger.error(f"記事の自動生成中にエラーが発生しました: {str(e)}")
+            messages.error(self.request, "発表申請情報を更新しましたが、記事の自動生成中にエラーが発生しました。")
 
     def get_success_url(self):
         return reverse('account:lt_application_list')

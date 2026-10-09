@@ -39,9 +39,18 @@ def article_consent_widget() -> forms.RadioSelect:
     return forms.RadioSelect(attrs={'class': 'form-check-input'})
 
 
-def remove_article_generation_if_ng(form: forms.BaseForm, instance) -> None:
-    """記事化 NG の発表では、記事を生成するチェックボックスを出さない。"""
-    if instance is not None and instance.pk and instance.is_article_ng:
+def configure_article_generation_field(form: forms.BaseForm, instance) -> None:
+    """記事を生成するチェックボックスの出し分け。
+
+    記事化 NG の発表は生成しないので出さない。記事化 OK の発表は、動画か PDF が入ると
+    Cloud Scheduler のキューが記事を作るので、保存時の生成と二重にならないよう出さない
+    （画面には ``form.article_auto_generation`` を見て自動で作る旨を出す）。
+    """
+    existing = instance is not None and instance.pk
+    form.article_auto_generation = bool(
+        existing and instance.article_consent == EventDetail.ArticleConsent.OK
+    )
+    if existing and (instance.is_article_ng or form.article_auto_generation):
         form.fields.pop('generate_blog_article', None)
 
 
@@ -78,7 +87,14 @@ class EventDetailMediaFormMixin:
         return validate_thumbnail_image(self.cleaned_data.get('thumbnail_image'))
 
     def save(self, commit=True):
-        instance = super().save(commit=commit)
+        if commit and not self.instance._state.adding:
+            instance = super().save(commit=False)
+            # 記事の自動生成が管理する列は書き戻さない。画面を開いている間に自動生成が書いた値を、
+            # 開いた時の古い値で消さないため（新規作成は通常どおり全列を書く）
+            instance.save(update_fields=EventDetail.fields_without_article_control())
+            self._save_m2m()
+        else:
+            instance = super().save(commit=commit)
         if commit:
             from event.services.media_service import ensure_pdf_thumbnail
             from twitter.services.tweet_generation import sync_slide_share_queue_image

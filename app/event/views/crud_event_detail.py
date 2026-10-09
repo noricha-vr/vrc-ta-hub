@@ -15,6 +15,25 @@ from website.settings import GEMINI_MODEL
 
 logger = logging.getLogger(__name__)
 
+ARTICLE_QUEUED_MESSAGE = "記事は自動で作成します。できあがったら発表者にメールでお知らせします。"
+
+
+def _should_generate_on_save(form) -> bool:
+    """保存と同時に記事を作るか（チェックボックスが ON の発表で、動画か PDF がある時）。
+
+    記事化 NG の発表はチェックボックスを出していなくてもサーバ側で断る。記事化 OK で自動生成の
+    対象になる発表は、キュー（Cloud Scheduler）が作るので、ここで作ると二重になる。
+    判定は保存後の値で行う。
+    """
+    instance = form.instance
+    return bool(
+        form.cleaned_data.get('generate_blog_article', False)
+        and instance.detail_type == 'LT'
+        and not instance.is_article_ng
+        and not instance.can_auto_generate_article
+        and (instance.slide_file or instance.youtube_url)
+    )
+
 
 class EventDetailCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, CreateView):
     model = EventDetail
@@ -47,11 +66,7 @@ class EventDetailCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Cre
         response = super().form_valid(form)
 
         # チェックボックスがONで、LTタイプで、PDFまたは動画がセットされている場合は自動生成
-        generate_blog_flag = form.cleaned_data.get('generate_blog_article', False)
-        if (generate_blog_flag and
-            form.instance.detail_type == 'LT' and
-                not form.instance.is_article_ng and
-                (form.instance.slide_file or form.instance.youtube_url)):
+        if _should_generate_on_save(form):
             try:
                 from event.services.content_generation_service import generate_blog as generate_blog_func
                 blog_output = generate_blog_func(form.instance, model=GEMINI_MODEL)
@@ -114,13 +129,11 @@ class EventDetailUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Upd
     def form_valid(self, form):
         response = super().form_valid(form)
 
+        if form.instance.can_auto_generate_article and form.instance.article_generation_requested_at:
+            # 記事化 OK の発表は自動生成のキューが作る（保存時には作らない）
+            messages.info(self.request, ARTICLE_QUEUED_MESSAGE)
         # チェックボックスがONで、LTタイプで、PDFまたは動画がセットされている場合は自動生成
-        # 発表者が記事化を NG にした発表は、チェックボックスを出していなくてもサーバ側で断る
-        generate_blog_flag = form.cleaned_data.get('generate_blog_article', False)
-        if (generate_blog_flag and
-            form.instance.detail_type == 'LT' and
-                not form.instance.is_article_ng and
-                (form.instance.slide_file or form.instance.youtube_url)):
+        if _should_generate_on_save(form):
             try:
                 blog_output = generate_blog(form.instance, model=GEMINI_MODEL)
                 # 空でないことを確認

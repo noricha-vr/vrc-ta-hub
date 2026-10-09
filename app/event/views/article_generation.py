@@ -1,6 +1,5 @@
 """記事の自動生成を Cloud Scheduler から少しずつ進めるエンドポイント。"""
-import os
-
+from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.utils.crypto import constant_time_compare
 from django.views.decorators.http import require_http_methods
@@ -16,10 +15,11 @@ from event.services.article_generation import (
 def run_article_generation(request):
     """Cloud Scheduler から 1 分ごとに呼ばれ、生成待ちの記事を 1〜2 件作る。
 
-    認証は予約投稿（twitter.views.post_scheduled_tweets）と同じ Request-Token ヘッダー。
+    認証は同じ event の Scheduler 用エンドポイント（send_slide_reminders 等）と同じく、
+    Request-Token ヘッダーを settings.REQUEST_TOKEN と照合する（未設定なら常に拒否）。
     """
     request_token = request.headers.get("Request-Token", "")
-    expected = os.environ.get("REQUEST_TOKEN", "")
+    expected = settings.REQUEST_TOKEN or ""
     if not expected or not constant_time_compare(request_token, expected):
         return HttpResponse("Unauthorized", status=401)
 

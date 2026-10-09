@@ -7,11 +7,14 @@ import re
 from datetime import date, timedelta
 from unittest.mock import patch
 
+from django.contrib.messages import get_messages
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 
 from event.forms import EventDetailForm, LTApplicationEditForm
 from event.models import EventDetail
+from event.services.content_generation_service import BlogOutput
 from tests.factories import (
     make_community,
     make_discord_linked_user,
@@ -23,6 +26,7 @@ from tests.factories import (
 ArticleConsent = EventDetail.ArticleConsent
 CONSENT_OK_LABEL = '記事化 OK（スライド画像の掲載を含む）'
 VIDEO_URL = 'https://www.youtube.com/watch?v=rrKl0s23E0M'
+OTHER_VIDEO_URL = 'https://www.youtube.com/watch?v=abcdefghijk'
 
 
 class ArticleConsentModelTest(TestCase):
@@ -135,12 +139,17 @@ class LTApplicationEditFormArticleConsentTest(TestCase):
         detail.refresh_from_db()
         self.assertEqual(detail.article_consent, ArticleConsent.OK)
 
-    def test_generation_checkbox_is_hidden_for_ng(self):
+    def test_generation_checkbox_by_consent(self):
+        """NG は生成しないので出さない。OK は自動生成に任せるので出さない。未回答は今までどおり出す。"""
         ng_form = LTApplicationEditForm(instance=make_event_detail(self.event, article_consent=ArticleConsent.NG))
         ok_form = LTApplicationEditForm(instance=make_event_detail(self.event, article_consent=ArticleConsent.OK))
+        unanswered_form = LTApplicationEditForm(instance=make_event_detail(self.event))
 
         self.assertNotIn('generate_blog_article', ng_form.fields)
-        self.assertIn('generate_blog_article', ok_form.fields)
+        self.assertNotIn('generate_blog_article', ok_form.fields)
+        self.assertTrue(ok_form.article_auto_generation)
+        self.assertIn('generate_blog_article', unanswered_form.fields)
+        self.assertFalse(unanswered_form.article_auto_generation)
 
 
 class LTApplicationEditViewArticleConsentTest(TestCase):
@@ -155,8 +164,15 @@ class LTApplicationEditViewArticleConsentTest(TestCase):
             article_consent=ArticleConsent.OK,
             youtube_url=VIDEO_URL,
         )
+        # 作成時に付いた生成待ちの印は外し、各テストの送信で付くかを見る
+        EventDetail.objects.filter(pk=self.detail.pk).update(article_generation_requested_at=None)
         self.url = reverse('account:lt_application_edit', kwargs={'pk': self.detail.pk})
         self.client.force_login(self.user)
+
+    def _post(self, **extra):
+        data = {'theme': 'テーマ', 'speaker': '発表者', 'youtube_url': VIDEO_URL}
+        data.update(extra)
+        return self.client.post(self.url, data)
 
     def test_edit_page_shows_consent_choices(self):
         response = self.client.get(self.url)
@@ -168,21 +184,60 @@ class LTApplicationEditViewArticleConsentTest(TestCase):
             r'<input type="radio" name="article_consent" value="ok"[^>]*checked',
         )
 
+    def test_ok_edit_page_says_article_is_generated_automatically(self):
+        response = self.client.get(self.url)
+
+        self.assertContains(response, 'id="article-auto-generation-note"')
+        self.assertNotContains(response, 'name="generate_blog_article"')
+
     @patch('event.services.content_generation_service.generate_blog')
     def test_switching_to_ng_with_checkbox_does_not_generate(self, mock_generate_blog):
         """同じ送信で NG に変えたら、チェックボックスが ON でも生成しない。"""
-        response = self.client.post(self.url, {
-            'theme': 'テーマ',
-            'speaker': '発表者',
-            'youtube_url': VIDEO_URL,
-            'article_consent': 'ng',
-            'generate_blog_article': 'on',
-        })
+        EventDetail.objects.filter(pk=self.detail.pk).update(article_consent=ArticleConsent.UNANSWERED)
+
+        response = self._post(article_consent='ng', generate_blog_article='on')
 
         self.assertEqual(response.status_code, 302)
         mock_generate_blog.assert_not_called()
         self.detail.refresh_from_db()
         self.assertEqual(self.detail.article_consent, ArticleConsent.NG)
+
+    @patch('event.services.content_generation_service.generate_blog')
+    def test_ok_leaves_generation_to_queue(self, mock_generate_blog):
+        """記事化 OK の発表は保存時に生成せず、キューに任せる（同期生成と二重にしない）。"""
+        response = self._post(youtube_url=OTHER_VIDEO_URL, generate_blog_article='on')
+
+        self.assertEqual(response.status_code, 302)
+        mock_generate_blog.assert_not_called()
+        self.detail.refresh_from_db()
+        self.assertIsNotNone(self.detail.article_generation_requested_at)
+        sent = [str(message) for message in get_messages(response.wsgi_request)]
+        self.assertIn('記事は自動で作成し、できあがったらメールでお知らせします', sent[0])
+
+    @patch('event.services.content_generation_service.ensure_pdf_thumbnail', return_value=False)
+    @patch('event.services.content_generation_service.generate_blog')
+    def test_switching_unanswered_to_ok_leaves_generation_to_queue(self, mock_generate_blog, _thumbnail):
+        """未回答のまま開いた画面で OK に変えて送っても、保存時には生成しない（キューが作る）。"""
+        EventDetail.objects.filter(pk=self.detail.pk).update(article_consent=ArticleConsent.UNANSWERED)
+
+        self._post(article_consent='ok', generate_blog_article='on')
+
+        mock_generate_blog.assert_not_called()
+        self.detail.refresh_from_db()
+        self.assertIsNotNone(self.detail.article_generation_requested_at)
+
+    @patch('event.services.content_generation_service.ensure_pdf_thumbnail', return_value=False)
+    @patch('event.services.content_generation_service.generate_blog')
+    def test_unanswered_still_generates_on_save(self, mock_generate_blog, _thumbnail):
+        """未回答の発表はこれまでどおり、チェックボックスで保存と同時に生成する。"""
+        EventDetail.objects.filter(pk=self.detail.pk).update(article_consent=ArticleConsent.UNANSWERED)
+        mock_generate_blog.return_value = BlogOutput(title='生成した記事', meta_description='要約', text='本文')
+
+        self._post(generate_blog_article='on')
+
+        mock_generate_blog.assert_called_once()
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.h1, '生成した記事')
 
 
 class OrganizerArticleConsentTest(TestCase):
@@ -246,6 +301,107 @@ class OrganizerArticleConsentTest(TestCase):
         self.assertContains(response, CONSENT_OK_LABEL)
 
 
+class OrganizerOkArticleTest(TestCase):
+    """記事化 OK の発表は、主催者の編集でも保存時に生成せず、キューに任せる。"""
+
+    def setUp(self):
+        self.owner = make_user(user_name='ok_owner', email='ok_owner@example.com')
+        self.detail = make_event_detail(
+            make_event(make_community(name='OK の集会', owner=self.owner)),
+            status='approved',
+            article_consent=ArticleConsent.OK,
+            youtube_url=VIDEO_URL,
+        )
+        EventDetail.objects.filter(pk=self.detail.pk).update(article_generation_requested_at=None)
+        self.url = reverse('event:detail_update', kwargs={'pk': self.detail.pk})
+        self.client.force_login(self.owner)
+
+    def test_form_hides_checkbox_and_says_generated_automatically(self):
+        response = self.client.get(self.url)
+
+        self.assertNotContains(response, 'name="generate_blog_article"')
+        self.assertContains(response, 'id="article-auto-generation-note"')
+
+    @patch('event.views.crud_event_detail.generate_blog')
+    def test_update_does_not_generate_on_save(self, mock_generate_blog):
+        response = self.client.post(self.url, {
+            'detail_type': 'LT', 'theme': 'テーマ', 'speaker': '発表者',
+            'start_time': '22:00', 'duration': 30,
+            'youtube_url': OTHER_VIDEO_URL, 'generate_blog_article': 'on',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        mock_generate_blog.assert_not_called()
+        self.detail.refresh_from_db()
+        self.assertIsNotNone(self.detail.article_generation_requested_at)
+
+
+class ArticleNgOtherScreensTest(TestCase):
+    """NG の記事は、発表一覧のカード・構造化データ・他の発表ページの関連一覧でも出さない。"""
+
+    H1 = '一覧に出してはいけない記事のタイトル'
+    SUMMARY = '一覧に出してはいけない記事の要約'
+    BODY = '一覧に出してはいけない記事の本文'
+
+    def setUp(self):
+        cache.clear()
+        self.community = make_community(name='一覧の集会')
+        self.event = make_event(self.community, event_date=date.today() - timedelta(days=3))
+        self.ng = make_event_detail(
+            self.event,
+            status='approved',
+            theme='NG の発表のテーマ',
+            h1=self.H1,
+            meta_description=self.SUMMARY,
+            contents=f'## 見出し\n{self.BODY}',
+            article_consent=ArticleConsent.NG,
+            youtube_url=VIDEO_URL,
+        )
+
+    def test_model_hides_article_for_ng(self):
+        self.assertEqual(self.ng.title, 'NG の発表のテーマ')
+        self.assertEqual(self.ng.get_excerpt(), '')
+        self.assertFalse(self.ng.has_article)
+
+    def test_ng_article_alone_is_not_a_material(self):
+        article_only = make_event_detail(
+            self.event, status='approved', contents='本文だけの発表', article_consent=ArticleConsent.NG,
+        )
+
+        self.assertFalse(article_only.has_materials)
+        self.assertFalse(EventDetail.objects.filter(EventDetail.materials_q(), pk=article_only.pk).exists())
+        self.assertTrue(EventDetail.objects.filter(EventDetail.materials_q(), pk=self.ng.pk).exists())
+
+    def test_presentation_list_hides_article(self):
+        response = self.client.get(reverse('event:detail_history'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'NG の発表のテーマ')
+        # カードのタイトル・抜粋・「記事」バッジ、構造化データ（JSON-LD）のどれにも出さない
+        self.assertNotContains(response, self.H1)
+        self.assertNotContains(response, self.SUMMARY)
+        self.assertNotContains(response, self.BODY)
+        self.assertNotContains(response, '</i>記事</span>')
+
+    def test_related_list_hides_ng_title_even_when_cached(self):
+        """関連一覧のキャッシュを作った後に NG に変わっても、その h1 を出さない。"""
+        other = make_event_detail(self.event, status='approved', theme='別の発表', h1='別の発表の記事')
+        url = reverse('event:detail', kwargs={'pk': other.pk})
+        EventDetail.objects.filter(pk=self.ng.pk).update(article_consent=ArticleConsent.OK)
+        self.assertContains(self.client.get(url), self.H1)
+
+        EventDetail.objects.filter(pk=self.ng.pk).update(article_consent=ArticleConsent.NG)
+
+        self.assertNotContains(self.client.get(url), self.H1)
+
+    def test_related_list_excludes_ng_when_built(self):
+        other = make_event_detail(self.event, status='approved', theme='別の発表', h1='別の発表の記事')
+
+        response = self.client.get(reverse('event:detail', kwargs={'pk': other.pk}))
+
+        self.assertNotContains(response, self.H1)
+
+
 class EventDetailPageArticleConsentTest(TestCase):
     """NG の発表は詳細ページで記事の本文（h1 / contents）と要約を出さない。"""
 
@@ -254,6 +410,7 @@ class EventDetailPageArticleConsentTest(TestCase):
     SUMMARY = '記事の要約テキスト'
 
     def setUp(self):
+        cache.clear()
         self.owner = make_user(user_name='page_owner', email='page_owner@example.com')
         self.detail = make_event_detail(
             make_event(make_community(name='詳細の集会', owner=self.owner), event_date=date.today()),

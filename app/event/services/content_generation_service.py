@@ -47,16 +47,36 @@ class BlogOutput(BaseModel):
 
 @dataclass(frozen=True)
 class BlogSources:
-    """記事生成に渡す入力（字幕と PDF のテキスト）。"""
+    """記事生成に渡す入力（字幕と PDF のテキスト）と、中身を使えた入力の識別子。"""
 
     transcript: str
     pdf_content: str
     pdf_url: str
+    # 字幕を使えた動画の ID と、テキストを使えた PDF の保存名。取れなかった方は空文字
+    video_id: str = ''
+    slide_name: str = ''
 
     @property
     def has_text(self) -> bool:
         """字幕か PDF のどちらかのテキストが取れたか。"""
         return bool(self.transcript or self.pdf_content)
+
+    @property
+    def used_sources(self) -> tuple[str, str]:
+        """生成元として記録する入力（動画 ID, PDF の保存名）。"""
+        return self.video_id, self.slide_name
+
+
+def _used_sources_after_generation(event_detail: EventDetail) -> tuple[str, str]:
+    """生成ボタン等で作った記事の生成元。字幕は今の動画の字幕が取れていた時だけ記録する。"""
+    video_id = event_detail.video_id or ''
+    transcript_used = bool(
+        video_id
+        and event_detail.cached_transcript
+        and event_detail.cached_transcript_video_id == video_id
+    )
+    slide_name = event_detail.slide_file.name if event_detail.slide_file else ''
+    return (video_id if transcript_used else ''), slide_name
 
 
 def apply_blog_output_to_event_detail(event_detail: EventDetail, blog_output: BlogOutput) -> bool:
@@ -77,7 +97,7 @@ def apply_blog_output_to_event_detail(event_detail: EventDetail, blog_output: Bl
     event_detail.h1 = blog_output.title
     event_detail.contents = blog_output.text
     event_detail.meta_description = blog_output.meta_description
-    event_detail.record_generated_article()
+    event_detail.record_generated_article(used_sources=_used_sources_after_generation(event_detail))
     if not event_detail.thumbnail_image:
         ensure_pdf_thumbnail(event_detail)
     return True
@@ -203,10 +223,13 @@ def collect_blog_sources(event_detail: EventDetail) -> BlogSources:
     limited_transcript = _limit_source_text(transcript) if transcript else ""
     pdf_budget = max(MAX_COMBINED_SOURCE_CHARS - len(limited_transcript), 0)
     pdf_url = event_detail.slide_url or (event_detail.slide_file.url if event_detail.slide_file else "")
+    pdf_content = _read_slide_text(event_detail, pdf_budget)
     return BlogSources(
         transcript=limited_transcript,
-        pdf_content=_read_slide_text(event_detail, pdf_budget),
+        pdf_content=pdf_content,
         pdf_url=pdf_url,
+        video_id=(event_detail.video_id or '') if limited_transcript else '',
+        slide_name=event_detail.slide_file.name if pdf_content else '',
     )
 
 

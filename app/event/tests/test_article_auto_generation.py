@@ -7,11 +7,14 @@ import json
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
-from django.test import TestCase, override_settings
+from django.db import connection
+from django.test import SimpleTestCase, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from event.models import EventDetail, article_body_hash
+from event.forms import EventDetailForm, LTApplicationEditForm
+from event.models import EventDetail, article_body_hash, youtube_video_id
 from event.services import article_generation
 from event.services.article_generation import MAX_ATTEMPTS, process_article_generation_queue
 from tests.factories import make_community, make_event, make_event_detail, make_user
@@ -93,6 +96,134 @@ class ArticleBodyHashTest(TestCase):
         self.detail.contents = '前からある記事'
 
         self.assertEqual(self.detail.article_state(), ArticleState.MANUAL)
+
+    def test_emptied_article_is_none_even_with_hash(self):
+        """生成した記事のタイトルも本文も空にしたら未生成に戻る（固定されず、自動で作り直せる）。"""
+        self.detail.h1, self.detail.contents = 'タイトル', '本文'
+        self.detail.record_generated_article()
+        self.detail.h1, self.detail.contents = '', ' \r\n'
+
+        self.assertEqual(self.detail.article_state(), ArticleState.NONE)
+
+
+class YouTubeVideoIdTest(SimpleTestCase):
+    """動画 ID は YouTube の URL からだけ取り出す（Discord のメッセージリンクは動画なし）。"""
+
+    def test_youtube_urls(self):
+        for url in (
+            f'https://www.youtube.com/watch?v={VIDEO_ID}',
+            f'https://youtu.be/{VIDEO_ID}?t=30',
+            f'https://www.youtube.com/live/{VIDEO_ID}?si=share',
+            f'https://m.youtube.com/watch?v={VIDEO_ID}&t=1m',
+            f'https://www.youtube.com/shorts/{VIDEO_ID}',
+        ):
+            with self.subTest(url=url):
+                self.assertEqual(youtube_video_id(url), VIDEO_ID)
+
+    def test_non_youtube_urls(self):
+        for url in (
+            'https://discord.com/channels/123456789012345678/234567890123456789/345678901234567890',
+            f'https://example.com/watch?v={VIDEO_ID}',
+            '',
+            None,
+        ):
+            with self.subTest(url=url):
+                self.assertIsNone(youtube_video_id(url))
+
+
+class PreviousValuesTest(TestCase):
+    """保存前の値は event / ta_hub / twitter のシグナルで共有し、1 回の SELECT で読む。"""
+
+    def test_pre_save_reads_previous_values_once(self):
+        event = make_event(make_community(name='旧値の集会'), event_date=date.today() - timedelta(days=1))
+        detail = make_event_detail(
+            event, status='approved', article_consent=ArticleConsent.OK, slide_file=SLIDE_NAME,
+        )
+        detail = EventDetail.objects.get(pk=detail.pk)
+        detail.youtube_url = VIDEO_URL
+
+        with CaptureQueriesContext(connection) as queries:
+            detail.save()
+
+        sqls = [query['sql'] for query in queries.captured_queries]
+        update_at = next(i for i, sql in enumerate(sqls) if sql.startswith('UPDATE "event_detail"'))
+        selects_before_update = [
+            sql for sql in sqls[:update_at] if sql.startswith('SELECT') and '"event_detail"' in sql
+        ]
+        self.assertEqual(len(selects_before_update), 1)
+        # 共有した旧値が ta_hub・twitter のシグナルにも渡っている
+        self.assertEqual(detail._old_youtube_url, '')
+        self.assertEqual(detail._old_slide_file, SLIDE_NAME)
+        self.assertEqual(detail._old_status, 'approved')
+        self.assertEqual(detail._old_event_date, event.date)
+        self.assertEqual(detail._old_index_detail_type, 'LT')
+
+    def test_previous_values_are_not_reused_across_saves(self):
+        detail = make_event_detail(make_event(make_community(name='旧値の集会 2')), theme='最初のテーマ')
+        detail.theme = '2 回目のテーマ'
+        detail.save()
+        detail.theme = '3 回目のテーマ'
+        detail.save()
+
+        self.assertEqual(detail._old_theme, '2 回目のテーマ')
+
+
+class FormSaveKeepsGenerationColumnsTest(TestCase):
+    """フォームの保存は、記事の自動生成が管理する列を古い値で上書きしない。"""
+
+    def setUp(self):
+        self.owner = make_user(user_name='keep_owner', email='keep_owner@example.com')
+        self.detail = make_event_detail(
+            make_event(make_community(name='上書きの集会', owner=self.owner)),
+            status='approved',
+            article_consent=ArticleConsent.OK,
+        )
+
+    def _write_generation_columns_meanwhile(self):
+        """フォームを開いている間に自動生成が書いた値（フォームのインスタンスは古いまま）。"""
+        now = timezone.now()
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            article_generation_requested_at=now,
+            article_generation_attempts=2,
+            article_body_hash='x' * 64,
+            article_published_notified_at=now,
+        )
+
+    def _assert_generation_columns_kept(self):
+        self.detail.refresh_from_db()
+        self.assertIsNotNone(self.detail.article_generation_requested_at)
+        self.assertEqual(self.detail.article_generation_attempts, 2)
+        self.assertEqual(self.detail.article_body_hash, 'x' * 64)
+        self.assertIsNotNone(self.detail.article_published_notified_at)
+
+    def test_applicant_edit_form(self):
+        form = LTApplicationEditForm(
+            data={'theme': '直したテーマ', 'speaker': '発表者'},
+            instance=EventDetail.objects.get(pk=self.detail.pk),
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self._write_generation_columns_meanwhile()
+
+        form.save()
+
+        self._assert_generation_columns_kept()
+        self.assertEqual(self.detail.theme, '直したテーマ')
+
+    def test_organizer_edit_form(self):
+        form = EventDetailForm(
+            data={
+                'detail_type': 'LT', 'theme': '主催者が直したテーマ', 'speaker': '発表者',
+                'start_time': '22:00', 'duration': 30,
+            },
+            instance=EventDetail.objects.get(pk=self.detail.pk),
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self._write_generation_columns_meanwhile()
+
+        form.save()
+
+        self._assert_generation_columns_kept()
+        self.assertEqual(self.detail.theme, '主催者が直したテーマ')
 
 
 class ArticleGenerationRequestTest(TestCase):
@@ -208,6 +339,34 @@ class ArticleGenerationRequestTest(TestCase):
 
                 self.assertIsNone(self._requested_at(detail))
 
+    def test_marks_emptied_article_when_input_changes(self):
+        """記事を空にした後に入力が変われば、ハッシュが残っていても作り直す（手動扱いで固定しない）。"""
+        detail = self._as_generated(self._detail(youtube_url=VIDEO_URL))
+        detail.h1, detail.contents = '', ''
+        detail.save()
+
+        detail.slide_file = SLIDE_NAME
+        detail.save()
+
+        self.assertIsNotNone(self._requested_at(detail))
+
+    def test_discord_link_is_not_a_video(self):
+        """youtube_url が Discord のメッセージリンクだけなら動画なしとして扱い、印を付けない。"""
+        detail = self._detail(youtube_url='https://discord.com/channels/123456789012345678/234567890123456789')
+
+        self.assertIsNone(detail.video_id)
+        self.assertFalse(detail.can_auto_generate_article)
+        self.assertIsNone(self._requested_at(detail))
+
+    def test_same_video_with_timestamp_does_not_mark(self):
+        """同じ動画の再生位置（?t=）を付け替えただけでは作り直さない。"""
+        detail = self._as_generated(self._detail(youtube_url=VIDEO_URL))
+
+        detail.youtube_url = f'{VIDEO_URL}&t=120'
+        detail.save()
+
+        self.assertIsNone(self._requested_at(detail))
+
     def test_unchanged_resave_after_form_round_trip_keeps_auto(self):
         """テーマだけ直して保存しても（本文は CRLF になる）、自動生成のままとして扱う。"""
         detail = self._as_generated(self._detail(youtube_url=VIDEO_URL))
@@ -258,10 +417,19 @@ class ArticleGenerationQueueTest(TestCase):
 
     def test_generates_article_from_video_and_pdf(self, openai_class, *_mocks):
         openai_class.return_value = _openrouter_client()
-        send_mail = _mocks[3]
+        send_mail, ensure_thumbnail = _mocks[3], _mocks[4]
         detail = self._due_detail()
 
+        def thumbnail_after_commit(target, save=False):
+            # サムネイル（ストレージへの書き込み）は記事の保存が確定した後に作る
+            self.assertEqual(EventDetail.objects.get(pk=target.pk).h1, GENERATED['title'])
+            self.assertTrue(save)
+            return False
+
+        ensure_thumbnail.side_effect = thumbnail_after_commit
+
         result = process_article_generation_queue()
+        ensure_thumbnail.assert_called_once()
 
         self.assertEqual(result['generated'], 1)
         self.assertEqual(result['processed'], 1)
@@ -290,7 +458,8 @@ class ArticleGenerationQueueTest(TestCase):
         self.assertIn('確認・修正はこちら', send_mail.call_args.kwargs['html_message'])
 
     def test_regenerates_with_both_inputs_when_second_input_arrives(self, openai_class, *_mocks):
-        """PDF だけで作った後に動画が来たら、字幕と PDF を合わせて作り直す。"""
+        """PDF だけで作った後に動画が来たら、字幕と PDF を合わせて作り直す。通知は最初の 1 回だけ。"""
+        send_mail = _mocks[3]
         openai_class.return_value = _openrouter_client()
         detail = self._due_detail(youtube_url='')
         process_article_generation_queue()
@@ -311,6 +480,58 @@ class ArticleGenerationQueueTest(TestCase):
         self.assertIn(PDF_TEXT, second_prompt)
         detail.refresh_from_db()
         self.assertEqual(detail.contents, '字幕も使って作り直した本文')
+        self.assertEqual(detail.article_source_video_id, VIDEO_ID)
+        send_mail.assert_called_once()
+        self.assertIsNotNone(detail.article_published_notified_at)
+
+    def test_waits_for_transcript_when_video_is_added(self, openai_class, get_transcript, *_mocks):
+        """PDF で作った後に動画が来ても、字幕がまだ無ければ作り直さずに待つ。"""
+        get_transcript.side_effect = lambda video_id, language='ja': None
+        detail = self._due_detail(h1='PDF の記事', contents='PDF から作った本文', youtube_url='')
+        fields = detail.record_generated_article(used_sources=('', SLIDE_NAME))
+        detail.save(update_fields=fields)
+        detail.youtube_url = VIDEO_URL
+        detail.save()
+        self._make_due(detail)
+
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['deferred'], 1)
+        self.assertEqual(result['results'][0]['reason'], 'waiting_for_transcript')
+        openai_class.return_value.chat.completions.create.assert_not_called()
+        detail.refresh_from_db()
+        self.assertEqual(detail.contents, 'PDF から作った本文')
+        self.assertEqual(detail.article_generation_last_error, 'waiting_for_transcript')
+        self.assertGreater(detail.article_generation_requested_at, timezone.now())
+
+    def test_last_attempt_uses_pdf_only_and_does_not_record_video(self, openai_class, get_transcript, *_mocks):
+        """字幕を上限まで待っても無ければ PDF だけで作り、字幕を使っていない動画は生成元に記録しない。"""
+        get_transcript.side_effect = lambda video_id, language='ja': None
+        openai_class.return_value = _openrouter_client()
+        detail = self._due_detail()
+        EventDetail.objects.filter(pk=detail.pk).update(article_generation_attempts=MAX_ATTEMPTS - 1)
+
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['generated'], 1)
+        self.assertNotIn(TRANSCRIPT, _sent_prompts(openai_class)[0])
+        detail.refresh_from_db()
+        self.assertEqual(detail.article_source_video_id, '')
+        self.assertEqual(detail.article_source_slide_name, SLIDE_NAME)
+
+    def test_regenerates_when_transcript_appears_after_pdf_only_article(self, openai_class, get_transcript, *_mocks):
+        """字幕なしで作った記事は「作り直し不要」扱いにせず、次の印で字幕も使って作り直す。"""
+        openai_class.return_value = _openrouter_client()
+        detail = self._due_detail(h1='PDF の記事', contents='PDF から作った本文')
+        fields = detail.record_generated_article(used_sources=('', SLIDE_NAME))
+        detail.save(update_fields=fields)
+        self._make_due(detail)
+
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['generated'], 1)
+        self.assertIn(TRANSCRIPT, _sent_prompts(openai_class)[0])
+        detail.refresh_from_db()
         self.assertEqual(detail.article_source_video_id, VIDEO_ID)
 
     def test_does_not_overwrite_manually_edited_article(self, openai_class, *_mocks):
@@ -349,6 +570,10 @@ class ArticleGenerationQueueTest(TestCase):
         detail.refresh_from_db()
         self.assertEqual(detail.contents, '生成中に書いた本文')
         self.assertEqual(detail.h1, '')
+        # 書き込まなかった時はサムネイルも作らない（ストレージに孤児を残さない）
+        _mocks[4].assert_not_called()
+        # 通知も送らない
+        _mocks[3].assert_not_called()
 
     def test_new_input_during_generation_is_processed_next_time(self, openai_class, *_mocks):
         """生成中に新しい入力が来たら書き込まず、新しい印を残す。"""
@@ -372,6 +597,25 @@ class ArticleGenerationQueueTest(TestCase):
         detail.refresh_from_db()
         self.assertEqual(detail.h1, '')
         self.assertIsNotNone(detail.article_generation_requested_at)
+        _mocks[4].assert_not_called()
+
+    def test_claimed_then_deleted_before_reload_is_skipped(self, openai_class, *_mocks):
+        """取った直後に論理削除されても 500 にせず、対象外としてスキップする。"""
+        detail = self._due_detail()
+        real_try_claim = article_generation._try_claim
+
+        def claim_then_delete(pk, requested_at, lease_until):
+            claimed = real_try_claim(pk, requested_at, lease_until)
+            EventDetail.objects.filter(pk=pk).update(deleted_at=timezone.now())
+            return claimed
+
+        with patch.object(article_generation, '_try_claim', side_effect=claim_then_delete):
+            result = process_article_generation_queue()
+
+        self.assertEqual(result['skipped'], 1)
+        self.assertEqual(result['results'][0]['reason'], 'not_eligible')
+        openai_class.return_value.chat.completions.create.assert_not_called()
+        self.assertIsNone(EventDetail.all_objects.get(pk=detail.pk).article_generation_requested_at)
 
     def test_deleted_during_generation_is_skipped(self, openai_class, *_mocks):
         """生成中に発表が論理削除されたら書き込まず、印を外して呼び出しを正常に終える。"""
@@ -419,10 +663,10 @@ class ArticleGenerationQueueTest(TestCase):
         detail.refresh_from_db()
         self.assertIsNone(detail.article_generation_requested_at)
 
-    def test_failure_records_error_and_retries_later(self, openai_class, get_transcript, *_mocks):
-        """入力のテキストが取れない時は記事を作らず、間を空けて再試行する。"""
-        get_transcript.side_effect = lambda video_id, language='ja': None
-        detail = self._due_detail(slide_file='')
+    def test_failure_records_error_and_retries_later(self, openai_class, get_transcript, extract_pdf_text, *_mocks):
+        """入力のテキストが取れない時（文字の無い PDF など）は記事を作らず、間を空けて再試行する。"""
+        extract_pdf_text.return_value = ''
+        detail = self._due_detail(youtube_url='')
 
         result = process_article_generation_queue()
 
@@ -530,30 +774,34 @@ class ArticlePublishedNotificationTest(TestCase):
         post_webhook.assert_not_called()
 
 
+@override_settings(REQUEST_TOKEN='test-token')
 class RunArticleGenerationViewTest(TestCase):
     """Cloud Scheduler から呼ぶエンドポイントの認証と応答。"""
-
-    TOKEN_ENV = {'REQUEST_TOKEN': 'test-token'}
 
     def setUp(self):
         self.url = reverse('event:run_article_generation')
 
     def test_rejects_missing_or_wrong_token(self):
-        with patch.dict('os.environ', self.TOKEN_ENV):
-            self.assertEqual(self.client.get(self.url).status_code, 401)
-            self.assertEqual(self.client.get(self.url, HTTP_REQUEST_TOKEN='wrong').status_code, 401)
+        self.assertEqual(self.client.get(self.url).status_code, 401)
+        self.assertEqual(self.client.get(self.url, HTTP_REQUEST_TOKEN='wrong').status_code, 401)
 
+    @override_settings(REQUEST_TOKEN='')
     def test_rejects_when_server_token_is_not_set(self):
-        with patch.dict('os.environ', {'REQUEST_TOKEN': ''}):
-            self.assertEqual(self.client.get(self.url, HTTP_REQUEST_TOKEN='').status_code, 401)
+        self.assertEqual(self.client.get(self.url, HTTP_REQUEST_TOKEN='').status_code, 401)
+
+    @patch.dict('os.environ', {'REQUEST_TOKEN': 'env-token'})
+    def test_token_is_read_from_settings(self):
+        """隣の Scheduler 用エンドポイントと同じく settings.REQUEST_TOKEN と照合する（環境変数は直接見ない）。"""
+        self.assertEqual(self.client.get(self.url, HTTP_REQUEST_TOKEN='env-token').status_code, 401)
+        self.assertEqual(self.client.get(self.url, HTTP_REQUEST_TOKEN='test-token').status_code, 200)
 
     def test_returns_counts_as_json(self):
-        with patch.dict('os.environ', self.TOKEN_ENV):
-            response = self.client.get(self.url, HTTP_REQUEST_TOKEN='test-token')
+        response = self.client.get(self.url, HTTP_REQUEST_TOKEN='test-token')
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
             'generated': 0,
+            'deferred': 0,
             'failed': 0,
             'skipped_manual': 0,
             'skipped': 0,
@@ -564,10 +812,9 @@ class RunArticleGenerationViewTest(TestCase):
 
     @patch('event.views.article_generation.process_article_generation_queue', return_value={})
     def test_limit_is_between_one_and_two(self, process_queue):
-        with patch.dict('os.environ', self.TOKEN_ENV):
-            ok = self.client.get(self.url, {'limit': '2'}, HTTP_REQUEST_TOKEN='test-token')
-            too_many = self.client.get(self.url, {'limit': '3'}, HTTP_REQUEST_TOKEN='test-token')
-            not_number = self.client.get(self.url, {'limit': 'x'}, HTTP_REQUEST_TOKEN='test-token')
+        ok = self.client.get(self.url, {'limit': '2'}, HTTP_REQUEST_TOKEN='test-token')
+        too_many = self.client.get(self.url, {'limit': '3'}, HTTP_REQUEST_TOKEN='test-token')
+        not_number = self.client.get(self.url, {'limit': 'x'}, HTTP_REQUEST_TOKEN='test-token')
 
         self.assertEqual(ok.status_code, 200)
         process_queue.assert_called_once_with(limit=2)
@@ -575,7 +822,6 @@ class RunArticleGenerationViewTest(TestCase):
         self.assertEqual(not_number.status_code, 400)
 
     def test_post_is_not_allowed(self):
-        with patch.dict('os.environ', self.TOKEN_ENV):
-            response = self.client.post(self.url, HTTP_REQUEST_TOKEN='test-token')
+        response = self.client.post(self.url, HTTP_REQUEST_TOKEN='test-token')
 
         self.assertEqual(response.status_code, 405)

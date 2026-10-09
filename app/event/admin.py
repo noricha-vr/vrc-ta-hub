@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from community.constants import weekday_code
 
-from .models import Event, EventDetail, RecurrenceRule
+from .models import ARTICLE_CONTROL_FIELDS, Event, EventDetail, RecurrenceRule
 
 
 class EventDetailInline(admin.TabularInline):
@@ -184,16 +184,7 @@ class EventDetailAdmin(admin.ModelAdmin):
     list_display = ('get_community_name', 'created_at', 'updated_at', 'detail_type', 'theme', 'speaker', 'deleted_at')
     list_filter = ('detail_type', 'article_consent', 'deleted_at', 'event__community', 'speaker')
     # 記事の自動生成の記録は、手で書き換えると手動編集の判定や待ち行列が崩れるので表示だけ
-    readonly_fields = (
-        'event',
-        'article_generation_requested_at',
-        'article_generation_attempts',
-        'article_generation_last_error',
-        'article_generated_at',
-        'article_source_video_id',
-        'article_source_slide_name',
-        'article_body_hash',
-    )
+    readonly_fields = ('event', *ARTICLE_CONTROL_FIELDS)
     search_fields = ('theme', 'speaker', 'event__community__name')
     actions = ['restore_soft_deleted']
 

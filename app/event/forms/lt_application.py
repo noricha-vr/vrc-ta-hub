@@ -25,7 +25,7 @@ from .mixins import (
     RecordingPolicyFormMixin,
     article_consent_widget,
     recording_policy_widget,
-    remove_article_generation_if_ng,
+    configure_article_generation_field,
 )
 
 
@@ -94,7 +94,8 @@ class LTApplicationEditForm(
             and (self.instance.meta_description or self.instance.contents or self.instance.h1)
         )
         self.initial['generate_blog_article'] = not has_article
-        remove_article_generation_if_ng(self, self.instance)
+        # NG なら生成のチェックボックスを出さず、OK なら自動生成に任せる（保存時の生成と二重にしない）
+        configure_article_generation_field(self, self.instance)
         # 撮影を許可しない集会では選択肢を出さない。フィールドが無いので保存しても今の値のまま
         if self.instance.pk and self.instance.event_id:
             self.remove_recording_policy_unless_allowed(self.instance.event.community)

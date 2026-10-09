@@ -182,14 +182,14 @@ class EventDetailView(DetailView):
 
     @staticmethod
     def _article_context(event_detail: EventDetail) -> Dict:
-        """記事の表示と生成ボタンの出し分け。記事化 NG の発表は本文（h1 / contents）を出さない。
+        """記事の表示と生成ボタンの出し分け。記事化 NG の発表は本文（contents）と要約を出さない。
 
-        本文のデータは消さず、表示だけを止める（発表者が OK に戻せば元どおり表示する）。
+        タイトルは EventDetail.title が NG の時にテーマを返す。本文のデータは消さず、
+        表示だけを止める（発表者が OK に戻せば元どおり表示する）。
         """
         article_visible = not event_detail.is_article_ng
         return {
             'article_visible': article_visible,
-            'display_title': event_detail.title if article_visible else event_detail.theme,
             'html_content': convert_markdown(event_detail.contents) if article_visible else '',
             'can_generate_article': (
                 article_visible
@@ -202,24 +202,39 @@ class EventDetailView(DetailView):
         # キャッシュキーを生成
         cache_key = f'related_event_details_{event_detail.event_id}'
         related_event_details = cache.get(cache_key)
-        if related_event_details is None:
-            max_related_items = 6
-            cache_timeout_seconds = CACHE_TTL_HOUR
-            # キャッシュがない場合のみDBクエリを実行
-            related_event_details = list(
-                EventDetail.objects
-                .filter(
-                    event__community=event_detail.event.community,
-                    status='approved',
-                    h1__isnull=False,
-                    h1__gt=''  # より効率的な空文字列の除外
-                )
-                .exclude(id=event_detail.id)
-                .order_by('-created_at')
-                .values('id', 'h1')[:max_related_items]
+        if related_event_details is not None:
+            # キャッシュした後に記事化 NG に変わった発表の h1 を出さない
+            return _without_article_ng(related_event_details)
+
+        max_related_items = 6
+        # キャッシュがない場合のみDBクエリを実行。記事化 NG の発表は記事のタイトル（h1）を出さないので除く
+        related_event_details = list(
+            EventDetail.objects
+            .filter(
+                event__community=event_detail.event.community,
+                status='approved',
+                h1__isnull=False,
+                h1__gt=''  # より効率的な空文字列の除外
             )
+            .exclude(id=event_detail.id)
+            .exclude(article_consent=EventDetail.ArticleConsent.NG)
+            .order_by('-created_at')
+            .values('id', 'h1')[:max_related_items]
+        )
 
-            # 1時間キャッシュする
-            cache.set(cache_key, related_event_details, cache_timeout_seconds)
-
+        # 1時間キャッシュする
+        cache.set(cache_key, related_event_details, CACHE_TTL_HOUR)
         return related_event_details
+
+
+def _without_article_ng(related_event_details: List[Dict]) -> List[Dict]:
+    """関連の発表から、今は記事化 NG の発表を除く（キャッシュの寿命中に同意が変わっても出さない）。"""
+    if not related_event_details:
+        return related_event_details
+    ng_ids = set(
+        EventDetail.objects.filter(
+            pk__in=[item['id'] for item in related_event_details],
+            article_consent=EventDetail.ArticleConsent.NG,
+        ).values_list('pk', flat=True)
+    )
+    return [item for item in related_event_details if item['id'] not in ng_ids]
