@@ -17,6 +17,7 @@ from django.views.generic import TemplateView
 from allauth.socialaccount.models import SocialAccount
 
 from community.models import CommunityMember
+from website.constants import DEFAULT_NEWS_IMAGE_URL
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 
 from ..models import (
@@ -31,8 +32,7 @@ from .helpers import (
 )
 
 
-PUBLIC_NOTICE_COLLABORATION_PK = 1
-PUBLIC_NOTICE_OG_IMAGE = 'vket/images/og/vket-2026-summer-notices-v1.png'
+DEFAULT_NOTICE_OG_IMAGE_URL = DEFAULT_NEWS_IMAGE_URL
 
 
 @method_decorator([never_cache, vary_on_cookie], name='dispatch')
@@ -43,18 +43,18 @@ class NoticeListView(LoginRequiredMixin, View):
     public_template_name = 'vket/notice_public.html'
 
     def dispatch(self, request, *args, **kwargs):
-        if (
-            not request.user.is_authenticated
-            and kwargs['pk'] != PUBLIC_NOTICE_COLLABORATION_PK
-        ):
-            return self.handle_no_permission()
+        # 未ログインでもリンクプレビュー用の公開シェルを返すため、LoginRequiredMixin の判定を飛ばす。
+        # ログイン誘導は handle_no_permission を _render_public_shell から使う。
         return View.dispatch(self, request, *args, **kwargs)
 
     def get(self, request, pk: int):
         if not request.user.is_authenticated:
             return self._render_public_shell(request, pk)
 
-        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        collaborations = VketCollaboration.objects.all()
+        if not _is_vket_admin(request.user):
+            collaborations = collaborations.exclude(phase=VketCollaboration.Phase.DRAFT)
+        collaboration = get_object_or_404(collaborations, pk=pk)
         community, membership = _get_active_membership(request)
 
         receipts = []
@@ -80,16 +80,31 @@ class NoticeListView(LoginRequiredMixin, View):
         )
 
     def _render_public_shell(self, request, pk: int):
-        collaboration = get_object_or_404(
-            VketCollaboration.objects.exclude(phase=VketCollaboration.Phase.DRAFT),
-            pk=pk,
+        collaboration = (
+            VketCollaboration.objects.exclude(phase=VketCollaboration.Phase.DRAFT)
+            .filter(pk=pk)
+            .first()
         )
-        static_path = static(PUBLIC_NOTICE_OG_IMAGE)
-        og_image_url = static_path
-        if not static_path.startswith(('http://', 'https://', '//')):
-            if not static_path.startswith('/'):
-                static_path = f'/{static_path}'
-            og_image_url = request.build_absolute_uri(static_path)
+        if collaboration is None:
+            return self.handle_no_permission()
+
+        notice_settings = collaboration.settings_json
+        if not isinstance(notice_settings, dict):
+            notice_settings = {}
+        image_path = notice_settings.get('notice_og_image')
+        if not isinstance(image_path, str):
+            image_path = ''
+        image_path = image_path.strip()
+        og_image_url = DEFAULT_NOTICE_OG_IMAGE_URL
+        if image_path.startswith(('http://', 'https://')):
+            og_image_url = image_path
+        elif image_path:
+            static_path = static(image_path)
+            og_image_url = static_path
+            if not static_path.startswith(('http://', 'https://', '//')):
+                if not static_path.startswith('/'):
+                    static_path = f'/{static_path}'
+                og_image_url = request.build_absolute_uri(static_path)
         description = (
             f'{collaboration.name}の開催準備や発表に関するお知らせを確認できます。'
             'お知らせの内容を見るにはログインが必要です。'
