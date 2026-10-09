@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 from datetime import timedelta, timezone as dt_timezone
+from zoneinfo import ZoneInfo
 
 from django.test import TestCase
+from django.utils import timezone
 
 from announcement.forms import DiscordScheduledMessageForm
 from announcement.models import DISCORD_CONTENT_MAX_LENGTH
@@ -28,6 +30,15 @@ class ScheduledAtFieldTests(TestCase):
         scheduled_at = form.cleaned_data['scheduled_at']
         self.assertEqual(scheduled_at, jst(2026, 12, 1, 20, 0))
         self.assertEqual(scheduled_at.astimezone(dt_timezone.utc).hour, 11)
+
+    def test_input_is_read_as_jst_even_if_another_timezone_is_active(self):
+        with timezone.override(ZoneInfo('UTC')):
+            form = _form(scheduled_at='2026-12-01T20:00')
+            self.assertTrue(form.is_valid(), form.errors)
+            rendered = str(DiscordScheduledMessageForm(instance=make_message(scheduled_at=jst(2026, 12, 1, 20)), now=NOW)['scheduled_at'])
+
+        self.assertEqual(form.cleaned_data['scheduled_at'], jst(2026, 12, 1, 20, 0))
+        self.assertIn('value="2026-12-01T20:00"', rendered)
 
     def test_saved_value_is_shown_in_jst(self):
         message = make_message(scheduled_at=jst(2026, 12, 1, 20, 0).astimezone(dt_timezone.utc))
