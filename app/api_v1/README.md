@@ -50,8 +50,8 @@
 
 | 項目 | 出る場所 | 値 |
 |------|----------|-----|
-| `recording_allowed` | コミュニティ（`/community/`、`/event/` と `/event_detail/` の `event.community` ネストを含む） | `true`（既定）= 撮影を許可 / `false` = この集会は自動撮影の対象外 |
-| `recording_policy` | イベント詳細（`/event_detail/`、`/event-details/`） | `public`（既定）= 撮影して YouTube で公開 / `allowed` = 撮影するが公開しない / `forbidden` = 撮影しない |
+| `recording_allowed` | コミュニティ（`/community/`、`/event/` と `/event_detail/` の `event.community` ネストを含む） | `true` = 撮影を許可 / `false`（既定）= この集会は自動撮影の対象外 |
+| `recording_policy` | イベント詳細（`/event_detail/`、`/event-details/`） | `public` = 撮影して YouTube で公開 / `allowed` = 撮影するが公開しない / `forbidden` = 撮影しない（`POST` で省略した時の既定） |
 
 イベント詳細の読み取りには `detail_type`（`LT` = 発表 / `SPECIAL` = 特別企画 / `BLOG` = ブログ）も出ます。自動撮影の対象を発表に絞る時に使います。
 

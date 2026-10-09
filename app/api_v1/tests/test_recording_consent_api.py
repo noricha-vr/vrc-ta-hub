@@ -39,13 +39,13 @@ class PublicReadRecordingConsentTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIs(response.data['recording_allowed'], False)
 
-    def test_community_default_is_true(self):
-        """既定の集会は recording_allowed が true。"""
+    def test_community_default_is_false(self):
+        """既定の集会は recording_allowed が false。"""
         community = make_community(name='既定の集会', tags=['tech'])
 
         response = self.client.get(reverse('community-detail', kwargs={'pk': community.pk}))
 
-        self.assertIs(response.data['recording_allowed'], True)
+        self.assertIs(response.data['recording_allowed'], False)
 
     def test_event_detail_has_policy_type_and_nested_community_flag(self):
         """/event_detail/ に recording_policy・detail_type・ネストした recording_allowed が出る。"""
@@ -100,12 +100,20 @@ class EventDetailAPIKeyRecordingPolicyTest(TestCase):
         created = EventDetail.objects.get(pk=response.data['id'])
         self.assertEqual(created.recording_policy, RecordingPolicy.ALLOWED)
 
-    def test_create_without_policy_defaults_to_public(self):
-        """POST で省略すると「公開」になる。"""
+    def test_create_without_policy_defaults_to_forbidden(self):
+        """POST で省略すると、登壇者が選んでいないので「禁止」になる。"""
         response = self.client.post(self.list_url, self._create_payload(), format='json')
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(EventDetail.objects.get(pk=response.data['id']).recording_policy, RecordingPolicy.PUBLIC)
+        self.assertEqual(EventDetail.objects.get(pk=response.data['id']).recording_policy, RecordingPolicy.FORBIDDEN)
+
+    def test_put_without_policy_keeps_existing_value(self):
+        """更新で省略しても、既存の撮影の扱いは変えない（禁止への補完は新規登録だけ）。"""
+        response = self.client.patch(self.detail_url, {'theme': '更新後のテーマ'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.recording_policy, RecordingPolicy.PUBLIC)
 
     def test_patch_policy(self):
         """PATCH で recording_policy だけ変えられる。"""

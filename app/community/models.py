@@ -123,9 +123,9 @@ class Community(models.Model):
     # db_default: migration 適用後もしばらく動く旧リビジョンの INSERT（列を知らない）を通すため
     recording_allowed = models.BooleanField(
         '撮影を許可する',
-        default=True,
-        db_default=True,
-        help_text='オフにすると、この集会の発表はハブの自動撮影の対象になりません',
+        default=False,
+        db_default=False,
+        help_text='オンにすると、この集会の発表がハブの自動撮影の対象になります',
     )
     # 発表申請フォームで撮影の選択肢を最初に選んでおく値。db_default は recording_allowed と同じ理由
     default_recording_policy = models.CharField(
