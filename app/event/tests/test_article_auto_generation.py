@@ -1461,6 +1461,58 @@ class StaleFormGenerateTest(TestCase):
         self.assertNotIn(ARTICLE_EDITED_MESSAGE, ''.join(sent))
 
 
+@patch('event.services.content_generation_service.ensure_pdf_thumbnail', return_value=False)
+class GenerateOnSaveEditedTest(TestCase):
+    """保存と同時の生成を待つ間に記事が編集されたら、編集を残してその旨を出す（発表者・主催者の編集画面）。"""
+
+    OUTPUT = BlogOutput(title='生成した記事', meta_description='要約', text='本文')
+
+    def setUp(self):
+        self.owner = make_user(user_name='edited_owner', email='edited_owner@example.com')
+        self.speaker = make_discord_linked_user(user_name='edited_speaker', email='edited_speaker@example.com')
+        self.detail = make_event_detail(
+            make_event(make_community(name='生成中に編集する集会', owner=self.owner)),
+            applicant=self.speaker,
+            status='approved',
+            youtube_url=VIDEO_URL,
+        )
+
+    def _edit_then_respond(self, *args, **kwargs):
+        EventDetail.objects.filter(pk=self.detail.pk).update(contents='生成中に書いた本文')
+        return self.OUTPUT
+
+    def _assert_edit_kept(self, response):
+        self.assertEqual(response.status_code, 302)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.contents, '生成中に書いた本文')
+        self.assertEqual(self.detail.h1, '')
+        sent = [str(message) for message in get_messages(response.wsgi_request)]
+        self.assertTrue(any(ARTICLE_EDITED_MESSAGE in message for message in sent), sent)
+
+    @patch('event.services.content_generation_service.generate_blog')
+    def test_applicant_edit_page(self, mock_generate_blog, _thumbnail):
+        mock_generate_blog.side_effect = self._edit_then_respond
+        self.client.force_login(self.speaker)
+
+        response = self.client.post(reverse('account:lt_application_edit', kwargs={'pk': self.detail.pk}), {
+            'theme': 'テーマ', 'speaker': '発表者', 'youtube_url': VIDEO_URL, 'generate_blog_article': 'on',
+        })
+
+        self._assert_edit_kept(response)
+
+    @patch('event.views.crud_event_detail.generate_blog')
+    def test_organizer_edit_page(self, mock_generate_blog, _thumbnail):
+        mock_generate_blog.side_effect = self._edit_then_respond
+        self.client.force_login(self.owner)
+
+        response = self.client.post(reverse('event:detail_update', kwargs={'pk': self.detail.pk}), {
+            'detail_type': 'LT', 'theme': 'テーマ', 'speaker': '発表者', 'start_time': '22:00',
+            'duration': 30, 'youtube_url': VIDEO_URL, 'generate_blog_article': 'on',
+        })
+
+        self._assert_edit_kept(response)
+
+
 def _link_vket_presentation(detail: EventDetail, applied_by) -> None:
     """applicant の無い Vket 由来の発表にする（申し込んだ人が発表の持ち主になる）。"""
     collaboration = VketCollaboration.objects.create(
