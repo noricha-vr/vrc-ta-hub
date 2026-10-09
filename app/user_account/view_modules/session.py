@@ -161,9 +161,10 @@ class RegisterView(RedirectURLMixin, FormView):
                     verified=False,
                 )
         except IntegrityError:
-            # 重複判定の後に別リクエストが同じアドレスを登録した競合。500 にせず登録済みと同じ応答にする。
+            # 重複判定の後に別リクエストが同じアドレスの持ち主になった競合。500 にせず登録済みと同じ応答にする。
             if not is_email_in_use(email):
                 raise
+            logger.warning('Local signup conflicted with another account')
             return self._respond_to_registered_email(form, email)
         # Send only after the user and its unverified primary address commit.
         # A mail delivery failure deliberately leaves this state for login resend.

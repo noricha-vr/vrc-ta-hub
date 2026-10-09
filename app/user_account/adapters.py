@@ -4,6 +4,8 @@ from collections.abc import Callable
 from typing import Any
 
 from allauth.account.adapter import DefaultAccountAdapter
+# 登録済みアドレスへの応答は allauth の自動登録と同じ内部フローを使う（session.py と同じく固定版に依存）。
+from allauth.account.internal.flows.signup import prevent_enumeration
 from allauth.account.models import EmailAddress
 from allauth.core import context, ratelimit
 from allauth.core.exceptions import ImmediateHttpResponse
@@ -342,7 +344,12 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
     def save_user(self, request, sociallogin, form=None):
         """ユーザー保存後の処理.
 
-        フォームからuser_nameを取得して設定する。
+        フォームからuser_nameを取得して設定する。保存は 1 つのトランザクションにまとめ、
+        途中で失敗した時にユーザーも Discord 連携も残さない。
+
+        自動登録（form なし）の判定の後に別ユーザーが同じアドレスの持ち主になった競合は、
+        allauth が登録済みのアドレスに返す応答（案内メールと確認メール送信済みの表示）にそろえる。
+        フォーム経由の競合は CustomSocialSignupForm が同じ応答にする。
 
         Args:
             request: HTTPリクエスト
@@ -352,6 +359,17 @@ class CustomSocialAccountAdapter(DefaultSocialAccountAdapter):
         Returns:
             User: 保存されたユーザーオブジェクト
         """
+        try:
+            with transaction.atomic():
+                return self._save_user_with_form_name(request, sociallogin, form)
+        except IntegrityError:
+            email = sociallogin.user.email
+            if form is not None or not email or not is_email_in_use(email):
+                raise
+            logger.warning('Discord auto signup conflicted with another account')
+            raise ImmediateHttpResponse(prevent_enumeration(request, email=email))
+
+    def _save_user_with_form_name(self, request, sociallogin, form):
         user = super().save_user(request, sociallogin, form)
 
         # フォームからuser_nameを取得して設定

@@ -138,6 +138,44 @@ python manage.py migrate user_account 0015
 
 監査または migration が停止した場合は、所有者を推測して修正せず、対象データの確認後に再実行する。
 
+### user_account 0017 / 0018 の適用前監査と戻し方
+
+`0017_emailownership` はメールアドレスの持ち主の表 `user_account_emailownership`（小文字にそろえたアドレスに unique）を作り、
+MySQL ではこの列を `utf8mb4_bin`（完全一致）にする。DB の一意判定が、監査と 0018 の判定（小文字にした値の完全一致）と同じになる。
+一方、登録やメール変更の事前判定（`is_email_in_use`）は `CustomUser` と `EmailAddress` も `__iexact`（DB の照合順序）で見るため、記録の完全一致とは一致しない。
+アクセントだけ違うアドレスは、記録では別のアドレスになるが、事前判定では使用中と判定される（安全側）。
+`0018_backfill_email_ownership` は主アドレスと、確認済みまたは primary の `EmailAddress` から記録を埋める。
+本番での順番（監査 → 0017 / 0018 の適用 → トラフィック切替 → 切替後の監査）と切替の窓の注意は
+[deployment.md](deployment.md#メールアドレスの持ち主の表user_account-0017--0018の先行適用) を正本とする。
+
+```bash
+# 適用前（読み取り専用。表が無いので addresses と conflicts だけを出す）
+python manage.py audit_email_ownership
+python manage.py migrate user_account 0018 --plan
+python manage.py migrate user_account 0018
+# 適用後・切替後（conflicts / missing / stale がすべて 0 なら audit passed）
+python manage.py audit_email_ownership
+```
+
+0018 が止まった時（0018 は 1 つのトランザクションで巻き戻る。0017 は適用済みで、表は 0018 の前のまま残る）:
+
+- `Email ownership conflict during email ownership migration: addresses=N` で止まる。同じアドレスを 2 人以上が持っている。
+  持ち主を推測して直さず、対象のアカウントを確かめて解消してから 0018 を再実行する
+- `Database constraint failed during email ownership migration` で止まる。照合順序の違いではなく、表に 0018 の前から記録がある
+  （0017 の後に canary の URL などで新revisionが動いた）か、埋め込みの途中でアカウントが消えた。元の DB のエラーはアドレスを含むので出さない。
+  新revisionにトラフィックが流れていないことを確かめ、`migrate user_account 0016` で表ごと消してから 0017 / 0018 を当て直す
+
+戻し方:
+
+1. 先にトラフィックを旧revisionへ戻す。旧コードは新しい表を読まないので、表が残っていても動く
+2. 表も消す時は `migrate user_account 0016`。0018 の reverse は記録を全部消し、0017 の reverse は表を消す。
+   元のアカウントデータは変わらない
+3. もう一度新revisionへ切り替える時は、旧revisionが動いていた間の変更で記録がずれている
+   - 2 で表を消した時は、切り替える前に 0017 / 0018 を当て直し、監査が `conflicts=0 missing=0 stale=0` で通ることを確かめる（必須）。
+     通るまで切り替えない
+   - 表を残した時は、切り替える前に `--repair` を流してから監査を通す（書き込みあり。`conflicts` は直さない）
+   - どちらも、切替の窓の注意と切替後の監査は初回と同じ
+
 ## 危険な migration の見分け方
 
 PR レビュー時点で**「rollback コストが高い」**と判断するためのチェックリスト。
