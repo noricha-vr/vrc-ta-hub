@@ -1,6 +1,6 @@
 """発表（EventDetail）の保存に合わせた記事まわりの後処理。
 
-- 記事の自動生成の対象になった・動画や PDF が変わった時に、記事の生成待ちの印を付ける
+- 記事の自動生成の対象になった・動画や PDF が変わった・記事を空にした時に、記事の生成待ちの印を付ける
   （生成そのものは Cloud Scheduler から呼ぶ event.services.article_generation が行う）
 - 記事のタイトル（h1）か記事化の同意が変わった時に、関連一覧のキャッシュを消す
 
@@ -14,13 +14,20 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from event.models import Event, EventDetail, related_event_details_cache_key
+from event.models import (
+    Event,
+    EventDetail,
+    article_generation_request_values,
+    article_is_empty,
+    related_event_details_cache_key,
+)
 from event.youtube_urls import youtube_video_id
 
 # これらの列を含む保存だけ、保存前の値を退避して判定する。
-# status / detail_type / deleted_at は、却下からの承認・種別の変更・論理削除からの復元で後から対象になるため
+# status / detail_type / deleted_at は、却下からの承認・種別の変更・論理削除からの復元で後から対象になるため。
+# h1 / contents は、記事を空にした時に作り直すため（h1 は関連一覧のキャッシュの判定にも使う）
 WATCHED_FIELDS = frozenset({
-    'slide_file', 'youtube_url', 'article_consent', 'status', 'detail_type', 'deleted_at', 'h1',
+    'slide_file', 'youtube_url', 'article_consent', 'status', 'detail_type', 'deleted_at', 'h1', 'contents',
 })
 
 
@@ -36,34 +43,34 @@ def remember_article_previous_values(sender, instance, raw=False, update_fields=
 
 
 @receiver(post_save, sender=EventDetail)
-def handle_article_changes(sender, instance, created=False, raw=False, **kwargs):
+def handle_article_changes(sender, instance, created=False, raw=False, update_fields=None, **kwargs):
     """関連一覧のキャッシュを消し、必要なら記事の生成待ちの印を付ける。"""
     old = getattr(instance, '_article_previous', None)
     instance._article_previous = None
     if raw or old is None:
         return
     _clear_related_cache_if_changed(instance, old, created)
-    _request_article_generation_if_needed(instance, old)
+    _request_article_generation_if_needed(instance, old, update_fields)
 
 
-def _request_article_generation_if_needed(instance: EventDetail, old: dict) -> None:
-    """対象外から対象になったか、動画・PDF が新しくなり、記事が未生成か自動生成のままなら印を付ける。
+def _request_article_generation_if_needed(instance: EventDetail, old: dict, update_fields=None) -> None:
+    """対象外から対象になった・動画や PDF が新しくなった・記事を空にした時に、記事が未生成か
+    自動生成のままなら印を付ける。
 
     ``save(update_fields=...)`` でも確実に残るよう、印は別の UPDATE で書き込む。
     """
     if not instance.can_auto_generate_article:
         return
-    if _was_auto_generation_target(old) and not _article_inputs_changed(instance, old):
+    if (
+        _was_auto_generation_target(old)
+        and not _article_inputs_changed(instance, old)
+        and not _article_emptied(instance, old, update_fields)
+    ):
         return
     if instance.article_state() == EventDetail.ArticleState.MANUAL:
         return
 
-    marked = {
-        'article_generation_requested_at': timezone.now(),
-        'article_generation_attempts': 0,
-        'article_generation_deferrals': 0,
-        'article_generation_last_error': '',
-    }
+    marked = article_generation_request_values(timezone.now())
     EventDetail.all_objects.filter(pk=instance.pk).update(**marked)
     # 同じインスタンスをもう一度 save() しても印が消えないよう、メモリ上の値も揃える
     for field_name, value in marked.items():
@@ -94,6 +101,24 @@ def _article_inputs_changed(instance: EventDetail, old: dict) -> bool:
         return True
     video_id = instance.video_id
     return bool(video_id) and video_id != youtube_video_id(old.get('youtube_url'))
+
+
+def _article_emptied(instance: EventDetail, old: dict, update_fields=None) -> bool:
+    """この保存で記事のタイトルと本文を両方空にしたか。
+
+    空にした記事は、自動生成した記事でも手で書いた記事でも未作成と同じに扱い、作り直す
+    （``article_state`` の判定と揃える）。空のまま保存し直しただけでは印を付けない
+    （諦めた生成を保存のたびに数え直さないため）。
+    書かなかった列は保存前の値で見る（読み込んだ後に作られた記事を、書いていない古い値で
+    空にしたと誤って判定しないため。フル保存も変えていない記事の列は書かない）。
+    """
+    if article_is_empty(old.get('h1'), old.get('contents')):
+        return False
+    saved = {
+        name: getattr(instance, name) if update_fields is None or name in update_fields else old.get(name)
+        for name in ('h1', 'contents')
+    }
+    return article_is_empty(saved['h1'], saved['contents'])
 
 
 def _related_list_changed(instance: EventDetail, old: dict, created: bool) -> bool:

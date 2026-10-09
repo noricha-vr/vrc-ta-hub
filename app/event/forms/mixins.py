@@ -118,17 +118,23 @@ class EventDetailMediaFormMixin:
             return False
         return self._article_hash_now != opened
 
-    def _update_fields(self) -> list[str]:
+    def _update_fields(self, keeps_article: bool) -> list[str]:
         """既存の発表の保存で書く列。生成管理の列は書かず、記事の列は必要な時だけ書く。"""
         fields = EventDetail.fields_without_article_control()
-        if self._keeps_article_in_db():
+        if keeps_article:
             fields = [name for name in fields if name not in ARTICLE_BODY_FIELDS]
         return fields
 
     def save(self, commit=True):
         if commit and not self.instance._state.adding:
             instance = super().save(commit=False)
-            instance.save(update_fields=self._update_fields())
+            keeps_article = self._keeps_article_in_db()
+            if keeps_article:
+                # 書かない記事の列は、保存の前に DB の値（画面を開いた後に作られた記事）へ揃える。古い値のままだと
+                # 保存のシグナルが「記事を空にした」と誤って作り直しを頼み、保存と同時の生成も
+                # 生成中に記事が書き換えられたと誤って判定する
+                instance.refresh_from_db(fields=list(ARTICLE_BODY_FIELDS))
+            instance.save(update_fields=self._update_fields(keeps_article))
             self._save_m2m()
         else:
             instance = super().save(commit=commit)

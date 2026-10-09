@@ -20,7 +20,7 @@ from openai.types.chat import (
 from openai.types.shared_params import FunctionDefinition
 from pydantic import BaseModel, Field, PrivateAttr
 
-from event.models import EventDetail
+from event.models import EventDetail, article_body_hash, article_generation_request_values
 from event.prompts import BLOG_GENERATION_TEMPLATE
 from event.services.media_service import ensure_pdf_thumbnail
 from event.services.pdf_worker import PdfWorkerError, run_pdf_worker
@@ -44,6 +44,9 @@ META_DESCRIPTION_MAX_LENGTH = EventDetail._meta.get_field('meta_description').ma
 SAVED = 'saved'
 EMPTY = 'empty'
 REFUSED = 'refused'
+EDITED = 'edited'
+# EDITED の時に画面に出す文言（生成ボタン・発表の編集・発表申請の編集で共通）
+ARTICLE_EDITED_MESSAGE = '生成している間に記事が編集されたため、生成した記事は保存しませんでした。'
 
 
 @dataclass(frozen=True)
@@ -90,10 +93,12 @@ def _with_sources(blog_output: BlogOutput, sources: BlogSources) -> BlogOutput:
 
 
 def set_generated_article(event_detail: EventDetail, blog_output: BlogOutput,
-                          used_sources: tuple[str, str]) -> list[str]:
+                          used_sources: tuple[str, str], *, inputs_changed: bool = False) -> list[str]:
     """生成した記事を列に入れ、生成元と本文のハッシュを記録して生成待ちの印を外す。
 
     LLM が列の長さを超えるタイトル・要約を返すことがあるので切り詰める（MySQL で DataError になるため）。
+    生成している間に動画・PDF が変わっていた時（inputs_changed）は、生成元を記録せず、生成待ちの印も
+    外さない（自動生成の対象で印が無ければ付ける）。キューが新しい入力で作り直す。
 
     Returns:
         ``save(update_fields=...)`` に渡す列名（記事の列と、生成の記録の列だけ）。
@@ -101,36 +106,53 @@ def set_generated_article(event_detail: EventDetail, blog_output: BlogOutput,
     event_detail.h1 = blog_output.title[:H1_MAX_LENGTH]
     event_detail.contents = blog_output.text
     event_detail.meta_description = blog_output.meta_description[:META_DESCRIPTION_MAX_LENGTH]
-    return [
-        'h1', 'contents', 'meta_description', 'updated_at',
-        *event_detail.record_generated_article(used_sources=used_sources),
-    ]
+    if not inputs_changed:
+        recorded = event_detail.record_generated_article(used_sources=used_sources)
+    else:
+        recorded = event_detail.record_generated_body()
+        if event_detail.can_auto_generate_article and event_detail.article_generation_requested_at is None:
+            marked = article_generation_request_values()
+            for field_name, value in marked.items():
+                setattr(event_detail, field_name, value)
+            recorded.extend(marked.keys())
+    return ['h1', 'contents', 'meta_description', 'updated_at', *recorded]
 
 
 def save_generated_article(event_detail: EventDetail, blog_output: BlogOutput) -> str:
     """生成ボタンや保存と同時の生成の結果を保存する。
 
-    LLM を待つ間（10〜20 秒）に発表者が記事化を NG に変えることがあるので、行ロックで読み直して
-    NG なら書かない。書くのは記事の列と生成の記録の列だけで、呼ぶ前に読んだ古い値で他の列を戻さない。
+    LLM を待つ間（10〜20 秒）に発表者が記事化を NG に変えたり記事を書き換えたりすることがあるので、
+    行ロックで読み直し、NG なら書かず、記事（タイトルと本文）が生成を始めた時から変わっていれば
+    書き換えた内容を優先して書かない（キューの手動編集の保護と同じ考え方）。
+    動画・PDF が変わっていた時は記事を書くが、生成元は記録せず生成待ちの印も外さない（set_generated_article）。
+    書くのは記事の列と生成の記録の列だけで、呼ぶ前に読んだ古い値で他の列を戻さない。
     サムネイルはストレージに書くので、保存が確定した後に作る。
 
     生成元に記録するのは、generate_blog が実際に中身を使えた入力だけ（キューと同じ判定）。
 
     Args:
-        event_detail: 記事を作ったイベント詳細
+        event_detail: 記事を作ったイベント詳細。記事と入力は生成を始めた時の値（生成の前に読んだもの）
         blog_output: 記事生成結果（generate_blog が使った入力を持つ）
 
     Returns:
-        ``SAVED``（保存した）/ ``EMPTY``（生成結果が空）/ ``REFUSED``（記事化 NG になっていた）
+        ``SAVED``（保存した）/ ``EMPTY``（生成結果が空）/ ``REFUSED``（記事化 NG になっていた）/
+        ``EDITED``（生成している間に記事が書き換えられていた）
     """
     if not blog_output.title:
         return EMPTY
     used_sources = blog_output.sources.used_sources if blog_output.sources else ('', '')
+    started_hash = article_body_hash(event_detail.h1, event_detail.contents)
+    started_inputs = event_detail.article_sources()
     with transaction.atomic():
         current = EventDetail.all_objects.select_for_update().get(pk=event_detail.pk)
         if current.is_article_ng:
             return REFUSED
-        current.save(update_fields=set_generated_article(current, blog_output, used_sources))
+        if article_body_hash(current.h1, current.contents) != started_hash:
+            return EDITED
+        inputs_changed = current.article_sources() != started_inputs
+        current.save(update_fields=set_generated_article(
+            current, blog_output, used_sources, inputs_changed=inputs_changed,
+        ))
     if not current.thumbnail_image:
         ensure_pdf_thumbnail(current, save=True)
     return SAVED

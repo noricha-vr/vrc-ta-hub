@@ -16,7 +16,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from event.material_upload_reminders import get_material_reminder_recipient
-from event.models import EventDetail
+from event.models import EventDetail, article_generation_request_values
 from event.notifications import notify_applicant_of_article_published
 from event.services.content_generation_service import (
     BlogOutput,
@@ -160,6 +160,8 @@ def _process_claimed(detail: EventDetail, lease_until: datetime) -> ArticleGener
         _release(detail.pk, lease_until, error='max_attempts')
         return _log_result(detail.pk, attempts, FAILED, 'max_attempts', gave_up=True)
 
+    # 生成に使う入力。書き込む時に今の入力と比べる（処理中に外された入力で作った記事を書かないため）
+    started_inputs = detail.article_sources()
     try:
         blog_output, sources = _generate(detail)
     except ArticleGenerationDeferred as deferral:
@@ -173,7 +175,7 @@ def _process_claimed(detail: EventDetail, lease_until: datetime) -> ArticleGener
         )
         return _schedule_retry(detail.pk, attempts, lease_until, _unexpected(error))
 
-    outcome, reason = _store_article(detail.pk, lease_until, blog_output, sources)
+    outcome, reason = _store_article(detail.pk, lease_until, blog_output, sources, started_inputs)
     if outcome == GENERATED:
         _after_generated(detail.pk)
     return _log_result(detail.pk, attempts, outcome, reason, deferrals=deferrals)
@@ -213,8 +215,12 @@ def _generate(detail: EventDetail) -> tuple[BlogOutput, BlogSources]:
 
 
 def _store_article(pk: int, lease_until: datetime, blog_output: BlogOutput,
-                   sources: BlogSources) -> tuple[str, str]:
-    """生成した記事を書き込む。処理中に編集・同意の変更・新しい入力・論理削除があれば書かない。"""
+                   sources: BlogSources, started_inputs: tuple[str, str]) -> tuple[str, str]:
+    """生成した記事を書き込む。処理中に編集・同意の変更・入力の変更・論理削除があれば書かない。
+
+    入力を外しただけの保存では印が付き直らないので、生成に使った入力（started_inputs）と今の入力も比べる。
+    違えば書かずに生成待ちへ戻し、次の呼び出しで今の入力で作り直す。
+    """
     with transaction.atomic():
         current = EventDetail.all_objects.select_for_update().get(pk=pk)
         if current.article_generation_requested_at != lease_until:
@@ -226,6 +232,9 @@ def _store_article(pk: int, lease_until: datetime, blog_output: BlogOutput,
         if current.article_state() == EventDetail.ArticleState.MANUAL:
             _release(pk, lease_until, reset_counts=True)
             return SKIPPED_MANUAL, 'manual_edit'
+        if current.article_sources() != started_inputs:
+            _requeue(pk, lease_until)
+            return SKIPPED, 'inputs_changed'
         current.save(update_fields=set_generated_article(current, blog_output, sources.used_sources))
     return GENERATED, ''
 
@@ -252,36 +261,39 @@ def _after_generated(pk: int) -> None:
             'article_thumbnail_failed',
             extra={'event_type': 'article_thumbnail_failed', 'event_detail_id': pk},
         )
-    _notify_first_time(detail)
+    _notify_first_time(pk)
 
 
-def _notify_first_time(detail: EventDetail) -> None:
+def _notify_first_time(pk: int) -> None:
     """発表者（Vket 由来の発表は申し込んだ人）に、最初の 1 回だけ記事の公開を知らせる。
 
-    宛先が無い時は通知日時を入れない（後で宛先ができた時に知らせられるように）。
+    サムネイルを作る間に NG・却下・論理削除へ変わることがあるので、送る直前に読み直した行で
+    宛先と本文を決め、通知日時を入れる UPDATE も今の公開の条件（記事化 OK・却下でない・削除されていない）
+    を満たす時だけ通す。宛先が無い時は通知日時を入れない（後で宛先ができた時に知らせられるように）。
     先に通知日時を入れた 1 件だけが送る（作り直しや重なった呼び出しでは送らない）。
     メールを送れなかった時は通知日時を戻し、次に記事を作った時に送り直す。
     """
     try:
+        detail = EventDetail.all_objects.select_related('event__community', 'applicant').get(pk=pk)
         recipient = get_material_reminder_recipient(detail)
         if recipient is None or not recipient.email:
             logger.warning(
                 'article_published_notification_skipped',
-                extra={'event_type': 'article_published_notification_skipped', 'event_detail_id': detail.pk},
+                extra={'event_type': 'article_published_notification_skipped', 'event_detail_id': pk},
             )
             return
         notified_at = timezone.now()
         first_time = EventDetail.all_objects.filter(
-            pk=detail.pk, article_published_notified_at__isnull=True,
+            EventDetail.article_notifiable_q(), pk=pk, article_published_notified_at__isnull=True,
         ).update(article_published_notified_at=notified_at)
         if first_time and not _send_published_notification(detail, recipient):
             EventDetail.all_objects.filter(
-                pk=detail.pk, article_published_notified_at=notified_at,
+                pk=pk, article_published_notified_at=notified_at,
             ).update(article_published_notified_at=None)
     except Exception:
         logger.exception(
             'article_published_notification_failed',
-            extra={'event_type': 'article_published_notification_failed', 'event_detail_id': detail.pk},
+            extra={'event_type': 'article_published_notification_failed', 'event_detail_id': pk},
         )
 
 
@@ -352,6 +364,16 @@ def _schedule_deferral(detail: EventDetail, lease_until: datetime,
     )
     attempts = detail.article_generation_attempts - 1
     return _log_result(detail.pk, attempts, DEFERRED, deferral.reason, deferrals=deferrals)
+
+
+def _requeue(pk: int, lease_until: datetime) -> None:
+    """生成待ちに戻す（次の呼び出しですぐ拾う）。処理中の締切が自分の入れたものの時だけ。
+
+    入力が変わったための作り直しなので、新しく印を付けた時と同じく試行・見送りの回数は数え直す。
+    """
+    EventDetail.all_objects.filter(pk=pk, article_generation_requested_at=lease_until).update(
+        **article_generation_request_values(),
+    )
 
 
 def _release(pk: int, lease_until: datetime, *, error: str = '', reset_counts: bool = False) -> None:

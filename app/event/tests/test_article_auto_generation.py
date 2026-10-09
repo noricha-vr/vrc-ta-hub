@@ -7,6 +7,8 @@ import json
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
+from django.contrib.auth import get_user_model
+from django.contrib.messages import get_messages
 from django.db import DatabaseError, connection
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
@@ -18,15 +20,19 @@ from event.models import EventDetail, article_body_hash
 from event.services import article_generation
 from event.services.article_generation import MAX_ATTEMPTS, MAX_DEFERRALS, process_article_generation_queue
 from event.services.content_generation_service import (
+    ARTICLE_EDITED_MESSAGE,
+    EDITED,
     REFUSED,
     SAVED,
     BlogOutput,
+    BlogSources,
+    _with_sources,
     generate_blog,
     save_generated_article,
 )
 from event.views.helpers import extract_video_id
 from event.youtube_urls import youtube_video_id
-from tests.factories import make_community, make_event, make_event_detail, make_user
+from tests.factories import make_community, make_discord_linked_user, make_event, make_event_detail, make_user
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
 
 ArticleConsent = EventDetail.ArticleConsent
@@ -444,6 +450,83 @@ class ArticleGenerationRequestTest(TestCase):
         self.assertEqual(detail.article_state(), ArticleState.AUTO)
         self.assertIsNotNone(self._requested_at(detail))
 
+    def test_marks_when_auto_article_is_emptied(self):
+        """自動生成した記事のタイトルと本文を両方空にしたら、入力が変わらなくても作り直す。"""
+        detail = self._as_generated(self._detail(youtube_url=VIDEO_URL))
+
+        detail.h1, detail.contents = '', ''
+        detail.save()
+
+        self.assertIsNotNone(self._requested_at(detail))
+
+    def test_marks_when_article_is_emptied_in_edit_form(self):
+        """発表者の編集画面で記事の欄を空にして保存した時も作り直す（空白・改行だけも空とみなす）。"""
+        detail = self._as_generated(self._detail(youtube_url=VIDEO_URL))
+        opened = LTApplicationEditForm(instance=EventDetail.objects.get(pk=detail.pk))
+        data = {
+            'theme': detail.theme, 'speaker': detail.speaker, 'youtube_url': VIDEO_URL,
+            'h1': ' ', 'contents': '\r\n', 'article_snapshot': opened['article_snapshot'].value(),
+        }
+
+        form = LTApplicationEditForm(data=data, instance=EventDetail.objects.get(pk=detail.pk))
+        self.assertTrue(form.is_valid(), form.errors)
+        form.save()
+
+        self.assertIsNotNone(self._requested_at(detail))
+
+    def test_marks_when_manually_written_article_is_emptied(self):
+        """手で書いた記事を空にした時も、未作成と同じに扱って作る（article_state の判定と揃える）。"""
+        detail = self._detail(youtube_url=VIDEO_URL)
+        EventDetail.objects.filter(pk=detail.pk).update(article_generation_requested_at=None)
+        detail.refresh_from_db()
+        detail.h1, detail.contents = '発表者が書いた記事', '発表者が書いた本文'
+        detail.save()
+        self.assertIsNone(self._requested_at(detail))
+
+        detail.h1, detail.contents = '', ''
+        detail.save()
+
+        self.assertIsNotNone(self._requested_at(detail))
+
+    def test_marks_when_contents_is_emptied_with_update_fields(self):
+        """本文だけの保存（update_fields=['contents']）で記事が空になった時も拾う。"""
+        detail = self._as_generated(self._detail(youtube_url=VIDEO_URL))
+        detail.h1 = ''
+        detail.save(update_fields=['h1'])
+        self.assertIsNone(self._requested_at(detail))
+
+        detail.contents = ''
+        detail.save(update_fields=['contents'])
+
+        self.assertIsNotNone(self._requested_at(detail))
+
+    def test_does_not_mark_when_empty_article_is_saved_again(self):
+        """空のままの記事を保存し直しただけでは印を付けない（諦めた生成を保存のたびに数え直さない）。"""
+        detail = self._detail(youtube_url=VIDEO_URL)
+        EventDetail.objects.filter(pk=detail.pk).update(
+            article_generation_requested_at=None, article_generation_attempts=MAX_ATTEMPTS,
+        )
+        detail.refresh_from_db()
+
+        detail.theme = '直したテーマ'
+        detail.save()
+
+        self.assertIsNone(self._requested_at(detail))
+
+    def test_stale_full_save_does_not_treat_article_as_emptied(self):
+        """記事が空の時に読み込んだ古いインスタンスを保存しても、その後に作られた記事を空にしたとはみなさない。"""
+        detail = self._detail(youtube_url=VIDEO_URL)
+        EventDetail.objects.filter(pk=detail.pk).update(article_generation_requested_at=None)
+        stale = EventDetail.objects.get(pk=detail.pk)
+        self._as_generated(EventDetail.objects.get(pk=detail.pk))
+
+        stale.theme = '直したテーマ'
+        stale.save()
+
+        self.assertIsNone(self._requested_at(detail))
+        detail.refresh_from_db()
+        self.assertEqual(detail.h1, '生成した記事')
+
 
 @override_settings(GEMINI_MODEL='test-model')
 @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}, clear=False)
@@ -666,6 +749,41 @@ class ArticleGenerationQueueTest(TestCase):
         self.assertEqual(detail.h1, '')
         self.assertIsNotNone(detail.article_generation_requested_at)
         _mocks[4].assert_not_called()
+
+    def test_input_removed_during_generation_is_not_stored(self, openai_class, *_mocks):
+        """生成中に PDF が外されたら、外した PDF で作った記事は書かず、生成待ちに戻して残った入力で作り直す。"""
+        client = _openrouter_client()
+        detail = self._due_detail()
+        completion = client.chat.completions.create.return_value
+
+        def remove_slide_then_respond(*args, **kwargs):
+            current = EventDetail.objects.get(pk=detail.pk)
+            current.slide_file = ''
+            current.save()
+            return completion
+
+        client.chat.completions.create.side_effect = remove_slide_then_respond
+        openai_class.return_value = client
+
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['skipped'], 1)
+        self.assertEqual(result['results'][0]['reason'], 'inputs_changed')
+        detail.refresh_from_db()
+        self.assertEqual(detail.h1, '')
+        self.assertIsNotNone(detail.article_generation_requested_at)
+        self.assertLessEqual(detail.article_generation_requested_at, timezone.now())
+        self.assertEqual(detail.article_generation_attempts, 0)
+        _mocks[4].assert_not_called()
+        _mocks[3].assert_not_called()
+
+        client.chat.completions.create.side_effect = None
+        result = process_article_generation_queue()
+
+        self.assertEqual(result['generated'], 1)
+        self.assertNotIn(PDF_TEXT, _sent_prompts(openai_class)[-1])
+        detail.refresh_from_db()
+        self.assertEqual((detail.article_source_video_id, detail.article_source_slide_name), (VIDEO_ID, ''))
 
     def test_claimed_then_deleted_before_reload_is_skipped(self, openai_class, *_mocks):
         """取った直後に論理削除されても 500 にせず、対象外としてスキップする。"""
@@ -967,6 +1085,48 @@ class ArticleGenerationQueueTest(TestCase):
         detail.refresh_from_db()
         self.assertIsNotNone(detail.article_published_notified_at)
 
+    def test_does_not_notify_when_no_longer_published_before_sending(self, openai_class, *_mocks):
+        """記事を書いた後、知らせる前に NG・却下・論理削除へ変わったら知らせず、通知日時も入れない。"""
+        send_mail, thumbnail = _mocks[3], _mocks[4]
+        openai_class.return_value = _openrouter_client()
+        changes = {
+            'ng': {'article_consent': ArticleConsent.NG},
+            'rejected': {'status': 'rejected'},
+            'deleted': {'deleted_at': timezone.now()},
+        }
+        for label, change in changes.items():
+            with self.subTest(label):
+                detail = self._due_detail(theme=label)
+
+                def change_while_making_thumbnail(*args, pk=detail.pk, change=change, **kwargs):
+                    EventDetail.all_objects.filter(pk=pk).update(**change)
+                    return False
+
+                thumbnail.side_effect = change_while_making_thumbnail
+
+                result = process_article_generation_queue()
+
+                self.assertEqual(result['generated'], 1)
+                send_mail.assert_not_called()
+                notified_at = EventDetail.all_objects.get(pk=detail.pk).article_published_notified_at
+                self.assertIsNone(notified_at)
+
+    def test_notification_uses_row_read_right_before_sending(self, openai_class, *_mocks):
+        """宛先は知らせる直前に読み直した行で決める（サムネイルを作る間に変わったメールアドレスへ送る）。"""
+        send_mail, thumbnail = _mocks[3], _mocks[4]
+        openai_class.return_value = _openrouter_client()
+        self._due_detail()
+
+        def change_email_while_making_thumbnail(*args, **kwargs):
+            get_user_model().objects.filter(pk=self.applicant.pk).update(email='changed@example.com')
+            return False
+
+        thumbnail.side_effect = change_email_while_making_thumbnail
+
+        process_article_generation_queue()
+
+        self.assertEqual(send_mail.call_args.kwargs['recipient_list'], ['changed@example.com'])
+
 
 class FullSaveProtectionTest(TestCase):
     """承認・管理画面・API などのフル保存は、生成管理の列と、読み込み時から変えていない記事の列を書かない。"""
@@ -1182,6 +1342,123 @@ class SaveGeneratedArticleTest(TestCase):
         self.detail.refresh_from_db()
         self.assertEqual(self.detail.article_consent, ArticleConsent.NG)
         self.assertEqual(self.detail.h1, '')
+
+    def _output_from(self, video_id):
+        """generate_blog が video_id の字幕で作った結果（生成に使った入力を持つ）。"""
+        sources = BlogSources(transcript=TRANSCRIPT, pdf_content='', pdf_url='', video_id=video_id)
+        return _with_sources(BlogOutput(title='生成した記事', meta_description='要約', text='本文'), sources)
+
+    def _make_auto_target(self):
+        """記事化 OK で生成待ちの印が無い発表にする。"""
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            article_consent=ArticleConsent.OK, article_generation_requested_at=None,
+        )
+
+    def test_does_not_overwrite_article_edited_while_generating(self, _thumbnail):
+        """生成を待つ間に記事が書き換えられたら、書き換えた内容を優先して保存しない。"""
+        started = EventDetail.objects.get(pk=self.detail.pk)
+        EventDetail.objects.filter(pk=self.detail.pk).update(contents='生成中に書いた本文')
+
+        self.assertEqual(save_generated_article(started, self.OUTPUT), EDITED)
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.contents, '生成中に書いた本文')
+        self.assertEqual(self.detail.h1, '')
+        self.assertIsNone(self.detail.article_generated_at)
+        _thumbnail.assert_not_called()
+
+    def test_inputs_changed_while_generating_leaves_regeneration_to_queue(self, _thumbnail):
+        """生成を待つ間に動画が差し替わったら、記事は書くが生成元は記録せず、生成待ちの印を付ける。"""
+        self._make_auto_target()
+        started = EventDetail.objects.get(pk=self.detail.pk)
+        EventDetail.objects.filter(pk=self.detail.pk).update(youtube_url=OTHER_VIDEO_URL)
+
+        self.assertEqual(save_generated_article(started, self._output_from(VIDEO_ID)), SAVED)
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.h1, '生成した記事')
+        # 自動生成のままとして扱う（手動扱いにするとキューが作り直さない）
+        self.assertEqual(self.detail.article_state(), ArticleState.AUTO)
+        self.assertEqual((self.detail.article_source_video_id, self.detail.article_source_slide_name), ('', ''))
+        self.assertIsNotNone(self.detail.article_generation_requested_at)
+        self.assertEqual(article_generation._skip_reason(self.detail), '')
+
+    def test_inputs_changed_while_generating_keeps_existing_mark(self, _thumbnail):
+        """入力が変わった時の生成待ちの印（処理中の締切を含む）は外さず、そのまま残す。"""
+        self._make_auto_target()
+        started = EventDetail.objects.get(pk=self.detail.pk)
+        lease_until = timezone.now() + timedelta(minutes=15)
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            youtube_url=OTHER_VIDEO_URL, article_generation_requested_at=lease_until,
+        )
+
+        self.assertEqual(save_generated_article(started, self._output_from(VIDEO_ID)), SAVED)
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.article_generation_requested_at, lease_until)
+
+    def test_same_inputs_record_sources_and_clear_mark(self, _thumbnail):
+        """入力が変わっていなければ、これまでどおり生成元を記録して印を外す。"""
+        self._make_auto_target()
+        EventDetail.objects.filter(pk=self.detail.pk).update(article_generation_requested_at=timezone.now())
+        started = EventDetail.objects.get(pk=self.detail.pk)
+
+        self.assertEqual(save_generated_article(started, self._output_from(VIDEO_ID)), SAVED)
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.article_source_video_id, VIDEO_ID)
+        self.assertIsNone(self.detail.article_generation_requested_at)
+
+    @patch('event.views.blog.generate_blog')
+    def test_generate_button_keeps_article_edited_while_generating(self, mock_generate_blog, _thumbnail):
+        """生成ボタンを押した後、生成を待つ間に記事が編集されたら、編集を残して理由を伝える。"""
+        def edit_then_respond(*args, **kwargs):
+            EventDetail.objects.filter(pk=self.detail.pk).update(contents='生成中に書いた本文')
+            return self.OUTPUT
+
+        mock_generate_blog.side_effect = edit_then_respond
+        self.client.force_login(self.owner)
+
+        response = self.client.post(reverse('event:generate_blog', kwargs={'pk': self.detail.pk}))
+
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.contents, '生成中に書いた本文')
+        sent = [str(message) for message in get_messages(response.wsgi_request)]
+        self.assertEqual(sent, [ARTICLE_EDITED_MESSAGE])
+
+
+@patch('event.services.content_generation_service.ensure_pdf_thumbnail', return_value=False)
+@patch('event.services.content_generation_service.generate_blog')
+class StaleFormGenerateTest(TestCase):
+    """画面を開いた後に記事が作られた発表でも、保存と同時の生成は「生成中に編集された」と誤判定しない。"""
+
+    def setUp(self):
+        self.user = make_discord_linked_user(user_name='stale_speaker', email='stale_speaker@example.com')
+        self.detail = make_event_detail(
+            make_event(make_community(name='古い画面で生成する集会')),
+            applicant=self.user,
+            status='approved',
+            youtube_url=VIDEO_URL,
+        )
+        self.client.force_login(self.user)
+
+    def test_generate_checkbox_after_article_was_made_elsewhere(self, mock_generate_blog, _thumbnail):
+        url = reverse('account:lt_application_edit', kwargs={'pk': self.detail.pk})
+        snapshot = LTApplicationEditForm(instance=EventDetail.objects.get(pk=self.detail.pk))['article_snapshot']
+        EventDetail.objects.filter(pk=self.detail.pk).update(h1='別の画面で作った記事', contents='別の画面で作った本文')
+        mock_generate_blog.return_value = BlogOutput(title='生成した記事', meta_description='要約', text='本文')
+
+        response = self.client.post(url, {
+            'theme': '直したテーマ', 'speaker': '発表者', 'youtube_url': VIDEO_URL,
+            'h1': '', 'contents': '', 'article_snapshot': snapshot.value(), 'generate_blog_article': 'on',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.theme, '直したテーマ')
+        self.assertEqual(self.detail.h1, '生成した記事')
+        sent = [str(message) for message in get_messages(response.wsgi_request)]
+        self.assertNotIn(ARTICLE_EDITED_MESSAGE, ''.join(sent))
 
 
 def _link_vket_presentation(detail: EventDetail, applied_by) -> None:

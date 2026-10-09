@@ -6,7 +6,14 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import redirect
 from django.views.generic import View
 
-from event.services.content_generation_service import REFUSED, SAVED, generate_blog, save_generated_article
+from event.services.content_generation_service import (
+    ARTICLE_EDITED_MESSAGE,
+    EDITED,
+    REFUSED,
+    SAVED,
+    generate_blog,
+    save_generated_article,
+)
 from event.models import EventDetail
 from event.views.helpers import can_manage_event_detail
 from website.settings import GEMINI_MODEL
@@ -76,6 +83,8 @@ class GenerateBlogView(LoginRequiredMixin, View):
                 messages.success(request, "ブログ記事が生成されました。")
             elif outcome == REFUSED:
                 messages.error(request, ARTICLE_NG_MESSAGE)
+            elif outcome == EDITED:
+                messages.warning(request, ARTICLE_EDITED_MESSAGE)
             else:
                 logger.warning(f"ブログ記事の生成に失敗しました（空の結果）: {event_detail.id}")
                 messages.warning(request, "ブログ記事の生成に失敗しました。")

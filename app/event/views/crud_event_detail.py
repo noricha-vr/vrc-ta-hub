@@ -7,7 +7,14 @@ from django.urls import reverse_lazy
 from django.views.generic import CreateView, UpdateView, DeleteView
 
 from event.forms import EventDetailForm
-from event.services.content_generation_service import REFUSED, SAVED, generate_blog, save_generated_article
+from event.services.content_generation_service import (
+    ARTICLE_EDITED_MESSAGE,
+    EDITED,
+    REFUSED,
+    SAVED,
+    generate_blog,
+    save_generated_article,
+)
 from event.models import Event, EventDetail
 from event.views.helpers import can_manage_event_detail
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
@@ -22,7 +29,7 @@ ARTICLE_REFUSED_MESSAGE = "生成している間に発表者が記事化を NG �
 def _save_and_report(request, event_detail: EventDetail, blog_output) -> None:
     """生成結果を保存し、結果をメッセージで知らせる。
 
-    保存は記事の列だけを書き、生成を待つ間に記事化が NG になっていたら書かない
+    保存は記事の列だけを書き、生成を待つ間に記事化が NG になっていた・記事が書き換えられていたら書かない
     （save_generated_article）。フォームのインスタンスをそのまま save() すると古い値で戻すため。
     """
     outcome = save_generated_article(event_detail, blog_output)
@@ -31,6 +38,8 @@ def _save_and_report(request, event_detail: EventDetail, blog_output) -> None:
         logger.info(f"記事を自動生成しました: {event_detail.id}")
     elif outcome == REFUSED:
         messages.error(request, ARTICLE_REFUSED_MESSAGE)
+    elif outcome == EDITED:
+        messages.warning(request, ARTICLE_EDITED_MESSAGE)
     else:
         logger.warning(f"記事の自動生成に失敗しました（空の結果）: {event_detail.id}")
         messages.warning(request, "記事の自動生成に失敗しました。")

@@ -52,6 +52,11 @@ def _normalize_article_text(text: str) -> str:
     return (text or '').replace('\r\n', '\n').replace('\r', '\n').strip()
 
 
+def article_is_empty(h1: Optional[str], contents: Optional[str]) -> bool:
+    """記事のタイトルも本文も空か（空白・改行だけの時も空とみなす）。"""
+    return not _normalize_article_text(h1 or '') and not _normalize_article_text(contents or '')
+
+
 def article_body_hash(h1: str, contents: str) -> str:
     """記事の本文（タイトルと内容）の SHA-256 を返す。
 
@@ -85,11 +90,23 @@ ARTICLE_CONTROL_FIELDS = (
 )
 # 記事の列。フル保存では、読み込んだ時から変えていなければ書かない（その間にキューが作った記事を戻さない）
 ARTICLE_BODY_FIELDS = ('h1', 'contents', 'meta_description')
+# 却下された発表の申請状態。記事の自動生成と、記事の公開の通知の対象外
+REJECTED_STATUS = 'rejected'
+
+
+def article_generation_request_values(now: Optional[datetime] = None) -> dict:
+    """生成待ちの印を新しく付ける時の列の値。試行・見送りの回数とエラーは数え直す。"""
+    return {
+        'article_generation_requested_at': now or timezone.now(),
+        'article_generation_attempts': 0,
+        'article_generation_deferrals': 0,
+        'article_generation_last_error': '',
+    }
 
 # 保存前の値を見るシグナル（event / ta_hub / twitter）が使う列。保存ごとに 1 回の SELECT で読む
 PREVIOUS_VALUE_FIELDS = (
     'status', 'slide_url', 'youtube_url', 'slide_file', 'speaker', 'theme', 'start_time',
-    'detail_type', 'event_id', 'event__date', 'event__community_id', 'article_consent', 'h1',
+    'detail_type', 'event_id', 'event__date', 'event__community_id', 'article_consent', 'h1', 'contents',
 )
 _PREVIOUS_VALUES_NOT_LOADED = object()
 
@@ -757,9 +774,21 @@ class EventDetail(models.Model):
         return (
             detail_type == 'LT'
             and article_consent == cls.ArticleConsent.OK
-            and status != 'rejected'
+            and status != REJECTED_STATUS
             and deleted_at is None
             and bool(has_slide or youtube_video_id(youtube_url))
+        )
+
+    @classmethod
+    def article_notifiable_q(cls) -> models.Q:
+        """記事の公開を発表者に知らせてよい発表（記事化 OK で、却下も論理削除もされていない）。
+
+        通知日時を入れる UPDATE の条件に使い、知らせる直前に NG・却下・削除へ変わった発表には送らない。
+        同意・申請状態・削除の条件は ``is_auto_generation_target`` と揃える。
+        """
+        return (
+            models.Q(article_consent=cls.ArticleConsent.OK, deleted_at__isnull=True)
+            & ~models.Q(status=REJECTED_STATUS)
         )
 
     def article_state(self) -> str:
@@ -769,7 +798,7 @@ class EventDetail(models.Model):
         ハッシュが無いのに本文がある記事（この機能より前の記事や手書きの記事）は、
         自動で上書きしないよう手動扱いにする。
         """
-        if not _normalize_article_text(self.h1) and not _normalize_article_text(self.contents):
+        if article_is_empty(self.h1, self.contents):
             return self.ArticleState.NONE
         if self.article_body_hash and article_body_hash(self.h1, self.contents) == self.article_body_hash:
             return self.ArticleState.AUTO
@@ -793,22 +822,36 @@ class EventDetail(models.Model):
             変更した列名。``save(update_fields=...)`` に渡す（フル保存では生成管理の列は書かれない）。
         """
         sources = used_sources if used_sources is not None else self.article_sources()
-        self.article_source_video_id, self.article_source_slide_name = sources
-        self.article_body_hash = article_body_hash(self.h1, self.contents)
-        self.article_generated_at = generated_at or timezone.now()
+        fields = self.record_generated_body(sources=sources, generated_at=generated_at)
         self.article_generation_requested_at = None
         self.article_generation_attempts = 0
         self.article_generation_deferrals = 0
         self.article_generation_last_error = ''
         return [
-            'article_source_video_id',
-            'article_source_slide_name',
-            'article_body_hash',
-            'article_generated_at',
+            *fields,
             'article_generation_requested_at',
             'article_generation_attempts',
             'article_generation_deferrals',
             'article_generation_last_error',
+        ]
+
+    def record_generated_body(self, sources: tuple[str, str] = ('', ''), generated_at=None) -> list[str]:
+        """今の本文を自動生成の記事として記録する。生成待ちの印には触らない。
+
+        生成している間に動画・PDF が変わった時は、生成元を空のまま記録する。記事は自動生成のまま
+        （手動扱いにしてキューを止めない）で、生成元が今の入力と合わないので、キューが新しい入力で作り直す。
+
+        Returns:
+            変更した列名。
+        """
+        self.article_source_video_id, self.article_source_slide_name = sources
+        self.article_body_hash = article_body_hash(self.h1, self.contents)
+        self.article_generated_at = generated_at or timezone.now()
+        return [
+            'article_source_video_id',
+            'article_source_slide_name',
+            'article_body_hash',
+            'article_generated_at',
         ]
 
 
