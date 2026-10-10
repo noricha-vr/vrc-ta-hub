@@ -3,12 +3,46 @@
 
 {% block meta %}
 <style>
-@keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
-    50% { box-shadow: 0 0 0 8px rgba(255, 255, 255, 0); }
+.card.vket-banner {
+    color: #fff;
+    background: linear-gradient(120deg, #101f46 0%, #164766 65%, #24617a 100%);
 }
-.vket-banner-btn { animation: pulse-glow 2s infinite; }
+.vket-banner-content { flex: 1 1 24rem; min-width: 0; }
+.vket-banner-countdown {
+    flex-shrink: 0;
+    display: flex;
+    align-items: baseline;
+    gap: .2rem;
+    white-space: nowrap;
+    color: #d8f3ff;
+}
+.vket-banner-number {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+.vket-banner-today { font-size: 2rem; font-weight: 800; }
+.vket-banner-details { min-width: 0; }
+.vket-banner-message { font-size: 1rem; }
+.vket-banner-date { white-space: nowrap; }
+.vket-banner-subtitle { color: #d8f3ff; font-size: .8rem; }
+.vket-banner-tentative {
+    color: #e6f7ff;
+    border: 1px solid #94c9dc;
+    font-size: .65rem;
+    vertical-align: middle;
+}
 .vket-banner-btn:hover { background-color: #e2e6ea; }
+@media (max-width: 575.98px) {
+    .vket-banner-content { flex-basis: 100%; }
+    .vket-banner-number { font-size: 2.5rem; }
+    .vket-banner-countdown { flex-direction: column; align-items: center; gap: 0; font-size: .75rem; }
+    .vket-banner-today { font-size: 1.5rem; }
+    .vket-banner-message { font-size: .875rem; }
+    .vket-banner-actions { width: 100%; }
+    .vket-banner-btn { flex: 1 1 auto; }
+}
 </style>
 {% endblock %}
 
@@ -96,14 +130,30 @@
         {% if vket_banner %}
         <div class="row">
             <div class="col-12 col-md-10 offset-md-1 mb-3">
-                <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #f97316 0%, #e11d48 100%);">
+                <div class="card border-0 shadow-sm vket-banner">
                     <div class="card-body py-3">
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                            <div class="d-flex align-items-center gap-2">
-                                <i class="fas fa-handshake text-white fa-lg"></i>
-                                <span class="text-white fw-bold">{{ vket_banner.message }}</span>
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                            <div class="d-flex align-items-center gap-3 vket-banner-content">
+                                {% if vket_banner.days_until != None %}
+                                <div>
+                                    {% if vket_banner.days_until == 0 %}
+                                    <span class="vket-banner-today">今日</span>
+                                    {% else %}
+                                    <span class="visually-hidden">あと{{ vket_banner.days_until }}日</span>
+                                    <span class="vket-banner-countdown" aria-hidden="true"><span>あと</span><span class="vket-banner-number">{{ vket_banner.days_until }}</span><span>日</span></span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                                <div class="vket-banner-details">
+                                    <p class="vket-banner-message fw-bold mb-1">
+                                        {{ vket_banner.message }}{% if vket_banner.days_until %}
+                                        <span class="vket-banner-date">{{ vket_banner.date_display }}{% if vket_banner.time_display %} {{ vket_banner.time_display }}{% endif %}</span>{% endif %}{% if vket_banner.tentative %}
+                                        <span class="badge vket-banner-tentative">暫定</span>{% endif %}
+                                    </p>
+                                    <p class="vket-banner-subtitle mb-0">{{ vket_banner.subtitle }}</p>
+                                </div>
                             </div>
-                            <div class="d-flex flex-wrap gap-2">
+                            <div class="d-flex flex-wrap gap-2 vket-banner-actions">
                                 {% if vket_banner.show_participation_link %}
                                 <a href="{% url vket_banner.url_name vket_banner.url_pk %}"
                                    class="btn btn-light fw-bold px-4 vket-banner-btn">
