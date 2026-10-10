@@ -7,8 +7,6 @@ from datetime import datetime, time, timedelta
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 
-from event.models import EventDetail
-
 from ..forms import VketApplyPermissions
 from ..models import (
     VketCollaboration,
@@ -20,6 +18,7 @@ from ..schedule import (
     blocks_from,
     find_conflicting_pairs,
     format_pair,
+    format_block_range,
     get_schedule_buffer_minutes,
 )
 
@@ -123,9 +122,9 @@ def _build_schedule_context(
     }
 
     # クエリ: confirmed があるもの + (オプション) requested のみのもの
-    q_confirmed = Q(confirmed_date__isnull=False, confirmed_start_time__isnull=False)
+    q_confirmed = Q(confirmed_date__isnull=False)
     if include_requested:
-        q_requested = Q(requested_date__isnull=False, requested_start_time__isnull=False)
+        q_requested = Q(requested_date__isnull=False)
         date_filter = q_confirmed | q_requested
     else:
         date_filter = q_confirmed
@@ -138,15 +137,6 @@ def _build_schedule_context(
         .select_related('community', 'published_event')
         .prefetch_related(
             Prefetch(
-                'published_event__details',
-                queryset=EventDetail.objects.filter(
-                    detail_type='LT', status='approved'
-                ).only(
-                    'id', 'event_id', 'start_time', 'duration',
-                    'speaker', 'theme', 'status', 'detail_type',
-                ).order_by('start_time', 'id'),
-            ),
-            Prefetch(
                 'presentations',
                 queryset=VketPresentation.objects.only(
                     'id',
@@ -154,13 +144,26 @@ def _build_schedule_context(
                     'order',
                     'requested_start_time',
                     'confirmed_start_time',
+                    'duration',
+                    'status',
                 ).order_by('order', 'id'),
             ),
         )
     )
 
-    # 各参加の「表示用」日程を決定（判定と同じ block_for: confirmed 優先、なければ requested）
-    blocks_by_pid = {p.id: block for p in participations if (block := block_for(p)) is not None}
+    schedule_blocks = blocks_from(participations)
+    presentation_blocks_by_pid: dict[int, list] = {}
+    for block in schedule_blocks:
+        presentation_blocks_by_pid.setdefault(block.participation_id, []).append(block)
+
+    # 参加枠が未入力でも発表時刻があれば、発表の時間で行を表示する。
+    blocks_by_pid = {}
+    for p in participations:
+        block = block_for(p)
+        if block is None:
+            block = next(iter(presentation_blocks_by_pid.get(p.id, [])), None)
+        if block is not None:
+            blocks_by_pid[p.id] = block
     participations = [p for p in participations if p.id in blocks_by_pid]
     if not participations:
         return empty
@@ -208,23 +211,14 @@ def _build_schedule_context(
             )
             end_min = day_minutes
 
-        lt_times: list[time] = []
-        if p.published_event:
-            lt_details = list(p.published_event.details.all())
-            lt_times = [d.start_time for d in lt_details] if lt_details else []
-        if not lt_times:
-            lt_times = [
-                start_time
-                for pres in p.presentations.all()
-                if (start_time := pres.confirmed_start_time or pres.requested_start_time)
-            ]
-        if not lt_times:
-            lt_times = [p_start]
+        presentation_blocks = presentation_blocks_by_pid.get(p.id, [])
+        lt_times = [block.start for block in presentation_blocks]
         lt_times_by_pid[p.id] = lt_times
-
-        lt_mins = [to_minutes(t) for t in lt_times]
-        lt_min = min(lt_mins)
-        lt_end_max = max(min(m + p.lt_slot_minutes, day_minutes) for m in lt_mins)
+        lt_min = min((to_minutes(block.start) for block in presentation_blocks), default=start_min)
+        lt_end_max = max((
+            min(to_minutes(block.start) + block.duration, day_minutes)
+            for block in presentation_blocks
+        ), default=end_min)
 
         candidate_min = min(start_min, lt_min)
         candidate_max = max(end_min, lt_end_max)
@@ -258,19 +252,17 @@ def _build_schedule_context(
 
     # 重なりの警告と表の赤いセルは、同じ判定（有効な参加だけ・入れ替えの間隔込み）から作る
     buffer_minutes = get_schedule_buffer_minutes(collaboration)
-    schedule_blocks = blocks_from(participations)
     conflicting_pairs = find_conflicting_pairs(schedule_blocks, buffer_minutes)
     overlap_warnings = [f'{format_pair(a, b)} が重なっています' for a, b in conflicting_pairs]
     partners_by_pid: dict[int, list] = {}
     for a, b in conflicting_pairs:
-        partners_by_pid.setdefault(a.participation_id, []).append(b)
-        partners_by_pid.setdefault(b.participation_id, []).append(a)
+        partners_by_pid.setdefault(a.participation_id, []).append((a, b))
+        partners_by_pid.setdefault(b.participation_id, []).append((b, a))
     gap = timedelta(minutes=buffer_minutes)
 
     rows = []
 
     lt_slots_by_pid: dict[int, dict[int, list[time]]] = {}
-    lt_slot_communities: dict[tuple, set[str]] = {}
 
     for p in participations:
         eff = effective_data[p.id]
@@ -291,8 +283,6 @@ def _build_schedule_context(
                 continue
 
             lt_slots_by_pid.setdefault(p.id, {}).setdefault(idx, []).append(lt_time)
-            key = (p_date, idx)
-            lt_slot_communities.setdefault(key, set()).add(p.community.name)
 
             lt_dt = datetime.combine(base, lt_time)
             if not (event_start_dt <= lt_dt < event_end_dt):
@@ -300,15 +290,6 @@ def _build_schedule_context(
                 warnings.append(
                     f'{p_date.strftime("%Y/%m/%d")} {p.community.name} の発表開始時刻（{lt_time.strftime("%H:%M")}）が開催時間（{p_start.strftime("%H:%M")}〜{end_time.strftime("%H:%M")}）の範囲外です'
                 )
-
-    for (d, idx), communities in sorted(
-        lt_slot_communities.items(), key=lambda x: (x[0][0], x[0][1])
-    ):
-        if len(communities) <= 1:
-            continue
-        warnings.append(
-            f'{d.strftime("%Y/%m/%d")} {slots[idx].start.strftime("%H:%M")} 発表開始が重複: {", ".join(sorted(communities))}'
-        )
 
     for p in participations:
         eff = effective_data[p.id]
@@ -324,17 +305,19 @@ def _build_schedule_context(
             slot_start = datetime.combine(base, slot.start)
             slot_end = datetime.combine(base, slot.end)
             occupied = slot_start < event_end and slot_end > event_start
-            # 相手の枠（間隔込み）にかかるセルだけを赤くする
+            # 重なる発表どうし（間隔込み）がかかるセルだけを赤くする
             cell_start = datetime.combine(p_date, slot.start)
             cell_end = cell_start + timedelta(minutes=slot_minutes)
-            overlap = occupied and any(
-                cell_start < q.end_dt + gap and q.start_dt - gap < cell_end for q in partners
+            overlap = any(
+                max(cell_start, own.start_dt, other.start_dt - gap)
+                < min(cell_end, own.end_dt, other.end_dt + gap)
+                for own, other in partners
             )
             lt_times_in_slot = sorted(lt_slots.get(idx, []))
-            lt_overlap = bool(lt_times_in_slot) and len(lt_slot_communities.get((p_date, idx), set())) > 1
+            lt_overlap = bool(lt_times_in_slot) and overlap
             lt_tooltip = ', '.join([t.strftime('%H:%M') for t in lt_times_in_slot]) if lt_times_in_slot else ''
             cells.append({
-                'occupied': occupied,
+                'occupied': occupied or overlap,
                 'overlap': overlap,
                 'lt_times': lt_times_in_slot,
                 'lt_overlap': lt_overlap,
@@ -347,6 +330,9 @@ def _build_schedule_context(
             'duration': p_duration,
             'is_confirmed': eff['is_confirmed'],
             'cells': cells,
+            'presentation_ranges': [
+                format_block_range(block) for block in presentation_blocks_by_pid.get(p.id, [])
+            ],
         })
 
     return {

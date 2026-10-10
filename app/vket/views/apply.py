@@ -19,24 +19,20 @@ from ..models import (
     VketPresentation,
 )
 from ..schedule import (
-    ScheduleBlock,
+    blocks_from,
     busy_payload,
-    find_conflicts,
+    active_blocks,
+    find_conflicting_pairs,
+    format_pair,
     get_schedule_buffer_minutes,
 )
+from ..activity import activity_snapshot, notify_activity
+from .overlap import warn_overlap
 from .helpers import (
     _apply_permissions_for_user,
     _build_schedule_context,
     _get_active_membership,
 )
-
-
-class ScheduleConflictError(ValueError):
-    """主催者の希望の時間が、他の集会の枠と重なっている"""
-
-    def __init__(self, message: str, collaboration: VketCollaboration):
-        super().__init__(message)
-        self.collaboration = collaboration
 
 
 class ApplyView(LoginRequiredMixin, View):
@@ -133,10 +129,7 @@ class ApplyView(LoginRequiredMixin, View):
 
         try:
             with transaction.atomic():
-                self._check_schedule_under_lock(
-                    request.user, collaboration, community, participation, permissions,
-                    form.cleaned_data,
-                )
+                before = activity_snapshot(participation)
                 participation = self._save_participation(
                     request=request,
                     collaboration=collaboration,
@@ -146,15 +139,28 @@ class ApplyView(LoginRequiredMixin, View):
                     cleaned=form.cleaned_data,
                     formset_data=formset.cleaned_data,
                 )
+                # 保存した発表で比べる。重なりがあっても保存は取り消さない。
+                own_blocks = blocks_from([participation])
+                pairs = find_conflicting_pairs(
+                    own_blocks + active_blocks(collaboration, exclude_community_id=community.pk),
+                    get_schedule_buffer_minutes(collaboration),
+                )
+                pair_lines = [
+                    format_pair(a, b) for a, b in pairs
+                    if community.pk in (a.community_id, b.community_id)
+                ]
+                after = activity_snapshot(participation)
+                notify_activity(collaboration, community.name, before, after, pair_lines)
         except ValueError as e:
-            if isinstance(e, ScheduleConflictError):
-                collaboration = e.collaboration
             form.add_error(None, str(e))
             return self._render(
                 request, collaboration, community, participation, form, formset, permissions,
             )
 
         messages.success(request, '参加登録を保存しました。')
+        warn_overlap(request, '保存', pair_lines, {
+            'collaboration_id': collaboration.pk, 'participation_id': participation.pk,
+        })
         return redirect('vket:status', pk=collaboration.pk)
 
     def _render(
@@ -163,7 +169,7 @@ class ApplyView(LoginRequiredMixin, View):
         """申込みフォームを日程表・空き表示つきで描画する"""
         schedule_ctx = _build_schedule_context(collaboration, include_requested=True)
         busy = None
-        if permissions.can_edit_schedule:
+        if permissions.can_edit_schedule or permissions.can_edit_lt:
             # 日程表で読んだ参加から作り、空き表示のために追加のクエリを出さない
             busy = busy_payload(
                 (
@@ -192,75 +198,6 @@ class ApplyView(LoginRequiredMixin, View):
                 **schedule_ctx,
             },
         )
-
-    @staticmethod
-    def _needs_schedule_check(
-        user,
-        permissions: VketApplyPermissions,
-        participation: VketParticipation | None,
-        cleaned: dict,
-    ) -> bool:
-        """主催者が有効な参加の希望の時間を変える時だけ True。
-
-        発表情報だけの保存（希望を変えない）、管理者の保存、辞退・不参加の参加は
-        判定しない。運営が重なりを作った後でも、希望を変えない保存は止めない。
-        """
-        if not permissions.can_edit_schedule or ApplyView._is_privileged_user(user):
-            return False
-        if participation is None:
-            return True
-        if participation.lifecycle != VketParticipation.Lifecycle.ACTIVE:
-            return False
-        return (
-            cleaned['requested_date'],
-            cleaned['requested_start_time'],
-            cleaned['requested_duration'],
-        ) != (
-            participation.requested_date,
-            participation.requested_start_time,
-            participation.requested_duration,
-        )
-
-    @classmethod
-    def _check_schedule_under_lock(
-        cls, user, collaboration, community, participation, permissions, cleaned,
-    ) -> None:
-        """日程を判定する時だけコラボの行をロックし、参加を読み直した値で判定する"""
-        if not cls._needs_schedule_check(user, permissions, participation, cleaned):
-            return
-        # 同時の申込みが両方通らないよう、コラボの行をロックしてから判定する
-        locked = VketCollaboration.objects.select_for_update().get(pk=collaboration.pk)
-        current = VketParticipation.objects.filter(
-            collaboration=collaboration, community=community,
-        ).first()
-        if cls._needs_schedule_check(user, permissions, current, cleaned):
-            cls._ensure_no_schedule_conflict(locked, community, current, cleaned)
-
-    @staticmethod
-    def _ensure_no_schedule_conflict(
-        collaboration: VketCollaboration,
-        community: Community,
-        participation: VketParticipation | None,
-        cleaned: dict,
-    ) -> None:
-        """希望の時間が、他の集会の有効な参加の枠と重なっていないか確かめる"""
-        candidate = ScheduleBlock(
-            participation_id=participation.pk if participation else None,
-            community_id=community.pk,
-            community_name=community.name,
-            date=cleaned['requested_date'],
-            start=cleaned['requested_start_time'],
-            duration=cleaned['requested_duration'],
-        )
-        conflicts = find_conflicts(collaboration, candidate)
-        if not conflicts:
-            return
-        names = '、'.join(dict.fromkeys(block.community_name for block in conflicts))
-        message = f'その時間は{names}が申込み済みです。'
-        buffer_minutes = get_schedule_buffer_minutes(collaboration)
-        if buffer_minutes:
-            message += f'前後 {buffer_minutes} 分は入れ替えの時間として空けてください。'
-        raise ScheduleConflictError(message + '空いている時間を選んでください。', collaboration)
 
     def _build_formset(
         self,
@@ -293,6 +230,11 @@ class ApplyView(LoginRequiredMixin, View):
             presentations = list(participation.presentations.order_by('order', 'id'))
             for form, presentation in zip(formset.forms, presentations):
                 form.can_organizer_delete = not presentation.is_organizer_delete_locked
+                form.fields['lt_start_time'].widget.attrs['data-duration'] = presentation.duration
+                if presentation.confirmed_start_time:
+                    form.fields['lt_start_time'].widget.attrs['data-confirmed-start'] = (
+                        presentation.confirmed_start_time.strftime('%H:%M')
+                    )
 
         if not permissions.can_edit_lt:
             self._disable_formset(formset)
@@ -439,6 +381,8 @@ class ApplyView(LoginRequiredMixin, View):
                 allow_privileged_time_edits=self._is_privileged_user(request.user),
             )
 
+        # prefetch 済みの古い発表一覧を警告・通知で使わない。
+        participation._prefetched_objects_cache = {}
         return participation
 
     def _save_presentations(

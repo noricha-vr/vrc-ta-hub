@@ -73,6 +73,8 @@ class VketManageViewsTests(VketManageViewsBase):
 
     def test_manage_schedule_page_shows_overlap_warning(self):
         """日程重複がある場合にoverlap_warningsがセットされる"""
+        for p in (self.participation1, self.participation2):
+            VketPresentation.objects.create(participation=p, requested_start_time=time(21, 30))
         self.client.force_login(self.superuser)
         response = self.client.get(
             reverse('vket:manage_schedule', kwargs={'pk': self.collaboration.pk})
@@ -131,13 +133,14 @@ class VketManageViewsTests(VketManageViewsBase):
         self.assertContains(response, '申請中')
 
     def test_manage_schedule_page_marks_lt_slot(self):
-        """LT詳細があるスロットにlt_timesが設定される"""
+        """公開済みの詳細と食い違っていても、発表の時刻でマーカーを表示する"""
         EventDetail.objects.create(
-            event=self.event1,
-            detail_type='LT',
-            start_time='21:30',
+            event=self.event1, detail_type='LT', start_time='22:00', duration=30, status='approved',
+        )
+        VketPresentation.objects.create(
+            participation=self.participation1,
+            requested_start_time='21:30',
             duration=30,
-            status='approved',
         )
 
         self.client.force_login(self.superuser)
