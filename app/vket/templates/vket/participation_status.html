@@ -305,7 +305,7 @@
                         <i class="fas fa-headset me-2"></i>リハーサル
                     </h2>
                     <p class="mb-0">
-                        <span class="fw-bold">7月10日（金）</span>に実施します。ワールド、スライド、マイクの使い方などを確認します。Vket運営の方や他の技術学術系集会の方と交流できる機会です。ぜひご参加ください。
+                        {% if rehearsal_schedule %}<span class="fw-bold">{{ rehearsal_schedule }}</span>に実施します。{% else %}日時は決まり次第お知らせします。{% endif %}ワールド、スライド、マイクの使い方などを確認します。Vket運営の方や他の技術学術系集会の方と交流できる機会です。ぜひご参加ください。
                     </p>
                 </div>
             </div>
