@@ -82,23 +82,25 @@
                     </div>
                 </div>
 
-                {% if permissions.can_edit_schedule %}
+                {% if busy_payload %}
                     <style>#busy-slots-list li:last-child { border-bottom: 0 !important; }</style>
                     <section id="busy-slots" class="rounded-3 border p-3 mb-3" style="max-width: 36rem;" aria-live="polite"
-                             data-buffer-minutes="{{ schedule_buffer_minutes }}">
+                             data-buffer-minutes="{{ schedule_buffer_minutes }}"
+                             data-confirmed-date="{{ participation.confirmed_date|date:"Y-m-d" }}"
+                             data-slot-minutes="{{ participation.lt_slot_minutes|default:30 }}">
                         <h3 class="h6 fw-bold mb-2">
                             <i class="far fa-clock me-1 text-muted"></i><span id="busy-slots-title">埋まっている時間</span>
                         </h3>
                         <p id="busy-slots-prompt" class="small text-muted mb-0">
-                            日付を選ぶと、その日に他の集会が申し込んでいる時間を表示します。
+                            日付を選ぶと、その日に他の集会が申し込んでいる発表の時間を表示します。
                         </p>
                         <p id="busy-slots-none" class="small mb-0 d-none">
-                            <i class="fas fa-check text-success me-1"></i>まだ他の集会の申込みはありません。
+                            <i class="fas fa-check text-success me-1"></i>まだ他の集会の発表はありません。
                         </p>
                         <ul id="busy-slots-list" class="list-unstyled small mb-0 d-none"></ul>
                         {% if schedule_buffer_minutes %}
                             <p class="small text-muted mt-2 mb-0">
-                                集会の前後 {{ schedule_buffer_minutes }} 分は入れ替えの時間として空けてください。
+                                発表の前後 {{ schedule_buffer_minutes }} 分を入れ替えの時間として比べます。
                                 埋まっている時間には、この間隔も含めています。
                             </p>
                         {% endif %}
@@ -130,6 +132,9 @@
                 </p>
 
                 {{ formset.management_form }}
+                {% if formset.non_form_errors %}
+                    <div class="alert alert-danger small" role="alert">{{ formset.non_form_errors|join:" " }}</div>
+                {% endif %}
                 <div id="lt-formset-container">
                     {% for lt_form in formset %}
                     <div class="lt-row mb-3 {% if lt_form.DELETE.value %}d-none{% endif %}" data-lt-index="{{ forloop.counter0 }}">
@@ -241,7 +246,7 @@
         var list = document.getElementById('busy-slots-list');
         var conflict = document.getElementById('busy-slots-conflict');
         var startInput = document.getElementById('id_requested_start_time');
-        var durationInput = document.getElementById('id_requested_duration');
+        var slotInput = document.getElementById('id_lt_slot_minutes');
 
         function toMinutes(value) {
             if (!value) return null;
@@ -251,13 +256,13 @@
 
         function selectedDate() {
             var checked = document.querySelector('input[name="requested_date"]:checked');
-            return checked ? checked.value : '';
+            return panel.dataset.confirmedDate || (checked ? checked.value : '');
         }
 
         function selectedLabel() {
             var checked = document.querySelector('input[name="requested_date"]:checked');
             var label = checked && checked.closest('label');
-            return label ? label.textContent.trim() : '';
+            return panel.dataset.confirmedDate || (label ? label.textContent.trim() : '');
         }
 
         // サーバーの判定（vket/schedule.py の blocks_conflict）と同じく、
@@ -274,13 +279,33 @@
         }
 
         function conflictedIndexes(date) {
-            var startOfDay = date && startInput ? toMinutes(startInput.value) : null;
-            var duration = durationInput ? parseInt(durationInput.value, 10) : 0;
             var result = {};
-            if (startOfDay === null || !duration) return result;
-            var start = minutesSinceEpoch(date, startOfDay);
-            payload.blocks.forEach(function(block, index) {
-                if (overlaps(block, start, start + duration)) result[index] = true;
+            if (!date) return result;
+            var slotMinutes = parseInt((slotInput && slotInput.value) || panel.dataset.slotMinutes, 10);
+            var previous = null;
+            document.querySelectorAll('#lt-formset-container .lt-row').forEach(function(row) {
+                var deleted = row.querySelector('input[name$="-DELETE"]');
+                if ((deleted && deleted.checked) || row.classList.contains('d-none')) return;
+                var speaker = row.querySelector('input[name$="-speaker"]');
+                var theme = row.querySelector('input[name$="-theme"]');
+                if (!(speaker && speaker.value.trim()) && !(theme && theme.value.trim())) return;
+                var input = row.querySelector('input[name$="-lt_start_time"]');
+                var requestedStart = input ? toMinutes(input.value) : null;
+                // サーバーと同じく、未入力の時刻は前行の希望時刻から補う。
+                if (requestedStart === null && input && !input.disabled) {
+                    requestedStart = previous === null ? toMinutes(startInput && startInput.value) : previous + slotMinutes;
+                }
+                if (requestedStart !== null && requestedStart < MINUTES_PER_DAY) previous = requestedStart;
+                var startOfDay = input ? toMinutes(input.dataset.confirmedStart) : null;
+                if (startOfDay === null) startOfDay = requestedStart;
+                if (startOfDay === null || startOfDay >= MINUTES_PER_DAY) return;
+                // 時刻を変えられない発表は保存済みの長さ、それ以外は画面で選んだ持ち時間（保存時に揃える）
+                var lockedDuration = input ? parseInt(input.dataset.duration, 10) : NaN;
+                var duration = isNaN(lockedDuration) ? slotMinutes : lockedDuration;
+                var start = minutesSinceEpoch(date, startOfDay);
+                payload.blocks.forEach(function(block, index) {
+                    if (overlaps(block, start, start + duration)) result[index] = true;
+                });
             });
             return result;
         }
@@ -289,9 +314,9 @@
             var date = selectedDate();
             var entries = (date && payload.days[date]) || [];
             var conflictedSet = conflictedIndexes(date);
-            var conflicted = Object.keys(conflictedSet).map(function(index) {
+            var conflicted = Array.from(new Set(Object.keys(conflictedSet).map(function(index) {
                 return payload.blocks[index].name;
-            });
+            })));
 
             title.textContent = date ? selectedLabel() + ' の埋まっている時間' : '埋まっている時間';
             prompt.classList.toggle('d-none', !!date);
@@ -325,7 +350,7 @@
 
             conflict.classList.toggle('d-none', conflicted.length === 0);
             conflict.textContent = conflicted.length
-                ? '選んだ時間は' + conflicted.join('、') + 'と重なっています。空いている時間を選んでください。'
+                ? '入力中の発表時間は' + conflicted.join('、') + 'と重なっています。このまま保存できます。'
                 : '';
         }
 
@@ -333,7 +358,13 @@
             radio.addEventListener('change', render);
         });
         if (startInput) startInput.addEventListener('input', render);
-        if (durationInput) durationInput.addEventListener('change', render);
+        if (slotInput) slotInput.addEventListener('change', render);
+        var container = document.getElementById('lt-formset-container');
+        if (container) {
+            container.addEventListener('input', render);
+            container.addEventListener('change', render);
+            new MutationObserver(render).observe(container, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+        }
         render();
     });
 
@@ -375,8 +406,8 @@
                 if (el.id) {
                     el.id = el.id.replace('__prefix__', newIndex);
                 }
-                if (el.type === 'hidden' && el.name.endsWith('-DELETE')) {
-                    el.value = '';
+                if (el.type === 'checkbox' && el.name.endsWith('-DELETE')) {
+                    el.checked = false;
                 } else {
                     el.value = '';
                 }
@@ -412,7 +443,7 @@
             var row = btn.closest('.lt-row');
             var deleteInput = row.querySelector('input[name$="-DELETE"]');
             if (deleteInput) {
-                deleteInput.value = 'on';
+                deleteInput.checked = true;
             }
             row.classList.add('d-none');
         });

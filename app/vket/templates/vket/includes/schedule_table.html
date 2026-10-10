@@ -74,6 +74,9 @@
                     <td>{{ row.date|date:"n/j（D）" }}</td>
                     <td class="{% if not row.is_confirmed %}vket-community-requested{% endif %}">
                         <span class="fw-bold">{{ row.participation.community.name }}</span>
+                        {% if row.presentation_ranges %}
+                            <div class="small text-muted">発表: {{ row.presentation_ranges|join:"、" }}</div>
+                        {% endif %}
                         {% if not row.is_confirmed %}
                             <span class="badge bg-secondary ms-1" style="font-size: 0.7em;">申請中</span>
                         {% endif %}
@@ -114,7 +117,7 @@
 
     {% if overlap_warnings %}
         <div class="alert alert-warning mt-3">
-            <div class="fw-bold mb-2"><i class="fas fa-exclamation-triangle me-1"></i>重複（開催時間）</div>
+            <div class="fw-bold mb-2"><i class="fas fa-exclamation-triangle me-1"></i>重複（発表時間）</div>
             <ul class="mb-0">
                 {% for w in overlap_warnings %}
                     <li>{{ w }}</li>

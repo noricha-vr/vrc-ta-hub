@@ -94,7 +94,7 @@ class VketPresentationForm(forms.Form):
 
 
 VketPresentationFormSet = formset_factory(
-    VketPresentationForm, extra=1, max_num=20, can_delete=True,
+    VketPresentationForm, extra=1, max_num=20, validate_max=True, can_delete=True,
 )
 
 
@@ -197,7 +197,7 @@ class VketApplyForm(forms.Form):
         if requested_duration is None or requested_duration <= 0:
             raise forms.ValidationError('希望開催時間（分）は正の値を選択してください。')
 
-        # 他の集会との時間の重なりは、ビューでコラボの行をロックしてから判定する。
+        # 他の集会との発表時間の重なりは、保存後にビューで警告する。
 
         return cleaned
 

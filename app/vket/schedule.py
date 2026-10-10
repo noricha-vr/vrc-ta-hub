@@ -1,7 +1,7 @@
-"""Vket コラボの参加枠の重なり判定。
+"""Vket コラボの発表時間の重なり判定。
 
-主催者の申込み検証・申込みフォームの空き表示・運営の日程画面の警告と表の色・
-行の確定時の警告・公開同期前の検査は、すべてこのモジュールの関数で判定する。
+主催者の保存後の警告・申込みフォームの空き表示・運営の日程画面の警告と表の色・
+行の確定時の警告・公開同期後の警告は、すべてこのモジュールの関数で判定する。
 枠は開始と終了を日付つきの日時で持ち、日付をまたぐ枠も比べる。
 """
 from __future__ import annotations
@@ -13,24 +13,19 @@ from itertools import combinations
 
 from django.db import transaction
 
-from .models import VketCollaboration, VketParticipation
+from .models import VketCollaboration, VketParticipation, VketPresentation
 
 # 開催時間が未入力の参加を判定・表示するときの仮の長さ（日程表の既存表示と揃える）
 DEFAULT_DURATION_MINUTES = 60
 SCHEDULE_BUFFER_SETTING_KEY = 'schedule_buffer_minutes'
 MAX_SCHEDULE_BUFFER_MINUTES = 120
-# 確定・公開同期で「重なりを承知で〜する」を選んだことを表す POST の項目
-ALLOW_OVERLAP_FIELD = 'allow_overlap'
-# 承知した時に画面に出ていた重なりの組（conflicts_signature / pairs_signature の値）
-OVERLAP_SIGNATURE_FIELD = 'overlap_signature'
-
 _EPOCH = datetime(1970, 1, 1)
 _ONE_MINUTE = timedelta(minutes=1)
 
 
 @dataclass(frozen=True)
 class ScheduleBlock:
-    """1 つの参加が押さえている時間帯"""
+    """発表の判定用・参加の日程表示用の時間帯"""
 
     participation_id: int | None
     community_id: int
@@ -39,6 +34,7 @@ class ScheduleBlock:
     start: time
     duration: int
     is_confirmed: bool = False
+    presentation_id: int | None = None
 
     @property
     def start_dt(self) -> datetime:
@@ -93,19 +89,14 @@ def blocks_conflict(a: ScheduleBlock, b: ScheduleBlock, buffer_minutes: int = 0)
 
 
 def block_for(participation: VketParticipation) -> ScheduleBlock | None:
-    """参加の枠を返す。確定値（日付と開始時刻）があれば確定値、無ければ希望値"""
+    """日程表の参加枠を返す。日付・時刻・長さはそれぞれ確定値を優先する"""
     is_confirmed = (
         participation.confirmed_date is not None
         and participation.confirmed_start_time is not None
     )
-    if is_confirmed:
-        d = participation.confirmed_date
-        start = participation.confirmed_start_time
-        duration = participation.confirmed_duration
-    else:
-        d = participation.requested_date
-        start = participation.requested_start_time
-        duration = participation.requested_duration
+    d = participation.effective_date
+    start = participation.effective_start_time
+    duration = participation.effective_duration
     if d is None or start is None:
         return None
     return ScheduleBlock(
@@ -119,15 +110,37 @@ def block_for(participation: VketParticipation) -> ScheduleBlock | None:
     )
 
 
+def presentation_block_for(
+    participation: VketParticipation, presentation: VketPresentation,
+) -> ScheduleBlock | None:
+    """発表の時間を返す。日付・開始時刻はそれぞれ確定値を優先する"""
+    if participation.lifecycle != VketParticipation.Lifecycle.ACTIVE:
+        return None
+    d = participation.confirmed_date or participation.requested_date
+    start = presentation.confirmed_start_time or presentation.requested_start_time
+    if d is None or start is None or not presentation.duration:
+        return None
+    return ScheduleBlock(
+        participation_id=participation.pk,
+        community_id=participation.community_id,
+        community_name=participation.community.name,
+        date=d,
+        start=start,
+        duration=presentation.duration,
+        is_confirmed=presentation.status == VketPresentation.Status.CONFIRMED,
+        presentation_id=presentation.pk,
+    )
+
+
 def blocks_from(participations: Iterable[VketParticipation]) -> list[ScheduleBlock]:
-    """有効な参加（取り消し・辞退を除く）の枠を、日時順に返す"""
+    """有効な参加の発表（取り下げた行・開始時刻なしを除く）を日時順に返す"""
     blocks = [
         block
         for p in participations
-        if p.lifecycle == VketParticipation.Lifecycle.ACTIVE
-        and (block := block_for(p)) is not None
+        for presentation in p.presentations.all()
+        if (block := presentation_block_for(p, presentation)) is not None
     ]
-    return sorted(blocks, key=lambda b: (b.start_dt, b.community_name))
+    return sorted(blocks, key=lambda b: (b.start_dt, b.community_name, b.presentation_id or 0))
 
 
 def active_blocks(
@@ -135,11 +148,11 @@ def active_blocks(
     *,
     exclude_community_id: int | None = None,
 ) -> list[ScheduleBlock]:
-    """コラボ内の有効な参加の枠を DB から読んで返す"""
+    """コラボ内の有効な参加の発表時間を DB から読んで返す"""
     qs = VketParticipation.objects.filter(
         collaboration=collaboration,
         lifecycle=VketParticipation.Lifecycle.ACTIVE,
-    ).select_related('community')
+    ).select_related('community').prefetch_related('presentations')
     if exclude_community_id is not None:
         qs = qs.exclude(community_id=exclude_community_id)
     return blocks_from(qs)
@@ -149,7 +162,7 @@ def find_conflicts(
     collaboration: VketCollaboration,
     candidate: ScheduleBlock,
 ) -> list[ScheduleBlock]:
-    """候補の枠と重なる、他の集会の有効な参加の枠を返す"""
+    """候補の枠と重なる、他の集会の有効な参加の発表時間を返す"""
     buffer_minutes = get_schedule_buffer_minutes(collaboration)
     return [
         block
@@ -184,42 +197,9 @@ def confirmed_conflicting_pairs(
     collaboration: VketCollaboration,
     participations: Iterable[VketParticipation],
 ) -> list[tuple[ScheduleBlock, ScheduleBlock]]:
-    """読み込み済みの参加のうち、確定済みの枠どうしで重なっている組を返す（公開同期の対象）"""
+    """読み込み済みの参加のうち、確定済みの参加の発表どうしで重なっている組を返す（公開同期の対象）"""
     targets = [p for p in participations if is_fully_confirmed(p)]
     return find_conflicting_pairs(blocks_from(targets), get_schedule_buffer_minutes(collaboration))
-
-
-def split_conflicts(
-    blocks: Iterable[ScheduleBlock],
-) -> tuple[list[ScheduleBlock], list[ScheduleBlock]]:
-    """重なっている相手を、確定済みの枠と希望だけ（未確定）の枠に分ける"""
-    blocks = list(blocks)
-    return (
-        [b for b in blocks if b.is_confirmed],
-        [b for b in blocks if not b.is_confirmed],
-    )
-
-
-def conflicts_signature(blocks: Iterable[ScheduleBlock]) -> str:
-    """画面に出した重なりの相手を表す文字列（相手の参加 id の並び）"""
-    return ','.join(str(pid) for pid in sorted(b.participation_id for b in blocks))
-
-
-def pairs_signature(pairs: Iterable[tuple[ScheduleBlock, ScheduleBlock]]) -> str:
-    """画面に出した重なりの組を表す文字列（参加 id の組の並び）"""
-    keys = sorted(
-        '-'.join(str(pid) for pid in sorted((a.participation_id, b.participation_id)))
-        for a, b in pairs
-    )
-    return ','.join(keys)
-
-
-def is_overlap_acknowledged(data, signature: str) -> bool:
-    """承知のチェックがあり、送られた組が今の重なりの組と一致する時だけ True"""
-    return (
-        data.get(ALLOW_OVERLAP_FIELD) == '1'
-        and data.get(OVERLAP_SIGNATURE_FIELD, '') == signature
-    )
 
 
 def format_block_range(block: ScheduleBlock) -> str:

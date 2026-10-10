@@ -9,7 +9,6 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Case, Exists, IntegerField, OuterRef, Prefetch, When
 from django.shortcuts import get_object_or_404, redirect
-from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
@@ -29,25 +28,19 @@ from ..models import (
     VketPresentation,
 )
 from ..schedule import (
-    ALLOW_OVERLAP_FIELD,
-    OVERLAP_SIGNATURE_FIELD,
-    ScheduleBlock,
-    block_for,
-    conflicts_signature,
     confirmed_conflicting_pairs,
-    find_conflicts,
+    active_blocks,
+    blocks_from,
+    find_conflicting_pairs,
     format_pair,
     get_schedule_buffer_minutes,
-    is_overlap_acknowledged,
-    pairs_signature,
     set_schedule_buffer_minutes,
-    split_conflicts,
 )
 from .helpers import (
     _build_schedule_context,
     _is_vket_admin,
 )
-from .overlap import OverlapConfirmation, record_acknowledged_overlap, render_overlap_confirmation
+from .overlap import warn_overlap
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +63,7 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
             VketParticipation.objects.filter(collaboration=collaboration)
             .select_related('community', 'published_event')
             .prefetch_related(
-                Prefetch('presentations', queryset=presentations_qs, to_attr='all_presentations')
+                Prefetch('presentations', queryset=presentations_qs)
             )
             .annotate(
                 has_confirmed_event=Exists(
@@ -95,6 +88,9 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
             )
         )
 
+        for participation in participations:
+            participation.all_presentations = list(participation.presentations.all())
+
         registered_community_ids = set(p.community_id for p in participations)
         today = timezone.localdate()
         all_communities = Community.objects.filter(status='approved').exclude(
@@ -104,7 +100,7 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
 
         # LT登録数: プレゼンが1件以上ある集会数
         lt_registered_count = sum(
-            1 for p in participations if p.all_presentations
+            1 for p in participations if p.presentations.all()
         )
         scheduled_count = sum(1 for p in participations if p.confirmed_date)
 
@@ -170,9 +166,6 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
             pairs = confirmed_conflicting_pairs(collaboration, participations)
         return {
             'publish_overlap_pairs': [format_pair(a, b) for a, b in pairs],
-            'publish_overlap_signature': pairs_signature(pairs),
-            'allow_overlap_field': ALLOW_OVERLAP_FIELD,
-            'overlap_signature_field': OVERLAP_SIGNATURE_FIELD,
         }
 
     @staticmethod
@@ -264,21 +257,19 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
         participation.confirmed_start_time = form.cleaned_data['confirmed_start_time']
         participation.confirmed_duration = form.cleaned_data['confirmed_duration']
 
-        # 確定はその場で公開イベントも作るので、確定済みの枠との重なりはここで止める
         with transaction.atomic():
-            # ロックを待つ間に入れ替えの間隔が変わることがあるので、ロック後の行で判定する
-            collaboration = VketCollaboration.objects.select_for_update().get(pk=collaboration.pk)
-            candidate, confirmed, requested = self._split_schedule_conflicts(
-                collaboration, participation,
-            )
-            confirmed_lines = [format_pair(candidate, block) for block in confirmed]
-            signature = conflicts_signature(confirmed)
-            if confirmed and not is_overlap_acknowledged(request.POST, signature):
-                return render_overlap_confirmation(
-                    request, collaboration, self._confirmation(collaboration, participation),
-                    confirmed_lines, signature,
-                )
             changed_index_detail = self._confirm_schedule(request, participation)
+            # 入力した発表時刻の確定・公開同期が済んでから、最新の発表で警告する。
+            pairs = find_conflicting_pairs(
+                blocks_from([participation]) + active_blocks(
+                    collaboration, exclude_community_id=participation.community_id,
+                ),
+                get_schedule_buffer_minutes(collaboration),
+            )
+            pair_lines = [
+                format_pair(a, b) for a, b in pairs
+                if participation.community_id in (a.community_id, b.community_id)
+            ]
 
         if changed_index_detail:
             clear_index_view_cache()
@@ -287,48 +278,10 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
             request,
             f'{participation.community.name} の日程を確定しました。',
         )
-        if confirmed:
-            record_acknowledged_overlap(
-                request, '確定', confirmed_lines,
-                {'collaboration_id': collaboration.id, 'participation_id': participation.id},
-            )
-        if requested:
-            lines = ' / '.join(format_pair(candidate, block) for block in requested)
-            messages.warning(
-                request,
-                f'{participation.community.name} は未確定の申込みと重なっています（{lines}）。'
-                '相手の日程を確定する時に、もう一度確かめてください。',
-            )
+        warn_overlap(request, '確定', pair_lines, {
+            'collaboration_id': collaboration.pk, 'participation_id': participation.pk,
+        })
         return redirect('vket:manage', pk=collaboration.pk)
-
-    @staticmethod
-    def _split_schedule_conflicts(
-        collaboration: VketCollaboration, participation: VketParticipation
-    ) -> tuple[ScheduleBlock | None, list[ScheduleBlock], list[ScheduleBlock]]:
-        """確定する枠と、重なる相手（確定済み / 希望だけ）を返す"""
-        candidate = block_for(participation)
-        if candidate is None:
-            return None, [], []
-        confirmed, requested = split_conflicts(find_conflicts(collaboration, candidate))
-        return candidate, confirmed, requested
-
-    @staticmethod
-    def _confirmation(
-        collaboration: VketCollaboration, participation: VketParticipation
-    ) -> OverlapConfirmation:
-        return OverlapConfirmation(
-            title=f'{participation.community.name} の日程の確定',
-            lead=(
-                'この日程は、ほかの集会の確定済みの日程と重なっています。確定すると、すぐに公開イベントにも'
-                '反映されます。入れ替えの途中や、意図して同じ時間に行う場合だけ、承知のうえで確定してください。'
-            ),
-            checkbox_label='重なりを承知で確定する',
-            submit_label='確定する',
-            action_url=reverse(
-                'vket:manage_participation_update',
-                kwargs={'pk': collaboration.pk, 'participation_id': participation.pk},
-            ),
-        )
 
     @staticmethod
     def _confirm_schedule(request, participation: VketParticipation) -> bool:
