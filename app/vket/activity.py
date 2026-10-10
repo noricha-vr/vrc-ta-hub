@@ -57,10 +57,31 @@ def _operations(before: dict | None, after: dict) -> list[str]:
     return operations or ['申込み情報の変更']
 
 
+def _escape_markdown(value: str) -> str:
+    """自由入力の書式記号をエスケープし、リンクや強調として解釈させない"""
+    return re.sub(r'([\\*_~`|>\[\]()#-])', r'\\\1', value)
+
+
 def _short(value: str, limit: int = 80) -> str:
-    """通知用の自由入力を一行にし、長い時だけ省略する"""
+    """通知用の自由入力を一行に省略してから、書式記号をエスケープする"""
     value = ' '.join(value.split()) or '未入力'
-    return value if len(value) <= limit else value[:limit - 1] + '…'
+    value = value if len(value) <= limit else value[:limit - 1] + '…'
+    return _escape_markdown(value)
+
+
+def _bounded_lines(lines: list[str], limit: int) -> str:
+    """行を途中で切らずに上限へ収め、残りの件数を末尾に示す"""
+    included = []
+    length = 0
+    for index, line in enumerate(lines):
+        remaining = len(lines) - index - 1
+        suffix = f'\nほか {remaining} 件' if remaining else ''
+        added_length = len(line) + bool(included)
+        if length + added_length + len(suffix) > limit:
+            return '\n'.join(included + [f'ほか {len(lines) - index} 件'])
+        included.append(line)
+        length += added_length
+    return '\n'.join(included)
 
 
 def notify_activity(
@@ -89,12 +110,10 @@ def notify_activity(
         + (f'{start:%H:%M}' if start else '時刻未定') + f'（{duration}分）'
         for speaker, theme, start, duration, status in after['presentations'].values()
     ]
-    # 一度の送信に全発表を含める。本文と埋め込みの上限に収まる長さにする。
-    embeds = [{'title': '現在の発表一覧', 'description': '\n'.join(lines) or '発表なし'}]
+    # 各欄と埋め込み全体（6000文字）の上限に収め、収まらない行は件数だけ示す。
+    embeds = [{'title': '現在の発表一覧', 'description': _bounded_lines(lines, 4096) or '発表なし'}]
     if pair_lines:
-        warning = '\n'.join(f'- {line}' for line in pair_lines)
-        if len(warning) > 1800:
-            warning = warning[:1800] + f'\n（全{len(pair_lines)}組。続きは日程表で確認してください。）'
+        warning = _bounded_lines([f'- {_escape_markdown(line)}' for line in pair_lines], 1800)
         embeds.append({'title': '発表時間の重なり', 'description': warning})
     payload = {'content': content, 'embeds': embeds, 'allowed_mentions': {'parse': []}}
     transaction.on_commit(partial(_send_activity, url, payload, collaboration.pk))

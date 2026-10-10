@@ -5,6 +5,7 @@ from django.db import transaction
 from django.urls import reverse
 
 from vket.activity import activity_snapshot, notify_activity
+from vket.forms import VketPresentationFormSet
 from vket.models import VketParticipation
 
 from .test_schedule_overlap import VketOverlapApplyBase
@@ -160,13 +161,85 @@ class VketActivityTests(VketOverlapApplyBase):
         self.send.assert_not_called()
 
     def test_twenty_presentations_fit_in_one_discord_payload(self):
-        rows = [{'speaker': '人' * 200, 'theme': '話' * 100, 'lt_start_time': '21:45'} for _ in range(20)]
+        """最大長・最大件数でも、書式記号のエスケープ後に通知上限を超えない"""
+        max_num = VketPresentationFormSet.max_num
+        fields = VketPresentationFormSet.form.base_fields
+        name_length = self.community._meta.get_field('name').max_length
+        for character in ('人', '*', '\\'):
+            with self.subTest(character=character):
+                self.community.name = character * name_length
+                self.community.save()
+                self.other.community.name = character * name_length
+                self.other.community.save()
+                self.send.reset_mock()
+                rows = [{
+                    'speaker': character * fields['speaker'].max_length,
+                    'theme': character * fields['theme'].max_length,
+                    'lt_start_time': '21:45',
+                } for _ in range(max_num)]
+                response = self._save_and_notify(rows=rows)
+                self.assertEqual(response.status_code, 302)
+                self.send.assert_called_once()
+                payload = self.send.call_args.args[1]
+                self.assertLessEqual(len(payload['content']), 2000)
+                self.assertEqual(len(payload['embeds']), 2)
+                self.assertLessEqual(sum(len(e['title']) + len(e['description']) for e in payload['embeds']), 6000)
+                for embed in payload['embeds']:
+                    self.assertLessEqual(len(embed['description']), 4096)
+                description = payload['embeds'][0]['description']
+                included = sum(line.startswith('- ') for line in description.splitlines())
+                if character == '人':
+                    self.assertEqual(included, max_num)
+                else:
+                    self.assertGreater(included, 0)
+                    self.assertLess(included, max_num)
+                    self.assertTrue(description.endswith(f'ほか {max_num - included} 件'))
+                warning = payload['embeds'][1]['description']
+                included_pairs = sum(line.startswith('- ') for line in warning.splitlines())
+                self.assertTrue(warning.endswith(f'ほか {max_num - included_pairs} 件'))
+
+    def test_more_than_max_presentations_is_a_form_error_and_does_not_send(self):
+        """画面の最大件数を超える送信は、保存せずフォームエラーにする"""
+        rows = [{'speaker': '発表者', 'theme': '発表'} for _ in range(VketPresentationFormSet.max_num + 1)]
+        response = self._save_and_notify(rows=rows)
+        self.assertEqual(response.status_code, 200)
+        errors = response.context['formset'].non_form_errors().as_data()
+        self.assertEqual([error.code for error in errors], ['too_many_forms'])
+        self.assertIsNone(self._own_participation())
+        self.send.assert_not_called()
+
+    def test_deleted_presentations_do_not_count_towards_formset_max(self):
+        """削除行を含む送信は、残る発表の件数で上限を判定する"""
+        rows = [{'speaker': '発表者', 'theme': '発表'} for _ in range(VketPresentationFormSet.max_num)]
+        rows.append({'speaker': '削除者', 'theme': '削除', 'DELETE': True})
         response = self._save_and_notify(rows=rows)
         self.assertEqual(response.status_code, 302)
-        self.send.assert_called_once()
+        self.assertEqual(self._own_participation().presentations.count(), VketPresentationFormSet.max_num)
+
+    def test_free_input_is_escaped_in_content_presentations_and_overlap(self):
+        """集会名・登壇者名・テーマ・重なり欄の入力をリンクや強調にしない"""
+        value = r'[x](https://example.com) **x** \\ _ ~ ` | > # -'
+        escaped = r'\[x\]\(https://example.com\) \*\*x\*\* \\\\ \_ \~ \` \| \> \# \-'
+        self.community.name = value
+        self.community.save()
+        self.other.community.name = value
+        self.other.community.save()
+        response = self._save_and_notify(rows=[{
+            'speaker': value, 'theme': value, 'lt_start_time': '21:45',
+        }])
+        self.assertEqual(response.status_code, 302)
         payload = self.send.call_args.args[1]
-        self.assertLessEqual(len(payload['content']), 2000)
-        self.assertLessEqual(sum(len(e['title']) + len(e['description']) for e in payload['embeds']), 6000)
-        self.assertEqual(payload['embeds'][0]['description'].count('\n- '), 19)
-        for embed in payload['embeds']:
-            self.assertLessEqual(len(embed['description']), 4096)
+        self.assertIn(f'**{escaped}**', payload['content'])
+        self.assertIn(f'- {escaped} / {escaped} / ', payload['embeds'][0]['description'])
+        self.assertIn(escaped, payload['embeds'][1]['description'])
+        self.assertNotIn(value, self._text())
+
+    def test_single_oversized_overlap_line_is_omitted_without_breaking_escape(self):
+        """一行だけで上限を超える重なりは、入力の途中で切らず件数だけ示す"""
+        self._post_apply()
+        with self.captureOnCommitCallbacks(execute=True):
+            notify_activity(
+                self.collaboration, self.community.name, None,
+                activity_snapshot(self._own_participation()), ['*' * 4096],
+            )
+        self.assertEqual(self.send.call_args.args[1]['embeds'][1]['description'], 'ほか 1 件')

@@ -375,6 +375,35 @@ class VketApplyScheduleOverlapTests(VketOverlapApplyBase):
         self.assertFalse(self._warnings(response))
         self.assertFalse(self._own_participation().presentations.exists())
 
+    def test_busy_script_checks_delete_checkbox_and_keeps_requested_time_for_fill(self):
+        """確定時刻が異なっても、補完用の希望時刻と削除の checked を画面へ出す"""
+        self._post_apply('21:00')
+        presentation = self._own_participation().presentations.get()
+        presentation.confirmed_start_time = time(22)
+        presentation.save()
+        response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
+        self.assertContains(response, 'data-confirmed-start="22:00"')
+        self.assertEqual(response.context['formset'].forms[0]['lt_start_time'].value(), time(21))
+        self.assertContains(response, 'deleted && deleted.checked')
+        self.assertContains(response, 'deleteInput.checked = true;')
+        self.assertContains(response, 'var requestedStart = input ? toMinutes(input.value) : null;')
+        self.assertContains(response, 'previous = requestedStart;')
+        self.assertContains(response, 'if (startOfDay === null) startOfDay = requestedStart;')
+
+    def test_missing_time_after_confirmed_row_uses_requested_time_on_save(self):
+        """前行の希望 21:00・確定 22:00 なら、次行の空欄は希望 21:30 になる"""
+        self._post_apply('21:00')
+        presentation = self._own_participation().presentations.get()
+        presentation.confirmed_start_time = time(22)
+        presentation.save()
+        response = self._post_apply(rows=[
+            {'speaker': '発表者', 'theme': '技術の話', 'lt_start_time': '21:00'},
+            {'speaker': '追加者', 'theme': '追加の話', 'lt_start_time': ''},
+        ])
+        self.assertEqual(response.status_code, 302)
+        added = self._own_participation().presentations.get(speaker='追加者')
+        self.assertEqual(added.requested_start_time, time(21, 30))
+
 
 class VketAdminScheduleOverlapTests(TestCase):
     """運営の確定・公開同期も発表時間で警告するだけで進める"""

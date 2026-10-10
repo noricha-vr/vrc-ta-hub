@@ -282,18 +282,20 @@
             var previous = null;
             document.querySelectorAll('#lt-formset-container .lt-row').forEach(function(row) {
                 var deleted = row.querySelector('input[name$="-DELETE"]');
-                if ((deleted && deleted.value === 'on') || row.classList.contains('d-none')) return;
+                if ((deleted && deleted.checked) || row.classList.contains('d-none')) return;
                 var speaker = row.querySelector('input[name$="-speaker"]');
                 var theme = row.querySelector('input[name$="-theme"]');
                 if (!(speaker && speaker.value.trim()) && !(theme && theme.value.trim())) return;
                 var input = row.querySelector('input[name$="-lt_start_time"]');
-                var startOfDay = input ? toMinutes(input.dataset.confirmedStart || input.value) : null;
-                // サーバーが未入力の発表時刻を補う時と同じ順番・間隔で表示する。
-                if (startOfDay === null && input && !input.disabled) {
-                    startOfDay = previous === null ? toMinutes(startInput && startInput.value) : previous + slotMinutes;
+                var requestedStart = input ? toMinutes(input.value) : null;
+                // サーバーと同じく、未入力の時刻は前行の希望時刻から補う。
+                if (requestedStart === null && input && !input.disabled) {
+                    requestedStart = previous === null ? toMinutes(startInput && startInput.value) : previous + slotMinutes;
                 }
+                if (requestedStart !== null && requestedStart < MINUTES_PER_DAY) previous = requestedStart;
+                var startOfDay = input ? toMinutes(input.dataset.confirmedStart) : null;
+                if (startOfDay === null) startOfDay = requestedStart;
                 if (startOfDay === null || startOfDay >= MINUTES_PER_DAY) return;
-                previous = startOfDay;
                 var duration = parseInt((input && input.dataset.duration) || '30', 10);
                 var start = minutesSinceEpoch(date, startOfDay);
                 payload.blocks.forEach(function(block, index) {
@@ -399,8 +401,8 @@
                 if (el.id) {
                     el.id = el.id.replace('__prefix__', newIndex);
                 }
-                if (el.type === 'hidden' && el.name.endsWith('-DELETE')) {
-                    el.value = '';
+                if (el.type === 'checkbox' && el.name.endsWith('-DELETE')) {
+                    el.checked = false;
                 } else {
                     el.value = '';
                 }
@@ -436,7 +438,7 @@
             var row = btn.closest('.lt-row');
             var deleteInput = row.querySelector('input[name$="-DELETE"]');
             if (deleteInput) {
-                deleteInput.value = 'on';
+                deleteInput.checked = true;
             }
             row.classList.add('d-none');
         });

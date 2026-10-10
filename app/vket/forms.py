@@ -94,7 +94,7 @@ class VketPresentationForm(forms.Form):
 
 
 VketPresentationFormSet = formset_factory(
-    VketPresentationForm, extra=1, max_num=20, can_delete=True,
+    VketPresentationForm, extra=1, max_num=20, validate_max=True, can_delete=True,
 )
 
 
