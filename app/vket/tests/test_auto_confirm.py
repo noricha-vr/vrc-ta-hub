@@ -390,6 +390,21 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         event = Event.objects.get(pk=own.published_event_id)
         self.assertEqual(event.start_time, time(22))
 
+    def test_detail_attached_to_other_event_is_reattached(self):
+        """公開中の発表が同じ日付の別イベントに付いていたら、次の自動確定で公開イベントへ戻す。"""
+        own = self._participation()
+        presentation = self._presentation(own)
+        self._run()
+        own.refresh_from_db()
+        presentation.refresh_from_db()
+        other_event = make_event(make_community(name='別の集会'), event_date=own.confirmed_date)
+        EventDetail.objects.filter(pk=presentation.published_event_detail_id).update(event=other_event)
+
+        self.assertEqual(self._run()['confirmed'], 1)
+
+        presentation.refresh_from_db()
+        self.assertEqual(presentation.published_event_detail.event_id, own.published_event_id)
+
     def test_successful_change_replaces_own_old_slot(self):
         """自分の旧枠とは比較せず、変更の確定後は旧枠を別の参加へ渡せる。"""
         own = self._participation(applied_at=timezone.now() - timedelta(days=2))
