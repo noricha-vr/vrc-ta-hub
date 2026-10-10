@@ -40,7 +40,7 @@
                         <p class="card-text text-muted small presentation-excerpt mb-2">{{ excerpt }}</p>
                     {% endif %}
                 {% endwith %}
-                <div class="d-flex flex-wrap gap-1 mt-1">
+                <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
                     {% if detail.detail_type == 'SPECIAL' %}
                         <span class="badge bg-primary">特別企画</span>
                     {% elif detail.detail_type == 'BLOG' %}
@@ -56,6 +56,7 @@
                     {% if detail.has_article %}
                         <span class="badge bg-light text-success border"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>記事</span>
                     {% endif %}
+                    {% include 'event/_presentation_owner_actions.html' with detail=detail %}
                 </div>
             </div>
         </div>

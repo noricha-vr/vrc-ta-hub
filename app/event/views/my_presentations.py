@@ -1,27 +1,11 @@
-"""ログイン中ユーザーの発表一覧を表示する。"""
+"""旧自分の発表ページから発表一覧へ誘導する。"""
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views.generic import ListView
+from django.urls import reverse
+from django.views.generic import RedirectView
 
-from event.models import EventDetail
+class MyPresentationsView(LoginRequiredMixin, RedirectView):
+    """ログイン後、発表一覧の本人絞り込みへリダイレクトする。"""
 
-
-class MyPresentationsView(LoginRequiredMixin, ListView):
-    """ログイン中ユーザーが編集できる承認済み発表を一覧表示する。"""
-
-    model = EventDetail
-    template_name = "event/my_presentations.html"
-    context_object_name = "presentations"
-    paginate_by = 20
-
-    def get_queryset(self):
-        """承認済みの本人申請発表を開催日の新しい順に返す。"""
-        return (
-            EventDetail.objects.filter(
-                applicant=self.request.user,
-                detail_type="LT",
-                status="approved",
-            )
-            .select_related("event", "event__community")
-            .order_by("-event__date", "start_time", "pk")
-        )
+    def get_redirect_url(self, *args, **kwargs):
+        return f"{reverse('event:detail_history')}?mine=1"

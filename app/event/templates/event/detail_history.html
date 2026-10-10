@@ -62,7 +62,9 @@
                 {% include 'ta_hub/messages.html' %}
 
                 <h1 class="h2 fw-bold keiko_yellow">{{ page_title }}</h1>
-                {% if is_special %}
+                {% if is_mine %}
+                    <p class="text-muted mb-4">自分の発表 · 全 {{ all_count }} 件</p>
+                {% elif is_special %}
                     <p class="text-muted mb-4">集会が企画した特別イベントと、運営・主催者によるブログ記事の一覧です。</p>
                 {% else %}
                     <p class="text-muted mb-4">
@@ -76,7 +78,7 @@
                 {% if event_details %}
                     <div class="d-flex flex-column gap-3">
                         {% for detail in event_details %}
-                            {% if detail.has_materials %}
+                            {% if is_mine or detail.has_materials %}
                                 {% include 'event/_presentation_card.html' with detail=detail %}
                             {% else %}
                                 {% include 'event/_presentation_row.html' with detail=detail %}
@@ -91,8 +93,11 @@
                     {% endif %}
                 {% else %}
                     <div class="alert alert-secondary" role="alert">
-                        <p class="mb-3">該当する発表はありません。</p>
+                        <p class="mb-3">{% if is_mine and not request.GET.q and not request.GET.speaker and not request.GET.theme and not request.GET.community_name %}編集できる発表はまだありません。{% else %}該当する発表はありません。{% endif %}</p>
                         <div class="d-flex flex-wrap gap-2">
+                            {% if is_mine %}
+                                <a href="{% url 'community:list' %}" class="btn btn-primary btn-sm">集会を探して発表を申し込む</a>
+                            {% endif %}
                             {% if not show_all and all_count %}
                                 <a href="{{ view_all_url }}" class="btn btn-primary btn-sm">資料なしも含めてすべて表示</a>
                             {% endif %}

@@ -142,3 +142,15 @@ class EventDetailHistoryQueryBloatPreventionTest(TestCase):
         self.assertContains(response, 'community_name=History%20Community')
         self.assertNotContains(response, 'nocache=')
         self.assertNotContains(response, 'page=3&community_name=')
+
+    def test_logged_in_mine_view_is_not_blocked_by_public_ip_limit(self):
+        """公開一覧の IP 単位の上限に達しても、ログイン中の「自分の発表」は開ける。"""
+        from tests.factories import make_user
+
+        for _ in range(RATE_LIMIT):
+            self.client.get(self.url, HTTP_X_FORWARDED_FOR='1.2.3.4')
+        self.assertEqual(self.client.get(self.url, HTTP_X_FORWARDED_FOR='1.2.3.4').status_code, 429)
+
+        self.client.force_login(make_user(user_name='mine_user', email='mine@example.com'))
+        response = self.client.get(self.url, {'mine': '1'}, HTTP_X_FORWARDED_FOR='1.2.3.4')
+        self.assertEqual(response.status_code, 200)

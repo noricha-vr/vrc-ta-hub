@@ -124,6 +124,7 @@ class EventDetailPastList(ListView):
 
     既定は「記事・動画・スライドのいずれかがある発表」のみを新しい順に並べる。
     ``?view=all`` で資料なしの発表も含め、``?type=special`` で特別企画・ブログを表示する。
+    ログイン中の ``?mine=1`` は資料の有無によらず本人の承認済み発表を表示する。
     """
 
     template_name = 'event/detail_history.html'
@@ -132,7 +133,7 @@ class EventDetailPastList(ListView):
     paginate_by = 20
     RATE_LIMIT_WINDOW_SECONDS = 10 * 60
     RATE_LIMIT_MAX_REQUESTS = 60
-    ALLOWED_FILTER_KEYS = ('community_name', 'speaker', 'theme', 'q', 'view', 'type')
+    ALLOWED_FILTER_KEYS = ('community_name', 'speaker', 'theme', 'q', 'view', 'type', 'mine')
     # 単独の絞り込みチップとして「× で外せる」形で表示するキー
     REMOVABLE_FILTER_KEYS = (
         ('q', 'キーワード'),
@@ -194,19 +195,28 @@ class EventDetailPastList(ListView):
             del params['view']
         if params.get('type') != self.TYPE_SPECIAL and 'type' in params:
             del params['type']
+        if not self.is_mine and 'mine' in params:
+            del params['mine']
+        if self.is_mine and 'type' in params:
+            del params['type']
 
         return params
 
     @property
     def show_all(self):
-        return self.request.GET.get('view', '').strip() == self.VIEW_ALL
+        return self.is_mine or self.request.GET.get('view', '').strip() == self.VIEW_ALL
+
+    @property
+    def is_mine(self):
+        return self.request.user.is_authenticated and self.request.GET.get('mine', '').strip() == '1'
 
     @property
     def is_special(self):
-        return self.request.GET.get('type', '').strip() == self.TYPE_SPECIAL
+        return not self.is_mine and self.request.GET.get('type', '').strip() == self.TYPE_SPECIAL
 
     def dispatch(self, request, *args, **kwargs):
-        if self._is_rate_limited():
+        # 本人の「自分の発表」は編集の導線なので、公開一覧の IP 単位の制限を共有させない
+        if not self.is_mine and self._is_rate_limited():
             return HttpResponse(
                 "アクセスが集中しています。しばらくしてから再度お試しください。",
                 status=429,
@@ -265,10 +275,11 @@ class EventDetailPastList(ListView):
         return queryset
 
     def get_queryset(self):
-        queryset = super().get_queryset().filter(
-            status='approved',
-            event__community__status='approved',
-        )
+        queryset = super().get_queryset().filter(status='approved')
+        if self.is_mine:
+            queryset = queryset.filter(applicant_id=self.request.user.pk)
+        else:
+            queryset = queryset.filter(event__community__status='approved')
         if self.is_special:
             queryset = queryset.filter(detail_type__in=self.SPECIAL_TYPES)
         else:
@@ -281,9 +292,10 @@ class EventDetailPastList(ListView):
         if not self.show_all:
             queryset = queryset.filter(EventDetail.materials_q())
 
+        ordering = ('-event__date', 'start_time', 'pk') if self.is_mine else ('-event__date', '-start_time')
         return queryset.select_related(
             'event', 'event__community'
-        ).order_by('-event__date', '-start_time')
+        ).order_by(*ordering)
 
     def _build_summary(self):
         """サイト全体の活動サマリー（集会数・発表数・発表者数）を1時間キャッシュで返す。"""
@@ -330,6 +342,11 @@ class EventDetailPastList(ListView):
                     'value': value,
                     'remove_url': self._chip_url(params, key, None),
                 })
+        if self.is_mine:
+            chips.append({
+                'label': '自分の発表',
+                'remove_url': self._chip_url(params, 'mine', None),
+            })
         return chips
 
     def _thumbnail_url(self, detail):
@@ -423,6 +440,7 @@ class EventDetailPastList(ListView):
         self._build_link_base_queries(context, query_params)
 
         context['show_all'] = self.show_all
+        context['is_mine'] = self.is_mine
         context['is_special'] = self.is_special
         context['keyword'] = (
             self.request.GET.get('q', '').strip()
@@ -431,11 +449,21 @@ class EventDetailPastList(ListView):
         context['summary'] = self._build_summary()
         context['materials_count'] = self._filtered_base.filter(EventDetail.materials_q()).count()
         context['all_count'] = self._filtered_base.count()
+        if self.is_mine:
+            logger.info('presentation_list mine=true count=%s', context['all_count'])
         context['filter_chips'] = self._build_filter_chips(query_params)
-        context['view_materials_url'] = self._chip_url(query_params, 'view', None)
+        public_params = query_params.copy()
+        if 'mine' in public_params:
+            del public_params['mine']
+        context['view_materials_url'] = self._chip_url(public_params, 'view', None)
         context['view_all_url'] = self._chip_url(query_params, 'view', self.VIEW_ALL)
         context['type_lt_url'] = self._chip_url(query_params, 'type', None)
-        context['type_special_url'] = self._chip_url(query_params, 'type', self.TYPE_SPECIAL)
+        context['type_special_url'] = self._chip_url(public_params, 'type', self.TYPE_SPECIAL)
+        mine_params = query_params.copy()
+        for key in ('type', 'view'):
+            if key in mine_params:
+                del mine_params[key]
+        context['mine_url'] = self._chip_url(mine_params, 'mine', '1')
         # 「絞り込みを解除」は検索条件だけ外し、表示モード（種別）は維持する
         base_params = QueryDict(mutable=True)
         if self.is_special:

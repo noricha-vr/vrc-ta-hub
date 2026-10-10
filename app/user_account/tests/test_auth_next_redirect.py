@@ -182,7 +182,7 @@ class LocalSignupNextTests(TestCase):
         confirmation_response = self._confirm_signup(email)
 
         self.assertEqual(confirmation_response.status_code, 302)
-        self.assertEqual(confirmation_response.url, reverse('event:my_presentations'))
+        self.assertEqual(confirmation_response.url, reverse('event:detail_history') + '?mine=1')
         self.assertNotIn('evil.example.com', confirmation_response.url)
 
 
@@ -211,7 +211,7 @@ class SocialSignupDuplicateEmailNextTests(TestCase):
         self.assertEqual(get_response.status_code, 302)
         self.assertEqual(urlparse(get_response.url).path, reverse('account:login'))
         self.assertEqual(post_response.status_code, 302)
-        self.assertEqual(post_response.url, reverse('event:my_presentations'))
+        self.assertEqual(post_response.url, reverse('event:detail_history') + '?mine=1')
         self.assertNotEqual(post_response.url, external_url)
 
     def test_allauth_login_post_is_redirected_without_logging_in(self) -> None:
@@ -243,7 +243,7 @@ class SocialSignupDuplicateEmailNextTests(TestCase):
 
         self.assertRedirects(
             response,
-            reverse('event:my_presentations'),
+            reverse('event:detail_history') + '?mine=1',
             fetch_redirect_response=False,
         )
 
@@ -339,7 +339,7 @@ class SocialSignupRedirectTests(TestCase):
 
         self.assertRedirects(
             response,
-            reverse('event:my_presentations'),
+            reverse('event:detail_history') + '?mine=1',
             fetch_redirect_response=False,
         )
 

@@ -412,7 +412,7 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
             'button', name=re.compile(r'このアカウントに紐づける$')
         ).click()
         expect(self.page).to_have_url(
-            re.compile(rf'{re.escape(reverse("event:my_presentations"))}$')
+            re.compile(rf'{re.escape(reverse("event:detail_history") + "?mine=1")}$')
         )
 
         invite_detail.refresh_from_db()
