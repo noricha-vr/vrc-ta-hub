@@ -51,11 +51,19 @@ def _resolve_stage_registration_guidance(collaboration: VketCollaboration) -> di
     return VKET_STAGE_REGISTRATION_GUIDANCE_BY_SLUG.get(collaboration.slug, {})
 
 
+def _stage_registration_enabled(collaboration: VketCollaboration) -> bool:
+    """コラボの設定でステージ登録の受付が明示的に有効なら True を返す"""
+    settings = collaboration.settings_json
+    return isinstance(settings, dict) and settings.get('stage_registration_open') is True
+
+
 def _is_stage_register_open(
     participation: VketParticipation | None,
     collaboration: VketCollaboration,
     current_date: date | None = None,
 ) -> bool:
+    if not _stage_registration_enabled(collaboration):
+        return False
     if participation is None:
         return False
     if participation.stage_registered_at:
@@ -97,6 +105,9 @@ class StageRegisterView(LoginRequiredMixin, View):
             community=community,
         )
 
+        if not _stage_registration_enabled(collaboration):
+            messages.warning(request, 'Vketステージ登録はまだ受け付けていません。')
+            return redirect('vket:status', pk=pk)
         if participation.progress == VketParticipation.Progress.NOT_APPLIED:
             messages.warning(request, 'ステージ登録は参加申込み後に行ってください。')
             return redirect('vket:status', pk=pk)
@@ -213,6 +224,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'is_admin': _is_vket_admin(request.user),
                 'stage_url': _resolve_stage_url(collaboration),
                 'stage_registration_guidance': _resolve_stage_registration_guidance(collaboration),
+                'stage_registration_enabled': _stage_registration_enabled(collaboration),
                 'stage_register_open': _is_stage_register_open(participation, collaboration),
                 'event_details': event_details,
                 **schedule_ctx,

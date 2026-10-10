@@ -127,6 +127,8 @@ class StaffStageRegisterViewTests(StaffAccessTestBase):
 
     def test_staff_can_register_stage(self):
         """staffロールのユーザーがステージ登録を完了できる"""
+        self.collaboration.settings_json = {'stage_registration_open': True}
+        self.collaboration.save(update_fields=['settings_json'])
         participation = VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=self.community,
