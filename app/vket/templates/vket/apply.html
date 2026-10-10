@@ -132,6 +132,9 @@
                 </p>
 
                 {{ formset.management_form }}
+                {% if formset.non_form_errors %}
+                    <div class="alert alert-danger small" role="alert">{{ formset.non_form_errors|join:" " }}</div>
+                {% endif %}
                 <div id="lt-formset-container">
                     {% for lt_form in formset %}
                     <div class="lt-row mb-3 {% if lt_form.DELETE.value %}d-none{% endif %}" data-lt-index="{{ forloop.counter0 }}">
