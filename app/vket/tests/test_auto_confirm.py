@@ -7,7 +7,7 @@ from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from event.models import EventDetail
+from event.models import Event, EventDetail
 from tests.factories import make_community, make_event
 from vket.auto_confirm import auto_confirm_schedules
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
@@ -324,6 +324,26 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         self.assertEqual(presentation.published_event_detail.theme, '変更テーマ')
         self.assertIsNone(newcomer.published_event_id)
         self._assert_no_public_overlap([own, newcomer])
+
+    def test_public_slot_is_reserved_on_published_event_date_when_it_drifts(self):
+        """公開イベントの日付が確定日とずれていても、公開中の日付の枠に他の参加を確定しない。"""
+        own = self._participation()
+        presentation = self._presentation(own)
+        self._run()
+        presentation.refresh_from_db()
+        drifted_day = self.collaboration.period_start + timedelta(days=1)
+        Event.objects.filter(pk=presentation.published_event_detail.event_id).update(date=drifted_day)
+        newcomer = self._participation(
+            make_community(name='公開日に重ねる集会'), day=drifted_day,
+            applied_at=own.applied_at - timedelta(days=1),
+        )
+        self._presentation(newcomer)
+
+        result = self._run()
+
+        newcomer.refresh_from_db()
+        self.assertEqual(result['skipped'], 1)
+        self.assertIsNone(newcomer.published_event_id)
 
     def test_successful_change_replaces_own_old_slot(self):
         """自分の旧枠とは比較せず、変更の確定後は旧枠を別の参加へ渡せる。"""

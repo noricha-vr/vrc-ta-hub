@@ -39,6 +39,7 @@ def _needs_confirmation(participation, collaboration) -> bool:
             or presentation.requested_start_time != presentation.confirmed_start_time
             or detail is None
             or detail.deleted_at is not None
+            or detail.event.date != participation.confirmed_date
             or (presentation.speaker, presentation.theme, presentation.duration) != (
                 detail.speaker, detail.theme, detail.duration,
             )
@@ -55,8 +56,10 @@ def _confirmed_blocks(participations) -> list[ScheduleBlock]:
             continue
         for presentation in participation.presentations.all():
             detail = presentation.published_event_detail
+            day = participation.confirmed_date
             if detail is not None and detail.deleted_at is None:
-                start, duration = detail.start_time, detail.duration
+                # 公開中の枠は、公開イベントの日付・時刻・長さで押さえる（確定値とずれていても公開側を守る）
+                day, start, duration = detail.event.date, detail.start_time, detail.duration
             elif presentation.status == VketPresentation.Status.CONFIRMED:
                 start, duration = presentation.confirmed_start_time, presentation.duration
             else:
@@ -65,7 +68,7 @@ def _confirmed_blocks(participations) -> list[ScheduleBlock]:
                 continue
             blocks.append(ScheduleBlock(
                 participation_id=participation.pk, community_id=participation.community_id,
-                community_name=participation.community.name, date=participation.confirmed_date,
+                community_name=participation.community.name, date=day,
                 start=start, duration=duration, is_confirmed=True, presentation_id=presentation.pk,
             ))
     return blocks
@@ -87,7 +90,7 @@ def _confirm_collaboration(collaboration_id) -> dict:
     # JOIN 先の nullable FK は行ロックせず、参加の取得後に関連を読む。
     prefetch_related_objects(
         participations, 'community',
-        Prefetch('presentations', queryset=VketPresentation.objects.select_related('published_event_detail')),
+        Prefetch('presentations', queryset=VketPresentation.objects.select_related('published_event_detail__event')),
     )
     targets = [p for p in participations if _needs_confirmation(p, collaboration)]
     # 取り下げは日程の成否によらず反映し、変更待ちの旧公開枠は確保しておく。

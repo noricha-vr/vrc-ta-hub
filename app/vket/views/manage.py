@@ -246,7 +246,7 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
                     ]
                 )
             if changed_publication:
-                clear_index_view_cache()
+                transaction.on_commit(clear_index_view_cache)
             messages.success(
                 request,
                 f'{participation.community.name} の参加状態を更新しました。',
