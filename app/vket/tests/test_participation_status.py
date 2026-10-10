@@ -295,3 +295,18 @@ class VketParticipationStatusTests(TestCase):
         self.assertFalse(response.context['stage_register_open'])
         self.assertNotContains(response, '登録完了')
         self.assertContains(response, '未登録')
+
+    def test_rehearsal_schedule_comes_from_collaboration_settings(self):
+        """リハーサルの日時はコラボの設定から出し、未設定なら「決まり次第」と案内する"""
+        self.client.force_login(self.owner)
+        self._set_active_community()
+        url = reverse('vket:status', kwargs={'pk': self.collaboration.pk})
+
+        response = self.client.get(url)
+        self.assertContains(response, '日時は決まり次第お知らせします。')
+        self.assertNotContains(response, '7月10日（金）')
+
+        self.collaboration.settings_json = {'rehearsal_schedule': '11月30日（月）頃の21時頃'}
+        self.collaboration.save()
+        response = self.client.get(url)
+        self.assertContains(response, '11月30日（月）頃の21時頃</span>に実施します。')

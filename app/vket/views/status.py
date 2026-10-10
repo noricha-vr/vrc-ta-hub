@@ -123,6 +123,13 @@ class StageRegisterView(LoginRequiredMixin, View):
         return redirect('vket:status', pk=pk)
 
 
+def _rehearsal_schedule(collaboration: VketCollaboration) -> str:
+    """コラボの設定（settings_json の rehearsal_schedule）からリハーサルの日時の表示を返す。未設定なら空"""
+    settings = collaboration.settings_json
+    value = settings.get('rehearsal_schedule') if isinstance(settings, dict) else None
+    return value.strip() if isinstance(value, str) else ''
+
+
 class ParticipationStatusView(LoginRequiredMixin, View):
     """主催者向け: 自分の集会のコラボ参加状況を確認するビュー"""
 
@@ -197,6 +204,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'collaboration': collaboration,
                 'participation': participation,
                 'community': community,
+                'rehearsal_schedule': _rehearsal_schedule(collaboration),
                 'progress_steps': progress_steps,
                 'latest_notices': latest_notices,
                 'unacked_count': unacked_count,
