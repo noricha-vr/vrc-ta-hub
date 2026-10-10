@@ -46,6 +46,7 @@ def _needs_confirmation(participation, collaboration) -> bool:
             or detail is None
             or detail.deleted_at is not None
             or detail.event.date != participation.confirmed_date
+            or detail.start_time != presentation.confirmed_start_time
             or (presentation.speaker, presentation.theme, presentation.duration) != (
                 detail.speaker, detail.theme, detail.duration,
             )

@@ -358,6 +358,19 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         event = Event.objects.get(pk=own.published_event_id)
         self.assertEqual((event.start_time, event.duration), (own.confirmed_start_time, own.confirmed_duration))
 
+    def test_published_detail_start_time_drift_is_repaired(self):
+        """公開中の発表の開始時刻だけがずれた時も、次の自動確定で確定値に戻す。"""
+        own = self._participation()
+        presentation = self._presentation(own)
+        self._run()
+        presentation.refresh_from_db()
+        EventDetail.objects.filter(pk=presentation.published_event_detail_id).update(start_time=time(23, 30))
+
+        self.assertEqual(self._run()['confirmed'], 1)
+
+        detail = EventDetail.objects.get(pk=presentation.published_event_detail_id)
+        self.assertEqual(detail.start_time, presentation.confirmed_start_time)
+
     def test_successful_change_replaces_own_old_slot(self):
         """自分の旧枠とは比較せず、変更の確定後は旧枠を別の参加へ渡せる。"""
         own = self._participation(applied_at=timezone.now() - timedelta(days=2))
