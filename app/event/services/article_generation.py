@@ -295,6 +295,11 @@ def _send_article_approval_notification(pk: int, notified_at: datetime | None) -
     try:
         detail = get_published_article_for_notification(pk)
         if detail is None:
+            # 送らなかった時は自分の取得を戻し、後で記事を作り直した時に知らせられるようにする
+            if notified_at is not None:
+                EventDetail.all_objects.filter(
+                    pk=pk, article_published_notified_at=notified_at,
+                ).update(article_published_notified_at=None)
             return
         if notified_at is not None:
             recipient = get_material_reminder_recipient(detail)

@@ -464,3 +464,22 @@ class ArticleApprovalNotificationTest(TestCase):
                 post_webhook.assert_not_called()
                 send_mail.side_effect = None
                 send_mail.reset_mock()
+
+    def test_skipped_approval_notification_releases_its_claim(self, send_mail, post_webhook):
+        """承認の後、送る前に記事が空になって見送った時は、承認時の取得を戻して後で知らせられるようにする。"""
+        detail = self._detail()
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            self._post(detail, 'lt_application_approve', execute_callbacks=False)
+        detail.refresh_from_db()
+        self.assertIsNotNone(detail.article_published_notified_at)
+        EventDetail.all_objects.filter(pk=detail.pk).update(h1='', contents='')
+        send_mail.reset_mock()
+        post_webhook.reset_mock()
+
+        for callback in callbacks:
+            callback()
+
+        detail.refresh_from_db()
+        self.assertIsNone(detail.article_published_notified_at)
+        send_mail.assert_not_called()
+        post_webhook.assert_not_called()
