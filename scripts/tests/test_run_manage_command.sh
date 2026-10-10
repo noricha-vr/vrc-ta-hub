@@ -267,4 +267,10 @@ grep -Fq 'another run holds' "$TMP_DIR/pending.out" || fail 'check_pending_migra
 rm -rf "$JOB_ARGS_LOCK_DIR"
 TEST_COUNT=$((TEST_COUNT + 1))
 
+# 短い名前と完全な名前で指定しても、同じロックになる。
+short_dir="$(unset JOB_ARGS_LOCK_DIR; PROJECT_ID=p REGION=r JOB_NAME=job bash -c 'source "$1"; printf "%s" "$JOB_ARGS_LOCK_DIR"' _ "$REPO_ROOT/scripts/job_args_lock.sh")"
+full_dir="$(unset JOB_ARGS_LOCK_DIR; PROJECT_ID=p REGION=r JOB_NAME=projects/p/locations/r/jobs/job bash -c 'source "$1"; printf "%s" "$JOB_ARGS_LOCK_DIR"' _ "$REPO_ROOT/scripts/job_args_lock.sh")"
+[[ -n "$short_dir" && "$short_dir" == "$full_dir" ]] || fail "Lock dir should not depend on the job name form: $short_dir vs $full_dir"
+TEST_COUNT=$((TEST_COUNT + 1))
+
 printf 'PASS: run_manage_command.sh (%s cases)\n' "$TEST_COUNT"
