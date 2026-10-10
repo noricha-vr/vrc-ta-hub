@@ -3,6 +3,7 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 
 class VketCollaboration(models.Model):
@@ -42,6 +43,14 @@ class VketCollaboration(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    @property
+    def is_organizer_edit_open(self) -> bool:
+        """主催者の希望の編集・発表の取り下げを受け付ける期間か。"""
+        return timezone.localdate() <= self.period_end and self.phase in {
+            self.Phase.ENTRY_OPEN, self.Phase.SCHEDULING,
+            self.Phase.LT_COLLECTION, self.Phase.ANNOUNCEMENT,
+        }
 
     def clean(self):
         errors = {}
@@ -243,8 +252,8 @@ class VketPresentation(models.Model):
 
     @property
     def is_organizer_delete_locked(self) -> bool:
-        """確定・公開後も主催者の削除を受け付け、次の公開同期で反映する。"""
-        return False
+        """申込み画面で主催者が発表を編集できない時は削除もロックする。"""
+        return not self.participation.collaboration.is_organizer_edit_open
 
 
 class VketNotice(models.Model):

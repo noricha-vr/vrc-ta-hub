@@ -19,6 +19,7 @@ from ..models import (
 )
 from .notice import _unacked_receipts
 from .helpers import (
+    _apply_permissions_for_user,
     _build_schedule_context,
     _get_active_membership,
     _get_visible_collaborations,
@@ -222,6 +223,9 @@ class ParticipationStatusView(LoginRequiredMixin, View):
                 'first_unacked_notice_id': first_unacked_notice_id,
                 'collaborations': collaborations,
                 'is_admin': _is_vket_admin(request.user),
+                'can_edit_presentations': bool(membership) and _apply_permissions_for_user(
+                    request.user, collaboration,
+                ).can_edit_lt,
                 'stage_url': _resolve_stage_url(collaboration),
                 'stage_registration_guidance': _resolve_stage_registration_guidance(collaboration),
                 'stage_registration_enabled': _stage_registration_enabled(collaboration),

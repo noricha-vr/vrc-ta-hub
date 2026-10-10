@@ -137,7 +137,7 @@ def notify_auto_confirmation(collaboration, confirmed_lines, skipped_lines) -> N
         if lines:
             embeds.append({
                 'title': title,
-                'description': _bounded_lines([f'- {_escape_markdown(line)}' for line in lines], 2800),
+                'description': _bounded_lines([f'- {_short(line, 1000)}' for line in lines], 2800),
             })
     payload = {
         'content': f'**{_short(collaboration.name, 200)}** の日程を自動確定しました。',

@@ -11,7 +11,8 @@ from event.models import EventDetail
 from tests.factories import make_community, make_event
 from vket.auto_confirm import auto_confirm_schedules
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
-from vket.services import confirm_participation_schedule, PENDING_DELETIONS_KEY
+from vket.schedule import ScheduleBlock, find_conflicting_pairs
+from vket.services import confirm_participation_schedule, delete_requested_presentation, PENDING_DELETIONS_KEY
 
 from ._vket_test_bases import VketApplyFlowBase
 
@@ -253,6 +254,209 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         second.refresh_from_db()
         self.assertIsNotNone(first.confirmed_date)
         self.assertIsNone(second.confirmed_date)
+
+    def _assert_no_public_overlap(self, participations):
+        """希望値ではなく、公開イベントの発表の時間帯で検証する。"""
+        event_ids = VketParticipation.objects.filter(
+            pk__in=[p.pk for p in participations], published_event__isnull=False,
+        ).values_list('published_event_id', flat=True)
+        details = EventDetail.objects.filter(
+            event_id__in=event_ids,
+        ).select_related('event__community')
+        blocks = [ScheduleBlock(
+            participation_id=None, community_id=d.event.community_id,
+            community_name=d.event.community.name, date=d.event.date,
+            start=d.start_time, duration=d.duration,
+        ) for d in details]
+        self.assertEqual(find_conflicting_pairs(blocks), [])
+
+    def _assert_skipped_change_keeps_old_public_slot(self, *, reverse_order=False):
+        own = self._participation(applied_at=timezone.now() - timedelta(days=2))
+        presentation = self._presentation(own)
+        fixed = self._participation(make_community(name='固定集会'), start=time(22))
+        self._presentation(fixed, time(22))
+        self.assertEqual(self._run()['confirmed'], 2)
+        own.refresh_from_db()
+        presentation.refresh_from_db()
+        presentation.requested_start_time = time(22)
+        presentation.save()
+        own.requested_start_time = time(22)
+        own.save()
+        newcomer = self._participation(
+            make_community(name='旧枠を希望する集会'),
+            applied_at=own.applied_at + timedelta(days=-1 if reverse_order else 1),
+        )
+        self._presentation(newcomer)
+        self.assertEqual(self._run(), {'confirmed': 0, 'skipped': 2, 'incomplete': 0})
+        own.refresh_from_db()
+        presentation.refresh_from_db()
+        newcomer.refresh_from_db()
+        self.assertEqual(own.confirmed_start_time, time(21))
+        self.assertEqual(own.published_event.start_time, time(21))
+        self.assertEqual(presentation.published_event_detail.start_time, time(21))
+        self.assertIsNone(newcomer.published_event_id)
+        self._assert_no_public_overlap([own, fixed, newcomer])
+
+    def test_skipped_change_keeps_old_public_slot(self):
+        """A の 22 時への変更が B と重なる時、C は A の旧 21 時枠へ入れない。"""
+        self._assert_skipped_change_keeps_old_public_slot()
+
+    def test_skipped_change_keeps_old_public_slot_in_reverse_application_order(self):
+        """C の申込みが A より先でも、A の旧公開枠は確保される。"""
+        self._assert_skipped_change_keeps_old_public_slot(reverse_order=True)
+
+    def test_theme_only_change_keeps_confirmed_slot_reserved(self):
+        """テーマだけ変更中の参加より先に申し込んでも、公開済み枠へ入れない。"""
+        own = self._participation()
+        presentation = self._presentation(own)
+        self._run()
+        presentation.refresh_from_db()
+        presentation.theme = '変更テーマ'
+        presentation.save()
+        newcomer = self._participation(
+            make_community(name='先の申込み'), applied_at=own.applied_at - timedelta(days=1),
+        )
+        self._presentation(newcomer)
+        self.assertEqual(self._run(), {'confirmed': 1, 'skipped': 1, 'incomplete': 0})
+        own.refresh_from_db()
+        newcomer.refresh_from_db()
+        presentation.refresh_from_db()
+        self.assertEqual(presentation.published_event_detail.theme, '変更テーマ')
+        self.assertIsNone(newcomer.published_event_id)
+        self._assert_no_public_overlap([own, newcomer])
+
+    def test_successful_change_replaces_own_old_slot(self):
+        """自分の旧枠とは比較せず、変更の確定後は旧枠を別の参加へ渡せる。"""
+        own = self._participation(applied_at=timezone.now() - timedelta(days=2))
+        presentation = self._presentation(own)
+        self._run()
+        presentation.refresh_from_db()
+        presentation.requested_start_time = time(22)
+        presentation.save()
+        own.requested_start_time = time(22)
+        own.save()
+        newcomer = self._participation(make_community(name='旧枠を希望する集会'))
+        self._presentation(newcomer)
+        self.assertEqual(self._run(), {'confirmed': 2, 'skipped': 0, 'incomplete': 0})
+        own.refresh_from_db()
+        newcomer.refresh_from_db()
+        self.assertEqual(own.confirmed_start_time, time(22))
+        self.assertIsNotNone(newcomer.published_event_id)
+        self._assert_no_public_overlap([own, newcomer])
+
+    def test_change_can_overlap_own_old_public_slot(self):
+        """旧公開枠と一部重なる変更でも、自分自身とは競合しない。"""
+        own = self._participation()
+        presentation = self._presentation(own)
+        self._run()
+        presentation.refresh_from_db()
+        presentation.requested_start_time = time(21, 10)
+        presentation.save()
+        self.assertEqual(self._run(), {'confirmed': 1, 'skipped': 0, 'incomplete': 0})
+        presentation.refresh_from_db()
+        self.assertEqual(presentation.confirmed_start_time, time(21, 10))
+        self.assertEqual(presentation.published_event_detail.start_time, time(21, 10))
+
+    def test_unconfirmed_addition_does_not_reserve_public_slot(self):
+        """変更待ちの参加の追加希望は公開枠として扱わず、申込み順で判定する。"""
+        own = self._participation()
+        self._presentation(own)
+        self._run()
+        self._presentation(own, time(22), order=1)
+        newcomer = self._participation(
+            make_community(name='先の申込み'), start=time(22),
+            applied_at=own.applied_at - timedelta(days=1),
+        )
+        self._presentation(newcomer, time(22))
+        self.assertEqual(self._run(), {'confirmed': 1, 'skipped': 1, 'incomplete': 0})
+        own.refresh_from_db()
+        newcomer.refresh_from_db()
+        self.assertEqual(EventDetail.objects.filter(event_id=own.published_event_id).count(), 1)
+        self.assertIsNotNone(newcomer.published_event_id)
+        self._assert_no_public_overlap([own, newcomer])
+
+    def test_skipped_change_reserves_published_duration_before_requested_shortening(self):
+        """発表時間の短縮希望が見送りでも、旧公開枠の後半へ別の参加は入れない。"""
+        own = self._participation()
+        presentation = self._presentation(own)
+        presentation.duration = 60
+        presentation.save()
+        fixed = self._participation(make_community(name='固定集会'), start=time(22))
+        self._presentation(fixed, time(22))
+        self._run()
+        presentation.refresh_from_db()
+        presentation.requested_start_time = time(22)
+        presentation.duration = 10
+        presentation.save()
+        newcomer = self._participation(make_community(name='旧枠後半の希望'), start=time(21, 30))
+        self._presentation(newcomer, time(21, 30))
+        self.assertEqual(self._run(), {'confirmed': 0, 'skipped': 2, 'incomplete': 0})
+        own.refresh_from_db()
+        newcomer.refresh_from_db()
+        presentation.refresh_from_db()
+        self.assertEqual(presentation.published_event_detail.duration, 60)
+        self.assertIsNone(newcomer.published_event_id)
+        self._assert_no_public_overlap([own, fixed, newcomer])
+
+    def test_skipped_schedule_still_removes_withdrawn_public_presentation(self):
+        """変更を見送っても取り下げは反映し、日程・他の公開発表は保持する。"""
+        own = self._participation()
+        kept = self._presentation(own)
+        removed = self._presentation(own, time(21, 30), order=1)
+        fixed = self._participation(make_community(name='固定集会'), start=time(22))
+        self._presentation(fixed, time(22))
+        self._run()
+        own.refresh_from_db()
+        kept.refresh_from_db()
+        removed.refresh_from_db()
+        confirmed_at = own.schedule_confirmed_at
+        confirmed_date = own.confirmed_date
+        removed_id = removed.published_event_detail_id
+        delete_requested_presentation(removed)
+        own.requested_start_time = time(22)
+        own.requested_duration = 90
+        own.save()
+        kept.requested_start_time = time(22)
+        kept.theme = '変更希望のテーマ'
+        kept.save()
+        with mock.patch('vket.services.clear_index_view_cache') as clear_cache:
+            self.assertEqual(self._run(), {'confirmed': 0, 'skipped': 1, 'incomplete': 0})
+        clear_cache.assert_called_once()
+        own.refresh_from_db()
+        kept.refresh_from_db()
+        self.assertEqual(own.confirmed_date, confirmed_date)
+        self.assertEqual(own.confirmed_start_time, time(21))
+        self.assertEqual(own.confirmed_duration, 60)
+        self.assertEqual(own.schedule_confirmed_at, confirmed_at)
+        self.assertEqual(own.published_event.start_time, time(21))
+        self.assertEqual(own.published_event.date, confirmed_date)
+        self.assertEqual(own.published_event.duration, 60)
+        self.assertEqual(kept.confirmed_start_time, time(21))
+        self.assertEqual(kept.published_event_detail.start_time, time(21))
+        self.assertEqual(kept.published_event_detail.theme, 'テーマ')
+        self.assertFalse(EventDetail.objects.filter(pk=removed_id).exists())
+        self.assertIsNotNone(EventDetail.all_objects.get(pk=removed_id).deleted_at)
+        self.collaboration.refresh_from_db()
+        self.assertNotIn(PENDING_DELETIONS_KEY, self.collaboration.settings_json)
+        self.assertIn('activity_webhook_url', self.collaboration.settings_json)
+        self._assert_no_public_overlap([own, fixed])
+
+    def test_auto_confirmation_summary_normalizes_multiline_community_names(self):
+        """確定行・重なりの組の両方で集会名の改行を一行にし、書式をエスケープする。"""
+        self.community.name = '集会\n*名前*\r\n二行目'
+        self.community.save()
+        own = self._participation()
+        self._presentation(own)
+        other = self._participation(make_community(name='相手\n[集会]'))
+        self._presentation(other)
+        self._run()
+        descriptions = [e['description'] for e in self.send.call_args.args[1]['embeds']]
+        self.assertEqual(len(descriptions), 2)
+        for description in descriptions:
+            self.assertNotIn('\n', description)
+            self.assertNotIn('\r', description)
+            self.assertIn(r'集会 \*名前\* 二行目', description)
+        self.assertIn(r'相手 \[集会\]', descriptions[1])
 
     def test_excluded_phases_inactive_unapplied_and_incomplete_are_not_confirmed(self):
         own = self._participation()

@@ -63,6 +63,15 @@ def _clear_pending_presentation_deletions(participation: VketParticipation) -> b
 
 
 @transaction.atomic
+def apply_pending_presentation_deletions(participation: VketParticipation) -> bool:
+    """日程や残りの発表を変更せず、取り下げだけを公開へ反映する。"""
+    changed = _clear_pending_presentation_deletions(participation)
+    if changed:
+        transaction.on_commit(clear_index_view_cache)
+    return changed
+
+
+@transaction.atomic
 def confirm_participation_schedule(
     participation: VketParticipation, *, presentation_times=None, use_requested=False,
 ) -> bool:

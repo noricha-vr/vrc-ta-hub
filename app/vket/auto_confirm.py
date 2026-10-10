@@ -7,10 +7,13 @@ from django.db.models import F, Prefetch, prefetch_related_objects
 from .activity import notify_auto_confirmation
 from .models import VketCollaboration, VketParticipation, VketPresentation
 from .schedule import (
-    blocks_conflict, blocks_from, format_pair, get_schedule_buffer_minutes,
+    ScheduleBlock, blocks_conflict, blocks_from, format_pair, get_schedule_buffer_minutes,
     is_fully_confirmed,
 )
-from .services import confirm_participation_schedule, pending_presentation_deletions
+from .services import (
+    apply_pending_presentation_deletions, confirm_participation_schedule,
+    pending_presentation_deletions,
+)
 
 logger = logging.getLogger(__name__)
 AUTO_CONFIRM_PHASES = (
@@ -44,6 +47,30 @@ def _needs_confirmation(participation, collaboration) -> bool:
     return False
 
 
+def _confirmed_blocks(participations) -> list[ScheduleBlock]:
+    """変更待ちも含め、希望の変更前の確定・公開済みの発表枠を返す。"""
+    blocks = []
+    for participation in participations:
+        if not is_fully_confirmed(participation):
+            continue
+        for presentation in participation.presentations.all():
+            detail = presentation.published_event_detail
+            if detail is not None and detail.deleted_at is None:
+                start, duration = detail.start_time, detail.duration
+            elif presentation.status == VketPresentation.Status.CONFIRMED:
+                start, duration = presentation.confirmed_start_time, presentation.duration
+            else:
+                continue
+            if start is None or not duration:
+                continue
+            blocks.append(ScheduleBlock(
+                participation_id=participation.pk, community_id=participation.community_id,
+                community_name=participation.community.name, date=participation.confirmed_date,
+                start=start, duration=duration, is_confirmed=True, presentation_id=presentation.pk,
+            ))
+    return blocks
+
+
 @transaction.atomic
 def _confirm_collaboration(collaboration_id) -> dict:
     """同じコラボの呼出し・主催者編集・運営確定を行ロックで直列化する。"""
@@ -63,8 +90,10 @@ def _confirm_collaboration(collaboration_id) -> dict:
         Prefetch('presentations', queryset=VketPresentation.objects.select_related('published_event_detail')),
     )
     targets = [p for p in participations if _needs_confirmation(p, collaboration)]
-    target_ids = {p.pk for p in targets}
-    accepted_blocks = blocks_from([p for p in participations if p.pk not in target_ids])
+    # 取り下げは日程の成否によらず反映し、変更待ちの旧公開枠は確保しておく。
+    for participation in targets:
+        apply_pending_presentation_deletions(participation)
+    accepted_blocks = _confirmed_blocks(participations)
     buffer_minutes = get_schedule_buffer_minutes(collaboration)
     confirmed_lines, skipped_lines = [], []
     for participation in targets:
@@ -78,8 +107,9 @@ def _confirm_collaboration(collaboration_id) -> dict:
             result['incomplete'] += 1
             continue
         candidates = blocks_from([participation], use_requested=True)
+        other_blocks = [b for b in accepted_blocks if b.participation_id != participation.pk]
         pairs = [
-            (a, b) for a in candidates for b in accepted_blocks
+            (a, b) for a in candidates for b in other_blocks
             if a.community_id != b.community_id and blocks_conflict(a, b, buffer_minutes)
         ]
         if pairs:
@@ -87,7 +117,7 @@ def _confirm_collaboration(collaboration_id) -> dict:
             skipped_lines.extend(format_pair(a, b) for a, b in pairs)
             continue
         confirm_participation_schedule(participation, use_requested=True)
-        accepted_blocks.extend(candidates)
+        accepted_blocks = other_blocks + candidates
         result['confirmed'] += 1
         confirmed_lines.append(
             f'{participation.community.name} {participation.confirmed_date:%Y/%m/%d} '
