@@ -483,3 +483,19 @@ class ArticleApprovalNotificationTest(TestCase):
         self.assertIsNone(detail.article_published_notified_at)
         send_mail.assert_not_called()
         post_webhook.assert_not_called()
+
+    def test_skipped_discord_only_notification_releases_its_claim(self, send_mail, post_webhook):
+        """作成メール済みの記事でも、送る前に NG へ変わって見送った時は承認時の取得を戻す。"""
+        detail = self._detail(article_published_notified_at=timezone.now())
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            self._post(detail, 'lt_application_approve', execute_callbacks=False)
+        EventDetail.all_objects.filter(pk=detail.pk).update(article_consent=EventDetail.ArticleConsent.NG)
+        send_mail.reset_mock()
+        post_webhook.reset_mock()
+
+        for callback in callbacks:
+            callback()
+
+        detail.refresh_from_db()
+        self.assertIsNone(detail.article_published_notified_at)
+        post_webhook.assert_not_called()

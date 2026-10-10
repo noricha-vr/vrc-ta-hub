@@ -284,29 +284,34 @@ def schedule_article_notification_on_approval(detail: EventDetail) -> None:
     if not EventDetail.all_objects.filter(EventDetail.article_notifiable_q(), pk=detail.pk).exists():
         return
     claimed_at = timezone.now()
-    notified_at = claimed_at if detail.article_published_notified_at is None else None
+    send_email = detail.article_published_notified_at is None
     EventDetail.all_objects.filter(pk=detail.pk).update(article_published_notified_at=claimed_at)
     detail.article_published_notified_at = claimed_at
-    transaction.on_commit(partial(_send_article_approval_notification, detail.pk, notified_at))
+    transaction.on_commit(partial(_send_article_approval_notification, detail.pk, claimed_at, send_email))
 
 
-def _send_article_approval_notification(pk: int, notified_at: datetime | None) -> None:
-    """承認時に決めた担当で送る。送る直前の同意・公開状態と記事本文を読み直す。"""
+def _release_claim(pk: int, claimed_at: datetime) -> None:
+    """自分が入れた通知日時の時だけ戻し、後で記事を作り直した時に知らせられるようにする。"""
+    EventDetail.all_objects.filter(
+        pk=pk, article_published_notified_at=claimed_at,
+    ).update(article_published_notified_at=None)
+
+
+def _send_article_approval_notification(pk: int, claimed_at: datetime, send_email: bool) -> None:
+    """承認時に決めた担当で送る。送る直前の同意・公開状態と記事本文を読み直す。
+
+    送る条件を満たさず見送った時は、承認時に取った担当を戻す（作成メール済みの記事も、
+    後で記事を作り直した時に公開のメールと Discord で知らせられるように）。
+    """
     try:
         detail = get_published_article_for_notification(pk)
         if detail is None:
-            # 送らなかった時は自分の取得を戻し、後で記事を作り直した時に知らせられるようにする
-            if notified_at is not None:
-                EventDetail.all_objects.filter(
-                    pk=pk, article_published_notified_at=notified_at,
-                ).update(article_published_notified_at=None)
+            _release_claim(pk, claimed_at)
             return
-        if notified_at is not None:
+        if send_email:
             recipient = get_material_reminder_recipient(detail)
             if not _send_published_notification(detail, recipient):
-                EventDetail.all_objects.filter(
-                    pk=pk, article_published_notified_at=notified_at,
-                ).update(article_published_notified_at=None)
+                _release_claim(pk, claimed_at)
         else:
             edit_url = build_site_url(reverse('account:lt_application_edit', kwargs={'pk': pk}))
             article_url = build_site_url(reverse('event:detail', kwargs={'pk': pk}))
