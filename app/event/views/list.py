@@ -215,7 +215,8 @@ class EventDetailPastList(ListView):
         return not self.is_mine and self.request.GET.get('type', '').strip() == self.TYPE_SPECIAL
 
     def dispatch(self, request, *args, **kwargs):
-        if self._is_rate_limited():
+        # 本人の「自分の発表」は編集の導線なので、公開一覧の IP 単位の制限を共有させない
+        if not self.is_mine and self._is_rate_limited():
             return HttpResponse(
                 "アクセスが集中しています。しばらくしてから再度お試しください。",
                 status=429,
