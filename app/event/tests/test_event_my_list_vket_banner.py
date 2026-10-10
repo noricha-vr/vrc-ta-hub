@@ -87,6 +87,42 @@ class VketBannerMilestoneTests(TestCase):
                 self.assertEqual(banner['milestone']['key'], key)
                 self.assertEqual(banner['days_until'], days)
 
+    def test_inactive_participation_only_shows_period_and_status_link(self):
+        """辞退・不参加では進捗にかかわらず節目を出さず、参加状況だけ確認できる。"""
+        participation = self._apply()
+        for lifecycle in (
+            VketParticipation.Lifecycle.WITHDRAWN,
+            VketParticipation.Lifecycle.DECLINED,
+        ):
+            for progress in (
+                VketParticipation.Progress.NOT_APPLIED,
+                VketParticipation.Progress.APPLIED,
+            ):
+                participation.lifecycle = lifecycle
+                participation.progress = progress
+                participation.save(update_fields=['lifecycle', 'progress'])
+                for today in (
+                    date(2026, 10, 10), date(2026, 11, 2), date(2026, 11, 24),
+                    date(2026, 12, 1), date(2026, 12, 10), date(2026, 12, 21),
+                ):
+                    with self.subTest(lifecycle=lifecycle, progress=progress, today=today):
+                        response = self._get_response(today)
+                        banner = response.context['vket_banner']
+                        self.assertIsNone(banner['milestone'])
+                        self.assertIsNone(banner['days_until'])
+                        self.assertEqual(banner['message'], '')
+                        self.assertEqual(banner['date_display'], '')
+                        self.assertEqual(banner['time_display'], '')
+                        self.assertTrue(banner['show_participation_link'])
+                        self.assertContains(response, 'Vket 2026 Winter 技術学術WEEK 12/5〜12/20')
+                        self.assertContains(response, '参加状況を確認')
+                        self.assertContains(response, f'href="{reverse("vket:status", args=[self.collaboration.pk])}"')
+                        self.assertNotContains(response, '<span class="vket-banner-countdown"')
+                        self.assertNotContains(response, '<span class="vket-banner-today"')
+                        self.assertNotContains(response, '参加申し込み受付中')
+                        self.assertNotContains(response, '参加申し込みは締め切りました')
+                        self.assertNotContains(response, f'href="{reverse("vket:apply", args=[self.collaboration.pk])}"')
+
     def test_selection_uses_dates_instead_of_fixed_priority(self):
         """設定で説明会が発表締切より早ければ説明会を選ぶ。"""
         self._apply()
@@ -112,16 +148,28 @@ class VketBannerMilestoneTests(TestCase):
         self.assertEqual(banner['days_until'], 0)
         self.assertContains(response, '今日')
         self.assertNotContains(response, 'あと0日')
+        self.assertTrue(banner['show_participation_link'])
+        self.assertContains(response, f'href="{reverse("vket:apply", args=[self.collaboration.pk])}"')
 
     def test_event_today_includes_start_time(self):
-        """開催当日は開始時刻と自分の集会の開催日を表示する。"""
+        """未確定の開催当日は開始時刻と希望の開催日を表示する。"""
         self._apply()
         response = self._get_response(date(2026, 12, 10))
         banner = response.context['vket_banner']
         self.assertEqual(banner['days_until'], 0)
-        self.assertEqual(banner['message'], '22:00 から あなたの集会の開催日です')
+        self.assertEqual(banner['message'], '22:00 から あなたの集会の開催日（希望）です')
         self.assertContains(response, '今日')
-        self.assertContains(response, '22:00 から あなたの集会の開催日です')
+        self.assertContains(response, '22:00 から あなたの集会の開催日（希望）です')
+
+    def test_requested_event_date_is_labeled_as_requested(self):
+        """確定日がなければ希望日を使い、節目に「（希望）」を付ける。"""
+        self._apply(confirmed_start_time=time(20, 30))
+        response = self._get_response(date(2026, 12, 1))
+        banner = response.context['vket_banner']
+        self.assertEqual(banner['milestone']['label'], 'あなたの集会の開催日（希望）')
+        self.assertEqual(banner['days_until'], 9)
+        self.assertEqual(banner['date_display'], '12/10（木）')
+        self.assertContains(response, 'あなたの集会の開催日（希望）')
 
     def test_event_uses_confirmed_schedule_before_requested_schedule(self):
         """確定日・開始時刻があれば希望日程より優先する。"""
@@ -130,6 +178,8 @@ class VketBannerMilestoneTests(TestCase):
         self.assertEqual(banner['days_until'], 11)
         self.assertEqual(banner['date_display'], '12/12（土）')
         self.assertEqual(banner['time_display'], '20:30')
+        self.assertEqual(banner['milestone']['label'], 'あなたの集会の開催日')
+        self.assertNotIn('（希望）', banner['message'])
 
     def test_missing_community_date_skips_to_after_party(self):
         """希望日も確定日もない参加では自分の開催日を候補にしない。"""
@@ -139,8 +189,8 @@ class VketBannerMilestoneTests(TestCase):
         banner = self._get_response(date(2026, 12, 1)).context['vket_banner']
         self.assertEqual(banner['milestone']['key'], 'after_party')
 
-    def test_unapplied_after_deadline_only_shows_open_registration(self):
-        """受付中でも過ぎた締切や申込済み向けの節目は出さない。"""
+    def test_unapplied_after_deadline_shows_closed_registration_without_button(self):
+        """受付中フェーズでも締切後の未申込集会には締切文言と会期だけを出す。"""
         for progress in (None, VketParticipation.Progress.NOT_APPLIED):
             with self.subTest(progress=progress):
                 if progress:
@@ -150,9 +200,16 @@ class VketBannerMilestoneTests(TestCase):
                     )
                 response = self._get_response(date(2026, 11, 2))
                 banner = response.context['vket_banner']
-                self.assertEqual(banner['message'], '参加申し込み受付中')
+                self.assertEqual(banner['message'], '参加申し込みは締め切りました')
                 self.assertIsNone(banner['days_until'])
                 self.assertIsNone(banner['milestone'])
+                self.assertFalse(banner['show_participation_link'])
+                self.assertContains(response, '参加申し込みは締め切りました')
+                self.assertContains(response, 'Vket 2026 Winter 技術学術WEEK 12/5〜12/20')
+                self.assertNotContains(response, '参加申し込み受付中')
+                self.assertNotContains(response, '参加状況を確認')
+                for url_name in ('vket:apply', 'vket:status'):
+                    self.assertNotContains(response, f'href="{reverse(url_name, args=[self.collaboration.pk])}"')
                 self.assertNotContains(response, '参加表明の締切')
                 self.assertNotContains(response, '発表者・テーマの登録締切')
 
@@ -162,8 +219,30 @@ class VketBannerMilestoneTests(TestCase):
         self.collaboration.save(update_fields=['phase'])
         response = self._get_response(date(2026, 11, 2))
         self.assertIsNone(response.context['vket_banner']['milestone'])
+        self.assertFalse(response.context['vket_banner']['show_participation_link'])
+        self.assertContains(response, '参加申し込みは締め切りました')
         self.assertNotContains(response, '参加申し込み受付中')
         self.assertNotContains(response, '参加表明の締切')
+
+    def test_unapplied_during_event_still_shows_closed_registration(self):
+        """会期中も未申込の集会には締切文言を出し、参加側ボタンを出さない。"""
+        response = self._get_response(date(2026, 12, 10))
+        banner = response.context['vket_banner']
+        self.assertEqual(banner['message'], '参加申し込みは締め切りました')
+        self.assertIsNone(banner['milestone'])
+        self.assertFalse(banner['show_participation_link'])
+        self.assertNotContains(response, '参加申し込み受付中')
+
+    def test_admin_after_deadline_keeps_manage_link(self):
+        """締切後の未申込集会でも管理者の管理画面ボタンは維持する。"""
+        self.user.is_staff = True
+        self.user.save(update_fields=['is_staff'])
+        response = self._get_response(date(2026, 11, 2))
+        banner = response.context['vket_banner']
+        self.assertFalse(banner['show_participation_link'])
+        self.assertContains(response, '参加申し込みは締め切りました')
+        self.assertContains(response, '管理画面を開く')
+        self.assertContains(response, f'href="{reverse("vket:manage", args=[self.collaboration.pk])}"')
 
     def test_admin_without_community_sees_global_milestones(self):
         """所属集会がない管理者はコラボ全体の次の節目と管理リンクを使う。"""

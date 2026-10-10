@@ -410,10 +410,14 @@ class EventMyList(LoginRequiredMixin, ListView):
                 VketCollaboration.Phase.DRAFT,
                 VketCollaboration.Phase.ARCHIVED,
             ])
+            .only(
+                'name', 'phase', 'period_start', 'period_end',
+                'registration_deadline', 'lt_deadline', 'settings_json',
+            )
             .order_by('-period_start', '-id')
         )
         collaboration = None
-        for candidate in collaborations:
+        for candidate in collaborations.iterator():
             schedule = self._get_vket_schedule_milestones(candidate)
             after_party = schedule.get('after_party')
             display_until = max(
@@ -439,15 +443,30 @@ class EventMyList(LoginRequiredMixin, ListView):
             has_participation
             and participation.progress != VketParticipation.Progress.NOT_APPLIED
         )
+        is_inactive_participation = (
+            has_participation
+            and participation.lifecycle != VketParticipation.Lifecycle.ACTIVE
+        )
+        registration_closed = (
+            not has_applied
+            and not is_inactive_participation
+            and today > collaboration.registration_deadline
+        )
 
         milestones = []
-        if not has_applied or (is_vket_admin and community is None):
+        if (
+            (not has_applied and not is_inactive_participation)
+            or (is_vket_admin and community is None)
+        ):
             milestones.append({
                 'key': 'registration_deadline',
                 'date': collaboration.registration_deadline,
                 'label': '参加表明の締切',
             })
-        if has_applied or (is_vket_admin and community is None):
+        if (
+            (has_applied and not is_inactive_participation)
+            or (is_vket_admin and community is None)
+        ):
             milestones.append({
                 'key': 'lt_deadline',
                 'date': collaboration.lt_deadline,
@@ -460,7 +479,11 @@ class EventMyList(LoginRequiredMixin, ListView):
                     'key': 'community_event',
                     'date': participation.effective_date,
                     'time': participation.effective_start_time,
-                    'label': 'あなたの集会の開催日',
+                    'label': (
+                        'あなたの集会の開催日'
+                        if participation.confirmed_date
+                        else 'あなたの集会の開催日（希望）'
+                    ),
                 })
             elif is_vket_admin and community is None:
                 milestones.append({
@@ -506,6 +529,10 @@ class EventMyList(LoginRequiredMixin, ListView):
             message = milestone['label']
             if days_until == 0:
                 message = f'{time_display} から {message}です' if time_display else f'{message}です'
+        elif is_inactive_participation:
+            message = ''
+        elif registration_closed:
+            message = '参加申し込みは締め切りました'
         elif not has_applied and phase == VketCollaboration.Phase.ENTRY_OPEN:
             message = '参加申し込み受付中'
         elif is_during_event:
@@ -516,6 +543,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         if (
             not has_participation
             and phase == VketCollaboration.Phase.ENTRY_OPEN
+            and not registration_closed
         ):
             url_name = 'vket:apply'
             button_text = '参加申し込み'
@@ -546,6 +574,6 @@ class EventMyList(LoginRequiredMixin, ListView):
             'button_icon': button_icon,
             'has_participation': has_participation,
             # 申込・参加状況のページは集会の選択が前提なので、所属が無ければ出さない
-            'show_participation_link': community is not None,
+            'show_participation_link': community is not None and not registration_closed,
             'is_vket_admin': is_vket_admin,
         }

@@ -501,9 +501,9 @@ class VketBannerTests(TestCase):
         self.assertIsNone(response.context['vket_banner'])
 
     def test_banner_shows_during_event(self):
-        """終了日当日は「開催中」バナーが表示される"""
+        """申し込み済みの集会には終了日当日も「開催中」バナーが表示される"""
         today = timezone.localdate()
-        VketCollaboration.objects.create(
+        collaboration = VketCollaboration.objects.create(
             slug='banner-during',
             name='During Event',
             period_start=today - timedelta(days=1),
@@ -511,6 +511,10 @@ class VketBannerTests(TestCase):
             registration_deadline=today - timedelta(days=10),
             lt_deadline=today - timedelta(days=5),
             phase=VketCollaboration.Phase.LOCKED,
+        )
+        VketParticipation.objects.create(
+            collaboration=collaboration, community=self.community,
+            progress=VketParticipation.Progress.APPLIED,
         )
         self._login_and_set_community()
         response = self.client.get(reverse('event:my_list'))
@@ -531,6 +535,10 @@ class VketBannerTests(TestCase):
             registration_deadline=today - timedelta(days=10),
             lt_deadline=today - timedelta(days=5),
             phase=VketCollaboration.Phase.LOCKED,
+        )
+        VketParticipation.objects.create(
+            collaboration=current_collab, community=self.community,
+            progress=VketParticipation.Progress.APPLIED,
         )
         VketCollaboration.objects.create(
             slug='banner-newer-expired-entry-open',
