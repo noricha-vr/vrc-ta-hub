@@ -24,4 +24,9 @@
             {{ detail.title|default:"テーマ未設定" }}
         </a>
     </div>
+    {% if request.user.is_authenticated and detail.applicant_id == request.user.pk %}
+        <div class="d-flex flex-wrap align-items-center gap-1 mt-2">
+            {% include 'event/_presentation_owner_actions.html' with detail=detail %}
+        </div>
+    {% endif %}
 </div>

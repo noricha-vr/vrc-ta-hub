@@ -197,7 +197,7 @@ class SpeakerInviteTests(TestCase):
         self.assertContains(preview, "「自分の発表」ページからこの発表を編集できます")
         self.assertRedirects(
             response,
-            reverse("event:my_presentations"),
+            reverse("event:detail_history") + "?mine=1",
         )
         self.event_detail.refresh_from_db()
         self.assertEqual(self.event_detail.applicant, self.speaker)
@@ -497,7 +497,7 @@ class SpeakerInviteTests(TestCase):
             "event:detail_update",
             kwargs={"pk": self.event_detail.pk},
         )
-        my_page_response = self.client.get(reverse("event:my_presentations"))
+        my_page_response = self.client.get(reverse("event:detail_history") + "?mine=1")
 
         self.assertContains(my_page_response, "自分の発表")
         self.assertContains(my_page_response, "署名付き招待URLの発表")
@@ -506,7 +506,7 @@ class SpeakerInviteTests(TestCase):
         self.assertNotContains(my_page_response, "集会未登録")
         self.assertNotContains(my_page_response, "イベントがありません")
         self.assertEqual(
-            list(my_page_response.context["presentations"]),
+            list(my_page_response.context["event_details"]),
             [self.event_detail],
         )
 

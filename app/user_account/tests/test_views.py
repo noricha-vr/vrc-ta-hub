@@ -55,7 +55,7 @@ class CustomLoginViewTests(TestCase):
                 response = self.client.get(login_url)
                 self.assertRedirects(
                     response,
-                    reverse('event:my_presentations'),
+                    reverse('event:detail_history') + '?mine=1',
                     fetch_redirect_response=False,
                 )
 
@@ -162,7 +162,7 @@ class CustomLoginViewTests(TestCase):
             'password': 'testpass123',
         })
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse('event:my_presentations'))
+        self.assertEqual(response.url, reverse('event:detail_history') + '?mine=1')
 
     def test_login_does_not_redirect_to_external_url(self):
         """外部URLへのリダイレクトを防止する（オープンリダイレクト対策）."""
@@ -173,7 +173,7 @@ class CustomLoginViewTests(TestCase):
         })
         # 外部URLにはリダイレクトされず、集会未所属の既定先にリダイレクトされる
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse('event:my_presentations'))
+        self.assertEqual(response.url, reverse('event:detail_history') + '?mine=1')
 
     def test_login_does_not_redirect_to_protocol_relative_url(self):
         """プロトコル相対URLへのリダイレクトを防止する（オープンリダイレクト対策）."""
@@ -184,7 +184,7 @@ class CustomLoginViewTests(TestCase):
         })
         # プロトコル相対URLにはリダイレクトされず、集会未所属の既定先にリダイレクトされる
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse('event:my_presentations'))
+        self.assertEqual(response.url, reverse('event:detail_history') + '?mine=1')
 
 
 @tag('offline_external_api')
@@ -328,7 +328,7 @@ class SettingsViewTests(TestCase):
         # ユーザー情報編集が表示されていること
         self.assertContains(response, 'ユーザー情報を編集')
         self.assertContains(response, '自分の発表')
-        self.assertContains(response, reverse('event:my_presentations'))
+        self.assertContains(response, reverse('event:detail_history') + '?mine=1')
         # パスワード変更が表示されていること
         self.assertContains(response, 'パスワードを変更')
         # Discord連携が表示されていること

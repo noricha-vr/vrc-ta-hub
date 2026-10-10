@@ -69,7 +69,7 @@ class HeaderCommunityDropdownTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, '<li class="dropdown-header small text-muted">集会一覧</li>')
         self.assertContains(response, '自分の発表')
-        self.assertContains(response, reverse('event:my_presentations'))
+        self.assertContains(response, reverse('event:detail_history') + '?mine=1')
 
     def test_user_sees_all_communities_in_dropdown(self):
         """ユーザーは所属する全ての集会をドロップダウンで見る"""
@@ -87,7 +87,7 @@ class HeaderCommunityDropdownTest(TestCase):
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        presentations_url = reverse('event:my_presentations')
+        presentations_url = reverse('event:detail_history') + '?mine=1'
         self.assertContains(response, f'href="{presentations_url}"', count=1)
         self.assertContains(response, '自分の発表')
 

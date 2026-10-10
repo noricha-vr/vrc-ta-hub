@@ -1,0 +1,17 @@
+{% comment %}本人の発表に資料の未登録表示と編集導線を出す。関連オブジェクトは取得せず applicant_id で判定する。{% endcomment %}
+{% if request.user.is_authenticated and detail.applicant_id == request.user.pk %}
+    {% if not detail.slide_file and not detail.slide_url %}
+        <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>スライド未登録</span>
+    {% endif %}
+    {% if not detail.youtube_url %}
+        <span class="badge bg-light text-muted border"><i class="bi bi-play-btn me-1" aria-hidden="true"></i>動画未登録</span>
+    {% endif %}
+    {% if detail.article_consent == 'ng' %}
+        <span class="badge bg-light text-muted border">記事化 NG</span>
+    {% elif not detail.has_article %}
+        <span class="badge bg-light text-muted border"><i class="bi bi-pencil-square me-1" aria-hidden="true"></i>記事未生成</span>
+    {% endif %}
+    <a href="{% url 'event:detail_update' detail.pk %}" class="btn btn-success btn-sm position-relative z-2 ms-auto">
+        <i class="bi bi-pencil me-1" aria-hidden="true"></i>編集
+    </a>
+{% endif %}

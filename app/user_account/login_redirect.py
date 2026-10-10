@@ -9,4 +9,4 @@ def get_default_login_redirect_url(user) -> str:
     """集会所属状況に応じたログイン後の既定リダイレクト先を返す。"""
     if user.community_memberships.exists():
         return resolve_url(settings.LOGIN_REDIRECT_URL)
-    return reverse("event:my_presentations")
+    return f"{reverse('event:detail_history')}?mine=1"

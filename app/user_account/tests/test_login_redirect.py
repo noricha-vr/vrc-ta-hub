@@ -50,7 +50,7 @@ class LoginRedirectTests(TestCase):
 
         self.assertEqual(
             self.adapter.get_login_redirect_url(request),
-            reverse('event:my_presentations'),
+            reverse('event:detail_history') + '?mine=1',
         )
 
     def test_account_adapter_with_membership_uses_existing_default(self):
