@@ -29,23 +29,13 @@
         {% if not permissions.can_edit_schedule %}
             <div class="alert alert-warning">
                 <i class="fas fa-lock me-1"></i>
-                {% if participation.is_schedule_confirmed %}
-                    参加日程（Step 1）は運営が確定済みのため編集できません。
-                {% else %}
-                    参加日程（Step 1）は締切を過ぎているため編集できません。
-                {% endif %}
+                参加日程（Step 1）は受付期間外のため編集できません。
             </div>
         {% endif %}
-        {% if participation.is_schedule_confirmed and permissions.can_edit_lt %}
+        {% if permissions.can_edit_schedule or permissions.can_edit_lt %}
             <div class="alert alert-info">
                 <i class="fas fa-info-circle me-1"></i>
-                参加日程は確定済みです。発表開始時刻は発表情報の締切まで変更できますが、確定済み・公開済みの発表は変更できません。
-            </div>
-        {% endif %}
-        {% if is_late_lt_submission %}
-            <div class="alert alert-warning">
-                <i class="fas fa-clock me-1"></i>
-                発表情報（Step 2）の締切後です。保存した発表は申請中として受け付け、運営の確認後に確定・公開されます。
+                確定後・締切後も日程と発表を編集できます。変更は次の自動確定で反映されます。
             </div>
         {% endif %}
         {% if not permissions.can_edit_lt %}
@@ -61,7 +51,7 @@
                 {% bootstrap_form_errors form %}
 
                 <h2 class="h5 fw-bold mb-3">参加日程の希望（締切1）</h2>
-                <p class="text-muted small mb-3">運営が確認して確定日程を設定します。確定後はこの画面で「確定日程」として表示されます。</p>
+                <p class="text-muted small mb-3">1 日 1 回、発表時間が他の集会と重ならない日程を自動で確定します。確定後はこの画面で「確定日程」として表示されます。</p>
 
                 <div class="mb-3">
                     <label class="form-label fw-bold">{{ form.requested_date.label }}</label>
@@ -86,7 +76,6 @@
                     <style>#busy-slots-list li:last-child { border-bottom: 0 !important; }</style>
                     <section id="busy-slots" class="rounded-3 border p-3 mb-3" style="max-width: 36rem;" aria-live="polite"
                              data-buffer-minutes="{{ schedule_buffer_minutes }}"
-                             data-confirmed-date="{{ participation.confirmed_date|date:"Y-m-d" }}"
                              data-slot-minutes="{{ participation.lt_slot_minutes|default:30 }}">
                         <h3 class="h6 fw-bold mb-2">
                             <i class="far fa-clock me-1 text-muted"></i><span id="busy-slots-title">埋まっている時間</span>
@@ -256,13 +245,13 @@
 
         function selectedDate() {
             var checked = document.querySelector('input[name="requested_date"]:checked');
-            return panel.dataset.confirmedDate || (checked ? checked.value : '');
+            return checked ? checked.value : '';
         }
 
         function selectedLabel() {
             var checked = document.querySelector('input[name="requested_date"]:checked');
             var label = checked && checked.closest('label');
-            return panel.dataset.confirmedDate || (label ? label.textContent.trim() : '');
+            return label ? label.textContent.trim() : '';
         }
 
         // サーバーの判定（vket/schedule.py の blocks_conflict）と同じく、
@@ -296,12 +285,9 @@
                     requestedStart = previous === null ? toMinutes(startInput && startInput.value) : previous + slotMinutes;
                 }
                 if (requestedStart !== null && requestedStart < MINUTES_PER_DAY) previous = requestedStart;
-                var startOfDay = input ? toMinutes(input.dataset.confirmedStart) : null;
-                if (startOfDay === null) startOfDay = requestedStart;
+                var startOfDay = requestedStart;
                 if (startOfDay === null || startOfDay >= MINUTES_PER_DAY) return;
-                // 時刻を変えられない発表は保存済みの長さ、それ以外は画面で選んだ持ち時間（保存時に揃える）
-                var lockedDuration = input ? parseInt(input.dataset.duration, 10) : NaN;
-                var duration = isNaN(lockedDuration) ? slotMinutes : lockedDuration;
+                var duration = slotMinutes;
                 var start = minutesSinceEpoch(date, startOfDay);
                 payload.blocks.forEach(function(block, index) {
                     if (overlaps(block, start, start + duration)) result[index] = true;

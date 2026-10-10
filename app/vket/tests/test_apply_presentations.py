@@ -275,8 +275,8 @@ class VketApplyFlowTests(VketApplyFlowBase):
         self.assertEqual(response.status_code, 302)
         self.assertFalse(VketPresentation.objects.filter(pk=pres.pk).exists())
 
-    def test_confirmed_presentation_delete_forbidden_for_organizer(self):
-        """確定済みLTは主催者側の個別削除を拒否する"""
+    def test_confirmed_presentation_delete_allowed_for_organizer(self):
+        """確定済みの発表も主催者が個別に削除できる"""
         self.client.force_login(self.owner)
         self._set_active_community()
         participation = VketParticipation.objects.create(
@@ -303,11 +303,11 @@ class VketApplyFlowTests(VketApplyFlowBase):
             ),
         )
 
-        self.assertEqual(response.status_code, 403)
-        self.assertTrue(VketPresentation.objects.filter(pk=pres.pk).exists())
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(VketPresentation.objects.filter(pk=pres.pk).exists())
 
-    def test_published_presentation_delete_forbidden_for_organizer(self):
-        """公開済みLTは主催者側の個別削除を拒否する"""
+    def test_published_presentation_delete_waits_for_publication_sync(self):
+        """公開済みの発表は希望から削除し、公開詳細は次の同期まで保持する"""
         self.client.force_login(self.owner)
         self._set_active_community()
         event = Event.objects.filter(community=self.community).first()
@@ -338,8 +338,8 @@ class VketApplyFlowTests(VketApplyFlowBase):
             ),
         )
 
-        self.assertEqual(response.status_code, 403)
-        self.assertTrue(VketPresentation.objects.filter(pk=pres.pk).exists())
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(VketPresentation.objects.filter(pk=pres.pk).exists())
         self.assertTrue(EventDetail.objects.filter(pk=detail.pk).exists())
 
     def test_presentation_delete_forbidden_for_non_member(self):

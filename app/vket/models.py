@@ -102,7 +102,7 @@ class VketParticipation(models.Model):
         db_index=True,
     )
 
-    # 主催者の希望（変更不可で保持）
+    # 主催者の希望（次の確定で反映）
     requested_date = models.DateField("希望日程", null=True, blank=True)
     requested_start_time = models.TimeField("希望開始時刻", null=True, blank=True)
     requested_duration = models.PositiveIntegerField("希望開催時間（分）", null=True, blank=True)
@@ -243,12 +243,8 @@ class VketPresentation(models.Model):
 
     @property
     def is_organizer_delete_locked(self) -> bool:
-        """主催者側から削除できない確定済み/公開済み LT なら True を返す"""
-        return (
-            self.participation.is_schedule_confirmed
-            or self.status == self.Status.CONFIRMED
-            or self.published_event_detail_id is not None
-        )
+        """確定・公開後も主催者の削除を受け付け、次の公開同期で反映する。"""
+        return False
 
 
 class VketNotice(models.Model):

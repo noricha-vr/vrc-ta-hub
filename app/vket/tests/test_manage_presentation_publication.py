@@ -93,23 +93,24 @@ class VketManageViewsTests(VketManageViewsBase):
         cache_key = get_index_view_cache_key()
         cache.set(cache_key, {'upcoming_event_details': ['stale']}, 60)
         new_date = self.collaboration.period_start
-        response = self.client.post(
-            reverse(
-                'vket:manage_participation_update',
-                kwargs={
-                    'pk': self.collaboration.pk,
-                    'participation_id': self.participation1.pk,
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse(
+                    'vket:manage_participation_update',
+                    kwargs={
+                        'pk': self.collaboration.pk,
+                        'participation_id': self.participation1.pk,
+                    },
+                ),
+                data={
+                    'confirmed_date': new_date.isoformat(),
+                    'confirmed_start_time': '21:00',
+                    'confirmed_duration': '60',
+                    'admin_note': '',
+                    f'pres_{presentation.pk}_start_time': '22:15',
                 },
-            ),
-            data={
-                'confirmed_date': new_date.isoformat(),
-                'confirmed_start_time': '21:00',
-                'confirmed_duration': '60',
-                'admin_note': '',
-                f'pres_{presentation.pk}_start_time': '22:15',
-            },
-            follow=False,
-        )
+                follow=False,
+            )
         self.assertEqual(response.status_code, 302)
 
         presentation.refresh_from_db()
@@ -190,23 +191,24 @@ class VketManageViewsTests(VketManageViewsBase):
         cache_key = get_index_view_cache_key()
         cache.set(cache_key, {'upcoming_event_details': ['stale']}, 60)
         new_date = self.collaboration.period_start
-        response = self.client.post(
-            reverse(
-                'vket:manage_participation_update',
-                kwargs={
-                    'pk': self.collaboration.pk,
-                    'participation_id': self.participation1.pk,
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                reverse(
+                    'vket:manage_participation_update',
+                    kwargs={
+                        'pk': self.collaboration.pk,
+                        'participation_id': self.participation1.pk,
+                    },
+                ),
+                data={
+                    'confirmed_date': new_date.isoformat(),
+                    'confirmed_start_time': '21:00',
+                    'confirmed_duration': '60',
+                    'admin_note': '',
+                    f'pres_{presentation.pk}_start_time': '23:00',
                 },
-            ),
-            data={
-                'confirmed_date': new_date.isoformat(),
-                'confirmed_start_time': '21:00',
-                'confirmed_duration': '60',
-                'admin_note': '',
-                f'pres_{presentation.pk}_start_time': '23:00',
-            },
-            follow=False,
-        )
+                follow=False,
+            )
         self.assertEqual(response.status_code, 302)
 
         presentation.refresh_from_db()

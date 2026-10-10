@@ -125,20 +125,21 @@ class VketManageViewsTests(VketManageViewsBase):
         cache_key = get_index_view_cache_key()
         cache.set(cache_key, {'upcoming_event_details': ['stale']}, 60)
         new_date = self.collaboration.period_start + timedelta(days=1)
-        self.client.post(
-            reverse(
-                'vket:manage_participation_update',
-                kwargs={
-                    'pk': self.collaboration.pk,
-                    'participation_id': self.participation1.pk,
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                reverse(
+                    'vket:manage_participation_update',
+                    kwargs={
+                        'pk': self.collaboration.pk,
+                        'participation_id': self.participation1.pk,
+                    },
+                ),
+                data={
+                    'confirmed_date': new_date.isoformat(),
+                    'confirmed_start_time': '21:00',
+                    'confirmed_duration': '60',
                 },
-            ),
-            data={
-                'confirmed_date': new_date.isoformat(),
-                'confirmed_start_time': '21:00',
-                'confirmed_duration': '60',
-            },
-        )
+            )
         pres.refresh_from_db()
         self.assertEqual(pres.status, VketPresentation.Status.CONFIRMED)
         self.assertIsNotNone(pres.published_event_detail)

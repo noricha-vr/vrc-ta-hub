@@ -112,12 +112,13 @@ def block_for(participation: VketParticipation) -> ScheduleBlock | None:
 
 def presentation_block_for(
     participation: VketParticipation, presentation: VketPresentation,
+    *, use_requested: bool = False,
 ) -> ScheduleBlock | None:
-    """発表の時間を返す。日付・開始時刻はそれぞれ確定値を優先する"""
+    """発表の時間を返す。希望の判定時以外は日付・開始時刻の確定値を優先する。"""
     if participation.lifecycle != VketParticipation.Lifecycle.ACTIVE:
         return None
-    d = participation.confirmed_date or participation.requested_date
-    start = presentation.confirmed_start_time or presentation.requested_start_time
+    d = participation.requested_date if use_requested else participation.confirmed_date or participation.requested_date
+    start = presentation.requested_start_time if use_requested else presentation.confirmed_start_time or presentation.requested_start_time
     if d is None or start is None or not presentation.duration:
         return None
     return ScheduleBlock(
@@ -132,13 +133,13 @@ def presentation_block_for(
     )
 
 
-def blocks_from(participations: Iterable[VketParticipation]) -> list[ScheduleBlock]:
+def blocks_from(participations: Iterable[VketParticipation], *, use_requested: bool = False) -> list[ScheduleBlock]:
     """有効な参加の発表（取り下げた行・開始時刻なしを除く）を日時順に返す"""
     blocks = [
         block
         for p in participations
         for presentation in p.presentations.all()
-        if (block := presentation_block_for(p, presentation)) is not None
+        if (block := presentation_block_for(p, presentation, use_requested=use_requested)) is not None
     ]
     return sorted(blocks, key=lambda b: (b.start_dt, b.community_name, b.presentation_id or 0))
 

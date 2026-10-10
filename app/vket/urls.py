@@ -1,10 +1,12 @@
 from django.urls import path
 
 from . import views
+from .views.auto_confirm import run_auto_confirm
 
 app_name = 'vket'
 
 urlpatterns = [
+    path('auto-confirm/run/', run_auto_confirm, name='auto_confirm_run'),
     path('', views.CollaborationListView.as_view(), name='list'),
     path('status/', views.VketStatusRedirectView.as_view(), name='status_redirect'),
     path('<int:pk>/', views.CollaborationDetailView.as_view(), name='detail'),

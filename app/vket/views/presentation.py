@@ -13,7 +13,10 @@ from ..models import (
     VketCollaboration,
     VketPresentation,
 )
+from ..activity import activity_snapshot, notify_activity
+from ..services import delete_requested_presentation
 from .helpers import (
+    _apply_permissions_for_user,
     _get_active_membership,
     _is_vket_admin,
 )
@@ -32,8 +35,9 @@ def _delete_presentation(presentation: VketPresentation) -> str:
 class PresentationDeleteView(LoginRequiredMixin, View):
     """主催者用: LTを個別削除する"""
 
+    @transaction.atomic
     def post(self, request, pk: int, presentation_id: int):
-        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        collaboration = get_object_or_404(VketCollaboration.objects.select_for_update(), pk=pk)
         community, membership = _get_active_membership(request)
         presentation = get_object_or_404(
             VketPresentation,
@@ -44,10 +48,14 @@ class PresentationDeleteView(LoginRequiredMixin, View):
             return HttpResponseForbidden('この操作を行う権限がありません。')
         if not (request.user.is_superuser or membership):
             return HttpResponseForbidden('集会メンバーのみ発表を削除できます。')
-        if presentation.is_organizer_delete_locked and not (request.user.is_superuser or request.user.is_staff):
-            return HttpResponseForbidden('確定済みまたは公開済みの発表は主催者側から削除できません。')
+        if not _apply_permissions_for_user(request.user, collaboration).can_edit_lt:
+            return HttpResponseForbidden('受付期間外のため編集できません。')
 
-        speaker_name = _delete_presentation(presentation)
+        participation = presentation.participation
+        before = activity_snapshot(participation)
+        speaker_name = presentation.speaker or '発表'
+        delete_requested_presentation(presentation)
+        notify_activity(collaboration, community.name, before, activity_snapshot(participation), [])
         messages.success(request, f'{speaker_name} を削除しました。')
         return redirect('vket:status', pk=pk)
 
@@ -58,8 +66,9 @@ class ManagePresentationDeleteView(LoginRequiredMixin, AuthenticatedForbiddenMix
     def test_func(self):
         return _is_vket_admin(self.request.user)
 
+    @transaction.atomic
     def post(self, request, pk: int, presentation_id: int):
-        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        collaboration = get_object_or_404(VketCollaboration.objects.select_for_update(), pk=pk)
         presentation = get_object_or_404(
             VketPresentation,
             pk=presentation_id,
