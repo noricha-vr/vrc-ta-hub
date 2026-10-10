@@ -371,6 +371,25 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         detail = EventDetail.objects.get(pk=presentation.published_event_detail_id)
         self.assertEqual(detail.start_time, presentation.confirmed_start_time)
 
+    def test_admin_adjusted_schedule_is_not_reverted_by_next_run(self):
+        """運営が希望と違う日時で確定しても、次の自動確定で希望の日時に戻さない。"""
+        own = self._participation(start=time(21))
+        presentation = self._presentation(own, start=time(21))
+        own.confirmed_date = own.requested_date
+        own.confirmed_start_time = time(22)
+        own.confirmed_duration = 60
+        confirm_participation_schedule(own, presentation_times={presentation.pk: time(22)})
+        own.refresh_from_db()
+
+        self._run()
+
+        own.refresh_from_db()
+        presentation.refresh_from_db()
+        self.assertEqual(own.confirmed_start_time, time(22))
+        self.assertEqual(own.requested_start_time, time(22))
+        event = Event.objects.get(pk=own.published_event_id)
+        self.assertEqual(event.start_time, time(22))
+
     def test_successful_change_replaces_own_old_slot(self):
         """自分の旧枠とは比較せず、変更の確定後は旧枠を別の参加へ渡せる。"""
         own = self._participation(applied_at=timezone.now() - timedelta(days=2))

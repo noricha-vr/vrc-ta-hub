@@ -81,11 +81,18 @@ def confirm_participation_schedule(
         participation.confirmed_date = participation.requested_date
         participation.confirmed_start_time = participation.requested_start_time
         participation.confirmed_duration = participation.requested_duration
+    else:
+        # 運営の調整を翌日の自動確定で希望の値に戻さないよう、確定値を今の希望として写す。
+        # 主催者が後から希望を変えた時だけ、次の自動確定で反映される。
+        participation.requested_date = participation.confirmed_date
+        participation.requested_start_time = participation.confirmed_start_time
+        participation.requested_duration = participation.confirmed_duration
     participation.schedule_adjusted_by_admin = not use_requested
     participation.progress = VketParticipation.Progress.REHEARSAL
     participation.schedule_confirmed_at = timezone.now()
     participation.save(update_fields=[
         'lifecycle', 'confirmed_date', 'confirmed_start_time', 'confirmed_duration',
+        'requested_date', 'requested_start_time', 'requested_duration',
         'admin_note', 'schedule_adjusted_by_admin', 'progress', 'schedule_confirmed_at', 'updated_at',
     ])
     for presentation in participation.presentations.all():
@@ -97,7 +104,12 @@ def confirm_participation_schedule(
             presentation.confirmed_start_time = new_time
         if use_requested or presentation.status == VketPresentation.Status.DRAFT:
             presentation.status = VketPresentation.Status.CONFIRMED
-        presentation.save(update_fields=['confirmed_start_time', 'status', 'updated_at'])
+        update_fields = ['confirmed_start_time', 'status', 'updated_at']
+        if not use_requested and presentation.confirmed_start_time is not None:
+            # 発表時刻も同じく、運営の調整を今の希望として写す
+            presentation.requested_start_time = presentation.confirmed_start_time
+            update_fields.append('requested_start_time')
+        presentation.save(update_fields=update_fields)
     participation._prefetched_objects_cache = {}
     changed = sync_participation_publication(participation).changed_index_data
     if changed:
