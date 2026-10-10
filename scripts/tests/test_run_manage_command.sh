@@ -62,6 +62,10 @@ case "$*" in
       printf 'manage.py|apply_recording_opt_in|--keep-community-id=19\n'
     elif [[ "$MOCK_CASE" == args_unknown ]]; then
       exit 0
+    elif [[ "$MOCK_CASE" == args_delayed && ! -e "$ARGS_FILE.seen" ]]; then
+      # 実行の反映が遅れ、最初の問い合わせでは引数が取れない
+      : > "$ARGS_FILE.seen"
+      exit 1
     else
       cat "$ARGS_FILE"
     fi
@@ -272,5 +276,11 @@ short_dir="$(unset JOB_ARGS_LOCK_DIR; PROJECT_ID=p REGION=r JOB_NAME=job bash -c
 full_dir="$(unset JOB_ARGS_LOCK_DIR; PROJECT_ID=p REGION=r JOB_NAME=projects/p/locations/r/jobs/job bash -c 'source "$1"; printf "%s" "$JOB_ARGS_LOCK_DIR"' _ "$REPO_ROOT/scripts/job_args_lock.sh")"
 [[ -n "$short_dir" && "$short_dir" == "$full_dir" ]] || fail "Lock dir should not depend on the job name form: $short_dir vs $full_dir"
 TEST_COUNT=$((TEST_COUNT + 1))
+
+# 実行の引数がすぐに取れなくても、読み直して取れれば成功にする。
+rm -f "$ARGS_FILE.seen"
+run_case args_delayed 0 showmigrations --plan
+[[ -e "$ARGS_FILE.seen" ]] || fail 'args_delayed should hit the first failed describe'
+assert_restored
 
 printf 'PASS: run_manage_command.sh (%s cases)\n' "$TEST_COUNT"

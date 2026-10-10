@@ -76,16 +76,7 @@ EXECUTION="$(
 )" || die "Failed to start $JOB_NAME."
 [[ -n "$EXECUTION" ]] || die "Could not determine the execution name for $JOB_NAME."
 
-# 差し替えから execute までの間に別の実行が引数を変えると、意図と違うコマンドが動く。
-# その実行が使った引数を確かめ、違えばログを出した上で失敗にする。
-EXECUTION_ARGS="$(
-  gcloud run jobs executions describe "$EXECUTION" \
-    --project="$PROJECT_ID" --region="$REGION" \
-    --format='value[delimiter="|"](spec.template.spec.containers[0].args)' 2>/dev/null || true
-)"
-# 取れなかった時（空）も「確かめられなかった」として失敗にする
-ARGS_MISMATCH=''
-[[ "$EXECUTION_ARGS" == "$COMMAND_ARGS" ]] || ARGS_MISMATCH=yes
+
 
 SUCCEEDED=''
 for ((attempt = 1; attempt <= WAIT_RETRIES; attempt++)); do
@@ -105,6 +96,24 @@ for ((attempt = 1; attempt <= WAIT_RETRIES; attempt++)); do
   sleep "$WAIT_INTERVAL_SEC"
 done
 [[ -n "$SUCCEEDED" ]] || die "Timed out waiting for $EXECUTION."
+
+# 差し替えから execute までの間に別の実行が引数を変えると、意図と違うコマンドが動く。
+# その実行が使った引数を確かめ、違えばログを出した上で失敗にする。完了を確かめた後なら実行は参照できるが、
+# 反映の遅れに備えて取れるまで読み直す。取れなかった時（空）も「確かめられなかった」として失敗にする。
+EXECUTION_ARGS=''
+for ((attempt = 1; attempt <= LOG_RETRIES; attempt++)); do
+  EXECUTION_ARGS="$(
+    gcloud run jobs executions describe "$EXECUTION" \
+      --project="$PROJECT_ID" --region="$REGION" \
+      --format='value[delimiter="|"](spec.template.spec.containers[0].args)' 2>/dev/null || true
+  )"
+  [[ -z "$EXECUTION_ARGS" ]] || break
+  if ((attempt < LOG_RETRIES)); then
+    sleep "$LOG_RETRY_INTERVAL_SEC"
+  fi
+done
+ARGS_MISMATCH=''
+[[ "$EXECUTION_ARGS" == "$COMMAND_ARGS" ]] || ARGS_MISMATCH=yes
 
 # 取り込み途中のログで終えないよう、空でない同じ内容が 2 回続けて取れるまで読む。
 LOG_LINES=''
