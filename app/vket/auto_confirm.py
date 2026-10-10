@@ -32,6 +32,12 @@ def _needs_confirmation(participation, collaboration) -> bool:
         return True
     if not participation.published_event_id or pending_presentation_deletions(collaboration, participation.pk):
         return True
+    event = participation.published_event
+    # 管理画面などで公開イベントの日時だけがずれた時も、確定値で公開し直す
+    if (event.date, event.start_time, event.duration) != (
+        participation.confirmed_date, participation.confirmed_start_time, participation.confirmed_duration,
+    ):
+        return True
     for presentation in participation.presentations.all():
         detail = presentation.published_event_detail
         if (
@@ -89,7 +95,7 @@ def _confirm_collaboration(collaboration_id) -> dict:
     )
     # JOIN 先の nullable FK は行ロックせず、参加の取得後に関連を読む。
     prefetch_related_objects(
-        participations, 'community',
+        participations, 'community', 'published_event',
         Prefetch('presentations', queryset=VketPresentation.objects.select_related('published_event_detail__event')),
     )
     targets = [p for p in participations if _needs_confirmation(p, collaboration)]

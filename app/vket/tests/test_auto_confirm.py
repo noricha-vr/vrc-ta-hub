@@ -345,6 +345,19 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         self.assertEqual(result['skipped'], 1)
         self.assertIsNone(newcomer.published_event_id)
 
+    def test_published_event_time_drift_is_repaired(self):
+        """公開イベントの開始時刻・開催時間だけがずれた時も、次の自動確定で確定値に戻す。"""
+        own = self._participation()
+        self._presentation(own)
+        self._run()
+        own.refresh_from_db()
+        Event.objects.filter(pk=own.published_event_id).update(start_time=time(23, 0), duration=15)
+
+        self.assertEqual(self._run()['confirmed'], 1)
+
+        event = Event.objects.get(pk=own.published_event_id)
+        self.assertEqual((event.start_time, event.duration), (own.confirmed_start_time, own.confirmed_duration))
+
     def test_successful_change_replaces_own_old_slot(self):
         """自分の旧枠とは比較せず、変更の確定後は旧枠を別の参加へ渡せる。"""
         own = self._participation(applied_at=timezone.now() - timedelta(days=2))
