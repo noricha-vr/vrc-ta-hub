@@ -145,8 +145,7 @@ class VketApplyForm(forms.Form):
             collaboration, community
         )
         if (
-            not permissions.can_edit_schedule
-            and participation
+            participation
             and participation.requested_date
         ):
             requested_date_value = participation.requested_date.isoformat()

@@ -200,8 +200,8 @@ class VketApplyFlowTests(VketApplyFlowBase):
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['permissions'].can_edit_lt)
-        self.assertTrue(response.context['is_late_lt_submission'])
-        self.assertContains(response, '運営の確認後に確定・公開されます。')
+        self.assertTrue(response.context['permissions'].can_edit_schedule)
+        self.assertContains(response, '変更は次の自動確定で反映されます')
 
         post_data = {
             'requested_date': self.collaboration.period_start.isoformat(),
@@ -228,8 +228,8 @@ class VketApplyFlowTests(VketApplyFlowBase):
         self.assertEqual(presentation.speaker, '締切後登壇者')
         self.assertEqual(presentation.status, VketPresentation.Status.DRAFT)
 
-    def test_late_lt_update_resets_confirmed_presentation_to_draft(self):
-        """締切後に確定済み発表を更新した場合は申請中に戻す"""
+    def test_late_lt_update_keeps_confirmed_status_until_next_confirmation(self):
+        """締切後も希望時刻を更新し、確定状態は次の確定まで保持する"""
         today = timezone.localdate()
         self.collaboration.registration_deadline = today - timedelta(days=3)
         self.collaboration.lt_deadline = today - timedelta(days=1)
@@ -289,8 +289,8 @@ class VketApplyFlowTests(VketApplyFlowBase):
         presentation.refresh_from_db()
         self.assertEqual(presentation.speaker, '更新後登壇者')
         self.assertEqual(presentation.theme, '更新後テーマ')
-        self.assertEqual(presentation.requested_start_time.strftime('%H:%M'), '21:30')
-        self.assertEqual(presentation.status, VketPresentation.Status.DRAFT)
+        self.assertEqual(presentation.requested_start_time.strftime('%H:%M'), '23:30')
+        self.assertEqual(presentation.status, VketPresentation.Status.CONFIRMED)
 
     def test_apply_blocks_lt_submission_after_event_period(self):
         """開催期間後は発表情報も編集不可にする"""
@@ -318,5 +318,4 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context['permissions'].can_edit_lt)
-        self.assertFalse(response.context['is_late_lt_submission'])
         self.assertContains(response, '発表情報（Step 2）は受付期間外のため編集できません。')

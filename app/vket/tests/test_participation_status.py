@@ -13,6 +13,7 @@ from vket.models import (
     VketNotice,
     VketNoticeReceipt,
     VketParticipation,
+    VketPresentation,
 )
 
 
@@ -61,6 +62,40 @@ class VketParticipationStatusTests(TestCase):
         session = self.client.session
         session['active_community_id'] = self.community.id
         session.save()
+
+    def test_presentation_delete_button_matches_organizer_edit_period(self):
+        """受付フェーズ内だけ削除を表示し、受付外・開催終了後は出さない。"""
+        presentation = VketPresentation.objects.create(
+            participation=self.participation, speaker='登壇者', theme='テーマ',
+            status=VketPresentation.Status.CONFIRMED,
+        )
+        self.client.force_login(self.owner)
+        self._set_active_community()
+        delete_url = reverse('vket:presentation_delete', kwargs={
+            'pk': self.collaboration.pk, 'presentation_id': presentation.pk,
+        })
+        for phase in VketCollaboration.Phase:
+            with self.subTest(phase=phase):
+                self.collaboration.phase = phase
+                self.collaboration.save()
+                response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))
+                presentation.participation.collaboration = self.collaboration
+                if phase in {
+                    VketCollaboration.Phase.ENTRY_OPEN, VketCollaboration.Phase.SCHEDULING,
+                    VketCollaboration.Phase.LT_COLLECTION, VketCollaboration.Phase.ANNOUNCEMENT,
+                }:
+                    self.assertContains(response, delete_url)
+                    self.assertContains(response, '公開中の発表は次の自動確定で公開ページから取り下げます。')
+                    self.assertFalse(presentation.is_organizer_delete_locked)
+                else:
+                    self.assertNotContains(response, delete_url)
+                    self.assertTrue(presentation.is_organizer_delete_locked)
+        self.collaboration.phase = VketCollaboration.Phase.ENTRY_OPEN
+        self.collaboration.period_end = timezone.localdate() - timedelta(days=1)
+        self.collaboration.save()
+        response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))
+        self.assertNotContains(response, delete_url)
+        self.assertTrue(presentation.is_organizer_delete_locked)
 
     def test_status_page_shows_unacked_count(self):
         """未確認のrequires_ackお知らせがあるとバナーに件数が表示される"""

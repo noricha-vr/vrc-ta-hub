@@ -19,7 +19,7 @@ from community.models import Community
 from event.models import Event
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 from ta_hub.index_cache import clear_index_view_cache
-from vket.services import clear_participation_publication, sync_participation_publication
+from vket.services import clear_participation_publication, confirm_participation_schedule
 
 from ..forms import VketManageParticipationForm, VketScheduleSettingsForm
 from ..models import (
@@ -210,8 +210,9 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
     def test_func(self):
         return _is_vket_admin(self.request.user)
 
+    @transaction.atomic
     def post(self, request, pk: int, participation_id: int):
-        collaboration = get_object_or_404(VketCollaboration, pk=pk)
+        collaboration = get_object_or_404(VketCollaboration.objects.select_for_update(), pk=pk)
         participation = get_object_or_404(
             VketParticipation.objects.select_related('community'),
             pk=participation_id,
@@ -245,7 +246,7 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
                     ]
                 )
             if changed_publication:
-                clear_index_view_cache()
+                transaction.on_commit(clear_index_view_cache)
             messages.success(
                 request,
                 f'{participation.community.name} の参加状態を更新しました。',
@@ -258,7 +259,7 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
         participation.confirmed_duration = form.cleaned_data['confirmed_duration']
 
         with transaction.atomic():
-            changed_index_detail = self._confirm_schedule(request, participation)
+            self._confirm_schedule(request, participation)
             # 入力した発表時刻の確定・公開同期が済んでから、最新の発表で警告する。
             pairs = find_conflicting_pairs(
                 blocks_from([participation]) + active_blocks(
@@ -270,9 +271,6 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
                 format_pair(a, b) for a, b in pairs
                 if participation.community_id in (a.community_id, b.community_id)
             ]
-
-        if changed_index_detail:
-            clear_index_view_cache()
 
         messages.success(
             request,
@@ -286,69 +284,16 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
     @staticmethod
     def _confirm_schedule(request, participation: VketParticipation) -> bool:
         """日程を確定し、発表の確定と公開同期まで行う。トップページの更新が要れば True"""
-        participation.schedule_adjusted_by_admin = True
-        participation.progress = VketParticipation.Progress.REHEARSAL
-        participation.schedule_confirmed_at = timezone.now()
-
-        participation.save(
-            update_fields=[
-                'lifecycle',
-                'confirmed_date',
-                'confirmed_start_time',
-                'confirmed_duration',
-                'admin_note',
-                'schedule_adjusted_by_admin',
-                'progress',
-                'schedule_confirmed_at',
-                'updated_at',
-            ]
-        )
-
         pres_pattern = re.compile(r'^pres_(\d+)_start_time$')
         pres_updates = {}
         for key, value in request.POST.items():
-            m = pres_pattern.match(key)
-            if m and value:
-                pres_updates[int(m.group(1))] = value
-
-        allowed_presentation_ids = set(
-            participation.presentations.filter(
-                pk__in=pres_updates.keys(),
-                status=VketPresentation.Status.CONFIRMED,
-            ).values_list('id', flat=True)
-        )
-
-        # DRAFT のLTを一括確定
-        participation.presentations.filter(
-            status=VketPresentation.Status.DRAFT,
-        ).update(status=VketPresentation.Status.CONFIRMED)
-
-        # 発表ごとの確定開始時刻を更新する。EventDetail への反映は公開同期でまとめて行う。
-        if pres_updates:
-            allowed_presentations = {
-                pres.pk: pres
-                for pres in participation.presentations.select_related(
-                    'published_event_detail'
-                ).filter(
-                    pk__in=allowed_presentation_ids,
-                    status=VketPresentation.Status.CONFIRMED,
-                )
-            }
-
-            for pres_id, time_str in pres_updates.items():
-                pres = allowed_presentations.get(pres_id)
-                if pres is None:
-                    continue
+            match = pres_pattern.match(key)
+            if match and value:
                 try:
-                    new_time = datetime.strptime(time_str, '%H:%M').time()
-                    pres.confirmed_start_time = new_time
-                    pres.save(update_fields=['confirmed_start_time', 'updated_at'])
-                except (ValueError, KeyError):
-                    logger.warning('VketPresentation #%d の start_time パース失敗: %s', pres_id, time_str)
-
-        with transaction.atomic():
-            sync_result = sync_participation_publication(participation)
-        return sync_result.changed_index_data
+                    pres_updates[int(match.group(1))] = datetime.strptime(value, '%H:%M').time()
+                except ValueError:
+                    logger.warning('Vket発表時刻のパース失敗', extra={'presentation_id': int(match.group(1))})
+        return confirm_participation_schedule(participation, presentation_times=pres_updates)
 
 
 class ManageScheduleView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):

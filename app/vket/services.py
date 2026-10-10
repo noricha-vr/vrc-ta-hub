@@ -2,11 +2,123 @@
 
 from dataclasses import dataclass
 
+from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 
 from community.constants import weekday_code
 from event.models import Event, EventDetail
-from vket.models import VketParticipation, VketPresentation
+from ta_hub.index_cache import clear_index_view_cache
+from vket.models import VketCollaboration, VketParticipation, VketPresentation
+
+PENDING_DELETIONS_KEY = 'pending_presentation_deletions'
+
+
+def pending_presentation_deletions(collaboration, participation_id) -> list[int]:
+    """次の公開同期で削除する詳細の ID を返す。"""
+    settings = collaboration.settings_json
+    pending = settings.get(PENDING_DELETIONS_KEY, {}) if isinstance(settings, dict) else {}
+    return pending.get(str(participation_id), []) if isinstance(pending, dict) else []
+
+
+@transaction.atomic
+def delete_requested_presentation(presentation: VketPresentation) -> None:
+    """希望から発表を消し、公開済みの詳細は次の同期まで保持する。"""
+    participation = presentation.participation
+    collaboration = VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
+    if presentation.published_event_detail_id:
+        settings = collaboration.settings_json if isinstance(collaboration.settings_json, dict) else {}
+        pending = settings.get(PENDING_DELETIONS_KEY, {})
+        pending = dict(pending) if isinstance(pending, dict) else {}
+        ids = pending_presentation_deletions(collaboration, participation.pk)
+        pending[str(participation.pk)] = sorted(set(ids + [presentation.published_event_detail_id]))
+        collaboration.settings_json = {**settings, PENDING_DELETIONS_KEY: pending}
+        collaboration.save(update_fields=['settings_json', 'updated_at'])
+    presentation.delete()
+
+
+def _clear_pending_presentation_deletions(participation: VketParticipation) -> bool:
+    """この参加が取り下げた公開発表だけを論理削除し、待機情報を消す。"""
+    collaboration = VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
+    ids = pending_presentation_deletions(collaboration, participation.pk)
+    if not ids:
+        return False
+    # 他集会の詳細や、再び発表と紐づいた詳細は消さない。
+    details = EventDetail.objects.filter(
+        pk__in=ids, event__community_id=participation.community_id,
+        vket_presentations__isnull=True,
+    )
+    for detail in details:
+        detail.delete()
+    settings = dict(collaboration.settings_json)
+    pending = dict(settings[PENDING_DELETIONS_KEY])
+    pending.pop(str(participation.pk), None)
+    if pending:
+        settings[PENDING_DELETIONS_KEY] = pending
+    else:
+        settings.pop(PENDING_DELETIONS_KEY, None)
+    collaboration.settings_json = settings
+    collaboration.save(update_fields=['settings_json', 'updated_at'])
+    return True
+
+
+@transaction.atomic
+def apply_pending_presentation_deletions(participation: VketParticipation) -> bool:
+    """日程や残りの発表を変更せず、取り下げだけを公開へ反映する。"""
+    changed = _clear_pending_presentation_deletions(participation)
+    if changed:
+        transaction.on_commit(clear_index_view_cache)
+    return changed
+
+
+@transaction.atomic
+def confirm_participation_schedule(
+    participation: VketParticipation, *, presentation_times=None, use_requested=False,
+) -> bool:
+    """運営・自動確定共通の日程確定、発表確定、公開同期。変更があれば True。"""
+    VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
+    if use_requested:
+        participation.confirmed_date = participation.requested_date
+        participation.confirmed_start_time = participation.requested_start_time
+        participation.confirmed_duration = participation.requested_duration
+    else:
+        # 運営の調整を翌日の自動確定で希望の値に戻さないよう、確定値を今の希望として写す。
+        # 主催者が後から希望を変えた時だけ、次の自動確定で反映される。
+        participation.requested_date = participation.confirmed_date
+        participation.requested_start_time = participation.confirmed_start_time
+        participation.requested_duration = participation.confirmed_duration
+    participation.schedule_adjusted_by_admin = not use_requested
+    # 確定でリハーサルへ進めるのは、それより前の進捗の時だけ（先の工程へ進んだ参加は巻き戻さない）
+    progress_order = [value for value, _ in VketParticipation.Progress.choices]
+    rehearsal = VketParticipation.Progress.REHEARSAL
+    if progress_order.index(participation.progress) < progress_order.index(rehearsal):
+        participation.progress = rehearsal
+    participation.schedule_confirmed_at = timezone.now()
+    participation.save(update_fields=[
+        'lifecycle', 'confirmed_date', 'confirmed_start_time', 'confirmed_duration',
+        'requested_date', 'requested_start_time', 'requested_duration',
+        'admin_note', 'schedule_adjusted_by_admin', 'progress', 'schedule_confirmed_at', 'updated_at',
+    ])
+    for presentation in participation.presentations.all():
+        # 運営の入力は、従来どおり確定済みのこの参加の発表だけに適用する。
+        new_time = (presentation_times or {}).get(presentation.pk)
+        if use_requested:
+            presentation.confirmed_start_time = presentation.requested_start_time
+        elif new_time is not None and presentation.status == VketPresentation.Status.CONFIRMED:
+            presentation.confirmed_start_time = new_time
+        if use_requested or presentation.status == VketPresentation.Status.DRAFT:
+            presentation.status = VketPresentation.Status.CONFIRMED
+        update_fields = ['confirmed_start_time', 'status', 'updated_at']
+        if not use_requested and presentation.confirmed_start_time is not None:
+            # 発表時刻も同じく、運営の調整を今の希望として写す
+            presentation.requested_start_time = presentation.confirmed_start_time
+            update_fields.append('requested_start_time')
+        presentation.save(update_fields=update_fields)
+    participation._prefetched_objects_cache = {}
+    changed = sync_participation_publication(participation).changed_index_data
+    if changed:
+        transaction.on_commit(clear_index_view_cache)
+    return changed
 
 
 @dataclass(frozen=True)
@@ -170,6 +282,7 @@ def _resolve_publication_event(participation: VketParticipation) -> tuple[Event,
     return event, True
 
 
+@transaction.atomic
 def sync_participation_publication(
     participation: VketParticipation,
 ) -> VketPublicationSyncResult:
@@ -181,7 +294,10 @@ def sync_participation_publication(
     ):
         raise ValueError("confirmed schedule is required for Vket publication sync")
 
+    VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
+    deleted_details = _clear_pending_presentation_deletions(participation)
     event, changed_index_data = _resolve_publication_event(participation)
+    changed_index_data |= deleted_details
 
     for presentation in participation.presentations.filter(
         status=VketPresentation.Status.CONFIRMED
@@ -199,6 +315,7 @@ def sync_participation_publication(
             "duration": presentation.duration,
             "detail_type": "LT",
             "status": "approved",
+            "deleted_at": None,
         }
 
         if presentation.published_event_detail_id:
@@ -230,9 +347,11 @@ def sync_participation_publication(
     return VketPublicationSyncResult(event=event, changed_index_data=changed_index_data)
 
 
+@transaction.atomic
 def clear_participation_publication(participation: VketParticipation) -> bool:
     """参加の公開EventDetail連携を解除する。Event自体は保持する。"""
-    changed = participation.published_event_id is not None
+    changed = _clear_pending_presentation_deletions(participation)
+    changed |= participation.published_event_id is not None
     detail_ids = list(
         participation.presentations.filter(
             published_event_detail__isnull=False,

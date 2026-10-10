@@ -79,12 +79,7 @@ def _apply_permissions_for_user(user, collaboration: VketCollaboration) -> VketA
     )
 
     # LT情報編集: 受付開始後から告知確認中まで、開催期間中は申請として受け付ける
-    can_edit_lt = today <= collaboration.period_end and collaboration.phase in {
-        VketCollaboration.Phase.ENTRY_OPEN,
-        VketCollaboration.Phase.SCHEDULING,
-        VketCollaboration.Phase.LT_COLLECTION,
-        VketCollaboration.Phase.ANNOUNCEMENT,
-    }
+    can_edit_lt = collaboration.is_organizer_edit_open
 
     return VketApplyPermissions(can_edit_schedule=can_edit_schedule, can_edit_lt=can_edit_lt)
 

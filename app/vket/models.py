@@ -3,6 +3,7 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 
 class VketCollaboration(models.Model):
@@ -42,6 +43,14 @@ class VketCollaboration(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    @property
+    def is_organizer_edit_open(self) -> bool:
+        """主催者の希望の編集・発表の取り下げを受け付ける期間か。"""
+        return timezone.localdate() <= self.period_end and self.phase in {
+            self.Phase.ENTRY_OPEN, self.Phase.SCHEDULING,
+            self.Phase.LT_COLLECTION, self.Phase.ANNOUNCEMENT,
+        }
 
     def clean(self):
         errors = {}
@@ -102,7 +111,7 @@ class VketParticipation(models.Model):
         db_index=True,
     )
 
-    # 主催者の希望（変更不可で保持）
+    # 主催者の希望（次の確定で反映）
     requested_date = models.DateField("希望日程", null=True, blank=True)
     requested_start_time = models.TimeField("希望開始時刻", null=True, blank=True)
     requested_duration = models.PositiveIntegerField("希望開催時間（分）", null=True, blank=True)
@@ -243,12 +252,8 @@ class VketPresentation(models.Model):
 
     @property
     def is_organizer_delete_locked(self) -> bool:
-        """主催者側から削除できない確定済み/公開済み LT なら True を返す"""
-        return (
-            self.participation.is_schedule_confirmed
-            or self.status == self.Status.CONFIRMED
-            or self.published_event_detail_id is not None
-        )
+        """申込み画面で主催者が発表を編集できない時は削除もロックする。"""
+        return not self.participation.collaboration.is_organizer_edit_open
 
 
 class VketNotice(models.Model):

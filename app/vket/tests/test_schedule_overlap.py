@@ -316,13 +316,14 @@ class VketApplyScheduleOverlapTests(VketOverlapApplyBase):
         self.assertFalse(self._warnings(response))
         self.assertEqual(self._own_participation().presentations.count(), 2)
 
-    def test_presentation_only_update_warns_without_blocking_or_schedule_lock(self):
+    def test_presentation_only_update_warns_and_serializes_with_auto_confirmation(self):
         self._post_apply('22:00')
-        with mock.patch('django.db.models.QuerySet.select_for_update') as lock:
+        with mock.patch('django.db.models.QuerySet.select_for_update', autospec=True,
+                        side_effect=lambda queryset, *args, **kwargs: queryset) as lock:
             response = self._post_apply('21:45')
         self.assertEqual(response.status_code, 302)
         self.assertTrue(self._warnings(response))
-        lock.assert_not_called()
+        lock.assert_called_once()
 
     def test_presentation_crossing_midnight_warns(self):
         tomorrow = self.today + timedelta(days=1)
@@ -364,7 +365,7 @@ class VketApplyScheduleOverlapTests(VketOverlapApplyBase):
         ])
         self.assertContains(response, '発表: 21:30〜22:15')
 
-    def test_busy_panel_is_available_when_only_presentation_editing_is_allowed(self):
+    def test_busy_panel_is_available_after_schedule_confirmation(self):
         self._post_apply('22:00')
         own = self._own_participation()
         own.confirmed_date = self.today
@@ -372,10 +373,10 @@ class VketApplyScheduleOverlapTests(VketOverlapApplyBase):
         own.confirmed_duration = 120
         own.save()
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
-        self.assertFalse(response.context['permissions'].can_edit_schedule)
+        self.assertTrue(response.context['permissions'].can_edit_schedule)
         self.assertTrue(response.context['busy_payload']['blocks'])
         self.assertContains(response, 'id="busy-slots"')
-        self.assertContains(response, f'data-confirmed-date="{self.today.isoformat()}"')
+        self.assertNotContains(response, 'data-confirmed-date=')
 
     def test_deleted_own_presentation_does_not_leave_stale_warning(self):
         self._post_apply()
@@ -391,13 +392,13 @@ class VketApplyScheduleOverlapTests(VketOverlapApplyBase):
         presentation.confirmed_start_time = time(22)
         presentation.save()
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
-        self.assertContains(response, 'data-confirmed-start="22:00"')
+        self.assertNotContains(response, 'data-confirmed-start=')
         self.assertEqual(response.context['formset'].forms[0]['lt_start_time'].value(), time(21))
         self.assertContains(response, 'deleted && deleted.checked')
         self.assertContains(response, 'deleteInput.checked = true;')
         self.assertContains(response, 'var requestedStart = input ? toMinutes(input.value) : null;')
         self.assertContains(response, 'previous = requestedStart;')
-        self.assertContains(response, 'if (startOfDay === null) startOfDay = requestedStart;')
+        self.assertContains(response, 'var startOfDay = requestedStart;')
 
     def test_missing_time_after_confirmed_row_uses_requested_time_on_save(self):
         """前行の希望 21:00・確定 22:00 なら、次行の空欄は希望 21:30 になる"""

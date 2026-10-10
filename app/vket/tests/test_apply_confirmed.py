@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from event.models import Event, EventDetail
+from tests.factories import make_event
 from vket.models import (
     VketParticipation,
     VketPresentation,
@@ -47,6 +48,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
             status=VketPresentation.Status.DRAFT,
         )
 
+        make_event(self.community, event_date=self.collaboration.period_start + timedelta(days=1))
         post_data = {
             'requested_date': (self.collaboration.period_start + timedelta(days=1)).isoformat(),
             'requested_start_time': '23:00',
@@ -81,9 +83,9 @@ class VketApplyFlowTests(VketApplyFlowBase):
         self.assertEqual(response.status_code, 302)
         participation.refresh_from_db()
         presentation.refresh_from_db()
-        self.assertEqual(participation.requested_date, self.collaboration.period_start)
-        self.assertEqual(participation.requested_start_time, time(21, 0))
-        self.assertEqual(participation.requested_duration, 60)
+        self.assertEqual(participation.requested_date, self.collaboration.period_start + timedelta(days=1))
+        self.assertEqual(participation.requested_start_time, time(23, 0))
+        self.assertEqual(participation.requested_duration, 90)
         self.assertEqual(participation.organizer_note, '確定後も備考は更新')
         self.assertEqual(participation.lt_slot_minutes, 20)
         self.assertEqual(presentation.speaker, '更新後登壇者')
@@ -144,18 +146,18 @@ class VketApplyFlowTests(VketApplyFlowBase):
         participation.refresh_from_db()
         presentation.refresh_from_db()
         self.assertEqual(participation.requested_date, self.collaboration.period_start)
-        self.assertEqual(participation.requested_start_time, time(21, 0))
-        self.assertEqual(participation.requested_duration, 60)
+        self.assertEqual(participation.requested_start_time, time(23, 0))
+        self.assertEqual(participation.requested_duration, 90)
         self.assertEqual(participation.confirmed_date, self.collaboration.period_start)
         self.assertEqual(participation.confirmed_start_time, time(21, 0))
         self.assertEqual(participation.confirmed_duration, 60)
         self.assertEqual(participation.organizer_note, 'Eventなしでも更新できる備考')
         self.assertEqual(presentation.speaker, '更新後登壇者')
         self.assertEqual(presentation.theme, '更新後テーマ')
-        self.assertEqual(presentation.requested_start_time, time(21, 30))
+        self.assertEqual(presentation.requested_start_time, time(23, 0))
 
-    def test_confirmed_participation_post_does_not_delete_existing_lt(self):
-        """日程確定後はformset DELETEでも既存LTを削除しない"""
+    def test_confirmed_participation_post_deletes_existing_lt(self):
+        """日程確定後もformset DELETEで既存の発表を削除できる"""
         self.client.force_login(self.owner)
         self._set_active_community()
 
@@ -205,7 +207,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
         )
 
         self.assertEqual(response.status_code, 302)
-        self.assertTrue(VketPresentation.objects.filter(pk=presentation.pk).exists())
+        self.assertFalse(VketPresentation.objects.filter(pk=presentation.pk).exists())
 
     def test_confirmed_participation_apply_get_shows_lt_editable_message(self):
         """日程確定後も締切内のLT時刻編集可否を案内する"""
@@ -226,11 +228,34 @@ class VketApplyFlowTests(VketApplyFlowBase):
         response = self.client.get(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '参加日程（Step 1）は運営が確定済みのため編集できません。')
-        self.assertContains(response, '発表開始時刻は発表情報の締切まで変更できます')
+        self.assertTrue(response.context['permissions'].can_edit_schedule)
+        self.assertContains(response, '変更は次の自動確定で反映されます')
 
-    def test_lt_start_time_is_rejected_after_deadline_but_text_updates(self):
-        """締切後はLT時刻を保持し、登壇者名とテーマは更新できる"""
+    def test_unapplied_row_cannot_apply_after_registration_deadline(self):
+        """参加表明の締切後は、未申請の参加の行があっても日程を入れて申し込めない"""
+        self.client.force_login(self.owner)
+        self._set_active_community()
+        self.collaboration.registration_deadline = timezone.localdate() - timedelta(days=1)
+        self.collaboration.save(update_fields=['registration_deadline'])
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration, community=self.community,
+            progress=VketParticipation.Progress.NOT_APPLIED,
+        )
+        post_data = {
+            'requested_date': self.collaboration.period_start.isoformat(),
+            'requested_start_time': '21:00', 'requested_duration': '60',
+            'organizer_note': '', 'lt_slot_minutes': '30',
+        }
+        post_data.update(self._make_formset_data([], initial_forms=0))
+
+        self.client.post(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}), post_data)
+
+        participation.refresh_from_db()
+        self.assertEqual(participation.progress, VketParticipation.Progress.NOT_APPLIED)
+        self.assertIsNone(participation.requested_date)
+
+    def test_lt_start_time_and_text_update_after_deadline(self):
+        """締切後も発表時刻・登壇者・テーマを更新できる"""
         self.client.force_login(self.owner)
         self._set_active_community()
         self.collaboration.lt_deadline = timezone.localdate() - timedelta(days=1)
@@ -261,10 +286,10 @@ class VketApplyFlowTests(VketApplyFlowBase):
         presentation.refresh_from_db()
         self.assertEqual(presentation.speaker, '変更後登壇者')
         self.assertEqual(presentation.theme, '変更後テーマ')
-        self.assertEqual(presentation.requested_start_time, time(21, 30))
+        self.assertEqual(presentation.requested_start_time, time(23, 30))
 
-    def test_confirmed_or_published_lt_time_ignores_post_value(self):
-        """確定済みまたは公開済みLTの時刻はPOST値で上書きできない"""
+    def test_confirmed_or_published_lt_time_updates_requested_value(self):
+        """確定済み・公開済みの発表の希望時刻を更新できる"""
         self.client.force_login(self.owner)
         self._set_active_community()
         participation = VketParticipation.objects.create(
@@ -301,5 +326,5 @@ class VketApplyFlowTests(VketApplyFlowBase):
         self.assertEqual(response.status_code, 302)
         confirmed.refresh_from_db()
         published.refresh_from_db()
-        self.assertEqual(confirmed.requested_start_time, time(21, 30))
-        self.assertEqual(published.requested_start_time, time(22, 0))
+        self.assertEqual(confirmed.requested_start_time, time(23, 0))
+        self.assertEqual(published.requested_start_time, time(23, 30))
