@@ -69,7 +69,7 @@ EXPECT_LOG_PREFIX=RECORDING_OPT_IN_DONE ./scripts/run_manage_command.sh apply_re
 
 `PROJECT_ID` / `REGION` / `JOB_NAME` で対象を上書きできます。gcloud の認証設定は
 呼び出し側の `CLOUDSDK_CONFIG` / `CLOUDSDK_ACTIVE_CONFIG_NAME` を引き継ぎます。
-引数に `|` は使えません。同じ Job の引数を変更する処理は同時に実行しないでください。
+引数に `|` は使えません。同じ Job の引数を変更する処理は同時に実行しないでください。Job の引数が既定（`manage.py migrate --noinput`。`IDLE_ARGS` で変更可）でない時は、ほかの実行の最中とみなして何も変えずに断ります。差し替えた後に別の実行が引数を変え、意図と違うコマンドが動いた時は、ログを出した上で失敗にします（その実行が何を変えたかを必ず確かめてください）。
 撮影の変更前に `community.0032_alter_community_recording_allowed_default` を適用し、
 dry-run の対象件数・URL があり変更しない発表・残す集会の報告を確認してください。
 移行コマンドは、新しいリビジョンにトラフィックを 100% 切り替えた後に実行します（切替前は旧リビジョンが `recording_allowed=True` で集会を作れるため）。冪等なので、切替後にもう一度流しても差分だけを当てます。

@@ -8,6 +8,8 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 export CALLS_FILE="$TMP_DIR/calls.log"
 export LOG_COUNT_FILE="$TMP_DIR/log-count"
 export WAIT_COUNT_FILE="$TMP_DIR/wait-count"
+export ARGS_FILE="$TMP_DIR/args"
+export JOB_ARGS_LOCK_DIR="$TMP_DIR/job-args.lock"
 
 fail() {
   printf 'FAIL: %s\n' "$*" >&2
@@ -28,6 +30,10 @@ case "$*" in
   'run jobs describe '*)
     [[ "$MOCK_CASE" != describe_failure ]] || exit 1
     [[ "$MOCK_CASE" != empty_args ]] || exit 0
+    if [[ "$MOCK_CASE" == busy_job ]]; then
+      printf 'manage.py|other_command|--flag\n'
+      exit 0
+    fi
     printf 'manage.py|migrate|--noinput\n'
     ;;
   'run jobs update '*)
@@ -38,13 +44,27 @@ case "$*" in
       fi
     done
     [[ "$MOCK_CASE" != update_failure ]] || exit 1
+    for arg in "$@"; do
+      [[ "$arg" != --args=* ]] || printf '%s\n' "${arg#--args=^|^}" > "$ARGS_FILE"
+    done
     ;;
   'run jobs execute '*)
     [[ "$MOCK_CASE" != empty_execution ]] || exit 0
     # 実際の gcloud は --wait で失敗すると実行名を出さずに落ちる。--async だけが名前を返す。
     [[ "$*" == *--async* ]] || exit 1
     [[ "$MOCK_CASE" != execute_failure ]] || exit 1
+    [[ "$MOCK_CASE" != slow_execute ]] || sleep 2
     printf 'job-execution-this-call\n'
+    ;;
+  'run jobs executions describe job-execution-this-call '*containers*)
+    # 実行が使った引数。args_hijacked は、差し替えと execute の間に別の実行が引数を変えた場合。
+    if [[ "$MOCK_CASE" == args_hijacked ]]; then
+      printf 'manage.py|apply_recording_opt_in|--keep-community-id=19\n'
+    elif [[ "$MOCK_CASE" == args_unknown ]]; then
+      exit 0
+    else
+      cat "$ARGS_FILE"
+    fi
     ;;
   'run jobs executions describe job-execution-this-call '*)
     waits=$(cat "$WAIT_COUNT_FILE")
@@ -183,5 +203,68 @@ for value in 'a[$(touch "$TMP_DIR/injected")]' '-1' '1e9' '08'; do
   [[ ! -s "$CALLS_FILE" ]] || fail "Invalid LOG_RETRIES should fail before gcloud: $value"
 done
 [[ ! -e "$TMP_DIR/injected" ]] || fail 'LOG_RETRIES must not be evaluated'
+
+# ほかの実行が Job の引数を差し替えている最中は、何も変えずに断る。
+run_case busy_job 2 apply_recording_opt_in --dry-run
+grep -Fq 'jobs update' "$CALLS_FILE" && fail 'busy_job should not change args'
+grep -Fq -- '--args=' "$CALLS_FILE" && fail 'busy_job should not change args'
+assert_contains "$TMP_DIR/stderr" 'Another run may be in progress'
+
+# 差し替えた後に別の実行が引数を変え、意図と違うコマンドが動いたら、ログを出してから失敗にする。
+run_case args_hijacked 2 apply_recording_opt_in --keep-community-id=19 --dry-run
+assert_contains "$TMP_DIR/stdout" '変更はありません。'
+assert_contains "$TMP_DIR/stderr" 'not the requested'
+assert_restored
+
+# 実行が使った引数を確かめられない時も、成功にしない。
+run_case args_unknown 2 showmigrations --plan
+assert_contains "$TMP_DIR/stderr" '<unknown>'
+assert_restored
+[[ ! -e "$JOB_ARGS_LOCK_DIR" ]] || fail 'Lock should be released after a failure'
+
+# 別の実行がロックを持っている間は、gcloud を呼ばずに断る。
+mkdir -p "$JOB_ARGS_LOCK_DIR" && printf '%s\n' "$$" > "$JOB_ARGS_LOCK_DIR/pid"
+run_case success 2 showmigrations --plan
+[[ ! -s "$CALLS_FILE" ]] || fail 'A held lock should stop before gcloud'
+assert_contains "$TMP_DIR/stderr" 'another run holds'
+[[ "$(cat "$JOB_ARGS_LOCK_DIR/pid")" == "$$" ]] || fail 'Another run must not release a lock it does not hold'
+
+# 持ち主が居ないロック（異常終了の残り）も自動では消さず、消し方を示して断る。
+printf '999999\n' > "$JOB_ARGS_LOCK_DIR/pid"
+run_case success 2 showmigrations --plan
+[[ ! -s "$CALLS_FILE" ]] || fail 'A stale lock should stop before gcloud'
+assert_contains "$TMP_DIR/stderr" 'stale lock'
+[[ -e "$JOB_ARGS_LOCK_DIR" ]] || fail 'A stale lock must not be removed automatically'
+rm -rf "$JOB_ARGS_LOCK_DIR"
+
+run_case success 0 showmigrations --plan
+[[ ! -e "$JOB_ARGS_LOCK_DIR" ]] || fail 'Lock should be released after success'
+
+# 2 本を同時に動かすと、後から来た方は Job に触らずに断る。
+export MOCK_CASE=slow_execute
+: > "$CALLS_FILE"; printf '0\n' > "$LOG_COUNT_FILE"; printf '0\n' > "$WAIT_COUNT_FILE"
+bash "$REPO_ROOT/scripts/run_manage_command.sh" showmigrations --plan > "$TMP_DIR/first.out" 2>&1 &
+first=$!
+for _ in $(seq 1 50); do [[ -e "$JOB_ARGS_LOCK_DIR/pid" ]] && break; sleep 0.1; done
+second_status=0
+bash "$REPO_ROOT/scripts/run_manage_command.sh" apply_recording_opt_in --dry-run > "$TMP_DIR/second.out" 2>&1 || second_status=$?
+first_status=0
+wait "$first" || first_status=$?
+[[ "$second_status" -eq 2 ]] || fail "Concurrent run should be refused, got $second_status"
+[[ "$first_status" -eq 0 ]] || fail "First run should succeed, got $first_status"
+grep -Fq 'another run holds' "$TMP_DIR/second.out" || fail 'Second run should report the held lock'
+grep -Fq 'apply_recording_opt_in' "$CALLS_FILE" && fail 'Second run must not change the job args'
+TEST_COUNT=$((TEST_COUNT + 1))
+
+# check_pending_migrations.sh も同じロックを使い、保持中は Job に触らない。
+mkdir -p "$JOB_ARGS_LOCK_DIR" && printf '%s\n' "$$" > "$JOB_ARGS_LOCK_DIR/pid"
+: > "$CALLS_FILE"
+pending_status=0
+MOCK_CASE=success bash "$REPO_ROOT/scripts/check_pending_migrations.sh" > "$TMP_DIR/pending.out" 2>&1 || pending_status=$?
+[[ "$pending_status" -eq 2 ]] || fail "check_pending_migrations.sh should be refused, got $pending_status"
+grep -Fq 'jobs update' "$CALLS_FILE" && fail 'check_pending_migrations.sh must not change the job args'
+grep -Fq 'another run holds' "$TMP_DIR/pending.out" || fail 'check_pending_migrations.sh should report the held lock'
+rm -rf "$JOB_ARGS_LOCK_DIR"
+TEST_COUNT=$((TEST_COUNT + 1))
 
 printf 'PASS: run_manage_command.sh (%s cases)\n' "$TEST_COUNT"
