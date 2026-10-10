@@ -1,7 +1,7 @@
 """撮影をオプトインに移行し、過去の既定値の公開を許可に戻す（冪等）。"""
 
 import json
-from collections import Counter, defaultdict
+from collections import Counter
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
@@ -90,10 +90,13 @@ class Command(BaseCommand):
             'pk', 'recording_policy', 'event_id', 'event__date', 'event__community_id',
             'youtube_url', 'created_at', 'additional_info',
         )
-        rule_rows = {
-            name: list(details.filter(condition).order_by('pk').values(*fields))
-            for name, condition in rules.items()
-        }
+        rule_rows = {}
+        seen_ids = set()
+        for name, condition in rules.items():
+            # 規則ごとの集計の合間に値が変わると、同じ発表が 2 つの規則に入り得る。優先順で最初の規則だけに残す。
+            rows = details.filter(condition).order_by('pk').values(*fields)
+            rule_rows[name] = [row for row in rows if row['pk'] not in seen_ids]
+            seen_ids.update(row['pk'] for row in rule_rows[name])
         community_rows = list(communities.exclude(pk__in=keep_ids).filter(recording_allowed=True).order_by('pk').values_list(
             'pk', 'recording_allowed',
         ))
@@ -164,31 +167,43 @@ class Command(BaseCommand):
             self.stdout.write('dry-run のため変更していません。')
             return
 
+        # 集計後に変わった行は条件付き UPDATE が飛ばす。控えで戻す時に新しい値を上書きしないよう、
+        # 1 行ずつ更新して、実際に変えた ID と飛ばした ID を分けて出す。
+        # APPLIED は「ID: 実際に更新できた時の旧値」。戻す時はこの行を正本にする。
+        applied = {'communities': {}, 'event_details': {}}
+        skipped = {'communities': [], 'event_details': []}
         with transaction.atomic():
-            community_count = communities.exclude(pk__in=keep_ids).filter(
-                pk__in=[pk for pk, _ in community_rows], recording_allowed=True,
-            ).update(recording_allowed=False)
-            detail_count = 0
+            for pk, _ in community_rows:
+                updated = communities.exclude(pk__in=keep_ids).filter(pk=pk, recording_allowed=True).update(
+                    recording_allowed=False,
+                )
+                if updated:
+                    applied['communities'][str(pk)] = True
+                else:
+                    skipped['communities'].append(pk)
             for name, rows in rule_rows.items():
                 target_policy = policy.ALLOWED if name == 'b' else policy.FORBIDDEN
-                # 同じ旧値・開催日・集会・URL 等の行をまとめ、集計後の変更を保護する。
-                groups = defaultdict(list)
                 for row in rows:
-                    snapshot = tuple(row[field] for field in fields[1:])
-                    groups[snapshot].append(row['pk'])
-                for snapshot, pks in groups.items():
-                    old_values = dict(zip(fields[1:], snapshot))
+                    old_values = {field: row[field] for field in fields[1:]}
                     unchanged_event = Event.objects.filter(
                         pk=old_values['event_id'], date=old_values.pop('event__date'),
                         community_id=old_values.pop('event__community_id'),
                     ).values('pk')
-                    detail_count += details.filter(
-                        update_rules[name], pk__in=pks, event_id__in=unchanged_event, **old_values,
-                    ).update(
-                        recording_policy=target_policy,
-                    )
+                    updated = details.filter(
+                        update_rules[name], pk=row['pk'], event_id__in=unchanged_event, **old_values,
+                    ).update(recording_policy=target_policy)
+                    if updated:
+                        applied['event_details'][str(row['pk'])] = row['recording_policy']
+                    else:
+                        skipped['event_details'].append(row['pk'])
+        self.stdout.write('RECORDING_OPT_IN_APPLIED ' + json.dumps(applied, sort_keys=True))
+        if skipped['communities'] or skipped['event_details']:
+            self.stdout.write('RECORDING_OPT_IN_SKIPPED ' + json.dumps(skipped, sort_keys=True))
+        community_count, detail_count = len(applied['communities']), len(applied['event_details'])
         self.stdout.write(self.style.SUCCESS(
             f'Community: {community_count}件 / EventDetail: {detail_count}件 を更新しました。'
+            f'（集計後に変わったため飛ばした行: Community {len(skipped["communities"])}件 / '
+            f'EventDetail {len(skipped["event_details"])}件）'
         ))
         if community_count == 0 and detail_count == 0:
             self.stdout.write('変更はありません。')

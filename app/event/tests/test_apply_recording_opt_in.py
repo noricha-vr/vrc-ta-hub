@@ -132,6 +132,11 @@ class ApplyRecordingOptInTest(TestCase):
             self.assertEqual(community.recording_allowed, allowed)
             self.assertEqual(community.default_recording_policy, RecordingPolicy.PUBLIC)
         self.assertIn('Community: 1件 / EventDetail: 10件 を更新しました。', output)
+        self.assertNotIn('RECORDING_OPT_IN_SKIPPED', output)
+        applied_line = next(line for line in output.splitlines() if line.startswith('RECORDING_OPT_IN_APPLIED '))
+        applied = json.loads(applied_line.split(' ', 1)[1])
+        backup = self._backup(output)
+        self.assertEqual(applied, backup)
 
     def test_past_default_public_without_url_outside_keep_is_allowed(self):
         empty = self._detail(self.other, -2, old=True)
@@ -359,6 +364,42 @@ class ApplyRecordingOptInTest(TestCase):
         for detail in (date_changed, community_changed, answer_changed, created_changed, b_url_changed):
             self._assert_policy(detail, RecordingPolicy.PUBLIC)
         self.assertIn('Community: 0件 / EventDetail: 10件 を更新しました。', output)
+        skipped_line = [line for line in output.splitlines() if line.startswith('RECORDING_OPT_IN_SKIPPED ')]
+        self.assertEqual(len(skipped_line), 1)
+        skipped = json.loads(skipped_line[0].split(' ', 1)[1])
+        self.assertEqual(skipped['communities'], [self.other.pk])
+        self.assertEqual(sorted(skipped['event_details']), sorted(
+            detail.pk for detail in (policy_changed, date_changed, community_changed, url_changed,
+                                     answer_changed, created_changed, b_url_changed)
+        ))
+        applied_line = [line for line in output.splitlines() if line.startswith('RECORDING_OPT_IN_APPLIED ')]
+        applied = json.loads(applied_line[0].split(' ', 1)[1])
+        self.assertEqual(len(applied['event_details']), 10)
+        self.assertFalse(set(map(int, applied['event_details'])) & set(skipped['event_details']))
+
+    def test_detail_moving_between_rules_during_collection_is_counted_once(self):
+        # a の集計の後、b の集計の前に、未来の allowed が過去の public に変わり、更新の前に戻される。
+        detail = self._detail(self.other, 3, policy=RecordingPolicy.ALLOWED, old=True)
+        original_filter = QuerySet.filter
+        moved = False
+
+        def filter_(queryset, *args, **kwargs):
+            nonlocal moved
+            result = original_filter(queryset, *args, **kwargs)
+            if queryset.model is EventDetail and not moved and args and 'recording_policy' in str(args[0]) \
+                    and 'created_at' in str(args[0]):
+                moved = True
+                Event.objects.filter(pk=detail.event_id).update(date=self.today - timedelta(days=3))
+                EventDetail.all_objects.filter(pk=detail.pk).update(recording_policy=RecordingPolicy.PUBLIC)
+            return result
+
+        with patch.object(QuerySet, 'filter', filter_):
+            output = self._run('--dry-run')
+
+        self.assertTrue(moved)
+        backup = self._backup(output)
+        self.assertEqual(backup['event_details'][str(detail.pk)], RecordingPolicy.ALLOWED)
+        self.assertEqual(sum(f'id={detail.pk} ' in line for line in output.splitlines() if '旧 recording_policy' in line), 1)
 
     def test_all_updates_are_atomic(self):
         before = self._state()
