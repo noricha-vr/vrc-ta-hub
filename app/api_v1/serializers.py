@@ -225,6 +225,8 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         generate_from_pdf = validated_data.pop('generate_from_pdf', False)
+        # 撮影の扱いを送らなかった登録は、登壇者が選んでいないので撮らない（モデルの既定値 public にしない）
+        validated_data.setdefault('recording_policy', EventDetail.RecordingPolicy.FORBIDDEN)
         instance = super().create(validated_data)
         
         # PDF自動生成が有効で、PDFファイルがある場合

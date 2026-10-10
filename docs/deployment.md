@@ -54,6 +54,56 @@ gcloud run jobs update vrc-ta-hub-migrate \
 ./scripts/check_pending_migrations.sh
 ```
 
+任意の管理コマンドも同じ Job で実行できます。Job の引数を一時的に差し替え、
+`execute --async` で実行名を取って完了まで待ち、その実行の標準出力・標準エラーのログを表示し、
+終了時に元の引数へ戻します。実行が失敗した時も、ログを表示してからエラーで終わります。
+ログは同じ内容が 2 回続けて取れるまで読み直します（Cloud Logging の取り込み遅延）。
+`EXPECT_LOG_PREFIX` を指定すると、その文字列で始まる行が現れるまで成功にしません。
+ログを取得できない場合や復元に失敗した場合はエラーになります。
+
+```bash
+# 実行前に KEEP_COMMUNITY_ID_A / KEEP_COMMUNITY_ID_B に残す集会の ID を設定する
+EXPECT_LOG_PREFIX=RECORDING_OPT_IN_DONE ./scripts/run_manage_command.sh apply_recording_opt_in \
+  --keep-community-id "$KEEP_COMMUNITY_ID_A" --keep-community-id "$KEEP_COMMUNITY_ID_B" --dry-run
+```
+
+`PROJECT_ID` / `REGION` / `JOB_NAME` で対象を上書きできます。gcloud の認証設定は
+呼び出し側の `CLOUDSDK_CONFIG` / `CLOUDSDK_ACTIVE_CONFIG_NAME` を引き継ぎます。
+引数に `|` は使えません。同じ Job の引数を変更する処理は同時に実行しないでください。
+撮影の変更前に `community.0032_alter_community_recording_allowed_default` を適用し、
+dry-run の対象件数・URL があり変更しない発表・残す集会の報告を確認してください。
+移行コマンドは、新しいリビジョンにトラフィックを 100% 切り替えた後に実行します（切替前は旧リビジョンが `recording_allowed=True` で集会を作れるため）。冪等なので、切替後にもう一度流しても差分だけを当てます。
+`--keep-community-id` は必須で、撮影許可を残す集会の ID ごとに繰り返して指定します。
+名前による指定はできません。指定した ID が一つでも存在しなければ、変更前にエラーになります。
+残す集会の現在の撮影許可はそのまま維持し、それ以外の集会の撮影許可をオフにします。
+
+発表は論理削除済みも含め、次の順で最初に該当する規則だけを適用します。
+
+- a: 残す集会以外の、今日以降・YouTube URL が NULL または空文字の発表は、既に「禁止」でなければ「禁止」にします。
+- b: 過去の発表で既定値のまま「公開」になっていたものは、集会や URL の有無を問わず「許可（公開しない）」にします。
+- c: 残す集会以外の、過去・URL なしの発表で、b に該当せず既に「禁止」でなければ「禁止」にします。
+- d: それ以外は変更しません。
+
+「過去」は Django のローカル日付で今日より前です。既定値のままの公開は、
+`recording_policy=public`、`created_at < --defaults-before`、追加情報に「動画撮影」を含まない
+（NULL も含まない扱い）のすべてを満たすものです。
+`--defaults-before` の既定値は `2026-09-28T16:57:12+00:00` です。
+
+dry-run でも、各規則の件数と旧値の内訳、規則 b の集会・URL 別の内訳、
+規則 a の発表の ID・開催日・旧値・集会 ID を出力します。
+残す集会以外の URL があり変更しない発表（「禁止」を除く）の一覧と、
+今日以降で URL がある発表の件数・ID も報告します。
+残す集会ごとに ID・名前・現在の撮影許可、変更前の既定値 public の件数、
+変更後に public のまま残る予定件数、今日以降の発表一覧、発表の有無によらない次の開催日を確認できます。
+
+実際のデータ変更は承認後に `--dry-run` を外して実行し、
+`RECORDING_OPT_IN_BACKUP` 行を実行時の控えとして保存してください。
+実行時は `RECORDING_OPT_IN_APPLIED` 行に実際に変えた ID と、その時の旧値が、集計後に値が変わって飛ばした行があれば `RECORDING_OPT_IN_SKIPPED` 行に出ます。
+戻す時は BACKUP ではなく APPLIED の ID と旧値を使ってください（飛ばした行は主催者や登壇者の新しい選択です）。
+この行の JSON は、変更対象の集会と発表の ID をキーにした旧値だけを持ちます。
+更新はトランザクション内で行い、集計後に旧値や対象条件が変わった行は上書きしません。
+再び dry-run を実行し、変更対象件数を確認してください。
+
 デプロイ前チェックの正本は [deploy-check.toml](deploy-check.toml)（deploy-watchが読む）。
 `[migrations]` に上記コマンドを定義してあるため、トラフィック切替前に未適用migrationが
 無いことを必ず確認する。

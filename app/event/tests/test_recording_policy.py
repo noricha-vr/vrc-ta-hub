@@ -47,7 +47,7 @@ class LTApplicationRecordingPolicyTest(TestCase):
 
     def setUp(self):
         self.user = make_discord_linked_user(user_name='applicant', email='applicant@example.com')
-        self.community = make_community(name='申請先の集会')
+        self.community = make_community(name='申請先の集会', recording_allowed=True)
         self.event = make_event(self.community)
         self.url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
 
@@ -114,7 +114,7 @@ class LTApplicationEditFormRecordingPolicyTest(TestCase):
     """発表者が自分の申請を編集するフォーム。"""
 
     def setUp(self):
-        community = make_community(name='編集の集会')
+        community = make_community(name='編集の集会', recording_allowed=True)
         self.detail = make_event_detail(make_event(community), recording_policy=RecordingPolicy.PUBLIC)
 
     def _form(self, **extra):
@@ -161,7 +161,7 @@ class EventDetailFormRecordingPolicyTest(TestCase):
 
     def setUp(self):
         self.owner = make_discord_linked_user(user_name='detail_owner', email='detail_owner@example.com')
-        self.community = make_community(name='主催の集会', owner=self.owner)
+        self.community = make_community(name='主催の集会', owner=self.owner, recording_allowed=True)
         self.event = make_event(self.community)
         self.client.force_login(self.owner)
 
@@ -215,7 +215,7 @@ class LTApplicationCommunityDefaultTest(TestCase):
 
     def setUp(self):
         self.user = make_discord_linked_user(user_name='default_applicant', email='default_applicant@example.com')
-        self.community = make_community(name='既定値を変えた集会')
+        self.community = make_community(name='既定値を変えた集会', recording_allowed=True)
         self.community.default_recording_policy = RecordingPolicy.ALLOWED
         self.community.save(update_fields=['default_recording_policy'])
         self.event = make_event(self.community)
