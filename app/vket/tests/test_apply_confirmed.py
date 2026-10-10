@@ -231,6 +231,29 @@ class VketApplyFlowTests(VketApplyFlowBase):
         self.assertTrue(response.context['permissions'].can_edit_schedule)
         self.assertContains(response, '変更は次の自動確定で反映されます')
 
+    def test_unapplied_row_cannot_apply_after_registration_deadline(self):
+        """参加表明の締切後は、未申請の参加の行があっても日程を入れて申し込めない"""
+        self.client.force_login(self.owner)
+        self._set_active_community()
+        self.collaboration.registration_deadline = timezone.localdate() - timedelta(days=1)
+        self.collaboration.save(update_fields=['registration_deadline'])
+        participation = VketParticipation.objects.create(
+            collaboration=self.collaboration, community=self.community,
+            progress=VketParticipation.Progress.NOT_APPLIED,
+        )
+        post_data = {
+            'requested_date': self.collaboration.period_start.isoformat(),
+            'requested_start_time': '21:00', 'requested_duration': '60',
+            'organizer_note': '', 'lt_slot_minutes': '30',
+        }
+        post_data.update(self._make_formset_data([], initial_forms=0))
+
+        self.client.post(reverse('vket:apply', kwargs={'pk': self.collaboration.pk}), post_data)
+
+        participation.refresh_from_db()
+        self.assertEqual(participation.progress, VketParticipation.Progress.NOT_APPLIED)
+        self.assertIsNone(participation.requested_date)
+
     def test_lt_start_time_and_text_update_after_deadline(self):
         """締切後も発表時刻・登壇者・テーマを更新できる"""
         self.client.force_login(self.owner)

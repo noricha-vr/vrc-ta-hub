@@ -236,9 +236,9 @@ class ApplyView(LoginRequiredMixin, View):
         collaboration: VketCollaboration,
         participation: VketParticipation | None,
     ) -> VketApplyPermissions:
-        """既存の主催者は発表受付のフェーズ内で日程も編集できる。新規受付は従来どおり。"""
+        """申込み済みの主催者は発表受付のフェーズ内で日程も編集できる。未申請の行と新規受付は従来どおり。"""
         permissions = _apply_permissions_for_user(user, collaboration)
-        if participation:
+        if participation and participation.progress != VketParticipation.Progress.NOT_APPLIED:
             return VketApplyPermissions(
                 can_edit_schedule=permissions.can_edit_lt,
                 can_edit_lt=permissions.can_edit_lt,
