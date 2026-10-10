@@ -10,7 +10,10 @@
 # ロックはこの端末の中だけで効く（mkdir の原子性を使う）。別の端末や CI から同じ Job の引数を
 # 差し替える経路を作る時は、このロックでは守れないので、同時に動かさない運用で補う。
 
-JOB_ARGS_LOCK_DIR="${JOB_ARGS_LOCK_DIR:-${HOME}/.cache/vrc-ta-hub/job-args-${JOB_NAME:-vrc-ta-hub-migrate}.lock}"
+# 同じ Job を短い名前と完全な名前（projects/.../jobs/<name>）のどちらで指定しても同じロックになるよう、
+# プロジェクト・リージョン・Job 名の末尾で決める
+_job_args_lock_key="${PROJECT_ID:-vrc-ta-hub}-${REGION:-asia-northeast1}-${JOB_NAME##*/}"
+JOB_ARGS_LOCK_DIR="${JOB_ARGS_LOCK_DIR:-${HOME}/.cache/vrc-ta-hub/job-args-${_job_args_lock_key}.lock}"
 JOB_ARGS_LOCK_HELD=''
 
 acquire_job_args_lock() {
