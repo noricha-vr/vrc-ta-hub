@@ -296,12 +296,16 @@ def _send_article_published_email(
 
 def send_discord_notification_for_article(
     event_detail: EventDetail, edit_url: str, article_url: str
-) -> None:
-    """記事の公開を集会の Discord Webhook に知らせる."""
+) -> bool:
+    """記事の公開を集会の Discord Webhook に知らせる.
+
+    Returns:
+        送れなかった時だけ False（送信先が無い時は送る必要が無いので True）。
+    """
     community = event_detail.event.community
     webhook_url = community.notification_webhook_url
     if not webhook_url:
-        return
+        return True
 
     message = {
         "embeds": [{
@@ -326,6 +330,7 @@ def send_discord_notification_for_article(
             community.pk,
             event_detail.pk,
         )
+        return True
     except Exception as error:
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
@@ -336,6 +341,7 @@ def send_discord_notification_for_article(
             error_type,
             status_code,
         )
+        return False
 
 
 def _send_discord_notification_for_new_application(

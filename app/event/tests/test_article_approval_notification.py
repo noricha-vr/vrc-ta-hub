@@ -499,3 +499,18 @@ class ArticleApprovalNotificationTest(TestCase):
         detail.refresh_from_db()
         self.assertIsNone(detail.article_published_notified_at)
         post_webhook.assert_not_called()
+
+    def test_failed_discord_only_notification_releases_its_claim(self, send_mail, post_webhook):
+        """作成メール済みの記事で Discord を送れなかった時は、承認時の取得を戻す。"""
+        detail = self._detail(article_published_notified_at=timezone.now())
+        with self.captureOnCommitCallbacks(execute=False) as callbacks:
+            self._post(detail, 'lt_application_approve', execute_callbacks=False)
+        post_webhook.reset_mock()
+        post_webhook.side_effect = RuntimeError('discord down')
+
+        for callback in callbacks:
+            callback()
+
+        detail.refresh_from_db()
+        self.assertIsNone(detail.article_published_notified_at)
+        post_webhook.side_effect = None

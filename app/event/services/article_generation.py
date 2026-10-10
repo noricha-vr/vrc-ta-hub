@@ -315,7 +315,9 @@ def _send_article_approval_notification(pk: int, claimed_at: datetime, send_emai
         else:
             edit_url = build_site_url(reverse('account:lt_application_edit', kwargs={'pk': pk}))
             article_url = build_site_url(reverse('event:detail', kwargs={'pk': pk}))
-            send_discord_notification_for_article(detail, edit_url, article_url)
+            if not send_discord_notification_for_article(detail, edit_url, article_url):
+                # 送れなかった時は担当を戻し、後で記事を作り直した時に公開を知らせられるようにする
+                _release_claim(pk, claimed_at)
     except Exception:
         logger.exception(
             'article_approval_notification_failed',
