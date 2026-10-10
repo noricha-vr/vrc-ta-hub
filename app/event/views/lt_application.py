@@ -228,6 +228,8 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
 
             if action == 'approve':
                 schedule_changes = self._apply_schedule_changes(form)
+                from event.services.article_generation import schedule_article_notification_on_approval
+                schedule_article_notification_on_approval(locked)
                 locked.status = 'approved'
                 status_text = '承認'
                 update_fields = ['status', 'event', 'start_time', 'duration', 'updated_at']
@@ -313,16 +315,21 @@ class LTApplicationApproveView(LoginRequiredMixin, View):
             messages.error(request, 'この申請を承認する権限がありません。')
             return redirect('event:my_list')
 
-        # 既に処理済みの場合
-        if event_detail.status != 'pending':
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({'success': False, 'error': 'この申請は既に処理されています。'}, status=400)
-            messages.info(request, 'この申請は既に処理されています。')
-            return redirect('event:my_list')
+        with transaction.atomic():
+            # 審査ページと同じく、承認した 1 件だけが通知する。申請者の編集も巻き戻さない。
+            event_detail = EventDetail.objects.select_for_update().select_related(
+                'event__community', 'applicant'
+            ).get(pk=pk)
+            if event_detail.status != 'pending':
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({'success': False, 'error': 'この申請は既に処理されています。'}, status=400)
+                messages.info(request, 'この申請は既に処理されています。')
+                return redirect('event:my_list')
 
-        # 承認処理
-        event_detail.status = 'approved'
-        event_detail.save()
+            from event.services.article_generation import schedule_article_notification_on_approval
+            schedule_article_notification_on_approval(event_detail)
+            event_detail.status = 'approved'
+            event_detail.save(update_fields=['status', 'updated_at'])
 
         # 申請者に通知
         from event.notifications import notify_applicant_of_result

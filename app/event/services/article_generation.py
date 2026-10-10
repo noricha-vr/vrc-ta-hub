@@ -9,15 +9,21 @@ import logging
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
+from functools import partial
 
 from django.conf import settings
 from django.db import transaction
 from django.db.models import F
+from django.urls import reverse
 from django.utils import timezone
 
 from event.material_upload_reminders import get_material_reminder_recipient
 from event.models import EventDetail, article_generation_request_values
-from event.notifications import notify_applicant_of_article_published
+from event.notifications import (
+    get_published_article_for_notification,
+    notify_applicant_of_article_published,
+    send_discord_notification_for_article,
+)
 from event.services.content_generation_service import (
     BlogOutput,
     BlogSources,
@@ -27,6 +33,7 @@ from event.services.content_generation_service import (
     set_generated_article,
 )
 from event.services.media_service import ensure_pdf_thumbnail
+from website.constants import build_site_url
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +271,60 @@ def _after_generated(pk: int) -> None:
     _notify_first_time(pk)
 
 
+def schedule_article_notification_on_approval(detail: EventDetail) -> None:
+    """承認前の行ロック中に記事の通知担当を決め、コミット後に送る。
+
+    pending を確認した承認トランザクション内で、status を変える前に呼ぶ。
+    通知日時があれば承認前の作成メールなので Discord だけ、なければ公開メールも送る。
+    どちらも日時を入れ直して担当を引き取り、生成側のメール失敗で通知済みの印が消えないようにする。
+    生成側の通知日時の取得も同じ行ロックで待つ。
+    """
+    if detail.status != 'pending' or detail.article_state() == EventDetail.ArticleState.NONE:
+        return
+    if not EventDetail.all_objects.filter(EventDetail.article_notifiable_q(), pk=detail.pk).exists():
+        return
+    claimed_at = timezone.now()
+    send_email = detail.article_published_notified_at is None
+    EventDetail.all_objects.filter(pk=detail.pk).update(article_published_notified_at=claimed_at)
+    detail.article_published_notified_at = claimed_at
+    transaction.on_commit(partial(_send_article_approval_notification, detail.pk, claimed_at, send_email))
+
+
+def _release_claim(pk: int, claimed_at: datetime) -> None:
+    """自分が入れた通知日時の時だけ戻し、後で記事を作り直した時に知らせられるようにする。"""
+    EventDetail.all_objects.filter(
+        pk=pk, article_published_notified_at=claimed_at,
+    ).update(article_published_notified_at=None)
+
+
+def _send_article_approval_notification(pk: int, claimed_at: datetime, send_email: bool) -> None:
+    """承認時に決めた担当で送る。送る直前の同意・公開状態と記事本文を読み直す。
+
+    送る条件を満たさず見送った時は、承認時に取った担当を戻す（作成メール済みの記事も、
+    後で記事を作り直した時に公開のメールと Discord で知らせられるように）。
+    """
+    try:
+        detail = get_published_article_for_notification(pk)
+        if detail is None:
+            _release_claim(pk, claimed_at)
+            return
+        if send_email:
+            recipient = get_material_reminder_recipient(detail)
+            if not _send_published_notification(detail, recipient):
+                _release_claim(pk, claimed_at)
+        else:
+            edit_url = build_site_url(reverse('account:lt_application_edit', kwargs={'pk': pk}))
+            article_url = build_site_url(reverse('event:detail', kwargs={'pk': pk}))
+            if not send_discord_notification_for_article(detail, edit_url, article_url):
+                # 送れなかった時は担当を戻し、後で記事を作り直した時に公開を知らせられるようにする
+                _release_claim(pk, claimed_at)
+    except Exception:
+        logger.exception(
+            'article_approval_notification_failed',
+            extra={'event_type': 'article_approval_notification_failed', 'event_detail_id': pk},
+        )
+
+
 def _notify_first_time(pk: int) -> None:
     """発表者（Vket 由来の発表は申し込んだ人）に、最初の 1 回だけ記事の公開を知らせる。
 
@@ -271,10 +332,15 @@ def _notify_first_time(pk: int) -> None:
     宛先と本文を決め、通知日時を入れる UPDATE も今の公開の条件（記事化 OK・却下でない・削除されていない）
     を満たす時だけ通す。宛先が無い時は通知日時を入れない（後で宛先ができた時に知らせられるように）。
     先に通知日時を入れた 1 件だけが送る（作り直しや重なった呼び出しでは送らない）。
-    メールを送れなかった時は通知日時を戻し、次に記事を作った時に送り直す。
+    取得後に通知対象でなくなった時やメールを送れなかった時は、自分の通知日時だけを戻す。
+    承認側が引き継いだ通知日時は消さず、作り直した時の重複通知を防ぐ。
     """
     try:
-        detail = EventDetail.all_objects.select_related('event__community', 'applicant').get(pk=pk)
+        detail = EventDetail.all_objects.filter(
+            EventDetail.article_notifiable_q(), pk=pk,
+        ).select_related('event__community', 'applicant').first()
+        if detail is None or detail.article_state() == EventDetail.ArticleState.NONE:
+            return
         recipient = get_material_reminder_recipient(detail)
         if recipient is None or not recipient.email:
             logger.warning(
@@ -283,10 +349,24 @@ def _notify_first_time(pk: int) -> None:
             )
             return
         notified_at = timezone.now()
-        first_time = EventDetail.all_objects.filter(
-            EventDetail.article_notifiable_q(), pk=pk, article_published_notified_at__isnull=True,
-        ).update(article_published_notified_at=notified_at)
-        if first_time and not _send_published_notification(detail, recipient):
+        with transaction.atomic():
+            first_time = EventDetail.all_objects.filter(
+                EventDetail.article_notifiable_q(), pk=pk, article_published_notified_at__isnull=True,
+            ).update(article_published_notified_at=notified_at)
+            if not first_time:
+                return
+            # UPDATE が取った行ロック中に読み直す。承認前の取得なら作成メールだけを送り、
+            # 承認後の取得なら公開メールと Discord を送る（取得前の status は使わない）。
+            detail = EventDetail.all_objects.filter(
+                EventDetail.article_notifiable_q(), pk=pk,
+            ).select_related('event__community', 'applicant').first()
+            if detail is None or detail.article_state() == EventDetail.ArticleState.NONE:
+                EventDetail.all_objects.filter(
+                    pk=pk, article_published_notified_at=notified_at,
+                ).update(article_published_notified_at=None)
+                return
+            recipient = get_material_reminder_recipient(detail)
+        if not _send_published_notification(detail, recipient):
             EventDetail.all_objects.filter(
                 pk=pk, article_published_notified_at=notified_at,
             ).update(article_published_notified_at=None)

@@ -1726,6 +1726,7 @@ class ArticlePublishedNotificationTest(TestCase):
     def _detail(self, status):
         return make_event_detail(
             self.event, applicant=self.applicant, status=status, h1='記事のタイトル',
+            article_consent=EventDetail.ArticleConsent.OK,
         )
 
     def test_published_article_notifies_by_email_and_discord(self, send_mail, post_webhook):
