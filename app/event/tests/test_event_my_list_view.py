@@ -717,9 +717,9 @@ class VketBannerTests(TestCase):
                 self.assertNotContains(response, '参加状況を確認')
 
     def test_banner_scheduling_phase_shows_lt_deadline(self):
-        """SCHEDULINGフェーズでLT締切情報が表示される"""
+        """SCHEDULINGフェーズで申し込み済みの集会に発表登録締切が表示される"""
         today = timezone.localdate()
-        VketCollaboration.objects.create(
+        collaboration = VketCollaboration.objects.create(
             slug='banner-scheduling',
             name='Scheduling Collab',
             period_start=today + timedelta(days=14),
@@ -728,13 +728,20 @@ class VketBannerTests(TestCase):
             lt_deadline=today + timedelta(days=3),
             phase=VketCollaboration.Phase.SCHEDULING,
         )
+        VketParticipation.objects.create(
+            collaboration=collaboration,
+            community=self.community,
+            progress=VketParticipation.Progress.APPLIED,
+        )
         self._login_and_set_community()
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
         banner = response.context['vket_banner']
         self.assertIsNotNone(banner)
-        self.assertIn('Scheduling Collab', banner['message'])
+        self.assertEqual(banner['message'], '発表者・テーマの登録締切')
+        self.assertEqual(banner['days_until'], 3)
+        self.assertIn('Scheduling Collab', banner['subtitle'])
 
     def test_banner_announcement_phase_shows_period(self):
         """ANNOUNCEMENTフェーズで開催期間が表示される"""
@@ -754,7 +761,7 @@ class VketBannerTests(TestCase):
         self.assertEqual(response.status_code, 200)
         banner = response.context['vket_banner']
         self.assertIsNotNone(banner)
-        self.assertIn('Announcement Collab', banner['message'])
+        self.assertIn('Announcement Collab', banner['subtitle'])
 
     def test_banner_none_when_no_collaboration(self):
         """コラボが存在しない場合はバナーがNone"""
@@ -765,7 +772,7 @@ class VketBannerTests(TestCase):
         self.assertIsNone(response.context['vket_banner'])
 
     def test_banner_deadline_today_shows_today_text(self):
-        """締切が本日の場合「本日締切」と表示される"""
+        """締切が本日の場合「今日」と締切の名前が表示される"""
         today = timezone.localdate()
         VketCollaboration.objects.create(
             slug='banner-deadline-today',
@@ -782,7 +789,9 @@ class VketBannerTests(TestCase):
         self.assertEqual(response.status_code, 200)
         banner = response.context['vket_banner']
         self.assertIsNotNone(banner)
-        self.assertIn('受付中', banner['message'])
+        self.assertEqual(banner['days_until'], 0)
+        self.assertEqual(banner['message'], '参加表明の締切です')
+        self.assertContains(response, '今日')
 
 
 class EventMyListEditButtonTest(TestCase):

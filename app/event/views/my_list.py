@@ -1,5 +1,5 @@
 import logging
-from datetime import timedelta
+from datetime import date, time, timedelta
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import QuerySet
@@ -342,11 +342,57 @@ class EventMyList(LoginRequiredMixin, ListView):
 
         return context
 
+    def _get_vket_schedule_milestones(self, collaboration):
+        """コラボ設定の説明会・お疲れ様会を、不正な値を除いて取得する。"""
+        settings = collaboration.settings_json
+        if not isinstance(settings, dict):
+            return {}
+        schedule = settings.get('schedule_milestones')
+        if not isinstance(schedule, dict):
+            return {}
+
+        milestones = {}
+        for key, default_label in (
+            ('kickoff', '説明会・キックオフ'),
+            ('after_party', 'お疲れ様でした会'),
+        ):
+            value = schedule.get(key)
+            if not isinstance(value, dict):
+                continue
+            raw_date = value.get('date')
+            if not isinstance(raw_date, str):
+                continue
+            try:
+                milestone_date = date.fromisoformat(raw_date)
+            except ValueError:
+                continue
+            if milestone_date.isoformat() != raw_date:
+                continue
+
+            milestone_time = None
+            raw_time = value.get('time')
+            if isinstance(raw_time, str):
+                try:
+                    parsed_time = time.fromisoformat(raw_time)
+                    if parsed_time.strftime('%H:%M') == raw_time:
+                        milestone_time = parsed_time
+                except ValueError:
+                    pass
+            label = value.get('label')
+            milestones[key] = {
+                'key': key,
+                'date': milestone_date,
+                'label': label.strip() if isinstance(label, str) and label.strip() else default_label,
+                'tentative': value.get('tentative') is True,
+                'time': milestone_time,
+            }
+        return milestones
+
     def _get_vket_banner(self, community):
         """Vketコラボバナーに必要な情報を返す。
 
         DRAFT/ARCHIVEDと終了済みを除外した最新のコラボを取得し、
-        フェーズ・日付に基づいて状態メッセージとリンク先を決定する。
+        アクティブな集会の申込状況に応じて、次の節目を1つ表示する。
 
         Args:
             community: アクティブな集会（Noneの場合あり）
@@ -358,27 +404,77 @@ class EventMyList(LoginRequiredMixin, ListView):
         from vket.views.helpers import _is_vket_admin
 
         today = timezone.localdate()
-        collaboration = (
+        collaborations = (
             VketCollaboration.objects
             .exclude(phase__in=[
                 VketCollaboration.Phase.DRAFT,
                 VketCollaboration.Phase.ARCHIVED,
             ])
-            .filter(period_end__gte=today)
             .order_by('-period_start', '-id')
-            .first()
         )
-        if not collaboration:
+        collaboration = None
+        for candidate in collaborations:
+            schedule = self._get_vket_schedule_milestones(candidate)
+            after_party = schedule.get('after_party')
+            display_until = max(
+                candidate.period_end,
+                after_party['date'] if after_party else candidate.period_end,
+            )
+            if today <= display_until:
+                collaboration = candidate
+                break
+        if collaboration is None:
             return None
 
         is_vket_admin = _is_vket_admin(self.request.user)
 
-        has_participation = False
+        participation = None
         if community:
-            has_participation = VketParticipation.objects.filter(
+            participation = VketParticipation.objects.filter(
                 collaboration=collaboration,
                 community=community,
-            ).exists()
+            ).first()
+        has_participation = participation is not None
+        has_applied = (
+            has_participation
+            and participation.progress != VketParticipation.Progress.NOT_APPLIED
+        )
+
+        milestones = []
+        if not has_applied or (is_vket_admin and community is None):
+            milestones.append({
+                'key': 'registration_deadline',
+                'date': collaboration.registration_deadline,
+                'label': '参加表明の締切',
+            })
+        if has_applied or (is_vket_admin and community is None):
+            milestones.append({
+                'key': 'lt_deadline',
+                'date': collaboration.lt_deadline,
+                'label': '発表者・テーマの登録締切',
+            })
+            if 'kickoff' in schedule:
+                milestones.append(schedule['kickoff'])
+            if participation and participation.effective_date:
+                milestones.append({
+                    'key': 'community_event',
+                    'date': participation.effective_date,
+                    'time': participation.effective_start_time,
+                    'label': 'あなたの集会の開催日',
+                })
+            elif is_vket_admin and community is None:
+                milestones.append({
+                    'key': 'period_start',
+                    'date': collaboration.period_start,
+                    'label': '会期の開始',
+                })
+            if 'after_party' in schedule:
+                milestones.append(schedule['after_party'])
+        milestone = min(
+            (item for item in milestones if item['date'] >= today),
+            key=lambda item: item['date'],
+            default=None,
+        )
 
         is_during_event = (
             collaboration.period_start <= today <= collaboration.period_end
@@ -389,22 +485,33 @@ class EventMyList(LoginRequiredMixin, ListView):
             f'{collaboration.period_start.month}/{collaboration.period_start.day}'
             f'\u301c{collaboration.period_end.month}/{collaboration.period_end.day}'
         )
-        if is_during_event:
-            message = f'{collaboration.name} 開催中！（{collaboration.period_end.month}/{collaboration.period_end.day}まで）'
-        elif phase == VketCollaboration.Phase.ENTRY_OPEN:
-            message = f'{collaboration.name}（{period}）参加申し込み受付中'
-        elif phase in (
-            VketCollaboration.Phase.SCHEDULING,
-            VketCollaboration.Phase.LT_COLLECTION,
-        ):
-            message = f'{collaboration.name}（{period}）'
-        elif phase in (
-            VketCollaboration.Phase.ANNOUNCEMENT,
-            VketCollaboration.Phase.LOCKED,
-        ):
-            message = f'{collaboration.name}（{period}）'
+        days_until = None
+        date_display = ''
+        time_display = ''
+        tentative = False
+        if milestone:
+            days_until = (milestone['date'] - today).days
+            tentative = milestone.get('tentative', False)
+            weekday = '月火水木金土日'[milestone['date'].weekday()]
+            date_display = f"{milestone['date'].month}/{milestone['date'].day}（{weekday}）"
+            if tentative:
+                date_display += '頃'
+            start_time = milestone.get('time')
+            if start_time:
+                if tentative:
+                    minutes = f'{start_time.minute}分' if start_time.minute else ''
+                    time_display = f'{start_time.hour}時{minutes}頃'
+                else:
+                    time_display = start_time.strftime('%H:%M')
+            message = milestone['label']
+            if days_until == 0:
+                message = f'{time_display} から {message}です' if time_display else f'{message}です'
+        elif not has_applied and phase == VketCollaboration.Phase.ENTRY_OPEN:
+            message = '参加申し込み受付中'
+        elif is_during_event:
+            message = '開催中'
         else:
-            return None
+            message = '次のご案内をお待ちください'
 
         if (
             not has_participation
@@ -418,9 +525,21 @@ class EventMyList(LoginRequiredMixin, ListView):
             button_text = '参加状況を確認'
             button_icon = 'fas fa-pen-to-square'
 
+        logger.info('vket.banner_displayed', extra={
+            'collaboration_id': collaboration.pk,
+            'milestone': milestone['key'] if milestone else 'none',
+            'days_until': days_until,
+            'tentative': tentative,
+        })
         return {
             'collaboration': collaboration,
             'message': message,
+            'subtitle': f'{collaboration.name} {period}',
+            'days_until': days_until,
+            'milestone': milestone,
+            'date_display': date_display,
+            'time_display': time_display,
+            'tentative': tentative,
             'url_name': url_name,
             'url_pk': collaboration.pk,
             'button_text': button_text,
