@@ -20,7 +20,8 @@ class VketApplyFlowTests(VketApplyFlowBase):
     def test_status_page_shows_register_complete_guidance(self):
         """参加状況画面で登録後の次アクションが明示される"""
         self.collaboration.slug = 'vket-2026-summer'
-        self.collaboration.save(update_fields=['slug'])
+        self.collaboration.settings_json = {'stage_registration_open': True}
+        self.collaboration.save(update_fields=['slug', 'settings_json'])
         VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=self.community,
@@ -45,7 +46,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
         )
         self.assertContains(
             response,
-            '登録が終わったら、この画面に戻って「登録完了」を押してください。',
+            '登録が終わったら、この画面に戻って「Vketで登録したことを記録する」を押してください。',
         )
         self.assertContains(
             response,
@@ -66,13 +67,13 @@ class VketApplyFlowTests(VketApplyFlowBase):
         body = response.content.decode()
         self.assertLess(
             body.index('Vketステージに登録する'),
-            body.index('<i class="fas fa-check me-1"></i>登録完了'),
+            body.index('class="btn btn-outline-secondary"'),
         )
 
     def test_status_page_uses_collaboration_stage_url_when_configured(self):
         """コラボに登録URLが設定されている場合はそのURLを使う"""
         custom_stage_url = 'https://example.com/vket/custom-stage'
-        self.collaboration.settings_json = {'stage_url': f' {custom_stage_url} '}
+        self.collaboration.settings_json = {'stage_url': f' {custom_stage_url} ', 'stage_registration_open': True}
         self.collaboration.save(update_fields=['settings_json'])
         VketParticipation.objects.create(
             collaboration=self.collaboration,

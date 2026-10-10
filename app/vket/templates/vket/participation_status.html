@@ -125,68 +125,64 @@
                 </div>
             {% endif %}
 
-            {# Vketステージ登録（未登録時のみここに表示） #}
-            {% if stage_register_open %}
-                <div class="card shadow-sm mb-4 border-warning">
-                    <div class="card-body">
-                        <h2 class="h5 fw-bold mb-2">
-                            <i class="fas fa-external-link-alt me-2 text-warning"></i>Vketステージ登録
+            {# Vketステージ登録 #}
+            <div class="card shadow-sm mb-4 {% if stage_register_open %}border-warning{% else %}border-secondary{% endif %}">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2 align-items-center{% if not participation.stage_registered_at %} mb-2{% endif %}">
+                        <h2 class="h5 fw-bold mb-0">
+                            <i class="fas fa-external-link-alt me-2 text-muted"></i>Vketステージ登録
                         </h2>
-                        <p class="mb-3">
-                            Vket公式サイトのステージページに、イベント情報を暫定内容で登録してください。
-                            日程や発表内容が未確定でも、後から更新できます。
-                            登録が終わったら、この画面に戻って「登録完了」を押してください。
-                        </p>
-                        {% if stage_registration_guidance %}
-                            <div class="alert alert-info py-2 mb-3">
-                                <div class="fw-bold mb-1">Vketステージ登録画面での設定</div>
-                                <div>開催会場は「{{ stage_registration_guidance.venue }}」に設定してください。</div>
-                                <div>タグは「{{ stage_registration_guidance.tag }}」を選択してください。</div>
-                            </div>
+                        {% if participation.stage_registered_at %}
+                            <span class="badge bg-success">登録済み {{ participation.stage_registered_at|date:"n/j" }}</span>
+                        {% else %}
+                            <span class="badge bg-secondary">未登録</span>
                         {% endif %}
-                        <div class="d-flex gap-2 align-items-center">
-                            {% if stage_url %}
-                                <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary">
-                                    <i class="fas fa-external-link-alt me-1"></i>Vketステージに登録する
-                                </a>
-                            {% else %}
-                                <span class="small text-muted">登録先URLは運営からのお知らせをご確認ください。</span>
+                    </div>
+                    {% if not participation.stage_registered_at %}
+                        {% if not stage_registration_enabled %}
+                            <p class="fw-bold mb-2">Coming Soon</p>
+                            <p class="text-muted mb-0">Vket ステージの登録ができるようになりましたら、Discord でお知らせします。</p>
+                        {% elif stage_register_open %}
+                            <p class="mb-3">
+                                Vket公式サイトのステージページに、イベント情報を暫定内容で登録してください。
+                                日程や発表内容が未確定でも、後から更新できます。
+                                登録が終わったら、この画面に戻って「Vketで登録したことを記録する」を押してください。
+                            </p>
+                            {% if stage_registration_guidance %}
+                                <div class="alert alert-info py-2 mb-3">
+                                    <div class="fw-bold mb-1">Vketステージ登録画面での設定</div>
+                                    <div>開催会場は「{{ stage_registration_guidance.venue }}」に設定してください。</div>
+                                    <div>タグは「{{ stage_registration_guidance.tag }}」を選択してください。</div>
+                                </div>
                             {% endif %}
-                            <form method="post" action="{% url 'vket:stage_register' collaboration.pk %}"
-                                  class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-success"
-                                        onclick="return confirm('Vketステージページへの登録は完了しましたか？')">
-                                    <i class="fas fa-check me-1"></i>登録完了
-                                </button>
-                            </form>
-                        </div>
-                        <div class="small text-muted mt-2">
-                            Vket側で登録しただけでは Hub の進捗は更新されません。登録後は Hub 側でも「登録完了」を押してください。
-                        </div>
-                    </div>
-                </div>
-            {% elif not participation.stage_registered_at %}
-                <div class="card shadow-sm mb-4 border-secondary">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h2 class="h5 fw-bold mb-0">
-                                    <i class="fas fa-external-link-alt me-2 text-muted"></i>Vketステージ登録
-                                </h2>
-                            </div>
-                            <div class="d-flex align-items-center gap-2">
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
                                 {% if stage_url %}
-                                    <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
-                                        <i class="fas fa-external-link-alt me-1"></i>ステージページ
+                                    <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary">
+                                        <i class="fas fa-external-link-alt me-1"></i>Vketステージに登録する
                                     </a>
+                                {% else %}
+                                    <span class="small text-muted">登録先URLは運営からのお知らせをご確認ください。</span>
                                 {% endif %}
-                                <span class="badge bg-secondary">未登録</span>
+                                <form method="post" action="{% url 'vket:stage_register' collaboration.pk %}"
+                                      class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-outline-secondary"
+                                            onclick="return confirm('Vketステージページへの登録は完了しましたか？')">
+                                        Vketで登録したことを記録する
+                                    </button>
+                                </form>
                             </div>
-                        </div>
-                    </div>
+                            <div class="small text-muted mt-2">
+                                Vket側で登録しただけでは Hub の進捗は更新されません。登録後は Hub 側でも「Vketで登録したことを記録する」を押してください。
+                            </div>
+                        {% elif stage_url %}
+                            <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-external-link-alt me-1"></i>ステージページ
+                            </a>
+                        {% endif %}
+                    {% endif %}
                 </div>
-            {% endif %}
+            </div>
 
             {# 日程情報 #}
             <div class="card shadow-sm mb-4">
