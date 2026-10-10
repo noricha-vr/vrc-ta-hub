@@ -31,6 +31,11 @@ gcloud run jobs describe "$JOB_NAME" --project="$PROJECT_ID" --region="$REGION" 
 # `gcloud run jobs execute --args` による実行時上書きは、この環境では API 側が
 # overrides を受け付けない（Unknown name "priorityTier"）。Job 定義を一時的に
 # showmigrations へ差し替えて実行し、終了時に必ず元へ戻す。
+# Job の引数を差し替える経路は run_manage_command.sh と同じロックで 1 本に限る
+# shellcheck source=scripts/job_args_lock.sh
+source "$(dirname "${BASH_SOURCE[0]}")/job_args_lock.sh"
+acquire_job_args_lock || exit 2
+trap release_job_args_lock EXIT
 ORIGINAL_ARGS="$(
   gcloud run jobs describe "$JOB_NAME" \
     --project="$PROJECT_ID" \
@@ -45,6 +50,7 @@ restore_args() {
     --region="$REGION" \
     --args="^|^${ORIGINAL_ARGS}" >/dev/null 2>&1 \
     || printf 'WARNING: failed to restore args of %s to "%s"\n' "$JOB_NAME" "$ORIGINAL_ARGS" >&2
+  release_job_args_lock
 }
 trap restore_args EXIT
 
