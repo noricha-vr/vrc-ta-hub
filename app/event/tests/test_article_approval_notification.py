@@ -88,7 +88,7 @@ class ArticleApprovalNotificationTest(TestCase):
                 self.assertIn(reverse('event:detail', kwargs={'pk': detail.pk}), html)
                 self.assertIn(reverse('account:lt_application_edit', kwargs={'pk': detail.pk}), html)
                 detail.refresh_from_db()
-                self.assertEqual(detail.article_published_notified_at, notified_at)
+                self.assertGreater(detail.article_published_notified_at, notified_at)
 
                 for repeated_endpoint in ('lt_application_review', 'lt_application_approve'):
                     self._post(detail, repeated_endpoint)
@@ -297,6 +297,110 @@ class ArticleApprovalNotificationTest(TestCase):
         send_mail.assert_called_once()
         self.assertIn('公開しました', send_mail.call_args.kwargs['subject'])
         self.assertEqual(len(self._article_posts(post_webhook)), 1)
+
+    def test_approval_takes_over_claim_before_generation_email_fails(self, send_mail, post_webhook):
+        """承認前の作成メールが遅れて失敗しても、承認側の通知日時と Discord の 1 回を保つ。"""
+        for endpoint in ('lt_application_review', 'lt_application_approve'):
+            with self.subTest(endpoint=endpoint):
+                detail = self._detail()
+                claimed_times = []
+
+                def approve_during_email(**kwargs):
+                    if '発表の記事を作成しました' in kwargs['subject']:
+                        detail.refresh_from_db()
+                        claimed_times.append(detail.article_published_notified_at)
+                        self.assertEqual(self._post(detail, endpoint).status_code, 302)
+                        detail.refresh_from_db()
+                        claimed_times.append(detail.article_published_notified_at)
+                        self.assertEqual(len(self._article_posts(post_webhook)), 1)
+                        return 0
+                    return 1
+
+                send_mail.side_effect = approve_during_email
+                _notify_first_time(detail.pk)
+
+                self.assertEqual(len(claimed_times), 2)
+                self.assertIsNotNone(claimed_times[0])
+                self.assertGreater(claimed_times[1], claimed_times[0])
+                detail.refresh_from_db()
+                self.assertEqual(detail.article_published_notified_at, claimed_times[1])
+                self.assertIn('記事も公開しました', self._result_email(send_mail))
+                self.assertEqual(send_mail.call_count, 2)
+                send_mail.side_effect = None
+                send_mail.reset_mock()
+                EventDetail.all_objects.filter(pk=detail.pk).update(h1='作り直した記事', contents='新しい本文')
+
+                _notify_first_time(detail.pk)
+
+                send_mail.assert_not_called()
+                self.assertEqual(len(self._article_posts(post_webhook)), 1)
+                post_webhook.reset_mock()
+
+    def test_generation_rechecks_article_after_claim(self, send_mail, post_webhook):
+        """日時取得後に記事が空・NG・却下・削除になったら、日時を戻して送らない。"""
+        for changes in (
+            {'h1': '', 'contents': ''},
+            {'article_consent': EventDetail.ArticleConsent.NG},
+            {'status': 'rejected'},
+            {'deleted_at': timezone.now()},
+        ):
+            with self.subTest(changes=changes):
+                detail = self._detail()
+                original_update = QuerySet.update
+
+                def change_after_claim(queryset, **values):
+                    updated = original_update(queryset, **values)
+                    if values.get('article_published_notified_at') is not None:
+                        original_update(EventDetail.all_objects.filter(pk=detail.pk), **changes)
+                    return updated
+
+                with patch.object(QuerySet, 'update', autospec=True, side_effect=change_after_claim):
+                    _notify_first_time(detail.pk)
+
+                send_mail.assert_not_called()
+                post_webhook.assert_not_called()
+                detail.refresh_from_db()
+                self.assertIsNone(detail.article_published_notified_at)
+
+    def test_publication_email_rechecks_article_before_discord(self, send_mail, post_webhook):
+        """公開メール送信中に NG・却下・削除・記事なしになったら Discord に流さない。"""
+        for changes in (
+            {'article_consent': EventDetail.ArticleConsent.NG},
+            {'status': 'rejected'},
+            {'deleted_at': timezone.now()},
+            {'h1': '', 'contents': ''},
+        ):
+            with self.subTest(changes=changes):
+                detail = self._detail(status='approved')
+
+                def change_during_email(**kwargs):
+                    EventDetail.all_objects.filter(pk=detail.pk).update(**changes)
+                    return 1
+
+                send_mail.side_effect = change_during_email
+                _notify_first_time(detail.pk)
+
+                send_mail.assert_called_once()
+                self.assertIn('発表の記事を公開しました', send_mail.call_args.kwargs['subject'])
+                post_webhook.assert_not_called()
+                detail.refresh_from_db()
+                self.assertIsNotNone(detail.article_published_notified_at)
+                send_mail.side_effect = None
+                send_mail.reset_mock()
+
+    def test_publication_discord_uses_article_after_email(self, send_mail, post_webhook):
+        """公開メールの送信中に本文が変わったら、Discord は読み直した記事で作る。"""
+        detail = self._detail(status='approved')
+
+        def change_during_email(**kwargs):
+            EventDetail.all_objects.filter(pk=detail.pk).update(h1='メール送信中に直した記事')
+            return 1
+
+        send_mail.side_effect = change_during_email
+        _notify_first_time(detail.pk)
+
+        send_mail.assert_called_once()
+        self.assertEqual(self._article_posts(post_webhook)[0]['description'], '**メール送信中に直した記事**')
 
     def test_rollback_discards_approval_notification_and_claim(self, send_mail, post_webhook):
         """承認がロールバックされた場合は通知日時もコールバックも残さない。"""

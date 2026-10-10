@@ -214,6 +214,16 @@ def notify_applicant_of_result(
     _send_discord_notification_for_result(event_detail, schedule_changes)
 
 
+def get_published_article_for_notification(pk: int) -> EventDetail | None:
+    """通知できる公開記事を、送信直前の同意・公開状態と本文で読み直す。"""
+    detail = EventDetail.all_objects.filter(
+        EventDetail.article_notifiable_q(), pk=pk, status='approved',
+    ).select_related('event__community', 'applicant').first()
+    if detail is None or detail.article_state() == EventDetail.ArticleState.NONE:
+        return None
+    return detail
+
+
 def notify_applicant_of_article_published(event_detail: EventDetail, recipient) -> bool:
     """自動生成した記事を発表者に知らせる（申請結果の通知と同じくメールと集会の Discord）。
 
@@ -237,7 +247,9 @@ def notify_applicant_of_article_published(event_detail: EventDetail, recipient) 
 
     sent = _send_article_published_email(event_detail, recipient, edit_url, article_url, is_published)
     if sent and is_published:
-        send_discord_notification_for_article(event_detail, edit_url, article_url)
+        published_detail = get_published_article_for_notification(event_detail.pk)
+        if published_detail is not None:
+            send_discord_notification_for_article(published_detail, edit_url, article_url)
     return sent
 
 
