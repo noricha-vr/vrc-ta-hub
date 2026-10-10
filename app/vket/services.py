@@ -88,7 +88,11 @@ def confirm_participation_schedule(
         participation.requested_start_time = participation.confirmed_start_time
         participation.requested_duration = participation.confirmed_duration
     participation.schedule_adjusted_by_admin = not use_requested
-    participation.progress = VketParticipation.Progress.REHEARSAL
+    # 確定でリハーサルへ進めるのは、それより前の進捗の時だけ（先の工程へ進んだ参加は巻き戻さない）
+    progress_order = [value for value, _ in VketParticipation.Progress.choices]
+    rehearsal = VketParticipation.Progress.REHEARSAL
+    if progress_order.index(participation.progress) < progress_order.index(rehearsal):
+        participation.progress = rehearsal
     participation.schedule_confirmed_at = timezone.now()
     participation.save(update_fields=[
         'lifecycle', 'confirmed_date', 'confirmed_start_time', 'confirmed_duration',

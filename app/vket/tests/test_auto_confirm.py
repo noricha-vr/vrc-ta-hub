@@ -405,6 +405,21 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         presentation.refresh_from_db()
         self.assertEqual(presentation.published_event_detail.event_id, own.published_event_id)
 
+    def test_confirmation_does_not_rewind_later_progress(self):
+        """先の工程へ進んだ参加は、確定し直してもリハーサルへ戻さない。"""
+        own = self._participation()
+        presentation = self._presentation(own)
+        self._run()
+        VketParticipation.objects.filter(pk=own.pk).update(progress=VketParticipation.Progress.EVENT_WEEK)
+        presentation.refresh_from_db()
+        presentation.theme = '直したテーマ'
+        presentation.save()
+
+        self.assertEqual(self._run()['confirmed'], 1)
+
+        own.refresh_from_db()
+        self.assertEqual(own.progress, VketParticipation.Progress.EVENT_WEEK)
+
     def test_successful_change_replaces_own_old_slot(self):
         """自分の旧枠とは比較せず、変更の確定後は旧枠を別の参加へ渡せる。"""
         own = self._participation(applied_at=timezone.now() - timedelta(days=2))
