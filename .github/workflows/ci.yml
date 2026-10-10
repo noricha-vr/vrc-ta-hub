@@ -61,6 +61,7 @@ jobs:
           bash scripts/tests/test_deploy_ops_config.sh
           bash scripts/tests/test_db_pull_restore.sh
           bash scripts/tests/test_run_tests.sh
+          bash scripts/tests/test_run_manage_command.sh
           python -m unittest scripts.tests.test_run_live_smoke
           python -m unittest scripts.tests.test_requirements_layout
 

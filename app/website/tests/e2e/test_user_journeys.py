@@ -448,8 +448,9 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
 
     def test_recording_toggle_keeps_saved_default_for_allowed_community(self) -> None:
         """許可済みの集会で保存した初期値「許可」は、許可しない→許可するを往復しても変わらない."""
+        self.community.recording_allowed = True
         self.community.default_recording_policy = 'allowed'
-        self.community.save(update_fields=['default_recording_policy'])
+        self.community.save(update_fields=['recording_allowed', 'default_recording_policy'])
         self.login(self.owner.email, self.password)
         self.page.goto(f'{self.live_server_url}{reverse("community:settings")}')
 

@@ -20,12 +20,20 @@ def migrate_to_latest():
 class CommunityRecordingAllowedDefaultTest(TestCase):
     """Community.recording_allowed の既定値。"""
 
-    def test_default_is_true(self):
-        """新しい集会は撮影を許可した状態で作られる（オプトアウト方式）。"""
+    def test_default_is_false(self):
+        """新しい集会は撮影を許可しない状態で作られる（オプトイン方式）。"""
         community = make_community(name='既定値の集会')
 
         community.refresh_from_db()
-        self.assertTrue(community.recording_allowed)
+        self.assertFalse(community.recording_allowed)
+
+    def test_model_and_database_defaults_are_false(self):
+        """Python と DB の既定値をどちらも撮影しない側にそろえる。"""
+        from community.models import Community
+
+        field = Community._meta.get_field('recording_allowed')
+        self.assertIs(field.default, False)
+        self.assertIs(field.db_default, False)
 
 
 class RecordingAllowedSettingsViewTest(TestCase):
@@ -33,7 +41,7 @@ class RecordingAllowedSettingsViewTest(TestCase):
 
     def setUp(self):
         self.owner = make_discord_linked_user(user_name='rec_owner', email='rec_owner@example.com')
-        self.community = make_community(name='撮影設定の集会', owner=self.owner)
+        self.community = make_community(name='撮影設定の集会', owner=self.owner, recording_allowed=True)
         self.url = reverse('community:update_lt_settings', kwargs={'pk': self.community.pk})
 
     def _post(self, **extra):
@@ -117,7 +125,7 @@ class DefaultRecordingPolicySettingsTest(TestCase):
 
     def setUp(self):
         self.owner = make_discord_linked_user(user_name='def_owner', email='def_owner@example.com')
-        self.community = make_community(name='既定ステータスの集会', owner=self.owner)
+        self.community = make_community(name='既定ステータスの集会', owner=self.owner, recording_allowed=True)
         self.url = reverse('community:update_lt_settings', kwargs={'pk': self.community.pk})
         self.client.force_login(self.owner)
 
@@ -376,7 +384,7 @@ class RecordingAllowedDbDefaultTest(TransactionTestCase):
     """migration 適用後に動く旧リビジョン（列を知らないコード）の INSERT が通る。"""
 
     def test_old_model_insert_gets_db_default(self):
-        """recording_allowed を知らない旧モデルで作っても、DB 既定値で True になる。"""
+        """recording_allowed を知らない旧モデルで作っても、DB 既定値で False になる。"""
         old_state = MigrationExecutor(connection).loader.project_state(
             [('community', '0028_alter_community_default_lt_duration')],
         )
@@ -386,7 +394,42 @@ class RecordingAllowedDbDefaultTest(TransactionTestCase):
         pk = OldCommunity.objects.create(name='旧リビジョン', frequency='毎週', organizers='主催').pk
 
         from community.models import Community
-        self.assertTrue(Community.objects.get(pk=pk).recording_allowed)
+        self.assertFalse(Community.objects.get(pk=pk).recording_allowed)
+
+
+class RecordingOptInDefaultMigrationTest(TransactionTestCase):
+    """0032 は既存の許可・不許可と撮影ステータスの初期値を変えない。"""
+
+    migrate_from = [('community', '0031_community_default_recording_policy')]
+    migrate_to = [('community', '0032_alter_community_recording_allowed_default')]
+
+    def setUp(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_from)
+        self.old_model = executor.loader.project_state(self.migrate_from).apps.get_model('community', 'Community')
+
+    def tearDown(self):
+        migrate_to_latest()
+        super().tearDown()
+
+    def test_preserves_existing_values_and_changes_new_row_default(self):
+        allowed = self.old_model.objects.create(name='許可済み', frequency='毎週', organizers='主催')
+        disallowed = self.old_model.objects.create(
+            name='不許可', frequency='毎週', organizers='主催',
+            recording_allowed=False, default_recording_policy=RecordingPolicy.ALLOWED,
+        )
+
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_to)
+        model = executor.loader.project_state(self.migrate_to).apps.get_model('community', 'Community')
+
+        self.assertTrue(model.objects.get(pk=allowed.pk).recording_allowed)
+        self.assertEqual(model.objects.get(pk=allowed.pk).default_recording_policy, RecordingPolicy.PUBLIC)
+        self.assertFalse(model.objects.get(pk=disallowed.pk).recording_allowed)
+        self.assertEqual(model.objects.get(pk=disallowed.pk).default_recording_policy, RecordingPolicy.ALLOWED)
+        created = model.objects.create(name='新しい集会', frequency='毎週', organizers='主催')
+        self.assertFalse(created.recording_allowed)
+        self.assertEqual(created.default_recording_policy, RecordingPolicy.PUBLIC)
 
 
 class DefaultRecordingPolicyMigrationTest(TransactionTestCase):

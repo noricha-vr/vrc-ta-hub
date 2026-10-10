@@ -65,6 +65,17 @@ class ApproveCommunityRegistrationTest(TestCase):
         self.assertEqual(mail.outbox[0].to, ["owner1@example.com"])
         self.assertIn(self.community.name, mail.outbox[0].subject)
 
+    def test_approval_keeps_recording_disallowed(self):
+        """新しい集会を承認しても、自動撮影の許可は付けない。"""
+        self.assertFalse(self.community.recording_allowed)
+
+        approve_community_registration(self.community, self.request)
+
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.status, "approved")
+        self.assertFalse(self.community.recording_allowed)
+        self.assertEqual(self.community.default_recording_policy, "public")
+
     def test_partner_email_includes_cooperation_conditions(self):
         """partner の承認メールに必須条件と推奨条件を記載する。"""
         self.community.tags = ["tech", "partner"]
