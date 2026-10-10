@@ -219,13 +219,15 @@ class VketOverlapApplyBase(VketApplyFlowBase):
         self.client.force_login(self.owner)
         self._set_active_community()
 
-    def _post_apply(self, lt_start='21:45', *, rows=None, date=None, start='21:00'):
+    def _post_apply(self, lt_start='21:45', *, rows=None, date=None, start='21:00', slot_minutes=None):
         own = self._own_participation()
         data = {
             'requested_date': (date or self.today).isoformat(),
             'requested_start_time': start, 'requested_duration': '90',
             'organizer_note': '',
         }
+        if slot_minutes is not None:
+            data['lt_slot_minutes'] = str(slot_minutes)
         data.update(self._make_formset_data(
             rows if rows is not None else [{'speaker': '発表者', 'theme': '技術の話', 'lt_start_time': lt_start}],
             initial_forms=own.presentations.count() if own else 0,
@@ -257,6 +259,13 @@ class VketApplyScheduleOverlapTests(VketOverlapApplyBase):
         response = self._post_apply('22:00')
         self.assertEqual(response.status_code, 302)
         self.assertFalse(self._warnings(response))
+
+    def test_selected_slot_minutes_are_used_as_presentation_length(self):
+        """画面で選んだ 1 人あたりの持ち時間を発表の長さとして保存し、重なりの判定に使う"""
+        self.assertFalse(self._warnings(self._post_apply('21:00', slot_minutes=15)))
+        self.assertEqual(self._own_participation().presentations.get().duration, 15)
+        self.assertTrue(self._warnings(self._post_apply('21:00', slot_minutes=60)))
+        self.assertEqual(self._own_participation().presentations.get().duration, 60)
 
     def test_no_presentations_do_not_warn(self):
         response = self._post_apply(rows=[])

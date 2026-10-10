@@ -230,7 +230,9 @@ class ApplyView(LoginRequiredMixin, View):
             presentations = list(participation.presentations.order_by('order', 'id'))
             for form, presentation in zip(formset.forms, presentations):
                 form.can_organizer_delete = not presentation.is_organizer_delete_locked
-                form.fields['lt_start_time'].widget.attrs['data-duration'] = presentation.duration
+                if self._is_presentation_time_locked(presentation):
+                    # 時刻を変えられない発表だけ保存済みの長さを渡す（他は画面の持ち時間で判定する）
+                    form.fields['lt_start_time'].widget.attrs['data-duration'] = presentation.duration
                 if presentation.confirmed_start_time:
                     form.fields['lt_start_time'].widget.attrs['data-confirmed-start'] = (
                         presentation.confirmed_start_time.strftime('%H:%M')
@@ -440,7 +442,9 @@ class ApplyView(LoginRequiredMixin, View):
                     locked_presentation_ids.add(presentation.pk)
                 if not time_locked:
                     presentation.requested_start_time = requested_start_time
-                    update_fields.append('requested_start_time')
+                    # 重なりの判定に使う発表の長さを、画面で選んだ 1 人あたりの持ち時間に揃える
+                    presentation.duration = participation.lt_slot_minutes
+                    update_fields += ['requested_start_time', 'duration']
                 if is_late_lt_submission:
                     presentation.status = VketPresentation.Status.DRAFT
                     update_fields.append('status')
@@ -454,6 +458,7 @@ class ApplyView(LoginRequiredMixin, View):
                 speaker=speaker,
                 theme=theme,
                 requested_start_time=None if lock_lt_times else requested_start_time,
+                duration=participation.lt_slot_minutes,
                 status=VketPresentation.Status.DRAFT,
             )
             saved.append(presentation)

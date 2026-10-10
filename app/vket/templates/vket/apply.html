@@ -299,7 +299,9 @@
                 var startOfDay = input ? toMinutes(input.dataset.confirmedStart) : null;
                 if (startOfDay === null) startOfDay = requestedStart;
                 if (startOfDay === null || startOfDay >= MINUTES_PER_DAY) return;
-                var duration = parseInt((input && input.dataset.duration) || '30', 10);
+                // 時刻を変えられない発表は保存済みの長さ、それ以外は画面で選んだ持ち時間（保存時に揃える）
+                var lockedDuration = input ? parseInt(input.dataset.duration, 10) : NaN;
+                var duration = isNaN(lockedDuration) ? slotMinutes : lockedDuration;
                 var start = minutesSinceEpoch(date, startOfDay);
                 payload.blocks.forEach(function(block, index) {
                     if (overlaps(block, start, start + duration)) result[index] = true;
