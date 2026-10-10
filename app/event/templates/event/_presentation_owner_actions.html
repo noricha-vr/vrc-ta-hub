@@ -1,5 +1,6 @@
 {% comment %}本人の発表に資料の未登録表示と編集導線を出す。関連オブジェクトは取得せず applicant_id で判定する。{% endcomment %}
-{% if request.user.is_authenticated and detail.applicant_id == request.user.pk %}
+{% comment %}編集画面が本人に許すのは承認済みの発表（LT）だけなので、同じ条件で出す。{% endcomment %}
+{% if request.user.is_authenticated and detail.applicant_id == request.user.pk and detail.detail_type == 'LT' and detail.status == 'approved' %}
     {% if not detail.slide_file and not detail.slide_url %}
         <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>スライド未登録</span>
     {% endif %}

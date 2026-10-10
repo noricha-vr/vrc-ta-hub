@@ -113,6 +113,26 @@ class MyPresentationsViewTests(TestCase):
         response = self.client.get(self.history_url, {"view": "all"})
         self.assertNotContains(response, "bi-pencil me-1")
 
+    def test_edit_link_hidden_for_own_non_lt_details(self):
+        """本人の申請でも、編集画面が許さない特別企画・ブログには編集リンクを出さない。"""
+        self.client.force_login(self.user)
+        for detail_type in ("SPECIAL", "BLOG"):
+            detail = make_event_detail(
+                self.event, applicant=self.user, status="approved", detail_type=detail_type,
+                contents="本文あり",
+            )
+            response = self.client.get(self.history_url, {"view": "all", "type": "special"})
+            edit_url = reverse("event:detail_update", kwargs={"pk": detail.pk})
+            self.assertNotContains(response, f'href="{edit_url}"')
+
+    def test_mine_search_without_match_says_no_match(self):
+        """自分の発表を検索して当たらない時は「該当する発表はありません」と出す。"""
+        self.client.force_login(self.user)
+        make_event_detail(self.event, applicant=self.user, status="approved", theme="当たらない")
+        response = self.client.get(self.history_url, {"mine": "1", "q": "存在しない語"})
+        self.assertContains(response, "該当する発表はありません。")
+        self.assertNotContains(response, "編集できる発表はまだありません。")
+
     def test_mine_preserves_previous_visibility_and_ignores_special_type(self):
         """従来どおり集会の承認状態に依存せず、特別企画へ切り替わらない。"""
         pending_community = make_community(name="承認待ち集会", status="pending")

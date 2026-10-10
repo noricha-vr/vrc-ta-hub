@@ -93,7 +93,7 @@
                     {% endif %}
                 {% else %}
                     <div class="alert alert-secondary" role="alert">
-                        <p class="mb-3">{% if is_mine %}編集できる発表はまだありません。{% else %}該当する発表はありません。{% endif %}</p>
+                        <p class="mb-3">{% if is_mine and not request.GET.q and not request.GET.speaker and not request.GET.theme and not request.GET.community_name %}編集できる発表はまだありません。{% else %}該当する発表はありません。{% endif %}</p>
                         <div class="d-flex flex-wrap gap-2">
                             {% if is_mine %}
                                 <a href="{% url 'community:list' %}" class="btn btn-primary btn-sm">集会を探して発表を申し込む</a>
