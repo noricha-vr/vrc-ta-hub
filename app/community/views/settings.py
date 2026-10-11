@@ -16,7 +16,7 @@ from website.discord_webhook import (
     post_discord_webhook,
 )
 
-from ..constants import DEFAULT_LT_APPLICATION_TEMPLATE, RecordingPolicy
+from ..constants import DEFAULT_LT_APPLICATION_TEMPLATE, RECORDING_POLICY_FORM_CHOICES, RecordingPolicy
 from ..models import Community, CommunityMember, CommunityInvitation, INVITATION_EXPIRATION_DAYS
 
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ class CommunitySettingsView(LoginRequiredMixin, TemplateView):
             context['lt_application_template_display'] = (
                 community.lt_application_template or DEFAULT_LT_APPLICATION_TEMPLATE
             )
-            context['recording_policy_choices'] = RecordingPolicy.choices
+            context['recording_policy_choices'] = RECORDING_POLICY_FORM_CHOICES
 
         return context
 

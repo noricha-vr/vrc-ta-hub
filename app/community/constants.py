@@ -62,3 +62,10 @@ class RecordingPolicy(models.TextChoices):
     FORBIDDEN = 'forbidden', '禁止（撮影しない）'
     ALLOWED = 'allowed', '許可（撮影するが公開しない）'
     PUBLIC = 'public', '公開（撮影して YouTube で公開）'
+
+
+# フォームの表示順だけを変え、モデルの choices（migration）には影響させない。
+RECORDING_POLICY_FORM_CHOICES = [
+    (policy.value, policy.label)
+    for policy in (RecordingPolicy.PUBLIC, RecordingPolicy.ALLOWED, RecordingPolicy.FORBIDDEN)
+]

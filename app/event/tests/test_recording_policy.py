@@ -1,6 +1,7 @@
 """発表ごとの撮影の選択（EventDetail.recording_policy）のテスト。"""
 
 from datetime import time
+import re
 from unittest.mock import patch
 
 from django.test import TestCase
@@ -16,6 +17,26 @@ from tests.factories import (
 )
 
 RecordingPolicy = EventDetail.RecordingPolicy
+
+
+def assert_recording_policy_html(test_case, response):
+    """各フォームの表示順と、固定ヘルプのリンクが実際の HTML になること。"""
+    html = response.content.decode()
+    test_case.assertEqual(
+        re.findall(r'<input type="radio" name="recording_policy" value="([^"]+)"', html),
+        ['public', 'allowed', 'forbidden'],
+    )
+    for label in (
+        '公開（撮影して YouTube で公開）', '許可（撮影するが公開しない）', '禁止（撮影しない）',
+    ):
+        test_case.assertContains(response, label)
+    test_case.assertContains(
+        response,
+        '公開先は <a href="https://www.youtube.com/channel/UCNISeQgk2_lDF_4_UGWZ_Fw" '
+        'target="_blank" rel="noopener">Hub の YouTube チャンネル</a> です。'
+        '<a href="/news/2026-10-11-auto-recording-beta/" target="_blank" rel="noopener">撮影について詳しく</a>',
+    )
+    test_case.assertNotContains(response, '&lt;a href=')
 
 
 class RecordingPolicyModelTest(TestCase):
@@ -67,6 +88,7 @@ class LTApplicationRecordingPolicyTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '禁止（撮影しない）')
+        assert_recording_policy_html(self, response)
         self.assertRegex(
             response.content.decode(),
             r'<input type="radio" name="recording_policy" value="public"[^>]*checked',
@@ -143,6 +165,7 @@ class LTApplicationEditFormRecordingPolicyTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-field="recording_policy"')
         self.assertContains(response, '禁止（撮影しない）')
+        assert_recording_policy_html(self, response)
 
     def test_missing_value_keeps_current_policy(self):
         """選択が送られなかった時は今の値を変えない。"""
@@ -207,6 +230,7 @@ class EventDetailFormRecordingPolicyTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'data-field="recording_policy"')
         self.assertContains(response, '公開（撮影して YouTube で公開）')
+        assert_recording_policy_html(self, response)
 
 
 @patch('event.notifications.send_mail', return_value=1)

@@ -7,6 +7,12 @@ EventDetailForm と LTApplicationEditForm でスライドPDF・サムネ画像�
 """
 
 from django import forms
+from django.urls import reverse_lazy
+from django.utils.functional import lazy
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
+
+from community.constants import RECORDING_POLICY_FORM_CHOICES
 
 from ..form_validators import validate_and_sanitize_pdf, validate_thumbnail_image
 from ..models import ARTICLE_BODY_FIELDS, EventDetail, article_body_hash
@@ -15,20 +21,24 @@ from ..models import ARTICLE_BODY_FIELDS, EventDetail, article_body_hash
 ARTICLE_SNAPSHOT_FIELD = 'article_snapshot'
 
 RECORDING_POLICY_LABEL = '撮影'
-RECORDING_POLICY_HELP_TEXT = 'ハブの自動撮影で、この発表をどう扱うかを選んでください。'
+# 固定の文言と URL だけを HTML として扱い、テンプレートの autoescape は維持する。
+RECORDING_POLICY_HELP_TEXT = mark_safe(
+    '公開先は <a href="https://www.youtube.com/channel/UCNISeQgk2_lDF_4_UGWZ_Fw" '
+    'target="_blank" rel="noopener">Hub の YouTube チャンネル</a> です。'
+    '<a href="/news/2026-10-11-auto-recording-beta/" target="_blank" rel="noopener">撮影について詳しく</a>'
+)
 
 ARTICLE_CONSENT_LABEL = '発表の記事化'
-ARTICLE_CONSENT_HELP_TEXT = (
-    '発表の動画やスライドから内容を記事にまとめ、ハブで公開してよいかを選んでください。'
-    'OK の場合は、動画（YouTube URL）かスライドPDFを登録した時点で記事を自動で作ります。'
-    '記事はあとから編集でき、編集した記事は自動では書き換えません。'
-    'NG の場合は記事を作らず、表示もしません。'
+ARTICLE_CONSENT_HELP_TEXT = lazy(format_html, str)(
+    '動画か PDF を登録すると記事を自動で作り、<a href="{}" target="_blank" rel="noopener">'
+    '発表一覧</a>に載せます。あとから編集できます。',
+    reverse_lazy('event:detail_history'),
 )
 ARTICLE_CONSENT_REQUIRED_MESSAGE = '発表の記事化の OK / NG を選んでください。'
 # 発表者が選べるのは 2 択。「未回答」は機能の追加前からある発表だけが持つ値
 ARTICLE_CONSENT_CHOICES = [
-    (EventDetail.ArticleConsent.OK.value, EventDetail.ArticleConsent.OK.label),
-    (EventDetail.ArticleConsent.NG.value, EventDetail.ArticleConsent.NG.label),
+    (EventDetail.ArticleConsent.OK.value, 'OK（スライド画像も載せる）'),
+    (EventDetail.ArticleConsent.NG.value, 'NG（記事にしない）'),
 ]
 
 
@@ -173,6 +183,7 @@ class RecordingPolicyFormMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['recording_policy'].required = False
+        self.fields['recording_policy'].choices = RECORDING_POLICY_FORM_CHOICES
 
     def clean_recording_policy(self):
         value = self.cleaned_data.get('recording_policy')
