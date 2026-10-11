@@ -33,7 +33,8 @@ check_command = "./scripts/check_pending_migrations.sh"
 # 全アプリ適用（Job のデフォルト引数）。個別に当てる場合は gcloud run jobs update で
 # --args を差し替えてから execute する（execute --args による実行時上書きは、この環境では
 # API が overrides を受け付けず失敗する）。
-apply_command = "./scripts/create_migrate_job.sh && gcloud run jobs execute vrc-ta-hub-migrate --region=asia-northeast1 --project=vrc-ta-hub --wait"
+# Job の更新と実行は、引数を差し替えるほかのスクリプトと同じロックの中で行う（scripts/apply_migrations.sh）。
+apply_command = "./scripts/apply_migrations.sh"
 
 [[checks.critical]]
 id = "C1"

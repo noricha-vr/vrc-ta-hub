@@ -30,12 +30,20 @@ for arg in "$@"; do
 done
 
 command -v gcloud >/dev/null 2>&1 || die 'gcloud CLI not found.'
+# shellcheck source=scripts/job_args_lock.sh
+source "$(dirname "${BASH_SOURCE[0]}")/job_args_lock.sh"
+acquire_job_args_lock || exit 2
+trap release_job_args_lock EXIT
 ORIGINAL_ARGS="$(
   gcloud run jobs describe "$JOB_NAME" \
     --project="$PROJECT_ID" --region="$REGION" \
     --format='value[delimiter="|"](spec.template.spec.template.spec.containers[0].args)'
 )" || die "Could not describe $JOB_NAME."
 [[ -n "$ORIGINAL_ARGS" ]] || die "Could not read current args of $JOB_NAME."
+# Job の引数は共有。ほかの実行が差し替えている最中（既定の引数でない）なら、取り違えないよう断る。
+IDLE_ARGS="${IDLE_ARGS:-manage.py|migrate|--noinput}"
+[[ "$ORIGINAL_ARGS" == "$IDLE_ARGS" ]] \
+  || die "Args of $JOB_NAME are \"$ORIGINAL_ARGS\", not \"$IDLE_ARGS\". Another run may be in progress; retry after it finishes."
 
 restore_args() {
   local status=$?
@@ -46,6 +54,8 @@ restore_args() {
     printf 'ERROR: failed to restore args of %s.\n' "$JOB_NAME" >&2
     status=2
   fi
+  # 復元し終えてからロックを放す（先に放すと、次の実行の差し替えを消しうる）
+  release_job_args_lock
   exit "$status"
 }
 trap restore_args EXIT
@@ -66,6 +76,8 @@ EXECUTION="$(
 )" || die "Failed to start $JOB_NAME."
 [[ -n "$EXECUTION" ]] || die "Could not determine the execution name for $JOB_NAME."
 
+
+
 SUCCEEDED=''
 for ((attempt = 1; attempt <= WAIT_RETRIES; attempt++)); do
   STATE="$(
@@ -84,6 +96,24 @@ for ((attempt = 1; attempt <= WAIT_RETRIES; attempt++)); do
   sleep "$WAIT_INTERVAL_SEC"
 done
 [[ -n "$SUCCEEDED" ]] || die "Timed out waiting for $EXECUTION."
+
+# 差し替えから execute までの間に別の実行が引数を変えると、意図と違うコマンドが動く。
+# その実行が使った引数を確かめ、違えばログを出した上で失敗にする。完了を確かめた後なら実行は参照できるが、
+# 反映の遅れに備えて取れるまで読み直す。取れなかった時（空）も「確かめられなかった」として失敗にする。
+EXECUTION_ARGS=''
+for ((attempt = 1; attempt <= LOG_RETRIES; attempt++)); do
+  EXECUTION_ARGS="$(
+    gcloud run jobs executions describe "$EXECUTION" \
+      --project="$PROJECT_ID" --region="$REGION" \
+      --format='value[delimiter="|"](spec.template.spec.containers[0].args)' 2>/dev/null || true
+  )"
+  [[ -z "$EXECUTION_ARGS" ]] || break
+  if ((attempt < LOG_RETRIES)); then
+    sleep "$LOG_RETRY_INTERVAL_SEC"
+  fi
+done
+ARGS_MISMATCH=''
+[[ "$EXECUTION_ARGS" == "$COMMAND_ARGS" ]] || ARGS_MISMATCH=yes
 
 # 取り込み途中のログで終えないよう、空でない同じ内容が 2 回続けて取れるまで読む。
 LOG_LINES=''
@@ -112,7 +142,11 @@ done
 if [[ -z "$LOG_LINES" ]]; then
   # 出せる分は出してから失敗にする（取り込み途中・完了の印なし）
   [[ -z "$PREVIOUS" ]] || printf '%s\n' "$PREVIOUS"
+  [[ -z "$ARGS_MISMATCH" ]] \
+    || printf 'ERROR: %s ran with "%s", not the requested "%s".\n' "$EXECUTION" "${EXECUTION_ARGS:-<unknown>}" "$COMMAND_ARGS" >&2
   die "Command output in logs for $EXECUTION was empty, still changing, or missing ${EXPECT_LOG_PREFIX:-output}."
 fi
 printf '%s\n' "$LOG_LINES"
+[[ -z "$ARGS_MISMATCH" ]] \
+  || die "$EXECUTION ran with \"${EXECUTION_ARGS:-<unknown>}\", not the requested \"$COMMAND_ARGS\". Check what it changed."
 [[ "$SUCCEEDED" == yes ]] || die "Failed to execute $JOB_NAME ($EXECUTION)."

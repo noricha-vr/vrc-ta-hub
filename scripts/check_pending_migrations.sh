@@ -31,6 +31,11 @@ gcloud run jobs describe "$JOB_NAME" --project="$PROJECT_ID" --region="$REGION" 
 # `gcloud run jobs execute --args` による実行時上書きは、この環境では API 側が
 # overrides を受け付けない（Unknown name "priorityTier"）。Job 定義を一時的に
 # showmigrations へ差し替えて実行し、終了時に必ず元へ戻す。
+# Job の引数を差し替える経路は run_manage_command.sh と同じロックで 1 本に限る
+# shellcheck source=scripts/job_args_lock.sh
+source "$(dirname "${BASH_SOURCE[0]}")/job_args_lock.sh"
+acquire_job_args_lock || exit 2
+trap release_job_args_lock EXIT
 ORIGINAL_ARGS="$(
   gcloud run jobs describe "$JOB_NAME" \
     --project="$PROJECT_ID" \
@@ -38,6 +43,11 @@ ORIGINAL_ARGS="$(
     --format='value[delimiter="|"](spec.template.spec.template.spec.containers[0].args)'
 )"
 [[ -n "$ORIGINAL_ARGS" ]] || die "Could not read current args of $JOB_NAME."
+# 別の端末や CI の実行が引数を差し替えている最中（既定の引数でない）なら、何も変えずに断る。
+# ここで上書きして相手の引数を保存・復元すると、任意のコマンドが Job に残りうる。
+IDLE_ARGS="${IDLE_ARGS:-manage.py|migrate|--noinput}"
+[[ "$ORIGINAL_ARGS" == "$IDLE_ARGS" ]] \
+  || die "Args of $JOB_NAME are \"$ORIGINAL_ARGS\", not \"$IDLE_ARGS\". Another run may be in progress; retry after it finishes."
 
 restore_args() {
   gcloud run jobs update "$JOB_NAME" \
@@ -45,6 +55,7 @@ restore_args() {
     --region="$REGION" \
     --args="^|^${ORIGINAL_ARGS}" >/dev/null 2>&1 \
     || printf 'WARNING: failed to restore args of %s to "%s"\n' "$JOB_NAME" "$ORIGINAL_ARGS" >&2
+  release_job_args_lock
 }
 trap restore_args EXIT
 
