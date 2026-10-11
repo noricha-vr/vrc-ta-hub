@@ -4,7 +4,6 @@ import logging
 from django.db import transaction
 from django.db.models import F, Prefetch, prefetch_related_objects
 
-from .activity import notify_auto_confirmation
 from .models import VketCollaboration, VketParticipation, VketPresentation
 from .schedule import (
     ScheduleBlock, blocks_conflict, blocks_from, format_pair, get_schedule_buffer_minutes,
@@ -134,8 +133,10 @@ def _confirm_collaboration(collaboration_id) -> dict:
             f'{participation.community.name} {participation.confirmed_date:%Y/%m/%d} '
             f'{participation.confirmed_start_time:%H:%M}（{participation.confirmed_duration}分）'
         )
-    notify_auto_confirmation(collaboration, confirmed_lines, skipped_lines)
-    logger.info('Vket日程の自動確定結果', extra={'collaboration_id': collaboration_id, **result})
+    logger.info('Vket日程の自動確定結果', extra={
+        'collaboration_id': collaboration_id, **result,
+        'confirmed_lines': confirmed_lines, 'skipped_lines': skipped_lines,
+    })
     return result
 
 

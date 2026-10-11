@@ -119,31 +119,12 @@ def notify_activity(
 
 
 def _activity_webhook_url(collaboration: VketCollaboration) -> str | None:
-    """申込み・自動確定で共用する通知先を検証する。"""
+    """申込み・変更の通知先を検証する。"""
     settings = collaboration.settings_json
     url = settings.get('activity_webhook_url') if isinstance(settings, dict) else None
     if isinstance(url, str) and re.fullmatch(r'https://discord\.com/api/webhooks/[0-9]+/[A-Za-z0-9_-]+', url):
         return url
     return None
-
-
-def notify_auto_confirmation(collaboration, confirmed_lines, skipped_lines) -> None:
-    """自動確定の結果をコラボごとに一回だけ、コミット後に通知する。"""
-    url = _activity_webhook_url(collaboration)
-    if url is None or not (confirmed_lines or skipped_lines):
-        return
-    embeds = []
-    for title, lines in (('確定した集会と日程', confirmed_lines), ('重なりで見送った集会と相手', skipped_lines)):
-        if lines:
-            embeds.append({
-                'title': title,
-                'description': _bounded_lines([f'- {_short(line, 1000)}' for line in lines], 2800),
-            })
-    payload = {
-        'content': f'**{_short(collaboration.name, 200)}** の日程を自動確定しました。',
-        'embeds': embeds, 'allowed_mentions': {'parse': []},
-    }
-    transaction.on_commit(partial(_send_activity, url, payload, collaboration.pk))
 
 
 def _send_activity(url: str, payload: dict, collaboration_id: int) -> None:
