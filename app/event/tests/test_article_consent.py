@@ -29,6 +29,13 @@ from tests.factories import (
 
 ArticleConsent = EventDetail.ArticleConsent
 CONSENT_OK_LABEL = '記事化 OK（スライド画像の掲載を含む）'
+CONSENT_FORM_OK_LABEL = 'OK（スライド画像も載せる）'
+CONSENT_FORM_NG_LABEL = 'NG（記事にしない）'
+CONSENT_HELP_HTML = (
+    '動画か PDF を登録すると記事を自動で作り、'
+    '<a href="/event/detail/history/" target="_blank" rel="noopener">発表一覧</a>'
+    'に載せます。あとから編集できます。'
+)
 VIDEO_URL = 'https://www.youtube.com/watch?v=rrKl0s23E0M'
 OTHER_VIDEO_URL = 'https://www.youtube.com/watch?v=abcdefghijk'
 
@@ -51,7 +58,7 @@ class ArticleConsentModelTest(TestCase):
 
 @patch('event.notifications.send_mail', return_value=1)
 class LTApplicationArticleConsentTest(TestCase):
-    """申請フォームは必須の 2 択で、初期値を置かない。"""
+    """新規申請は必須の 2 択で、OK を初期選択する。"""
 
     def setUp(self):
         self.user = make_discord_linked_user(user_name='consent_applicant', email='consent@example.com')
@@ -65,16 +72,20 @@ class LTApplicationArticleConsentTest(TestCase):
         data.update(extra)
         return self.client.post(self.url, data)
 
-    def test_form_shows_two_choices_without_selection(self, _mock_send):
+    def test_form_shows_two_choices_with_ok_selected(self, _mock_send):
         response = self.client.get(self.url)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, CONSENT_OK_LABEL)
-        self.assertContains(response, '記事化 NG')
+        self.assertContains(response, CONSENT_FORM_OK_LABEL)
+        self.assertContains(response, CONSENT_FORM_NG_LABEL)
+        self.assertContains(response, CONSENT_HELP_HTML)
+        self.assertNotContains(response, '&lt;a href=')
         self.assertNotContains(response, '未回答')
         html = response.content.decode()
         self.assertEqual(len(re.findall(r'<input type="radio" name="article_consent"', html)), 2)
-        self.assertNotRegex(html, r'<input type="radio" name="article_consent"[^>]*checked')
+        self.assertRegex(html, r'<input type="radio" name="article_consent" value="ok"[^>]*checked')
+        self.assertNotRegex(html, r'<input type="radio" name="article_consent" value="ng"[^>]*checked')
+        self.assertEqual(response.context['form']['article_consent'].value(), ArticleConsent.OK)
 
     def test_missing_consent_is_rejected(self, _mock_send):
         response = self._post('未選択の発表')
@@ -114,9 +125,18 @@ class LTApplicationEditFormArticleConsentTest(TestCase):
         form = LTApplicationEditForm(instance=make_event_detail(self.event))
 
         self.assertEqual(
-            [value for value, _label in form.fields['article_consent'].choices],
-            ['ok', 'ng'],
+            list(form.fields['article_consent'].choices),
+            [('ok', CONSENT_FORM_OK_LABEL), ('ng', CONSENT_FORM_NG_LABEL)],
         )
+
+    def test_existing_consent_is_selected(self):
+        for consent in (ArticleConsent.OK, ArticleConsent.NG):
+            with self.subTest(consent=consent):
+                detail = make_event_detail(self.event, article_consent=consent)
+                form = LTApplicationEditForm(instance=detail)
+
+                self.assertEqual(form['article_consent'].value(), consent)
+                self.assertRegex(str(form['article_consent']), rf'value="{consent}"[^>]*checked')
 
     def test_unanswered_is_shown_without_selection(self):
         form = LTApplicationEditForm(instance=make_event_detail(self.event))
@@ -183,10 +203,28 @@ class LTApplicationEditViewArticleConsentTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '発表の記事化')
+        self.assertContains(response, CONSENT_FORM_OK_LABEL)
+        self.assertContains(response, CONSENT_FORM_NG_LABEL)
+        self.assertContains(response, CONSENT_HELP_HTML)
+        self.assertNotContains(response, '&lt;a href=')
         self.assertRegex(
             response.content.decode(),
             r'<input type="radio" name="article_consent" value="ok"[^>]*checked',
         )
+
+    def test_edit_page_keeps_ng_or_unanswered_selection(self):
+        for consent in (ArticleConsent.NG, ArticleConsent.UNANSWERED):
+            with self.subTest(consent=consent):
+                EventDetail.objects.filter(pk=self.detail.pk).update(article_consent=consent)
+                response = self.client.get(self.url)
+                html = response.content.decode()
+
+                self.assertEqual(response.status_code, 200)
+                self.assertNotRegex(html, r'<input type="radio" name="article_consent" value="ok"[^>]*checked')
+                if consent == ArticleConsent.NG:
+                    self.assertRegex(html, r'<input type="radio" name="article_consent" value="ng"[^>]*checked')
+                else:
+                    self.assertNotRegex(html, r'<input type="radio" name="article_consent"[^>]*checked')
 
     def test_ok_edit_page_says_article_is_generated_automatically(self):
         response = self.client.get(self.url)

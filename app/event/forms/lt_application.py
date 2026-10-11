@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
 
-from community.constants import WEEKDAY_ABBR, weekday_code
+from community.constants import RECORDING_POLICY_FORM_CHOICES, WEEKDAY_ABBR, weekday_code
 from user_account.forms import normalize_x_account
 from ..datetime_lock import (
     EVENT_DETAIL_DATETIME_LOCK_MESSAGE,
@@ -108,7 +108,6 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
         queryset=Event.objects.none(),
         label='開催日',
         widget=forms.Select(attrs={'class': 'form-control'}),
-        help_text='発表したい開催日を選択してください'
     )
 
     theme = forms.CharField(
@@ -118,7 +117,6 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
             'class': 'form-control',
             'placeholder': '発表テーマを入力してください'
         }),
-        help_text='発表内容を簡潔に表すテーマを入力してください'
     )
 
     speaker = forms.CharField(
@@ -128,7 +126,7 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
             'class': 'form-control',
             'placeholder': 'VRChat表示名を入力してください'
         }),
-        help_text='VRChatの表示名を入力してください。送信するとアカウントの表示名としても保存されます。'
+        help_text='アカウントの表示名にも保存します。'
     )
 
     x_account = forms.CharField(
@@ -140,22 +138,22 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
             'placeholder': 'noricha_vr',
             'autocomplete': 'off',
         }),
-        help_text='発表が登録されると、Hub の X アカウントから告知を自動投稿します。告知にあなたの X ID（@ID）を含めるため、入力にご協力ください。https://x.com/ の URL でも OK。アカウント情報にも保存され、次回以降の入力は不要です。'
+        help_text='Hub の X の告知にあなたの @ID を載せます。URL でも可。次回から入力不要です。'
     )
 
     recording_policy = forms.ChoiceField(
         label=RECORDING_POLICY_LABEL,
-        choices=EventDetail.RecordingPolicy.choices,
+        choices=RECORDING_POLICY_FORM_CHOICES,
         initial=EventDetail.RecordingPolicy.PUBLIC,
         required=False,
         widget=recording_policy_widget(),
         help_text=RECORDING_POLICY_HELP_TEXT,
     )
 
-    # 発表者本人の意思で選んでもらうため、初期値は置かない
     article_consent = forms.ChoiceField(
         label=ARTICLE_CONSENT_LABEL,
         choices=ARTICLE_CONSENT_CHOICES,
+        initial=EventDetail.ArticleConsent.OK,
         widget=article_consent_widget(),
         help_text=ARTICLE_CONSENT_HELP_TEXT,
         error_messages={'required': ARTICLE_CONSENT_REQUIRED_MESSAGE},
