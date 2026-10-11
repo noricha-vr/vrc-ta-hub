@@ -51,7 +51,7 @@ case "$*" in
   'run jobs execute '*)
     [[ "$MOCK_CASE" != empty_execution ]] || exit 0
     # 実際の gcloud は --wait で失敗すると実行名を出さずに落ちる。--async だけが名前を返す。
-    [[ "$*" == *--async* ]] || exit 1
+    [[ "$*" == *--async* || "$MOCK_CASE" == apply_* ]] || exit 1
     [[ "$MOCK_CASE" != execute_failure ]] || exit 1
     [[ "$MOCK_CASE" != slow_execute ]] || sleep 2
     printf 'job-execution-this-call\n'
@@ -292,5 +292,35 @@ grep -Fq -- '--args=' "$CALLS_FILE" && fail 'check_pending_migrations.sh must no
 grep -Fq 'Another run may be in progress' "$TMP_DIR/pending.out" || fail 'check_pending_migrations.sh should report the busy job'
 [[ ! -e "$JOB_ARGS_LOCK_DIR" ]] || fail 'Lock should be released after a refusal'
 TEST_COUNT=$((TEST_COUNT + 1))
+
+# apply_migrations.sh: 同じロックの中で、既定の引数を確かめてから Job を更新して実行する。
+cat > "$TMP_DIR/create_job" <<'STUB'
+#!/usr/bin/env bash
+printf 'CREATE_JOB\n' >> "$CALLS_FILE"
+STUB
+chmod +x "$TMP_DIR/create_job"
+apply_case() {
+  export MOCK_CASE="$1"
+  local expected="$2" status=0
+  : > "$CALLS_FILE"
+  CREATE_JOB_SCRIPT="$TMP_DIR/create_job" bash "$REPO_ROOT/scripts/apply_migrations.sh" > "$TMP_DIR/apply.out" 2>&1 || status=$?
+  [[ "$status" -eq "$expected" ]] || fail "apply $MOCK_CASE: expected exit $expected, got $status"
+  TEST_COUNT=$((TEST_COUNT + 1))
+}
+apply_case apply_ok 0
+assert_contains "$CALLS_FILE" 'CREATE_JOB'
+assert_contains "$CALLS_FILE" '--wait'
+[[ ! -e "$JOB_ARGS_LOCK_DIR" ]] || fail 'apply should release the lock'
+
+# ほかの実行の最中（引数が既定でない）なら、Job を更新も実行もしない。
+MOCK_CASE=busy_job apply_case busy_job 2
+grep -Fq 'CREATE_JOB' "$CALLS_FILE" && fail 'apply must not update a busy job'
+grep -Fq 'jobs execute' "$CALLS_FILE" && fail 'apply must not execute a busy job'
+
+# ロック保持中も同じ。
+mkdir -p "$JOB_ARGS_LOCK_DIR" && printf '%s\n' "$$" > "$JOB_ARGS_LOCK_DIR/pid"
+apply_case apply_ok 2
+[[ ! -s "$CALLS_FILE" ]] || fail 'apply should stop before gcloud while the lock is held'
+rm -rf "$JOB_ARGS_LOCK_DIR"
 
 printf 'PASS: run_manage_command.sh (%s cases)\n' "$TEST_COUNT"
