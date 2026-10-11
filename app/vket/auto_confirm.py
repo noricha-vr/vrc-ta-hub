@@ -15,6 +15,8 @@ from .services import (
 )
 
 logger = logging.getLogger(__name__)
+# 結果のログに載せる行数の上限（確定・見送りそれぞれ）
+RESULT_LOG_MAX_LINES = 50
 AUTO_CONFIRM_PHASES = (
     VketCollaboration.Phase.ENTRY_OPEN, VketCollaboration.Phase.SCHEDULING,
     VketCollaboration.Phase.LT_COLLECTION, VketCollaboration.Phase.ANNOUNCEMENT,
@@ -133,10 +135,14 @@ def _confirm_collaboration(collaboration_id) -> dict:
             f'{participation.community.name} {participation.confirmed_date:%Y/%m/%d} '
             f'{participation.confirmed_start_time:%H:%M}（{participation.confirmed_duration}分）'
         )
-    logger.info('Vket日程の自動確定結果', extra={
+    # 結果は保存がコミットされた後に記録する。行数が多い日はログが読めなくなるので上限で切る
+    log_extra = {
         'collaboration_id': collaboration_id, **result,
-        'confirmed_lines': confirmed_lines, 'skipped_lines': skipped_lines,
-    })
+        'confirmed_lines': confirmed_lines[:RESULT_LOG_MAX_LINES],
+        'skipped_lines': skipped_lines[:RESULT_LOG_MAX_LINES],
+        'skipped_lines_total': len(skipped_lines),
+    }
+    transaction.on_commit(lambda: logger.info('Vket日程の自動確定結果', extra=log_extra))
     return result
 
 

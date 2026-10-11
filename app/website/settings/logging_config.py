@@ -104,6 +104,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': True,
         },
+        'vket': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
         'ta_hub': {
             'handlers': ['console'],
             'level': 'INFO',

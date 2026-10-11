@@ -3,7 +3,7 @@ from datetime import time, timedelta
 from unittest import mock
 
 from django.db import transaction
-from django.test import override_settings
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -656,3 +656,13 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         with mock.patch('django.db.models.QuerySet.select_for_update', autospec=True, side_effect=lock):
             self.assertEqual(self._run()['confirmed'], 1)
         self.assertEqual(locked_models[:2], [VketCollaboration, VketParticipation])
+
+
+class VketLoggingConfigTests(TestCase):
+    def test_vket_info_logs_are_emitted_in_settings(self):
+        """自動確定の結果は INFO のログだけに残るので、vket のロガーが INFO で出力される設定にする。"""
+        from django.conf import settings
+        import logging
+
+        self.assertIn(settings.LOGGING['loggers']['vket']['level'], ('DEBUG', 'INFO'))
+        self.assertTrue(logging.getLogger('vket.auto_confirm').isEnabledFor(logging.INFO))
