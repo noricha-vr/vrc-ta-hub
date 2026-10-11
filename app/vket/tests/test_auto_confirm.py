@@ -3,7 +3,7 @@ from datetime import time, timedelta
 from unittest import mock
 
 from django.db import transaction
-from django.test import override_settings
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -69,7 +69,7 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         participation = self._participation()
         presentation = self._presentation(participation)
         self._run()
-        self.send.reset_mock()
+        self.send.assert_not_called()
         self.collaboration.phase = VketCollaboration.Phase.ANNOUNCEMENT
         self.collaboration.registration_deadline = timezone.localdate() - timedelta(days=2)
         self.collaboration.lt_deadline = timezone.localdate() - timedelta(days=1)
@@ -89,6 +89,8 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         self.assertEqual(presentation.confirmed_start_time, time(21))
         self.assertEqual(presentation.published_event_detail.speaker, '登壇者')
         self.assertEqual(presentation.published_event_detail.start_time, time(21))
+        self.assertEqual(self._run()['confirmed'], 1)
+        self.send.assert_called_once()
 
     def test_nonconflicting_participations_publish_and_earlier_application_wins_conflict(self):
         """完了条件2: 申込み順に発表の重なりを判定し、重ならない参加も公開する。"""
@@ -162,25 +164,39 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         self.assertIn('activity_webhook_url', self.collaboration.settings_json)
         self.assertEqual(self._run()['confirmed'], 0)
 
-    def test_summary_sent_once_with_confirmed_and_skipped_and_empty_day_sends_nothing(self):
-        """完了条件4: コラボ単位で結果を一回通知し、変更のない日は送信しない。"""
+    def test_auto_confirmation_logs_confirmed_and_skipped_without_sending(self):
+        """確定と見送りがある日も通知せず、件数・集会・重なりの組をログに残す。"""
         own = self._participation()
         self._presentation(own)
         other = self._participation(make_community(name='競合集会'))
         self._presentation(other)
-        self._run()
-        self.send.assert_called_once()
-        payload = self.send.call_args.args[1]
-        self.assertEqual(payload['allowed_mentions'], {'parse': []})
-        self.assertEqual(len(payload['embeds']), 2)
-        self.assertIn('個人開発集会', payload['embeds'][0]['description'])
-        self.assertIn('競合集会', payload['embeds'][1]['description'])
-        self.assertIn('個人開発集会', payload['embeds'][1]['description'])
-        # 重なりの見送りが残る日は通知する。変更も見送りもない日は通知しない。
+        with self.assertLogs('vket.auto_confirm', level='INFO') as logs:
+            self.assertEqual(self._run(), {'confirmed': 1, 'skipped': 1, 'incomplete': 0})
+        self.send.assert_not_called()
+        self.assertEqual(len(logs.records), 1)
+        record = logs.records[0]
+        self.assertEqual(record.getMessage(), 'Vket日程の自動確定結果')
+        self.assertEqual(record.collaboration_id, self.collaboration.pk)
+        self.assertEqual((record.confirmed, record.skipped, record.incomplete), (1, 1, 0))
+        self.assertEqual(record.confirmed_lines, [
+            f'個人開発集会 {self.collaboration.period_start:%Y/%m/%d} 21:00（60分）',
+        ])
+        self.assertEqual(len(record.skipped_lines), 1)
+        for name in ('競合集会', '個人開発集会'):
+            self.assertIn(name, record.skipped_lines[0])
+        self.assertIn('21:00〜21:30', record.skipped_lines[0])
+        # 見送りだけの日も、処理する参加がない日も通知しない。
+        with self.assertLogs('vket.auto_confirm', level='INFO') as logs:
+            self.assertEqual(self._run(), {'confirmed': 0, 'skipped': 1, 'incomplete': 0})
+        self.assertEqual(logs.records[0].confirmed_lines, [])
+        self.assertEqual(logs.records[0].skipped_lines, record.skipped_lines)
+        self.send.assert_not_called()
         other.lifecycle = VketParticipation.Lifecycle.WITHDRAWN
         other.save()
-        self.send.reset_mock()
-        self.assertEqual(self._run()['confirmed'], 0)
+        with self.assertLogs('vket.auto_confirm', level='INFO') as logs:
+            self.assertEqual(self._run(), {'confirmed': 0, 'skipped': 0, 'incomplete': 0})
+        self.assertEqual(logs.records[0].confirmed_lines, [])
+        self.assertEqual(logs.records[0].skipped_lines, [])
         self.send.assert_not_called()
 
     def test_token_missing_wrong_or_unconfigured_returns_403_without_processing(self):
@@ -536,23 +552,6 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         self.assertIn('activity_webhook_url', self.collaboration.settings_json)
         self._assert_no_public_overlap([own, fixed])
 
-    def test_auto_confirmation_summary_normalizes_multiline_community_names(self):
-        """確定行・重なりの組の両方で集会名の改行を一行にし、書式をエスケープする。"""
-        self.community.name = '集会\n*名前*\r\n二行目'
-        self.community.save()
-        own = self._participation()
-        self._presentation(own)
-        other = self._participation(make_community(name='相手\n[集会]'))
-        self._presentation(other)
-        self._run()
-        descriptions = [e['description'] for e in self.send.call_args.args[1]['embeds']]
-        self.assertEqual(len(descriptions), 2)
-        for description in descriptions:
-            self.assertNotIn('\n', description)
-            self.assertNotIn('\r', description)
-            self.assertIn(r'集会 \*名前\* 二行目', description)
-        self.assertIn(r'相手 \[集会\]', descriptions[1])
-
     def test_excluded_phases_inactive_unapplied_and_incomplete_are_not_confirmed(self):
         own = self._participation()
         self._presentation(own)
@@ -594,18 +593,19 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         self.assertFalse(EventDetail.objects.filter(pk=detail_id).exists())
         self.assertEqual(self._run()['confirmed'], 0)
 
-    def test_failed_summary_does_not_rollback_and_does_not_log_webhook_url(self):
+    def test_auto_confirmation_does_not_use_or_log_webhook_url(self):
         own = self._participation()
         self._presentation(own)
         url = self.collaboration.settings_json['activity_webhook_url']
         self.send.side_effect = RuntimeError(url)
-        with self.assertLogs('vket.activity', level='WARNING') as logs:
+        with self.assertLogs('vket.auto_confirm', level='INFO') as logs:
             self.assertEqual(self._run()['confirmed'], 1)
-        self.assertNotIn(url, ' '.join(logs.output))
+        self.send.assert_not_called()
+        self.assertNotIn(url, repr([record.__dict__ for record in logs.records]))
         own.refresh_from_db()
         self.assertIsNotNone(own.published_event_id)
 
-    def test_rollback_keeps_schedule_and_does_not_send_summary(self):
+    def test_rollback_keeps_schedule_and_does_not_send(self):
         own = self._participation()
         self._presentation(own)
         with self.captureOnCommitCallbacks(execute=True):
@@ -657,19 +657,12 @@ class VketAutoConfirmTests(VketApplyFlowBase):
             self.assertEqual(self._run()['confirmed'], 1)
         self.assertEqual(locked_models[:2], [VketCollaboration, VketParticipation])
 
-    def test_summary_escapes_markdown_and_fits_payload_limits(self):
-        from vket.activity import notify_auto_confirmation
 
-        self.collaboration.name = '[x](https://example.com) *test*'
-        lines = ['[x](https://example.com) *test* ' * 8] * 100
-        with self.captureOnCommitCallbacks(execute=True):
-            notify_auto_confirmation(self.collaboration, lines, lines)
-        self.send.assert_called_once()
-        payload = self.send.call_args.args[1]
-        self.assertIn(r'\[x\]\(https://example.com\) \*test\*', payload['content'])
-        self.assertLessEqual(len(payload['content']), 2000)
-        self.assertLessEqual(sum(len(e['title']) + len(e['description']) for e in payload['embeds']), 6000)
-        for embed in payload['embeds']:
-            self.assertLessEqual(len(embed['description']), 4096)
-            self.assertIn('ほか ', embed['description'])
-            self.assertNotIn('[x](https://example.com)', embed['description'])
+class VketLoggingConfigTests(TestCase):
+    def test_vket_info_logs_are_emitted_in_settings(self):
+        """自動確定の結果は INFO のログだけに残るので、vket のロガーが INFO で出力される設定にする。"""
+        from django.conf import settings
+        import logging
+
+        self.assertIn(settings.LOGGING['loggers']['vket']['level'], ('DEBUG', 'INFO'))
+        self.assertTrue(logging.getLogger('vket.auto_confirm').isEnabledFor(logging.INFO))
