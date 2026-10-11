@@ -43,10 +43,19 @@ class DeployCheckConfigTest(SimpleTestCase):
         self.assertNotIn("--args='^|^manage.py|migrate", body)
 
     def test_migration_apply_command_creates_job_first(self):
-        """Job 不在でも適用できるよう、作成スクリプトを経由する。"""
+        """Job 不在でも適用できるよう、作成スクリプトを経由する。
+
+        適用は scripts/apply_migrations.sh にまとめ、Job の引数を差し替えるほかのスクリプトと
+        同じロックの中で、作成（create_migrate_job.sh）の後に実行する。
+        """
         apply_command = self.config['migrations']['apply_command']
-        self.assertIn('scripts/create_migrate_job.sh', apply_command)
-        self.assertIn('gcloud run jobs execute vrc-ta-hub-migrate', apply_command)
+        self.assertIn('scripts/apply_migrations.sh', apply_command)
+
+        body = (REPO_ROOT / 'scripts' / 'apply_migrations.sh').read_text(encoding='utf-8')
+        self.assertIn('acquire_job_args_lock', body)
+        self.assertIn('create_migrate_job.sh', body)
+        self.assertIn('gcloud run jobs execute "$JOB_NAME"', body)
+        self.assertLess(body.index('"$CREATE_JOB_SCRIPT"'), body.index('gcloud run jobs execute "$JOB_NAME"'))
 
     def test_top_page_is_critical(self):
         """トップページ 500（今回の事故）を critical で検知する。"""
