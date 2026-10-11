@@ -283,4 +283,14 @@ run_case args_delayed 0 showmigrations --plan
 [[ -e "$ARGS_FILE.seen" ]] || fail 'args_delayed should hit the first failed describe'
 assert_restored
 
+# check_pending_migrations.sh も、Job の引数が既定でなければ Job に触らずに断る。
+: > "$CALLS_FILE"
+pending_status=0
+MOCK_CASE=busy_job bash "$REPO_ROOT/scripts/check_pending_migrations.sh" > "$TMP_DIR/pending.out" 2>&1 || pending_status=$?
+[[ "$pending_status" -eq 2 ]] || fail "check_pending_migrations.sh should refuse a busy job, got $pending_status"
+grep -Fq -- '--args=' "$CALLS_FILE" && fail 'check_pending_migrations.sh must not change a busy job'
+grep -Fq 'Another run may be in progress' "$TMP_DIR/pending.out" || fail 'check_pending_migrations.sh should report the busy job'
+[[ ! -e "$JOB_ARGS_LOCK_DIR" ]] || fail 'Lock should be released after a refusal'
+TEST_COUNT=$((TEST_COUNT + 1))
+
 printf 'PASS: run_manage_command.sh (%s cases)\n' "$TEST_COUNT"

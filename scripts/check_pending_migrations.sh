@@ -43,6 +43,11 @@ ORIGINAL_ARGS="$(
     --format='value[delimiter="|"](spec.template.spec.template.spec.containers[0].args)'
 )"
 [[ -n "$ORIGINAL_ARGS" ]] || die "Could not read current args of $JOB_NAME."
+# 別の端末や CI の実行が引数を差し替えている最中（既定の引数でない）なら、何も変えずに断る。
+# ここで上書きして相手の引数を保存・復元すると、任意のコマンドが Job に残りうる。
+IDLE_ARGS="${IDLE_ARGS:-manage.py|migrate|--noinput}"
+[[ "$ORIGINAL_ARGS" == "$IDLE_ARGS" ]] \
+  || die "Args of $JOB_NAME are \"$ORIGINAL_ARGS\", not \"$IDLE_ARGS\". Another run may be in progress; retry after it finishes."
 
 restore_args() {
   gcloud run jobs update "$JOB_NAME" \
