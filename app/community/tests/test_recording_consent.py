@@ -151,6 +151,11 @@ class DefaultRecordingPolicySettingsTest(TestCase):
         self.assertNotRegex(html, r'id="default_recording_policy_forbidden"[^>]*checked')
         self.assertIn('撮影ステータスの初期値', html)
         self.assertNotIn('デフォルトの撮影ステータス', html)
+        public_pos = html.index('id="default_recording_policy_public"')
+        allowed_pos = html.index('id="default_recording_policy_allowed"')
+        forbidden_pos = html.index('id="default_recording_policy_forbidden"')
+        self.assertLess(public_pos, allowed_pos)
+        self.assertLess(allowed_pos, forbidden_pos)
 
     def test_each_choice_is_saved(self):
         """3 つの値それぞれを保存できる。"""

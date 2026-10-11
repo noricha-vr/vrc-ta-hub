@@ -78,9 +78,29 @@ class LTApplicationFormTest(TestCase):
         )
         self.assertContains(
             response,
-            '開始時刻や持ち時間の変更を希望する場合は、追加情報（備考）欄にご記入ください。主催者が承認時に調整します。',
+            '変更したい時は備考欄へ。主催者が調整します。',
         )
         self.assertNotContains(response, 'id="id_duration"')
+        self.assertContains(response, 'アカウントの表示名にも保存します。')
+        self.assertContains(response, 'Hub の X の告知にあなたの @ID を載せます。URL でも可。次回から入力不要です。')
+        form = response.context['form']
+        self.assertEqual(form.fields['event'].help_text, '')
+        self.assertEqual(form.fields['theme'].help_text, '')
+        self.assertNotContains(response, '発表したい開催日を選択してください')
+        self.assertNotContains(response, '発表内容を簡潔に表すテーマを入力してください')
+        self.assertNotRegex(response.content.decode(), r'<small\b[^>]*>\s*</small>')
+
+    def test_application_page_keeps_user_input_escaped(self):
+        """固定ヘルプを HTML 化しても集会名などの autoescape は維持する。"""
+        self.community.name = '<script>alert("name")</script>'
+        self.community.save(update_fields=['name'])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '&lt;script&gt;alert(&quot;name&quot;)&lt;/script&gt;')
+        self.assertNotContains(response, '<script>alert("name")</script>')
 
     def test_lt_application_form_requires_login(self):
         """未ログインユーザーはログインページにリダイレクトされる"""
