@@ -97,7 +97,7 @@ POST_THUMBNAIL_SPECS: tuple[PostThumbnailSpec, ...] = (
     ),
     PostThumbnailSpec(
         slug="2026-10-11-auto-recording-beta",
-        title="LTの自動撮影を始めます（ベータ版）",
+        title="発表の自動撮影を始めます（ベータ版）",
         category_slug="update",
         filename="2026-10-11-auto-recording-beta-v1.png",
     ),
