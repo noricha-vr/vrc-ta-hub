@@ -161,7 +161,7 @@ class VketApplyForm(forms.Form):
             choices = dict(self.fields['requested_duration'].choices)
             for value in (participation.requested_duration, participation.confirmed_duration):
                 if value:
-                    choices[str(value)] = f'{value}分'
+                    choices[value] = f'{value}分'
             self.fields['requested_duration'].choices = list(choices.items())
         self.fields['lt_slot_minutes'].initial = (
             participation.lt_slot_minutes if participation else 30
@@ -251,7 +251,7 @@ class VketManageParticipationForm(forms.Form):
         choices = dict(self.fields['confirmed_duration'].choices)
         for value in (participation.requested_duration, participation.confirmed_duration):
             if value:
-                choices[str(value)] = f'{value}分'
+                choices[value] = f'{value}分'
         self.fields['confirmed_duration'].choices = list(choices.items())
 
     def clean_confirmed_date(self) -> date:

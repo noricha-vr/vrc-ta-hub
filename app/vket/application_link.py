@@ -13,6 +13,7 @@ from vket.models import VketCollaboration, VketParticipation, VketPresentation
 
 logger = logging.getLogger(__name__)
 LINKS_KEY = 'normal_application_links'
+EVENTS_KEY = 'normal_application_event_ids'
 
 
 def application_links(collaboration):
@@ -23,6 +24,12 @@ def application_links(collaboration):
     return {str(key): value for key, value in links.items()
             if str(key).isascii() and str(key).isdigit() and int(key) > 0
             and isinstance(value, int) and not isinstance(value, bool) and value > 0}
+
+
+def application_event_ids(collaboration):
+    settings = collaboration.settings_json
+    values = settings.get(EVENTS_KEY, []) if isinstance(settings, dict) else []
+    return [value for value in values if isinstance(value, int) and not isinstance(value, bool) and value > 0] if isinstance(values, list) else []
 
 
 def is_normal_presentation(presentation):
@@ -90,6 +97,11 @@ def link_approved_application(detail):
     if detail.status != 'approved' or detail.deleted_at or detail.detail_type != 'LT':
         return
     participations = lock_application_event(detail.event)
+    for participation in participations:
+        collaboration = participation.collaboration
+        settings = dict(collaboration.settings_json) if isinstance(collaboration.settings_json, dict) else {}
+        collaboration.settings_json = {**settings, EVENTS_KEY: sorted(set(application_event_ids(collaboration) + [detail.event_id]))}
+        collaboration.save(update_fields=['settings_json', 'updated_at'])
     # 1回を複数コラボへ自動採用しない。曖昧な既存データは運営確認に残す。
     if len(participations) > 1:
         logger.warning('application_vket_link_ambiguous', extra={'event_id': detail.event_id})
@@ -128,7 +140,8 @@ def normal_participations(detail):
     if not detail.pk:
         return []
     return [p for p in VketParticipation.objects.filter(community_id=detail.event.community_id)
-            .select_related('collaboration') if detail.pk in application_links(p.collaboration).values()]
+            .select_related('collaboration') if detail.pk in application_links(p.collaboration).values()
+            or detail.event_id in application_event_ids(p.collaboration)]
 
 
 def lock_linked_detail(detail):

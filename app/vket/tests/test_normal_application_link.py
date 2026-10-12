@@ -192,6 +192,8 @@ class NormalApplicationLinkTests(TestCase):
         form = VketApplyForm(collaboration=self.collaboration, community=self.community,
             participation=self.participation, permissions=VketApplyPermissions(can_edit_schedule=False, can_edit_lt=True))
         self.assertEqual(form.fields['requested_duration'].clean(75), 75)
+        values = [str(value) for value, _ in form.fields['requested_duration'].choices]
+        self.assertEqual(len(values), len(set(values)))
         form = VketManageParticipationForm(collaboration=self.collaboration, participation=self.participation)
         self.assertEqual(form.fields['confirmed_duration'].clean(75), 75)
 
@@ -234,3 +236,59 @@ class NormalApplicationLinkTests(TestCase):
         second = self.detail(time(0, 10))
         self.assertTrue(any('時間が重な' in warning for warning in application_warnings(second)))
         self.assertTrue(any('時間が重な' in warning for warning in application_warnings(first)))
+
+    def test_existing_duration_choice_is_not_duplicated(self):
+        from vket.forms import VketApplyForm, VketApplyPermissions
+        form = VketApplyForm(collaboration=self.collaboration, community=self.community,
+            participation=self.participation, permissions=VketApplyPermissions(can_edit_schedule=True, can_edit_lt=True))
+        values = [str(value) for value, _ in form.fields['requested_duration'].choices]
+        self.assertEqual(len(values), len(set(values)))
+
+    def test_old_public_url_redirects_only_to_approved_live_detail(self):
+        from event.services.detail_redirect import detail_redirect
+        target = self.detail()
+        old = self.detail()
+        self.collaboration.settings_json = {'event_detail_redirects': {
+            f'detail-{old.pk}': {'target': target.pk, 'permanent': False},
+        }}
+        self.collaboration.save()
+        self.assertEqual(self.client.get(reverse('event:detail', args=[old.pk])).status_code, 200)
+        old.delete()
+        response = self.client.get(reverse('event:detail', args=[old.pk]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], reverse('event:detail', args=[target.pk]))
+        self.collaboration.settings_json['event_detail_redirects'][f'detail-{old.pk}']['permanent'] = True
+        self.collaboration.save()
+        self.assertEqual(detail_redirect(old.pk).status_code, 301)
+        target.status = 'pending'
+        target.save(update_fields=['status'])
+        self.assertIsNone(detail_redirect(old.pk))
+        self.assertEqual(self.client.get(reverse('event:detail', args=[old.pk])).status_code, 404)
+        target.status = 'approved'
+        target.save(update_fields=['status'])
+        target.delete()
+        self.assertIsNone(detail_redirect(old.pk))
+
+    def test_ambiguous_participations_keep_extension_without_linking(self):
+        other_collaboration = VketCollaboration.objects.create(
+            name='別の合成コラボ', slug='other-synthetic', period_start=self.event.date,
+            period_end=self.event.date, registration_deadline=self.event.date,
+            lt_deadline=self.event.date, phase='entry_open',
+        )
+        other = VketParticipation.objects.create(collaboration=other_collaboration, community=self.community,
+            published_event=self.event, requested_date=self.event.date, confirmed_date=self.event.date,
+            requested_start_time=time(22), confirmed_start_time=time(22), requested_duration=60,
+            confirmed_duration=60, progress='rehearsal')
+        detail = self.detail(time(22, 45))
+        link_approved_application(detail)
+        self.assertFalse(VketPresentation.objects.exists())
+        confirm_participation_schedule(other)
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.duration, 75)
+
+    def test_vket_midnight_input_warns_without_blocking(self):
+        from vket.application_link import vket_input_warnings
+        link_approved_application(self.detail(time(23, 50)))
+        link_approved_application(self.detail(time(0, 10)))
+        self.participation.refresh_from_db()
+        self.assertTrue(any('時間が重な' in warning for warning in vket_input_warnings(self.participation)))

@@ -10,7 +10,7 @@ from community.constants import weekday_code
 from event.models import Event, EventDetail
 from ta_hub.index_cache import clear_index_view_cache
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
-from vket.application_link import application_links, extend_event, inactive_detail, is_normal_presentation
+from vket.application_link import application_links, application_event_ids, extend_event, inactive_detail, is_normal_presentation
 
 PENDING_DELETIONS_KEY = 'pending_presentation_deletions'
 
@@ -362,7 +362,7 @@ def sync_participation_publication(
             changed_index_data = True
 
     previous_duration = event.duration
-    if EventDetail.objects.filter(
+    if event.pk in application_event_ids(participation.collaboration) or EventDetail.objects.filter(
         pk__in=application_links(participation.collaboration).values(), event=event, status='approved',
     ).exists():
         extend_event(event, participation)
