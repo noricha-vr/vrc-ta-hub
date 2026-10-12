@@ -41,9 +41,14 @@ def lock_application_event(event):
     """承認の詳細ロックより先に、同期と同じ順序でコラボ・参加をロックする。"""
     from vket.services import collab_event_match
     ids = list(VketParticipation.objects.filter(
-        collab_event_match(event), community_id=event.community_id,
+        collab_event_match(event) | Q(
+            published_event__isnull=True, confirmed_date__isnull=True,
+            requested_date=event.date, requested_start_time=event.start_time,
+            collaboration__period_start__lte=event.date, collaboration__period_end__gte=event.date,
+        ), community_id=event.community_id,
         lifecycle=VketParticipation.Lifecycle.ACTIVE,
-    ).order_by('collaboration_id', 'pk').values_list('pk', 'collaboration_id'))
+    ).exclude(progress=VketParticipation.Progress.NOT_APPLIED)
+        .order_by('collaboration_id', 'pk').values_list('pk', 'collaboration_id'))
     for collaboration_id in sorted({cid for _, cid in ids}):
         VketCollaboration.objects.select_for_update().get(pk=collaboration_id)
     participations = list(VketParticipation.objects.select_for_update().filter(
@@ -178,15 +183,16 @@ def application_warnings(detail):
     for participation in VketParticipation.objects.filter(
         Q(published_event=detail.event), lifecycle=VketParticipation.Lifecycle.ACTIVE,
     ).select_related('collaboration'):
+        candidate_start = _detail_start(detail.event, detail.start_time)
         candidate = ScheduleBlock(participation.pk, detail.event.community_id, '',
-            detail.event.date, detail.start_time, detail.duration)
+            candidate_start.date(), candidate_start.time(), detail.duration)
         if any(blocks_conflict(candidate, block, get_schedule_buffer_minutes(participation.collaboration))
                for block in active_blocks(participation.collaboration, exclude_community_id=detail.event.community_id)):
             warnings.append('他団体のVket発表と時間が重なっています。登録・承認は可能です。')
-    start = datetime.combine(detail.event.date, detail.start_time)
+    start = _detail_start(detail.event, detail.start_time)
     end = start + timedelta(minutes=detail.duration)
     for other in EventDetail.objects.filter(event=detail.event, detail_type='LT', status__in=['pending', 'approved']).exclude(pk=detail.pk):
-        other_start = datetime.combine(detail.event.date, other.start_time)
+        other_start = _detail_start(detail.event, other.start_time)
         if start < other_start + timedelta(minutes=other.duration) and other_start < end:
             warnings.append('同じ開催回の発表と時間が重なっています。登録・承認は可能です。')
             break
@@ -208,3 +214,10 @@ def vket_input_warnings(participation):
     if any(blocks_conflict(a, b) for index, a in enumerate(blocks) for b in blocks[index + 1:]):
         warnings.append('自集会の発表時間が重なっています。登録は可能です。')
     return warnings
+
+
+def _detail_start(event, start_time):
+    start = datetime.combine(event.date, start_time)
+    if (start - datetime.combine(event.date, event.start_time)).total_seconds() < -720 * 60:
+        start += timedelta(days=1)
+    return start

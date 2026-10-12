@@ -211,3 +211,26 @@ class NormalApplicationLinkTests(TestCase):
         self.participation.refresh_from_db()
         self.assertEqual(len(vket_input_warnings(self.participation)), 2)
         self.assertEqual(self.participation.presentations.count(), 2)
+
+    def test_approval_before_vket_confirmation_links_and_survives_daily_sync(self):
+        self.participation.published_event = None
+        self.participation.confirmed_date = None
+        self.participation.confirmed_start_time = None
+        self.participation.confirmed_duration = None
+        self.participation.progress = 'applied'
+        self.participation.save()
+        detail = self.detail(time(22, 45))
+        link_approved_application(detail)
+        auto_confirm_schedules()
+        detail.refresh_from_db()
+        self.event.refresh_from_db()
+        self.assertEqual(VketPresentation.objects.get().published_event_detail_id, detail.pk)
+        self.assertEqual(detail.applicant_id, self.speaker.pk)
+        self.assertEqual(self.event.duration, 75)
+        self.assertEqual(EventDetail.objects.count(), 1)
+
+    def test_midnight_talks_warn_using_event_day(self):
+        first = self.detail(time(23, 50))
+        second = self.detail(time(0, 10))
+        self.assertTrue(any('時間が重な' in warning for warning in application_warnings(second)))
+        self.assertTrue(any('時間が重な' in warning for warning in application_warnings(first)))
