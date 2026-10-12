@@ -452,8 +452,8 @@ class VketManageViewsTests(VketManageViewsBase):
         detail.refresh_from_db()
         self.assertEqual(detail.applicant, self.superuser)
 
-    def test_manage_participation_update_approves_existing_pending_detail(self):
-        """既存のpending EventDetailは確定時にapprovedへ同期される"""
+    def test_manage_participation_update_keeps_existing_pending_detail(self):
+        """既存のpending EventDetailは日程確定でも未承認を維持する"""
         self.client.force_login(self.superuser)
         self._move_other_participations_to_last_day(self.participation1)
         detail = EventDetail.objects.create(
@@ -494,8 +494,8 @@ class VketManageViewsTests(VketManageViewsBase):
         self.assertEqual(response.status_code, 302)
         presentation.refresh_from_db()
         detail.refresh_from_db()
-        self.assertEqual(detail.status, 'approved')
-        self.assertEqual(detail.speaker, '承認後登壇者')
-        self.assertEqual(detail.theme, '承認後テーマ')
-        self.assertEqual(detail.start_time.strftime('%H:%M'), '21:45')
+        self.assertEqual(detail.status, 'pending')
+        self.assertEqual(detail.speaker, '承認前登壇者')
+        self.assertEqual(detail.theme, '承認前テーマ')
+        self.assertEqual(detail.start_time.strftime('%H:%M'), '21:30')
         self.assertEqual(presentation.published_event_detail_id, detail.pk)

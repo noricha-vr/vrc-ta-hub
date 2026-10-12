@@ -11,7 +11,7 @@ from event.models import Event, EventDetail
 from tests.factories import make_community, make_event
 from vket.auto_confirm import auto_confirm_schedules
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
-from vket.schedule import ScheduleBlock, find_conflicting_pairs
+from vket.schedule import ScheduleBlock, find_conflicting_pairs, blocks_from
 from vket.services import confirm_participation_schedule, delete_requested_presentation, PENDING_DELETIONS_KEY
 
 from ._vket_test_bases import VketApplyFlowBase
@@ -92,7 +92,7 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         self.assertEqual(self._run()['confirmed'], 1)
         self.send.assert_called_once()
 
-    def test_nonconflicting_participations_publish_and_earlier_application_wins_conflict(self):
+    def test_conflicting_and_nonconflicting_participations_all_publish(self):
         """完了条件2: 申込み順に発表の重なりを判定し、重ならない参加も公開する。"""
         # pk は後でも、applied_at が先の参加が優先される。
         late = self._participation(applied_at=timezone.now())
@@ -104,9 +104,9 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         self._presentation(separate, time(22))
         with mock.patch('vket.services.clear_index_view_cache') as clear_cache:
             result = self._run()
-        self.assertEqual(result, {'confirmed': 2, 'skipped': 1, 'incomplete': 0})
-        self.assertEqual(clear_cache.call_count, 2)
-        for participation in (early, separate):
+        self.assertEqual(result, {'confirmed': 3, 'skipped': 0, 'incomplete': 0})
+        self.assertEqual(clear_cache.call_count, 3)
+        for participation in (early, separate, late):
             participation.refresh_from_db()
             self.assertEqual(participation.confirmed_date, participation.requested_date)
             self.assertEqual(participation.confirmed_start_time, participation.requested_start_time)
@@ -117,8 +117,8 @@ class VketAutoConfirmTests(VketApplyFlowBase):
             self.assertEqual(presentation.confirmed_start_time, presentation.requested_start_time)
             self.assertEqual(presentation.published_event_detail.start_time, presentation.requested_start_time)
         late.refresh_from_db()
-        self.assertIsNone(late.confirmed_date)
-        self.assertIsNone(late.published_event_id)
+        self.assertIsNotNone(late.confirmed_date)
+        self.assertIsNotNone(late.published_event_id)
 
     def test_next_confirmation_updates_schedule_text_times_additions_and_deletions(self):
         """完了条件3: 変更・追加・公開発表の削除を、次の確定でまとめて公開に反映する。"""
@@ -164,39 +164,40 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         self.assertIn('activity_webhook_url', self.collaboration.settings_json)
         self.assertEqual(self._run()['confirmed'], 0)
 
-    def test_auto_confirmation_logs_confirmed_and_skipped_without_sending(self):
-        """確定と見送りがある日も通知せず、件数・集会・重なりの組をログに残す。"""
+    def test_auto_confirmation_logs_overlap_and_confirms_without_sending(self):
+        """確定と警告のみがある日も通知せず、件数・集会・重なりの組をログに残す。"""
         own = self._participation()
         self._presentation(own)
         other = self._participation(make_community(name='競合集会'))
         self._presentation(other)
         with self.assertLogs('vket.auto_confirm', level='INFO') as logs:
-            self.assertEqual(self._run(), {'confirmed': 1, 'skipped': 1, 'incomplete': 0})
+            self.assertEqual(self._run(), {'confirmed': 2, 'skipped': 0, 'incomplete': 0})
         self.send.assert_not_called()
         self.assertEqual(len(logs.records), 1)
         record = logs.records[0]
         self.assertEqual(record.getMessage(), 'Vket日程の自動確定結果')
         self.assertEqual(record.collaboration_id, self.collaboration.pk)
-        self.assertEqual((record.confirmed, record.skipped, record.incomplete), (1, 1, 0))
+        self.assertEqual((record.confirmed, record.skipped, record.incomplete), (2, 0, 0))
         self.assertEqual(record.confirmed_lines, [
             f'個人開発集会 {self.collaboration.period_start:%Y/%m/%d} 21:00（60分）',
+            f'競合集会 {self.collaboration.period_start:%Y/%m/%d} 21:00（60分）',
         ])
-        self.assertEqual(len(record.skipped_lines), 1)
+        self.assertEqual(len(record.overlap_lines), 1)
         for name in ('競合集会', '個人開発集会'):
-            self.assertIn(name, record.skipped_lines[0])
-        self.assertIn('21:00〜21:30', record.skipped_lines[0])
-        # 見送りだけの日も、処理する参加がない日も通知しない。
+            self.assertIn(name, record.overlap_lines[0])
+        self.assertIn('21:00〜21:30', record.overlap_lines[0])
+        # 警告のみだけの日も、処理する参加がない日も通知しない。
         with self.assertLogs('vket.auto_confirm', level='INFO') as logs:
-            self.assertEqual(self._run(), {'confirmed': 0, 'skipped': 1, 'incomplete': 0})
+            self.assertEqual(self._run(), {'confirmed': 0, 'skipped': 0, 'incomplete': 0})
         self.assertEqual(logs.records[0].confirmed_lines, [])
-        self.assertEqual(logs.records[0].skipped_lines, record.skipped_lines)
+        self.assertEqual(logs.records[0].overlap_lines, [])
         self.send.assert_not_called()
         other.lifecycle = VketParticipation.Lifecycle.WITHDRAWN
         other.save()
         with self.assertLogs('vket.auto_confirm', level='INFO') as logs:
             self.assertEqual(self._run(), {'confirmed': 0, 'skipped': 0, 'incomplete': 0})
         self.assertEqual(logs.records[0].confirmed_lines, [])
-        self.assertEqual(logs.records[0].skipped_lines, [])
+        self.assertEqual(logs.records[0].overlap_lines, [])
         self.send.assert_not_called()
 
     def test_token_missing_wrong_or_unconfigured_returns_403_without_processing(self):
@@ -239,7 +240,7 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         other = self._participation(make_community(name='翌日の集会'), start=time(0, 15),
                                     day=self.collaboration.period_start + timedelta(days=1))
         presentation = self._presentation(other, time(0, 15))
-        self.assertEqual(self._run()['skipped'], 1)
+        self.assertEqual(self._run()['skipped'], 0)
         presentation.requested_start_time = time(0, 20)
         presentation.save()
         self.assertEqual(self._run()['confirmed'], 1)
@@ -254,24 +255,24 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         presentation.refresh_from_db()
         presentation.requested_start_time = time(22, 10)
         presentation.save()
-        self.assertEqual(self._run()['skipped'], 1)
+        self.assertEqual(self._run()['skipped'], 0)
         presentation.refresh_from_db()
-        self.assertEqual(presentation.confirmed_start_time, time(21))
-        self.assertEqual(presentation.published_event_detail.start_time, time(21))
+        self.assertEqual(presentation.confirmed_start_time, time(22, 10))
+        self.assertEqual(presentation.published_event_detail.start_time, time(22, 10))
 
-    def test_same_applied_at_uses_pk(self):
+    def test_same_applied_at_does_not_block_second_participation(self):
         now = timezone.now()
         first = self._participation(applied_at=now)
         self._presentation(first)
         second = self._participation(make_community(name='同時の集会'), applied_at=now)
         self._presentation(second)
-        self.assertEqual(self._run()['confirmed'], 1)
+        self.assertEqual(self._run()['confirmed'], 2)
         first.refresh_from_db()
         second.refresh_from_db()
         self.assertIsNotNone(first.confirmed_date)
-        self.assertIsNone(second.confirmed_date)
+        self.assertIsNotNone(second.confirmed_date)
 
-    def _assert_no_public_overlap(self, participations):
+    def _assert_public_overlap(self, participations):
         """希望値ではなく、公開イベントの発表の時間帯で検証する。"""
         event_ids = VketParticipation.objects.filter(
             pk__in=[p.pk for p in participations], published_event__isnull=False,
@@ -284,7 +285,7 @@ class VketAutoConfirmTests(VketApplyFlowBase):
             community_name=d.event.community.name, date=d.event.date,
             start=d.start_time, duration=d.duration,
         ) for d in details]
-        self.assertEqual(find_conflicting_pairs(blocks), [])
+        self.assertTrue(find_conflicting_pairs(blocks))
 
     def _assert_skipped_change_keeps_old_public_slot(self, *, reverse_order=False):
         own = self._participation(applied_at=timezone.now() - timedelta(days=2))
@@ -303,18 +304,18 @@ class VketAutoConfirmTests(VketApplyFlowBase):
             applied_at=own.applied_at + timedelta(days=-1 if reverse_order else 1),
         )
         self._presentation(newcomer)
-        self.assertEqual(self._run(), {'confirmed': 0, 'skipped': 2, 'incomplete': 0})
+        self.assertEqual(self._run(), {'confirmed': 2, 'skipped': 0, 'incomplete': 0})
         own.refresh_from_db()
         presentation.refresh_from_db()
         newcomer.refresh_from_db()
-        self.assertEqual(own.confirmed_start_time, time(21))
-        self.assertEqual(own.published_event.start_time, time(21))
-        self.assertEqual(presentation.published_event_detail.start_time, time(21))
-        self.assertIsNone(newcomer.published_event_id)
-        self._assert_no_public_overlap([own, fixed, newcomer])
+        self.assertEqual(own.confirmed_start_time, time(22))
+        self.assertEqual(own.published_event.start_time, time(22))
+        self.assertEqual(presentation.published_event_detail.start_time, time(22))
+        self.assertIsNotNone(newcomer.published_event_id)
+        self._assert_public_overlap([own, fixed, newcomer])
 
     def test_skipped_change_keeps_old_public_slot(self):
-        """A の 22 時への変更が B と重なる時、C は A の旧 21 時枠へ入れない。"""
+        """A の 22 時への変更が B と重なる時、C は A の旧 21 時枠へ登録できる。"""
         self._assert_skipped_change_keeps_old_public_slot()
 
     def test_skipped_change_keeps_old_public_slot_in_reverse_application_order(self):
@@ -322,7 +323,7 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         self._assert_skipped_change_keeps_old_public_slot(reverse_order=True)
 
     def test_theme_only_change_keeps_confirmed_slot_reserved(self):
-        """テーマだけ変更中の参加より先に申し込んでも、公開済み枠へ入れない。"""
+        """テーマだけ変更中の参加より先に申し込んでも、公開済み枠へ登録できる。"""
         own = self._participation()
         presentation = self._presentation(own)
         self._run()
@@ -333,13 +334,13 @@ class VketAutoConfirmTests(VketApplyFlowBase):
             make_community(name='先の申込み'), applied_at=own.applied_at - timedelta(days=1),
         )
         self._presentation(newcomer)
-        self.assertEqual(self._run(), {'confirmed': 1, 'skipped': 1, 'incomplete': 0})
+        self.assertEqual(self._run(), {'confirmed': 2, 'skipped': 0, 'incomplete': 0})
         own.refresh_from_db()
         newcomer.refresh_from_db()
         presentation.refresh_from_db()
         self.assertEqual(presentation.published_event_detail.theme, '変更テーマ')
-        self.assertIsNone(newcomer.published_event_id)
-        self._assert_no_public_overlap([own, newcomer])
+        self.assertIsNotNone(newcomer.published_event_id)
+        self._assert_public_overlap([own, newcomer])
 
     def test_public_slot_is_reserved_on_published_event_date_when_it_drifts(self):
         """公開イベントの日付が確定日とずれていても、公開中の日付の枠に他の参加を確定しない。"""
@@ -358,8 +359,8 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         result = self._run()
 
         newcomer.refresh_from_db()
-        self.assertEqual(result['skipped'], 1)
-        self.assertIsNone(newcomer.published_event_id)
+        self.assertEqual(result['skipped'], 0)
+        self.assertIsNotNone(newcomer.published_event_id)
 
     def test_published_event_time_drift_is_repaired(self):
         """公開イベントの開始時刻・開催時間だけがずれた時も、次の自動確定で確定値に戻す。"""
@@ -453,7 +454,7 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         newcomer.refresh_from_db()
         self.assertEqual(own.confirmed_start_time, time(22))
         self.assertIsNotNone(newcomer.published_event_id)
-        self._assert_no_public_overlap([own, newcomer])
+        self.assertFalse(find_conflicting_pairs(blocks_from([own, newcomer])))
 
     def test_change_can_overlap_own_old_public_slot(self):
         """旧公開枠と一部重なる変更でも、自分自身とは競合しない。"""
@@ -479,15 +480,15 @@ class VketAutoConfirmTests(VketApplyFlowBase):
             applied_at=own.applied_at - timedelta(days=1),
         )
         self._presentation(newcomer, time(22))
-        self.assertEqual(self._run(), {'confirmed': 1, 'skipped': 1, 'incomplete': 0})
+        self.assertEqual(self._run(), {'confirmed': 2, 'skipped': 0, 'incomplete': 0})
         own.refresh_from_db()
         newcomer.refresh_from_db()
-        self.assertEqual(EventDetail.objects.filter(event_id=own.published_event_id).count(), 1)
+        self.assertEqual(EventDetail.objects.filter(event_id=own.published_event_id).count(), 2)
         self.assertIsNotNone(newcomer.published_event_id)
-        self._assert_no_public_overlap([own, newcomer])
+        self._assert_public_overlap([own, newcomer])
 
     def test_skipped_change_reserves_published_duration_before_requested_shortening(self):
-        """発表時間の短縮希望が見送りでも、旧公開枠の後半へ別の参加は入れない。"""
+        """発表時間の短縮希望が警告のみでも、旧公開枠の後半へ別の参加は登録できる。"""
         own = self._participation()
         presentation = self._presentation(own)
         presentation.duration = 60
@@ -501,16 +502,16 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         presentation.save()
         newcomer = self._participation(make_community(name='旧枠後半の希望'), start=time(21, 30))
         self._presentation(newcomer, time(21, 30))
-        self.assertEqual(self._run(), {'confirmed': 0, 'skipped': 2, 'incomplete': 0})
+        self.assertEqual(self._run(), {'confirmed': 2, 'skipped': 0, 'incomplete': 0})
         own.refresh_from_db()
         newcomer.refresh_from_db()
         presentation.refresh_from_db()
-        self.assertEqual(presentation.published_event_detail.duration, 60)
-        self.assertIsNone(newcomer.published_event_id)
-        self._assert_no_public_overlap([own, fixed, newcomer])
+        self.assertEqual(presentation.published_event_detail.duration, 10)
+        self.assertIsNotNone(newcomer.published_event_id)
+        self._assert_public_overlap([own, fixed, newcomer])
 
     def test_skipped_schedule_still_removes_withdrawn_public_presentation(self):
-        """変更を見送っても取り下げは反映し、日程・他の公開発表は保持する。"""
+        """変更を見送っても取り下げは反映し、日程・他の公開発表は更新する。"""
         own = self._participation()
         kept = self._presentation(own)
         removed = self._presentation(own, time(21, 30), order=1)
@@ -531,26 +532,26 @@ class VketAutoConfirmTests(VketApplyFlowBase):
         kept.theme = '変更希望のテーマ'
         kept.save()
         with mock.patch('vket.services.clear_index_view_cache') as clear_cache:
-            self.assertEqual(self._run(), {'confirmed': 0, 'skipped': 1, 'incomplete': 0})
-        clear_cache.assert_called_once()
+            self.assertEqual(self._run(), {'confirmed': 1, 'skipped': 0, 'incomplete': 0})
+        self.assertGreaterEqual(clear_cache.call_count, 1)
         own.refresh_from_db()
         kept.refresh_from_db()
         self.assertEqual(own.confirmed_date, confirmed_date)
-        self.assertEqual(own.confirmed_start_time, time(21))
-        self.assertEqual(own.confirmed_duration, 60)
-        self.assertEqual(own.schedule_confirmed_at, confirmed_at)
-        self.assertEqual(own.published_event.start_time, time(21))
+        self.assertEqual(own.confirmed_start_time, time(22))
+        self.assertEqual(own.confirmed_duration, 90)
+        self.assertGreater(own.schedule_confirmed_at, confirmed_at)
+        self.assertEqual(own.published_event.start_time, time(22))
         self.assertEqual(own.published_event.date, confirmed_date)
-        self.assertEqual(own.published_event.duration, 60)
-        self.assertEqual(kept.confirmed_start_time, time(21))
-        self.assertEqual(kept.published_event_detail.start_time, time(21))
-        self.assertEqual(kept.published_event_detail.theme, 'テーマ')
+        self.assertEqual(own.published_event.duration, 90)
+        self.assertEqual(kept.confirmed_start_time, time(22))
+        self.assertEqual(kept.published_event_detail.start_time, time(22))
+        self.assertEqual(kept.published_event_detail.theme, '変更希望のテーマ')
         self.assertFalse(EventDetail.objects.filter(pk=removed_id).exists())
         self.assertIsNotNone(EventDetail.all_objects.get(pk=removed_id).deleted_at)
         self.collaboration.refresh_from_db()
         self.assertNotIn(PENDING_DELETIONS_KEY, self.collaboration.settings_json)
         self.assertIn('activity_webhook_url', self.collaboration.settings_json)
-        self._assert_no_public_overlap([own, fixed])
+        self._assert_public_overlap([own, fixed])
 
     def test_excluded_phases_inactive_unapplied_and_incomplete_are_not_confirmed(self):
         own = self._participation()

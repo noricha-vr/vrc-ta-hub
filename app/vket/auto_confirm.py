@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import F, Prefetch, prefetch_related_objects
 
 from .models import VketCollaboration, VketParticipation, VketPresentation
+from .application_link import inactive_detail
 from .schedule import (
     ScheduleBlock, blocks_conflict, blocks_from, format_pair, get_schedule_buffer_minutes,
     is_fully_confirmed,
@@ -40,6 +41,8 @@ def _needs_confirmation(participation, collaboration) -> bool:
     ):
         return True
     for presentation in participation.presentations.all():
+        if inactive_detail(presentation):
+            continue
         detail = presentation.published_event_detail
         if (
             presentation.status != VketPresentation.Status.CONFIRMED
@@ -64,6 +67,8 @@ def _confirmed_blocks(participations) -> list[ScheduleBlock]:
         if not is_fully_confirmed(participation):
             continue
         for presentation in participation.presentations.all():
+            if inactive_detail(presentation):
+                continue
             detail = presentation.published_event_detail
             day = participation.confirmed_date
             if detail is not None and detail.deleted_at is None:
@@ -107,7 +112,7 @@ def _confirm_collaboration(collaboration_id) -> dict:
         apply_pending_presentation_deletions(participation)
     accepted_blocks = _confirmed_blocks(participations)
     buffer_minutes = get_schedule_buffer_minutes(collaboration)
-    confirmed_lines, skipped_lines = [], []
+    confirmed_lines, overlap_lines = [], []
     for participation in targets:
         presentations = list(participation.presentations.all())
         if (
@@ -125,9 +130,7 @@ def _confirm_collaboration(collaboration_id) -> dict:
             if a.community_id != b.community_id and blocks_conflict(a, b, buffer_minutes)
         ]
         if pairs:
-            result['skipped'] += 1
-            skipped_lines.extend(format_pair(a, b) for a, b in pairs)
-            continue
+            overlap_lines.extend(format_pair(a, b) for a, b in pairs)
         confirm_participation_schedule(participation, use_requested=True)
         accepted_blocks = other_blocks + candidates
         result['confirmed'] += 1
@@ -139,8 +142,8 @@ def _confirm_collaboration(collaboration_id) -> dict:
     log_extra = {
         'collaboration_id': collaboration_id, **result,
         'confirmed_lines': confirmed_lines[:RESULT_LOG_MAX_LINES],
-        'skipped_lines': skipped_lines[:RESULT_LOG_MAX_LINES],
-        'skipped_lines_total': len(skipped_lines),
+        'overlap_lines': overlap_lines[:RESULT_LOG_MAX_LINES],
+        'overlap_lines_total': len(overlap_lines),
     }
     transaction.on_commit(lambda: logger.info('Vket日程の自動確定結果', extra=log_extra))
     return result

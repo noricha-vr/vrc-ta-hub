@@ -27,6 +27,7 @@ from ..schedule import (
     get_schedule_buffer_minutes,
 )
 from ..activity import activity_snapshot, notify_activity
+from ..application_link import vket_input_warnings
 from ..services import delete_requested_presentation
 from .overlap import warn_overlap
 from .helpers import (
@@ -160,6 +161,8 @@ class ApplyView(LoginRequiredMixin, View):
                 request, collaboration, community, participation, form, formset, permissions,
             )
 
+        for warning in vket_input_warnings(participation):
+            messages.warning(request, warning)
         messages.success(request, '参加登録を保存しました。')
         warn_overlap(request, '保存', pair_lines, {
             'collaboration_id': collaboration.pk, 'participation_id': participation.pk,

@@ -307,13 +307,14 @@ class VketApplyScheduleOverlapTests(VketOverlapApplyBase):
         self.assertFalse(self._warnings(self._post_apply()))
         self.assertEqual(blocks_from([self.other]), [])
 
-    def test_same_community_presentations_do_not_warn(self):
+    def test_same_community_presentations_warn_without_blocking(self):
         self.presentation.delete()
         response = self._post_apply(rows=[
             {'speaker': 'A', 'theme': 'A', 'lt_start_time': '21:00'},
             {'speaker': 'B', 'theme': 'B', 'lt_start_time': '21:15'},
         ])
-        self.assertFalse(self._warnings(response))
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(self._warnings(response))
         self.assertEqual(self._own_participation().presentations.count(), 2)
 
     def test_presentation_only_update_warns_and_serializes_with_auto_confirmation(self):

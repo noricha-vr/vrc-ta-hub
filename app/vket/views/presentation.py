@@ -15,6 +15,7 @@ from ..models import (
 )
 from ..activity import activity_snapshot, notify_activity
 from ..services import delete_requested_presentation
+from vket.application_link import is_normal_presentation
 from .helpers import (
     _apply_permissions_for_user,
     _get_active_membership,
@@ -26,7 +27,7 @@ def _delete_presentation(presentation: VketPresentation) -> str:
     """プレゼンテーションと関連するEventDetailを削除し、表示名を返す"""
     speaker_name = presentation.speaker or '発表'
     with transaction.atomic():
-        if presentation.published_event_detail:
+        if presentation.published_event_detail and not is_normal_presentation(presentation):
             presentation.published_event_detail.delete()
         presentation.delete()
     return speaker_name
