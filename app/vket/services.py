@@ -10,6 +10,7 @@ from community.constants import weekday_code
 from event.models import Event, EventDetail
 from ta_hub.index_cache import clear_index_view_cache
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
+from vket.application_link import application_links, application_event_ids, extend_event, inactive_detail, is_normal_presentation
 
 PENDING_DELETIONS_KEY = 'pending_presentation_deletions'
 
@@ -26,7 +27,8 @@ def delete_requested_presentation(presentation: VketPresentation) -> None:
     """希望から発表を消し、公開済みの詳細は次の同期まで保持する。"""
     participation = presentation.participation
     collaboration = VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
-    if presentation.published_event_detail_id:
+    participation.collaboration = collaboration
+    if presentation.published_event_detail_id and not is_normal_presentation(presentation):
         settings = collaboration.settings_json if isinstance(collaboration.settings_json, dict) else {}
         pending = settings.get(PENDING_DELETIONS_KEY, {})
         pending = dict(pending) if isinstance(pending, dict) else {}
@@ -76,7 +78,7 @@ def confirm_participation_schedule(
     participation: VketParticipation, *, presentation_times=None, use_requested=False,
 ) -> bool:
     """運営・自動確定共通の日程確定、発表確定、公開同期。変更があれば True。"""
-    VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
+    participation.collaboration = VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
     if use_requested:
         participation.confirmed_date = participation.requested_date
         participation.confirmed_start_time = participation.requested_start_time
@@ -100,6 +102,8 @@ def confirm_participation_schedule(
         'admin_note', 'schedule_adjusted_by_admin', 'progress', 'schedule_confirmed_at', 'updated_at',
     ])
     for presentation in participation.presentations.all():
+        if inactive_detail(presentation):
+            continue
         # 運営の入力は、従来どおり確定済みのこの参加の発表だけに適用する。
         new_time = (presentation_times or {}).get(presentation.pk)
         if use_requested:
@@ -294,7 +298,9 @@ def sync_participation_publication(
     ):
         raise ValueError("confirmed schedule is required for Vket publication sync")
 
-    VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
+    collaboration = VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
+    participation.refresh_from_db()
+    participation.collaboration = collaboration
     deleted_details = _clear_pending_presentation_deletions(participation)
     event, changed_index_data = _resolve_publication_event(participation)
     changed_index_data |= deleted_details
@@ -302,6 +308,13 @@ def sync_participation_publication(
     for presentation in participation.presentations.filter(
         status=VketPresentation.Status.CONFIRMED
     ).select_related("published_event_detail"):
+        if inactive_detail(presentation):
+            continue
+        if is_normal_presentation(presentation) and (
+            presentation.published_event_detail_id is None
+            or presentation.published_event_detail.event_id != event.pk
+        ):
+            continue
         detail_defaults = {
             "event": event,
             "applicant": participation.applied_by,
@@ -322,9 +335,11 @@ def sync_participation_publication(
             detail = presentation.published_event_detail
             dirty_fields = []
             for field_name, value in detail_defaults.items():
+                if field_name in {"status", "deleted_at"}:
+                    continue
                 # applied_by の解除（None化）では既存 applicant を保持する。
                 # 担当者が外れても登壇者本人の編集導線を失わせないため。非Noneなら Vket 側を正として上書きする。
-                if field_name == "applicant" and value is None:
+                if field_name == "applicant" and (value is None or is_normal_presentation(presentation)):
                     continue
                 if field_name in {"event", "applicant"}:
                     current_value = getattr(detail, f"{field_name}_id")
@@ -336,7 +351,9 @@ def sync_participation_publication(
                     setattr(detail, field_name, value)
                     dirty_fields.append(field_name)
             if dirty_fields:
+                detail._vket_publication_sync = True
                 detail.save(update_fields=[*dirty_fields, "updated_at"])
+                detail._vket_publication_sync = False
                 changed_index_data = True
         else:
             detail = EventDetail.objects.create(**detail_defaults)
@@ -344,6 +361,12 @@ def sync_participation_publication(
             presentation.save(update_fields=["published_event_detail", "updated_at"])
             changed_index_data = True
 
+    previous_duration = event.duration
+    if event.pk in application_event_ids(participation.collaboration) or EventDetail.objects.filter(
+        pk__in=application_links(participation.collaboration).values(), event=event, status='approved',
+    ).exists():
+        extend_event(event, participation)
+    changed_index_data |= previous_duration != event.duration
     return VketPublicationSyncResult(event=event, changed_index_data=changed_index_data)
 
 
@@ -352,13 +375,15 @@ def clear_participation_publication(participation: VketParticipation) -> bool:
     """参加の公開EventDetail連携を解除する。Event自体は保持する。"""
     changed = _clear_pending_presentation_deletions(participation)
     changed |= participation.published_event_id is not None
+    collaboration = VketCollaboration.objects.select_for_update().get(pk=participation.collaboration_id)
+    normal_ids = list(application_links(collaboration).values())
     detail_ids = list(
-        participation.presentations.filter(
+        participation.presentations.exclude(published_event_detail_id__in=normal_ids).filter(
             published_event_detail__isnull=False,
         ).values_list("published_event_detail_id", flat=True)
     )
     if detail_ids:
-        participation.presentations.filter(
+        participation.presentations.exclude(published_event_detail_id__in=normal_ids).filter(
             published_event_detail__isnull=False,
         ).update(published_event_detail=None)
         EventDetail.objects.filter(pk__in=detail_ids).delete()

@@ -9,7 +9,7 @@ from typing import Optional
 
 import filetype
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 from django.utils.html import strip_tags
 
@@ -598,7 +598,13 @@ class EventDetail(models.Model):
         # 保存前の値は保存ごとに 1 回だけ読み、pre_save の各シグナルで使い回す
         self._previous_values = _PREVIOUS_VALUES_NOT_LOADED
         try:
-            super().save(*args, **kwargs)
+            with transaction.atomic():
+                if not getattr(self, '_vket_publication_sync', False):
+                    fields = kwargs.get('update_fields')
+                    if fields is None or {'theme', 'speaker', 'duration', 'start_time', 'event', 'deleted_at'}.intersection(fields):
+                        from vket.application_link import lock_linked_detail
+                        lock_linked_detail(self)
+                super().save(*args, **kwargs)
         finally:
             self._previous_values = None
         self._remember_article_body()

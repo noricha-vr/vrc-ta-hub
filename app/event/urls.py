@@ -60,6 +60,7 @@ urlpatterns = [
     path('markdown/', TemplateView.as_view(template_name='event/markdown.html'), name='markdown'),
     path('generate/', generate_llm_events, name='generate_llm_events'),
     # LT申請
+    path('apply/<int:community_pk>/event/<int:event_pk>/', LTApplicationCreateView.as_view(), name='lt_application_create_for_event'),
     path('apply/<int:community_pk>/', LTApplicationCreateView.as_view(), name='lt_application_create'),
     path('apply/<int:community_pk>/complete/', LTApplicationCompleteView.as_view(), name='lt_application_complete'),
     path('application/<int:pk>/review/', LTApplicationReviewView.as_view(), name='lt_application_review'),

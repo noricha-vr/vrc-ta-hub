@@ -117,10 +117,16 @@ def presentation_block_for(
     """発表の時間を返す。希望の判定時以外は日付・開始時刻の確定値を優先する。"""
     if participation.lifecycle != VketParticipation.Lifecycle.ACTIVE:
         return None
+    from .application_link import inactive_detail
+    if inactive_detail(presentation):
+        return None
     d = participation.requested_date if use_requested else participation.confirmed_date or participation.requested_date
     start = presentation.requested_start_time if use_requested else presentation.confirmed_start_time or presentation.requested_start_time
     if d is None or start is None or not presentation.duration:
         return None
+    event_start = participation.requested_start_time if use_requested else participation.effective_start_time
+    if event_start and datetime.combine(d, start) - datetime.combine(d, event_start) < timedelta(minutes=-720):
+        d += timedelta(days=1)
     return ScheduleBlock(
         participation_id=participation.pk,
         community_id=participation.community_id,

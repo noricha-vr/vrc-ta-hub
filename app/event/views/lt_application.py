@@ -14,6 +14,7 @@ from django.views.generic import FormView, TemplateView, View
 from community.models import Community
 from event.forms import LTApplicationForm, LTApplicationReviewForm
 from event.models import Event, EventDetail
+from vket.application_link import application_warnings, link_approved_application, lock_application_event
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,7 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
         kwargs = super().get_form_kwargs()
         kwargs['community'] = self.community
         kwargs['user'] = self.request.user
+        kwargs['fixed_event_pk'] = self.kwargs.get('event_pk')
         return kwargs
 
     def get_context_data(self, **kwargs):
@@ -143,6 +145,9 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
                 recording_policy=form.resolved_recording_policy(),
                 article_consent=form.cleaned_data['article_consent'],
             )
+
+        for warning in application_warnings(event_detail):
+            messages.warning(self.request, warning)
 
         # 主催者に通知
         from event.notifications import notify_owners_of_new_application
@@ -214,6 +219,7 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
         schedule_changes: list[dict[str, str]] = []
 
         with transaction.atomic():
+            lock_application_event(form.cleaned_data.get('event') or self.event_detail.event)
             # 申請者は pending 中も内容を編集できる。dispatch 時点のインスタンスを
             # 保存するとその編集を巻き戻すため、行ロックで取り直した最新行を
             # 更新基準にする（更新列も限定する）。
@@ -240,6 +246,10 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
                 update_fields = ['status', 'rejection_reason', 'updated_at']
 
             locked.save(update_fields=update_fields)
+            if action == 'approve':
+                link_approved_application(locked)
+                for warning in application_warnings(locked):
+                    messages.warning(self.request, warning)
 
         # 申請者に通知
         from event.notifications import notify_applicant_of_result
@@ -316,6 +326,7 @@ class LTApplicationApproveView(LoginRequiredMixin, View):
             return redirect('event:my_list')
 
         with transaction.atomic():
+            lock_application_event(event_detail.event)
             # 審査ページと同じく、承認した 1 件だけが通知する。申請者の編集も巻き戻さない。
             event_detail = EventDetail.objects.select_for_update().select_related(
                 'event__community', 'applicant'
@@ -330,6 +341,10 @@ class LTApplicationApproveView(LoginRequiredMixin, View):
             schedule_article_notification_on_approval(event_detail)
             event_detail.status = 'approved'
             event_detail.save(update_fields=['status', 'updated_at'])
+            link_approved_application(event_detail)
+            warnings = application_warnings(event_detail)
+            for warning in warnings:
+                messages.warning(request, warning)
 
         # 申請者に通知
         from event.notifications import notify_applicant_of_result
@@ -341,7 +356,7 @@ class LTApplicationApproveView(LoginRequiredMixin, View):
         )
 
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return JsonResponse({'success': True, 'status': 'approved'})
+            return JsonResponse({'success': True, 'status': 'approved', **({'warnings': warnings} if warnings else {})})
 
         messages.success(request, '申請を承認しました。')
         return redirect('event:my_list')

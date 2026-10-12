@@ -171,6 +171,7 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
+        fixed_event_pk = kwargs.pop('fixed_event_pk', None)
         self.community = kwargs.pop('community', None)
         self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
@@ -184,6 +185,8 @@ class LTApplicationForm(RecordingPolicyFormMixin, forms.Form):
                 accepts_lt_application=True,
                 date__gte=today
             ).order_by('date', 'start_time')
+            if fixed_event_pk is not None:
+                event_queryset = event_queryset.filter(pk=fixed_event_pk)
             self.fields['event'].queryset = event_queryset
             self.fields['event'].initial = event_queryset.values_list(
                 'pk', flat=True

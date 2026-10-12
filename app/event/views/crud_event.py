@@ -198,6 +198,8 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
 
         try:
             with transaction.atomic():
+                from vket.application_link import lock_application_event
+                lock_application_event(old_event)
                 self.object = form.save()
 
                 # 時刻が変わらない保存では副作用（詳細シフト・キャッシュ無効化・

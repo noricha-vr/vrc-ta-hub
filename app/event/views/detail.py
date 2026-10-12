@@ -31,6 +31,14 @@ class EventDetailView(DetailView):
     template_name = 'event/detail.html'
     context_object_name = 'event_detail'
 
+    def get(self, request, *args, **kwargs):
+        if not EventDetail.objects.filter(pk=kwargs['pk']).exists():
+            from event.services.detail_redirect import detail_redirect
+            response = detail_redirect(kwargs['pk'])
+            if response is not None:
+                return response
+        return super().get(request, *args, **kwargs)
+
     def get_queryset(self):
         return super().get_queryset().select_related('event__community')
 

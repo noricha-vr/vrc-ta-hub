@@ -156,3 +156,11 @@ def _clear_related_cache_if_changed(instance: EventDetail, old: dict, created: b
     keys = [related_event_details_cache_key(community_id) for community_id in community_ids if community_id]
     if keys:
         transaction.on_commit(lambda: cache.delete_many(keys))
+
+
+@receiver(post_save, sender=EventDetail)
+def mirror_normal_application_to_vket(sender, instance, update_fields=None, **kwargs):
+    if kwargs.get('raw') or getattr(instance, '_vket_publication_sync', False):
+        return
+    from vket.application_link import mirror_linked_detail
+    mirror_linked_detail(instance, update_fields)
