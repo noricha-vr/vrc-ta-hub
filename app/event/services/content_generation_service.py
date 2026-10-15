@@ -245,14 +245,16 @@ def _get_transcript_with_cache(event_detail: EventDetail) -> Optional[str]:
         logger.info(f"Retrieved transcript for video {video_id}: {len(transcript)} chars")
         # save() だと post_save シグナル（twitter の daily_reminder 再同期等）が発火し、
         # 既投稿 TweetQueue を上書き破壊するため、シグナル非発火の update() で書き込む
-        updated = EventDetail.objects.filter(
-            pk=event_detail.pk,
-            cached_transcript=started_transcript[0],
-            cached_transcript_video_id=started_transcript[1],
-        ).update(
-            cached_transcript=transcript,
-            cached_transcript_video_id=video_id or '',
-        )
+        # 比較は行ロックで読み直した値を Python で完全一致させる（MySQL の既定照合順序は大文字小文字を区別しない）
+        with transaction.atomic():
+            current = EventDetail.all_objects.select_for_update().only(
+                'pk', 'cached_transcript', 'cached_transcript_video_id').get(pk=event_detail.pk)
+            updated = (current.cached_transcript, current.cached_transcript_video_id) == started_transcript
+            if updated:
+                EventDetail.all_objects.filter(pk=event_detail.pk).update(
+                    cached_transcript=transcript,
+                    cached_transcript_video_id=video_id or '',
+                )
         if updated:
             # 自分で取得・保存した字幕は保存時の比較対象にも反映する。
             event_detail.cached_transcript = transcript
