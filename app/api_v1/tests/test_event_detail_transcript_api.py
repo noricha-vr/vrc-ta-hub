@@ -170,16 +170,18 @@ class EventDetailTranscriptAPITest(TestCase):
                     cached_transcript=cached_text, cached_transcript_video_id=cached_video)
                 started = EventDetail.objects.get(pk=self.detail.pk)
 
-                fetch_transcript(started)
+                used = fetch_transcript(started)
 
+                # 競り負けた取得結果は捨て、先に登録された字幕で記事を作る
+                self.assertEqual(used, '録画側で訂正した字幕')
                 self.detail.refresh_from_db()
                 self.assertEqual(self.detail.cached_transcript, '録画側で訂正した字幕')
                 self.assertEqual(self.detail.cached_transcript_video_id, 'QDYMKH1hbbA')
                 self.assertEqual(self.detail.article_generation_requested_at,
                                  self.registered.article_generation_requested_at)
-                # 保存に失敗した取得処理のインスタンスを新版に見せかけない。
+                # 使った字幕と保存時の比較対象をそろえる（登録された字幕で作った記事は保存してよい）
                 self.assertEqual((started.cached_transcript, started.cached_transcript_video_id),
-                                 (cached_text, cached_video))
+                                 ('録画側で訂正した字幕', 'QDYMKH1hbbA'))
 
     @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'test-key'}, clear=False)
     @patch('event.services.content_generation_service.OpenAI')

@@ -259,6 +259,15 @@ def _get_transcript_with_cache(event_detail: EventDetail) -> Optional[str]:
             # 自分で取得・保存した字幕は保存時の比較対象にも反映する。
             event_detail.cached_transcript = transcript
             event_detail.cached_transcript_video_id = video_id or ''
+        elif current.cached_transcript and current.cached_transcript_video_id == (video_id or ''):
+            # 競合した時は先に入った字幕（録画側の登録・同時の取得）を使い、自分の取得結果は捨てる
+            transcript = current.cached_transcript
+            event_detail.cached_transcript = current.cached_transcript
+            event_detail.cached_transcript_video_id = current.cached_transcript_video_id
+            logger.info(
+                'transcript_cache_write_superseded',
+                extra={'event_type': 'transcript_cache_write_superseded', 'event_detail_id': event_detail.pk},
+            )
         else:
             # 競合した時は古い版を維持し、この記事の保存時にも字幕変更を検知させる。
             logger.info(
