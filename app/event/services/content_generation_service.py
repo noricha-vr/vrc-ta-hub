@@ -46,7 +46,7 @@ EMPTY = 'empty'
 REFUSED = 'refused'
 EDITED = 'edited'
 # EDITED の時に画面に出す文言（生成ボタン・発表の編集・発表申請の編集で共通）
-ARTICLE_EDITED_MESSAGE = '生成している間に記事が編集されたか動画・PDF が外されたため、生成した記事は保存しませんでした。'
+ARTICLE_EDITED_MESSAGE = '生成している間に記事・字幕が変更されたか動画・PDF が外されたため、生成した記事は保存しませんでした。'
 
 
 @dataclass(frozen=True)
@@ -124,6 +124,7 @@ def save_generated_article(event_detail: EventDetail, blog_output: BlogOutput) -
     LLM を待つ間（10〜20 秒）に発表者が記事化を NG に変えたり記事を書き換えたりすることがあるので、
     行ロックで読み直し、NG なら書かず、記事（タイトル・本文・要約）が生成を始めた時から変わっていれば
     書き換えた内容を優先して書かない（キューの手動編集の保護と同じ考え方）。
+    字幕キャッシュが変わっていた時も書かず、登録側が付けた生成待ちの印を残す。
     動画・PDF が変わっていた時は記事を書くが、生成元は記録せず生成待ちの印も外さない（set_generated_article）。
     書くのは記事の列と生成の記録の列だけで、呼ぶ前に読んだ古い値で他の列を戻さない。
     サムネイルはストレージに書くので、保存が確定した後に作る。
@@ -136,18 +137,25 @@ def save_generated_article(event_detail: EventDetail, blog_output: BlogOutput) -
 
     Returns:
         ``SAVED``（保存した）/ ``EMPTY``（生成結果が空）/ ``REFUSED``（記事化 NG になっていた）/
-        ``EDITED``（生成している間に記事が書き換えられていた、または動画・PDF が全部外された）
+        ``EDITED``（生成している間に記事・字幕が変更された、または動画・PDF が全部外された）
     """
     if not blog_output.title:
         return EMPTY
     used_sources = blog_output.sources.used_sources if blog_output.sources else ('', '')
     started_hash = event_detail.current_article_hash()
     started_inputs = event_detail.article_sources()
+    started_transcript = (event_detail.cached_transcript, event_detail.cached_transcript_video_id)
     with transaction.atomic():
         current = EventDetail.all_objects.select_for_update().get(pk=event_detail.pk)
         if current.is_article_ng:
             return REFUSED
         if current.current_article_hash() != started_hash:
+            return EDITED
+        if (current.cached_transcript, current.cached_transcript_video_id) != started_transcript:
+            logger.info(
+                'article_generation_transcript_changed',
+                extra={'event_type': 'article_generation_transcript_changed', 'event_detail_id': current.pk},
+            )
             return EDITED
         current_inputs = current.article_sources()
         if current_inputs != started_inputs and current_inputs == ('', ''):
@@ -231,17 +239,30 @@ def _get_transcript_with_cache(event_detail: EventDetail) -> Optional[str]:
         logger.info(f"Using cached transcript for video {video_id}: {len(event_detail.cached_transcript)} chars")
         return event_detail.cached_transcript
 
+    started_transcript = (event_detail.cached_transcript, event_detail.cached_transcript_video_id)
     transcript = get_transcript(video_id, "ja")
     if transcript:
         logger.info(f"Retrieved transcript for video {video_id}: {len(transcript)} chars")
-        event_detail.cached_transcript = transcript
-        event_detail.cached_transcript_video_id = video_id or ''
         # save() だと post_save シグナル（twitter の daily_reminder 再同期等）が発火し、
         # 既投稿 TweetQueue を上書き破壊するため、シグナル非発火の update() で書き込む
-        EventDetail.objects.filter(pk=event_detail.pk).update(
+        updated = EventDetail.objects.filter(
+            pk=event_detail.pk,
+            cached_transcript=started_transcript[0],
+            cached_transcript_video_id=started_transcript[1],
+        ).update(
             cached_transcript=transcript,
             cached_transcript_video_id=video_id or '',
         )
+        if updated:
+            # 自分で取得・保存した字幕は保存時の比較対象にも反映する。
+            event_detail.cached_transcript = transcript
+            event_detail.cached_transcript_video_id = video_id or ''
+        else:
+            # 競合した時は古い版を維持し、この記事の保存時にも字幕変更を検知させる。
+            logger.info(
+                'transcript_cache_write_superseded',
+                extra={'event_type': 'transcript_cache_write_superseded', 'event_detail_id': event_detail.pk},
+            )
     else:
         logger.warning(f"No transcript found for video {video_id}")
 

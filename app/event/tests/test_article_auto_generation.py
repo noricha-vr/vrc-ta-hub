@@ -1437,6 +1437,25 @@ class SaveGeneratedArticleTest(TestCase):
         self.assertEqual(self.detail.meta_description, '生成中に直した要約')
         self.assertEqual(self.detail.h1, '')
 
+    def test_either_transcript_cache_field_change_prevents_save(self, _thumbnail):
+        """字幕本文・動画 ID の片方だけが変わった時も、生成待ちを保持して書き込みを見送る。"""
+        requested_at = timezone.now()
+        for changed in ({'cached_transcript': '新しい字幕'}, {'cached_transcript_video_id': 'abcdefghijk'}):
+            with self.subTest(changed=changed):
+                EventDetail.objects.filter(pk=self.detail.pk).update(
+                    cached_transcript='生成開始時の字幕', cached_transcript_video_id=VIDEO_ID,
+                    article_generation_requested_at=requested_at)
+                started = EventDetail.objects.get(pk=self.detail.pk)
+                EventDetail.objects.filter(pk=self.detail.pk).update(**changed)
+
+                self.assertEqual(save_generated_article(started, self.OUTPUT), EDITED)
+
+                self.detail.refresh_from_db()
+                self.assertEqual(self.detail.h1, '')
+                self.assertIsNone(self.detail.article_generated_at)
+                self.assertEqual(self.detail.article_generation_requested_at, requested_at)
+                _thumbnail.assert_not_called()
+
     def test_inputs_changed_while_generating_leaves_regeneration_to_queue(self, _thumbnail):
         """生成を待つ間に動画が差し替わったら、記事は書くが生成元は記録せず、生成待ちの印を付ける。"""
         self._make_auto_target()
