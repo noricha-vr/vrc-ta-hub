@@ -47,7 +47,9 @@ def _masked_link(text: str, start: int) -> tuple[str, str, int] | None:
         elif text[index] == ')':
             depth -= 1
             if depth == 0:
-                return text[start + 1:label_end], text[label_end + 2:index], index + 1
+                # Discord と同じく、URL 内の \) などのエスケープを外してリンク先にする
+                url = re.sub(r'\\([^\w\s])', r'\1', text[label_end + 2:index])
+                return text[start + 1:label_end], url, index + 1
         index += 1
     return None
 

@@ -191,3 +191,11 @@ class DiscordMarkdownTests(TestCase):
         self.assertIn('<strong>太字</strong>', html)
         self.assertIn('&lt;script&gt;x&lt;/script&gt;', html)
         self.assertNotIn('&lt;strong&gt;', html)
+
+
+class MaskedLinkEscapeTests(TestCase):
+    def test_escaped_parenthesis_in_url_is_unescaped_in_href(self):
+        html = str(render_discord_markdown('[案内](https://example.com/a\\)b)'))
+
+        self.assertIn('href="https://example.com/a)b"', html)
+        self.assertIn('>案内</a>', html)
