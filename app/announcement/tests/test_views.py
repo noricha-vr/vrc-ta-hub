@@ -136,6 +136,8 @@ class CreateViewTests(StaffTestCase):
         self.assertNotContains(response, 'type="radio"')
         self.assertContains(response, '<select name="mention"')
         self.assertContains(response, '<option value="none" selected>なし</option>', html=True)
+        # 選択欄だけにして、選択肢ごとの説明は出さない
+        self.assertNotContains(response, 'data-mention-help')
         self.assertContains(response, '@everyone（全員）')
         self.assertContains(response, '@here（オンラインの人）')
         self.assertNotContains(response, 'confirm_mass_mention')
