@@ -28,6 +28,24 @@ class GetTranscriptTest(SimpleTestCase):
 
     @patch.object(youtube_service, "build")
     @patch.object(youtube_service, "YouTubeTranscriptApi")
+    def test_translates_english_when_no_japanese(self, api_class, build):
+        build.return_value = self._youtube()
+        transcript_list = api_class.return_value.list.return_value
+        english = MagicMock()
+        english.translate.return_value.fetch.return_value = [SimpleNamespace(text="こんにちは")]
+
+        def find(languages):
+            if languages == ["ja"]:
+                raise youtube_service.NoTranscriptFound("vid", ["ja"], transcript_list)
+            return english
+
+        transcript_list.find_transcript.side_effect = find
+
+        self.assertEqual(youtube_service.get_transcript("vid"), "こんにちは")
+        english.translate.assert_called_once_with("ja")
+
+    @patch.object(youtube_service, "build")
+    @patch.object(youtube_service, "YouTubeTranscriptApi")
     def test_disabled_transcripts_are_none(self, api_class, build):
         build.return_value = self._youtube()
         api_class.return_value.list.side_effect = youtube_service.TranscriptsDisabled("vid")
