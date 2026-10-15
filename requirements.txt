@@ -341,5 +341,5 @@ webencodings==0.5.1
     # via
     #   bleach
     #   tinycss2
-youtube-transcript-api==1.2.2
+youtube-transcript-api==1.2.4
     # via -r requirements.in
