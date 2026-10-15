@@ -16,7 +16,7 @@ BODY_TEXTAREA_ROWS = 10
 
 PAST_DATETIME_ERROR = '過去の日時は指定できません。今より後の日時を選んでください。'
 MASS_MENTION_BODY_ERROR = (
-    '全員への通知は下の選択で指定してください。本文から @everyone / @here を消してください。'
+    '@everyone / @here は下の「メンション」で選んでください。本文から @everyone / @here を消してください。'
 )
 
 
@@ -74,6 +74,7 @@ class DiscordScheduledMessageForm(forms.ModelForm):
     class Meta:
         model = DiscordScheduledMessage
         fields = ['body', 'scheduled_at', 'mention']
+        labels = {'mention': 'メンション'}
         widgets = {
             'mention': forms.Select(attrs={'class': 'form-select', 'data-role': 'discord-mention'}),
         }
