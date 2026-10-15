@@ -75,7 +75,7 @@ class DiscordScheduledMessageForm(forms.ModelForm):
         model = DiscordScheduledMessage
         fields = ['body', 'scheduled_at', 'mention']
         widgets = {
-            'mention': forms.RadioSelect(attrs={'class': 'form-check-input flex-shrink-0', 'data-role': 'discord-mention'}),
+            'mention': forms.Select(attrs={'class': 'form-select', 'data-role': 'discord-mention'}),
         }
 
     def __init__(self, *args, now=None, **kwargs):
