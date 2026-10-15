@@ -11,7 +11,7 @@
     {% for error in form.body.errors %}
         <div class="invalid-feedback d-block">{{ error }}</div>
     {% endfor %}
-    <div class="form-text">ロールとユーザーのメンションは、そのまま通知されます。@everyone と @here は本文に書かず、下の「全員への通知」で選びます。</div>
+    <div class="form-text">ロールとユーザーのメンションは、そのまま通知されます。@everyone と @here は本文に書かず、下の「メンション」で選びます。</div>
 </div>
 
 <div class="mb-4">
@@ -26,12 +26,6 @@
 <div class="mb-1">
     <label class="form-label fw-bold" for="{{ form.mention.id_for_label }}">{{ form.mention.label }}</label>
     {{ form.mention }}
-    {% with selected=form.mention.value %}
-        <div class="form-text" data-mention-help="everyone"{% if selected != 'everyone' %} hidden{% endif %}>サーバーの全員に通知します。オフラインの人にも届くので、全員に必ず読んでほしい告知だけに使います。</div>
-        <div class="form-text" data-mention-help="here"{% if selected != 'here' %} hidden{% endif %}>いまオンラインの人だけに通知します。</div>
-        <div class="form-text" data-mention-help="none"{% if selected == 'everyone' or selected == 'here' %} hidden{% endif %}>通知を付けずに送ります。チャンネルを見た人だけが気づきます。</div>
-    {% endwith %}
-    <div class="form-text">選んだメンションは送信時に本文の先頭行へ付きます。メンション行を含めて {{ form.body.field.max_length }} 文字までです。</div>
     {% for error in form.mention.errors %}
         <div class="invalid-feedback d-block">{{ error }}</div>
     {% endfor %}

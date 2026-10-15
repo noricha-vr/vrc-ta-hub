@@ -125,7 +125,7 @@ class CreateViewTests(StaffTestCase):
                 response = self.client.post(reverse(self.url), {
                     'body': f'{token} 今夜です', 'scheduled_at': value, 'mention': 'everyone',
                 })
-                self.assertContains(response, '全員への通知は下の選択で指定してください')
+                self.assertContains(response, '@everyone / @here は下の「メンション」で選んでください')
                 self.assertFalse(DiscordScheduledMessage.objects.exists())
 
     def test_create_page_explains_delay(self):
@@ -136,6 +136,9 @@ class CreateViewTests(StaffTestCase):
         self.assertNotContains(response, 'type="radio"')
         self.assertContains(response, '<select name="mention"')
         self.assertContains(response, '<option value="none" selected>なし</option>', html=True)
+        # 選択欄だけにして、選択肢ごとの説明は出さない
+        self.assertNotContains(response, 'data-mention-help')
+        self.assertContains(response, '>メンション</label>')
         self.assertContains(response, '@everyone（全員）')
         self.assertContains(response, '@here（オンラインの人）')
         self.assertNotContains(response, 'confirm_mass_mention')
@@ -246,7 +249,7 @@ class EditViewTests(StaffTestCase):
             'body': '@here 直した本文', 'scheduled_at': value, 'mention': 'everyone',
         })
 
-        self.assertContains(response, '全員への通知は下の選択で指定してください')
+        self.assertContains(response, '@everyone / @here は下の「メンション」で選んでください')
         self.message.refresh_from_db()
         self.assertEqual(self.message.mention, 'here')
         self.assertEqual(self.message.body, '元の本文')

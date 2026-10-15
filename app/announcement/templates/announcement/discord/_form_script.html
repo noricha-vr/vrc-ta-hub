@@ -5,7 +5,6 @@
     const count = document.querySelector('[data-role="body-count"]');
     const counter = document.querySelector('[data-role="body-counter"]');
     const mention = document.querySelector('[data-role="discord-mention"]');
-    const mentionHelps = document.querySelectorAll('[data-mention-help]');
     // 上限はサーバーの検証と同じ値。textarea の maxlength は UTF-16 単位で数えるので使わない
     const maxLength = Number(body.dataset.maxLength);
     const update = () => {
@@ -17,11 +16,7 @@
         counter.classList.toggle('text-danger', maxLength > 0 && length > maxLength);
     };
     body.addEventListener('input', update);
-    const showMentionHelp = () => {
-        // 選んだメンションの説明だけを出す
-        mentionHelps.forEach(help => { help.hidden = help.dataset.mentionHelp !== (mention?.value || 'none'); });
-    };
-    mention?.addEventListener('change', () => { update(); showMentionHelp(); });
+    mention?.addEventListener('change', update);
     update();
 })();
 </script>
