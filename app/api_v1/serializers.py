@@ -246,7 +246,9 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         generate_from_pdf = validated_data.pop('generate_from_pdf', False)
         transcript = validated_data.pop('transcript', None)
-        instance = super().update(instance, validated_data)
+        # 字幕だけの更新では save() を呼ばない（post_save が当日の告知キューを作り直し、投稿済みの本文を消すため）
+        if validated_data or generate_from_pdf or transcript is None:
+            instance = super().update(instance, validated_data)
         self._store_transcript(instance, transcript)
         
         # PDF自動生成が有効で、PDFファイルがある場合

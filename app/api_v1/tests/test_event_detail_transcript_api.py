@@ -1,5 +1,6 @@
 """API キーで発表に字幕を登録し、記事生成の字幕キャッシュに入ることのテスト。"""
 
+from django.db.models.signals import post_save
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -30,6 +31,22 @@ class EventDetailTranscriptAPITest(TestCase):
         detail = EventDetail.objects.get(pk=self.detail.pk)
         self.assertEqual((detail.cached_transcript, detail.cached_transcript_video_id), ('はい、始めます', 'QDYMKH1hbbA'))
         self.assertEqual(fetch_transcript(detail), 'はい、始めます')
+
+    def test_transcript_only_patch_does_not_save_the_detail(self):
+        saved = []
+
+        def on_save(sender, instance, **kwargs):
+            saved.append(instance.pk)
+
+        post_save.connect(on_save, sender=EventDetail)
+        try:
+            response = self._patch({'transcript': '字幕だけ'})
+        finally:
+            post_save.disconnect(on_save, sender=EventDetail)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(saved, [])
+        self.assertEqual(EventDetail.objects.get(pk=self.detail.pk).cached_transcript, '字幕だけ')
 
     def test_transcript_follows_a_new_video_url_in_the_same_request(self):
         response = self._patch({'youtube_url': 'https://www.youtube.com/watch?v=abcdefghijk', 'transcript': '新しい字幕'})
