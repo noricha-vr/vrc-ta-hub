@@ -48,6 +48,24 @@ class EventDetailTranscriptAPITest(TestCase):
         self.assertEqual(saved, [])
         self.assertEqual(EventDetail.objects.get(pk=self.detail.pk).cached_transcript, '字幕だけ')
 
+    def test_queues_article_generation_for_consented_talk(self):
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            article_consent=EventDetail.ArticleConsent.OK, article_generation_requested_at=None)
+
+        self._patch({'transcript': '字幕'})
+
+        self.assertIsNotNone(EventDetail.objects.get(pk=self.detail.pk).article_generation_requested_at)
+
+    def test_does_not_queue_without_article_consent_or_over_a_manual_article(self):
+        self._patch({'transcript': '字幕'})
+        self.assertIsNone(EventDetail.objects.get(pk=self.detail.pk).article_generation_requested_at)
+
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            article_consent=EventDetail.ArticleConsent.OK, h1='手書きの記事', contents='本文',
+            article_body_hash='', article_generation_requested_at=None)
+        self._patch({'transcript': '字幕2'})
+        self.assertIsNone(EventDetail.objects.get(pk=self.detail.pk).article_generation_requested_at)
+
     def test_transcript_follows_a_new_video_url_in_the_same_request(self):
         response = self._patch({'youtube_url': 'https://www.youtube.com/watch?v=abcdefghijk', 'transcript': '新しい字幕'})
 

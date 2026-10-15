@@ -6,7 +6,7 @@ from rest_framework import serializers
 
 from community.constants import WEEKDAY_JP, WEEKDAY_ORDER as WEEKDAY_SORT_ORDER
 from community.models import Community
-from event.models import Event, EventDetail, RecurrenceRule
+from event.models import Event, EventDetail, RecurrenceRule, article_generation_request_values
 from event.youtube_urls import youtube_video_id
 
 
@@ -264,10 +264,13 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
         if not transcript:
             return
         video_id = instance.video_id or ''
-        EventDetail.all_objects.filter(pk=instance.pk).update(
-            cached_transcript=transcript, cached_transcript_video_id=video_id)
-        instance.cached_transcript = transcript
-        instance.cached_transcript_video_id = video_id
+        values = {'cached_transcript': transcript, 'cached_transcript_video_id': video_id}
+        # 記事化 OK の自動生成の対象で、記事が未生成か自動生成のままなら、字幕で作り直すよう生成待ちに入れる
+        if instance.can_auto_generate_article and instance.article_state() != EventDetail.ArticleState.MANUAL:
+            values.update(article_generation_request_values())
+        EventDetail.all_objects.filter(pk=instance.pk).update(**values)
+        for field_name, value in values.items():
+            setattr(instance, field_name, value)
 
 
 class RecurrenceRuleSerializer(serializers.ModelSerializer):
