@@ -167,7 +167,11 @@ def _deliver_claimed(message_id: int, lease_token: str, now: datetime, summary: 
         _recover_before_sending(message_id, lease_token, error, now, summary)
         return
     try:
-        result = send_announcement(message.body, mention_everyone=message.mention_everyone_confirmed)
+        has_mention = message.mention in (
+            DiscordScheduledMessage.Mention.EVERYONE, DiscordScheduledMessage.Mention.HERE,
+        )
+        content = f'@{message.mention}\n{message.body}' if has_mention else message.body
+        result = send_announcement(content, mention_everyone=has_mention)
     except Exception as error:
         _recover_while_sending(message_id, lease_token, error, now, summary)
         return

@@ -1,24 +1,24 @@
-"""予約フォーム（JST の入力・過去日時・文字数・全員宛てメンションの確認）のテスト。"""
+"""予約フォーム（JST の入力・過去日時・文字数・全員への通知の選択）のテスト。"""
 from __future__ import annotations
 
 from datetime import timedelta, timezone as dt_timezone
 from zoneinfo import ZoneInfo
 
+from django import forms
 from django.test import TestCase
 from django.utils import timezone
 
 from announcement.forms import DiscordScheduledMessageForm
-from announcement.models import DISCORD_CONTENT_MAX_LENGTH
+from announcement.forms import MASS_MENTION_BODY_ERROR
+from announcement.models import DISCORD_CONTENT_MAX_LENGTH, DiscordScheduledMessage
 
 from ._helpers import jst, make_message
 
 NOW = jst(2026, 11, 1, 12, 0)
 
 
-def _form(body='今夜の告知です', scheduled_at='2026-12-01T20:00', confirm=False, now=NOW, instance=None):
-    data = {'body': body, 'scheduled_at': scheduled_at}
-    if confirm:
-        data['confirm_mass_mention'] = 'on'
+def _form(body='今夜の告知です', scheduled_at='2026-12-01T20:00', mention='none', now=NOW, instance=None):
+    data = {'body': body, 'scheduled_at': scheduled_at, 'mention': mention}
     return DiscordScheduledMessageForm(data, now=now, instance=instance)
 
 
@@ -145,31 +145,72 @@ class BodyFieldTests(TestCase):
         self.assertIn(f'data-max-length="{DISCORD_CONTENT_MAX_LENGTH}"', rendered)
 
 
-class MassMentionConfirmationTests(TestCase):
-    def test_everyone_and_here_require_confirmation(self):
-        for body in ('@everyone 今夜です', '今夜です @here'):
-            with self.subTest(body=body):
-                form = _form(body=body)
+class MentionChoiceTests(TestCase):
+    def test_each_choice_can_be_saved(self):
+        for mention in DiscordScheduledMessage.Mention.values:
+            with self.subTest(mention=mention):
+                form = _form(mention=mention)
+                self.assertTrue(form.is_valid(), form.errors)
+                message = form.save()
+                message.refresh_from_db()
+                self.assertEqual(message.mention, mention)
+                self.assertEqual(message.body, '今夜の告知です')
+
+    def test_mentions_in_body_are_rejected_for_every_choice(self):
+        for mention in DiscordScheduledMessage.Mention.values:
+            for body in ('@everyone 今夜です', '今夜です @here', '引用 `@everyone`', '@hereafter'):
+                with self.subTest(mention=mention, body=body):
+                    form = _form(body=body, mention=mention)
+                    self.assertFalse(form.is_valid())
+                    self.assertIn(MASS_MENTION_BODY_ERROR, form.errors['body'])
+
+    def test_roles_and_users_are_accepted(self):
+        form = _form(body='<@&123> <@456> 今夜です')
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_radio_widget_defaults_to_none_and_preserves_saved_choice(self):
+        form = DiscordScheduledMessageForm(now=NOW)
+        self.assertIsInstance(form.fields['mention'].widget, forms.RadioSelect)
+        self.assertEqual(form['mention'].value(), 'none')
+        self.assertNotIn('confirm_mass_mention', form.fields)
+        for mention in DiscordScheduledMessage.Mention.values:
+            with self.subTest(mention=mention):
+                message = make_message(mention=mention)
+                form = DiscordScheduledMessageForm(instance=message, now=NOW)
+                self.assertEqual(form['mention'].value(), mention)
+
+    def test_missing_or_invalid_choice_is_rejected(self):
+        for mention in ('', 'invalid', '@everyone'):
+            with self.subTest(mention=mention):
+                form = _form(mention=mention)
                 self.assertFalse(form.is_valid())
-                self.assertIn('confirm_mass_mention', form.errors)
+                self.assertIn('mention', form.errors)
 
-    def test_confirmed_mass_mention_is_saved_as_confirmed(self):
-        form = _form(body='@everyone 今夜です', confirm=True)
+    def test_limit_includes_mention_line(self):
+        for mention, prefix in (('everyone', '@everyone\n'), ('here', '@here\n'), ('none', '')):
+            for character in ('あ', '😀'):
+                with self.subTest(mention=mention, character=character):
+                    limit = DISCORD_CONTENT_MAX_LENGTH - len(prefix)
+                    form = _form(body=character * limit, mention=mention)
+                    self.assertTrue(form.is_valid(), form.errors)
+                    form = _form(body=character * (limit + 1), mention=mention)
+                    self.assertFalse(form.is_valid())
+                    self.assertIn('body', form.errors)
+
+    def test_limit_uses_normalized_body_with_mention(self):
+        body = 'あ' * 1988 + '\r\nあ'
+        form = _form(body=body, mention='everyone')
 
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertTrue(form.mention_everyone_confirmed)
+        self.assertEqual(len('@everyone\n' + form.cleaned_data['body']), 2000)
+        self.assertFalse(_form(body=body + 'あ', mention='everyone').is_valid())
 
-    def test_checkbox_without_mass_mention_does_not_confirm(self):
-        form = _form(body='<@&123> 今夜です', confirm=True)
+    def test_save_does_not_change_legacy_confirmation(self):
+        message = make_message(mention_everyone_confirmed=True)
+        form = _form(mention='none', instance=message)
 
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertFalse(form.mention_everyone_confirmed)
-
-    def test_confirmation_checkbox_is_never_prefilled(self):
-        """保存済みの確認を引き継がず、保存のたびにチェックしてもらう。"""
-        message = make_message(body='@everyone 今夜です', mention_everyone_confirmed=True)
-
-        form = DiscordScheduledMessageForm(instance=message, now=NOW)
-
-        self.assertNotIn('checked', str(form['confirm_mass_mention']))
-        self.assertTrue(form.shows_mass_mention_confirm)
+        form.save()
+        message.refresh_from_db()
+        self.assertTrue(message.mention_everyone_confirmed)

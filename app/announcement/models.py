@@ -1,6 +1,8 @@
 """Discord の告知チャンネルへ日時指定で送るメッセージの予約。"""
 from __future__ import annotations
 
+import re
+
 from django.conf import settings
 from django.core.validators import MaxLengthValidator
 from django.db import models
@@ -8,7 +10,7 @@ from django.utils import timezone
 
 # Discord のメッセージ本文の上限（文字数）
 DISCORD_CONTENT_MAX_LENGTH = 2000
-# サーバーの全員に通知されるメンション。本文に含む時は保存時に確認チェックを必須にする
+# 全員への通知は選択欄で指定するため、本文では使えないメンション
 MASS_MENTION_TOKENS = ('@everyone', '@here')
 # エラーの要約の最大長（画面と DB に残す分）
 LAST_ERROR_MAX_LENGTH = 500
@@ -17,6 +19,12 @@ LAST_ERROR_MAX_LENGTH = 500
 def contains_mass_mention(body: str) -> bool:
     """本文が @everyone / @here を含むかを返す。"""
     return any(token in body for token in MASS_MENTION_TOKENS)
+
+
+def _plain_line(line: str) -> str:
+    """一覧で見せるため、行頭の見出し記号・箇条書き記号と強調記号を外す。"""
+    text = re.sub(r'^\s*(?:#{1,6}\s+|[-*]\s+|>\s*)', '', line)
+    return text.replace('**', '').replace('__', '').replace('`', '').strip()
 
 
 def editable_conditions() -> dict:
@@ -52,12 +60,23 @@ class DiscordScheduledMessage(models.Model):
         FAILED = 'failed', '失敗'
         CANCELED = 'canceled', '取り消し'
 
+    class Mention(models.TextChoices):
+        EVERYONE = 'everyone', '@everyone（全員）'
+        HERE = 'here', '@here（オンラインの人）'
+        NONE = 'none', 'なし'
+
     body = models.TextField(
         '本文',
         max_length=DISCORD_CONTENT_MAX_LENGTH,
         validators=[MaxLengthValidator(DISCORD_CONTENT_MAX_LENGTH)],
     )
     scheduled_at = models.DateTimeField('送信日時')
+    mention = models.CharField(
+        '全員への通知', max_length=8, choices=Mention.choices, default=Mention.NONE,
+        # この列を知らない旧リビジョンからの予約作成も受け付ける
+        db_default='none',
+    )
+    # 旧リビジョンとの互換性のため残す。新コードでは使わず、次の PR で削除する
     mention_everyone_confirmed = models.BooleanField(
         '全員への通知を確認済み',
         default=False,
@@ -104,6 +123,26 @@ class DiscordScheduledMessage(models.Model):
             return f'#{self.pk} {self.get_status_display()}'
         scheduled_at = timezone.localtime(self.scheduled_at)
         return f'#{self.pk} {self.get_status_display()} {scheduled_at:%Y-%m-%d %H:%M}'
+
+    @property
+    def subject(self) -> str:
+        """一覧で件名として見せる、本文の最初の空でない行（記号を外したもの）。"""
+        for line in self.body.splitlines():
+            if line.strip():
+                return _plain_line(line)
+        return ''
+
+    @property
+    def excerpt(self) -> str:
+        """一覧で中身として見せる、件名の行より後ろの本文（記号を外して 1 行につなげたもの）。"""
+        lines = self.body.splitlines()
+        for index, line in enumerate(lines):
+            if line.strip():
+                rest = lines[index + 1:]
+                break
+        else:
+            rest = []
+        return ' '.join(text for text in (_plain_line(line) for line in rest) if text)
 
     @property
     def is_editable(self) -> bool:

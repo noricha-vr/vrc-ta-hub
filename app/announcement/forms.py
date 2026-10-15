@@ -15,8 +15,8 @@ DATETIME_LOCAL_STEP_SECONDS = 60
 BODY_TEXTAREA_ROWS = 10
 
 PAST_DATETIME_ERROR = '過去の日時は指定できません。今より後の日時を選んでください。'
-MASS_MENTION_CONFIRM_ERROR = (
-    'チェックを入れてください。全員に通知しない場合は、本文から @everyone / @here を消してください。'
+MASS_MENTION_BODY_ERROR = (
+    '全員への通知は下の選択で指定してください。本文から @everyone / @here を消してください。'
 )
 
 
@@ -60,11 +60,7 @@ class JSTDateTimeLocalField(forms.DateTimeField):
 
 
 class DiscordScheduledMessageForm(forms.ModelForm):
-    """予約の作成・編集フォーム。
-
-    @everyone / @here の確認チェックは毎回未チェックで出し、保存のたびに確認してもらう
-    （本文を後から編集して全員宛てのメンションを足した時に、前の確認を引き継がないため）。
-    """
+    """予約の作成・編集フォーム。全員への通知は本文と分けて選ぶ。"""
 
     body = DiscordContentField(
         label='本文',
@@ -74,15 +70,13 @@ class DiscordScheduledMessageForm(forms.ModelForm):
         ),
     )
     scheduled_at = JSTDateTimeLocalField(label='送信日時（日本時間）')
-    confirm_mass_mention = forms.BooleanField(
-        label='送るとサーバーの全員に通知されることを確認しました',
-        required=False,
-        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
-    )
 
     class Meta:
         model = DiscordScheduledMessage
-        fields = ['body', 'scheduled_at']
+        fields = ['body', 'scheduled_at', 'mention']
+        widgets = {
+            'mention': forms.RadioSelect(attrs={'class': 'form-check-input flex-shrink-0', 'data-role': 'discord-mention'}),
+        }
 
     def __init__(self, *args, now=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -107,11 +101,6 @@ class DiscordScheduledMessageForm(forms.ModelForm):
                 widget = self.fields[name].widget
                 widget.attrs['class'] = f"{widget.attrs.get('class', '')} is-invalid".strip()
 
-    @property
-    def shows_mass_mention_confirm(self) -> bool:
-        """確認チェックの欄を最初から出すか（本文に @everyone / @here がある時）。"""
-        return contains_mass_mention(str(self['body'].value() or ''))
-
     def clean_scheduled_at(self):
         scheduled_at = self.cleaned_data['scheduled_at'].replace(second=0, microsecond=0)
         saved = self._saved_scheduled_at
@@ -125,21 +114,17 @@ class DiscordScheduledMessageForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         body = cleaned_data.get('body') or ''
-        if contains_mass_mention(body) and not cleaned_data.get('confirm_mass_mention'):
-            self.add_error('confirm_mass_mention', MASS_MENTION_CONFIRM_ERROR)
+        if contains_mass_mention(body):
+            self.add_error('body', MASS_MENTION_BODY_ERROR)
+        mention = cleaned_data.get('mention')
+        prefix = f'@{mention}\n' if mention in (
+            DiscordScheduledMessage.Mention.EVERYONE, DiscordScheduledMessage.Mention.HERE,
+        ) else ''
+        if len(prefix + body) > DISCORD_CONTENT_MAX_LENGTH:
+            self.add_error('body', f'メンション行を含めて {DISCORD_CONTENT_MAX_LENGTH} 文字以内で入力してください。')
         return cleaned_data
 
     @property
     def scheduled_at_changed(self) -> bool:
         """保存済みの送信日時から変えたか（作成の時は常に True）。"""
         return self.cleaned_data.get('scheduled_at') != self._saved_scheduled_at
-
-    @property
-    def mention_everyone_confirmed(self) -> bool:
-        """保存する「全員への通知を確認済み」の値（本文に全員宛てのメンションがあり、確認した時だけ True）。"""
-        body = self.cleaned_data.get('body') or ''
-        return contains_mass_mention(body) and bool(self.cleaned_data.get('confirm_mass_mention'))
-
-    def save(self, commit=True):
-        self.instance.mention_everyone_confirmed = self.mention_everyone_confirmed
-        return super().save(commit=commit)
