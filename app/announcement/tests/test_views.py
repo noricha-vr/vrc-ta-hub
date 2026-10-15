@@ -133,7 +133,9 @@ class CreateViewTests(StaffTestCase):
 
         self.assertContains(response, '最大 1 分ほど遅れて届く')
         self.assertContains(response, 'type="datetime-local"')
-        self.assertContains(response, 'type="radio"', count=3)
+        self.assertNotContains(response, 'type="radio"')
+        self.assertContains(response, '<select name="mention"')
+        self.assertContains(response, '<option value="none" selected>なし</option>', html=True)
         self.assertContains(response, '@everyone（全員）')
         self.assertContains(response, '@here（オンラインの人）')
         self.assertNotContains(response, 'confirm_mass_mention')

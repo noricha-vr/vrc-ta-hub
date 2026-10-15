@@ -169,9 +169,9 @@ class MentionChoiceTests(TestCase):
 
         self.assertTrue(form.is_valid(), form.errors)
 
-    def test_radio_widget_defaults_to_none_and_preserves_saved_choice(self):
+    def test_select_widget_defaults_to_none_and_preserves_saved_choice(self):
         form = DiscordScheduledMessageForm(now=NOW)
-        self.assertIsInstance(form.fields['mention'].widget, forms.RadioSelect)
+        self.assertIsInstance(form.fields['mention'].widget, forms.Select)
         self.assertEqual(form['mention'].value(), 'none')
         self.assertNotIn('confirm_mass_mention', form.fields)
         for mention in DiscordScheduledMessage.Mention.values:
