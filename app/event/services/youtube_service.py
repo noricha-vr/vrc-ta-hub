@@ -7,7 +7,6 @@ from typing import Optional
 from googleapiclient.discovery import build
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import (
-    NoTranscriptAvailable,
     NoTranscriptFound,
     NotTranslatable,
     TranscriptsDisabled,
@@ -23,7 +22,6 @@ logger = logging.getLogger(__name__)
 _TRANSCRIPT_ABSENT_ERRORS = (
     TranscriptsDisabled,
     NoTranscriptFound,
-    NoTranscriptAvailable,
     NotTranslatable,
     TranslationLanguageNotAvailable,
     VideoUnavailable,
@@ -56,9 +54,8 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
         if not video_response['items']:
             raise ValueError('動画が見つかりませんでした')
 
-        # 字幕を取得 (認証不要)
-        transcript_list = YouTubeTranscriptApi.list_transcripts(
-            video_id)
+        # 字幕を取得 (認証不要)。0.6 系は YouTube の応答変更で ParseError になり、全件「字幕なし」になっていた
+        transcript_list = YouTubeTranscriptApi().list(video_id)
 
         # 日本語字幕を優先的に取得し、なければ英語字幕を取得して翻訳。
         try:
@@ -73,8 +70,7 @@ def get_transcript(video_id, language='ja') -> Optional[str]:
                 ['en']).translate('ja')
 
         # 字幕テキストを結合
-        captions_text = "\n".join([entry['text']
-                                   for entry in transcript.fetch()])
+        captions_text = "\n".join(snippet.text for snippet in transcript.fetch())
         return captions_text
 
     except _TRANSCRIPT_ABSENT_ERRORS as e:
