@@ -223,9 +223,7 @@ class EditViewTests(StaffTestCase):
         self.message.refresh_from_db()
         self.assertEqual(self.message.body, '元の本文')
 
-    def test_edit_saves_each_mention_choice_without_changing_legacy_flag(self):
-        self.message.mention_everyone_confirmed = True
-        self.message.save()
+    def test_edit_saves_each_mention_choice(self):
         value, _ = _future()
         for mention in DiscordScheduledMessage.Mention.values:
             with self.subTest(mention=mention):
@@ -236,7 +234,6 @@ class EditViewTests(StaffTestCase):
                 self.message.refresh_from_db()
                 self.assertEqual(self.message.mention, mention)
                 self.assertEqual(self.message.body, '直した本文')
-                self.assertTrue(self.message.mention_everyone_confirmed)
 
     def test_invalid_body_keeps_saved_mention_and_body(self):
         self.message.mention = 'here'

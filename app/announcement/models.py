@@ -76,12 +76,6 @@ class DiscordScheduledMessage(models.Model):
         # この列を知らない旧リビジョンからの予約作成も受け付ける
         db_default='none',
     )
-    # 旧リビジョンとの互換性のため残す。新コードでは使わず、次の PR で削除する
-    mention_everyone_confirmed = models.BooleanField(
-        '全員への通知を確認済み',
-        default=False,
-        help_text='本文の @everyone / @here で全員に通知することを、保存した人が確認したか',
-    )
     status = models.CharField(
         '状態', max_length=16, choices=Status.choices, default=Status.SCHEDULED,
     )
