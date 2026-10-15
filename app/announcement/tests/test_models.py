@@ -83,12 +83,25 @@ class MentionMigrationTests(TransactionTestCase):
         migrated = DiscordScheduledMessage.objects.get(pk=confirmed.pk)
         self.assertEqual(migrated.mention, 'everyone')
         self.assertTrue(migrated.mention_everyone_confirmed)
-        self.assertEqual(migrated.body, confirmed.body)
+        # 送信時に選択のメンションを付けるので、本文からは外す
+        self.assertEqual(migrated.body, '元の本文')
         self.assertEqual(DiscordScheduledMessage.objects.get(pk=unconfirmed.pk).mention, 'none')
         # 移行後も旧リビジョンが読み書きする列は残っている
         self.assertTrue(self.old_model.objects.get(pk=confirmed.pk).mention_everyone_confirmed)
         pk = self.old_model.objects.create(body='旧モデルからの予約', scheduled_at=timezone.now()).pk
         self.assertEqual(DiscordScheduledMessage.objects.get(pk=pk).mention, 'none')
+
+    def test_here_only_rows_stay_here(self):
+        """@here だけの予約を @everyone に広げない。"""
+        here = self.old_model.objects.create(
+            body='@here\n今夜の告知', scheduled_at=timezone.now(), mention_everyone_confirmed=True,
+        )
+
+        MigrationExecutor(connection).migrate(self.migrate_to)
+
+        migrated = DiscordScheduledMessage.objects.get(pk=here.pk)
+        self.assertEqual(migrated.mention, 'here')
+        self.assertEqual(migrated.body, '今夜の告知')
 
     def test_reverse_leaves_legacy_data_unchanged(self):
         old = self.old_model.objects.create(
@@ -102,3 +115,17 @@ class MentionMigrationTests(TransactionTestCase):
         restored = self.old_model.objects.get(pk=old.pk)
         self.assertTrue(restored.mention_everyone_confirmed)
         self.assertEqual(restored.body, old.body)
+
+
+class SubjectAndExcerptTests(TestCase):
+    def test_subject_is_first_non_empty_line_without_markup(self):
+        message = DiscordScheduledMessage(body='\n## **件名**です\n本文1\n\n- 項目')
+
+        self.assertEqual(message.subject, '件名です')
+        self.assertEqual(message.excerpt, '本文1 項目')
+
+    def test_single_line_body_has_no_excerpt(self):
+        message = DiscordScheduledMessage(body='1行だけ')
+
+        self.assertEqual(message.subject, '1行だけ')
+        self.assertEqual(message.excerpt, '')

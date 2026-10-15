@@ -54,7 +54,12 @@
                             <span class="small text-danger"><i class="fas fa-rotate-right me-1"></i>再試行待ち</span>
                         {% endif %}
                     </div>
-                    <div class="announce-excerpt text-body-secondary small">{{ message.body|truncatechars:140 }}</div>
+                    {% if message.subject %}
+                        <div class="fw-semibold text-truncate mb-1" data-testid="announce-subject">{{ message.subject }}</div>
+                    {% endif %}
+                    {% if message.excerpt %}
+                        <div class="announce-excerpt text-body-secondary small" data-testid="announce-excerpt">{{ message.excerpt|truncatechars:140 }}</div>
+                    {% endif %}
                 </a>
             {% endfor %}
         </div>

@@ -379,6 +379,15 @@ class ListViewTests(StaffTestCase):
         self.assertContains(response, '@here（オンラインの人）')
         self.assertContains(response, 'text-bg-warning', count=2)
 
+    def test_first_line_is_subject_and_rest_is_excerpt(self):
+        make_message(body='## 【明日締切】参加表明\n\n締切は**明日**です。\n### 申込み\n- こちらから')
+
+        response = self.client.get(reverse('announcement:discord_list'))
+
+        self.assertContains(response, '<div class="fw-semibold text-truncate mb-1" data-testid="announce-subject">【明日締切】参加表明</div>', html=True)
+        self.assertContains(response, '締切は明日です。 申込み こちらから')
+        self.assertNotContains(response, '## 【明日締切】')
+
     def test_empty_state(self):
         response = self.client.get(reverse('announcement:discord_list'))
 

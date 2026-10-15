@@ -1,6 +1,8 @@
 """Discord の告知チャンネルへ日時指定で送るメッセージの予約。"""
 from __future__ import annotations
 
+import re
+
 from django.conf import settings
 from django.core.validators import MaxLengthValidator
 from django.db import models
@@ -17,6 +19,12 @@ LAST_ERROR_MAX_LENGTH = 500
 def contains_mass_mention(body: str) -> bool:
     """本文が @everyone / @here を含むかを返す。"""
     return any(token in body for token in MASS_MENTION_TOKENS)
+
+
+def _plain_line(line: str) -> str:
+    """一覧で見せるため、行頭の見出し記号・箇条書き記号と強調記号を外す。"""
+    text = re.sub(r'^\s*(?:#{1,6}\s+|[-*]\s+|>\s*)', '', line)
+    return text.replace('**', '').replace('__', '').replace('`', '').strip()
 
 
 def editable_conditions() -> dict:
@@ -115,6 +123,26 @@ class DiscordScheduledMessage(models.Model):
             return f'#{self.pk} {self.get_status_display()}'
         scheduled_at = timezone.localtime(self.scheduled_at)
         return f'#{self.pk} {self.get_status_display()} {scheduled_at:%Y-%m-%d %H:%M}'
+
+    @property
+    def subject(self) -> str:
+        """一覧で件名として見せる、本文の最初の空でない行（記号を外したもの）。"""
+        for line in self.body.splitlines():
+            if line.strip():
+                return _plain_line(line)
+        return ''
+
+    @property
+    def excerpt(self) -> str:
+        """一覧で中身として見せる、件名の行より後ろの本文（記号を外して 1 行につなげたもの）。"""
+        lines = self.body.splitlines()
+        for index, line in enumerate(lines):
+            if line.strip():
+                rest = lines[index + 1:]
+                break
+        else:
+            rest = []
+        return ' '.join(text for text in (_plain_line(line) for line in rest) if text)
 
     @property
     def is_editable(self) -> bool:
