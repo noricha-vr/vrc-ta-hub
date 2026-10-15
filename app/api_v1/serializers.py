@@ -264,10 +264,13 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
         if not transcript:
             return
         video_id = instance.video_id or ''
+        changed = (instance.cached_transcript, instance.cached_transcript_video_id) != (transcript, video_id)
         values = {'cached_transcript': transcript, 'cached_transcript_video_id': video_id}
-        # 記事化 OK の自動生成の対象で、記事が未生成か自動生成のままなら、字幕で作り直すよう生成待ちに入れる
-        if instance.can_auto_generate_article and instance.article_state() != EventDetail.ArticleState.MANUAL:
+        # 記事化 OK の自動生成の対象で、記事が未生成か自動生成のままなら、字幕で作り直すよう生成待ちに入れる。
+        # 生成元の動画 ID を空にして、同じ動画でも「入力が変わった」とキューに見せる（record_generated_body と同じ扱い）
+        if changed and instance.can_auto_generate_article and instance.article_state() != EventDetail.ArticleState.MANUAL:
             values.update(article_generation_request_values())
+            values['article_source_video_id'] = ''
         EventDetail.all_objects.filter(pk=instance.pk).update(**values)
         for field_name, value in values.items():
             setattr(instance, field_name, value)

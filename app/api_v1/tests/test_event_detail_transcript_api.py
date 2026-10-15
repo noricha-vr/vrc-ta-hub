@@ -56,6 +56,21 @@ class EventDetailTranscriptAPITest(TestCase):
 
         self.assertIsNotNone(EventDetail.objects.get(pk=self.detail.pk).article_generation_requested_at)
 
+    def test_new_transcript_for_the_same_video_is_not_skipped_as_unchanged(self):
+        from event.services.article_generation import _skip_reason
+        EventDetail.objects.filter(pk=self.detail.pk).update(article_consent=EventDetail.ArticleConsent.OK)
+        detail = EventDetail.objects.get(pk=self.detail.pk)
+        detail.h1, detail.contents = '自動の記事', '本文'
+        detail.save(update_fields=['h1', 'contents'])
+        detail.record_generated_body(detail.article_sources())
+        detail.save(update_fields=['article_source_video_id', 'article_source_slide_name', 'article_body_hash',
+                                   'article_generated_at'])
+        self.assertEqual(_skip_reason(EventDetail.objects.get(pk=self.detail.pk)), 'unchanged')
+
+        self._patch({'transcript': '訂正した字幕'})
+
+        self.assertEqual(_skip_reason(EventDetail.objects.get(pk=self.detail.pk)), '')
+
     def test_does_not_queue_without_article_consent_or_over_a_manual_article(self):
         self._patch({'transcript': '字幕'})
         self.assertIsNone(EventDetail.objects.get(pk=self.detail.pk).article_generation_requested_at)
