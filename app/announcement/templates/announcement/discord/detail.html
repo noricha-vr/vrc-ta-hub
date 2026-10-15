@@ -1,5 +1,5 @@
 {% extends 'ta_hub/base.html' %}
-{% load tz %}
+{% load tz discord_markdown %}
 
 {% block meta %}
     <title>予約 #{{ message.pk }} - Discord 告知の予約送信 - VRC技術学術Hub</title>
@@ -7,6 +7,25 @@
 {% endblock %}
 
 {% block main %}
+<style>
+    .discord-preview { overflow-wrap: anywhere; line-height: 1.5; }
+    .discord-preview .discord-line, .discord-preview li,
+    .discord-preview .discord-subtext, .discord-preview [class^="discord-heading-"] { white-space: pre-wrap; }
+    .discord-preview [class^="discord-heading-"] { margin: 0; font-weight: 700; line-height: 1.5; }
+    .discord-preview .discord-heading-1 { font-size: 1.5rem; }
+    .discord-preview .discord-heading-2 { font-size: 1.25rem; }
+    .discord-preview .discord-heading-3 { font-size: 1rem; }
+    .discord-preview .discord-subtext { color: #6c757d; font-size: .8em; }
+    .discord-preview blockquote { margin: 0; padding-left: .75rem; border-left: 4px solid #ced4da; }
+    .discord-preview ul, .discord-preview ol { margin: 0; padding-left: 1.5rem; }
+    .discord-preview code { color: #343a40; background: #f1f3f5; padding: .1em .25em; border-radius: .2rem; white-space: pre-wrap; }
+    .discord-preview pre { margin: 0; overflow-x: auto; padding: .6rem; background: #f1f3f5; border: 1px solid #dee2e6; border-radius: .3rem; }
+    .discord-preview pre code { padding: 0; white-space: pre; }
+    .discord-preview .discord-mention { color: #3954a5; background: #e8edff; border-radius: .2rem; padding: 0 .2em; }
+    .discord-preview .discord-spoiler { color: transparent; background: #6c757d; border-radius: .2rem; cursor: pointer; }
+    .discord-preview .discord-spoiler * { color: inherit; background: transparent; }
+    .discord-preview .discord-spoiler:hover, .discord-preview .discord-spoiler:focus { color: inherit; background: #e9ecef; }
+</style>
 {% timezone "Asia/Tokyo" %}
 <div class="container my-4 my-md-5" style="max-width: 760px;">
     <a href="{% url 'announcement:discord_list' %}" class="small text-decoration-none">
@@ -72,19 +91,19 @@
 
         <div class="card shadow-sm mb-3">
             <div class="card-header bg-transparent d-flex justify-content-between small">
-                <span class="fw-bold">本文</span>
+                <span class="fw-bold">本文（Discord での表示）</span>
                 <span class="text-muted">{{ message.body|length }} 文字</span>
             </div>
             {# 全員への通知は本文と別に持ち、送信時に先頭行へ付く。送られる順（先頭行→本文）に並べて見せる #}
             <div class="card-body border-bottom py-2 small d-flex flex-wrap align-items-center column-gap-2 row-gap-1" data-testid="announce-mention">
-                <span class="text-muted">全員への通知</span>
+                <span class="text-muted">メンション</span>
                 {% include 'announcement/discord/_mention_badge.html' with show_none=True %}
                 {% if message.mention != 'none' %}
                     <span class="text-muted">{% if message.sent_at %}本文の先頭行に付けて送りました{% else %}送信時に本文の先頭行へ付きます{% endif %}</span>
                 {% endif %}
             </div>
             <div class="card-body">
-                <div style="white-space: pre-wrap; word-break: break-word;" data-testid="announce-body">{{ message.body }}</div>
+                <div class="discord-preview" data-testid="announce-body">{{ message.body|discord_markdown }}</div>
             </div>
         </div>
 
