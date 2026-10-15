@@ -87,7 +87,7 @@ class CreateViewTests(StaffTestCase):
     def test_create_saves_jst_datetime_and_author(self):
         value, expected = _future()
 
-        response = self.client.post(reverse(self.url), {'body': '今夜 21 時から発表会です', 'scheduled_at': value})
+        response = self.client.post(reverse(self.url), {'body': '今夜 21 時から発表会です', 'scheduled_at': value, 'mention': 'none'})
 
         message = DiscordScheduledMessage.objects.get()
         self.assertRedirects(response, self.detail_url(message))
@@ -96,33 +96,47 @@ class CreateViewTests(StaffTestCase):
         self.assertEqual(message.scheduled_at.astimezone(dt_timezone.utc).hour, 11)
         self.assertEqual(message.status, Status.SCHEDULED)
         self.assertEqual(message.created_by, self.staff)
-        self.assertFalse(message.mention_everyone_confirmed)
+        self.assertEqual(message.mention, 'none')
 
     def test_past_datetime_is_not_saved(self):
         past = (timezone.localtime(timezone.now()) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')
 
-        response = self.client.post(reverse(self.url), {'body': '告知', 'scheduled_at': past})
+        response = self.client.post(reverse(self.url), {'body': '告知', 'scheduled_at': past, 'mention': 'none'})
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '過去の日時は指定できません')
         self.assertFalse(DiscordScheduledMessage.objects.exists())
 
-    def test_everyone_needs_confirmation_and_is_saved_as_confirmed(self):
+    def test_each_mention_choice_is_saved(self):
         value, _ = _future()
-        data = {'body': '@everyone 今夜です', 'scheduled_at': value}
+        for mention in DiscordScheduledMessage.Mention.values:
+            with self.subTest(mention=mention):
+                response = self.client.post(reverse(self.url), {
+                    'body': '今夜です', 'scheduled_at': value, 'mention': mention,
+                })
+                message = DiscordScheduledMessage.objects.latest('pk')
+                self.assertRedirects(response, self.detail_url(message))
+                self.assertEqual(message.mention, mention)
 
-        response = self.client.post(reverse(self.url), data)
-        self.assertEqual(response.status_code, 200)
-        self.assertFalse(DiscordScheduledMessage.objects.exists())
-
-        self.client.post(reverse(self.url), {**data, 'confirm_mass_mention': 'on'})
-        self.assertTrue(DiscordScheduledMessage.objects.get().mention_everyone_confirmed)
+    def test_mass_mention_in_body_is_not_saved(self):
+        value, _ = _future()
+        for token in ('@everyone', '@here'):
+            with self.subTest(token=token):
+                response = self.client.post(reverse(self.url), {
+                    'body': f'{token} 今夜です', 'scheduled_at': value, 'mention': 'everyone',
+                })
+                self.assertContains(response, '全員への通知は下の選択で指定してください')
+                self.assertFalse(DiscordScheduledMessage.objects.exists())
 
     def test_create_page_explains_delay(self):
         response = self.client.get(reverse(self.url))
 
         self.assertContains(response, '最大 1 分ほど遅れて届く')
         self.assertContains(response, 'type="datetime-local"')
+        self.assertContains(response, 'type="radio"', count=3)
+        self.assertContains(response, '@everyone（全員）')
+        self.assertContains(response, '@here（オンラインの人）')
+        self.assertNotContains(response, 'confirm_mass_mention')
 
 
 class EditViewTests(StaffTestCase):
@@ -139,7 +153,7 @@ class EditViewTests(StaffTestCase):
     def test_scheduled_message_can_be_edited(self):
         value, expected = _future(days=5)
 
-        response = self.client.post(self.detail_url(self.message), {'body': '新しい本文', 'scheduled_at': value})
+        response = self.client.post(self.detail_url(self.message), {'body': '新しい本文', 'scheduled_at': value, 'mention': 'none'})
 
         self.assertRedirects(response, self.detail_url(self.message))
         self.message.refresh_from_db()
@@ -157,7 +171,7 @@ class EditViewTests(StaffTestCase):
 
         response = self.client.post(
             self.detail_url(self.message),
-            {'body': '直した本文', 'scheduled_at': past.strftime('%Y-%m-%dT%H:%M')},
+            {'body': '直した本文', 'scheduled_at': past.strftime('%Y-%m-%dT%H:%M'), 'mention': 'none'},
         )
 
         self.assertRedirects(response, self.detail_url(self.message))
@@ -172,7 +186,7 @@ class EditViewTests(StaffTestCase):
     def test_changing_time_starts_the_attempts_over(self):
         value, expected = _future(days=6)
 
-        self.client.post(self.detail_url(self.message), {'body': '元の本文', 'scheduled_at': value})
+        self.client.post(self.detail_url(self.message), {'body': '元の本文', 'scheduled_at': value, 'mention': 'none'})
 
         self.message.refresh_from_db()
         self.assertEqual(self.message.scheduled_at, expected)
@@ -181,7 +195,7 @@ class EditViewTests(StaffTestCase):
     def test_moving_time_into_the_past_is_rejected_on_edit(self):
         past = (timezone.localtime(timezone.now()) - timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M')
 
-        response = self.client.post(self.detail_url(self.message), {'body': '直した本文', 'scheduled_at': past})
+        response = self.client.post(self.detail_url(self.message), {'body': '直した本文', 'scheduled_at': past, 'mention': 'none'})
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '過去の日時は指定できません')
@@ -192,7 +206,7 @@ class EditViewTests(StaffTestCase):
         value, _ = _future()
 
         with CaptureQueriesContext(connection) as queries:
-            self.client.post(self.detail_url(self.message), {'body': '新しい本文', 'scheduled_at': value})
+            self.client.post(self.detail_url(self.message), {'body': '新しい本文', 'scheduled_at': value, 'mention': 'none'})
 
         reads = [
             query['sql'] for query in queries.captured_queries
@@ -200,38 +214,43 @@ class EditViewTests(StaffTestCase):
         ]
         self.assertEqual(len(reads), 1)
 
-    def test_adding_everyone_on_edit_requires_confirmation(self):
+    def test_adding_everyone_to_body_is_rejected(self):
         value, _ = _future()
 
-        response = self.client.post(self.detail_url(self.message), {'body': '@everyone 追記', 'scheduled_at': value})
+        response = self.client.post(self.detail_url(self.message), {'body': '@everyone 追記', 'scheduled_at': value, 'mention': 'none'})
 
         self.assertEqual(response.status_code, 200)
         self.message.refresh_from_db()
         self.assertEqual(self.message.body, '元の本文')
 
-    def test_confirmed_message_needs_confirmation_again_on_save(self):
-        self.message.body = '@everyone 元の本文'
+    def test_edit_saves_each_mention_choice_without_changing_legacy_flag(self):
         self.message.mention_everyone_confirmed = True
         self.message.save()
         value, _ = _future()
+        for mention in DiscordScheduledMessage.Mention.values:
+            with self.subTest(mention=mention):
+                response = self.client.post(self.detail_url(self.message), {
+                    'body': '直した本文', 'scheduled_at': value, 'mention': mention,
+                })
+                self.assertRedirects(response, self.detail_url(self.message))
+                self.message.refresh_from_db()
+                self.assertEqual(self.message.mention, mention)
+                self.assertEqual(self.message.body, '直した本文')
+                self.assertTrue(self.message.mention_everyone_confirmed)
 
-        response = self.client.post(self.detail_url(self.message), {'body': '@everyone 直した本文', 'scheduled_at': value})
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'チェックを入れてください')
-        self.message.refresh_from_db()
-        self.assertEqual(self.message.body, '@everyone 元の本文')
-
-    def test_removing_everyone_clears_confirmation(self):
-        self.message.body = '@everyone 元の本文'
-        self.message.mention_everyone_confirmed = True
+    def test_invalid_body_keeps_saved_mention_and_body(self):
+        self.message.mention = 'here'
         self.message.save()
         value, _ = _future()
 
-        self.client.post(self.detail_url(self.message), {'body': '全員宛てをやめた本文', 'scheduled_at': value})
+        response = self.client.post(self.detail_url(self.message), {
+            'body': '@here 直した本文', 'scheduled_at': value, 'mention': 'everyone',
+        })
 
+        self.assertContains(response, '全員への通知は下の選択で指定してください')
         self.message.refresh_from_db()
-        self.assertFalse(self.message.mention_everyone_confirmed)
+        self.assertEqual(self.message.mention, 'here')
+        self.assertEqual(self.message.body, '元の本文')
 
     def test_sent_canceled_failed_and_sending_messages_cannot_be_edited(self):
         value, _ = _future()
@@ -245,7 +264,7 @@ class EditViewTests(StaffTestCase):
             with self.subTest(fields=fields):
                 message = make_message(body='変えない本文', scheduled_at=timezone.now() + timedelta(days=1), **fields)
 
-                response = self.client.post(self.detail_url(message), {'body': '書き換え', 'scheduled_at': value})
+                response = self.client.post(self.detail_url(message), {'body': '書き換え', 'scheduled_at': value, 'mention': 'none'})
 
                 self.assertRedirects(response, self.detail_url(message))
                 message.refresh_from_db()
@@ -259,6 +278,31 @@ class EditViewTests(StaffTestCase):
         self.assertNotContains(response, 'data-testid="announce-edit-form"')
         self.assertNotContains(response, '予約を取り消す')
         self.assertContains(response, '1300000000000000009')
+
+
+class DetailDisplayTests(StaffTestCase):
+    def test_selected_mention_is_displayed(self):
+        for mention, label in DiscordScheduledMessage.Mention.choices:
+            with self.subTest(mention=mention):
+                message = make_message(status=Status.SENT, mention=mention)
+                response = self.client.get(self.detail_url(message))
+                self.assertContains(response, label)
+                if mention != 'none':
+                    self.assertContains(response, f'<span class="badge text-bg-warning"><i class="fas fa-bullhorn me-1"></i>{label}</span>', html=True)
+                else:
+                    self.assertNotContains(response, 'text-bg-warning')
+
+    def test_creation_row_is_hidden_but_author_is_kept(self):
+        author = make_user(user_name='hidden-author', email='hidden-author@example.com')
+        for status in (Status.SCHEDULED, Status.SENT):
+            with self.subTest(status=status):
+                message = make_message(status=status, created_by=author)
+                response = self.client.get(self.detail_url(message))
+                self.assertNotContains(response, '>作成</dt>')
+                self.assertNotContains(response, author.display_label)
+                message.refresh_from_db()
+                self.assertEqual(message.created_by, author)
+                self.assertIsNotNone(message.created_at)
 
 
 class CancelAndResendViewTests(StaffTestCase):
@@ -324,6 +368,16 @@ class ListViewTests(StaffTestCase):
         self.assertContains(response, '2026/12/02（水）20:00')
         self.assertContains(response, '予約中 2 件')
         self.assertContains(response, '失敗 1 件')
+
+    def test_selected_mentions_are_displayed(self):
+        for mention in DiscordScheduledMessage.Mention.values:
+            make_message(mention=mention)
+
+        response = self.client.get(reverse('announcement:discord_list'))
+
+        self.assertContains(response, '@everyone（全員）')
+        self.assertContains(response, '@here（オンラインの人）')
+        self.assertContains(response, 'text-bg-warning', count=2)
 
     def test_empty_state(self):
         response = self.client.get(reverse('announcement:discord_list'))

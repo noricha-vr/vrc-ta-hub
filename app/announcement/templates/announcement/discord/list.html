@@ -47,8 +47,8 @@
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
                         <span class="badge {{ message.status_badge_class }}">{{ message.status_label }}</span>
                         <span class="fw-bold">{{ message.scheduled_at|date:"Y/m/d（D）H:i" }}</span>
-                        {% if message.mention_everyone_confirmed %}
-                            <span class="badge text-bg-warning"><i class="fas fa-bullhorn me-1"></i>全員に通知</span>
+                        {% if message.mention == 'everyone' or message.mention == 'here' %}
+                            <span class="badge text-bg-warning"><i class="fas fa-bullhorn me-1"></i>{{ message.get_mention_display }}</span>
                         {% endif %}
                         {% if message.is_waiting_retry %}
                             <span class="small text-danger"><i class="fas fa-rotate-right me-1"></i>再試行待ち</span>

@@ -62,8 +62,8 @@
                     {% endif %}
                     <dt class="col-sm-4 col-md-3 text-muted fw-normal">全員への通知</dt>
                     <dd class="col-sm-8 col-md-9">
-                        {% if message.mention_everyone_confirmed %}
-                            <span class="badge text-bg-warning"><i class="fas fa-bullhorn me-1"></i>あり</span> @everyone / @here で全員に通知します
+                        {% if message.mention == 'everyone' or message.mention == 'here' %}
+                            <span class="badge text-bg-warning"><i class="fas fa-bullhorn me-1"></i>{{ message.get_mention_display }}</span>
                         {% else %}
                             なし
                         {% endif %}
@@ -72,10 +72,6 @@
                         <dt class="col-sm-4 col-md-3 text-muted fw-normal">送信を試みた回数</dt>
                         <dd class="col-sm-8 col-md-9">{{ message.attempt_count }} 回</dd>
                     {% endif %}
-                    <dt class="col-sm-4 col-md-3 text-muted fw-normal">作成</dt>
-                    <dd class="col-sm-8 col-md-9 mb-0">
-                        {{ message.created_by.display_label|default:"（不明なユーザー）" }}・{{ message.created_at|date:"Y/m/d H:i" }}
-                    </dd>
                 </dl>
             </div>
         </div>

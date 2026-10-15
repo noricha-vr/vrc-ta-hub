@@ -48,7 +48,7 @@ class SendResult:
 
 
 def build_allowed_mentions(*, mention_everyone: bool) -> dict:
-    """ロールとユーザーのメンションは通し、@everyone / @here は確認済みの時だけ通す。"""
+    """ロールとユーザーのメンションは通し、@everyone / @here は選択された時だけ通す。"""
     parse = ['roles', 'users']
     if mention_everyone:
         parse.append('everyone')

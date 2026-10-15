@@ -121,7 +121,7 @@ def _apply_edit(pk: int, form: DiscordScheduledMessageForm) -> bool:
     fields = {
         'body': form.cleaned_data['body'],
         'scheduled_at': form.cleaned_data['scheduled_at'],
-        'mention_everyone_confirmed': form.mention_everyone_confirmed,
+        'mention': form.cleaned_data['mention'],
         'updated_at': timezone.now(),
     }
     if form.scheduled_at_changed:

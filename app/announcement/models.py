@@ -8,7 +8,7 @@ from django.utils import timezone
 
 # Discord のメッセージ本文の上限（文字数）
 DISCORD_CONTENT_MAX_LENGTH = 2000
-# サーバーの全員に通知されるメンション。本文に含む時は保存時に確認チェックを必須にする
+# 全員への通知は選択欄で指定するため、本文では使えないメンション
 MASS_MENTION_TOKENS = ('@everyone', '@here')
 # エラーの要約の最大長（画面と DB に残す分）
 LAST_ERROR_MAX_LENGTH = 500
@@ -52,12 +52,23 @@ class DiscordScheduledMessage(models.Model):
         FAILED = 'failed', '失敗'
         CANCELED = 'canceled', '取り消し'
 
+    class Mention(models.TextChoices):
+        EVERYONE = 'everyone', '@everyone（全員）'
+        HERE = 'here', '@here（オンラインの人）'
+        NONE = 'none', 'なし'
+
     body = models.TextField(
         '本文',
         max_length=DISCORD_CONTENT_MAX_LENGTH,
         validators=[MaxLengthValidator(DISCORD_CONTENT_MAX_LENGTH)],
     )
     scheduled_at = models.DateTimeField('送信日時')
+    mention = models.CharField(
+        '全員への通知', max_length=8, choices=Mention.choices, default=Mention.NONE,
+        # この列を知らない旧リビジョンからの予約作成も受け付ける
+        db_default='none',
+    )
+    # 旧リビジョンとの互換性のため残す。新コードでは使わず、次の PR で削除する
     mention_everyone_confirmed = models.BooleanField(
         '全員への通知を確認済み',
         default=False,

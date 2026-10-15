@@ -409,34 +409,53 @@ class RetryAndFailureTests(TestCase):
 
 @override_settings(DISCORD_ANNOUNCE_WEBHOOK_URL=FAKE_WEBHOOK_URL)
 class MentionControlTests(TestCase):
-    def _sent_allowed_mentions(self, mock_post) -> list[str]:
-        return mock_post.call_args.kwargs['json']['allowed_mentions']['parse']
+    @patch(POST_PATH)
+    def test_selected_mention_is_prepended_and_allowed(self, mock_post):
+        mock_post.return_value = discord_response()
+        for mention in ('everyone', 'here'):
+            with self.subTest(mention=mention):
+                mock_post.reset_mock()
+                make_message(
+                    body='<@&123> <@456> 今夜の告知です',
+                    scheduled_at=NOW - timedelta(minutes=1), mention=mention,
+                )
+
+                process_due_messages(now=NOW)
+
+                mock_post.assert_called_once()
+                payload = mock_post.call_args.kwargs['json']
+                self.assertEqual(payload['content'], f'@{mention}\n<@&123> <@456> 今夜の告知です')
+                self.assertEqual(payload['allowed_mentions']['parse'], ['roles', 'users', 'everyone'])
 
     @patch(POST_PATH)
-    def test_confirmed_message_allows_everyone(self, mock_post):
+    def test_none_keeps_body_and_allows_only_roles_and_users(self, mock_post):
         mock_post.return_value = discord_response()
+        # 旧列が True でも、新しい選択値だけで通知を決める
         make_message(
-            body='@everyone 今夜の告知です',
-            scheduled_at=NOW - timedelta(minutes=1),
-            mention_everyone_confirmed=True,
+            body='<@&123> <@456> 今夜の告知です',
+            scheduled_at=NOW - timedelta(minutes=1), mention='none', mention_everyone_confirmed=True,
         )
 
         process_due_messages(now=NOW)
 
-        self.assertEqual(self._sent_allowed_mentions(mock_post), ['roles', 'users', 'everyone'])
+        mock_post.assert_called_once()
+        payload = mock_post.call_args.kwargs['json']
+        self.assertEqual(payload['content'], '<@&123> <@456> 今夜の告知です')
+        self.assertEqual(payload['allowed_mentions']['parse'], ['roles', 'users'])
 
     @patch(POST_PATH)
-    def test_unconfirmed_message_allows_only_roles_and_users(self, mock_post):
+    def test_content_at_limit_includes_mention_line(self, mock_post):
         mock_post.return_value = discord_response()
-        make_message(
-            body='@everyone <@&123> <@456> 今夜の告知です',
-            scheduled_at=NOW - timedelta(minutes=1),
-            mention_everyone_confirmed=False,
-        )
+        for mention, prefix in (('everyone', '@everyone\n'), ('here', '@here\n'), ('none', '')):
+            with self.subTest(mention=mention):
+                mock_post.reset_mock()
+                body = 'あ' * (2000 - len(prefix))
+                make_message(body=body, scheduled_at=NOW - timedelta(minutes=1), mention=mention)
 
-        process_due_messages(now=NOW)
+                process_due_messages(now=NOW)
 
-        self.assertEqual(self._sent_allowed_mentions(mock_post), ['roles', 'users'])
+                self.assertEqual(mock_post.call_args.kwargs['json']['content'], prefix + body)
+                self.assertEqual(len(mock_post.call_args.kwargs['json']['content']), 2000)
 
 
 @override_settings(DISCORD_ANNOUNCE_WEBHOOK_URL=FAKE_WEBHOOK_URL)
