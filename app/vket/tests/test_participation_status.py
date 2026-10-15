@@ -417,3 +417,12 @@ class VketParticipationStatusTests(TestCase):
         self.collaboration.save()
         response = self.client.get(url)
         self.assertContains(response, '11月30日（月）頃の21時頃</span>に実施します。')
+
+    def test_rehearsal_is_limited_to_organizers_and_staff(self):
+        """リハーサルは主催・スタッフ限定で、登壇者は参加できないと案内する（ワールドの人数上限のため）"""
+        self.client.force_login(self.owner)
+        self._set_active_community()
+        response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))
+        self.assertContains(response, '主催・スタッフの方のみ</span>です。')
+        self.assertContains(response, '登壇者の方の参加はご遠慮ください。')
+        self.assertNotContains(response, 'ぜひご参加ください。')
