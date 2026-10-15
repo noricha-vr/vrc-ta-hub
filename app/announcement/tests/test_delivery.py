@@ -430,10 +430,9 @@ class MentionControlTests(TestCase):
     @patch(POST_PATH)
     def test_none_keeps_body_and_allows_only_roles_and_users(self, mock_post):
         mock_post.return_value = discord_response()
-        # 旧列が True でも、新しい選択値だけで通知を決める
         make_message(
             body='<@&123> <@456> 今夜の告知です',
-            scheduled_at=NOW - timedelta(minutes=1), mention='none', mention_everyone_confirmed=True,
+            scheduled_at=NOW - timedelta(minutes=1), mention='none',
         )
 
         process_due_messages(now=NOW)
