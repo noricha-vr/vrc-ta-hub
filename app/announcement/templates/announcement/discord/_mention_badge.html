@@ -1,0 +1,8 @@
+{# 全員への通知のバッジ。@everyone は事故が大きいので塗りで一番強く、@here は淡色で一段弱くする。なしは show_none の時だけ出す #}
+{% if message.mention == 'everyone' %}
+    <span class="badge text-bg-warning"><i class="fas fa-bullhorn me-1"></i>{{ message.get_mention_display }}</span>
+{% elif message.mention == 'here' %}
+    <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fas fa-bell me-1"></i>{{ message.get_mention_display }}</span>
+{% elif show_none %}
+    <span class="text-muted">{{ message.get_mention_display }}</span>
+{% endif %}

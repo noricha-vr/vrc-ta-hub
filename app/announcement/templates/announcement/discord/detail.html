@@ -49,6 +49,7 @@
         {% if form %}
             <p class="text-muted small mb-3">日本時間で送ります。指定した時刻から最大 1 分ほど遅れて届くことがあります。</p>
         {% endif %}
+        {% if message.sent_at or message.discord_message_id or message.attempt_count %}
         <div class="card shadow-sm mb-3">
             <div class="card-body">
                 <dl class="row mb-0 small">
@@ -60,14 +61,6 @@
                         <dt class="col-sm-4 col-md-3 text-muted fw-normal">メッセージ ID</dt>
                         <dd class="col-sm-8 col-md-9"><code>{{ message.discord_message_id }}</code></dd>
                     {% endif %}
-                    <dt class="col-sm-4 col-md-3 text-muted fw-normal">全員への通知</dt>
-                    <dd class="col-sm-8 col-md-9">
-                        {% if message.mention == 'everyone' or message.mention == 'here' %}
-                            <span class="badge text-bg-warning"><i class="fas fa-bullhorn me-1"></i>{{ message.get_mention_display }}</span>
-                        {% else %}
-                            なし
-                        {% endif %}
-                    </dd>
                     {% if message.attempt_count %}
                         <dt class="col-sm-4 col-md-3 text-muted fw-normal">送信を試みた回数</dt>
                         <dd class="col-sm-8 col-md-9">{{ message.attempt_count }} 回</dd>
@@ -75,11 +68,20 @@
                 </dl>
             </div>
         </div>
+        {% endif %}
 
         <div class="card shadow-sm mb-3">
             <div class="card-header bg-transparent d-flex justify-content-between small">
                 <span class="fw-bold">本文</span>
                 <span class="text-muted">{{ message.body|length }} 文字</span>
+            </div>
+            {# 全員への通知は本文と別に持ち、送信時に先頭行へ付く。送られる順（先頭行→本文）に並べて見せる #}
+            <div class="card-body border-bottom py-2 small d-flex flex-wrap align-items-center column-gap-2 row-gap-1" data-testid="announce-mention">
+                <span class="text-muted">全員への通知</span>
+                {% include 'announcement/discord/_mention_badge.html' with show_none=True %}
+                {% if message.mention != 'none' %}
+                    <span class="text-muted">{% if message.sent_at %}本文の先頭行に付けて送りました{% else %}送信時に本文の先頭行へ付きます{% endif %}</span>
+                {% endif %}
             </div>
             <div class="card-body">
                 <div style="white-space: pre-wrap; word-break: break-word;" data-testid="announce-body">{{ message.body }}</div>

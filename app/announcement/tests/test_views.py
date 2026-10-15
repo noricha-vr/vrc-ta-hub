@@ -287,10 +287,15 @@ class DetailDisplayTests(StaffTestCase):
                 message = make_message(status=Status.SENT, mention=mention)
                 response = self.client.get(self.detail_url(message))
                 self.assertContains(response, label)
-                if mention != 'none':
+                if mention == 'everyone':
                     self.assertContains(response, f'<span class="badge text-bg-warning"><i class="fas fa-bullhorn me-1"></i>{label}</span>', html=True)
+                elif mention == 'here':
+                    # @here は @everyone より一段弱い淡色にする（全員通知の方を目立たせる）
+                    self.assertContains(response, f'<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i class="fas fa-bell me-1"></i>{label}</span>', html=True)
+                    self.assertNotContains(response, 'text-bg-warning')
                 else:
                     self.assertNotContains(response, 'text-bg-warning')
+                    self.assertNotContains(response, 'bg-warning-subtle')
 
     def test_creation_row_is_hidden_but_author_is_kept(self):
         author = make_user(user_name='hidden-author', email='hidden-author@example.com')
@@ -377,7 +382,8 @@ class ListViewTests(StaffTestCase):
 
         self.assertContains(response, '@everyone（全員）')
         self.assertContains(response, '@here（オンラインの人）')
-        self.assertContains(response, 'text-bg-warning', count=2)
+        self.assertContains(response, 'text-bg-warning', count=1)
+        self.assertContains(response, 'bg-warning-subtle', count=1)
 
     def test_first_line_is_subject_and_rest_is_excerpt(self):
         make_message(body='## 【明日締切】参加表明\n\n締切は**明日**です。\n### 申込み\n- こちらから')
