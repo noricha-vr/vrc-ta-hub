@@ -709,8 +709,11 @@ class TranscriptCacheTest(TestCase):
         mock_openai_class.return_value = self._patch_openrouter()
         detail = self._create_detail()
 
-        generate_blog(detail, model="test-model")
+        output = generate_blog(detail, model="test-model")
 
+        # 自分で取得した字幕は競合扱いせず、そのまま記事を保存できる。
+        with patch('event.services.content_generation_service.ensure_pdf_thumbnail'):
+            self.assertEqual(save_generated_article(detail, output), SAVED)
         detail.refresh_from_db()
         self.assertEqual(detail.cached_transcript, "新しい字幕")
         self.assertEqual(detail.cached_transcript_video_id, self.VIDEO_ID)
