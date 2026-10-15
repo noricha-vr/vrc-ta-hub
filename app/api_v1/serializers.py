@@ -7,6 +7,7 @@ from rest_framework import serializers
 from community.constants import WEEKDAY_JP, WEEKDAY_ORDER as WEEKDAY_SORT_ORDER
 from community.models import Community
 from event.models import Event, EventDetail, RecurrenceRule
+from event.youtube_urls import youtube_video_id
 
 
 def _extract_group_id(group_url):
@@ -188,10 +189,14 @@ class EventDetailSerializer(serializers.ModelSerializer):
 class EventDetailWriteSerializer(serializers.ModelSerializer):
     """EventDetail作成・更新用シリアライザー"""
     generate_from_pdf = serializers.BooleanField(write_only=True, required=False, default=False)
+    # 録画側で作った字幕。YouTube はクラウドの IP からの字幕取得を弾くので、記事生成の字幕キャッシュへ直接入れる
+    transcript = serializers.CharField(write_only=True, required=False, allow_blank=False, max_length=200_000)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
         instance = self.instance or EventDetail()
+        if 'transcript' in attrs and not youtube_video_id(attrs.get('youtube_url', instance.youtube_url)):
+            raise serializers.ValidationError({'transcript': 'YouTube の動画 URL がある発表にだけ字幕を登録できます。'})
         if attrs.get('detail_type', instance.detail_type) == 'LT':
             errors = {}
             for field_name, label in (('theme', 'テーマ'), ('speaker', '発表者')):
@@ -207,7 +212,7 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'event', 'detail_type', 'start_time', 'duration', 'youtube_url',
             'slide_url', 'slide_file', 'thumbnail_image', 'speaker', 'theme', 'h1', 'contents',
-            'meta_description', 'additional_info', 'recording_policy', 'generate_from_pdf'
+            'meta_description', 'additional_info', 'recording_policy', 'generate_from_pdf', 'transcript'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
         
@@ -225,9 +230,11 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         generate_from_pdf = validated_data.pop('generate_from_pdf', False)
+        transcript = validated_data.pop('transcript', None)
         # 撮影の扱いを送らなかった登録は、登壇者が選んでいないので撮らない（モデルの既定値 public にしない）
         validated_data.setdefault('recording_policy', EventDetail.RecordingPolicy.FORBIDDEN)
         instance = super().create(validated_data)
+        self._store_transcript(instance, transcript)
         
         # PDF自動生成が有効で、PDFファイルがある場合
         if generate_from_pdf and instance.slide_file:
@@ -238,7 +245,9 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         generate_from_pdf = validated_data.pop('generate_from_pdf', False)
+        transcript = validated_data.pop('transcript', None)
         instance = super().update(instance, validated_data)
+        self._store_transcript(instance, transcript)
         
         # PDF自動生成が有効で、PDFファイルがある場合
         if generate_from_pdf and instance.slide_file:
@@ -246,6 +255,17 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
             pass
             
         return instance
+
+    @staticmethod
+    def _store_transcript(instance, transcript):
+        """字幕を今の動画 ID と組で保存する。post_save のシグナルを起こさないよう update() で書く。"""
+        if not transcript:
+            return
+        video_id = instance.video_id or ''
+        EventDetail.all_objects.filter(pk=instance.pk).update(
+            cached_transcript=transcript, cached_transcript_video_id=video_id)
+        instance.cached_transcript = transcript
+        instance.cached_transcript_video_id = video_id
 
 
 class RecurrenceRuleSerializer(serializers.ModelSerializer):
