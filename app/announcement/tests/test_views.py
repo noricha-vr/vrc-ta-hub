@@ -283,6 +283,17 @@ class EditViewTests(StaffTestCase):
 
 
 class DetailDisplayTests(StaffTestCase):
+    def test_body_is_previewed_as_discord_markdown_and_html_is_escaped(self):
+        message = make_message(body='# 発表のお知らせ\n<script>alert(1)</script>', status=Status.SENT)
+
+        response = self.client.get(self.detail_url(message))
+
+        self.assertContains(response, '<h2 class="discord-heading-1">発表のお知らせ</h2>', html=True)
+        self.assertContains(response, '&lt;script&gt;alert(1)&lt;/script&gt;')
+        self.assertNotContains(response, '<script>alert(1)</script>')
+        self.assertContains(response, 'data-testid="announce-body"')
+        self.assertContains(response, '本文（Discord での表示）')
+
     def test_selected_mention_is_displayed(self):
         for mention, label in DiscordScheduledMessage.Mention.choices:
             with self.subTest(mention=mention):
