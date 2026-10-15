@@ -4,19 +4,19 @@
     if (!body) return;
     const count = document.querySelector('[data-role="body-count"]');
     const counter = document.querySelector('[data-role="body-counter"]');
-    const mentions = document.querySelectorAll('[data-role="discord-mention"]');
+    const mention = document.querySelector('[data-role="discord-mention"]');
     // 上限はサーバーの検証と同じ値。textarea の maxlength は UTF-16 単位で数えるので使わない
     const maxLength = Number(body.dataset.maxLength);
     const update = () => {
         // サーバーと同じく、前後の空白を除いた文字（コードポイント）の数で数える
-        const mention = [...mentions].find(input => input.checked)?.value;
-        const prefix = ['everyone', 'here'].includes(mention) ? `@${mention}\n` : '';
+        const selected = mention?.value;
+        const prefix = ['everyone', 'here'].includes(selected) ? `@${selected}\n` : '';
         const length = [...prefix + body.value.trim().replace(/\r\n?/g, '\n')].length;
         count.textContent = length;
         counter.classList.toggle('text-danger', maxLength > 0 && length > maxLength);
     };
     body.addEventListener('input', update);
-    mentions.forEach(input => input.addEventListener('change', update));
+    mention?.addEventListener('change', update);
     update();
 })();
 </script>

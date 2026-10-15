@@ -125,7 +125,7 @@ class CreateViewTests(StaffTestCase):
                 response = self.client.post(reverse(self.url), {
                     'body': f'{token} 今夜です', 'scheduled_at': value, 'mention': 'everyone',
                 })
-                self.assertContains(response, '全員への通知は下の選択で指定してください')
+                self.assertContains(response, '@everyone / @here は下の「メンション」で選んでください')
                 self.assertFalse(DiscordScheduledMessage.objects.exists())
 
     def test_create_page_explains_delay(self):
@@ -133,7 +133,12 @@ class CreateViewTests(StaffTestCase):
 
         self.assertContains(response, '最大 1 分ほど遅れて届く')
         self.assertContains(response, 'type="datetime-local"')
-        self.assertContains(response, 'type="radio"', count=3)
+        self.assertNotContains(response, 'type="radio"')
+        self.assertContains(response, '<select name="mention"')
+        self.assertContains(response, '<option value="none" selected>なし</option>', html=True)
+        # 選択欄だけにして、選択肢ごとの説明は出さない
+        self.assertNotContains(response, 'data-mention-help')
+        self.assertContains(response, '>メンション</label>')
         self.assertContains(response, '@everyone（全員）')
         self.assertContains(response, '@here（オンラインの人）')
         self.assertNotContains(response, 'confirm_mass_mention')
@@ -223,9 +228,7 @@ class EditViewTests(StaffTestCase):
         self.message.refresh_from_db()
         self.assertEqual(self.message.body, '元の本文')
 
-    def test_edit_saves_each_mention_choice_without_changing_legacy_flag(self):
-        self.message.mention_everyone_confirmed = True
-        self.message.save()
+    def test_edit_saves_each_mention_choice(self):
         value, _ = _future()
         for mention in DiscordScheduledMessage.Mention.values:
             with self.subTest(mention=mention):
@@ -236,7 +239,6 @@ class EditViewTests(StaffTestCase):
                 self.message.refresh_from_db()
                 self.assertEqual(self.message.mention, mention)
                 self.assertEqual(self.message.body, '直した本文')
-                self.assertTrue(self.message.mention_everyone_confirmed)
 
     def test_invalid_body_keeps_saved_mention_and_body(self):
         self.message.mention = 'here'
@@ -247,7 +249,7 @@ class EditViewTests(StaffTestCase):
             'body': '@here 直した本文', 'scheduled_at': value, 'mention': 'everyone',
         })
 
-        self.assertContains(response, '全員への通知は下の選択で指定してください')
+        self.assertContains(response, '@everyone / @here は下の「メンション」で選んでください')
         self.message.refresh_from_db()
         self.assertEqual(self.message.mention, 'here')
         self.assertEqual(self.message.body, '元の本文')

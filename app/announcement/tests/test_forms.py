@@ -169,9 +169,9 @@ class MentionChoiceTests(TestCase):
 
         self.assertTrue(form.is_valid(), form.errors)
 
-    def test_radio_widget_defaults_to_none_and_preserves_saved_choice(self):
+    def test_select_widget_defaults_to_none_and_preserves_saved_choice(self):
         form = DiscordScheduledMessageForm(now=NOW)
-        self.assertIsInstance(form.fields['mention'].widget, forms.RadioSelect)
+        self.assertIsInstance(form.fields['mention'].widget, forms.Select)
         self.assertEqual(form['mention'].value(), 'none')
         self.assertNotIn('confirm_mass_mention', form.fields)
         for mention in DiscordScheduledMessage.Mention.values:
@@ -205,12 +205,3 @@ class MentionChoiceTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(len('@everyone\n' + form.cleaned_data['body']), 2000)
         self.assertFalse(_form(body=body + 'あ', mention='everyone').is_valid())
-
-    def test_save_does_not_change_legacy_confirmation(self):
-        message = make_message(mention_everyone_confirmed=True)
-        form = _form(mention='none', instance=message)
-
-        self.assertTrue(form.is_valid(), form.errors)
-        form.save()
-        message.refresh_from_db()
-        self.assertTrue(message.mention_everyone_confirmed)
