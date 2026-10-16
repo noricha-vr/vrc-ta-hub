@@ -1,5 +1,8 @@
 # Create your views here.
 # from corsheaders.middleware import CorsMiddleware  # No longer needed
+import re
+
+from allauth.socialaccount.models import SocialAccount
 from django.utils import timezone
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
@@ -8,13 +11,14 @@ from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 
-from community.models import Community
+from community.models import Community, CommunityMember
 from event.datetime_lock import (
     EVENT_DETAIL_DATETIME_LOCK_MESSAGE,
     has_event_detail_duration_changed,
@@ -27,11 +31,57 @@ from .base import DatabaseReconnectListMixin
 from .serializers import (
     CommunitySerializer, EventSerializer, EventDetailSerializer, EventDetailWriteSerializer,
     RecurrenceRuleSerializer, RecurrenceRuleDeleteSerializer, GatheringListSerializer,
-    GatheringListSchemaSerializer,
+    GatheringListSchemaSerializer, CommunityByDiscordSerializer,
 )
 
 
 # CORSMixin is no longer needed as CORS is handled by Django middleware
+
+
+class IsSuperuser(BasePermission):
+    message = '管理者のみ利用できます。'
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_superuser)
+
+
+class CommunityByDiscordAPIView(APIView):
+    """Discord 連携済みユーザーの主催・スタッフ所属を管理者向けに返す。"""
+
+    authentication_classes = [APIKeyAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated, IsSuperuser]
+
+    @extend_schema(
+        summary='Discord ユーザーの所属集会取得',
+        description=(
+            'API キー（X-API-Key）またはセッションで認証したスーパーユーザー限定。'
+            'Discord 連携済みユーザーが主催者またはスタッフの集会を ID 順に返します。'
+            '未連携または所属なしの場合は空の一覧を返します。'
+        ),
+        tags=['Community'],
+        parameters=[
+            OpenApiParameter(
+                name='discord_id',
+                description='17〜20 桁の数字で表した Discord ユーザー ID',
+                required=True,
+                location=OpenApiParameter.QUERY,
+                type={'type': 'string', 'pattern': '^[0-9]{17,20}$', 'minLength': 17, 'maxLength': 20},
+            ),
+        ],
+        responses={200: CommunityByDiscordSerializer},
+    )
+    def get(self, request):
+        discord_id = request.query_params.get('discord_id', '')
+        if re.fullmatch(r'[0-9]{17,20}', discord_id) is None:
+            raise ValidationError({'detail': 'discord_id は17〜20桁の数字で指定してください。'})
+
+        linked_users = SocialAccount.objects.filter(provider='discord', uid=discord_id).values('user_id')
+        memberships = CommunityMember.objects.filter(
+            user_id__in=linked_users,
+            role__in=[CommunityMember.Role.OWNER, CommunityMember.Role.STAFF],
+        ).select_related('community').order_by('community_id')
+        serializer = CommunityByDiscordSerializer({'discord_id': discord_id, 'communities': memberships})
+        return Response(serializer.data)
 
 
 class CommunityFilter(filters.FilterSet):

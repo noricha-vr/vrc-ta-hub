@@ -2,6 +2,12 @@
 
 この変更履歴は Keep a Changelog 形式で記載しています。
 
+## [Unreleased]
+
+### Added
+
+- スーパーユーザー専用の `GET /api/v1/community-by-discord/?discord_id=<ID>` を追加しました。API キーまたはセッションで認証し、Discord ユーザーが主催者・スタッフとして所属する集会の ID・名前・役割・撮影許可を ID 順で取得できます。Discord ID は17〜20桁の数字が必須で、未連携・所属なしの場合は空の一覧を返します。
+
 ## 2026-10-16
 
 ### Changed
