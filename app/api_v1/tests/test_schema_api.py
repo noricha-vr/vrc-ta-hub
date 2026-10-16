@@ -8,6 +8,28 @@ from api_v1.serializers import GatheringListSchemaSerializer
 
 
 class SchemaAPITest(TestCase):
+    def test_community_by_discord_schema_exposes_query_and_response(self):
+        response = self.client.get(f"{reverse('schema')}?format=json")
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content)
+        operation = payload['paths']['/api/v1/community-by-discord/']['get']
+        parameter = next(item for item in operation['parameters'] if item['name'] == 'discord_id')
+        self.assertTrue(parameter['required'])
+        self.assertEqual(parameter['in'], 'query')
+        self.assertEqual(parameter['schema']['type'], 'string')
+        self.assertEqual(parameter['schema']['pattern'], '^[0-9]{17,20}$')
+        self.assertEqual(
+            operation['responses']['200']['content']['application/json']['schema']['$ref'],
+            '#/components/schemas/CommunityByDiscord',
+        )
+        schemas = payload['components']['schemas']
+        self.assertEqual(set(schemas['CommunityByDiscord']['properties']), {'discord_id', 'communities'})
+        membership_properties = schemas['DiscordCommunityMembership']['properties']
+        self.assertEqual(set(membership_properties), {'id', 'name', 'role', 'recording_allowed'})
+        self.assertEqual(membership_properties['recording_allowed']['type'], 'boolean')
+        self.assertTrue(operation['security'])
+        self.assertNotIn({}, operation['security'])
+
     def test_gathering_list_schema_serializer_exposes_fields_for_openapi(self):
         serializer = GatheringListSchemaSerializer()
 

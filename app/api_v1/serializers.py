@@ -5,7 +5,7 @@ from drf_spectacular.utils import extend_schema_serializer
 from rest_framework import serializers
 
 from community.constants import WEEKDAY_JP, WEEKDAY_ORDER as WEEKDAY_SORT_ORDER
-from community.models import Community
+from community.models import Community, CommunityMember
 from event.models import Event, EventDetail, RecurrenceRule, article_generation_request_values
 from event.youtube_urls import youtube_video_id
 
@@ -28,6 +28,18 @@ def _extract_group_id(group_url):
     if 'vrchat.com' in host:
         return next((s for s in segments if s.startswith('grp_')), None)
     return None
+
+
+class DiscordCommunityMembershipSerializer(serializers.Serializer):
+    id = serializers.IntegerField(source='community_id')
+    name = serializers.CharField(source='community.name')
+    role = serializers.ChoiceField(choices=CommunityMember.Role.choices)
+    recording_allowed = serializers.BooleanField(source='community.recording_allowed')
+
+
+class CommunityByDiscordSerializer(serializers.Serializer):
+    discord_id = serializers.CharField()
+    communities = DiscordCommunityMembershipSerializer(many=True)
 
 
 class CommunitySerializer(serializers.ModelSerializer):
