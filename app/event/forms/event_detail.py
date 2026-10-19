@@ -100,6 +100,12 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
         }
 
     # start_time と duration の初期値はEventCreateFormと同じにする
+    def clean_recording_policy(self):
+        # 新規で撮影の選択肢が届かなかった時は、見ていない選択を「公開」にしない（表示後に集会が撮影を許可した等）
+        if not self.instance.pk and not self.cleaned_data.get('recording_policy'):
+            return EventDetail.RecordingPolicy.FORBIDDEN
+        return super().clean_recording_policy()
+
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)
@@ -134,8 +140,17 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
             if self.applicant_datetime_locked:
                 self.fields['start_time'].disabled = True
                 self.fields['duration'].disabled = True
-                # 撮影を許可しない集会では、発表者に撮影の選択肢を出さない（申請の編集画面と同じく今の値のまま）
-                self.remove_recording_policy_unless_allowed(self.instance.event.community)
+
+        self.recording_not_allowed = False
+        if self.instance.event_id:
+            community = self.instance.event.community
+            if self.remove_recording_policy_unless_allowed(community):
+                self.recording_not_allowed = not self.applicant_datetime_locked
+                # 非表示の項目は送信値を使わず、新規は「禁止」、編集は今の値を保つ。
+                if not self.instance.pk:
+                    self.instance.recording_policy = EventDetail.RecordingPolicy.FORBIDDEN
+            elif not self.instance.pk:
+                self.initial['recording_policy'] = community.default_recording_policy
 
         # 既存の記事がある場合（更新時）は自動生成チェックボックスをOFFにする。
         # meta_description だけで判定すると手書きの contents / h1 を上書き再生成してしまう。
