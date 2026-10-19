@@ -313,9 +313,19 @@
                                                 <span class="badge bg-danger ms-2"><i class="fas fa-times"></i> 却下</span>
                                             {% endif %}
                                         </div>
+                                        {% elif detail.status == 'pending' %}
+                                        <div class="card-text mb-2">
+                                            {% if detail.source == 'discord_bot' %}<span class="badge bg-secondary">Discord から自動で登録</span>{% endif %}
+                                            <span class="badge bg-warning text-dark ms-2"><i class="fas fa-clock"></i> 承認待ち</span>
+                                        </div>
                                         {% endif %}
                                         <div class="mb-2">
                                             <a href="{% url 'event:detail' detail.pk %}" class="btn btn-primary btn-sm">記事</a>
+                                            {% if detail.source_url %}
+                                            <a href="{{ detail.source_url }}" class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener noreferrer">
+                                                <i class="fas fa-arrow-up-right-from-square"></i> 元の投稿
+                                            </a>
+                                            {% endif %}
                                             {% if not detail.applicant and detail.detail_type == 'LT' and detail.status == 'approved' %}
                                             <a href="{% url 'event:detail' detail.pk %}#speaker-account-heading"
                                                class="btn btn-outline-primary btn-sm">
@@ -343,14 +353,14 @@
                                                 {% endif %}
                                             {% endif %}
 
-                                            {% if detail.applicant %}
+                                            {% if detail.applicant or detail.status == 'pending' %}
                                             <a href="{% url 'event:lt_application_review' detail.pk %}"
                                                class="btn btn-outline-primary btn-sm">
                                                 <i class="fas fa-file-lines"></i> 申請内容
                                             </a>
                                             {% endif %}
 
-                                            {% if detail.applicant and detail.status == 'pending' %}
+                                            {% if detail.status == 'pending' %}
                                             <button type="button" class="btn btn-outline-success btn-sm"
                                                     data-bs-toggle="modal" data-bs-target="#approveModal{{ detail.pk }}">
                                                 <i class="fas fa-check"></i> 承認
@@ -399,7 +409,7 @@
         {# モーダルをcard要素の外に一括出力（CSSトランジション干渉を回避） #}
         {% for event in events %}
             {% for detail in event.detail_list %}
-                {% if detail.applicant and detail.status == 'pending' %}
+                {% if detail.status == 'pending' %}
                 <div class="modal fade" id="approveModal{{ detail.pk }}" tabindex="-1" aria-labelledby="approveModalLabel{{ detail.pk }}" aria-hidden="true">
                     <div class="modal-dialog">
                         <div class="modal-content">
@@ -412,7 +422,7 @@
                                 <ul class="list-unstyled">
                                     <li><strong>テーマ:</strong> {{ detail.theme }}</li>
                                     <li><strong>発表者:</strong> {{ detail.speaker }}</li>
-                                    <li><strong>申請者:</strong> {{ detail.applicant.display_label }}</li>
+                                    {% if detail.applicant %}<li><strong>申請者:</strong> {{ detail.applicant.display_label }}</li>{% endif %}
                                     <li><strong>イベント日:</strong> {{ event.date }}</li>
                                 </ul>
                             </div>
@@ -441,7 +451,7 @@
                                     <ul class="list-unstyled mb-3">
                                         <li><strong>テーマ:</strong> {{ detail.theme }}</li>
                                         <li><strong>発表者:</strong> {{ detail.speaker }}</li>
-                                        <li><strong>申請者:</strong> {{ detail.applicant.display_label }}</li>
+                                        {% if detail.applicant %}<li><strong>申請者:</strong> {{ detail.applicant.display_label }}</li>{% endif %}
                                     </ul>
                                     <div class="mb-3">
                                         <label for="rejection_reason_{{ detail.pk }}" class="form-label">却下理由 <span class="text-danger">*</span></label>

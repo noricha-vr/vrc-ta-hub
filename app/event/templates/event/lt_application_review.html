@@ -72,6 +72,18 @@
                                     <td>{{ event_detail.applicant.display_label }}</td>
                                 </tr>
                                 {% endif %}
+                                {% if event_detail.source == 'discord_bot' %}
+                                <tr>
+                                    <th scope="row" class="bg-light">登録経路</th>
+                                    <td>Discord から自動で登録</td>
+                                </tr>
+                                {% endif %}
+                                {% if event_detail.source_url %}
+                                <tr>
+                                    <th scope="row" class="bg-light">元の投稿</th>
+                                    <td><a href="{{ event_detail.source_url }}" target="_blank" rel="noopener noreferrer">元の投稿を開く</a></td>
+                                </tr>
+                                {% endif %}
                                 <tr>
                                     <th scope="row" class="bg-light">申請日時</th>
                                     <td>{{ event_detail.created_at|date:"Y年n月j日 H:i" }}</td>
