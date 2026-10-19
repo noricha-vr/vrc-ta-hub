@@ -27,11 +27,15 @@ class CalendarRecurrenceRegistrationTest(TestCase):
 
     def payload(self, kind='weekly', start=None, **extra):
         start = start or self.start
+        week_number = (start.day - 1) // 7 + 1
+        # 第5回の曜日は必ず最終回。フォームに第5の選択肢はない。
+        if week_number == 5:
+            week_number = -1
         return {
             'start_date': start.isoformat(), 'start_time': '20:30', 'duration': 90,
             'recurrence_type': kind,
             'weekday': ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'][start.weekday()],
-            'monthly_day': start.day, 'week_number': (start.day - 1) // 7 + 1,
+            'monthly_day': start.day, 'week_number': week_number,
             **extra,
         }
 
