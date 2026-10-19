@@ -313,10 +313,16 @@
                                                 <span class="badge bg-danger ms-2"><i class="fas fa-times"></i> 却下</span>
                                             {% endif %}
                                         </div>
-                                        {% elif detail.status == 'pending' %}
+                                        {% elif detail.status == 'pending' or detail.source == 'discord_bot' %}
                                         <div class="card-text mb-2">
                                             {% if detail.source == 'discord_bot' %}<span class="badge bg-secondary">Discord から自動で登録</span>{% endif %}
-                                            <span class="badge bg-warning text-dark ms-2"><i class="fas fa-clock"></i> 承認待ち</span>
+                                            {% if detail.status == 'pending' %}
+                                                <span class="badge bg-warning text-dark ms-2"><i class="fas fa-clock"></i> 承認待ち</span>
+                                            {% elif detail.status == 'approved' %}
+                                                <span class="badge bg-success ms-2"><i class="fas fa-check"></i> 承認済み</span>
+                                            {% elif detail.status == 'rejected' %}
+                                                <span class="badge bg-danger ms-2"><i class="fas fa-times"></i> 却下</span>
+                                            {% endif %}
                                         </div>
                                         {% endif %}
                                         <div class="mb-2">
@@ -353,7 +359,7 @@
                                                 {% endif %}
                                             {% endif %}
 
-                                            {% if detail.applicant or detail.status == 'pending' %}
+                                            {% if detail.applicant or detail.status == 'pending' or detail.source == 'discord_bot' %}
                                             <a href="{% url 'event:lt_application_review' detail.pk %}"
                                                class="btn btn-outline-primary btn-sm">
                                                 <i class="fas fa-file-lines"></i> 申請内容

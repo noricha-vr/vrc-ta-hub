@@ -88,12 +88,16 @@ class EventDetailPendingAPITest(TestCase):
         self.assertEqual(self.approved.status, 'approved')
         self.assertEqual(self.approved.theme, '承認済みの発表')
 
-    def test_update_can_set_pending(self):
-        response = self.client.patch(self.detail_url, {'status': 'pending'}, format='json')
+    def test_update_rejects_status_pending(self):
+        for method in ('put', 'patch'):
+            with self.subTest(method=method):
+                body = self.payload if method == 'put' else {'status': 'pending'}
+                response = getattr(self.client, method)(self.detail_url, body, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.approved.refresh_from_db()
-        self.assertEqual(self.approved.status, 'pending')
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn('status', response.data)
+                self.approved.refresh_from_db()
+                self.assertEqual(self.approved.status, 'approved')
 
     def test_update_without_status_preserves_current_status(self):
         self.payload.pop('status')
@@ -259,3 +263,56 @@ class BotPendingReviewTest(TestCase):
         other.refresh_from_db()
         self.assertEqual(self.pending.status, 'approved')
         self.assertEqual(other.status, 'rejected')
+
+    def test_my_list_keeps_status_and_review_link_after_processing(self):
+        for processed_status, label in (('approved', '承認済み'), ('rejected', '却下')):
+            with self.subTest(status=processed_status):
+                EventDetail.objects.filter(pk=self.pending.pk).update(status=processed_status)
+
+                response = self.client.get(reverse('event:my_list'))
+
+                self.assertContains(response, self.review_url)
+                self.assertContains(response, 'Discord から自動で登録')
+                self.assertContains(response, label)
+                self.assertNotContains(response, f'data-bs-target="#approveModal{self.pending.pk}"')
+                self.assertNotContains(response, f'data-bs-target="#rejectModal{self.pending.pk}"')
+
+
+class BotPendingReviewPermissionTest(TestCase):
+    """申請者のいない承認待ちを、未ログイン・別の集会のユーザーが確認・処理できないこと。"""
+
+    def setUp(self):
+        owner = make_discord_linked_user()
+        self.pending = make_event_detail(
+            make_event(make_community(owner=owner)), applicant=None, status='pending',
+            theme='Bot の発表', source='discord_bot',
+        )
+        self.other = make_discord_linked_user(user_name='otheruser', email='other@example.com')
+        make_community(name='別の集会', owner=self.other)
+        kwargs = {'pk': self.pending.pk}
+        self.review_url = reverse('event:lt_application_review', kwargs=kwargs)
+        self.approve_url = reverse('event:lt_application_approve', kwargs=kwargs)
+        self.reject_url = reverse('event:lt_application_reject', kwargs=kwargs)
+
+    def _assert_cannot_process(self):
+        with patch('event.notifications.send_mail'):
+            self.client.post(self.review_url, {'action': 'approve'})
+            self.client.post(self.approve_url)
+            self.client.post(self.reject_url, {'rejection_reason': '対象外'})
+        self.pending.refresh_from_db()
+        self.assertEqual(self.pending.status, 'pending')
+
+    def test_anonymous_is_redirected_to_login(self):
+        response = self.client.get(self.review_url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('login', response.url)
+        self._assert_cannot_process()
+
+    def test_other_community_user_is_denied(self):
+        self.client.force_login(self.other)
+
+        response = self.client.get(self.review_url)
+
+        self.assertEqual(response.status_code, 302)
+        self._assert_cannot_process()
