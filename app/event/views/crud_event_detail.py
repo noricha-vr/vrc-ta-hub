@@ -78,6 +78,7 @@ class EventDetailCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Cre
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs['request'] = self.request
+        kwargs['instance'] = EventDetail(event=self.event)
         return kwargs
 
     def get_context_data(self, **kwargs):
