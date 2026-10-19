@@ -207,9 +207,10 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        # 状態は作成時だけ受け付ける。更新で承認済みを pending に戻すと、作成済みの告知キューが残ったまま投稿されるため
-        if self.instance is not None and 'status' in self.initial_data:
-            raise serializers.ValidationError({'status': '状態は登録時だけ指定できます。'})
+        # 状態は作成時だけ受け付ける。更新で承認済みを pending に戻すと、作成済みの告知キューが残ったまま投稿されるため。
+        # 以前は status を書き込めず黙って無視していたので、既存の利用者を壊さないよう更新では同じく無視する
+        if self.instance is not None:
+            attrs.pop('status', None)
         instance = self.instance or EventDetail()
         if 'transcript' in attrs and not youtube_video_id(attrs.get('youtube_url', instance.youtube_url)):
             raise serializers.ValidationError({'transcript': 'YouTube の動画 URL がある発表にだけ字幕を登録できます。'})

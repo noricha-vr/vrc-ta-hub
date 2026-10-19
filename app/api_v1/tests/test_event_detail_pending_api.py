@@ -88,14 +88,13 @@ class EventDetailPendingAPITest(TestCase):
         self.assertEqual(self.approved.status, 'approved')
         self.assertEqual(self.approved.theme, '承認済みの発表')
 
-    def test_update_rejects_status_pending(self):
+    def test_update_ignores_status_pending(self):
         for method in ('put', 'patch'):
             with self.subTest(method=method):
                 body = self.payload if method == 'put' else {'status': 'pending'}
                 response = getattr(self.client, method)(self.detail_url, body, format='json')
 
-                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                self.assertIn('status', response.data)
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
                 self.approved.refresh_from_db()
                 self.assertEqual(self.approved.status, 'approved')
 
