@@ -276,6 +276,13 @@ class BotPendingReviewTest(TestCase):
                 self.assertNotContains(response, f'data-bs-target="#approveModal{self.pending.pk}"')
                 self.assertNotContains(response, f'data-bs-target="#rejectModal{self.pending.pk}"')
 
+    def test_my_list_keeps_source_badge_after_applicant_is_linked(self):
+        EventDetail.objects.filter(pk=self.pending.pk).update(status='approved', applicant=self.owner)
+
+        response = self.client.get(reverse('event:my_list'))
+
+        self.assertContains(response, 'Discord から自動で登録')
+
 
 class BotPendingReviewPermissionTest(TestCase):
     """申請者のいない承認待ちを、未ログイン・別の集会のユーザーが確認・処理できないこと。"""

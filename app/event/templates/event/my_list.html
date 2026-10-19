@@ -305,6 +305,7 @@
                                         {% if detail.applicant %}
                                         <div class="card-text mb-2">
                                             申請者: {{ detail.applicant.display_label }}
+                                            {% if detail.source == 'discord_bot' %}<span class="badge bg-secondary ms-2">Discord から自動で登録</span>{% endif %}
                                             {% if detail.status == 'pending' %}
                                                 <span class="badge bg-warning text-dark ms-2"><i class="fas fa-clock"></i> 承認待ち</span>
                                             {% elif detail.status == 'approved' %}
