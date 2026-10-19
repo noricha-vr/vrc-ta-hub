@@ -322,3 +322,14 @@ class BotPendingReviewPermissionTest(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self._assert_cannot_process()
+
+
+class EventDetailAdminFilterTest(TestCase):
+    """Bot 登録の件数と承認率を管理画面で絞り込めること。"""
+
+    def test_status_and_source_are_admin_filters(self):
+        from django.contrib import admin as django_admin
+
+        model_admin = django_admin.site._registry[EventDetail]
+        self.assertIn('status', model_admin.list_filter)
+        self.assertIn('source', model_admin.list_filter)
