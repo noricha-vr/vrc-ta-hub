@@ -182,7 +182,7 @@ class EventAdmin(admin.ModelAdmin):
 @admin.register(EventDetail)
 class EventDetailAdmin(admin.ModelAdmin):
     list_display = ('get_community_name', 'created_at', 'updated_at', 'detail_type', 'theme', 'speaker', 'deleted_at')
-    list_filter = ('detail_type', 'article_consent', 'deleted_at', 'event__community', 'speaker')
+    list_filter = ('detail_type', 'status', 'source', 'article_consent', 'deleted_at', 'event__community', 'speaker')
     # 記事の自動生成の記録は、手で書き換えると手動編集の判定や待ち行列が崩れるので表示だけ
     readonly_fields = ('event', *ARTICLE_CONTROL_FIELDS)
     search_fields = ('theme', 'speaker', 'event__community__name')

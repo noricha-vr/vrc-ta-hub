@@ -200,9 +200,18 @@ class EventDetailSerializer(serializers.ModelSerializer):
 
 class EventDetailWriteSerializer(serializers.ModelSerializer):
     """EventDetail作成・更新用シリアライザー"""
+    status = serializers.ChoiceField(choices=[('pending', '承認待ち')], required=False)
     generate_from_pdf = serializers.BooleanField(write_only=True, required=False, default=False)
     # 録画側で作った字幕。YouTube はクラウドの IP からの字幕取得を弾くので、記事生成の字幕キャッシュへ直接入れる
     transcript = serializers.CharField(write_only=True, required=False, allow_blank=False, max_length=200_000)
+
+    def to_internal_value(self, data):
+        # 状態は作成時だけ受け付ける。更新で承認済みを pending に戻すと、作成済みの告知キューが残ったまま投稿されるため。
+        # 以前は status を書き込めず値を問わず黙って無視していたので、既存の利用者を壊さないよう更新では検証前に捨てる
+        if self.instance is not None and hasattr(data, 'keys') and 'status' in data:
+            data = data.copy()
+            data.pop('status')
+        return super().to_internal_value(data)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -224,7 +233,8 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'event', 'detail_type', 'start_time', 'duration', 'youtube_url',
             'slide_url', 'slide_file', 'thumbnail_image', 'speaker', 'theme', 'h1', 'contents',
-            'meta_description', 'additional_info', 'recording_policy', 'generate_from_pdf', 'transcript'
+            'meta_description', 'additional_info', 'recording_policy', 'status', 'source_url', 'source',
+            'generate_from_pdf', 'transcript'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
         

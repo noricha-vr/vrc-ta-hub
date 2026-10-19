@@ -494,6 +494,8 @@ class EventDetail(models.Model):
     status = models.CharField(
         '申請状態', max_length=10, choices=STATUS_CHOICES, default='approved', db_index=True
     )
+    source_url = models.URLField('元の投稿 URL', blank=True, default='', db_default='')
+    source = models.CharField('登録経路', max_length=50, blank=True, default='', db_default='')
     applicant = models.ForeignKey(
         'user_account.CustomUser', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='lt_applications', verbose_name='申請者'
