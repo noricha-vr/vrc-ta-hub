@@ -205,12 +205,16 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
     # 録画側で作った字幕。YouTube はクラウドの IP からの字幕取得を弾くので、記事生成の字幕キャッシュへ直接入れる
     transcript = serializers.CharField(write_only=True, required=False, allow_blank=False, max_length=200_000)
 
+    def to_internal_value(self, data):
+        # 状態は作成時だけ受け付ける。更新で承認済みを pending に戻すと、作成済みの告知キューが残ったまま投稿されるため。
+        # 以前は status を書き込めず値を問わず黙って無視していたので、既存の利用者を壊さないよう更新では検証前に捨てる
+        if self.instance is not None and hasattr(data, 'keys') and 'status' in data:
+            data = data.copy()
+            data.pop('status')
+        return super().to_internal_value(data)
+
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        # 状態は作成時だけ受け付ける。更新で承認済みを pending に戻すと、作成済みの告知キューが残ったまま投稿されるため。
-        # 以前は status を書き込めず黙って無視していたので、既存の利用者を壊さないよう更新では同じく無視する
-        if self.instance is not None:
-            attrs.pop('status', None)
         instance = self.instance or EventDetail()
         if 'transcript' in attrs and not youtube_video_id(attrs.get('youtube_url', instance.youtube_url)):
             raise serializers.ValidationError({'transcript': 'YouTube の動画 URL がある発表にだけ字幕を登録できます。'})

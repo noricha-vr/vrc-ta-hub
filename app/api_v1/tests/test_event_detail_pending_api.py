@@ -74,19 +74,15 @@ class EventDetailPendingAPITest(TestCase):
                 self.assertIn('status', response.data)
         self.assertEqual(EventDetail.objects.count(), count)
 
-    def test_update_rejects_approved_and_rejected(self):
-        for method in ('put', 'patch'):
-            for value in ('approved', 'rejected'):
-                with self.subTest(method=method, status=value):
-                    response = getattr(self.client, method)(
-                        self.detail_url, {**self.payload, 'status': value}, format='json',
-                    )
+    def test_update_ignores_any_status_value(self):
+        for value in ('approved', 'rejected', 'bogus'):
+            with self.subTest(value=value):
+                response = self.client.patch(self.detail_url, {'status': value, 'theme': f'更新 {value}'}, format='json')
 
-                    self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-                    self.assertIn('status', response.data)
-        self.approved.refresh_from_db()
-        self.assertEqual(self.approved.status, 'approved')
-        self.assertEqual(self.approved.theme, '承認済みの発表')
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.approved.refresh_from_db()
+                self.assertEqual(self.approved.status, 'approved')
+                self.assertEqual(self.approved.theme, f'更新 {value}')
 
     def test_update_ignores_status_pending(self):
         for method in ('put', 'patch'):
