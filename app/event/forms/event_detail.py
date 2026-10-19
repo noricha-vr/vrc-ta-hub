@@ -100,6 +100,12 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
         }
 
     # start_time と duration の初期値はEventCreateFormと同じにする
+    def clean_recording_policy(self):
+        # 新規で撮影の選択肢が届かなかった時は、見ていない選択を「公開」にしない（表示後に集会が撮影を許可した等）
+        if not self.instance.pk and not self.cleaned_data.get('recording_policy'):
+            return EventDetail.RecordingPolicy.FORBIDDEN
+        return super().clean_recording_policy()
+
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop('request', None)
         super().__init__(*args, **kwargs)

@@ -210,6 +210,17 @@ class EventDetailFormRecordingPolicyTest(TestCase):
         detail = EventDetail.objects.get(event=self.event, theme='主催登録')
         self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
 
+    def test_create_without_policy_is_forbidden(self):
+        """撮影の選択肢が届かない新規登録（表示後に集会が撮影を許可した等）は「公開」にしない。"""
+        response = self.client.post(
+            reverse('event:detail_create', kwargs={'event_pk': self.event.pk}),
+            self._data('未送信の登録'),
+        )
+
+        self.assertEqual(response.status_code, 302)
+        detail = EventDetail.objects.get(event=self.event, theme='未送信の登録')
+        self.assertEqual(detail.recording_policy, RecordingPolicy.FORBIDDEN)
+
     def test_update_saves_selected_policy(self):
         """編集画面で値を変えられる。"""
         detail = make_event_detail(self.event, status='approved', start_time=time(22, 30))
