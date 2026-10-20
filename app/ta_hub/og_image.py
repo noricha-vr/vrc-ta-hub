@@ -85,12 +85,20 @@ def _render_text_png_cached(base_dir: str, title: str, asset_name: str) -> bytes
         raise ValueError('Invalid text box')
     # 任意の Unicode や改行を含むタイトルでも同じ描画経路を通す。
     title = title.replace('\r\n', '\n').replace('\r', '\n').replace('\t', ' ')
+    # 収まる中で一番大きい文字にする。ただし最後の行が 1 文字だけになる組み方（「手\n順」など）は
+    # 見栄えが悪いので、小さくして避けられる時は避ける。避けられなければ最初に収まった組み方を使う。
+    fallback = None
     for size in range(58, 29, -2):
         font = ImageFont.truetype(str(ASSET_ROOT / 'fonts' / 'MochiyPopOne-Regular.ttf'), size)
         lines = _wrap_text(title, font, width)
         line_height = round(size * 1.3)
         if len(lines) <= 3 and size + (len(lines) - 1) * line_height <= height:
-            break
+            if len(lines) == 1 or len(lines[-1].strip()) > 1:
+                break
+            fallback = fallback or (font, lines, line_height)
+    else:
+        if fallback is not None:
+            font, lines, line_height = fallback
     if len(lines) > 3:
         lines = lines[:3]
         tail = lines[-1].rstrip()

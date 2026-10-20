@@ -147,6 +147,19 @@ class HubOgTests(TestCase):
             self.assert_png(self.client.get(reverse('ta_hub:og_guide', kwargs={'path': 'event/auto-post'})))
         convert.assert_not_called()
 
+    def test_last_line_is_not_a_single_character(self):
+        # 「手\n順」のように最後の行が 1 文字だけになる組み方は、文字を小さくして避ける。
+        from PIL import ImageDraw
+        _render_text_png_cached.cache_clear()
+        drawn = []
+        original = ImageDraw.ImageDraw.text
+        def capture(draw, xy, text, *args, **kwargs):
+            drawn.append(text)
+            return original(draw, xy, text, *args, **kwargs)
+        with patch.object(ImageDraw.ImageDraw, 'text', capture):
+            render_text_png(ASSET_ROOT / 'guide', 'スライドをVRChatで映す手順')
+        self.assertGreater(len(drawn[-1].strip()), 1, drawn)
+
     def test_concurrent_requests_render_same_image_once(self):
         import threading
         _render_text_png_cached.cache_clear()
