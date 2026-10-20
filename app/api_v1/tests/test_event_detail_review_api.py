@@ -240,6 +240,49 @@ class EventDetailReviewAPITest(TestCase):
                 self.assertFalse(EventDetail.objects.filter(pk=self.detail.pk).exists())
         self.notify.assert_not_called()
 
+    def test_lock_deadlock_is_retried_once_then_returns_503(self):
+        from django.db import OperationalError
+
+        from event.services.application_review import review_application as real_review
+
+        deadlock = OperationalError(1213, 'Deadlock found when trying to get lock')
+        calls = iter([deadlock])
+
+        def flaky(*args, **kwargs):
+            error = next(calls, None)
+            if error is not None:
+                raise error
+            return real_review(*args, **kwargs)
+
+        with patch('api_v1.views.review_application', side_effect=flaky):
+            self.assertEqual(self._post('approved').status_code, 200)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.status, 'approved')
+
+        pending = make_event_detail(self.event)
+        self.url = reverse('event-detail-api-review', args=[pending.pk])
+        with patch('api_v1.views.review_application', side_effect=deadlock):
+            response = self._post('rejected')
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response['Retry-After'], '5')
+        pending.refresh_from_db()
+        self.assertEqual(pending.status, 'pending')
+
+        def deleted_during_deadlock(*args, **kwargs):
+            EventDetail.objects.filter(pk=pending.pk).delete()
+            raise deadlock
+
+        with patch('api_v1.views.review_application', side_effect=deleted_during_deadlock):
+            self.assertEqual(self._post('rejected').status_code, 404)
+
+    def test_non_lock_operational_error_is_not_swallowed(self):
+        from django.db import OperationalError
+
+        self.client.raise_request_exception = True
+        with patch('api_v1.views.review_application', side_effect=OperationalError(2006, 'gone away')):
+            with self.assertRaises(OperationalError):
+                self._post('approved')
+
     def test_audit_log_identifies_discord_reviewer_and_api_key_without_secret(self):
         for decision in ('approved', 'rejected'):
             with self.subTest(decision=decision):

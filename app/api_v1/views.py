@@ -4,6 +4,7 @@ import re
 
 from allauth.socialaccount.models import SocialAccount
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django.db import OperationalError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters import rest_framework as filters
@@ -123,10 +124,13 @@ class EventDetailReviewAPIView(APIView):
         if account is None:
             raise PermissionDenied('この申請を確認する権限がありません。')
         try:
-            result = review_application(
-                event_detail, decision, reviewer=account.user, request=request,
-                api_key_id=request.auth.pk,
-            )
+            result = self._review_retrying_deadlock(event_detail, decision, account.user, request)
+        except _ReviewDeadlock:
+            # 親イベントの削除などとロック順が交差した。押し直し（再送）で決着するので 503 にする。
+            return Response({
+                'detail': '混み合っています。しばらくしてから再度お試しください。',
+                'code': 'retry',
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE, headers={'Retry-After': '5'})
         except DjangoPermissionDenied as error:
             raise PermissionDenied(str(error)) from error
         except ApplicationAlreadyReviewed:
@@ -139,6 +143,33 @@ class EventDetailReviewAPIView(APIView):
             'status': result.event_detail.status,
             **({'warnings': result.warnings} if result.warnings else {}),
         })
+
+
+    @staticmethod
+    def _review_retrying_deadlock(event_detail, decision, reviewer, request):
+        """MySQL のデッドロック・ロック待ち超過は 1 回だけ読み直して再試行する。"""
+        for attempt in range(2):
+            try:
+                return review_application(
+                    event_detail, decision, reviewer=reviewer, request=request,
+                    api_key_id=request.auth.pk,
+                )
+            except OperationalError as error:
+                if not error.args or error.args[0] not in _RETRYABLE_LOCK_ERRORS:
+                    raise
+                if attempt == 1:
+                    raise _ReviewDeadlock from error
+                # 削除で負けた側なら、読み直しで 404 になる。
+                event_detail = get_object_or_404(
+                    EventDetail.objects.select_related('event__community'), pk=event_detail.pk,
+                )
+
+
+_RETRYABLE_LOCK_ERRORS = (1213, 1205)
+
+
+class _ReviewDeadlock(Exception):
+    """再試行してもロックが取れなかった。"""
 
 
 class CommunityFilter(filters.FilterSet):
