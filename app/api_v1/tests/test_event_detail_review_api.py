@@ -15,7 +15,6 @@ from rest_framework.test import APIClient
 
 from community.models import CommunityMember
 from event.models import EventDetail
-from event.services.article_generation import schedule_article_notification_on_approval
 from tests.factories import make_community, make_discord_linked_user, make_event, make_event_detail
 from twitter.models import TweetQueue
 from user_account.models import APIKey
@@ -44,7 +43,7 @@ class EventDetailReviewAPITest(TestCase):
         CommunityMember.objects.create(community=cls.community, user=cls.staff, role=CommunityMember.Role.STAFF)
         make_community(owner=cls.outsider, name='別の集会')
         cls.event = make_event(cls.community)
-        _, cls.raw_key = APIKey.create_with_raw_key(user=cls.admin, name='申請の審査')
+        cls.api_key, cls.raw_key = APIKey.create_with_raw_key(user=cls.admin, name='申請の審査')
 
     def setUp(self):
         cache.clear()
@@ -53,7 +52,9 @@ class EventDetailReviewAPITest(TestCase):
         self.client.credentials(HTTP_X_API_KEY=self.raw_key)
         self.detail = make_event_detail(self.event, source='discord_bot')
         self.url = reverse('event-detail-api-review', kwargs={'pk': self.detail.pk})
-        self.notify = self.enterContext(patch('event.notifications.notify_applicant_of_result'))
+        self.notify_patch = patch('event.notifications.notify_applicant_of_result')
+        self.notify = self.notify_patch.start()
+        self.addCleanup(self.notify_patch.stop)
 
     def _post(self, decision='approved', discord_id=None):
         return self.client.post(self.url, {
@@ -120,16 +121,36 @@ class EventDetailReviewAPITest(TestCase):
 
     def test_other_community_manager_unknown_and_unlinked_ids_are_forbidden(self):
         SocialAccount.objects.create(user=self.owner, provider='github', uid='456789012345678901')
+        expected = self._post(discord_id='999999999999999999').json()
         for uid in ('345678901234567890', '456789012345678901', '999999999999999999'):
             for decision in ('approved', 'rejected'):
                 with self.subTest(discord_id=uid, decision=decision):
-                    self.assertEqual(self._post(decision, uid).status_code, 403)
+                    response = self._post(decision, uid)
+                    self.assertEqual(response.status_code, 403)
+                    self.assertEqual(response.json(), expected)
         self._assert_pending()
 
     def test_discord_user_has_no_superuser_bypass(self):
         SocialAccount.objects.filter(user=self.admin, provider='discord').update(uid='567890123456789012')
         self.assertEqual(self._post(discord_id='567890123456789012').status_code, 403)
         self._assert_pending()
+
+    def test_inactive_owner_and_staff_get_same_403_as_unlinked_user(self):
+        expected = self._post(discord_id='999999999999999999').json()
+        for user, uid in ((self.owner, self.discord_id), (self.staff, self.staff_discord_id)):
+            user.is_active = False
+            user.save(update_fields=['is_active'])
+            for previous in ('pending', 'approved', 'rejected'):
+                EventDetail.objects.filter(pk=self.detail.pk).update(status=previous)
+                for decision in ('approved', 'rejected'):
+                    with self.subTest(user=user.pk, previous=previous, decision=decision):
+                        response = self._post(decision, uid)
+                        self.assertEqual(response.status_code, 403)
+                        self.assertEqual(response.json(), expected)
+                        self.detail.refresh_from_db()
+                        self.assertEqual(self.detail.status, previous)
+        self.notify.assert_not_called()
+        self.assertFalse(TweetQueue.objects.filter(event_detail=self.detail).exists())
 
     def test_invalid_payloads_return_400_without_changes(self):
         valid = {'decision': 'approved', 'discord_id': self.discord_id}
@@ -186,6 +207,40 @@ class EventDetailReviewAPITest(TestCase):
         self.assertEqual(self.detail.status, 'approved')
         self.notify.assert_not_called()
 
+    def test_application_deleted_between_initial_read_and_lock_returns_404(self):
+        def deleted_after_read(*args, **kwargs):
+            stale = get_object_or_404(*args, **kwargs)
+            EventDetail.objects.filter(pk=self.detail.pk).delete()
+            return stale
+
+        for decision in ('approved', 'rejected'):
+            with self.subTest(decision=decision):
+                self.detail = make_event_detail(self.event)
+                self.url = reverse('event-detail-api-review', args=[self.detail.pk])
+                with patch('api_v1.views.get_object_or_404', side_effect=deleted_after_read):
+                    self.assertEqual(self._post(decision).status_code, 404)
+                self.assertFalse(EventDetail.objects.filter(pk=self.detail.pk).exists())
+                self.assertFalse(TweetQueue.objects.filter(event_detail=self.detail).exists())
+        self.notify.assert_not_called()
+
+    def test_audit_log_identifies_discord_reviewer_and_api_key_without_secret(self):
+        for decision in ('approved', 'rejected'):
+            with self.subTest(decision=decision):
+                EventDetail.objects.filter(pk=self.detail.pk).update(status='pending')
+                with self.assertLogs('event.services.application_review', level='INFO') as logs:
+                    self.assertEqual(self._post(decision, self.staff_discord_id).status_code, 200)
+                self.assertEqual(len(logs.records), 1)
+                record = logs.records[0]
+                self.assertEqual(record.getMessage(), 'event_detail_reviewed')
+                self.assertEqual(record.event_detail_id, self.detail.pk)
+                self.assertEqual(record.community_id, self.community.pk)
+                self.assertEqual(record.decision, decision)
+                self.assertEqual(record.reviewer_id, self.staff.pk)
+                self.assertNotEqual(record.reviewer_id, self.admin.pk)
+                self.assertEqual(record.api_key_id, self.api_key.pk)
+                self.assertNotIn(self.raw_key, repr(record.__dict__))
+                self.assertNotIn(self.api_key.key, repr(record.__dict__))
+
     def test_both_decisions_take_detail_lock_in_transaction(self):
         original = QuerySet.select_for_update
         locked_models = []
@@ -225,27 +280,51 @@ class EventDetailReviewAPITest(TestCase):
         self._assert_pending()
         self.assertFalse(TweetQueue.objects.filter(event_detail=self.detail).exists())
 
-    def test_approval_publishes_prepared_article_and_notifies_only_once(self):
+    def _assert_result_and_article_notifications_once(self, decision, *, has_article):
+        # 結果通知も記事通知も実装を通し、外部への送信部分だけを差し替える。
+        self.notify_patch.stop()
         EventDetail.objects.filter(pk=self.detail.pk).update(
-            article_consent=EventDetail.ArticleConsent.OK, h1='発表の記事', contents='記事の本文',
+            article_consent=EventDetail.ArticleConsent.OK,
+            h1='発表の記事' if has_article else '', contents='記事の本文' if has_article else '',
             applicant=self.owner,
         )
         self.community.notification_webhook_url = 'https://discord.invalid/offline-test'
         self.community.save(update_fields=['notification_webhook_url'])
+        result_text = '発表申請が承認されました' if decision == 'approved' else '発表申請が却下されました'
+        article_text = '発表の記事を公開しました'
+        article_count = int(decision == 'approved' and has_article)
+
+        def assert_counts():
+            subjects = [call.kwargs['subject'] for call in send_mail.call_args_list]
+            titles = [call.args[1]['embeds'][0]['title'] for call in post_webhook.call_args_list]
+            for messages in (subjects, titles):
+                self.assertEqual(sum(result_text in message for message in messages), 1)
+                self.assertEqual(sum(article_text in message for message in messages), article_count)
+                self.assertEqual(len(messages), 1 + article_count)
+
         with (
-            patch('event.services.article_generation.schedule_article_notification_on_approval',
-                  wraps=schedule_article_notification_on_approval) as schedule,
             patch('event.notifications.send_mail', return_value=1) as send_mail,
             patch('event.notifications.post_discord_webhook') as post_webhook,
-            self.captureOnCommitCallbacks(execute=True),
         ):
-            self.assertEqual(self._post().status_code, 200)
-            self.assertEqual(self._post().status_code, 409)
-        schedule.assert_called_once()
-        send_mail.assert_called_once()
-        post_webhook.assert_called_once()
+            with self.captureOnCommitCallbacks(execute=True):
+                self.assertEqual(self._post(decision).status_code, 200)
+            assert_counts()
+            for repeated_decision in ('approved', 'rejected'):
+                with self.captureOnCommitCallbacks(execute=True):
+                    self.assertEqual(self._post(repeated_decision).status_code, 409)
+                assert_counts()
         self.detail.refresh_from_db()
-        self.assertIsNotNone(self.detail.article_published_notified_at)
+        self.assertEqual(self.detail.status, decision)
+        self.assertEqual(self.detail.article_published_notified_at is not None, bool(article_count))
+
+    def test_approval_publishes_prepared_article_and_notifies_only_once(self):
+        self._assert_result_and_article_notifications_once('approved', has_article=True)
+
+    def test_approval_without_article_sends_only_one_result_notification(self):
+        self._assert_result_and_article_notifications_once('approved', has_article=False)
+
+    def test_rejection_with_article_sends_only_one_result_notification(self):
+        self._assert_result_and_article_notifications_once('rejected', has_article=True)
 
     def test_api_does_not_overwrite_pending_content_or_schedule(self):
         EventDetail.objects.filter(pk=self.detail.pk).update(theme='申請者の最新の編集', duration=15)

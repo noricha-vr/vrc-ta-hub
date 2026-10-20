@@ -3,6 +3,7 @@
 import re
 
 from allauth.socialaccount.models import SocialAccount
+from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters import rest_framework as filters
@@ -122,7 +123,12 @@ class EventDetailReviewAPIView(APIView):
         if account is None:
             raise PermissionDenied('この申請を確認する権限がありません。')
         try:
-            result = review_application(event_detail, decision, reviewer=account.user, request=request)
+            result = review_application(
+                event_detail, decision, reviewer=account.user, request=request,
+                api_key_id=request.auth.pk,
+            )
+        except DjangoPermissionDenied as error:
+            raise PermissionDenied(str(error)) from error
         except ApplicationAlreadyReviewed:
             return Response({
                 'detail': 'この申請は既に処理されています。',

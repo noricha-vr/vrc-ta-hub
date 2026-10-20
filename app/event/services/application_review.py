@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.shortcuts import get_object_or_404
 
 from event.models import EventDetail
 from vket.application_link import application_warnings, link_approved_application, lock_application_event
@@ -25,7 +26,7 @@ class ApplicationReviewResult:
 
 def review_application(
     event_detail, decision, *, reviewer, request=None, rejection_reason='',
-    event=None, start_time=None, duration=None,
+    event=None, start_time=None, duration=None, api_key_id=None,
 ) -> ApplicationReviewResult:
     """最新行をロックし、pending からの状態変更と後処理を一度だけ行う。
 
@@ -37,10 +38,11 @@ def review_application(
     with transaction.atomic():
         # Vket 同期と同じく、コラボ・参加・イベントを発表詳細より先にロックする。
         lock_application_event(event or event_detail.event)
-        locked = EventDetail.objects.select_for_update(of=('self',)).select_related(
-            'event__community',
-        ).get(pk=event_detail.pk)
-        if not locked.event.community.is_manager(reviewer):
+        locked = get_object_or_404(
+            EventDetail.objects.select_for_update(of=('self',)).select_related('event__community'),
+            pk=event_detail.pk,
+        )
+        if not reviewer.is_active or not locked.event.community.is_manager(reviewer):
             raise PermissionDenied('この申請を確認する権限がありません。')
         if locked.status != 'pending':
             raise ApplicationAlreadyReviewed
@@ -71,6 +73,8 @@ def review_application(
         'event_detail_id': locked.pk,
         'community_id': locked.event.community_id,
         'decision': decision,
+        'reviewer_id': reviewer.pk,
+        'api_key_id': api_key_id,
     })
     return ApplicationReviewResult(locked, schedule_changes, warnings)
 
