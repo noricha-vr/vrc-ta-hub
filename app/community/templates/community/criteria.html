@@ -1,5 +1,6 @@
 {% extends 'ta_hub/base.html' %}
 
+{% load og_tags %}
 {% block meta %}
     <title>掲載・審査基準 - VRChat 技術・学術系イベントHub</title>
     <meta name="twitter:title" content="掲載・審査基準 - VRChat 技術・学術系イベントHub">
@@ -10,8 +11,8 @@
           content="VRChat 技術・学術系イベントHubにおける技術系・学術系・協力団体の定義と、協力団体の審査基準をご案内します。">
     <meta property="og:description"
           content="VRChat 技術・学術系イベントHubにおける技術系・学術系・協力団体の定義と、協力団体の審査基準をご案内します。">
-    <meta property="og:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
-    <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
+    {% og_static 'ta_hub/og/community-criteria.jpg' as image_url %}
+    {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
 {% endblock %}
 
 {% block main %}

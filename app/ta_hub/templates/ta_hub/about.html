@@ -1,5 +1,6 @@
 {% extends 'ta_hub/base.html' %}
 {% load static %}
+{% load og_tags %}
 {% block meta %}
     <title>技術・学術イベントHubってなに？ - VRChat 技術・学術系イベントHub</title>
     <meta name="twitter:title" content="技術・学術イベントHubってなに？ - VRChat 技術・学術系イベントHub">
@@ -10,8 +11,8 @@
           content="VRChat技術・学術系イベントHubは、VRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくための仕組み作りをしているコミュニティです。Web、本、電子書籍、アセットなど様々な方法で技術学術系集会を紹介しています。">
     <meta property="og:description"
           content="VRChat技術・学術系イベントHubは、VRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくための仕組み作りをしているコミュニティです。Web、本、電子書籍、アセットなど様々な方法で技術学術系集会を紹介しています。">
-    <meta property="og:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
-    <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
+    {% og_static 'ta_hub/og/about.jpg' as image_url %}
+    {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
 {% endblock %}
 {% block main %}
     <!-- 3 icons end -->

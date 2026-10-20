@@ -1,0 +1,39 @@
+{% extends 'ta_hub/base.html' %}
+{% block meta %}
+    {% include 'ta_hub/includes/og_meta.html' %}
+    <meta name="robots" content="noindex,follow">
+{% endblock %}
+{% block og_url_path %}{{ og_url_path }}{% endblock %}
+{% block main %}
+    <style>
+        .notice-login-cta {
+            background-color: #0b5ed7;
+            border-color: #0b5ed7;
+            color: #fff;
+        }
+        .notice-login-cta:hover,
+        .notice-login-cta:focus {
+            background-color: #094db1;
+            border-color: #084298;
+            color: #fff;
+        }
+        .notice-login-cta:focus-visible {
+            outline: 3px solid #052c65;
+            outline-offset: 2px;
+        }
+    </style>
+    <div class="container my-5" style="max-width: 760px;">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body p-4 p-md-5 text-center">
+                <i class="fas fa-bullhorn fa-3x text-primary mb-4" aria-hidden="true"></i>
+                <h1 class="h2 fw-bold mb-3">{{ public_title }}</h1>
+                <p class="text-muted mb-4">
+                    {{ public_message }}
+                </p>
+                <a href="{{ login_url }}" class="btn notice-login-cta fw-bold px-4">
+                    <i class="fas fa-sign-in-alt me-2" aria-hidden="true"></i>{{ login_label }}
+                </a>
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -7,6 +7,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Prefetch
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 
@@ -99,8 +100,20 @@ class VketStatusRedirectView(LoginRequiredMixin, View):
         return redirect('vket:status', pk=collaboration.pk)
 
 
-class StageRegisterView(LoginRequiredMixin, View):
+class StageRegisterView(PublicParticipationShellMixin, LoginRequiredMixin, View):
     """主催者がVketステージ登録完了を自己申告するビュー"""
+
+    og_page = 'stage_register'
+
+    def get(self, request, pk: int):
+        collaboration = get_object_or_404(_get_visible_collaborations(request.user), pk=pk)
+        return render(request, 'vket/page_public.html', {
+            **page_metadata(request, collaboration, self.og_page),
+            'public_title': f'{collaboration.name} ステージ登録',
+            'public_message': '参加状況の画面からステージ登録を記録できます。',
+            'login_label': '参加状況を確認する',
+            'login_url': reverse('vket:status', kwargs={'pk': pk}),
+        })
 
     def post(self, request, pk: int):
         collaboration = get_object_or_404(VketCollaboration, pk=pk)

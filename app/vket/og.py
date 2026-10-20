@@ -2,27 +2,21 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import re
-from functools import lru_cache
-from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlencode
 
 from django.core import signing
-from django.templatetags.static import static
 from django.urls import reverse
-from PIL import Image, ImageDraw, ImageFont
 
+from ta_hub.og_image import absolute_static_url, render_text_png
 from website.constants import DEFAULT_NEWS_IMAGE_URL
 from .models import VketNotice
 
 logger = logging.getLogger(__name__)
 ASSET_ROOT = Path(__file__).resolve().parent / 'og_assets'
 SIGNING_SALT = 'vket-notice-og'
-# 簡易禁則: 閉じ括弧・句読点・小書き文字などを行頭に置かない。
-NO_LINE_START = frozenset('、。，．！？!?）)]｝}」』】〉》〕・ーぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮ')
 
 
 def _settings(collaboration) -> dict:
@@ -35,15 +29,8 @@ def _images(collaboration) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def absolute_static_url(request, path: str) -> str:
-    url = static(path)
-    if url.startswith(('http://', 'https://', '//')):
-        return url
-    return request.build_absolute_uri('/' + url.lstrip('/'))
-
-
 def page_metadata(request, collaboration, page: str) -> dict:
-    label = {'apply': '参加登録', 'status': '参加状況'}[page]
+    label = {'apply': '参加登録', 'status': '参加状況', 'stage_register': 'ステージ登録', 'detail': ''}[page]
     image = _images(collaboration).get(page)
     image_url = DEFAULT_NEWS_IMAGE_URL
     if isinstance(image, str):
@@ -53,10 +40,13 @@ def page_metadata(request, collaboration, page: str) -> dict:
                 and '\\' not in image and '..' not in image and not any(ord(c) < 32 for c in image)):
             image_url = absolute_static_url(request, image)
     return {
-        'og_title': f'{collaboration.name} {label}',
+        'og_title': f'{collaboration.name} {label}'.rstrip(),
         'og_image_url': image_url,
         'og_url_path': request.path,
-        'meta_description': f'{collaboration.name}の{label}ページです。ログインしてご確認ください。',
+        'meta_description': (
+            f'{collaboration.name}の開催情報と確定したスケジュールを確認できます。'
+            if page == 'detail' else f'{collaboration.name}の{label}ページです。ログインしてご確認ください。'
+        ),
     }
 
 
@@ -149,80 +139,5 @@ def notice_metadata(request, collaboration) -> dict:
     }
 
 
-def _wrap_text(text: str, font, width: int) -> list[str]:
-    """日本語は文字単位、収まる英数字の単語は単語単位で折り返す。"""
-    tokens = re.findall(r"[A-Za-z0-9]+(?:[\-_'][A-Za-z0-9]+)*|[^\S\n]+|\n|.", text)
-    # 禁則文字は手前の文字・単語と一緒に扱う。連続する閉じ括弧もまとめる。
-    groups = []
-    for token in tokens:
-        if token[0] in NO_LINE_START and groups and not groups[-1].isspace():
-            groups[-1] += token
-        else:
-            groups.append(token)
-    lines, line = [], ''
-    for group in groups:
-        if group == '\n':
-            lines.append(line.rstrip())
-            line = ''
-            continue
-        pieces = [group]
-        if font.getlength(group) > width:
-            # パネルより長い単語だけ文字単位に分割する（末尾の禁則文字は残す）。
-            pieces = []
-            for char in group:
-                if char in NO_LINE_START and pieces:
-                    pieces[-1] += char
-                else:
-                    pieces.append(char)
-        for piece in pieces:
-            if line and font.getlength(line + piece) > width:
-                lines.append(line.rstrip())
-                line = ''
-            line += piece if line else piece.lstrip()
-    if line or not lines:
-        lines.append(line.rstrip())
-    return lines
-
-
 def render_notice_png(base: Path, title: str) -> bytes:
-    # 一覧画像は署名なしで叩けるので、同じ素材・タイトルの描画はプロセス内で使い回す。
-    # タイトルの種類はお知らせの件数とコラボ数までしか増えず、v を変えても描き直さない。
-    return _render_notice_png_cached(str(base), title)
-
-
-@lru_cache(maxsize=64)
-def _render_notice_png_cached(base_dir: str, title: str) -> bytes:
-    base = Path(base_dir)
-    with Image.open(base / 'notice-base.png') as source:
-        image = source.convert('RGB')
-    if image.size != (1200, 630):
-        raise ValueError('Invalid image dimensions')
-    config = json.loads((base / 'notice-base.json').read_text())
-    x, y, width, height = config['text_box']
-    if not (0 <= x < x + width <= 1200 and 0 <= y < y + height <= 630):
-        raise ValueError('Invalid text box')
-    # 任意の Unicode や改行を含むタイトルでも同じ描画経路を通す。
-    title = title.replace('\r\n', '\n').replace('\r', '\n').replace('\t', ' ')
-    for size in range(58, 29, -2):
-        font = ImageFont.truetype(str(ASSET_ROOT / 'fonts' / 'MochiyPopOne-Regular.ttf'), size)
-        lines = _wrap_text(title, font, width)
-        line_height = round(size * 1.3)
-        if len(lines) <= 3 and size + (len(lines) - 1) * line_height <= height:
-            break
-    if len(lines) > 3:
-        lines = lines[:3]
-        tail = lines[-1].rstrip()
-        while tail and font.getlength(tail + '…') > width:
-            tail = tail[:-1]
-        lines[-1] = tail + '…'
-    # ink の上下端を使い、フォント固有の余白によらずパネル内で上下中央にする。
-    boxes = [font.getbbox(line or ' ') for line in lines]
-    top = min(box[1] + i * line_height for i, box in enumerate(boxes))
-    bottom = max(box[3] + i * line_height for i, box in enumerate(boxes))
-    origin_y = y + (height - (bottom - top)) / 2 - top
-    draw = ImageDraw.Draw(image)
-    for i, line in enumerate(lines):
-        draw.text((x, origin_y + i * line_height), line, font=font, fill=config['color'])
-    output = BytesIO()
-    image.save(output, format='PNG')
-    return output.getvalue()
+    return render_text_png(base, title, 'notice-base')

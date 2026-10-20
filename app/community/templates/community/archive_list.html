@@ -1,5 +1,6 @@
 {% extends 'ta_hub/base.html' %}
 {% load custom_filters image_tags %}
+{% load og_tags %}
 {% block meta %}
     <title>終了した集会 - VRChat 技術・学術系イベントHub</title>
     <meta name="twitter:title" content="終了した集会 - VRChat 技術・学術系イベントHub">
@@ -10,8 +11,8 @@
           content="VRChat技術学術系の終了した集会の情報を掲載しています。過去に開催されていた集会の記録を見ることができます。">
     <meta property="og:description"
           content="VRChat技術学術系の終了した集会の情報を掲載しています。過去に開催されていた集会の記録を見ることができます。">
-    <meta property="og:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
-    <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/negipan-night-1600.jpeg">
+    {% og_static 'ta_hub/og/community-archive.jpg' as image_url %}
+    {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
 {% endblock %}
 {% block main %}
 

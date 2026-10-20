@@ -2,12 +2,16 @@ import logging
 from collections.abc import Iterable
 from datetime import datetime, time, timedelta
 
+from urllib.parse import urlencode
+
+from django.conf import settings
+from django.utils.cache import add_never_cache_headers, patch_vary_headers
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Prefetch
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.views.generic import FormView, TemplateView, View
 
 from community.models import Community
@@ -15,6 +19,7 @@ from event.forms import LTApplicationForm, LTApplicationReviewForm
 from event.models import Event, EventDetail
 from event.services.application_review import ApplicationAlreadyReviewed, review_application
 from vket.application_link import application_warnings
+from ta_hub.og import accepts_public_application, application_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +75,20 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
 
     def dispatch(self, request, *args, **kwargs):
         self.community = get_object_or_404(Community, pk=kwargs['community_pk'])
+        if (request.method == 'GET' and not request.user.is_authenticated
+                and accepts_public_application(self.community)):
+            metadata = application_metadata(request, self.community)
+            response = render(request, 'ta_hub/page_public.html', {
+                **metadata,
+                'public_title': metadata['og_title'],
+                'public_message': 'ログインして発表をお申し込みください。',
+                'login_label': 'ログインして発表を申し込む',
+                'login_url': f'{settings.LOGIN_URL}?{urlencode({"next": request.get_full_path()})}',
+            })
+            add_never_cache_headers(response)
+            patch_vary_headers(response, ['Cookie'])
+            response['X-Robots-Tag'] = 'noindex'
+            return response
         return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
@@ -82,6 +101,7 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['community'] = self.community
+        context.update(application_metadata(self.request, self.community))
         event_queryset = context['form'].fields['event'].queryset
         lt_prefetch = Prefetch(
             'details',
@@ -212,6 +232,7 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
         context = super().get_context_data(**kwargs)
         context['event_detail'] = self.event_detail
         context['community'] = self.community
+        context.update(application_metadata(self.request, self.community))
         return context
 
     def form_valid(self, form):

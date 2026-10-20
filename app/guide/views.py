@@ -15,6 +15,7 @@ from django.shortcuts import redirect
 from django.views.generic import TemplateView
 
 from event.services.markdown_processor import convert_markdown
+from ta_hub.og import image_url
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,8 @@ def load_markdown_content(path: str) -> tuple[str, dict]:
         Http404: ファイルが見つからない場合
     """
     # パスの正規化とパストラバーサル対策
+    if '..' in path or '\\' in path or '\x00' in path:
+        raise Http404
     safe_path = path.strip('/')
     candidate_paths = [safe_path]
     alias_path = GUIDE_CONTENT_ALIASES.get(safe_path)
@@ -211,7 +214,7 @@ def load_markdown_content(path: str) -> tuple[str, dict]:
             logger.warning(f"パストラバーサル攻撃を検出: {path}")
             raise Http404(f"ガイドページが見つかりません: {path}")
 
-        if candidate_file.exists():
+        if candidate_file.is_file():
             md_file = candidate_file
             break
 
@@ -298,6 +301,7 @@ class GuidePageView(TemplateView):
         breadcrumbs = get_breadcrumbs(nav_items, path)
 
         context.update({
+            'og_image_url': image_url(self.request, 'ta_hub:og_guide', frontmatter.get('title', 'ガイド'), path=path),
             'content': content,
             'frontmatter': frontmatter,
             'page_title': frontmatter.get('title', 'ガイド'),

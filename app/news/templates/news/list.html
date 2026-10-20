@@ -1,5 +1,11 @@
 {% extends 'ta_hub/base.html' %}
+{% load og_tags %}
+{% block og_image_meta %}
+    {% og_static 'ta_hub/og/news.jpg' as image_url %}
+    {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
+{% endblock %}
 {% block meta %}
+    {{ block.super }}
     {% if structured_data_json %}
         <script type="application/ld+json">{{ structured_data_json|safe }}</script>
     {% endif %}
