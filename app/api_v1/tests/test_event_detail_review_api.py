@@ -1,6 +1,7 @@
 """Discord の審査ボタンの権限・状態遷移と既存の後処理を検証する。"""
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date, timedelta
 from threading import Barrier
 from unittest.mock import patch
 
@@ -14,7 +15,7 @@ from django.urls import reverse
 from rest_framework.test import APIClient
 
 from community.models import CommunityMember
-from event.models import EventDetail
+from event.models import Event, EventDetail
 from tests.factories import make_community, make_discord_linked_user, make_event, make_event_detail
 from twitter.models import TweetQueue
 from user_account.models import APIKey
@@ -221,6 +222,22 @@ class EventDetailReviewAPITest(TestCase):
                     self.assertEqual(self._post(decision).status_code, 404)
                 self.assertFalse(EventDetail.objects.filter(pk=self.detail.pk).exists())
                 self.assertFalse(TweetQueue.objects.filter(event_detail=self.detail).exists())
+        self.notify.assert_not_called()
+
+    def test_parent_event_deleted_between_initial_read_and_lock_returns_404(self):
+        def event_deleted_after_read(*args, **kwargs):
+            stale = get_object_or_404(*args, **kwargs)
+            Event.objects.filter(pk=stale.event_id).delete()
+            return stale
+
+        for offset, decision in enumerate(('approved', 'rejected'), start=30):
+            with self.subTest(decision=decision):
+                self.event = make_event(self.community, event_date=date.today() + timedelta(days=offset))
+                self.detail = make_event_detail(self.event)
+                self.url = reverse('event-detail-api-review', args=[self.detail.pk])
+                with patch('api_v1.views.get_object_or_404', side_effect=event_deleted_after_read):
+                    self.assertEqual(self._post(decision).status_code, 404)
+                self.assertFalse(EventDetail.objects.filter(pk=self.detail.pk).exists())
         self.notify.assert_not_called()
 
     def test_audit_log_identifies_discord_reviewer_and_api_key_without_secret(self):

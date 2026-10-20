@@ -3,8 +3,9 @@
 import logging
 from dataclasses import dataclass
 
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 from django.db import transaction
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 from event.models import EventDetail
@@ -37,7 +38,11 @@ def review_application(
 
     with transaction.atomic():
         # Vket 同期と同じく、コラボ・参加・イベントを発表詳細より先にロックする。
-        lock_application_event(event or event_detail.event)
+        try:
+            lock_application_event(event or event_detail.event)
+        except ObjectDoesNotExist as exc:
+            # 最初の読み取り後に親のイベントやコラボが削除された時も、申請の削除と同じく 404 にする。
+            raise Http404 from exc
         locked = get_object_or_404(
             EventDetail.objects.select_for_update(of=('self',)).select_related('event__community'),
             pk=event_detail.pk,
