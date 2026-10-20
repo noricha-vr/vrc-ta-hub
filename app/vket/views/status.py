@@ -12,6 +12,8 @@ from django.views import View
 
 from event.models import EventDetail
 
+from ..og import page_metadata
+from .og_public import PublicParticipationShellMixin
 from ..models import (
     VketCollaboration,
     VketParticipation,
@@ -151,9 +153,10 @@ def _rehearsal_schedule(collaboration: VketCollaboration) -> str:
     return value.strip() if isinstance(value, str) else ''
 
 
-class ParticipationStatusView(LoginRequiredMixin, View):
+class ParticipationStatusView(PublicParticipationShellMixin, LoginRequiredMixin, View):
     """主催者向け: 自分の集会のコラボ参加状況を確認するビュー"""
 
+    og_page = 'status'
     template_name = 'vket/participation_status.html'
 
     def get(self, request, pk: int):
@@ -222,6 +225,7 @@ class ParticipationStatusView(LoginRequiredMixin, View):
             request,
             self.template_name,
             {
+                **page_metadata(request, collaboration, 'status'),
                 'collaboration': collaboration,
                 'participation': participation,
                 'community': community,

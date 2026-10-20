@@ -2,6 +2,7 @@ from django.urls import path
 
 from . import views
 from .views.auto_confirm import run_auto_confirm
+from .views.og import notice_og
 
 app_name = 'vket'
 
@@ -13,6 +14,8 @@ urlpatterns = [
     path('<int:pk>/apply/', views.ApplyView.as_view(), name='apply'),
     path('<int:pk>/status/', views.ParticipationStatusView.as_view(), name='status'),
     path('<int:pk>/stage-register/', views.StageRegisterView.as_view(), name='stage_register'),
+    path('<int:pk>/notices/og.png', notice_og, name='notice_og_list'),
+    path('<int:pk>/notices/<int:notice_id>/og.png', notice_og, name='notice_og_detail'),
     path('<int:pk>/notices/', views.NoticeListView.as_view(), name='notice_list'),
     path('<int:pk>/notices/<int:receipt_id>/ack/', views.NoticeListAckView.as_view(), name='notice_list_ack'),
     path('<int:pk>/manage/', views.ManageView.as_view(), name='manage'),

@@ -13,6 +13,8 @@ from django.views import View
 from community.models import Community
 
 from ..forms import VketApplyForm, VketApplyPermissions, VketPresentationFormSet
+from ..og import page_metadata
+from .og_public import PublicParticipationShellMixin
 from ..models import (
     VketCollaboration,
     VketParticipation,
@@ -42,7 +44,8 @@ from .status import (
 )
 
 
-class ApplyView(LoginRequiredMixin, View):
+class ApplyView(PublicParticipationShellMixin, LoginRequiredMixin, View):
+    og_page = 'apply'
     template_name = 'vket/apply.html'
 
     def get(self, request, pk: int):
@@ -194,6 +197,7 @@ class ApplyView(LoginRequiredMixin, View):
             request,
             self.template_name,
             {
+                **page_metadata(request, collaboration, 'apply'),
                 'collaboration': collaboration,
                 'community': community,
                 'participation': participation,

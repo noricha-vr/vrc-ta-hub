@@ -9,7 +9,6 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.templatetags.static import static
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
@@ -25,6 +24,7 @@ from website.constants import DEFAULT_NEWS_IMAGE_URL
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 
 from ..constants import CREATABLE_TARGET_SCOPES, TARGET_SCOPE_LABELS, target_scope_label
+from ..og import notice_link, notice_metadata
 from ..models import (
     VketCollaboration,
     VketNotice,
@@ -182,6 +182,7 @@ class NoticeListView(LoginRequiredMixin, View):
             request,
             self.template_name,
             {
+                **notice_metadata(request, collaboration),
                 'collaboration': collaboration,
                 'receipts': receipts,
                 'unacked_receipts': unacked_receipts,
@@ -216,41 +217,24 @@ class NoticeListView(LoginRequiredMixin, View):
         if collaboration is None:
             return self.handle_no_permission()
 
-        notice_settings = collaboration.settings_json
-        if not isinstance(notice_settings, dict):
-            notice_settings = {}
-        image_path = notice_settings.get('notice_og_image')
-        if not isinstance(image_path, str):
-            image_path = ''
-        image_path = image_path.strip()
-        og_image_url = DEFAULT_NOTICE_OG_IMAGE_URL
-        if image_path.startswith(('http://', 'https://')):
-            og_image_url = image_path
-        elif image_path:
-            static_path = static(image_path)
-            og_image_url = static_path
-            if not static_path.startswith(('http://', 'https://', '//')):
-                if not static_path.startswith('/'):
-                    static_path = f'/{static_path}'
-                og_image_url = request.build_absolute_uri(static_path)
-        description = (
-            f'{collaboration.name}の開催準備や発表に関するお知らせを確認できます。'
-            'お知らせの内容を見るにはログインが必要です。'
-        )
-
-        return render(
+        metadata = notice_metadata(request, collaboration)
+        response = render(
             request,
             self.public_template_name,
             {
+                **metadata,
                 'collaboration_name': collaboration.name,
-                'meta_description': description,
+                'public_title': f'{collaboration.name} お知らせ',
+                'public_message': 'お知らせの内容は参加者向けです。ログインしてご確認ください。',
+                'login_label': 'ログインしてお知らせを見る',
                 'login_url': (
                     f'{settings.LOGIN_URL}?'
                     f'{urlencode({"next": request.get_full_path()})}'
                 ),
-                'og_image_url': og_image_url,
             },
         )
+        response['X-Robots-Tag'] = 'noindex'
+        return response
 
 
 class NoticeListAckView(LoginRequiredMixin, View):
@@ -402,8 +386,7 @@ def _community_mentions(community, discord_ids: dict[int, list[str]]) -> list[st
 
 def _build_remind_text(request, notice, mentions: list[str]) -> str:
     """Discord に貼ればそのまま使えるリマインド文（メンション + 【要確認】タイトル + 一覧URL）"""
-    path = reverse('vket:notice_list', kwargs={'pk': notice.collaboration_id})
-    url = request.build_absolute_uri(f'{path}?open={notice.id}')
+    url = notice_link(request, notice)
     lines = [' '.join(mentions), f'【要確認】{notice.title}', url]
     return '\n'.join(line for line in lines if line)
 
