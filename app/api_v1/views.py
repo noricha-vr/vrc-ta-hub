@@ -3,19 +3,22 @@
 import re
 
 from allauth.socialaccount.models import SocialAccount
+from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django.db import OperationalError
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets, status
+from rest_framework import serializers, viewsets, status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
-from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 
 from community.models import Community, CommunityMember
@@ -26,6 +29,7 @@ from event.datetime_lock import (
     is_event_datetime_locked,
 )
 from event.models import Event, EventDetail, RecurrenceRule
+from event.services.application_review import ApplicationAlreadyReviewed, review_application
 from .authentication import APIKeyAuthentication
 from .base import DatabaseReconnectListMixin
 from .serializers import (
@@ -82,6 +86,90 @@ class CommunityByDiscordAPIView(APIView):
         ).select_related('community').order_by('community_id')
         serializer = CommunityByDiscordSerializer({'discord_id': discord_id, 'communities': memberships})
         return Response(serializer.data)
+
+
+class EventDetailReviewAPIView(APIView):
+    """Discord で主催・スタッフが押した審査結果を反映する。"""
+
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated, IsSuperuser]
+    parser_classes = [JSONParser]
+
+    @extend_schema(
+        summary='発表申請の承認・却下',
+        description='スーパーユーザーの書き込み API キー限定。Discord 連携先が対象集会の主催・スタッフであることを確認します。',
+        tags=['EventDetail API'],
+        request=inline_serializer(name='EventDetailReviewRequest', fields={
+            'decision': serializers.ChoiceField(choices=['approved', 'rejected']),
+            'discord_id': serializers.RegexField(r'^[0-9]{17,20}$'),
+        }),
+        responses={200: inline_serializer(name='EventDetailReviewResponse', fields={
+            'id': serializers.IntegerField(),
+            'status': serializers.ChoiceField(choices=['approved', 'rejected']),
+            'warnings': serializers.ListField(child=serializers.CharField(), required=False),
+        })},
+    )
+    def post(self, request, pk):
+        if not isinstance(request.data, dict):
+            raise ValidationError({'detail': 'JSON オブジェクトを指定してください。'})
+        decision = request.data.get('decision')
+        if decision not in ('approved', 'rejected'):
+            raise ValidationError({'decision': 'approved または rejected を指定してください。'})
+        discord_id = request.data.get('discord_id')
+        if not isinstance(discord_id, str) or re.fullmatch(r'[0-9]{17,20}', discord_id) is None:
+            raise ValidationError({'discord_id': 'discord_id は17〜20桁の数字の文字列で指定してください。'})
+
+        event_detail = get_object_or_404(EventDetail.objects.select_related('event__community'), pk=pk)
+        account = SocialAccount.objects.filter(provider='discord', uid=discord_id).select_related('user').first()
+        if account is None:
+            raise PermissionDenied('この申請を確認する権限がありません。')
+        try:
+            result = self._review_retrying_deadlock(event_detail, decision, account.user, request)
+        except _ReviewDeadlock:
+            # 親イベントの削除などとロック順が交差した。押し直し（再送）で決着するので 503 にする。
+            return Response({
+                'detail': '混み合っています。しばらくしてから再度お試しください。',
+                'code': 'retry',
+            }, status=status.HTTP_503_SERVICE_UNAVAILABLE, headers={'Retry-After': '5'})
+        except DjangoPermissionDenied as error:
+            raise PermissionDenied(str(error)) from error
+        except ApplicationAlreadyReviewed:
+            return Response({
+                'detail': 'この申請は既に処理されています。',
+                'code': 'already_reviewed',
+            }, status=status.HTTP_409_CONFLICT)
+        return Response({
+            'id': result.event_detail.pk,
+            'status': result.event_detail.status,
+            **({'warnings': result.warnings} if result.warnings else {}),
+        })
+
+
+    @staticmethod
+    def _review_retrying_deadlock(event_detail, decision, reviewer, request):
+        """MySQL のデッドロック・ロック待ち超過は 1 回だけ読み直して再試行する。"""
+        for attempt in range(2):
+            try:
+                return review_application(
+                    event_detail, decision, reviewer=reviewer, request=request,
+                    api_key_id=request.auth.pk,
+                )
+            except OperationalError as error:
+                if not error.args or error.args[0] not in _RETRYABLE_LOCK_ERRORS:
+                    raise
+                if attempt == 1:
+                    raise _ReviewDeadlock from error
+                # 削除で負けた側なら、読み直しで 404 になる。
+                event_detail = get_object_or_404(
+                    EventDetail.objects.select_related('event__community'), pk=event_detail.pk,
+                )
+
+
+_RETRYABLE_LOCK_ERRORS = (1213, 1205)
+
+
+class _ReviewDeadlock(Exception):
+    """再試行してもロックが取れなかった。"""
 
 
 class CommunityFilter(filters.FilterSet):

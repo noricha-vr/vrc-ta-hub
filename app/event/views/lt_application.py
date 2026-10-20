@@ -4,7 +4,6 @@ from datetime import datetime, time, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Prefetch
 from django.http import JsonResponse
@@ -14,7 +13,8 @@ from django.views.generic import FormView, TemplateView, View
 from community.models import Community
 from event.forms import LTApplicationForm, LTApplicationReviewForm
 from event.models import Event, EventDetail
-from vket.application_link import application_warnings, link_approved_application, lock_application_event
+from event.services.application_review import ApplicationAlreadyReviewed, review_application
+from vket.application_link import application_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +185,7 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
 
-        self.event_detail = get_object_or_404(EventDetail, pk=kwargs['pk'])
+        self.event_detail = get_object_or_404(EventDetail.objects.select_related('event__community'), pk=kwargs['pk'])
         self.community = self.event_detail.event.community
 
         # 権限チェック
@@ -216,48 +216,26 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
 
     def form_valid(self, form):
         action = form.cleaned_data['action']
-        schedule_changes: list[dict[str, str]] = []
+        try:
+            result = review_application(
+                self.event_detail,
+                'approved' if action == 'approve' else 'rejected',
+                reviewer=self.request.user,
+                request=self.request,
+                rejection_reason=form.cleaned_data['rejection_reason'],
+                event=form.cleaned_data.get('event') if action == 'approve' else None,
+                start_time=form.cleaned_data.get('start_time'),
+                duration=form.cleaned_data.get('duration'),
+            )
+        except ApplicationAlreadyReviewed:
+            messages.info(self.request, 'この申請は既に処理されています。')
+            return redirect('event:lt_application_review', pk=self.event_detail.pk)
 
-        with transaction.atomic():
-            lock_application_event(form.cleaned_data.get('event') or self.event_detail.event)
-            # 申請者は pending 中も内容を編集できる。dispatch 時点のインスタンスを
-            # 保存するとその編集を巻き戻すため、行ロックで取り直した最新行を
-            # 更新基準にする（更新列も限定する）。
-            locked = EventDetail.objects.select_for_update().select_related(
-                'event', 'applicant'
-            ).get(pk=self.event_detail.pk)
-            if locked.status != 'pending':
-                messages.info(self.request, 'この申請は既に処理されています。')
-                return redirect('event:lt_application_review', pk=locked.pk)
-
-            self.event_detail = locked
-
-            if action == 'approve':
-                schedule_changes = self._apply_schedule_changes(form)
-                from event.services.article_generation import schedule_article_notification_on_approval
-                schedule_article_notification_on_approval(locked)
-                locked.status = 'approved'
-                status_text = '承認'
-                update_fields = ['status', 'event', 'start_time', 'duration', 'updated_at']
-            else:
-                locked.status = 'rejected'
-                locked.rejection_reason = form.cleaned_data['rejection_reason']
-                status_text = '却下'
-                update_fields = ['status', 'rejection_reason', 'updated_at']
-
-            locked.save(update_fields=update_fields)
-            if action == 'approve':
-                link_approved_application(locked)
-                for warning in application_warnings(locked):
-                    messages.warning(self.request, warning)
-
-        # 申請者に通知
-        from event.notifications import notify_applicant_of_result
-        notify_applicant_of_result(
-            self.event_detail,
-            request=self.request,
-            schedule_changes=schedule_changes,
-        )
+        self.event_detail = result.event_detail
+        schedule_changes = result.schedule_changes
+        status_text = '承認' if action == 'approve' else '却下'
+        for warning in result.warnings:
+            messages.warning(self.request, warning)
 
         messages.success(self.request, f'申請を{status_text}しました。')
         logger.info(
@@ -275,47 +253,12 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
 
         return redirect('event:my_list')
 
-    def _apply_schedule_changes(self, form) -> list[dict[str, str]]:
-        """承認時の日時調整を EventDetail へ反映し、変更内容を返す。"""
-        new_event = form.cleaned_data['event']
-        new_start_time = form.cleaned_data['start_time']
-        new_duration = form.cleaned_data['duration']
-
-        # queryset で担保済みだが、他集会への付け替えは実害が大きいので保存直前にも検証する
-        if new_event.community_id != self.community.pk:
-            raise PermissionDenied('他の集会のイベントには変更できません。')
-
-        changes: list[dict[str, str]] = []
-        if new_event.pk != self.event_detail.event_id:
-            changes.append({
-                'label': '開催日',
-                'before': self.event_detail.event.date.strftime('%Y-%m-%d'),
-                'after': new_event.date.strftime('%Y-%m-%d'),
-            })
-            self.event_detail.event = new_event
-        if new_start_time != self.event_detail.start_time:
-            changes.append({
-                'label': '開始時刻',
-                'before': self.event_detail.start_time.strftime('%H:%M'),
-                'after': new_start_time.strftime('%H:%M'),
-            })
-            self.event_detail.start_time = new_start_time
-        if new_duration != self.event_detail.duration:
-            changes.append({
-                'label': '持ち時間',
-                'before': f'{self.event_detail.duration}分',
-                'after': f'{new_duration}分',
-            })
-            self.event_detail.duration = new_duration
-
-        return changes
-
 
 class LTApplicationApproveView(LoginRequiredMixin, View):
     """発表申請の承認ビュー（AJAX対応）"""
 
     def post(self, request, pk):
-        event_detail = get_object_or_404(EventDetail, pk=pk)
+        event_detail = get_object_or_404(EventDetail.objects.select_related('event__community'), pk=pk)
         community = event_detail.event.community
 
         # 権限チェック
@@ -325,30 +268,18 @@ class LTApplicationApproveView(LoginRequiredMixin, View):
             messages.error(request, 'この申請を承認する権限がありません。')
             return redirect('event:my_list')
 
-        with transaction.atomic():
-            lock_application_event(event_detail.event)
-            # 審査ページと同じく、承認した 1 件だけが通知する。申請者の編集も巻き戻さない。
-            event_detail = EventDetail.objects.select_for_update().select_related(
-                'event__community', 'applicant'
-            ).get(pk=pk)
-            if event_detail.status != 'pending':
-                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                    return JsonResponse({'success': False, 'error': 'この申請は既に処理されています。'}, status=400)
-                messages.info(request, 'この申請は既に処理されています。')
-                return redirect('event:my_list')
+        try:
+            result = review_application(event_detail, 'approved', reviewer=request.user, request=request)
+        except ApplicationAlreadyReviewed:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': 'この申請は既に処理されています。'}, status=400)
+            messages.info(request, 'この申請は既に処理されています。')
+            return redirect('event:my_list')
 
-            from event.services.article_generation import schedule_article_notification_on_approval
-            schedule_article_notification_on_approval(event_detail)
-            event_detail.status = 'approved'
-            event_detail.save(update_fields=['status', 'updated_at'])
-            link_approved_application(event_detail)
-            warnings = application_warnings(event_detail)
-            for warning in warnings:
-                messages.warning(request, warning)
-
-        # 申請者に通知
-        from event.notifications import notify_applicant_of_result
-        notify_applicant_of_result(event_detail, request=request)
+        event_detail = result.event_detail
+        warnings = result.warnings
+        for warning in warnings:
+            messages.warning(request, warning)
 
         logger.info(
             f'発表申請承認: EventDetail ID={event_detail.pk}, '
@@ -366,7 +297,7 @@ class LTApplicationRejectView(LoginRequiredMixin, View):
     """発表申請の却下ビュー（AJAX対応）"""
 
     def post(self, request, pk):
-        event_detail = get_object_or_404(EventDetail, pk=pk)
+        event_detail = get_object_or_404(EventDetail.objects.select_related('event__community'), pk=pk)
         community = event_detail.event.community
 
         # 権限チェック
@@ -391,14 +322,17 @@ class LTApplicationRejectView(LoginRequiredMixin, View):
             messages.error(request, '却下理由を入力してください。')
             return redirect('event:my_list')
 
-        # 却下処理
-        event_detail.status = 'rejected'
-        event_detail.rejection_reason = rejection_reason
-        event_detail.save()
-
-        # 申請者に通知
-        from event.notifications import notify_applicant_of_result
-        notify_applicant_of_result(event_detail, request=request)
+        try:
+            result = review_application(
+                event_detail, 'rejected', reviewer=request.user, request=request,
+                rejection_reason=rejection_reason,
+            )
+        except ApplicationAlreadyReviewed:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return JsonResponse({'success': False, 'error': 'この申請は既に処理されています。'}, status=400)
+            messages.info(request, 'この申請は既に処理されています。')
+            return redirect('event:my_list')
+        event_detail = result.event_detail
 
         logger.info(
             f'発表申請却下: EventDetail ID={event_detail.pk}, '
