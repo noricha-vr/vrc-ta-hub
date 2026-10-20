@@ -94,6 +94,8 @@ class VketOgTests(TestCase):
             self.collaboration.phase = phase
             self.collaboration.save(update_fields=['phase'])
             for page, label in [('apply', '参加登録'), ('status', '参加状況'), ('notice_list', 'お知らせ')]:
+                if phase == VketCollaboration.Phase.ARCHIVED and page != 'notice_list':
+                    continue  # 参加ページはアーカイブ済みを案内しない（test_archived_collaboration_keeps_login_redirect）
                 with self.subTest(page=page, phase=phase):
                     with CaptureQueriesContext(connection) as queries:
                         response = self.client.get(self.url(page))
@@ -116,6 +118,15 @@ class VketOgTests(TestCase):
                 self.assertEqual(response.status_code, 302)
                 self.assertTrue(response['Location'].startswith(settings.LOGIN_URL))
                 self.assertNotContains(response, self.collaboration.name, status_code=302)
+
+    def test_archived_collaboration_keeps_login_redirect(self):
+        # ログイン後は ARCHIVED が 404 になるので、未ログインでも案内ページを出さない。
+        self.collaboration.phase = VketCollaboration.Phase.ARCHIVED
+        self.collaboration.save(update_fields=['phase'])
+        for page in ('apply', 'status', 'stage_register'):
+            response = self.client.get(self.url(page))
+            self.assertEqual(response.status_code, 302, page)
+            self.assertIn(settings.LOGIN_URL, response['Location'])
 
     def test_participation_anonymous_post_and_head_remain_redirects(self):
         for page in ('apply', 'status'):
