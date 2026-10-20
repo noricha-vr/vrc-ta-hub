@@ -185,7 +185,7 @@ class LTApplicationReviewView(LoginRequiredMixin, FormView):
         if not request.user.is_authenticated:
             return self.handle_no_permission()
 
-        self.event_detail = get_object_or_404(EventDetail, pk=kwargs['pk'])
+        self.event_detail = get_object_or_404(EventDetail.objects.select_related('event__community'), pk=kwargs['pk'])
         self.community = self.event_detail.event.community
 
         # 権限チェック
@@ -258,7 +258,7 @@ class LTApplicationApproveView(LoginRequiredMixin, View):
     """発表申請の承認ビュー（AJAX対応）"""
 
     def post(self, request, pk):
-        event_detail = get_object_or_404(EventDetail, pk=pk)
+        event_detail = get_object_or_404(EventDetail.objects.select_related('event__community'), pk=pk)
         community = event_detail.event.community
 
         # 権限チェック
@@ -297,7 +297,7 @@ class LTApplicationRejectView(LoginRequiredMixin, View):
     """発表申請の却下ビュー（AJAX対応）"""
 
     def post(self, request, pk):
-        event_detail = get_object_or_404(EventDetail, pk=pk)
+        event_detail = get_object_or_404(EventDetail.objects.select_related('event__community'), pk=pk)
         community = event_detail.event.community
 
         # 権限チェック

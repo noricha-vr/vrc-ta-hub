@@ -1,5 +1,6 @@
 """画面と API に共通する審査サービスの権限と監査情報。"""
 
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.core.exceptions import PermissionDenied
@@ -55,3 +56,32 @@ class ApplicationReviewServiceTest(TestCase):
                 self.assertIsNone(record.api_key_id)
                 self.assertEqual(record.decision, decision)
                 self.assertEqual(record.event_detail_id, detail.pk)
+
+    def test_web_review_returns_404_when_parent_event_is_deleted_after_initial_read(self):
+        from django.shortcuts import get_object_or_404
+
+        from event.models import Event
+
+        def event_deleted_after_read(*args, **kwargs):
+            stale = get_object_or_404(*args, **kwargs)
+            Event.objects.filter(pk=stale.event_id).delete()
+            return stale
+
+        self.client.force_login(self.owner)
+        for offset, endpoint in enumerate(
+            ('lt_application_review', 'lt_application_approve', 'lt_application_reject'), start=30,
+        ):
+            with self.subTest(endpoint=endpoint):
+                event = make_event(self.community, event_date=self.event.date + timedelta(days=offset))
+                detail = make_event_detail(event)
+                with (
+                    patch('event.views.lt_application.get_object_or_404', side_effect=event_deleted_after_read),
+                    patch('event.notifications.notify_applicant_of_result') as notify,
+                ):
+                    response = self.client.post(
+                        reverse(f'event:{endpoint}', args=[detail.pk]), {'rejection_reason': '対象外'},
+                    )
+                # 審査画面は削除済みの開催日をフォームの検証で弾いて再表示する。承認・却下は 404。
+                self.assertIn(response.status_code, (200, 404) if endpoint == 'lt_application_review' else (404,))
+                notify.assert_not_called()
+                self.assertFalse(TweetQueue.objects.filter(event_detail_id=detail.pk).exists())
