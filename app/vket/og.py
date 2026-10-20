@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import re
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlencode
@@ -54,6 +55,7 @@ def page_metadata(request, collaboration, page: str) -> dict:
     return {
         'og_title': f'{collaboration.name} {label}',
         'og_image_url': image_url,
+        'og_url_path': request.path,
         'meta_description': f'{collaboration.name}の{label}ページです。ログインしてご確認ください。',
     }
 
@@ -121,7 +123,8 @@ def notice_metadata(request, collaboration) -> dict:
     if notice is not None:
         title = notice.title
     image_url = DEFAULT_NEWS_IMAGE_URL
-    if notice is not None or notice_base(collaboration):
+    # 背景素材が無いコラボは、署名付きリンクでも従来の画像設定を使う（画像側が共通画像へ転送してしまうため）。
+    if notice_base(collaboration):
         image_url = notice_image_url(
             request, collaboration, notice.title if notice else f'{collaboration.name}のお知らせ', notice,
         )
@@ -131,9 +134,14 @@ def notice_metadata(request, collaboration) -> dict:
         if isinstance(legacy, str) and legacy.strip():
             legacy = legacy.strip()
             image_url = legacy if legacy.startswith(('http://', 'https://')) else absolute_static_url(request, legacy)
+    # 共有先が og:url で個別のお知らせを区別できるよう、正しい署名付きの時だけ open と s を残す。
+    og_url_path = request.path
+    if notice is not None:
+        og_url_path = f"{request.path}?{urlencode({'open': notice.pk, 's': sign_notice(notice.pk)})}"
     return {
         'og_title': title,
         'og_image_url': image_url,
+        'og_url_path': og_url_path,
         'meta_description': (
             f'{collaboration.name}の開催準備や発表に関するお知らせを確認できます。'
             'お知らせの内容を見るにはログインが必要です。'
@@ -177,6 +185,14 @@ def _wrap_text(text: str, font, width: int) -> list[str]:
 
 
 def render_notice_png(base: Path, title: str) -> bytes:
+    # 一覧画像は署名なしで叩けるので、同じ素材・タイトルの描画はプロセス内で使い回す。
+    # タイトルの種類はお知らせの件数とコラボ数までしか増えず、v を変えても描き直さない。
+    return _render_notice_png_cached(str(base), title)
+
+
+@lru_cache(maxsize=64)
+def _render_notice_png_cached(base_dir: str, title: str) -> bytes:
+    base = Path(base_dir)
     with Image.open(base / 'notice-base.png') as source:
         image = source.convert('RGB')
     if image.size != (1200, 630):

@@ -19,7 +19,7 @@ from tests.factories import make_community, make_user
 from vket.models import VketCollaboration, VketNotice, VketNoticeReceipt, VketParticipation
 from vket.og import (
     ASSET_ROOT, NO_LINE_START, _wrap_text, notice_base, notice_image_url,
-    notice_link, render_notice_png, sign_notice, valid_notice_signature,
+    _render_notice_png_cached, notice_link, render_notice_png, sign_notice, valid_notice_signature,
 )
 from vket.views.notice import _build_remind_text
 from website.constants import DEFAULT_NEWS_IMAGE_URL
@@ -158,6 +158,32 @@ class VketOgTests(TestCase):
         response = self.client.get(self.url('notice_list'))
         title = f'{self.collaboration.name}のお知らせ'
         self.assertIn('v=' + sha256(title.encode()).hexdigest()[:8], response.context['og_image_url'])
+
+    def test_png_render_is_reused_for_same_title(self):
+        # 署名なしで叩ける一覧画像を連打されても、同じタイトルは描き直さない。
+        _render_notice_png_cached.cache_clear()
+        with patch('vket.og.Image.open', wraps=Image.open) as opened:
+            responses = [self.client.get(self.image_url(), {'v': v}) for v in ('a', 'b', 'c')]
+        self.assertEqual(opened.call_count, 1)
+        for response in responses:
+            self.assert_png(response)
+
+    def test_signed_link_without_notice_base_keeps_legacy_image(self):
+        self.set_settings({'notice_og_image': 'vket/old.png'})
+        response = self.client.get(self.url('notice_list'), {'open': self.notice.pk, 's': sign_notice(self.notice.pk)})
+        self.assertEqual(response.context['og_image_url'], 'http://testserver/static/vket/old.png')
+        self.assertContains(response, self.notice.title)
+
+    def test_og_url_keeps_signed_query_only_when_valid(self):
+        signature = sign_notice(self.notice.pk)
+        response = self.client.get(self.url('notice_list'), {'open': self.notice.pk, 's': signature})
+        self.assertContains(response, f'<meta property="og:url" content="https://vrc-ta-hub.com{escape(response.context["og_url_path"])}">')
+        self.assertIn(f'open={self.notice.pk}', response.context['og_url_path'])
+        for query in ({}, {'open': self.notice.pk, 's': 'bad'}):
+            response = self.client.get(self.url('notice_list'), query)
+            self.assertEqual(response.context['og_url_path'], self.url('notice_list'))
+        response = self.client.get(self.url('apply'), {'x': '1'})
+        self.assertEqual(response.context['og_url_path'], self.url('apply'))
 
     def test_signed_shell_and_png_only_expose_title(self):
         with CaptureQueriesContext(connection) as queries:
