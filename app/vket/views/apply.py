@@ -35,6 +35,11 @@ from .helpers import (
     _build_schedule_context,
     _get_active_membership,
 )
+from .status import (
+    _is_stage_register_open,
+    _resolve_stage_registration_guidance,
+    _resolve_stage_url,
+)
 
 
 class ApplyView(LoginRequiredMixin, View):
@@ -197,6 +202,9 @@ class ApplyView(LoginRequiredMixin, View):
                 'permissions': permissions,
                 'busy_payload': busy,
                 'schedule_buffer_minutes': get_schedule_buffer_minutes(collaboration),
+                'stage_register_open': _is_stage_register_open(participation, collaboration),
+                'stage_url': _resolve_stage_url(collaboration),
+                'stage_registration_guidance': _resolve_stage_registration_guidance(collaboration),
                 **schedule_ctx,
             },
         )
