@@ -49,6 +49,15 @@ def _resolve_stage_url(collaboration: VketCollaboration) -> str:
 
 
 def _resolve_stage_registration_guidance(collaboration: VketCollaboration) -> dict[str, str]:
+    """登録画面で選ぶ会場とタグの案内。コラボの設定にあればそれを、無ければ slug ごとの既定を返す"""
+    settings_json = collaboration.settings_json or {}
+    if isinstance(settings_json, dict):
+        guidance = settings_json.get('stage_registration_guidance')
+        if isinstance(guidance, dict):
+            venue = guidance.get('venue')
+            tag = guidance.get('tag')
+            if isinstance(venue, str) and venue.strip() and isinstance(tag, str) and tag.strip():
+                return {'venue': venue.strip(), 'tag': tag.strip()}
     return VKET_STAGE_REGISTRATION_GUIDANCE_BY_SLUG.get(collaboration.slug, {})
 
 

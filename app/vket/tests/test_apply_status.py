@@ -92,3 +92,29 @@ class VketApplyFlowTests(VketApplyFlowBase):
         self.assertContains(response, custom_stage_url)
         self.assertNotContains(response, 'https://vket.com/hub/2026Summer/notification')
         self.assertNotContains(response, 'Parareal Central Ignition Point - 着火点 - - エントランス')
+
+    def test_status_page_uses_collaboration_stage_guidance_when_configured(self):
+        """コラボの設定に会場・タグの案内があれば、slug の既定より優先して表示する"""
+        self.collaboration.slug = 'vket-2026-summer'
+        self.collaboration.settings_json = {
+            'stage_registration_open': True,
+            'stage_registration_guidance': {'venue': ' Winter Entrance ', 'tag': 'Vketステージ'},
+        }
+        self.collaboration.save(update_fields=['slug', 'settings_json'])
+        VketParticipation.objects.create(
+            collaboration=self.collaboration,
+            community=self.community,
+            applied_by=self.owner,
+            applied_at=timezone.now(),
+            progress=VketParticipation.Progress.APPLIED,
+        )
+
+        self.client.force_login(self.owner)
+        self._set_active_community()
+
+        response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '開催会場は「Winter Entrance」に設定してください。')
+        self.assertContains(response, 'タグは「Vketステージ」を選択してください。')
+        self.assertNotContains(response, 'Parareal Central Ignition Point - 着火点 - - エントランス')
