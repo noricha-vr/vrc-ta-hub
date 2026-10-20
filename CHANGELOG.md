@@ -11,6 +11,7 @@
 - スーパーユーザー専用の `POST /api/v1/event-details/<id>/review/` を追加しました。`{decision: approved|rejected, discord_id}` で承認待ちの発表を承認・却下でき、押した人の Discord アカウントが主催者・スタッフでなければ 403、処理済みなら 409、ロックの競合が続いた時は 503 を返します。画面の承認・却下と同じ処理（通知・記事生成）を通ります。
 - スーパーユーザー専用の `GET /api/v1/community-by-discord/?discord_id=<ID>` を追加しました。API キーまたはセッションで認証し、Discord ユーザーが主催者・スタッフとして所属する集会の ID・名前・役割・撮影許可を ID 順で取得できます。Discord ID は17〜20桁の数字が必須で、未連携・所属なしの場合は空の一覧を返します。
 
+- Vket ステージ登録の受付中は、Vket コラボの参加登録画面にも「Vketステージ登録」の案内（Vket の登録画面へのボタンと、登録を記録する申込み状況の画面へのリンク）を表示するようにしました。
 - Vket コラボの設定（`settings_json.stage_registration_guidance` の `venue` / `tag`）で、参加状況画面の「Vketステージ登録画面での設定」に出す会場とタグを指定できるようにしました。指定が無いコラボは従来どおりの既定を表示します。
 
 ### Fixed
