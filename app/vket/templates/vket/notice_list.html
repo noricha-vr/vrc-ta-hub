@@ -1,7 +1,7 @@
 {% extends 'ta_hub/base.html' %}
 {% load markdown_extras static %}
 {% block meta %}
-    <title>{{ collaboration.name }} お知らせ - VRChat 技術・学術系イベントHub</title>
+    {% include 'vket/includes/og_meta.html' %}
 {% endblock %}
 {% block main %}
     <style>

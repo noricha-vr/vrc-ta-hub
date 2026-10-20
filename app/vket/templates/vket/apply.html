@@ -1,7 +1,7 @@
 {% extends 'ta_hub/base.html' %}
 {% load django_bootstrap5 %}
 {% block meta %}
-    <title>{{ collaboration.name }} 参加登録 - VRChat 技術・学術系イベントHub</title>
+    {% include 'vket/includes/og_meta.html' %}
 {% endblock %}
 {% block main %}
     <div class="container my-4" style="max-width: 860px;">

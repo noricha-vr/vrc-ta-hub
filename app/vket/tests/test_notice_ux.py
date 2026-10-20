@@ -18,6 +18,7 @@ from vket.models import (
     VketNoticeReceipt,
     VketParticipation,
 )
+from vket.og import notice_link
 from vket.constants import CREATABLE_TARGET_SCOPES, TARGET_SCOPE_LABELS
 from vket.views.notice import NOTICE_DUPLICATE_WINDOW_SECONDS
 
@@ -370,7 +371,7 @@ class ManageNoticeListReminderTests(NoticeUxTestBase):
         response = self._get()
 
         stat = response.context['notice_stats'][0]
-        expected_url = f'http://testserver{self.list_url}?open={self.receipt.notice_id}'
+        expected_url = notice_link(response.wsgi_request, self.receipt.notice)
         self.assertEqual(
             stat['remind_text'], f'<@&555666777>\n【要確認】リマインド対象\n{expected_url}'
         )
