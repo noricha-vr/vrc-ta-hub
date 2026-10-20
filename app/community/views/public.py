@@ -15,7 +15,9 @@ from django.views.generic import ListView, DetailView
 from analytics import services as analytics_services
 from analytics.models import PageAnalytics
 from event.models import Event, EventDetail
+from ta_hub.og import image_url
 from url_filters import get_filtered_url
+from website.constants import DEFAULT_NEWS_IMAGE_URL
 
 from ..forms import CommunitySearchForm
 from ..libs import get_join_type
@@ -193,6 +195,10 @@ class CommunityDetailView(DetailView):
         context = super().get_context_data(**kwargs)
         community = context['community']
         community.join_type = get_join_type(community.organizer_url)
+        context['og_image_url'] = (
+            image_url(self.request, 'ta_hub:og_community', community.name, pk=community.pk)
+            if community.status == 'approved' else DEFAULT_NEWS_IMAGE_URL
+        )
 
         now = timezone.now()
 

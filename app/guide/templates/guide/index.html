@@ -1,4 +1,9 @@
 {% extends 'guide/base.html' %}
+{% load og_tags %}
+{% block guide_og_image %}
+    {% og_static 'ta_hub/og/guide.jpg' as image_url %}
+    {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
+{% endblock %}
 
 {% block page_title %}使い方ガイド{% endblock %}
 {% block twitter_title %}使い方ガイド{% endblock %}

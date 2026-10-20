@@ -301,7 +301,7 @@ class VketNoticeTests(TestCase):
         self.assertContains(response, f'<meta property="og:url" content="https://vrc-ta-hub.com{url}">', html=True)
 
         cdn_url = 'https://cdn.example.com/vket-2026-summer-notices-v1.png'
-        with patch('vket.og.static', return_value=cdn_url) as static_mock:
+        with patch('ta_hub.og_image.static', return_value=cdn_url) as static_mock:
             cdn_response = self.client.get(url)
         static_mock.assert_called_once_with(image_path)
         self.assertContains(cdn_response, cdn_url, count=2)

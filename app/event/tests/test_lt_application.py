@@ -102,14 +102,15 @@ class LTApplicationFormTest(TestCase):
         self.assertContains(response, '&lt;script&gt;alert(&quot;name&quot;)&lt;/script&gt;')
         self.assertNotContains(response, '<script>alert("name")</script>')
 
-    def test_lt_application_form_requires_login(self):
-        """未ログインユーザーはログインページにリダイレクトされる"""
+    def test_anonymous_lt_application_shows_public_shell(self):
+        """未ログインユーザーにはログイン案内を表示し、申込みフォームは出さない"""
         url = reverse('event:lt_application_create', kwargs={'community_pk': self.community.pk})
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, 302)
-        # django-allauthのログインURL
-        self.assertTrue('login' in response.url.lower())
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'ログインして発表を申し込む')
+        self.assertNotContains(response, 'name="theme"')
+        self.assertEqual(response['X-Robots-Tag'], 'noindex')
 
     def test_lt_application_only_shows_accepting_events(self):
         """LT受付中のイベントのみ選択肢に表示される"""

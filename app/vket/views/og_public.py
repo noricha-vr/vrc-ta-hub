@@ -14,8 +14,9 @@ class PublicParticipationShellMixin:
 
     def dispatch(self, request, *args, **kwargs):
         if request.method == 'GET' and not request.user.is_authenticated:
+            # ログイン後の表示と同じく、下書きとアーカイブ済みは案内しない（ログインした先が 404 で行き止まりになるため）。
             collaboration = VketCollaboration.objects.exclude(
-                phase=VketCollaboration.Phase.DRAFT,
+                phase__in=[VketCollaboration.Phase.DRAFT, VketCollaboration.Phase.ARCHIVED],
             ).filter(pk=kwargs['pk']).first()
             if collaboration is not None:
                 metadata = page_metadata(request, collaboration, self.og_page)

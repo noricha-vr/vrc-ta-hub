@@ -1,6 +1,7 @@
 {% extends 'ta_hub/base.html' %}
 {% load django_bootstrap5 %}
 {% load custom_filters %}
+{% load og_tags %}
 {% block meta %}
     <title>VRChatイベント開催日程 - VRChat 技術・学術系イベントHub</title>
     <meta name="twitter:title" content="VRChatイベント開催日程 - VRChat 技術・学術系イベントHub">
@@ -11,8 +12,8 @@
           content="VRChat技術学術系のイベント開催日程を確認できます。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
     <meta property="og:description"
           content="VRChat技術学術系のイベント開催日程を確認できます。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
-    <meta property="og:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg">
-    <meta name="twitter:image" content="https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg">
+    {% og_static 'ta_hub/og/event-list.jpg' as image_url %}
+    {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
 {% endblock %}
 
 {% block main %}

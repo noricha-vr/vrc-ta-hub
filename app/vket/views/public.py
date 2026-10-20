@@ -6,6 +6,7 @@ from django.db.models import Case, IntegerField, Prefetch, When
 from django.views.generic import DetailView, ListView
 
 from event.models import EventDetail
+from ..og import page_metadata
 
 from ..models import (
     VketCollaboration,
@@ -67,6 +68,7 @@ class CollaborationDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         collaboration: VketCollaboration = context['collaboration']
+        context.update(page_metadata(self.request, collaboration, 'detail'))
 
         lt_details_qs = (
             EventDetail.objects.filter(detail_type='LT', status='approved')

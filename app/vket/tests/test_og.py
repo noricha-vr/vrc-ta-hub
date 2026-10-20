@@ -18,8 +18,12 @@ from community.models import Community, CommunityMember
 from tests.factories import make_community, make_user
 from vket.models import VketCollaboration, VketNotice, VketNoticeReceipt, VketParticipation
 from vket.og import (
-    ASSET_ROOT, NO_LINE_START, _wrap_text, notice_base, notice_image_url,
-    _render_notice_png_cached, notice_link, render_notice_png, sign_notice, valid_notice_signature,
+    ASSET_ROOT, notice_base, notice_image_url,
+    notice_link, render_notice_png, sign_notice, valid_notice_signature,
+)
+from ta_hub.og_image import (
+    ASSET_ROOT as SHARED_ASSET_ROOT, NO_LINE_START, _wrap_text,
+    _render_text_png_cached as _render_notice_png_cached,
 )
 from vket.views.notice import _build_remind_text
 from website.constants import DEFAULT_NEWS_IMAGE_URL
@@ -27,6 +31,8 @@ from website.constants import DEFAULT_NEWS_IMAGE_URL
 OG_IMAGES = {
     'apply': 'vket/og/vket-2026-winter/apply.jpg',
     'status': 'vket/og/vket-2026-winter/status.jpg',
+    'stage_register': 'vket/og/vket-2026-winter/stage-register.jpg',
+    'detail': 'vket/og/vket-2026-winter/detail.jpg',
     'notice_base': 'vket-2026-winter',
 }
 
@@ -88,6 +94,8 @@ class VketOgTests(TestCase):
             self.collaboration.phase = phase
             self.collaboration.save(update_fields=['phase'])
             for page, label in [('apply', '参加登録'), ('status', '参加状況'), ('notice_list', 'お知らせ')]:
+                if phase == VketCollaboration.Phase.ARCHIVED and page != 'notice_list':
+                    continue  # 参加ページはアーカイブ済みを案内しない（test_archived_collaboration_keeps_login_redirect）
                 with self.subTest(page=page, phase=phase):
                     with CaptureQueriesContext(connection) as queries:
                         response = self.client.get(self.url(page))
@@ -111,6 +119,15 @@ class VketOgTests(TestCase):
                 self.assertTrue(response['Location'].startswith(settings.LOGIN_URL))
                 self.assertNotContains(response, self.collaboration.name, status_code=302)
 
+    def test_archived_collaboration_keeps_login_redirect(self):
+        # ログイン後は ARCHIVED が 404 になるので、未ログインでも案内ページを出さない。
+        self.collaboration.phase = VketCollaboration.Phase.ARCHIVED
+        self.collaboration.save(update_fields=['phase'])
+        for page in ('apply', 'status', 'stage_register'):
+            response = self.client.get(self.url(page))
+            self.assertEqual(response.status_code, 302, page)
+            self.assertIn(settings.LOGIN_URL, response['Location'])
+
     def test_participation_anonymous_post_and_head_remain_redirects(self):
         for page in ('apply', 'status'):
             for method in (self.client.post, self.client.head):
@@ -131,7 +148,7 @@ class VketOgTests(TestCase):
 
     def test_cdn_url_is_not_rebuilt(self):
         for page in ('apply', 'status'):
-            with patch('vket.og.static', return_value='https://cdn.example.com/og.jpg') as mock_static:
+            with patch('ta_hub.og_image.static', return_value='https://cdn.example.com/og.jpg') as mock_static:
                 response = self.client.get(self.url(page))
             mock_static.assert_called_once_with(OG_IMAGES[page])
             self.assertContains(response, 'https://cdn.example.com/og.jpg', count=2)
@@ -162,7 +179,7 @@ class VketOgTests(TestCase):
     def test_png_render_is_reused_for_same_title(self):
         # 署名なしで叩ける一覧画像を連打されても、同じタイトルは描き直さない。
         _render_notice_png_cached.cache_clear()
-        with patch('vket.og.Image.open', wraps=Image.open) as opened:
+        with patch('ta_hub.og_image.Image.open', wraps=Image.open) as opened:
             responses = [self.client.get(self.image_url(), {'v': v}) for v in ('a', 'b', 'c')]
         self.assertEqual(opened.call_count, 1)
         for response in responses:
@@ -290,10 +307,50 @@ class VketOgTests(TestCase):
         self.assertNotContains(response, title)
         self.assertContains(response, escape(title))
 
+    def test_stage_register_anonymous_get_has_public_metadata(self):
+        response = self.client.get(self.url('stage_register'))
+        self.assert_private_shell(response)
+        self.assertContains(response, f'http://testserver/static/{OG_IMAGES["stage_register"]}', count=2)
+        self.assertContains(response, '<meta property="og:title" content="Vket テスト ステージ登録">', html=True)
+        self.assertEqual(parse_qs(urlsplit(response.context['login_url']).query)['next'], [self.url('stage_register')])
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
+    def test_stage_register_authenticated_get_has_same_metadata(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(self.url('stage_register'))
+        self.assertContains(response, f'http://testserver/static/{OG_IMAGES["stage_register"]}', count=2)
+        self.assertContains(response, '<meta property="og:title" content="Vket テスト ステージ登録">', html=True)
+        self.assertEqual(response.context['login_url'], self.url('status'))
+
+    def test_stage_register_post_and_draft_keep_login_requirement(self):
+        self.assertEqual(self.client.post(self.url('stage_register')).status_code, 302)
+        self.collaboration.phase = VketCollaboration.Phase.DRAFT
+        self.collaboration.save(update_fields=['phase'])
+        self.assertEqual(self.client.get(self.url('stage_register')).status_code, 302)
+
+    def test_collaboration_detail_metadata_and_draft_visibility(self):
+        response = self.client.get(self.url('detail'))
+        self.assertContains(response, '<meta property="og:title" content="Vket テスト">', html=True)
+        self.assertContains(response, f'http://testserver/static/{OG_IMAGES["detail"]}', count=2)
+        self.assertContains(response, '<meta property="og:image:width" content="1200">', html=True)
+        self.assertContains(response, '<meta property="og:image:height" content="630">', html=True)
+        self.collaboration.phase = VketCollaboration.Phase.DRAFT
+        self.collaboration.save(update_fields=['phase'])
+        self.assertEqual(self.client.get(self.url('detail')).status_code, 404)
+
+    def test_stage_and_detail_missing_or_invalid_images_use_default(self):
+        for page in ('stage_register', 'detail'):
+            for value in (None, '', [], '/absolute.jpg', '../secret.jpg', 'https://example.com/og.jpg',
+                          'bad\\path.jpg', 'image.jpg?x=1'):
+                self.set_settings({'og_images': {page: value}})
+                response = self.client.get(self.url(page))
+                self.assertContains(response, f'<meta property="og:image" content="{DEFAULT_NEWS_IMAGE_URL}">', html=True)
+                self.assertContains(response, f'<meta name="twitter:image" content="{DEFAULT_NEWS_IMAGE_URL}">', html=True)
+
 
 class NoticeTextLayoutTests(SimpleTestCase):
     def test_kinsoku_and_english_words(self):
-        font = ImageFont.truetype(str(ASSET_ROOT / 'fonts' / 'MochiyPopOne-Regular.ttf'), 40)
+        font = ImageFont.truetype(str(SHARED_ASSET_ROOT / 'fonts' / 'MochiyPopOne-Regular.ttf'), 40)
         for title in ('あいうえお、かきくけこ。さしすせそ）」』】・ーです', 'ご案内 VRChat Community 参加登録'):
             lines = _wrap_text(title, font, 360)
             self.assertEqual(''.join(lines).replace(' ', ''), title.replace(' ', ''))

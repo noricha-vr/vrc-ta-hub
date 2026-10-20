@@ -6,8 +6,13 @@ from django.views.generic import TemplateView
 from ta_hub.views_llm import IndexMarkdownView, LlmsTxtView
 from ta_hub.views import IndexView, favicon_view, apple_touch_icon_view
 
+from ta_hub.views_og import community_og, guide_og, lt_apply_og
+
 app_name = 'ta_hub'
 urlpatterns = [
+    path('og/lt-apply/<int:pk>.png', lt_apply_og, name='og_lt_apply'),
+    path('og/community/<int:pk>.png', community_og, name='og_community'),
+    path('og/guide/<path:path>.png', guide_og, name='og_guide'),
     path('', IndexView.as_view(), name='index'),
     path('llms.txt', LlmsTxtView.as_view(), name='llms_txt'),
     path('index.md', IndexMarkdownView.as_view(), name='index_md'),

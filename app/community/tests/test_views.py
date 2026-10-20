@@ -2,9 +2,8 @@ import shutil
 import tempfile
 from datetime import date, timedelta, time
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import parse_qs, urlsplit
 
-from django.conf import settings
 from django.http import QueryDict
 from django.db import connection
 from django.test import TestCase, Client, RequestFactory, override_settings
@@ -615,13 +614,15 @@ class CommunityDetailViewLtApplicationSectionTest(TestCase):
         self.assertNotContains(response, self.apply_url)
         self.assertNotContains(response, self.LOGIN_NOTICE)
 
-    def test_anonymous_apply_redirects_to_login_with_next(self):
-        """未ログインで申請ページへアクセスするとnext付きでログインへ誘導される"""
+    def test_anonymous_apply_shows_login_link_with_next(self):
+        """受付中の集会は公開案内から next 付きのログインへ誘導する"""
         response = self.client.get(self.apply_url)
 
-        self.assertEqual(response.status_code, 302)
-        self.assertIn(settings.LOGIN_URL, response.url)
-        self.assertIn(f'next={quote(self.apply_url)}', response.url)
+        self.assertEqual(response.status_code, 200)
+        login_url = response.context['login_url']
+        self.assertEqual(urlsplit(login_url).path, '/account/login/')
+        self.assertEqual(parse_qs(urlsplit(login_url).query)['next'], [self.apply_url])
+        self.assertNotContains(response, 'name="theme"')
 
 
 class CommunityDetailArchiveNoticeTest(TestCase):
