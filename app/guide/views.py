@@ -184,11 +184,12 @@ def get_breadcrumbs(nav_items: list[NavItem], current_path: str) -> list[dict]:
     return breadcrumbs
 
 
-def load_markdown_content(path: str) -> tuple[str, dict]:
+def load_markdown_content(path: str, render_body: bool = True) -> tuple[str, dict]:
     """マークダウンファイルを読み込んでHTMLに変換する
 
     Args:
         path: ガイドのパス（例: 'community/create'）
+        render_body: False ならフロントマターだけ読み、本文の HTML 変換を省く（サムネイル用）
 
     Returns:
         (HTML本文, フロントマター辞書) のタプル
@@ -239,6 +240,9 @@ def load_markdown_content(path: str) -> tuple[str, dict]:
                     frontmatter = yaml.safe_load(frontmatter_str) or {}
                 except yaml.YAMLError as e:
                     logger.warning(f"フロントマターの解析に失敗: {e}")
+
+        if not render_body:
+            return '', frontmatter
 
         # マークダウンをHTMLに変換
         html = convert_markdown(body)

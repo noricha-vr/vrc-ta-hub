@@ -141,6 +141,26 @@ class HubOgTests(TestCase):
             with patch('guide.views.GUIDE_ROOT', root):
                 self.assert_png(self.client.get(reverse('ta_hub:og_guide', kwargs={'path': 'event/auto-post'})))
 
+    def test_guide_image_reads_title_without_converting_body(self):
+        # 画像に要るのはタイトルだけなので、匿名アクセスのたびに本文を HTML へ変換しない。
+        with patch('guide.views.convert_markdown') as convert:
+            self.assert_png(self.client.get(reverse('ta_hub:og_guide', kwargs={'path': 'event/auto-post'})))
+        convert.assert_not_called()
+
+    def test_concurrent_requests_render_same_image_once(self):
+        import threading
+        _render_text_png_cached.cache_clear()
+        with patch('ta_hub.og_image.Image.open', wraps=Image.open) as opened:
+            threads = [
+                threading.Thread(target=render_text_png, args=(ASSET_ROOT / 'community', '同時アクセス'))
+                for _ in range(5)
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+        self.assertEqual(opened.call_count, 1)
+
     def test_image_routes_do_not_conflict_and_reject_post(self):
         for route, kwargs in (
             ('ta_hub:og_community', {'pk': self.community.pk}),
@@ -197,7 +217,7 @@ class HubOgTests(TestCase):
     def test_anonymous_application_get_is_private_public_shell(self):
         for path in self.application_paths():
             response = self.client.get(path, {'q': '"><script>input</script>'})
-            self.assertContains(response, f'{self.community.name} LT 発表申込み')
+            self.assertContains(response, f'{self.community.name} 発表申込み')
             self.assertContains(response, '<meta name="robots" content="noindex,follow">', html=True)
             self.assertNotContains(response, '<script>input</script>')
             self.assertNotContains(response, 'name="theme"')

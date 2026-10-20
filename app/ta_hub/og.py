@@ -22,7 +22,7 @@ def application_text(community):
 
 def application_metadata(request, community):
     return {
-        'og_title': f'{community.name} LT 発表申込み',
+        'og_title': f'{community.name} 発表申込み',
         'og_image_url': (
             image_url(request, 'ta_hub:og_lt_apply', application_text(community), pk=community.pk)
             if accepts_public_application(community) else DEFAULT_NEWS_IMAGE_URL

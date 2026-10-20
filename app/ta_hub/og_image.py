@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
@@ -60,7 +61,13 @@ def _wrap_text(text: str, font, width: int) -> list[str]:
 def render_text_png(base: Path, title: str, asset_name: str = 'base') -> bytes:
     # 文字は公開済みの集会・ガイド・お知らせからのみ取得する。
     # リクエストの v はキーに含めず、同じ素材・文字の描画を使い回す。
-    return _render_text_png_cached(str(base), title, asset_name)
+    # lru_cache は描画中の結果を共有しないので、同時アクセスで同じ画像を何度も描かないよう 1 本ずつ通す。
+    # 描画は 1 枚数十 ms で、キャッシュに載った後はロックをすぐ抜ける。
+    with _render_lock:
+        return _render_text_png_cached(str(base), title, asset_name)
+
+
+_render_lock = threading.Lock()
 
 
 # 描く文字は承認済みの集会・LT 受付中の集会・ガイド・お知らせの数までで、合計 200 件ほど。

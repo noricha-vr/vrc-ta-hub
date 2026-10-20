@@ -41,6 +41,6 @@ def community_og(request, pk):
 
 @require_GET
 def guide_og(request, path):
-    _, frontmatter = load_markdown_content(path)
+    _, frontmatter = load_markdown_content(path, render_body=False)
     # ログにはパスやタイトルを出さず、検証済みパスの固定長ハッシュだけを使う。
     return _png('guide', frontmatter.get('title', 'ガイド'), sha256(path.encode()).hexdigest()[:8])
