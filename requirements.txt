@@ -63,7 +63,7 @@ django==5.2.17
     #   djangorestframework
     #   drf-spectacular
     #   sentry-sdk
-django-allauth==65.19.7
+django-allauth==65.20.0
     # via -r requirements.in
 django-bootstrap5==25.3
     # via -r requirements.in
@@ -232,7 +232,7 @@ pyjwt==2.15.1
     # via django-allauth
 pyparsing==3.3.2
     # via httplib2
-pypdf==6.20.1
+pypdf==6.21.1
     # via -r requirements.in
 pypdfium2==5.14.0
     # via -r requirements.in
