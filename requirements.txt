@@ -298,7 +298,7 @@ types-bleach==6.4.0.20260607
     # via -r requirements.in
 types-html5lib==1.1.11.20260518
     # via types-bleach
-types-markdown==3.10.2.20260712
+types-markdown==3.10.2.20261007
     # via -r requirements.in
 types-pyyaml==6.0.12.20260518
     # via
