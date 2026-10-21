@@ -118,7 +118,9 @@ def _auto_format_markdown(text: str) -> str:
 def _apply_table_classes(soup: BeautifulSoup) -> None:
     """table 要素に Bootstrap クラスを付与する."""
     for table in soup.find_all('table'):
-        table['class'] = table.get('class', []) + ['table', 'table-responsive']
+        classes = table.get_attribute_list('class')
+        classes.extend(['table', 'table-responsive'])
+        table['class'] = classes
 
 
 def _linkify_youtube_urls_in_text(soup: BeautifulSoup) -> None:
@@ -176,16 +178,18 @@ def _linkify_plain_urls(soup: BeautifulSoup) -> None:
 def _convert_youtube_anchors_to_iframes(soup: BeautifulSoup) -> None:
     """YouTube 形式の <a href> を埋め込み iframe に置き換える."""
     for link in soup.find_all('a', href=True):
-        href = link.get('href', '')
+        href = link.get('href')
+        if not isinstance(href, str):
+            continue
         for pattern, embed_url_pattern in _YOUTUBE_PATTERNS:
             if not re.match(pattern, href):
                 continue
-            container = soup.new_tag('div', **{'class': 'youtube-embed-container'})
+            container = soup.new_tag('div', attrs={'class': 'youtube-embed-container'})
             iframe = soup.new_tag(
                 'iframe',
                 src=re.sub(pattern, embed_url_pattern, href),
                 frameborder='0',
-                allowfullscreen=True,
+                allowfullscreen='',
                 referrerpolicy='strict-origin-when-cross-origin',
                 allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
             )
@@ -213,7 +217,8 @@ def _is_disallowed_iframe_src(src: str) -> bool:
 def _remove_disallowed_iframes(soup: BeautifulSoup) -> None:
     """bleach の属性フィルタだけでは残る空 iframe を DOM から除去する."""
     for iframe in soup.find_all('iframe'):
-        if _is_disallowed_iframe_src(iframe.get('src', '')):
+        src = iframe.get('src')
+        if not isinstance(src, str) or _is_disallowed_iframe_src(src):
             iframe.decompose()
 
 
