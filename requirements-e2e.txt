@@ -470,7 +470,7 @@ types-html5lib==1.1.11.20260518
     # via
     #   -c requirements.txt
     #   types-bleach
-types-markdown==3.10.2.20260712
+types-markdown==3.10.2.20261007
     # via
     #   -c requirements.txt
     #   -r requirements.in
