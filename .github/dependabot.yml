@@ -22,6 +22,11 @@ updates:
         applies-to: security-updates
         update-types: ["minor", "patch"]
     labels: ["dependencies"]
+    cooldown:
+      default-days: 5
+      semver-major-days: 7
+      semver-minor-days: 3
+      semver-patch-days: 3
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -34,4 +39,21 @@ updates:
     groups:
       actions:
         update-types: ["minor", "patch"]
+    labels: ["dependencies"]
+    cooldown:
+      default-days: 5
+
+  - package-ecosystem: "docker"        # ベースイメージ（Dockerfile の FROM）。CI 緑なら自動マージし、本番はカナリアで出す
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Asia/Tokyo"
+    cooldown:
+      default-days: 5
+    open-pull-requests-limit: 2
+    groups:
+      base-images:
+        update-types: ["major", "minor", "patch"]
     labels: ["dependencies"]
