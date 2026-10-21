@@ -67,6 +67,30 @@ class CloudBuildConfigTest(SimpleTestCase):
         self.assertIn('DISCORD_ANNOUNCE_WEBHOOK_URL=DISCORD_ANNOUNCE_WEBHOOK_URL:latest', secrets)
         self.assertNotIn('DISCORD_ANNOUNCE_WEBHOOK_URL', env_vars)
 
+    def test_production_deploy_passes_credentials_from_secret_manager(self):
+        """署名鍵・認証情報・API キーは Secret Manager から渡し、環境変数に平文で置かない。
+
+        --set-secrets は一覧を丸ごと置き換えるため、ここから漏れた Secret は次のデプロイで外れる。
+        """
+        secrets = self._production_deploy_arg('--set-secrets').split(',')
+        env_vars = self._production_deploy_arg('--update-env-vars')
+
+        for name in (
+            'SECRET_KEY',
+            'AWS_ACCESS_KEY_ID',
+            'AWS_SECRET_ACCESS_KEY',
+            'AWS_SES_ACCESS_KEY_ID',
+            'AWS_SES_SECRET_ACCESS_KEY',
+            'GOOGLE_API_KEY',
+            'GEMINI_API_KEY',
+            'OPENAI_API_KEY',
+            'OPENROUTER_API_KEY',
+            'REQUEST_TOKEN',
+        ):
+            with self.subTest(name=name):
+                self.assertIn(f'{name}={name}:latest', secrets)
+                self.assertNotIn(f'{name}=', env_vars)
+
     def test_cloud_build_does_not_run_django_migrations(self):
         """Cloud Build は Django migration を自動実行しない。
 
