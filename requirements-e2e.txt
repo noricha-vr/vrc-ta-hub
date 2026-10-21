@@ -234,7 +234,7 @@ httpx==0.28.1
     # via
     #   -c requirements.txt
     #   openai
-icalendar==5.0.12
+icalendar==7.3.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -384,10 +384,6 @@ python-dateutil==2.9.0.post0
     #   botocore
     #   google-cloud-bigquery
     #   icalendar
-pytz==2026.2
-    # via
-    #   -c requirements.txt
-    #   icalendar
 pyyaml==6.0.3
     # via
     #   -c requirements.txt
@@ -497,6 +493,7 @@ typing-extensions==4.16.0
     #   djangorestframework-stubs
     #   google-generativeai
     #   grpcio
+    #   icalendar
     #   mypy
     #   openai
     #   pydantic
@@ -508,6 +505,10 @@ typing-inspection==0.4.4
     # via
     #   -c requirements.txt
     #   pydantic
+tzdata==2026.5
+    # via
+    #   -c requirements.txt
+    #   icalendar
 uritemplate==4.2.0
     # via
     #   -c requirements.txt

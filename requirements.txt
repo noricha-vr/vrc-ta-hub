@@ -154,7 +154,7 @@ httplib2==0.32.0
     #   google-auth-httplib2
 httpx==0.28.1
     # via openai
-icalendar==5.0.12
+icalendar==7.3.0
     # via -r requirements.in
 idna==3.18
     # via
@@ -245,8 +245,6 @@ python-dateutil==2.9.0.post0
     #   botocore
     #   google-cloud-bigquery
     #   icalendar
-pytz==2026.2
-    # via icalendar
 pyyaml==6.0.3
     # via drf-spectacular
 qrcode==8.2
@@ -317,6 +315,7 @@ typing-extensions==4.16.0
     #   djangorestframework-stubs
     #   google-generativeai
     #   grpcio
+    #   icalendar
     #   mypy
     #   openai
     #   pydantic
@@ -325,6 +324,8 @@ typing-extensions==4.16.0
     #   typing-inspection
 typing-inspection==0.4.4
     # via pydantic
+tzdata==2026.5
+    # via icalendar
 uritemplate==4.2.0
     # via
     #   drf-spectacular

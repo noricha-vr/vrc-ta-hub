@@ -3,7 +3,7 @@ django==5.2.17
 django-storages==1.14.6
 mysqlclient==2.3.0
 Pillow==12.3.0
-icalendar==5.0.12
+icalendar==7.3.0
 requests==2.34.2
 urllib3==2.8.0
 google-auth==2.62.0
