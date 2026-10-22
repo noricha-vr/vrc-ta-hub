@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-22 依存互換性修正案
+
+- icalendar 7.3.0、pypdf 6.21.1、django-allauth 65.20.0 を揃え、本体と E2E の依存ロックを再生成し、Allauth が削除した state API を使うテスト fixture を現行 provider API に対応させました。
+- 旧 Gemini SDK と BigQuery の protobuf 制約の矛盾を解消するため、Google GenAI SDK 2.32.0 への移行案を準備しました。既存のキー名・モデル名・日付生成の入出力・生成設定を保持し、Tenacity は SDK 対応版 9.1.4 に固定しました。SDK 移行の採用は個別承認待ちです。SDK の HTTP redirect は無効にし、API キーと本文の別ホストへの転送を防ぎます。
+
 この変更履歴は Keep a Changelog 形式で記載しています。
 
 ## [Unreleased]

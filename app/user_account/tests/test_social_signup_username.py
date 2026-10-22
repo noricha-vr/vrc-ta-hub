@@ -12,6 +12,7 @@ from django.test import RequestFactory, TestCase, tag
 
 from allauth.account.models import EmailAddress
 from allauth.core.context import request_context
+from user_account.tests.utils import make_discord_login_state
 from allauth.socialaccount.internal.flows.signup import process_signup
 from allauth.socialaccount.models import SocialAccount, SocialLogin
 
@@ -54,7 +55,7 @@ class DiscordAutoSignupUserNameTests(TestCase):
             email_addresses=[EmailAddress(email=email, verified=True, primary=True)],
         )
         with request_context(request):
-            sociallogin.state = SocialLogin.state_from_request(request)
+            sociallogin.state = make_discord_login_state(request)
             process_signup(request, sociallogin)
 
         return User.objects.get(email=email)

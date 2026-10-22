@@ -19,6 +19,7 @@ from django.urls import reverse
 from allauth.account.models import EmailAddress, EmailConfirmationHMAC
 from allauth.core import ratelimit
 from allauth.core.context import request_context
+from user_account.tests.utils import make_discord_login_state
 from allauth.socialaccount.internal.flows.signup import process_signup, signup_by_form
 from allauth.socialaccount.models import SocialAccount, SocialLogin
 
@@ -383,7 +384,7 @@ class DiscordSignupWithPendingChangeTests(CacheResetMixin, TestCase):
 
     def _start_discord_signup(self):
         with request_context(self.request):
-            self.sociallogin.state = SocialLogin.state_from_request(self.request)
+            self.sociallogin.state = make_discord_login_state(self.request)
             return process_signup(self.request, self.sociallogin)
 
     def _submit_signup_form(self):

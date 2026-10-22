@@ -28,6 +28,7 @@ from django.urls import reverse
 
 from allauth.account.models import EmailAddress, EmailConfirmationHMAC
 from allauth.core.context import request_context
+from user_account.tests.utils import make_discord_login_state
 from allauth.core.exceptions import ImmediateHttpResponse
 from allauth.socialaccount.internal.flows.signup import process_signup
 from allauth.socialaccount.models import SocialAccount, SocialLogin
@@ -388,7 +389,7 @@ class ConcurrentOwnershipTests(TestCase):
         with request_context(request), patch(
             'allauth.socialaccount.internal.flows.signup.assess_unique_email', side_effect=unique_until_taken,
         ):
-            sociallogin.state = SocialLogin.state_from_request(request)
+            sociallogin.state = make_discord_login_state(request)
             with self.assertLogs('user_account.adapters', level='WARNING'), self.assertRaises(
                 ImmediateHttpResponse,
             ) as raised:

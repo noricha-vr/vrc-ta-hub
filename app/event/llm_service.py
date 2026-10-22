@@ -115,17 +115,20 @@ class GeminiEventDateLlmService:
         if not api_key:
             raise ValueError(f"{self.config.api_key_env} is required for gemini")
 
-        import google.generativeai as genai
+        from google import genai
 
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(_normalize_gemini_model_name(self.config.model_name))
-        response = model.generate_content(
-            [SYSTEM_PROMPT, prompt],
-            generation_config={
-                "temperature": 0.3,
-                "max_output_tokens": 2000,
-            },
-        )
+        with genai.Client(
+            api_key=api_key,
+            http_options={"client_args": {"follow_redirects": False}},
+        ) as client:
+            response = client.models.generate_content(
+                model=_normalize_gemini_model_name(self.config.model_name),
+                contents=[SYSTEM_PROMPT, prompt],
+                config={
+                    "temperature": 0.3,
+                    "max_output_tokens": 2000,
+                },
+            )
         return extract_event_dates(getattr(response, "text", "") or "")
 
 
