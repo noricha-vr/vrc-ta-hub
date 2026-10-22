@@ -30,7 +30,7 @@ pypdf==6.21.1
 pypdfium2==5.14.0
 pydantic==2.14.1
 drf-spectacular==0.30.0
-django-allauth[socialaccount]==65.20.0
+django-allauth[socialaccount]==65.19.7
 requests-oauthlib==2.0.0
 qrcode[pil]==8.2
 coverage==7.16.2

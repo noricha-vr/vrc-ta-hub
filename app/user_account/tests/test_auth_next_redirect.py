@@ -14,7 +14,6 @@ from django.urls import reverse
 
 from allauth.account.models import EmailAddress, EmailConfirmationHMAC
 from allauth.core.context import request_context
-from user_account.tests.utils import make_discord_login_state
 from allauth.socialaccount.internal.flows.signup import process_signup
 from allauth.socialaccount.models import SocialAccount, SocialLogin
 
@@ -331,7 +330,7 @@ class SocialSignupRedirectTests(TestCase):
             )],
         )
         with request_context(request):
-            sociallogin.state = make_discord_login_state(request)
+            sociallogin.state = SocialLogin.state_from_request(request)
             return process_signup(request, sociallogin)
 
     def test_new_social_signup_without_membership_uses_my_presentations(self) -> None:

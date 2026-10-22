@@ -1,8 +1,7 @@
 """テスト用ユーティリティ関数."""
 from django.contrib.auth import get_user_model
 
-from allauth.socialaccount.models import SocialAccount, SocialApp
-from allauth.socialaccount.providers.discord.provider import DiscordProvider
+from allauth.socialaccount.models import SocialAccount
 from allauth.account.models import EmailAddress
 
 User = get_user_model()
@@ -61,11 +60,3 @@ def create_discord_linked_user(user_name, email, password, discord_uid=None, **e
         uid=discord_uid or f'discord_{user_name}',
     )
     return user
-
-
-def make_discord_login_state(request):
-    """現行 provider API で OAuth callback と同じログイン state を用意する。"""
-    provider = DiscordProvider(request, app=SocialApp(provider='discord'))
-    kwargs = provider.get_redirect_from_request_kwargs(request)
-    state_id = provider.stash_redirect_state(request, **kwargs)
-    return provider.unstash_redirect_state(request, state_id)

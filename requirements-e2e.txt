@@ -89,7 +89,7 @@ django==5.2.17
     #   djangorestframework
     #   drf-spectacular
     #   sentry-sdk
-django-allauth==65.20.0
+django-allauth==65.19.7
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -488,11 +488,13 @@ typing-extensions==4.16.0
     #   djangorestframework-stubs
     #   google-genai
     #   grpcio
+    #   icalendar
     #   mypy
     #   openai
     #   pydantic
     #   pydantic-core
     #   pyee
+    #   referencing
     #   typing-inspection
 typing-inspection==0.4.4
     # via
