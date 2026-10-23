@@ -4,7 +4,7 @@
 共有する必要がある（共有しないと3つ目の迂回経路になる）。
 """
 
-from datetime import timedelta
+from datetime import time, timedelta
 
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -135,3 +135,21 @@ class LTReviewDatetimeLockTest(TestCase):
         self.assertEqual(response.status_code, 302)
         self.application.refresh_from_db()
         self.assertEqual(self.application.start_time.strftime('%H:%M'), '23:45')
+
+    def test_move_to_locked_event_preserves_start_time(self):
+        """ロック中の回へ移す場合は元の開始時刻を再計算しない"""
+        self.community.lt_start_offset_minutes = 15
+        self.community.save(update_fields=['lt_start_offset_minutes'])
+        self.application.event = self.free_event
+        self.application.start_time = time(22, 45)
+        self.application.save(update_fields=['event', 'start_time'])
+        self.client.force_login(self.owner)
+
+        with self.settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'):
+            response = self.client.post(self.url, self._post_data(event=self.collab_event.pk))
+
+        self.assertEqual(response.status_code, 302)
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.status, 'approved')
+        self.assertEqual(self.application.event_id, self.collab_event.pk)
+        self.assertEqual(self.application.start_time, time(22, 45))

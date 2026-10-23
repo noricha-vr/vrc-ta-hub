@@ -9,6 +9,7 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 from event.models import EventDetail
+from event.services.lt_schedule import _calc_next_lt_start_time
 from vket.application_link import application_warnings, link_approved_application, lock_application_event
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ def review_application(
     """最新行をロックし、pending からの状態変更と後処理を一度だけ行う。
 
     日時調整の入力検証は画面のフォームが行う。API は日時を変更しない。
+    start_time が None なら、移動先の回の空き（前の発表の後）を開始時刻にする。
     """
     if decision not in ('approved', 'rejected'):
         raise ValueError('承認または却下を指定してください。')
@@ -88,6 +90,17 @@ def _apply_schedule_changes(event_detail, event, start_time, duration) -> list[d
     """承認時の日時調整を反映し、通知に載せる差分を返す。"""
     if event.community_id != event_detail.event.community_id:
         raise PermissionDenied('他の集会のイベントには変更できません。')
+
+    if start_time is None:
+        start_time = _calc_next_lt_start_time(
+            event.start_time,
+            EventDetail.objects.filter(
+                event=event,
+                detail_type='LT',
+                status__in=['pending', 'approved'],
+            ).exclude(pk=event_detail.pk).values_list('start_time', 'duration'),
+            event.community.lt_start_offset_minutes or 0,
+        )
 
     changes = []
     if event.pk != event_detail.event_id:

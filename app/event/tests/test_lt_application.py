@@ -525,6 +525,102 @@ class LTApplicationReviewTest(TestCase):
         self.pending_application.refresh_from_db()
         self.assertEqual(self.pending_application.status, 'approved')
 
+    def _prepare_reschedule(self):
+        self.community.lt_start_offset_minutes = 15
+        self.community.save(update_fields=['lt_start_offset_minutes'])
+        make_event_detail(
+            self.event, status='approved', start_time=time(22, 15), duration=30,
+        )
+        self.pending_application.start_time = time(22, 45)
+        self.pending_application.save(update_fields=['start_time'])
+        self.client.force_login(self.owner)
+        return make_event(
+            self.community, event_date=self.event.date + timedelta(days=14),
+        )
+
+    @patch('event.notifications.notify_applicant_of_result')
+    def test_date_only_approval_recalculates_start_time_and_notifies(self, mock_notify):
+        """開催日だけ変えた承認では空の回の開始時刻を再計算し、差分を通知する"""
+        new_event = self._prepare_reschedule()
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+
+        response = self.client.post(url, self._review_post_data(event=new_event.pk))
+
+        self.assertEqual(response.status_code, 302)
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.status, 'approved')
+        self.assertEqual(self.pending_application.event_id, new_event.pk)
+        self.assertEqual(self.pending_application.start_time, time(22, 15))
+        self.assertIn(
+            {'label': '開始時刻', 'before': '22:45', 'after': '22:15'},
+            mock_notify.call_args.kwargs['schedule_changes'],
+        )
+
+    @patch('event.notifications.notify_applicant_of_result')
+    def test_date_only_approval_starts_after_destination_lt(self, mock_notify):
+        """移動先の承認待ち・承認済み発表の終了後に割り当てる"""
+        new_event = self._prepare_reschedule()
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+        for status in ('pending', 'approved'):
+            with self.subTest(status=status):
+                slot = make_event_detail(
+                    new_event, status=status, start_time=time(22, 15), duration=30,
+                )
+                self.pending_application.status = 'pending'
+                self.pending_application.event = self.event
+                self.pending_application.save(update_fields=['status', 'event'])
+
+                response = self.client.post(url, self._review_post_data(event=new_event.pk))
+
+                self.assertEqual(response.status_code, 302)
+                self.pending_application.refresh_from_db()
+                self.assertEqual(self.pending_application.status, 'approved')
+                self.assertEqual(self.pending_application.event_id, new_event.pk)
+                self.assertEqual(self.pending_application.start_time, time(22, 45))
+                slot.delete()
+
+    @patch('event.notifications.notify_applicant_of_result')
+    def test_date_only_approval_ignores_rejected_and_non_lt_slots(self, mock_notify):
+        """却下済みの発表や発表以外の枠は再計算に含めない"""
+        new_event = self._prepare_reschedule()
+        make_event_detail(new_event, status='rejected', start_time=time(23, 0))
+        make_event_detail(new_event, detail_type='SPECIAL', status='approved', start_time=time(23, 0))
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+
+        response = self.client.post(url, self._review_post_data(event=new_event.pk))
+
+        self.assertEqual(response.status_code, 302)
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.start_time, time(22, 15))
+
+    @patch('event.notifications.notify_applicant_of_result')
+    def test_date_change_approval_preserves_explicit_start_time(self, mock_notify):
+        """開催日と開始時刻の両方を変えた場合は主催者の入力を使う"""
+        new_event = self._prepare_reschedule()
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+
+        response = self.client.post(url, self._review_post_data(
+            event=new_event.pk, start_time='23:10',
+        ))
+
+        self.assertEqual(response.status_code, 302)
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.start_time, time(23, 10))
+
+    @patch('event.notifications.notify_applicant_of_result')
+    def test_approval_without_date_change_preserves_start_time(self, mock_notify):
+        """開催日を変えない承認では開始時刻を再計算しない"""
+        self._prepare_reschedule()
+        url = reverse('event:lt_application_review', kwargs={'pk': self.pending_application.pk})
+
+        response = self.client.post(url, self._review_post_data())
+
+        self.assertEqual(response.status_code, 302)
+        self.pending_application.refresh_from_db()
+        self.assertEqual(self.pending_application.event_id, self.event.pk)
+        self.assertEqual(self.pending_application.start_time, time(22, 45))
+        self.assertEqual(mock_notify.call_args.kwargs['schedule_changes'], [])
+
     @patch('event.notifications.send_mail')
     def test_reject_application(self, mock_send_mail):
         """申請を却下できる"""
