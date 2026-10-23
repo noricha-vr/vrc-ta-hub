@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from unittest.mock import call, patch
 
 from bs4 import BeautifulSoup
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 from google.auth.exceptions import RefreshError
@@ -334,6 +334,17 @@ class SearchQueriesDisplayTests(TestCase):
         html = response.content.decode()
         self.assertLess(html.index('analytics-source-legend'), html.index('検索キーワード'))
         self.assertLess(html.index('検索キーワード'), html.index('source / medium の詳細'))
+
+    def test_queries_equal_under_db_collation_are_aggregated_separately(self, _today):
+        SearchConsoleQuery.objects.bulk_create([
+            stored_row(community=self.community, query='ハハ', impressions=10, clicks=1),
+            stored_row(community=self.community, query='パパ', impressions=30, clicks=2),
+            stored_row(community=self.community, query='パパ', date=TARGET - timedelta(days=1), impressions=5),
+        ])
+        self.assertEqual(get_search_queries([self.community.pk], 7), [
+            {'query': 'パパ', 'impressions': 35, 'clicks': 4},
+            {'query': 'ハハ', 'impressions': 10, 'clicks': 1},
+        ])
 
     def test_empty_message_and_help_visible_even_without_ga4(self, _today):
         self.client.force_login(self.owner)

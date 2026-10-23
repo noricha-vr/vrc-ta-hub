@@ -7,7 +7,9 @@ object_id だけで絞ると他 community のデータが混入するため、co
 import logging
 from datetime import date, timedelta
 
+from django.db import connection
 from django.db.models import Q, Sum
+from django.db.models.functions import Collate
 from django.urls import reverse
 from django.utils import timezone
 
@@ -87,15 +89,26 @@ def _base_queryset(community_ids, *, content_type=None, object_id=None, days=DEF
 def get_search_queries(community_ids, days, limit=10) -> list:
     """権限内の集会・発表の検索語を、前日までの表示回数順に返す。"""
     since, until = _date_range(days)
-    return list(
+    rows = (
         SearchConsoleQuery.objects.filter(
             community_id__in=community_ids, date__gte=since, date__lte=until,
         )
         .exclude(content_type=PageAnalytics.ContentType.GLOBAL)
-        .values('query')
+        # MySQL の既定の照合順序は「ハハ」と「パパ」を同じ値として GROUP BY するため、完全一致でまとめる。
+        .annotate(exact_query=Collate('query', _binary_collation()))
+        .values('exact_query')
         .annotate(impressions=Sum('impressions'), clicks=Sum('clicks'))
-        .order_by('-impressions', '-clicks', 'query')[:limit]
+        .order_by('-impressions', '-clicks', 'exact_query')
+        .values('exact_query', 'impressions', 'clicks')[:limit]
     )
+    return [
+        {'query': row['exact_query'], 'impressions': row['impressions'], 'clicks': row['clicks']}
+        for row in rows
+    ]
+
+
+def _binary_collation() -> str:
+    return 'utf8mb4_bin' if connection.vendor == 'mysql' else 'BINARY'
 
 
 def get_daily_series(community_ids, *, content_type=None, object_id=None, days=DEFAULT_DAYS) -> list:
