@@ -1,0 +1,49 @@
+{% if can_view_analytics and community_analytics %}
+<section class="card my-4 shadow-sm" id="analytics-section" aria-label="集会のアクセス">
+    <div class="card-body p-3 p-md-4">
+        {% if community_analytics.has_data %}
+            <h2 class="fs-5 fw-bold mb-3">集会のアクセス<span class="fs-6 fw-normal text-muted">（直近30日・前日まで）</span></h2>
+            <div class="d-flex flex-wrap align-items-baseline gap-3 mb-2">
+                <div>閲覧 <strong class="fs-4">{{ community_analytics.summary.pv|floatformat:"0g" }}</strong>
+                    {% if community_analytics.summary.change_rate is not None %}
+                        <span class="small text-muted">（前の30日比 {% if community_analytics.summary.change_rate > 0 %}+{% endif %}{{ community_analytics.summary.change_rate|floatformat:1 }}%）</span>
+                    {% endif %}
+                </div>
+                {% if community_analytics.video_views is not None %}
+                    <div>動画再生 <strong class="fs-4">{{ community_analytics.video_views|floatformat:"0g" }}</strong>{% if community_analytics.video_is_cumulative %}<span class="small text-muted">（累計）</span>{% endif %}</div>
+                {% endif %}
+            </div>
+            <p class="small text-muted mb-3">内訳: 集会ページ {{ community_analytics.summary.community_page_pv|floatformat:"0g" }} / 発表記事 {{ community_analytics.summary.article_pv|floatformat:"0g" }}</p>
+
+            {% if community_analytics.top_presentations %}
+                <h3 class="fs-6 fw-bold mb-2">よく見られている発表</h3>
+                <ol class="ps-4 mb-3">
+                    {% for row in community_analytics.top_presentations %}
+                        <li class="mb-2">
+                            <div class="d-flex flex-wrap justify-content-between gap-1">
+                                <a href="{{ row.url }}">{{ row.title }}</a>
+                                <span class="small text-muted text-nowrap">{{ row.pv|floatformat:"0g" }}閲覧{% if row.video_views is not None %}<span class="ms-2">{{ row.video_views|floatformat:"0g" }}再生{% if row.video_is_cumulative %}（累計）{% endif %}</span>{% endif %}</span>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ol>
+            {% endif %}
+
+            {% if community_analytics.sources %}
+                <p class="small mb-3">どこから: {% for source in community_analytics.sources %}{{ source.label }} {{ source.percent }}%{% if not forloop.last %} / {% endif %}{% endfor %}</p>
+            {% endif %}
+            <div class="text-end">
+                <a href="{% url 'analytics:dashboard' %}?community={{ community.pk }}"
+                   onclick="if(window.gtag){gtag('event','analytics_dashboard_open',{page_type:'community',community_id:{{ community.pk }}});}">詳しく見る →</a>
+            </div>
+        {% else %}
+            <p class="text-muted mb-0">まだ集計できるアクセスがありません</p>
+        {% endif %}
+    </div>
+</section>
+<script>
+    if (window.gtag) {
+        gtag('event', 'analytics_card_view', {page_type: 'community', community_id: {{ community.pk }}});
+    }
+</script>
+{% endif %}
