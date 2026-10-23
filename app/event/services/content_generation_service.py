@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 from event.models import EventDetail, article_generation_request_values
 from event.prompts import BLOG_GENERATION_TEMPLATE
+from event.services.content_sanitizer import remove_invalid_slide_links
 from event.services.media_service import ensure_pdf_thumbnail
 from event.services.pdf_worker import PdfWorkerError, run_pdf_worker
 from event.services.youtube_service import get_transcript
@@ -86,8 +87,16 @@ class BlogOutput(BaseModel):
         return self._sources
 
 
+def _slide_link_instruction(pdf_url: str) -> str:
+    """記事末尾のスライドリンクの指示。PDF が無い時はリンクを書かせない。"""
+    if pdf_url:
+        return f"- まとめの最後に、次の形式でスライドへのリンクを含める：「[発表スライド（PDF）]({pdf_url})」"
+    return "- スライド（PDF）は無いので、スライドへのリンクは記載しない"
+
+
 def _with_sources(blog_output: BlogOutput, sources: BlogSources) -> BlogOutput:
-    """生成結果に、生成に使った入力を持たせる。"""
+    """生成結果に、生成に使った入力を持たせる。行き先の無いスライドリンクはここで消す。"""
+    blog_output.text = remove_invalid_slide_links(blog_output.text)
     blog_output._sources = sources
     return blog_output
 
@@ -396,7 +405,7 @@ def generate_blog(event_detail: EventDetail, model=None, sources: Optional[BlogS
             community_name=event_detail.event.community.name,
             speaker=event_detail.speaker,
             theme=event_detail.theme,
-            pdf_url=sources.pdf_url or "なし",
+            slide_link_instruction=_slide_link_instruction(sources.pdf_url),
             format_instructions=""  # 不要
         )
         # Function Calling 未対応モデルのフォールバック用。フィールド制約は
