@@ -171,19 +171,20 @@
                             <h3 class="small fw-bold mb-2">検索キーワード
                                 <a class="analytics-help" tabindex="0" role="button" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" data-bs-content="Google 検索で、この集会のページが表示された時の検索語です。2〜3 日遅れて反映されます" aria-label="Google 検索で、この集会のページが表示された時の検索語です。2〜3 日遅れて反映されます"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></a>
                             </h3>
+                            <p class="text-muted small mb-1">クリック順。回数の少ない語は Google が伏せるため一部だけ{% if search_queries_since %}（{{ search_queries_since|date:"Y-m-d" }} 以降）{% endif %}</p>
                             <ul class="list-unstyled small mb-3 analytics-search-queries">
                                 {% for row in search_queries %}
                                     <li class="d-flex justify-content-between gap-2 mb-1"><span>{{ row.query }}</span><span class="text-muted text-nowrap">表示 {{ row.impressions|floatformat:"0g" }}・クリック {{ row.clicks|floatformat:"0g" }}</span></li>
                                 {% empty %}
-                                    <li class="text-muted">検索キーワードはまだありません（回数の少ない語は Google が伏せます）</li>
+                                    <li class="text-muted">検索キーワードはまだありません</li>
                                 {% endfor %}
                             </ul>
                             {% if summary.pv %}
                                 <details>
-                                    <summary class="small">source / medium の詳細</summary>
+                                    <summary class="small">参照元 / メディアの詳細</summary>
                                     <div class="table-responsive mt-2">
                                         <table class="table table-sm mb-0">
-                                            <thead class="table-light"><tr><th>source / medium</th><th class="text-end">閲覧</th></tr></thead>
+                                            <thead class="table-light"><tr><th>参照元 / メディア</th><th class="text-end">閲覧</th></tr></thead>
                                             <tbody>{% for row in source_breakdown %}<tr><td class="small">{{ row.source_medium }}</td><td class="text-end">{{ row.pv|floatformat:"0g" }}</td></tr>{% endfor %}</tbody>
                                         </table>
                                     </div>

@@ -69,14 +69,14 @@ def fetch_search_queries(target_date) -> list[dict]:
     return results
 
 
-def sync_search_console(target_date) -> int:
-    """直近7日分を取得後、各日を取得結果で丸ごと置き換える。"""
+def sync_search_console(target_date, days=SEARCH_CONSOLE_LOOKBACK_DAYS) -> int:
+    """直近 days 日分（既定 7 日）を取得後、各日を取得結果で丸ごと置き換える。"""
     try:
         daily_queries = [
             (day, fetch_search_queries(day))
             for day in (
                 target_date - timedelta(days=ago)
-                for ago in range(SEARCH_CONSOLE_LOOKBACK_DAYS - 1, -1, -1)
+                for ago in range(days - 1, -1, -1)
             )
         ]
         saved = 0
@@ -121,6 +121,6 @@ def sync_search_console(target_date) -> int:
         raise RuntimeError('Search Console sync failed') from None
     logger.info(
         'sync_search_console done: since=%s until=%s saved=%d skipped=%d',
-        target_date - timedelta(days=SEARCH_CONSOLE_LOOKBACK_DAYS - 1), target_date, saved, skipped,
+        target_date - timedelta(days=days - 1), target_date, saved, skipped,
     )
     return saved

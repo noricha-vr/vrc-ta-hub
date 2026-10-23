@@ -274,7 +274,7 @@ class DashboardRankingTest(TestCase):
         self.assertIn('height: 180px', sidebar.select_one('#weekly-chart').parent['style'])
         self.assertEqual(len(sidebar.select('.analytics-source-legend > li')),
                          len(response.context['source_categories']))
-        self.assertIn('source / medium', sidebar.select_one('details summary').get_text())
+        self.assertIn('参照元 / メディア', sidebar.select_one('details summary').get_text())
 
     def test_single_community_only_shows_poster_totals_in_kpi(self):
         make_community_member(self.other_community, self.user, role='staff')
@@ -354,7 +354,7 @@ class DashboardRankingTest(TestCase):
         response = self.client.get(self.url)
         self.assertEqual(len(response.context['source_categories']), 6)
         self.assertContains(response, '<details>')
-        self.assertContains(response, 'source / medium の詳細')
+        self.assertContains(response, '参照元 / メディアの詳細')
         self.assertContains(response, "type: 'bar'")
         self.assertNotContains(response, 'analytics-daily-chart')
         self.assertNotContains(response, 'post-publish-chart')
