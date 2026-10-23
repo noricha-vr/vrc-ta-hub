@@ -133,12 +133,16 @@ class PosterClick(models.Model):
 
 
 class YouTubeVideoStats(models.Model):
-    """YouTube 動画の公開統計を動画 ID・日付ごとに蓄積する。"""
+    """YouTube 動画の公開統計を動画 ID・日付ごとに蓄積する。
+
+    統計は動画単位で、event_detail は代表の発表を指すだけ。同じ動画を使う別の発表の
+    履歴を消さないよう、代表の発表が消えても行は残す（SET_NULL）。
+    """
 
     video_id = models.CharField('動画ID', max_length=32, db_index=True)
     event_detail = models.ForeignKey(
         'event.EventDetail',
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         related_name='youtube_stats',
         verbose_name='発表',
         null=True,

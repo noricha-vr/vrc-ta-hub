@@ -59,17 +59,20 @@ class YouTubeVideoStatsModelTest(VideoStatsTestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             self._snapshot(FIXED_TODAY, 2, detail=self.shared_detail)
 
-    def test_event_deletion_cascades_to_statistics(self):
-        self._snapshot(FIXED_TODAY, 1)
+    def test_event_deletion_keeps_video_history(self):
+        row = self._snapshot(FIXED_TODAY, 1)
         self.assertEqual(self.detail.youtube_stats.count(), 1)
         self.event.delete()
-        self.assertFalse(YouTubeVideoStats.objects.exists())
+        row.refresh_from_db()
+        self.assertIsNone(row.event_detail_id)
 
 
+# 前日分の同期だけが保存対象なので、「今日」を FIXED_TODAY の翌日に固定する
+@patch('analytics.video_stats.timezone.localdate', return_value=FIXED_TODAY + timedelta(days=1))
 class SyncYouTubeStatsTest(VideoStatsTestCase):
     @patch('analytics.video_stats.fetch_video_statistics')
-    def test_sync_is_idempotent_and_shared_video_uses_first_presentation(self, mock_fetch):
-        target_date = FIXED_TODAY - timedelta(days=1)
+    def test_sync_is_idempotent_and_shared_video_uses_first_presentation(self, mock_fetch, _mock_today):
+        target_date = FIXED_TODAY
         mock_fetch.return_value = {
             VIDEO_ID: {'view_count': 10, 'like_count': 2, 'comment_count': None},
         }
@@ -89,11 +92,18 @@ class SyncYouTubeStatsTest(VideoStatsTestCase):
         self.assertEqual(row.view_count, 25)
         self.assertEqual(row.created_at, created_at)
 
-        self.assertEqual(sync_youtube_stats(FIXED_TODAY), 1)
-        self.assertEqual(YouTubeVideoStats.objects.count(), 2)
+    @patch('analytics.video_stats.fetch_video_statistics')
+    def test_past_date_resync_does_not_overwrite_history(self, mock_fetch, _mock_today):
+        past = FIXED_TODAY - timedelta(days=5)
+        row = self._snapshot(past, 99)
+        mock_fetch.return_value = {VIDEO_ID: {'view_count': 500, 'like_count': 1, 'comment_count': 1}}
+        self.assertEqual(sync_youtube_stats(past), 0)
+        mock_fetch.assert_not_called()
+        row.refresh_from_db()
+        self.assertEqual(row.view_count, 99)
 
     @patch('analytics.video_stats.fetch_video_statistics', return_value={})
-    def test_missing_api_results_do_not_create_or_erase_snapshots(self, mock_fetch):
+    def test_missing_api_results_do_not_create_or_erase_snapshots(self, mock_fetch, _mock_today):
         row = self._snapshot(FIXED_TODAY, 99)
         self.assertEqual(sync_youtube_stats(FIXED_TODAY), 0)
         row.refresh_from_db()
@@ -101,7 +111,7 @@ class SyncYouTubeStatsTest(VideoStatsTestCase):
         self.assertEqual(YouTubeVideoStats.objects.count(), 1)
 
     @patch('analytics.video_stats.fetch_video_statistics', return_value={})
-    def test_deleted_empty_and_non_video_urls_are_excluded(self, mock_fetch):
+    def test_deleted_empty_and_non_video_urls_are_excluded(self, mock_fetch, _mock_today):
         for url in (None, '', 'https://discord.com/channels/123/456/789',
                     'https://www.youtube.com/playlist?list=123'):
             EventDetail.objects.create(event=self.event, youtube_url=url)
@@ -113,7 +123,7 @@ class SyncYouTubeStatsTest(VideoStatsTestCase):
         mock_fetch.assert_called_once_with([VIDEO_ID])
 
     @patch('analytics.video_stats.fetch_video_statistics')
-    def test_no_videos_skips_api(self, mock_fetch):
+    def test_no_videos_skips_api(self, mock_fetch, _mock_today):
         EventDetail.objects.all().update(youtube_url='')
         self.assertEqual(sync_youtube_stats(FIXED_TODAY), 0)
         mock_fetch.assert_not_called()
@@ -221,8 +231,10 @@ class SyncAnalyticsYouTubeTest(VideoStatsTestCase):
         self.assertIn('YouTube: 1', response.content.decode())
         mock_sync.assert_called_once_with(date(2026, 10, 22))
 
+    # 前日分（2026-10-22）の同期として YouTube 取得まで進めるため「今日」を固定する
+    @patch('analytics.video_stats.timezone.localdate', return_value=FIXED_TODAY)
     @patch('analytics.video_stats.fetch_video_statistics', side_effect=RuntimeError('YouTube failed'))
-    def test_youtube_failure_preserves_successful_ga4_sync(self, mock_fetch):
+    def test_youtube_failure_preserves_successful_ga4_sync(self, mock_fetch, _mock_today):
         with patch('analytics.views.fetch_page_report', return_value=[{
             'page_path': '/', 'date': '2026-10-22', 'source_medium': '(direct) / (none)',
             'campaign': '(not set)', 'pv': 10, 'users': 8, 'sessions': 9,
@@ -244,3 +256,4 @@ class SyncAnalyticsYouTubeTest(VideoStatsTestCase):
             response = self.client.get(self.url, HTTP_REQUEST_TOKEN=TEST_TOKEN)
         self.assertEqual(response.status_code, 500)
         mock_sync.assert_not_called()
+

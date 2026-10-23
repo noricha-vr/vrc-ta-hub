@@ -16,7 +16,16 @@ logger = logging.getLogger('analytics')
 
 
 def sync_youtube_stats(target_date) -> int:
-    """youtube_url を持つ発表の動画統計を指定日で冪等に保存し、保存件数を返す。"""
+    """youtube_url を持つ発表の動画統計を指定日で冪等に保存し、保存件数を返す。
+
+    API が返すのは「今」の累計なので、保存してよいのは前日分の同期の時だけ。
+    過去日の再同期（?date= 指定）で当時の行を今の値に上書きしないよう、前日以外は取得しない。
+    """
+    yesterday = timezone.localdate() - timedelta(days=1)
+    if target_date != yesterday:
+        logger.info('sync_youtube_stats skipped: date=%s is not yesterday (%s)', target_date, yesterday)
+        return 0
+
     details = (
         EventDetail.objects.filter(youtube_url__isnull=False)
         .exclude(youtube_url='')
