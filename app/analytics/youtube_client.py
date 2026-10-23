@@ -1,7 +1,8 @@
-"""YouTube Data API から動画の公開統計を取得する。"""
+"""YouTube Data API の公開統計と Analytics API の同意済み視聴実績を取得する。"""
 import logging
 
 from django.conf import settings
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -42,3 +43,49 @@ def fetch_video_statistics(video_ids) -> dict:
                 )
             }
     return results
+
+
+def fetch_video_analytics(target_date) -> dict:
+    """同意済みチャンネルの指定日を動画別に取得する。資格情報はログに出さない。"""
+    if not all((settings.YOUTUBE_CLIENT_ID, settings.YOUTUBE_CLIENT_SECRET,
+                settings.YOUTUBE_ANALYTICS_REFRESH_TOKEN)):
+        logger.warning('YouTube Analytics skipped: OAuth settings are not configured')
+        return {}
+
+    try:
+        credentials = Credentials(
+            None,
+            refresh_token=settings.YOUTUBE_ANALYTICS_REFRESH_TOKEN,
+            client_id=settings.YOUTUBE_CLIENT_ID,
+            client_secret=settings.YOUTUBE_CLIENT_SECRET,
+            token_uri='https://oauth2.googleapis.com/token',
+        )
+        youtube = build('youtubeAnalytics', 'v2', credentials=credentials, cache_discovery=False)
+        results = {}
+        start_index = 1
+        while True:
+            response = youtube.reports().query(
+                ids='channel==MINE',
+                startDate=target_date.isoformat(),
+                endDate=target_date.isoformat(),
+                metrics='views,estimatedMinutesWatched,averageViewDuration',
+                dimensions='video',
+                sort='-views',
+                maxResults=200,
+                startIndex=start_index,
+            ).execute()
+            rows = response.get('rows', [])
+            for video_id, views, minutes, seconds in rows:
+                results[video_id] = {
+                    'views': int(views),
+                    'estimated_minutes_watched': float(minutes),
+                    'average_view_duration_seconds': float(seconds),
+                }
+            if len(rows) < 200:
+                return results
+            start_index += 200
+    except HttpError as exc:
+        raise RuntimeError(f'YouTube Analytics request failed: HTTP {exc.resp.status}') from None
+    except Exception:
+        # OAuth の更新失敗やクライアント構築時の例外にも秘密が含まれうる。
+        raise RuntimeError('YouTube Analytics request failed') from None

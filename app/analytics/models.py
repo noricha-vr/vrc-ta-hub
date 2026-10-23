@@ -169,6 +169,34 @@ class YouTubeVideoStats(models.Model):
         return f'{self.date} {self.video_id} views={self.view_count}'
 
 
+class YouTubeVideoAnalytics(models.Model):
+    """同意済みチャンネルの日別視聴実績。発表が消えても動画の履歴は保持する。"""
+
+    video_id = models.CharField('動画ID', max_length=32, db_index=True)
+    event_detail = models.ForeignKey(
+        'event.EventDetail',
+        on_delete=models.SET_NULL,
+        related_name='youtube_analytics',
+        verbose_name='発表',
+        null=True,
+        blank=True,
+    )
+    date = models.DateField('日付')
+    views = models.PositiveBigIntegerField('再生数', default=0)
+    estimated_minutes_watched = models.FloatField('総再生時間（分）', default=0)
+    average_view_duration_seconds = models.FloatField('平均視聴時間（秒）', default=0)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'YouTube 動画解析'
+        verbose_name_plural = 'YouTube 動画解析'
+        db_table = 'youtube_video_analytics'
+        unique_together = [('video_id', 'date')]
+
+    def __str__(self):
+        return f'{self.date} {self.video_id} views={self.views}'
+
+
 class Campaign(models.Model):
     """主催者が発行する UTM キャンペーン（QR コード入りチラシ等の流入計測用）。
 

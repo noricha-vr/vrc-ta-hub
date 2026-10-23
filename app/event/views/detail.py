@@ -11,7 +11,7 @@ from django.views.generic import DetailView
 
 from analytics import services as analytics_services
 from analytics.models import PageAnalytics
-from analytics.video_stats import get_video_views
+from analytics.video_stats import get_video_views, get_video_watch_times
 from community.constants import WEEKDAY_CHOICES
 from event.services.content_sanitizer import remove_invalid_slide_links
 from event.services.markdown_processor import convert_markdown
@@ -182,8 +182,7 @@ class EventDetailView(DetailView):
     def _analytics_context(self, event_detail: EventDetail) -> Dict:
         """反響カード。発表者本人には自分の閲覧数・再生数だけを渡す。
 
-        平均視聴時間は取り込み開始後に analytics_average_view_duration として
-        管理者の context に追加する（現在はデータがないためキーも作らない）。
+        平均視聴時間は管理者だけに渡し、未取得ならキーも作らない。
         """
         user = self.request.user
         is_manager = is_event_detail_admin(user, event_detail)
@@ -218,6 +217,12 @@ class EventDetailView(DetailView):
         )
 
         if is_manager:
+            watch_times, _ = get_video_watch_times(
+                [event_detail.pk] if community_ids else [], days=30,
+            )
+            if event_detail.pk in watch_times:
+                context['analytics_average_view_duration'] = watch_times[event_detail.pk]
+                context['analytics_has_data'] = True
             context['analytics_rank'] = analytics_services.get_event_detail_rank(
                 community_ids, event_detail, days=30,
             )

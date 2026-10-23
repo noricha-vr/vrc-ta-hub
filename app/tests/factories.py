@@ -290,3 +290,13 @@ def make_event_detail(
         additional_info=additional_info,
         **defaults,
     )
+
+
+def make_youtube_video_analytics(*, video_id='abcdefghijk', date=None, **extra):
+    """動画の日別視聴実績を作成する。"""
+    from django.utils import timezone
+    from analytics.models import YouTubeVideoAnalytics
+
+    return YouTubeVideoAnalytics.objects.create(
+        video_id=video_id, date=date or timezone.localdate() - timedelta(days=1), **extra,
+    )

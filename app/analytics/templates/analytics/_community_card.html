@@ -1,3 +1,4 @@
+{% load analytics_filters %}
 {% if can_view_analytics and community_analytics %}
 <section class="card my-4 shadow-sm" id="analytics-section" aria-label="集会のアクセス">
     <div class="card-body p-3 p-md-4">
@@ -11,6 +12,9 @@
                 </div>
                 {% if community_analytics.video_views is not None %}
                     <div>動画再生 <strong class="fs-4">{{ community_analytics.video_views|floatformat:"0g" }}</strong>{% if community_analytics.video_is_cumulative %}<span class="small text-muted">（累計）</span>{% endif %}</div>
+                {% endif %}
+                {% if community_analytics.average_watch_time is not None %}
+                    <div class="small text-muted">平均視聴 {{ community_analytics.average_watch_time|watch_duration }}</div>
                 {% endif %}
             </div>
             <p class="small text-muted mb-3">内訳: 集会ページ {{ community_analytics.summary.community_page_pv|floatformat:"0g" }} / 発表記事 {{ community_analytics.summary.article_pv|floatformat:"0g" }}{% if community_analytics.summary.campaign_pv %} / 配布リンク {{ community_analytics.summary.campaign_pv|floatformat:"0g" }}{% endif %}</p>

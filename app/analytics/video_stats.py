@@ -1,16 +1,16 @@
-"""発表動画の公開統計の同期と再生数の集計。"""
+"""発表動画の公開統計・日別視聴実績の同期と集計。"""
 import logging
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Max, OuterRef, Q, Subquery
+from django.db.models import Max, OuterRef, Q, Subquery, Sum
 from django.utils import timezone
 
 from event.models import EventDetail
 from event.youtube_urls import youtube_video_id
 
-from .models import YouTubeVideoStats
-from .youtube_client import fetch_video_statistics
+from .models import YouTubeVideoAnalytics, YouTubeVideoStats
+from .youtube_client import fetch_video_analytics, fetch_video_statistics
 
 logger = logging.getLogger('analytics')
 
@@ -130,3 +130,72 @@ def summarize_video_views(event_detail_ids, *, days=30):
     if all(row['period'] is not None for row in by_video.values()):
         return views, sum(row['period'] for row in by_video.values()), False
     return views, sum(row['total'] for row in by_video.values()), True
+
+
+def sync_youtube_analytics(target_date) -> int:
+    """確定が遅れる日別実績を target_date-2 〜 target_date の3日分上書きする。"""
+    detail_by_video = {}
+    for detail_id, url in (
+        EventDetail.objects.exclude(youtube_url__isnull=True).exclude(youtube_url='')
+        .order_by('pk').values_list('pk', 'youtube_url')
+    ):
+        video_id = youtube_video_id(url)
+        if video_id:
+            detail_by_video.setdefault(video_id, detail_id)
+
+    # 取得を先に完了し、途中の日の API 失敗で部分更新を残さない。
+    daily_statistics = [
+        (day, fetch_video_analytics(day))
+        for day in (target_date - timedelta(days=ago) for ago in (2, 1, 0))
+    ]
+    saved = 0
+    with transaction.atomic():
+        for day, statistics in daily_statistics:
+            for video_id, values in statistics.items():
+                YouTubeVideoAnalytics.objects.update_or_create(
+                    video_id=video_id, date=day,
+                    defaults={'event_detail_id': detail_by_video.get(video_id), **values},
+                )
+                saved += 1
+    logger.info(
+        'sync_youtube_analytics done: since=%s until=%s saved=%d',
+        target_date - timedelta(days=2), target_date, saved,
+    )
+    return saved
+
+
+def get_video_watch_times(event_detail_ids, *, days=30):
+    """権限確認済みの発表 ID に対して (ID → 平均秒数, 全動画の平均秒数) を返す。
+
+    today-days 〜 前日を対象とし、総再生分×60÷再生数で計算する。
+    FK は代表の発表なので動画 ID で対応づけ、全体の平均は動画の重複を除く。
+    """
+    if days < 1:
+        raise ValueError('days must be positive')
+    if not event_detail_ids:
+        return {}, None
+    video_by_detail = {
+        pk: video_id
+        for pk, url in EventDetail.objects.filter(pk__in=event_detail_ids).values_list('pk', 'youtube_url')
+        if (video_id := youtube_video_id(url))
+    }
+    if not video_by_detail:
+        return {}, None
+    today = timezone.localdate()
+    rows = list(
+        YouTubeVideoAnalytics.objects.filter(
+            video_id__in=set(video_by_detail.values()),
+            date__gte=today - timedelta(days=days), date__lt=today,
+        ).values('video_id').annotate(
+            views_total=Sum('views'), minutes_total=Sum('estimated_minutes_watched'),
+        )
+    )
+    by_video = {
+        row['video_id']: row['minutes_total'] * 60 / row['views_total']
+        for row in rows if row['views_total'] > 0
+    }
+    views = sum(row['views_total'] for row in rows)
+    average = sum(row['minutes_total'] for row in rows) * 60 / views if views else None
+    return {
+        pk: by_video[video_id] for pk, video_id in video_by_detail.items() if video_id in by_video
+    }, average
