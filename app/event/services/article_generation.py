@@ -20,6 +20,7 @@ from django.utils import timezone
 from event.material_upload_reminders import get_material_reminder_recipient
 from event.models import EventDetail, article_generation_request_values
 from event.notifications import (
+    article_discord_replaced_by_video_notice,
     get_published_article_for_notification,
     notify_applicant_of_article_published,
     send_discord_notification_for_article,
@@ -312,7 +313,7 @@ def _send_article_approval_notification(pk: int, claimed_at: datetime, send_emai
             recipient = get_material_reminder_recipient(detail)
             if not _send_published_notification(detail, recipient):
                 _release_claim(pk, claimed_at)
-        else:
+        elif not article_discord_replaced_by_video_notice(detail):
             edit_url = build_site_url(reverse('account:lt_application_edit', kwargs={'pk': pk}))
             article_url = build_site_url(reverse('event:detail', kwargs={'pk': pk}))
             if not send_discord_notification_for_article(detail, edit_url, article_url):

@@ -3,10 +3,13 @@
 - 記事の自動生成の対象になった・動画や PDF が変わった・記事を空にした時に、記事の生成待ちの印を付ける
   （生成そのものは Cloud Scheduler から呼ぶ event.services.article_generation が行う）
 - 記事のタイトル（h1）か記事化の同意が変わった時に、関連一覧のキャッシュを消す
+- 動画と記事の告知に関係する列の保存で、コミット後に集会への告知を試みる（同じ動画は 1 回だけ）
 
 フォーム・API・管理画面のどこから保存しても拾えるよう、保存のシグナルで判定する。
 保存前の値は ta_hub・twitter のシグナルと共有する（``EventDetail.previous_values``。保存ごとに 1 回だけ読む）。
 """
+
+from functools import partial
 
 from django.core.cache import cache
 from django.db import transaction
@@ -28,6 +31,12 @@ from event.youtube_urls import youtube_video_id
 # h1 / contents は、記事を空にした時に作り直すため（h1 は関連一覧のキャッシュの判定にも使う）
 WATCHED_FIELDS = frozenset({
     'slide_file', 'youtube_url', 'article_consent', 'status', 'detail_type', 'deleted_at', 'h1', 'contents',
+    'article_source_video_id',
+})
+# これらの列を含む保存の時に、動画と記事の告知を試みる
+VIDEO_ARTICLE_FIELDS = frozenset({
+    'youtube_url', 'article_source_video_id', 'h1', 'contents', 'status', 'article_consent', 'detail_type',
+    'deleted_at',
 })
 
 
@@ -51,6 +60,34 @@ def handle_article_changes(sender, instance, created=False, raw=False, update_fi
         return
     _clear_related_cache_if_changed(instance, old, created)
     _request_article_generation_if_needed(instance, old, update_fields)
+    _schedule_video_article_notification(instance, old, update_fields)
+
+
+def _schedule_video_article_notification(instance: EventDetail, old: dict, update_fields=None) -> None:
+    """告知に関係する値が本当に変わった保存なら、コミット後に動画と記事の告知を試みる。
+
+    フォームの保存は関係する列を毎回書くため、列の有無ではなく保存前の値との差で判定する
+    （関係しない編集で、告知の列が空の昔の発表を流さない）。送るかどうかは読み直した行で決める。
+    """
+    if update_fields is not None and not VIDEO_ARTICLE_FIELDS & set(update_fields):
+        return
+    if not _video_article_values_changed(instance, old):
+        return
+    from event.notifications import announce_video_article_if_ready
+
+    transaction.on_commit(partial(announce_video_article_if_ready, instance.pk))
+
+
+def _video_article_values_changed(instance: EventDetail, old: dict) -> bool:
+    """告知の条件に関わる値（動画 ID・生成元の動画・状態・同意・種別・削除・記事の有無）が変わったか。"""
+    if youtube_video_id(old.get('youtube_url')) != instance.video_id:
+        return True
+    if (old.get('article_source_video_id') or '') != (instance.article_source_video_id or ''):
+        return True
+    for field in ('status', 'article_consent', 'detail_type', 'deleted_at'):
+        if old.get(field) != getattr(instance, field):
+            return True
+    return article_is_empty(old.get('h1'), old.get('contents')) != article_is_empty(instance.h1, instance.contents)
 
 
 def _request_article_generation_if_needed(instance: EventDetail, old: dict, update_fields=None) -> None:
