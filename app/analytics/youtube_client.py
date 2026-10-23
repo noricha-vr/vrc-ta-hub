@@ -1,5 +1,6 @@
 """YouTube Data API の公開統計と Analytics API の同意済み視聴実績を取得する。"""
 import logging
+import re
 
 from django.conf import settings
 from google.oauth2.credentials import Credentials
@@ -9,6 +10,9 @@ from googleapiclient.errors import HttpError
 logger = logging.getLogger('analytics')
 
 VIDEO_BATCH_SIZE = 50
+# Hub チャンネルはアップロード時に説明欄へ発表ページの URL を書く。説明欄はチャンネル所有者しか
+# 編集できないので、発表者が編集できる youtube_url より信頼できる対応として使う。
+DETAIL_LINK_RE = re.compile(r'https://vrc-ta-hub\.com/event/detail/(\d+)/')
 
 
 def fetch_video_statistics(video_ids) -> dict:
@@ -45,10 +49,42 @@ def fetch_video_statistics(video_ids) -> dict:
     return results
 
 
+def fetch_video_detail_ids(video_ids) -> dict:
+    """動画の説明欄にある発表ページの URL から、動画 ID → 発表 ID を返す（リンクの無い動画は含めない）。"""
+    if not settings.GOOGLE_API_KEY:
+        logger.warning('YouTube detail links skipped: GOOGLE_API_KEY is not configured')
+        return {}
+
+    video_ids = list(dict.fromkeys(video_ids))
+    if not video_ids:
+        return {}
+
+    youtube = build('youtube', 'v3', developerKey=settings.GOOGLE_API_KEY)
+    results = {}
+    for offset in range(0, len(video_ids), VIDEO_BATCH_SIZE):
+        try:
+            response = youtube.videos().list(
+                part='snippet',
+                id=','.join(video_ids[offset:offset + VIDEO_BATCH_SIZE]),
+            ).execute()
+        except HttpError as exc:
+            # HttpError の URI には API キーが含まれるため、同期側の例外ログには渡さない。
+            raise RuntimeError(f'YouTube snippet request failed: HTTP {exc.resp.status}') from None
+        for item in response.get('items', []):
+            match = DETAIL_LINK_RE.search(item.get('snippet', {}).get('description', ''))
+            if match:
+                results[item['id']] = int(match.group(1))
+    return results
+
+
+def youtube_analytics_configured() -> bool:
+    return all((settings.YOUTUBE_CLIENT_ID, settings.YOUTUBE_CLIENT_SECRET,
+                settings.YOUTUBE_ANALYTICS_REFRESH_TOKEN))
+
+
 def fetch_video_analytics(target_date) -> dict:
     """同意済みチャンネルの指定日を動画別に取得する。資格情報はログに出さない。"""
-    if not all((settings.YOUTUBE_CLIENT_ID, settings.YOUTUBE_CLIENT_SECRET,
-                settings.YOUTUBE_ANALYTICS_REFRESH_TOKEN)):
+    if not youtube_analytics_configured():
         logger.warning('YouTube Analytics skipped: OAuth settings are not configured')
         return {}
 

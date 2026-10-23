@@ -298,7 +298,7 @@ def make_youtube_video_analytics(*, video_id='abcdefghijk', date=None, **extra):
     from analytics.models import YouTubeVideoAnalytics
 
     if 'event_detail' not in extra and 'event_detail_id' not in extra:
-        # 本番の同期と同じく、動画 ID が一致する最初の発表を代表にする。
+        # テストの既定として、動画 ID が一致する最初の発表を代表にする（本番は説明欄のリンクで決める）。
         from event.models import EventDetail
         from event.youtube_urls import youtube_video_id
 

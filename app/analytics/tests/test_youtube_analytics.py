@@ -13,7 +13,7 @@ from httplib2 import Response
 from analytics.models import PageAnalytics, YouTubeVideoAnalytics
 from analytics.templatetags.analytics_filters import watch_duration
 from analytics.video_stats import get_video_watch_times, sync_youtube_analytics
-from analytics.youtube_client import fetch_video_analytics
+from analytics.youtube_client import fetch_video_analytics, fetch_video_detail_ids
 from tests.factories import (
     make_community, make_community_member, make_event, make_event_detail, make_user,
     make_youtube_video_analytics,
@@ -28,6 +28,27 @@ OAUTH_SETTINGS = {
     'YOUTUBE_CLIENT_SECRET': 'test-client-secret',
     'YOUTUBE_ANALYTICS_REFRESH_TOKEN': 'test-refresh-token',
 }
+
+
+@override_settings(GOOGLE_API_KEY='test-api-key')
+class FetchVideoDetailIdsTests(SimpleTestCase):
+    @patch('analytics.youtube_client.build')
+    def test_parses_detail_link_from_description(self, build):
+        build.return_value.videos.return_value.list.return_value.execute.return_value = {'items': [
+            {'id': VIDEO_ID, 'snippet': {'description': '▼ 発表の詳細\nhttps://vrc-ta-hub.com/event/detail/912/\n'}},
+            {'id': SECOND_ID, 'snippet': {'description': 'リンクなし https://example.com/event/detail/1/'}},
+        ]}
+        self.assertEqual(fetch_video_detail_ids([VIDEO_ID, SECOND_ID, VIDEO_ID]), {VIDEO_ID: 912})
+        build.return_value.videos.return_value.list.assert_called_once_with(
+            part='snippet', id=f'{VIDEO_ID},{SECOND_ID}',
+        )
+
+    @patch('analytics.youtube_client.build')
+    def test_without_api_key_or_ids_returns_empty(self, build):
+        self.assertEqual(fetch_video_detail_ids([]), {})
+        with override_settings(GOOGLE_API_KEY=''), self.assertLogs('analytics', level='WARNING'):
+            self.assertEqual(fetch_video_detail_ids([VIDEO_ID]), {})
+        build.assert_not_called()
 
 
 @override_settings(**OAUTH_SETTINGS)
@@ -133,6 +154,43 @@ class AnalyticsDataTestCase(TestCase):
 
 @override_settings(**OAUTH_SETTINGS)
 class SyncYouTubeAnalyticsTests(AnalyticsDataTestCase):
+    def setUp(self):
+        # 説明欄のリンク取得（Data API）は既定で VIDEO_ID → self.detail を返す。
+        patcher = patch('analytics.video_stats.fetch_video_detail_ids')
+        self.detail_links = patcher.start()
+        self.detail_links.side_effect = lambda ids: {VIDEO_ID: self.detail.pk} if VIDEO_ID in ids else {}
+        self.addCleanup(patcher.stop)
+
+    @patch('analytics.youtube_client.build')
+    def test_representative_comes_from_description_link_not_youtube_url(self, build):
+        build.return_value.reports.return_value.query.return_value.execute.return_value = {
+            'rows': [[VIDEO_ID, 10, 20, 120], [SECOND_ID, 1, 1, 60]],
+        }
+        # youtube_url で最初の発表は self.detail だが、説明欄が self.shared を指すならそちらを代表にする。
+        # 存在しない発表 ID や説明欄にリンクの無い動画は、どの発表にもひも付けない。
+        self.detail_links.side_effect = lambda ids: {VIDEO_ID: self.shared.pk, SECOND_ID: 999999}
+        sync_youtube_analytics(TARGET)
+        self.assertEqual(YouTubeVideoAnalytics.objects.get(video_id=VIDEO_ID, date=TARGET).event_detail_id,
+                         self.shared.pk)
+        self.assertIsNone(YouTubeVideoAnalytics.objects.get(video_id=SECOND_ID, date=TARGET).event_detail_id)
+        self.detail_links.side_effect = lambda ids: {}
+        sync_youtube_analytics(TARGET)
+        self.assertIsNone(YouTubeVideoAnalytics.objects.get(video_id=VIDEO_ID, date=TARGET).event_detail_id)
+
+    @patch('analytics.youtube_client.build')
+    def test_videos_missing_on_refetch_are_removed_for_that_day(self, build):
+        execute = build.return_value.reports.return_value.query.return_value.execute
+        execute.return_value = {'rows': [[VIDEO_ID, 10, 20, 120], [SECOND_ID, 1, 1, 60]]}
+        sync_youtube_analytics(TARGET)
+        old = make_youtube_video_analytics(video_id=SECOND_ID, date=TARGET - timedelta(days=30), views=5)
+        execute.return_value = {'rows': [[VIDEO_ID, 10, 20, 120]]}
+        sync_youtube_analytics(TARGET)
+        self.assertFalse(YouTubeVideoAnalytics.objects.filter(video_id=SECOND_ID, date=TARGET).exists())
+        self.assertTrue(YouTubeVideoAnalytics.objects.filter(pk=old.pk).exists())  # 取り直し対象外の日は残す
+        execute.return_value = {}
+        sync_youtube_analytics(TARGET)
+        self.assertFalse(YouTubeVideoAnalytics.objects.filter(date=TARGET).exists())
+
     @patch('analytics.youtube_client.build')
     def test_lookback_days_are_individual_queries_and_rerun_updates_rows(self, build):
         query = build.return_value.reports.return_value.query

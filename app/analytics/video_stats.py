@@ -10,7 +10,9 @@ from event.models import EventDetail
 from event.youtube_urls import youtube_video_id
 
 from .models import YouTubeVideoAnalytics, YouTubeVideoStats
-from .youtube_client import fetch_video_analytics, fetch_video_statistics
+from .youtube_client import (
+    fetch_video_analytics, fetch_video_detail_ids, fetch_video_statistics, youtube_analytics_configured,
+)
 
 logger = logging.getLogger('analytics')
 
@@ -137,15 +139,10 @@ YOUTUBE_ANALYTICS_LOOKBACK_DAYS = 7
 
 
 def sync_youtube_analytics(target_date) -> int:
-    """確定が遅れる日別実績を target_date を含む直近 YOUTUBE_ANALYTICS_LOOKBACK_DAYS 日分上書きする。"""
-    detail_by_video = {}
-    for detail_id, url in (
-        EventDetail.objects.exclude(youtube_url__isnull=True).exclude(youtube_url='')
-        .order_by('pk').values_list('pk', 'youtube_url')
-    ):
-        video_id = youtube_video_id(url)
-        if video_id:
-            detail_by_video.setdefault(video_id, detail_id)
+    """確定が遅れる日別実績を target_date を含む直近 YOUTUBE_ANALYTICS_LOOKBACK_DAYS 日分置き換える。"""
+    if not youtube_analytics_configured():
+        logger.warning('sync_youtube_analytics skipped: OAuth settings are not configured')
+        return 0
 
     # 取得を先に完了し、途中の日の API 失敗で部分更新を残さない。
     daily_statistics = [
@@ -155,13 +152,26 @@ def sync_youtube_analytics(target_date) -> int:
             for ago in range(YOUTUBE_ANALYTICS_LOOKBACK_DAYS - 1, -1, -1)
         )
     ]
+    # 代表の発表は説明欄のリンクで決める（youtube_url は発表者が書き換えられるため使わない）。
+    detail_by_video = fetch_video_detail_ids(
+        {video_id for _, statistics in daily_statistics for video_id in statistics}
+    )
+    existing_details = set(
+        EventDetail.objects.filter(pk__in=set(detail_by_video.values())).values_list('pk', flat=True)
+    )
     saved = 0
     with transaction.atomic():
         for day, statistics in daily_statistics:
+            # 各日の取得結果をその日の完全な値として扱い、返らなくなった動画の行は消す。
+            YouTubeVideoAnalytics.objects.filter(date=day).exclude(video_id__in=list(statistics)).delete()
             for video_id, values in statistics.items():
+                detail_id = detail_by_video.get(video_id)
                 YouTubeVideoAnalytics.objects.update_or_create(
                     video_id=video_id, date=day,
-                    defaults={'event_detail_id': detail_by_video.get(video_id), **values},
+                    defaults={
+                        'event_detail_id': detail_id if detail_id in existing_details else None,
+                        **values,
+                    },
                 )
                 saved += 1
     logger.info(
@@ -196,7 +206,7 @@ def get_video_watch_times(event_detail_ids, *, days=30):
         YouTubeVideoAnalytics.objects.filter(
             video_id__in=set(video_by_detail.values()),
             # youtube_url は発表者が編集できるので、他集会の動画 URL を貼って数字を覗けないよう、
-            # 同期で決めた代表の発表が対象と同じ集会に属する行だけを数える。
+            # 説明欄のリンクで決めた代表の発表が対象と同じ集会に属する行だけを数える。
             event_detail__event__community_id__in=community_ids,
             date__gte=today - timedelta(days=days), date__lt=today,
         ).values('video_id').annotate(
