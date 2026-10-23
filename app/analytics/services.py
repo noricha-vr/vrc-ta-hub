@@ -311,12 +311,16 @@ def get_page_ranking(community_ids, *, days=DEFAULT_DAYS, limit=None) -> list:
     return results if limit is None else results[:limit]
 
 
-def get_event_detail_rank(event_detail, *, days=DEFAULT_DAYS) -> dict:
+def get_event_detail_rank(community_ids, event_detail, *, days=DEFAULT_DAYS) -> dict:
     """集会の公開済み発表数と期間内 PV 順位を返す（PV 0 は rank=None）。
 
+    発表の集会が community_ids（閲覧者が見てよい集会）に無ければ集計せず rank=None, total=0 を返す。
     LT 以外（特別企画・ブログ）と削除済み・未承認の発表は母数から除く。PV 同値は object_id 昇順。
     """
-    community_ids = [event_detail.event.community_id]
+    community_id = event_detail.event.community_id
+    if community_id not in set(community_ids):
+        return {'rank': None, 'total': 0}
+    community_ids = [community_id]
     detail_ids = list(
         EventDetail.objects.filter(
             event__community_id__in=community_ids, status='approved', detail_type='LT',

@@ -166,23 +166,23 @@ class SummaryServicesTest(TestCase):
         self._make(kind='event_detail', object_id=self.second_detail.pk, pv=8)
         for detail in (self.pending_detail, self.rejected_detail, self.deleted_detail, self.blog_detail):
             self._make(kind='event_detail', object_id=detail.pk, pv=100)
-        self.assertEqual(services.get_event_detail_rank(self.detail), {'rank': 2, 'total': 3})
-        self.assertEqual(services.get_event_detail_rank(self.zero_detail), {'rank': None, 'total': 3})
-        self.assertEqual(services.get_event_detail_rank(self.deleted_detail), {'rank': None, 'total': 3})
+        self.assertEqual(services.get_event_detail_rank([self.community.pk], self.detail), {'rank': 2, 'total': 3})
+        self.assertEqual(services.get_event_detail_rank([self.community.pk], self.zero_detail), {'rank': None, 'total': 3})
+        self.assertEqual(services.get_event_detail_rank([self.community.pk], self.deleted_detail), {'rank': None, 'total': 3})
 
     def test_rank_zero_pv_row_has_no_rank(self):
         self._make(kind='event_detail', pv=0)
-        self.assertEqual(services.get_event_detail_rank(self.detail), {'rank': None, 'total': 3})
+        self.assertEqual(services.get_event_detail_rank([self.community.pk], self.detail), {'rank': None, 'total': 3})
 
     def test_rank_no_analytics_still_has_public_total(self):
-        self.assertEqual(services.get_event_detail_rank(self.detail), {'rank': None, 'total': 3})
+        self.assertEqual(services.get_event_detail_rank([self.community.pk], self.detail), {'rank': None, 'total': 3})
 
     def test_rank_aggregates_sources_and_breaks_ties_by_id(self):
         self._make(kind='event_detail', pv=2)
         self._make(kind='event_detail', pv=3, source='t.co / referral')
         self._make(kind='event_detail', object_id=self.second_detail.pk, pv=5)
-        self.assertEqual(services.get_event_detail_rank(self.detail), {'rank': 1, 'total': 3})
-        self.assertEqual(services.get_event_detail_rank(self.second_detail), {'rank': 2, 'total': 3})
+        self.assertEqual(services.get_event_detail_rank([self.community.pk], self.detail), {'rank': 1, 'total': 3})
+        self.assertEqual(services.get_event_detail_rank([self.community.pk], self.second_detail), {'rank': 2, 'total': 3})
 
     def test_rank_excludes_other_community_even_with_same_object_id(self):
         self._make(kind='event_detail', pv=2)
@@ -191,7 +191,13 @@ class SummaryServicesTest(TestCase):
                    object_id=self.detail.pk, pv=100, path='/other-community-shared/')
         self._make(kind='event_detail', community=self.other_community,
                    object_id=self.other_detail.pk, pv=200)
-        self.assertEqual(services.get_event_detail_rank(self.detail), {'rank': 2, 'total': 3})
+        self.assertEqual(services.get_event_detail_rank([self.community.pk], self.detail), {'rank': 2, 'total': 3})
+
+    def test_rank_returns_nothing_when_community_is_not_allowed(self):
+        self._make(kind='event_detail', pv=5)
+        for allowed in ([], [self.other_community.pk]):
+            with self.subTest(allowed=allowed):
+                self.assertEqual(services.get_event_detail_rank(allowed, self.detail), {'rank': None, 'total': 0})
 
     def test_categories_merge_sources_use_pv_percentages_and_sort(self):
         for source, pv in (
@@ -231,7 +237,7 @@ class SummaryServicesTest(TestCase):
         for ago, pv in ((0, 100), (1, 2), (7, 3), (8, 200)):
             self._make(kind='event_detail', ago=ago, pv=pv)
         self._make(kind='event_detail', object_id=self.second_detail.pk, pv=6)
-        self.assertEqual(services.get_event_detail_rank(self.detail, days=7), {'rank': 2, 'total': 3})
+        self.assertEqual(services.get_event_detail_rank([self.community.pk], self.detail, days=7), {'rank': 2, 'total': 3})
         self.assertEqual(services.get_page_ranking(self.ids, days=7)[1]['pv'], 5)
         self.assertEqual(services.get_source_categories(self.ids, days=7), [
             {'category': 'search', 'label': '検索', 'pv': 11, 'percent': 100},
