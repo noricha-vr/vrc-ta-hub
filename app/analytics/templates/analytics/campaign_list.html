@@ -1,12 +1,12 @@
 {% extends 'ta_hub/base.html' %}
 
-{% block title %}キャンペーン管理 - VRChat 技術・学術系イベントHub{% endblock %}
+{% block title %}配布リンクの管理 - VRChat 技術・学術系イベントHub{% endblock %}
 
 {% block main %}
     <div class="container my-4">
         <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
             <h1 class="h3 mb-0">
-                <i class="fa-solid fa-bullhorn me-2"></i>キャンペーン管理
+                <i class="fa-solid fa-bullhorn me-2"></i>配布リンクの管理
             </h1>
             <div class="ms-auto d-flex gap-2">
                 <a href="{% url 'analytics:dashboard' %}" class="btn btn-sm btn-outline-secondary">
@@ -19,8 +19,8 @@
         </div>
 
         <p class="text-muted small">
-            QR コード入りチラシ等の流入計測用 URL（UTM 付き）を発行・管理します。
-            配布翌日以降、ダッシュボードでキャンペーン別のアクセス数が確認できます。
+            チラシや SNS に載せる、アクセスを数えるためのリンクと QR コードを発行します。
+            配布した翌日から、アクセス解析のダッシュボードでリンクごとのアクセス数が見られます。
         </p>
 
         {% if campaigns %}
@@ -87,7 +87,7 @@
             {% endif %}
         {% else %}
             <div class="alert alert-info">
-                まだキャンペーンがありません。<a href="{% url 'analytics:campaign_create' %}">新規作成</a> から QR 用 URL を発行してください。
+                まだ配布リンクがありません。<a href="{% url 'analytics:campaign_create' %}">新規作成</a> から QR 用 URL を発行してください。
             </div>
         {% endif %}
     </div>

@@ -163,7 +163,7 @@ class CommunityDetailAnalyticsTests(TestCase):
         self.client.force_login(self.user_a)
         response = self._response()
         self.assertEqual(response.context['community_analytics']['summary']['pv'], 107)
-        self.assertIn('内訳: 集会ページ 100 / 発表記事 0 / キャンペーン 7', self._card_html(response))
+        self.assertIn('内訳: 集会ページ 100 / 発表記事 0 / 配布リンク 7', self._card_html(response))
 
     def test_shared_video_is_counted_once_in_total(self):
         self._video(self.detail, 'abcdefghijk', 60)
