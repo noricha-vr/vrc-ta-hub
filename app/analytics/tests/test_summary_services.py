@@ -32,6 +32,7 @@ class SummaryServicesTest(TestCase):
         cls.pending_detail = EventDetail.objects.create(event=cls.event, status='pending')
         cls.rejected_detail = EventDetail.objects.create(event=cls.event, status='rejected')
         cls.deleted_detail = EventDetail.objects.create(event=cls.event, deleted_at=timezone.now())
+        cls.blog_detail = EventDetail.objects.create(event=cls.event, theme='ブログ', detail_type='BLOG')
 
     def setUp(self):
         patcher = patch('analytics.services.timezone.localdate', return_value=TODAY)
@@ -165,10 +166,10 @@ class SummaryServicesTest(TestCase):
         with self.assertNumQueries(3):
             self.assertEqual(len(services.get_page_ranking(self.ids)), 3)
 
-    def test_rank_counts_public_zero_pv_details_but_not_unpublished_or_deleted(self):
+    def test_rank_counts_public_zero_pv_lt_details_but_not_unpublished_deleted_or_blog(self):
         self._make(kind='event_detail', pv=5)
         self._make(kind='event_detail', object_id=self.second_detail.pk, pv=8)
-        for detail in (self.pending_detail, self.rejected_detail, self.deleted_detail):
+        for detail in (self.pending_detail, self.rejected_detail, self.deleted_detail, self.blog_detail):
             self._make(kind='event_detail', object_id=detail.pk, pv=100)
         self.assertEqual(services.get_event_detail_rank(self.detail), {'rank': 2, 'total': 3})
         self.assertEqual(services.get_event_detail_rank(self.zero_detail), {'rank': None, 'total': 3})

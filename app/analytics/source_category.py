@@ -32,7 +32,7 @@ def classify_source(source_medium: str) -> str:
         return 'ai'
     if source == '(direct)':
         return 'direct'
-    if medium == 'referral' and 'vrc-ta-hub.com' in source:
+    if medium == 'referral' and (source == 'vrc-ta-hub.com' or source.endswith('.vrc-ta-hub.com')):
         return 'internal'
     if any(
         source == domain or source.endswith('.' + domain) for domain in _SNS_SOURCES

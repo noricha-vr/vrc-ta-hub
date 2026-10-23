@@ -49,5 +49,8 @@ class SourceCategoryTest(SimpleTestCase):
         self.assertEqual(classify_source('chatgpt.com / organic'), 'search')
         self.assertEqual(classify_source('vrc-ta-hub.com / qr'), 'other')
         self.assertEqual(classify_source('www.vrc-ta-hub.com / referral'), 'internal')
+        # 部分一致で外部ドメインを Hub 内と誤判定しない
+        self.assertEqual(classify_source('fake-vrc-ta-hub.com / referral'), 'other')
+        self.assertEqual(classify_source('vrc-ta-hub.com.example.org / referral'), 'other')
         self.assertEqual(classify_source('not-twitter.com / referral'), 'other')
         self.assertEqual(classify_source(''), 'other')
