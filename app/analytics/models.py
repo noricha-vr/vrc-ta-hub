@@ -132,6 +132,43 @@ class PosterClick(models.Model):
         return f'{self.date} community={self.community_id} clicks={self.clicks}'
 
 
+class YouTubeVideoStats(models.Model):
+    """YouTube 動画の公開統計を動画 ID・日付ごとに蓄積する。
+
+    統計は動画単位で、event_detail は代表の発表を指すだけ。同じ動画を使う別の発表の
+    履歴を消さないよう、代表の発表が消えても行は残す（SET_NULL）。
+    """
+
+    video_id = models.CharField('動画ID', max_length=32, db_index=True)
+    event_detail = models.ForeignKey(
+        'event.EventDetail',
+        on_delete=models.SET_NULL,
+        related_name='youtube_stats',
+        verbose_name='発表',
+        null=True,
+        blank=True,
+    )
+    date = models.DateField('日付')
+    view_count = models.PositiveBigIntegerField('再生数', null=True, blank=True)
+    like_count = models.PositiveBigIntegerField('高評価数', null=True, blank=True)
+    comment_count = models.PositiveBigIntegerField('コメント数', null=True, blank=True)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'YouTube 動画統計'
+        verbose_name_plural = 'YouTube 動画統計'
+        db_table = 'youtube_video_stats'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['video_id', 'date'],
+                name='youtubevideostats_unique_video_date',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.date} {self.video_id} views={self.view_count}'
+
+
 class Campaign(models.Model):
     """主催者が発行する UTM キャンペーン（QR コード入りチラシ等の流入計測用）。
 

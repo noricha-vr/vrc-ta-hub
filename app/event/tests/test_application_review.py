@@ -1,6 +1,6 @@
 """画面と API に共通する審査サービスの権限と監査情報。"""
 
-from datetime import timedelta
+from datetime import time, timedelta
 from unittest.mock import patch
 
 from django.core.exceptions import PermissionDenied
@@ -21,6 +21,29 @@ class ApplicationReviewServiceTest(TestCase):
         cls.community = make_community(owner=cls.owner)
         CommunityMember.objects.create(community=cls.community, user=cls.staff, role=CommunityMember.Role.STAFF)
         cls.event = make_event(cls.community)
+
+    def test_auto_start_time_is_decided_after_lock_for_each_approval(self):
+        """開催日だけ変えた承認を同じ回へ続けて行っても、枠が重ならない。
+
+        フォームの検証時点では両方とも空の回に見えるため、計算は保存時に行う。
+        """
+        self.community.lt_start_offset_minutes = 15
+        self.community.save(update_fields=['lt_start_offset_minutes'])
+        new_event = make_event(self.community, event_date=self.event.date + timedelta(days=14))
+        first = make_event_detail(self.event, start_time=time(22, 45))
+        second = make_event_detail(self.event, start_time=time(23, 15))
+
+        with patch('event.notifications.notify_applicant_of_result'):
+            for detail in (first, second):
+                review_application(
+                    detail, 'approved', reviewer=self.owner,
+                    event=new_event, start_time=None, duration=30,
+                )
+
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual((first.event_id, first.start_time), (new_event.pk, time(22, 15)))
+        self.assertEqual((second.event_id, second.start_time), (new_event.pk, time(22, 45)))
 
     def test_inactive_managers_cannot_review_through_shared_service(self):
         detail = make_event_detail(self.event)
