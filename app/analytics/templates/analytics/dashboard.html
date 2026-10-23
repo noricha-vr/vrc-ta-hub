@@ -173,7 +173,7 @@
                             </h3>
                             <ul class="list-unstyled small mb-3 analytics-search-queries">
                                 {% for row in search_queries %}
-                                    <li class="mb-2"><span>{{ row.query }}</span><span class="d-block text-muted">表示 {{ row.impressions|floatformat:"0g" }}・クリック {{ row.clicks|floatformat:"0g" }}</span></li>
+                                    <li class="d-flex justify-content-between gap-2 mb-1"><span>{{ row.query }}</span><span class="text-muted text-nowrap">表示 {{ row.impressions|floatformat:"0g" }}・クリック {{ row.clicks|floatformat:"0g" }}</span></li>
                                 {% empty %}
                                     <li class="text-muted">検索キーワードはまだありません（回数の少ない語は Google が伏せます）</li>
                                 {% endfor %}
