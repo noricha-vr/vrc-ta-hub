@@ -20,6 +20,7 @@ from allauth.socialaccount.models import SocialAccount, SocialLogin
 from user_account.tests.utils import (
     TEST_SOCIALACCOUNT_PROVIDERS,
     TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS,
+    social_login_state,
 )
 from tests.factories import make_community, make_user
 
@@ -330,7 +331,7 @@ class SocialSignupRedirectTests(TestCase):
             )],
         )
         with request_context(request):
-            sociallogin.state = SocialLogin.state_from_request(request)
+            sociallogin.state = social_login_state(request)
             return process_signup(request, sociallogin)
 
     def test_new_social_signup_without_membership_uses_my_presentations(self) -> None:

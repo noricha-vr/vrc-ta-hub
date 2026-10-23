@@ -15,6 +15,8 @@ from allauth.core.context import request_context
 from allauth.socialaccount.internal.flows.signup import process_signup
 from allauth.socialaccount.models import SocialAccount, SocialLogin
 
+from user_account.tests.utils import social_login_state
+
 from tests.factories import make_user
 
 User = get_user_model()
@@ -54,7 +56,7 @@ class DiscordAutoSignupUserNameTests(TestCase):
             email_addresses=[EmailAddress(email=email, verified=True, primary=True)],
         )
         with request_context(request):
-            sociallogin.state = SocialLogin.state_from_request(request)
+            sociallogin.state = social_login_state(request)
             process_signup(request, sociallogin)
 
         return User.objects.get(email=email)
