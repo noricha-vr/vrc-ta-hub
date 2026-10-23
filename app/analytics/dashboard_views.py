@@ -20,7 +20,6 @@ from django.views.generic import TemplateView
 
 from community.models import Community
 from event.models import EventDetail
-from event.youtube_urls import youtube_video_id
 
 from . import services, video_stats
 
@@ -87,24 +86,18 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
         return value if value in ('pv', 'video') else 'pv'
 
     def _get_video_data(self, target_ids, *, days):
-        """権限内の発表だけ取得し、サマリーは同じ動画を重複計上しない。"""
-        details = list(EventDetail.objects.filter(
+        """権限内の発表だけ取得する。合計の数え方は集会カードと同じ（video_stats.summarize_video_views）。"""
+        detail_ids = list(EventDetail.objects.filter(
             event__community_id__in=target_ids,
-        ).values_list('pk', 'youtube_url')) if target_ids else []
-        views = video_stats.get_video_views([pk for pk, _ in details], days=days)
-        periods, totals = {}, {}
-        for pk, url in details:
-            row = views.get(pk, {})
-            if row.get('period') is not None:
-                periods[youtube_video_id(url)] = row['period']
-            if row.get('total') is not None:
-                totals[youtube_video_id(url)] = row['total']
-        # 日次の行が期間分そろうまでは期間の再生数が出ないため、累計で代わりに見せる
-        if periods:
-            return views, sum(periods.values()), False
-        if totals:
-            return views, sum(totals.values()), True
-        return views, None, False
+        ).values_list('pk', flat=True)) if target_ids else []
+        return video_stats.summarize_video_views(detail_ids, days=days)
+
+    @staticmethod
+    def _video_sort_key(row):
+        """期間の再生数 → 累計で代替した行 → 不明 の順に分け、同じ範囲どうしだけで比べる。"""
+        if row['video_views'] is None:
+            return (2, 0)
+        return (1 if row['video_is_cumulative'] else 0, -row['video_views'])
 
     @staticmethod
     def _row_video_views(views, pk):
@@ -136,7 +129,7 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
             )
         if self._get_sort() == 'video':
             rows.sort(key=lambda row: (
-                row['video_views'] is None, -(row['video_views'] or 0), -row['pv'], row['event_detail_id'],
+                *self._video_sort_key(row), -row['pv'], row['event_detail_id'],
             ))
 
         response = HttpResponse(content_type='text/csv; charset=utf-8')
@@ -215,8 +208,7 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
             )
         if sort == 'video':
             ranking.sort(key=lambda row: (
-                row['video_views'] is None, -(row['video_views'] or 0),
-                -row['pv'], row['object_id'], row['kind'],
+                *self._video_sort_key(row), -row['pv'], row['object_id'], row['kind'],
             ))
         page = Paginator(ranking, PAGE_SIZE).get_page(self.request.GET.get('page'))
         filters = {'days': days}

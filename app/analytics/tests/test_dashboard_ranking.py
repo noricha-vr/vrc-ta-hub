@@ -103,6 +103,24 @@ class DashboardRankingTest(TestCase):
         self.assertEqual(response.context['page_ranking'][0]['object_id'], self.second.pk)
         self.assertContains(response, '動画再生 ↓')
 
+    def test_video_sort_keeps_cumulative_fallback_below_period_counts(self):
+        newer = make_event_detail(self.event, theme='新しい動画', status='approved',
+                                  youtube_url='https://youtu.be/ABCDEFGHIJK')
+        YouTubeVideoStats.objects.create(
+            event_detail=newer, video_id='ABCDEFGHIJK', date=TODAY - timedelta(days=1), view_count=10000,
+        )
+        self._analytics(detail=newer, pv=1)
+        response = self.client.get(self.url, {'sort': 'video'})
+        rows = [(row['video_views'], row['video_is_cumulative']) for row in response.context['page_ranking']]
+        # 累計 10,000 は期間の 30 / 10 と比べず、その下に並べる
+        self.assertEqual(rows[:3], [(30, False), (10, False), (10000, True)])
+        # 期間の数字が欠けた動画があるので、合計は全体を累計にそろえる（110 + 130 + 10,000）
+        self.assertEqual(response.context['video_views_total'], 10240)
+        self.assertTrue(response.context['video_is_cumulative'])
+        csv_response = self.client.get(self.url, {'format': 'csv', 'sort': 'video'})
+        csv_rows = list(csv.DictReader(io.StringIO(csv_response.content.decode('utf-8-sig'))))
+        self.assertEqual([row['動画再生数'] for row in csv_rows][:3], ['30', '10', '10000'])
+
     def test_invalid_sort_defaults_to_pv(self):
         response = self.client.get(self.url, {'sort': 'invalid'})
         self.assertEqual(response.context['sort'], 'pv')
