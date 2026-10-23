@@ -171,7 +171,6 @@
                             <h3 class="small fw-bold mb-2">検索キーワード
                                 <a class="analytics-help" tabindex="0" role="button" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" data-bs-content="Google 検索で、この集会のページが表示された時の検索語です。2〜3 日遅れて反映されます" aria-label="Google 検索で、この集会のページが表示された時の検索語です。2〜3 日遅れて反映されます"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></a>
                             </h3>
-                            <p class="text-muted small mb-1">クリック順。回数の少ない語は Google が伏せるため一部だけ{% if search_queries_since %}（{{ search_queries_since|date:"Y-m-d" }} 以降）{% endif %}</p>
                             <ul class="list-unstyled small mb-3 analytics-search-queries">
                                 {% for row in search_queries %}
                                     <li class="d-flex justify-content-between gap-2 mb-1"><span>{{ row.query }}</span><span class="text-muted text-nowrap">表示 {{ row.impressions|floatformat:"0g" }}・クリック {{ row.clicks|floatformat:"0g" }}</span></li>
@@ -179,6 +178,10 @@
                                     <li class="text-muted">検索キーワードはまだありません</li>
                                 {% endfor %}
                             </ul>
+                            {% if search_queries %}
+                                <p class="text-muted small mb-2">クリック順。回数の少ない語は Google が伏せるため一部だけ{% if search_queries_since %}（{{ search_queries_since|date:"Y-m-d" }} 以降）{% endif %}</p>
+                                <p class="small {% if summary.pv %}mb-3{% else %}mb-0{% endif %}"><a href="{% url 'analytics:search_queries' %}?{{ filter_query }}">すべての検索キーワード（{{ search_queries_count }} 語）→</a></p>
+                            {% endif %}
                             {% if summary.pv %}
                                 <details>
                                     <summary class="small">参照元 / メディアの詳細</summary>

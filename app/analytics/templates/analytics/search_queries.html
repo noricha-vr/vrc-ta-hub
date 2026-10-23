@@ -1,0 +1,106 @@
+{% extends 'ta_hub/base.html' %}
+
+{% block meta %}
+    <title>検索キーワード - VRChat 技術・学術系イベントHub</title>
+    <meta name="description" content="所属する集会の検索キーワードを表示回数・クリック数で確認できます。">
+{% endblock %}
+
+{% block main %}
+    <div class="container my-4">
+        <div class="d-flex flex-wrap align-items-baseline gap-2 mb-1">
+            <h1 class="h3 mb-0">検索キーワード</h1>
+            {% if has_access %}<span class="text-muted">{{ search_queries.paginator.count|floatformat:"0g" }} 語</span>{% endif %}
+        </div>
+        {% if selected_community %}<p class="text-muted mb-1">{{ selected_community.name }}</p>{% endif %}
+        <p class="mb-3"><a href="{% url 'analytics:dashboard' %}{% if dashboard_query %}?{{ dashboard_query }}{% endif %}"><i class="fa-solid fa-arrow-left me-1" aria-hidden="true"></i>ダッシュボードへ戻る</a></p>
+
+        {% if not has_access %}
+            <div class="alert alert-warning">所属している集会がありません。集会の管理者になるとここでアクセス解析を確認できます。</div>
+        {% else %}
+            <form method="get" class="card card-body mb-3 py-2">
+                <input type="hidden" name="days" value="{{ days }}">
+                <input type="hidden" name="sort" value="{{ sort }}">
+                <input type="hidden" name="q" value="{{ q }}">
+                <div class="d-flex flex-wrap align-items-center gap-2 analytics-query-filters">
+                    <label for="community-select" class="visually-hidden">対象集会</label>
+                    <select name="community" id="community-select" class="form-select form-select-sm analytics-query-community" onchange="this.form.submit()">
+                        <option value="">すべての所属集会（合算）</option>
+                        {% for community in accessible_communities %}
+                            <option value="{{ community.id }}" {% if selected_community.id == community.id %}selected{% endif %}>{{ community.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="集計期間">
+                        {% for d in allowed_days %}
+                            <a href="?days={{ d }}&sort={{ sort }}&q={{ q|urlencode }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}"
+                               class="btn {% if days == d %}btn-primary{% else %}btn-outline-primary{% endif %}">{{ d }}日</a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </form>
+
+            <div class="card">
+                <div class="card-body">
+                    <form method="get" class="mb-3" role="search" aria-label="検索キーワードの絞り込み">
+                        <input type="hidden" name="days" value="{{ days }}">
+                        <input type="hidden" name="sort" value="{{ sort }}">
+                        {% if selected_community %}<input type="hidden" name="community" value="{{ selected_community.id }}">{% endif %}
+                        <label for="query-filter" class="form-label small">キーワードの一部で絞り込み</label>
+                        <div class="d-flex gap-2 analytics-query-filters">
+                            <input type="search" id="query-filter" name="q" value="{{ q }}" maxlength="100" class="form-control form-control-sm" placeholder="例: プログラミング">
+                            <button type="submit" class="btn btn-sm btn-primary flex-shrink-0">絞り込む</button>
+                            {% if q %}<a href="?days={{ days }}&sort={{ sort }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}" class="btn btn-sm btn-outline-secondary flex-shrink-0">解除</a>{% endif %}
+                        </div>
+                    </form>
+
+                    <p class="text-muted small mb-3">回数の少ない語は Google が伏せるため一部だけ{% if search_queries_since %}（{{ search_queries_since|date:"Y-m-d" }} 以降）{% endif %}</p>
+                    {% if search_queries %}
+                        <table class="table table-sm table-hover align-middle analytics-query-table mb-0">
+                            <caption class="visually-hidden">検索キーワード別の表示回数・クリック数・クリック率。表示とクリックの列名で降順に並べ替えできます。</caption>
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col" class="analytics-query-word" aria-sort="none">検索キーワード</th>
+                                    <th scope="col" class="text-end" aria-sort="{% if sort == 'impressions' %}descending{% else %}none{% endif %}">
+                                        <a href="?{{ filter_query }}&sort=impressions">表示{% if sort == 'impressions' %} ↓{% endif %}</a>
+                                    </th>
+                                    <th scope="col" class="text-end" aria-sort="{% if sort == 'clicks' %}descending{% else %}none{% endif %}">
+                                        <a href="?{{ filter_query }}&sort=clicks">クリック{% if sort == 'clicks' %} ↓{% endif %}</a>
+                                    </th>
+                                    <th scope="col" class="text-end" aria-sort="none">クリック率</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in search_queries %}
+                                    <tr>
+                                        <th scope="row" class="fw-normal">{{ row.query }}</th>
+                                        <td class="text-end">{{ row.impressions|floatformat:"0g" }}</td>
+                                        <td class="text-end">{{ row.clicks|floatformat:"0g" }}</td>
+                                        <td class="text-end">{% if row.ctr is None %}—{% else %}{{ row.ctr|floatformat:1 }}%{% endif %}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% if search_queries.paginator.num_pages > 1 %}
+                        <nav aria-label="検索キーワードのページ" class="d-flex justify-content-center align-items-center gap-3 mt-3">
+                            {% if search_queries.has_previous %}<a href="?{{ filter_query }}&sort={{ sort }}&page={{ search_queries.previous_page_number }}">前へ</a>{% endif %}
+                            <span class="small text-muted">{{ search_queries.number }} / {{ search_queries.paginator.num_pages }} ページ</span>
+                            {% if search_queries.has_next %}<a href="?{{ filter_query }}&sort={{ sort }}&page={{ search_queries.next_page_number }}">次へ</a>{% endif %}
+                        </nav>
+                        {% endif %}
+                    {% else %}
+                        <p class="text-muted mb-0">{% if q %}「{{ q }}」を含む検索キーワードはありません{% else %}この期間の検索キーワードはありません{% endif %}</p>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    <style>
+        .analytics-query-filters .form-control,
+        .analytics-query-community { min-width: 0; }
+        .analytics-query-community { flex: 1 1 14rem; width: auto; }
+        .analytics-query-table { width: 100%; table-layout: fixed; font-size: .875rem; }
+        .analytics-query-table th,
+        .analytics-query-table td { overflow-wrap: anywhere; }
+        .analytics-query-table .analytics-query-word { width: 40%; }
+        .analytics-query-table td { font-variant-numeric: tabular-nums; }
+    </style>
+{% endblock %}

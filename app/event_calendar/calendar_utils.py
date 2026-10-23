@@ -159,6 +159,22 @@ def generate_google_calendar_url(request, event):
     if cached_url:
         return cached_url
 
+    url = build_google_calendar_url(request, event)
+
+    # キャッシュに保存（1時間）
+    cache.set(cache_key, url, CACHE_TTL_HOUR)
+
+    return url
+
+
+def build_google_calendar_url(request, event):
+    """
+    Googleカレンダー追加用URLをキャッシュを通さずに組み立てる
+
+    文字列の組み立てだけなので、一覧のように件数が多い画面では
+    DatabaseCache への往復より直接作る方が速い。
+    発表情報は prefetch 済みの details があればそれを使う。
+    """
     # イベントの開始と終了の日時を設定
     start_datetime = datetime.combine(event.date, event.start_time)
     end_datetime = start_datetime + timedelta(minutes=event.duration)
@@ -195,9 +211,4 @@ def generate_google_calendar_url(request, event):
     base_url = "https://www.google.com/calendar/render?"
     param_strings = [f"{k}={quote(str(v))}" for k, v in params.items()]
     
-    url = base_url + "&".join(param_strings)
-    
-    # キャッシュに保存（1時間）
-    cache.set(cache_key, url, CACHE_TTL_HOUR)
-    
-    return url
+    return base_url + "&".join(param_strings)
