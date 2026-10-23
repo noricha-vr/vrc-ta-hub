@@ -1,16 +1,18 @@
-"""発表動画の公開統計の同期と再生数の集計。"""
+"""発表動画の公開統計・日別視聴実績の同期と集計。"""
 import logging
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Max, OuterRef, Q, Subquery
+from django.db.models import Max, OuterRef, Q, Subquery, Sum
 from django.utils import timezone
 
 from event.models import EventDetail
 from event.youtube_urls import youtube_video_id
 
-from .models import YouTubeVideoStats
-from .youtube_client import fetch_video_statistics
+from .models import YouTubeVideoAnalytics, YouTubeVideoStats
+from .youtube_client import (
+    fetch_video_analytics, fetch_video_detail_ids, fetch_video_statistics, youtube_analytics_configured,
+)
 
 logger = logging.getLogger('analytics')
 
@@ -130,3 +132,89 @@ def summarize_video_views(event_detail_ids, *, days=30):
     if all(row['period'] is not None for row in by_video.values()):
         return views, sum(row['period'] for row in by_video.values()), False
     return views, sum(row['total'] for row in by_video.values()), True
+
+
+# Analytics API の日別値は 48〜72 時間遅れて確定するため、確定までを覆う日数を毎回取り直す。
+YOUTUBE_ANALYTICS_LOOKBACK_DAYS = 7
+
+
+def sync_youtube_analytics(target_date) -> int:
+    """確定が遅れる日別実績を target_date を含む直近 YOUTUBE_ANALYTICS_LOOKBACK_DAYS 日分置き換える。"""
+    if not youtube_analytics_configured():
+        logger.warning('sync_youtube_analytics skipped: OAuth settings are not configured')
+        return 0
+
+    # 取得を先に完了し、途中の日の API 失敗で部分更新を残さない。
+    daily_statistics = [
+        (day, fetch_video_analytics(day))
+        for day in (
+            target_date - timedelta(days=ago)
+            for ago in range(YOUTUBE_ANALYTICS_LOOKBACK_DAYS - 1, -1, -1)
+        )
+    ]
+    # 代表の発表は説明欄のリンクで決める（youtube_url は発表者が書き換えられるため使わない）。
+    detail_by_video = fetch_video_detail_ids(
+        {video_id for _, statistics in daily_statistics for video_id in statistics}
+    )
+    existing_details = set(
+        EventDetail.objects.filter(pk__in=set(detail_by_video.values())).values_list('pk', flat=True)
+    )
+    saved = 0
+    with transaction.atomic():
+        for day, statistics in daily_statistics:
+            # 各日の取得結果をその日の完全な値として扱い、返らなくなった動画の行は消す。
+            YouTubeVideoAnalytics.objects.filter(date=day).exclude(video_id__in=list(statistics)).delete()
+            for video_id, values in statistics.items():
+                detail_id = detail_by_video.get(video_id)
+                YouTubeVideoAnalytics.objects.update_or_create(
+                    video_id=video_id, date=day,
+                    defaults={
+                        'event_detail_id': detail_id if detail_id in existing_details else None,
+                        **values,
+                    },
+                )
+                saved += 1
+    logger.info(
+        'sync_youtube_analytics done: since=%s until=%s saved=%d',
+        target_date - timedelta(days=YOUTUBE_ANALYTICS_LOOKBACK_DAYS - 1), target_date, saved,
+    )
+    return saved
+
+
+def get_video_watch_times(event_detail_ids, *, days=30):
+    """権限確認済みの発表 ID に対して (ID → 平均秒数, 全動画の平均秒数) を返す。
+
+    today-days 〜 前日を対象とし、総再生分×60÷再生数で計算する。
+    FK は代表の発表なので動画 ID で対応づけ、全体の平均は動画の重複を除く。
+    """
+    if days < 1:
+        raise ValueError('days must be positive')
+    if not event_detail_ids:
+        return {}, None
+    # youtube_url は発表者が編集できるので、他集会の動画 URL を貼って数字を覗けないよう、
+    # 説明欄のリンクで決めた代表の発表が「その発表と同じ集会」に属する行だけを数える。
+    key_by_detail = {}
+    for pk, url, community_id in EventDetail.objects.filter(pk__in=event_detail_ids).values_list(
+        'pk', 'youtube_url', 'event__community_id',
+    ):
+        if video_id := youtube_video_id(url):
+            key_by_detail[pk] = (video_id, community_id)
+    if not key_by_detail:
+        return {}, None
+    keys = set(key_by_detail.values())
+    today = timezone.localdate()
+    totals = {}
+    for row in YouTubeVideoAnalytics.objects.filter(
+        video_id__in={video_id for video_id, _ in keys},
+        event_detail__event__community_id__in={community_id for _, community_id in keys},
+        date__gte=today - timedelta(days=days), date__lt=today,
+    ).values('video_id', 'event_detail__event__community_id').annotate(
+        views_total=Sum('views'), minutes_total=Sum('estimated_minutes_watched'),
+    ):
+        key = (row['video_id'], row['event_detail__event__community_id'])
+        if key in keys:
+            totals[key] = (row['views_total'], row['minutes_total'])
+    by_key = {key: minutes * 60 / views for key, (views, minutes) in totals.items() if views > 0}
+    views = sum(views for views, _ in totals.values())
+    average = sum(minutes for _, minutes in totals.values()) * 60 / views if views else None
+    return {pk: by_key[key] for pk, key in key_by_detail.items() if key in by_key}, average

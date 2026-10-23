@@ -14,7 +14,7 @@ from django.views.generic import ListView, DetailView
 
 from analytics import services as analytics_services
 from analytics.models import PageAnalytics
-from analytics.video_stats import summarize_video_views
+from analytics.video_stats import get_video_watch_times, summarize_video_views
 from event.models import Event, EventDetail
 from ta_hub.og import image_url
 from url_filters import get_filtered_url
@@ -262,6 +262,7 @@ class CommunityDetailView(DetailView):
             ).values_list('pk', flat=True))
             # 期間の再生数は両端の日次スナップショットがそろうまで出ないので、その間は累計で見せる
             video_views, video_total, video_is_cumulative = summarize_video_views(detail_ids, days=30)
+            _, average_watch_time = get_video_watch_times(detail_ids, days=30)
             detail_id_set = set(detail_ids)
             ranking = [
                 row for row in analytics_services.get_page_ranking(community_ids, days=30)
@@ -281,9 +282,8 @@ class CommunityDetailView(DetailView):
                 'video_is_cumulative': video_is_cumulative,
                 'top_presentations': ranking,
                 'sources': analytics_services.get_source_categories(community_ids, days=30),
-                'has_data': bool(summary['pv'] or video_total),
-                # 平均視聴時間の取り込み後に使用する。未取得の間は表示しない。
-                'average_watch_time': None,
+                'has_data': bool(summary['pv'] or video_total or average_watch_time is not None),
+                'average_watch_time': average_watch_time,
             }
 
         # superuserの場合、集会オーナーのDiscord IDとメールアドレスをSocialAccountから取得

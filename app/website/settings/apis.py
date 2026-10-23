@@ -22,6 +22,11 @@ if GOOGLE_CALENDAR_ID.startswith('d80eac'):
 else:
     _settings_logger.info('Production mode: GOOGLE_CALENDAR_ID')
 
+# YouTube Analytics API（同意済みチャンネルの日別視聴実績）
+YOUTUBE_CLIENT_ID = os.environ.get('YOUTUBE_CLIENT_ID', '')
+YOUTUBE_CLIENT_SECRET = os.environ.get('YOUTUBE_CLIENT_SECRET', '')
+YOUTUBE_ANALYTICS_REFRESH_TOKEN = os.environ.get('YOUTUBE_ANALYTICS_REFRESH_TOKEN', '')
+
 # Gemini API
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'

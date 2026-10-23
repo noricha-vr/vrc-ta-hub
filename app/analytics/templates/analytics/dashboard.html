@@ -1,4 +1,5 @@
 {% extends 'ta_hub/base.html' %}
+{% load analytics_filters %}
 
 {% block title %}アクセス解析ダッシュボード - VRChat 技術・学術系イベントHub{% endblock %}
 
@@ -115,7 +116,7 @@
                                                     </td>
                                                     <td class="text-muted small text-nowrap">{% if row.published_at %}{{ row.published_at|date:"Y-m-d" }}{% else %}—{% endif %}</td>
                                                     <td class="text-end fw-bold">{{ row.pv|floatformat:"0g" }}</td>
-                                                    <td class="text-end">{% if row.video_views is None %}—{% else %}{{ row.video_views|floatformat:"0g" }}{% if row.video_is_cumulative %}<span class="text-muted small">（累計）</span>{% endif %}{% endif %}</td>
+                                                    <td class="text-end">{% if row.video_views is None %}—{% else %}{{ row.video_views|floatformat:"0g" }}{% if row.video_is_cumulative %}<span class="text-muted small">（累計）</span>{% endif %}{% endif %}{% if row.average_watch_time is not None %}<span class="d-block small text-muted text-nowrap">平均視聴 {{ row.average_watch_time|watch_duration }}</span>{% endif %}</td>
                                                 </tr>
                                             {% endfor %}
                                         </tbody>
