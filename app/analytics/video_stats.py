@@ -132,8 +132,12 @@ def summarize_video_views(event_detail_ids, *, days=30):
     return views, sum(row['total'] for row in by_video.values()), True
 
 
+# Analytics API の日別値は 48〜72 時間遅れて確定するため、確定までを覆う日数を毎回取り直す。
+YOUTUBE_ANALYTICS_LOOKBACK_DAYS = 7
+
+
 def sync_youtube_analytics(target_date) -> int:
-    """確定が遅れる日別実績を target_date-2 〜 target_date の3日分上書きする。"""
+    """確定が遅れる日別実績を target_date を含む直近 YOUTUBE_ANALYTICS_LOOKBACK_DAYS 日分上書きする。"""
     detail_by_video = {}
     for detail_id, url in (
         EventDetail.objects.exclude(youtube_url__isnull=True).exclude(youtube_url='')
@@ -146,7 +150,10 @@ def sync_youtube_analytics(target_date) -> int:
     # 取得を先に完了し、途中の日の API 失敗で部分更新を残さない。
     daily_statistics = [
         (day, fetch_video_analytics(day))
-        for day in (target_date - timedelta(days=ago) for ago in (2, 1, 0))
+        for day in (
+            target_date - timedelta(days=ago)
+            for ago in range(YOUTUBE_ANALYTICS_LOOKBACK_DAYS - 1, -1, -1)
+        )
     ]
     saved = 0
     with transaction.atomic():
@@ -159,7 +166,7 @@ def sync_youtube_analytics(target_date) -> int:
                 saved += 1
     logger.info(
         'sync_youtube_analytics done: since=%s until=%s saved=%d',
-        target_date - timedelta(days=2), target_date, saved,
+        target_date - timedelta(days=YOUTUBE_ANALYTICS_LOOKBACK_DAYS - 1), target_date, saved,
     )
     return saved
 
@@ -174,17 +181,23 @@ def get_video_watch_times(event_detail_ids, *, days=30):
         raise ValueError('days must be positive')
     if not event_detail_ids:
         return {}, None
-    video_by_detail = {
-        pk: video_id
-        for pk, url in EventDetail.objects.filter(pk__in=event_detail_ids).values_list('pk', 'youtube_url')
-        if (video_id := youtube_video_id(url))
-    }
+    video_by_detail = {}
+    community_ids = set()
+    for pk, url, community_id in EventDetail.objects.filter(pk__in=event_detail_ids).values_list(
+        'pk', 'youtube_url', 'event__community_id',
+    ):
+        if video_id := youtube_video_id(url):
+            video_by_detail[pk] = video_id
+            community_ids.add(community_id)
     if not video_by_detail:
         return {}, None
     today = timezone.localdate()
     rows = list(
         YouTubeVideoAnalytics.objects.filter(
             video_id__in=set(video_by_detail.values()),
+            # youtube_url は発表者が編集できるので、他集会の動画 URL を貼って数字を覗けないよう、
+            # 同期で決めた代表の発表が対象と同じ集会に属する行だけを数える。
+            event_detail__event__community_id__in=community_ids,
             date__gte=today - timedelta(days=days), date__lt=today,
         ).values('video_id').annotate(
             views_total=Sum('views'), minutes_total=Sum('estimated_minutes_watched'),

@@ -134,28 +134,28 @@ class AnalyticsDataTestCase(TestCase):
 @override_settings(**OAUTH_SETTINGS)
 class SyncYouTubeAnalyticsTests(AnalyticsDataTestCase):
     @patch('analytics.youtube_client.build')
-    def test_three_days_are_individual_queries_and_rerun_updates_rows(self, build):
+    def test_lookback_days_are_individual_queries_and_rerun_updates_rows(self, build):
         query = build.return_value.reports.return_value.query
         query.return_value.execute.return_value = {
             'rows': [[VIDEO_ID, 10, 20, 120], ['unlinked001', 2, 3, 90]],
         }
         # 過去日でも公開統計と異なり上書きできる。
         target = date(2026, 9, 1)
-        self.assertEqual(sync_youtube_analytics(target), 6)
-        self.assertEqual(build.call_count, 3)
+        self.assertEqual(sync_youtube_analytics(target), 14)
+        self.assertEqual(build.call_count, 7)
         self.assertEqual([c.kwargs['startDate'] for c in query.call_args_list], [
-            '2026-08-30', '2026-08-31', '2026-09-01',
+            '2026-08-26', '2026-08-27', '2026-08-28', '2026-08-29', '2026-08-30', '2026-08-31', '2026-09-01',
         ])
         self.assertTrue(all(c.kwargs['startDate'] == c.kwargs['endDate'] for c in query.call_args_list))
-        self.assertEqual(YouTubeVideoAnalytics.objects.count(), 6)
+        self.assertEqual(YouTubeVideoAnalytics.objects.count(), 14)
         linked = YouTubeVideoAnalytics.objects.get(video_id=VIDEO_ID, date=target)
         self.assertEqual(linked.event_detail_id, self.detail.pk)
         self.assertIsNone(YouTubeVideoAnalytics.objects.get(video_id='unlinked001', date=target).event_detail_id)
         query.return_value.execute.return_value = {
             'rows': [[VIDEO_ID, 20, 50, 150], ['unlinked001', 2, 3, 90]],
         }
-        self.assertEqual(sync_youtube_analytics(target), 6)
-        self.assertEqual(YouTubeVideoAnalytics.objects.count(), 6)
+        self.assertEqual(sync_youtube_analytics(target), 14)
+        self.assertEqual(YouTubeVideoAnalytics.objects.count(), 14)
         linked.refresh_from_db()
         self.assertEqual((linked.views, linked.estimated_minutes_watched,
                           linked.average_view_duration_seconds), (20, 50, 150))
@@ -169,7 +169,7 @@ class SyncYouTubeAnalyticsTests(AnalyticsDataTestCase):
         self.assertFalse(YouTubeVideoAnalytics.objects.exists())
 
     @patch('analytics.youtube_client.build')
-    def test_partial_fetch_failure_does_not_save_any_of_three_days(self, build):
+    def test_partial_fetch_failure_does_not_save_any_day(self, build):
         build.return_value.reports.return_value.query.return_value.execute.side_effect = [
             {'rows': [[VIDEO_ID, 10, 20, 120]]}, RuntimeError('private-test-value'),
         ]
@@ -233,7 +233,7 @@ class SyncYouTubeAnalyticsTests(AnalyticsDataTestCase):
         response = self.client.get(reverse('analytics:sync'), {'date': TARGET.isoformat()},
                                    HTTP_REQUEST_TOKEN='test-token')
         self.assertEqual(response.status_code, 200)
-        self.assertIn('YouTubeAnalytics: 3', response.content.decode())
+        self.assertIn('YouTubeAnalytics: 7', response.content.decode())
 
 
 @patch('analytics.video_stats.timezone.localdate', return_value=TODAY)
@@ -263,6 +263,17 @@ class VideoWatchTimeTests(AnalyticsDataTestCase):
                                          estimated_minutes_watched=minutes)
         self.assertEqual(get_video_watch_times([self.detail.pk], days=7)[1], 120)
         self.assertEqual(get_video_watch_times([self.detail.pk], days=30)[1], 13635)
+
+    def test_video_url_copied_from_other_community_is_not_counted(self, _today):
+        other = make_community(name='他の集会')
+        other_detail = make_event_detail(make_event(other, event_date=TODAY), status='approved',
+                                         youtube_url='https://youtu.be/othervideo1')
+        make_youtube_video_analytics(video_id='othervideo1', date=TARGET, views=10,
+                                     estimated_minutes_watched=22)
+        self.assertEqual(get_video_watch_times([other_detail.pk])[1], 132)
+        self.second.youtube_url = 'https://youtu.be/othervideo1'
+        self.second.save(update_fields=['youtube_url'])
+        self.assertEqual(get_video_watch_times([self.second.pk]), ({}, None))
 
     def test_invalid_and_deleted_details_are_excluded(self, _today):
         make_youtube_video_analytics(date=TARGET, views=1, estimated_minutes_watched=1)
