@@ -60,7 +60,7 @@ class SummaryServicesTest(TestCase):
         self._make(kind='global', ago=31, pv=100)
         self.assertEqual(services.get_community_summary(self.ids), {
             'pv': 16, 'prev_pv': 8, 'change_rate': 100.0,
-            'community_page_pv': 8, 'article_pv': 6,
+            'community_page_pv': 8, 'article_pv': 6, 'campaign_pv': 2,
         })
 
     def test_summary_zero_previous_period_has_no_change_rate(self):
@@ -89,7 +89,7 @@ class SummaryServicesTest(TestCase):
     def test_empty_ids_and_no_records(self):
         empty = {
             'pv': 0, 'prev_pv': 0, 'change_rate': None,
-            'community_page_pv': 0, 'article_pv': 0,
+            'community_page_pv': 0, 'article_pv': 0, 'campaign_pv': 0,
         }
         with self.assertNumQueries(0):
             self.assertEqual(services.get_community_summary([]), empty)
