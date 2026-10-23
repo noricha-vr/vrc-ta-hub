@@ -312,10 +312,10 @@
                     {% endif %}
                 {% endif %}
 
-                {# アクセス解析は操作群・LT注意書き・発表者アカウントの後に置き、閲覧権限を管理権限から分離する #}
+                {# 発表の反響は操作群・注意書き・発表者アカウントの後に置く #}
                 {% if can_view_analytics %}
                     <div class="analytics-card">
-                        {% include 'analytics/_chart_section.html' %}
+                        {% include 'analytics/_detail_card.html' %}
                     </div>
                 {% endif %}
 
@@ -498,6 +498,10 @@
 {% block extra_js %}
     {{ block.super }}
     {% if can_view_analytics %}
-        {% include 'analytics/_chart_scripts.html' %}
+        <script>
+            if (typeof window.gtag === 'function') {
+                gtag('event', 'analytics_card_view', {page_type: 'event_detail'});
+            }
+        </script>
     {% endif %}
 {% endblock %}

@@ -1,7 +1,7 @@
 """イベント詳細ページの管理者向けブロックの表示順・レイアウトのテスト.
 
 集会オーナーが見た時に「管理操作 → 発表の注意書き → 発表者アカウント →
-アクセス解析」の順で並ぶこと、および発表者アカウントの紐づけ済み表示が
+この発表の反響」の順で並ぶこと、および発表者アカウントの紐づけ済み表示が
 1行にまとまることを、レンダリング結果の HTML で検証する（Issue #619）。
 """
 import re
@@ -52,14 +52,14 @@ class EventDetailAdminUiOrderTests(TestCase):
         return response.content.decode('utf-8')
 
     def test_admin_blocks_render_in_specified_order(self):
-        """管理操作・注意書き・発表者アカウント・アクセス解析がこの順に出る."""
+        """管理操作・注意書き・発表者アカウント・反響カードがこの順に出る."""
         html = self._owner_html(self.linked_detail)
 
         positions = [
             html.index('id="admin-actions"'),
             html.index('id="lt-article-notes"'),
             html.index('id="speaker-account-heading"'),
-            html.index('id="analytics-daily-chart"'),
+            html.index('id="analytics-detail-card"'),
         ]
 
         self.assertEqual(positions, sorted(positions))
