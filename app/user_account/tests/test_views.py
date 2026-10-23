@@ -692,13 +692,14 @@ class HeaderDropdownMenuTests(TestCase):
         self.assertNotContains(response, '>登録</a>')
 
     def test_authenticated_user_dropdown_contains_settings(self):
-        """ログインユーザーのドロップダウンに設定リンクが含まれること."""
+        """ログインユーザーのドロップダウン上部のユーザー名からアカウント設定へ行けること."""
         self.client.login(username='test_header@example.com', password='testpass123')
         response = self.client.get(self.index_url)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, reverse('account:settings'))
-        self.assertContains(response, 'bi-gear')
-        self.assertContains(response, 'アカウント設定')
+        self.assertContains(
+            response,
+            '<a class="dropdown-item account-menu-identity" href="{}"'.format(reverse('account:settings')),
+        )
 
     def test_authenticated_user_dropdown_contains_logout(self):
         """ログインユーザーのドロップダウンにログアウトリンクが含まれること."""
@@ -714,10 +715,8 @@ class HeaderDropdownMenuTests(TestCase):
         self.client.login(username='test_header@example.com', password='testpass123')
         response = self.client.get(self.index_url)
         self.assertEqual(response.status_code, 200)
-        # 集会一覧ヘッダーがないことを確認
-        self.assertNotContains(response, '<li class="dropdown-header small text-muted">集会一覧</li>')
-        # 区切り線がないことを確認
-        self.assertNotContains(response, 'dropdown-divider')
+        # 集会を切り替えるリンクがないことを確認
+        self.assertNotContains(response, reverse('event:my_list') + '?community=')
 
     def test_owner_dropdown_contains_community_list(self):
         """主催者のドロップダウンに集会一覧リストが含まれること."""
@@ -735,9 +734,6 @@ class HeaderDropdownMenuTests(TestCase):
         self.client.login(username='test_header@example.com', password='testpass123')
         response = self.client.get(self.index_url)
         self.assertEqual(response.status_code, 200)
-        # 集会一覧ヘッダーがあることを確認
-        self.assertContains(response, '<li class="dropdown-header small text-muted">集会一覧</li>')
-        # 集会名があることを確認（12文字で切り捨て）
+        # 集会名と集会を切り替えるリンクがあることを確認
         self.assertContains(response, 'テスト集会')
-        # 区切り線があることを確認
-        self.assertContains(response, 'dropdown-divider')
+        self.assertContains(response, '{}?community={}'.format(reverse('event:my_list'), community.id))
