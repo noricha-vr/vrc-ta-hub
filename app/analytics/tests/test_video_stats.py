@@ -9,8 +9,8 @@ from django.utils import timezone
 
 from analytics.models import PageAnalytics, YouTubeVideoStats
 from analytics.video_stats import get_video_views, sync_youtube_stats
-from community.models import Community
-from event.models import Event, EventDetail
+from event.models import EventDetail
+from tests.factories import make_community, make_event, make_event_detail
 
 FIXED_TODAY = date(2026, 10, 23)
 VIDEO_ID = 'abcdefghijk'
@@ -21,18 +21,16 @@ TEST_TOKEN = 'test-request-token'
 class VideoStatsTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.community = Community.objects.create(
-            name='動画統計テスト集会', frequency='毎週', organizers='主催',
-        )
-        cls.event = Event.objects.create(
-            community=cls.community, date=FIXED_TODAY, start_time=time(22),
+        cls.community = make_community(name='動画統計テスト集会', frequency='毎週', organizers='主催')
+        cls.event = make_event(
+            cls.community, event_date=FIXED_TODAY, start_time=time(22),
             duration=60, weekday='Fri',
         )
-        cls.detail = EventDetail.objects.create(
-            event=cls.event, youtube_url=f'https://www.youtube.com/watch?v={VIDEO_ID}',
+        cls.detail = make_event_detail(
+            cls.event, youtube_url=f'https://www.youtube.com/watch?v={VIDEO_ID}', status='approved',
         )
-        cls.shared_detail = EventDetail.objects.create(
-            event=cls.event, youtube_url=f'https://youtu.be/{VIDEO_ID}?t=30',
+        cls.shared_detail = make_event_detail(
+            cls.event, youtube_url=f'https://youtu.be/{VIDEO_ID}?t=30', status='approved',
         )
 
     def _snapshot(self, target_date, count, *, video_id=VIDEO_ID, detail=None):
@@ -114,10 +112,10 @@ class SyncYouTubeStatsTest(VideoStatsTestCase):
     def test_deleted_empty_and_non_video_urls_are_excluded(self, mock_fetch, _mock_today):
         for url in (None, '', 'https://discord.com/channels/123/456/789',
                     'https://www.youtube.com/playlist?list=123'):
-            EventDetail.objects.create(event=self.event, youtube_url=url)
-        EventDetail.objects.create(
-            event=self.event, youtube_url=f'https://youtu.be/{OTHER_VIDEO_ID}',
-            deleted_at=timezone.now(),
+            make_event_detail(self.event, youtube_url=url, status='approved')
+        make_event_detail(
+            self.event, youtube_url=f'https://youtu.be/{OTHER_VIDEO_ID}',
+            deleted_at=timezone.now(), status='approved',
         )
         sync_youtube_stats(FIXED_TODAY)
         mock_fetch.assert_called_once_with([VIDEO_ID])
@@ -193,15 +191,15 @@ class GetVideoViewsTest(VideoStatsTestCase):
         })
 
     def test_only_requested_active_presentations_with_video_are_returned(self, _mock_today):
-        other = EventDetail.objects.create(
-            event=self.event, youtube_url=f'https://youtu.be/{OTHER_VIDEO_ID}',
+        other = make_event_detail(
+            self.event, youtube_url=f'https://youtu.be/{OTHER_VIDEO_ID}', status='approved',
         )
         self._snapshot(FIXED_TODAY, 999, video_id=OTHER_VIDEO_ID, detail=other)
-        deleted = EventDetail.objects.create(
-            event=self.event, youtube_url=f'https://youtu.be/{VIDEO_ID}',
-            deleted_at=timezone.now(),
+        deleted = make_event_detail(
+            self.event, youtube_url=f'https://youtu.be/{VIDEO_ID}',
+            deleted_at=timezone.now(), status='approved',
         )
-        invalid = EventDetail.objects.create(event=self.event, youtube_url='https://example.com/')
+        invalid = make_event_detail(self.event, youtube_url='https://example.com/', status='approved')
         self.assertEqual(get_video_views([self.detail.pk, deleted.pk, invalid.pk, 99999999]), {
             self.detail.pk: {'total': None, 'period': None},
         })
