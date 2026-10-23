@@ -110,6 +110,26 @@ def get_daily_series(community_ids, *, content_type=None, object_id=None, days=D
     )
 
 
+def get_weekly_series(community_ids, *, days=DEFAULT_DAYS) -> list:
+    """前日までの日次集計を月曜始まりの週別 PV にまとめる。空白週は0で補う。"""
+    if not community_ids:
+        return []
+    daily = get_daily_series(community_ids, days=days)
+    if not daily:
+        return []
+
+    since, until = _date_range(days)
+    week = since - timedelta(days=since.weekday())
+    totals = {}
+    while week <= until:
+        totals[week] = 0
+        week += timedelta(days=7)
+    for row in daily:
+        week = row['date'] - timedelta(days=row['date'].weekday())
+        totals[week] += row['pv'] or 0
+    return [{'week_start': week, 'pv': pv} for week, pv in totals.items()]
+
+
 def get_source_breakdown(community_ids, *, content_type=None, object_id=None, days=DEFAULT_DAYS) -> list:
     """参照元/メディア別の pv 合計を降順で返す。
 
@@ -414,7 +434,7 @@ def get_event_detail_breakdown(
     event_details = (
         EventDetail.objects
         .select_related('event__community')
-        .filter(pk__in=event_detail_ids)
+        .filter(pk__in=event_detail_ids, event__community_id__in=community_ids)
     )
     detail_map = {ed.pk: ed for ed in event_details}
 

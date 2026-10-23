@@ -21,6 +21,8 @@
 
             {# 集会切替 + 期間切替 + CSV ダウンロード #}
             <form method="get" class="card card-body mb-3 py-2">
+                <input type="hidden" name="days" value="{{ days }}">
+                <input type="hidden" name="sort" value="{{ sort }}">
                 <div class="row g-2 align-items-center">
                     <div class="col-md-5">
                         <label for="community-select" class="form-label small mb-1">対象集会</label>
@@ -38,7 +40,7 @@
                         <label class="form-label small mb-1">集計期間</label>
                         <div class="btn-group btn-group-sm w-100" role="group">
                             {% for d in allowed_days %}
-                                <a href="?days={{ d }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}"
+                                <a href="?days={{ d }}&sort={{ sort }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}"
                                    class="btn {% if days == d %}btn-primary{% else %}btn-outline-primary{% endif %}">
                                     {{ d }}日
                                 </a>
@@ -47,7 +49,7 @@
                     </div>
                     <div class="col-md-3 text-md-end">
                         <label class="form-label small mb-1">&nbsp;</label>
-                        <a href="?format=csv&days={{ days }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}"
+                        <a href="?format=csv&days={{ days }}&sort={{ sort }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}"
                            class="btn btn-sm btn-outline-success w-100">
                             <i class="fa-solid fa-file-csv me-1"></i>CSVダウンロード
                         </a>
@@ -55,133 +57,140 @@
                 </div>
             </form>
 
-            {# 全体サマリーカード（メトリクスごとに左ボーダーで色分け、前期間比較行は高さ固定） #}
+            {# サマリー #}
             <div class="row g-3 mb-3">
-                {% with stats=overall_stats %}
-                    <div class="col-md-4">
-                        <div class="card h-100 border-start border-4 border-primary">
-                            <div class="card-body">
-                                <div class="text-muted small">ページビュー（{{ days }}日）</div>
-                                <div class="fs-3 fw-bold">{{ stats.pv }}</div>
-                                <div class="small analytics-change-row">
-                                    {% if stats.pv_change_pct is not None %}
-                                        <span class="{% if stats.pv_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                            {% if stats.pv_change_pct >= 0 %}▲{% else %}▼{% endif %}
-                                            {{ stats.pv_change_pct }}% vs 前{{ days }}日
-                                        </span>
-                                    {% else %}
-                                        <span class="text-muted">前期間データなし</span>
-                                    {% endif %}
-                                </div>
+                <div class="col-md-6">
+                    <div class="card h-100 border-start border-4 border-primary">
+                        <div class="card-body">
+                            <div class="text-muted small">閲覧合計（{{ days }}日）</div>
+                            <div class="fs-3 fw-bold">{{ summary.pv|floatformat:"0g" }}</div>
+                            <div class="small">
+                                {% if summary.change_rate is not None %}
+                                    <span class="{% if summary.change_rate >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                        {% if summary.change_rate > 0 %}+{% endif %}{{ summary.change_rate }}%（前{{ days }}日比）
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">前期間の閲覧がないため比較できません</span>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card h-100 border-start border-4 border-success">
-                            <div class="card-body">
-                                <div class="text-muted small">ユーザー数（{{ days }}日）</div>
-                                <div class="fs-3 fw-bold">{{ stats.users }}</div>
-                                <div class="small analytics-change-row">
-                                    {% if stats.users_change_pct is not None %}
-                                        <span class="{% if stats.users_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                            {% if stats.users_change_pct >= 0 %}▲{% else %}▼{% endif %}
-                                            {{ stats.users_change_pct }}% vs 前{{ days }}日
-                                        </span>
-                                    {% else %}
-                                        <span class="text-muted">前期間データなし</span>
-                                    {% endif %}
-                                </div>
-                            </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100 border-start border-4 border-success">
+                        <div class="card-body">
+                            <div class="text-muted small">動画再生合計（{% if video_is_cumulative %}累計{% else %}{{ days }}日{% endif %}）</div>
+                            <div class="fs-3 fw-bold">{% if video_views_total is None %}—{% else %}{{ video_views_total|floatformat:"0g" }}{% endif %}</div>
+                            <div class="text-muted small">{% if video_is_cumulative %}期間の再生数は日次の記録がそろうまで出せないため、公開からの累計を表示しています。{% else %}取得できた動画の期間内再生数を合算。{% endif %}同じ動画は1回だけ計上します。</div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card h-100 border-start border-4 border-info">
-                            <div class="card-body">
-                                <div class="text-muted small">セッション数（{{ days }}日）</div>
-                                <div class="fs-3 fw-bold">{{ stats.sessions }}</div>
-                                <div class="small analytics-change-row">
-                                    {% if stats.sessions_change_pct is not None %}
-                                        <span class="{% if stats.sessions_change_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                            {% if stats.sessions_change_pct >= 0 %}▲{% else %}▼{% endif %}
-                                            {{ stats.sessions_change_pct }}% vs 前{{ days }}日
-                                        </span>
-                                    {% else %}
-                                        <span class="text-muted">前期間データなし</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                {% endwith %}
+                </div>
             </div>
-            <style>
-                /* 前期間比較行の高さを揃えて 3 カード間のガタつきを防ぐ */
-                .analytics-change-row { min-height: 1.5em; }
-            </style>
 
-            {# 推移グラフ + 流入元（既存 _chart_section を活用） #}
-            {% include 'analytics/_chart_section.html' %}
-
-            {# 記事別アクセス一覧 #}
+            {# 集会ページと発表を同じランキングで比較 #}
             <div class="card mb-3">
                 <div class="card-body">
-                    <h2 class="fs-5 fw-bold mb-3">
-                        <i class="fa-solid fa-newspaper me-2"></i>記事別アクセス（PV順）
-                    </h2>
-                    {% if event_detail_breakdown %}
+                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                        <h2 class="fs-5 fw-bold mb-0"><i class="fa-solid fa-ranking-star me-2"></i>ページ別ランキング</h2>
+                        <span class="text-muted small ms-auto">
+                            {% if page_ranking.paginator.count %}{{ page_ranking.start_index }}〜{{ page_ranking.end_index }} / {% endif %}{{ page_ranking.paginator.count }}件
+                        </span>
+                    </div>
+                    <p class="text-muted small mb-3">列名で並べ替え（多い順）。動画再生は発表動画の期間内再生数、— は対象外またはデータ不足です。</p>
+                    {% if page_ranking %}
                         <div class="table-responsive">
-                            <table class="table table-sm table-hover align-middle">
+                            <table class="table table-sm table-hover align-middle mb-0">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>タイトル</th>
-                                        <th>集会</th>
-                                        <th>公開日</th>
-                                        <th class="text-end">PV</th>
-                                        <th class="text-end">UU</th>
-                                        <th class="text-end">セッション</th>
-                                        <th>主要流入元</th>
+                                        <th>ページ</th>
+                                        <th class="text-nowrap">公開日</th>
+                                        <th class="text-end text-nowrap" aria-sort="{% if sort == 'pv' %}descending{% else %}none{% endif %}">
+                                            <a href="?{{ filter_query }}&sort=pv">閲覧{% if sort == 'pv' %} ↓{% endif %}</a>
+                                        </th>
+                                        <th class="text-end text-nowrap" aria-sort="{% if sort == 'video' %}descending{% else %}none{% endif %}">
+                                            <a href="?{{ filter_query }}&sort=video">動画再生{% if sort == 'video' %} ↓{% endif %}</a>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for row in event_detail_breakdown %}
+                                    {% for row in page_ranking %}
                                         <tr>
                                             <td>
-                                                <a href="{% url 'event:detail' row.event_detail_id %}" class="text-decoration-none">
-                                                    {{ row.theme|truncatechars:50 }}
-                                                </a>
+                                                <span class="badge bg-light text-dark me-1">{% if row.kind == 'community' %}集会{% else %}発表{% endif %}</span>
+                                                <a href="{{ row.url }}" class="text-decoration-none">{{ row.title }}</a>
                                             </td>
-                                            <td class="text-muted">{{ row.community_name }}</td>
-                                            <td class="text-muted small">{{ row.published_at|date:"Y-m-d" }}</td>
-                                            <td class="text-end fw-bold">{{ row.pv }}</td>
-                                            <td class="text-end">{{ row.users }}</td>
-                                            <td class="text-end">{{ row.sessions }}</td>
-                                            <td class="small">{{ row.top_source }}</td>
+                                            <td class="text-muted small text-nowrap">{% if row.published_at %}{{ row.published_at|date:"Y-m-d" }}{% else %}—{% endif %}</td>
+                                            <td class="text-end fw-bold">{{ row.pv|floatformat:"0g" }}</td>
+                                            <td class="text-end">{% if row.video_views is None %}—{% else %}{{ row.video_views|floatformat:"0g" }}{% if row.video_is_cumulative %}<span class="text-muted small">（累計）</span>{% endif %}{% endif %}</td>
                                         </tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
                         </div>
+                        {% if page_ranking.has_other_pages %}
+                            <nav aria-label="ランキングのページ" class="d-flex justify-content-center align-items-center gap-3 mt-3">
+                                {% if page_ranking.has_previous %}<a href="?{{ filter_query }}&sort={{ sort }}&page={{ page_ranking.previous_page_number }}">前へ</a>{% endif %}
+                                <span class="small text-muted">{{ page_ranking.number }} / {{ page_ranking.paginator.num_pages }}ページ</span>
+                                {% if page_ranking.has_next %}<a href="?{{ filter_query }}&sort={{ sort }}&page={{ page_ranking.next_page_number }}">次へ</a>{% endif %}
+                            </nav>
+                        {% endif %}
                     {% else %}
-                        <p class="text-muted small mb-0">対象期間に記事のアクセスデータがありません。</p>
+                        <p class="text-muted small mb-0">対象期間にページのアクセスデータがありません。</p>
                     {% endif %}
                 </div>
             </div>
 
-            {# 公開後N日積み上げチャート（人気記事の伸びを比較） #}
-            {% if post_publish_chart.datasets %}
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h2 class="fs-5 fw-bold mb-1">
-                            <i class="fa-solid fa-chart-area me-2"></i>公開後 {{ post_publish_chart.labels|length|add:"-1" }} 日のPV推移
-                        </h2>
-                        <p class="text-muted small mb-3">人気上位の記事を公開日基準で揃えて比較できます。</p>
-                        <div style="position: relative; height: 300px;">
-                            <canvas id="post-publish-chart" aria-label="公開後N日PV推移" role="img"></canvas>
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h2 class="fs-5 fw-bold mb-1"><i class="fa-solid fa-chart-column me-2"></i>週次推移</h2>
+                    <p class="text-muted small mb-3">月曜始まり。選択期間の前日までを集計し、最初と最後の週は期間内の日数分のみ表示します。</p>
+                    {% if weekly_series %}
+                        <div style="position: relative; height: 280px;">
+                            <canvas id="weekly-chart" aria-label="週別の閲覧数" role="img"></canvas>
                         </div>
-                        {{ post_publish_chart|json_script:"post-publish-data" }}
-                    </div>
+                        {{ weekly_series|json_script:"weekly-data" }}
+                    {% else %}
+                        <p class="text-muted small mb-0">対象期間に推移のデータがありません。</p>
+                    {% endif %}
                 </div>
-            {% endif %}
+            </div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h2 class="fs-5 fw-bold mb-3"><i class="fa-solid fa-arrow-right-to-bracket me-2"></i>どこから</h2>
+                    {% if summary.pv %}
+                        <div class="d-flex rounded overflow-hidden mb-2" style="height: 24px;" role="img" aria-label="流入元の割合。内訳は下の一覧を参照">
+                            {% for row in source_categories %}
+                                {% if row.pv %}<div class="analytics-source-{{ row.category }}" style="flex: {{ row.pv }} 1 0;" title="{{ row.label }} {{ row.percent }}%"></div>{% endif %}
+                            {% endfor %}
+                        </div>
+                        <ul class="list-inline small mb-3">
+                            {% for row in source_categories %}
+                                <li class="list-inline-item me-3"><span class="d-inline-block rounded analytics-source-{{ row.category }} me-1" style="width: 10px; height: 10px;"></span>{{ row.label }} {{ row.percent }}%（{{ row.pv|floatformat:"0g" }}）</li>
+                            {% endfor %}
+                        </ul>
+                        <details>
+                            <summary class="small">source / medium の詳細</summary>
+                            <div class="table-responsive mt-2">
+                                <table class="table table-sm mb-0">
+                                    <thead class="table-light"><tr><th>source / medium</th><th class="text-end">閲覧</th></tr></thead>
+                                    <tbody>{% for row in source_breakdown %}<tr><td class="small">{{ row.source_medium }}</td><td class="text-end">{{ row.pv|floatformat:"0g" }}</td></tr>{% endfor %}</tbody>
+                                </table>
+                            </div>
+                        </details>
+                    {% else %}
+                        <p class="text-muted small mb-0">対象期間に流入元のデータがありません。</p>
+                    {% endif %}
+                </div>
+            </div>
+            <style>
+                .analytics-source-search { background-color: #0d6efd; }
+                .analytics-source-sns { background-color: #198754; }
+                .analytics-source-direct { background-color: #fd7e14; }
+                .analytics-source-internal { background-color: #6f42c1; }
+                .analytics-source-ai { background-color: #0dcaf0; }
+                .analytics-source-other { background-color: #6c757d; }
+            </style>
 
             {% comment %}
                 集会一覧からの遷移数（GA4 カスタムイベント poster_click 由来）。
@@ -228,7 +237,7 @@
                                                     </a>
                                                 </td>
                                                 <td class="text-end fw-bold">{{ row.clicks }}</td>
-                                                <td class="text-end">{{ row.users }}</td>
+                                                <td class="text-end">{{ row.users|floatformat:"0g" }}</td>
                                             </tr>
                                         {% endfor %}
                                     </tbody>
@@ -294,9 +303,9 @@
                                             <td class="text-muted small">
                                                 {% if row.meta.distributed_at %}{{ row.meta.distributed_at|date:"Y-m-d" }}{% else %}-{% endif %}
                                             </td>
-                                            <td class="text-end fw-bold">{{ row.pv }}</td>
-                                            <td class="text-end">{{ row.users }}</td>
-                                            <td class="text-end">{{ row.sessions }}</td>
+                                            <td class="text-end fw-bold">{{ row.pv|floatformat:"0g" }}</td>
+                                            <td class="text-end">{{ row.users|floatformat:"0g" }}</td>
+                                            <td class="text-end">{{ row.sessions|floatformat:"0g" }}</td>
                                         </tr>
                                     {% endfor %}
                                 </tbody>
@@ -351,7 +360,7 @@
                                         {% for row in global_traffic.top_paths %}
                                             <tr>
                                                 <td class="small">{{ row.page_path }}</td>
-                                                <td class="text-end">{{ row.pv }}</td>
+                                                <td class="text-end">{{ row.pv|floatformat:"0g" }}</td>
                                             </tr>
                                         {% endfor %}
                                     </tbody>
@@ -370,8 +379,41 @@
 
 {% block extra_js %}
     {{ block.super }}
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            if (typeof window.gtag === 'function') {
+                gtag('event', 'analytics_dashboard_view', { days: {{ days }} });
+            }
+        });
+    </script>
     {% if has_access %}
-        {% include 'analytics/_chart_scripts.html' %}
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"
+                integrity="sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
+                crossorigin="anonymous"></script>
+        {% if weekly_series %}
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    const dataEl = document.getElementById('weekly-data');
+                    const canvas = document.getElementById('weekly-chart');
+                    if (!dataEl || !canvas || typeof Chart === 'undefined') return;
+                    let rows;
+                    try { rows = JSON.parse(dataEl.textContent); } catch (e) { return; }
+                    new Chart(canvas, {
+                        type: 'bar',
+                        data: {
+                            labels: rows.map(function (row) { return row.week_start + '〜'; }),
+                            datasets: [{ label: '閲覧', backgroundColor: '#0d6efd', data: rows.map(function (row) { return row.pv; }) }],
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                            plugins: { legend: { display: false } },
+                        },
+                    });
+                });
+            </script>
+        {% endif %}
         {% if campaign_daily.datasets %}
             <script>
                 document.addEventListener('DOMContentLoaded', function () {
@@ -382,46 +424,6 @@
                     try { payload = JSON.parse(dataEl.textContent); } catch (e) { return; }
                     if (!payload.datasets || payload.datasets.length === 0) return;
 
-                    const palette = ['#0d6efd', '#198754', '#fd7e14', '#dc3545', '#6f42c1'];
-                    const datasets = payload.datasets.map(function (d, i) {
-                        const color = palette[i % palette.length];
-                        return {
-                            label: d.label,
-                            data: d.data,
-                            borderColor: color,
-                            backgroundColor: color,
-                            tension: 0.3,
-                            pointRadius: 2,
-                        };
-                    });
-                    new Chart(canvas, {
-                        type: 'line',
-                        data: { labels: payload.labels, datasets: datasets },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            interaction: { mode: 'index', intersect: false },
-                            scales: {
-                                x: { ticks: { maxTicksLimit: 8, autoSkip: true } },
-                                y: { beginAtZero: true, ticks: { precision: 0 } },
-                            },
-                            plugins: { legend: { position: 'bottom' } },
-                        },
-                    });
-                });
-            </script>
-        {% endif %}
-        {% if post_publish_chart.datasets %}
-            <script>
-                document.addEventListener('DOMContentLoaded', function () {
-                    const dataEl = document.getElementById('post-publish-data');
-                    const canvas = document.getElementById('post-publish-chart');
-                    if (!dataEl || !canvas || typeof Chart === 'undefined') return;
-                    let payload;
-                    try { payload = JSON.parse(dataEl.textContent); } catch (e) { return; }
-                    if (!payload.datasets || payload.datasets.length === 0) return;
-
-                    // Bootstrap カラーに合わせたパレット（最大5本）
                     const palette = ['#0d6efd', '#198754', '#fd7e14', '#dc3545', '#6f42c1'];
                     const datasets = payload.datasets.map(function (d, i) {
                         const color = palette[i % palette.length];
