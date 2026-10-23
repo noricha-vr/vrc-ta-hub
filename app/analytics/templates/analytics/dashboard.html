@@ -96,7 +96,7 @@
                             {% if page_ranking.paginator.count %}{{ page_ranking.start_index }}〜{{ page_ranking.end_index }} / {% endif %}{{ page_ranking.paginator.count }}件
                         </span>
                     </div>
-                    <p class="text-muted small mb-3">列名で並べ替え（多い順）。動画再生は発表動画の期間内再生数、— は対象外またはデータ不足です。</p>
+                    <p class="text-muted small mb-3">列名で並べ替え（多い順）。動画再生は期間内の再生数で、日次の記録がそろうまでは公開からの累計（「累計」と表示）を出します。— は動画なしまたは未取得です。</p>
                     {% if page_ranking %}
                         <div class="table-responsive">
                             <table class="table table-sm table-hover align-middle mb-0">
