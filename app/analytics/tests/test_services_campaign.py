@@ -9,8 +9,46 @@ from community.models import Community, CommunityMember
 
 from analytics import services
 from analytics.models import Campaign, PageAnalytics
+from tests.factories import make_community
 
 User = get_user_model()
+
+
+class DefaultCampaignExclusionTest(TestCase):
+    """GA4 既定名は表・日次グラフとも除外し、明示時だけ集計する。"""
+
+    defaults = ('(not set)', '(organic)', '(direct)', '(referral)',
+                '(ai-assistant)', '(cross-network)', '(future default)')
+    custom_names = ('flyer-202610', '(open-only', 'close-only)')
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.community = make_community()
+        for campaign in (*cls.defaults, *cls.custom_names):
+            PageAnalytics.objects.create(
+                community=cls.community, object_id=cls.community.pk,
+                content_type=PageAnalytics.ContentType.COMMUNITY,
+                page_path=f'/community/{cls.community.pk}/',
+                date=timezone.localdate() - timedelta(days=1),
+                campaign=campaign, pv=10, users=8, sessions=9,
+            )
+
+    def test_breakdown_excludes_all_parenthesized_defaults(self):
+        rows = services.get_campaign_breakdown([self.community.pk])
+        self.assertCountEqual([row['campaign'] for row in rows], self.custom_names)
+        self.assertTrue(all(row['pv'] == 10 for row in rows))
+
+    def test_daily_series_excludes_defaults_before_selecting_top_campaigns(self):
+        result = services.get_campaign_daily_series([self.community.pk])
+        self.assertCountEqual([row['label'] for row in result['datasets']], self.custom_names)
+        self.assertTrue(all(sum(row['data']) == 10 for row in result['datasets']))
+
+    def test_explicit_include_keeps_defaults_in_both_aggregates(self):
+        ids = [self.community.pk]
+        rows = services.get_campaign_breakdown(ids, exclude_default=False)
+        result = services.get_campaign_daily_series(ids, top_n=20, exclude_default=False)
+        self.assertCountEqual([row['campaign'] for row in rows], (*self.defaults, *self.custom_names))
+        self.assertCountEqual([row['label'] for row in result['datasets']], (*self.defaults, *self.custom_names))
 
 
 class CampaignBreakdownTest(TestCase):
@@ -183,6 +221,15 @@ class CampaignBreakdownAcrossCommunitiesTest(TestCase):
         # meta も community に対応した正しい Campaign に紐付く
         self.assertEqual(by_community[self.community_a.pk]['meta']['name'], '集会Aの shared')
         self.assertEqual(by_community[self.community_b.pk]['meta']['name'], '集会Bの shared')
+
+    def test_unregistered_rows_keep_community_name(self):
+        """配布リンクが未登録でも、着地した集会の名前で行を見分けられる。"""
+        Campaign.objects.filter(utm_campaign='shared-key').delete()
+        ids = services.accessible_community_ids(self.user)
+        by_community = {r['community_id']: r for r in services.get_campaign_breakdown(ids, days=30)}
+        self.assertIsNone(by_community[self.community_a.pk]['meta'])
+        self.assertEqual(by_community[self.community_a.pk]['community_name'], '集会A')
+        self.assertEqual(by_community[self.community_b.pk]['community_name'], '集会B')
 
 
 class CampaignBreakdownIncludesRootLandingTest(TestCase):

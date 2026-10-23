@@ -23,167 +23,172 @@
             <form method="get" class="card card-body mb-3 py-2">
                 <input type="hidden" name="days" value="{{ days }}">
                 <input type="hidden" name="sort" value="{{ sort }}">
-                <div class="row g-2 align-items-center">
-                    <div class="col-md-5">
-                        <label for="community-select" class="form-label small mb-1">対象集会</label>
-                        <select name="community" id="community-select" class="form-select form-select-sm" onchange="this.form.submit()">
-                            <option value="">すべての所属集会（合算）</option>
-                            {% for community in accessible_communities %}
-                                <option value="{{ community.id }}"
-                                        {% if selected_community.id == community.id %}selected{% endif %}>
-                                    {{ community.name }}
-                                </option>
-                            {% endfor %}
-                        </select>
+                <div class="d-flex align-items-center gap-2 analytics-filters">
+                    <label for="community-select" class="visually-hidden">対象集会</label>
+                    <select name="community" id="community-select" class="form-select form-select-sm analytics-community-select" onchange="this.form.submit()">
+                        <option value="">すべての所属集会（合算）</option>
+                        {% for community in accessible_communities %}
+                            <option value="{{ community.id }}" {% if selected_community.id == community.id %}selected{% endif %}>{{ community.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="btn-group btn-group-sm flex-shrink-0" role="group" aria-label="集計期間">
+                        {% for d in allowed_days %}
+                            <a href="?days={{ d }}&sort={{ sort }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}"
+                               class="btn {% if days == d %}btn-primary{% else %}btn-outline-primary{% endif %}">{{ d }}日</a>
+                        {% endfor %}
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label small mb-1">集計期間</label>
-                        <div class="btn-group btn-group-sm w-100" role="group">
-                            {% for d in allowed_days %}
-                                <a href="?days={{ d }}&sort={{ sort }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}"
-                                   class="btn {% if days == d %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                                    {{ d }}日
-                                </a>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    <div class="col-md-3 text-md-end">
-                        <label class="form-label small mb-1">&nbsp;</label>
-                        <a href="?format=csv&days={{ days }}&sort={{ sort }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}"
-                           class="btn btn-sm btn-outline-success w-100">
-                            <i class="fa-solid fa-file-csv me-1"></i>CSVダウンロード
-                        </a>
-                    </div>
+                    <a href="?format=csv&days={{ days }}&sort={{ sort }}{% if selected_community %}&community={{ selected_community.id }}{% endif %}"
+                       class="btn btn-sm btn-outline-success flex-shrink-0 text-nowrap" aria-label="CSV をダウンロード">
+                        <i class="fa-solid fa-file-csv me-1" aria-hidden="true"></i>CSV
+                    </a>
                 </div>
             </form>
 
-            {# サマリー #}
-            <div class="row g-3 mb-3">
-                <div class="col-md-6">
-                    <div class="card h-100 border-start border-4 border-primary">
+            {# 小さな KPI 帯。注記はフォーカス可能なヘルプアイコンで確認する #}
+            <div class="card mb-3">
+                <div class="card-body py-2 analytics-kpis">
+                    <div class="analytics-kpi">
+                        <div class="text-muted small">閲覧
+                            <span class="analytics-help" tabindex="0" role="img" title="集会ページと発表の閲覧合計（{{ days }}日）。前の同じ日数と比較します。" aria-label="集会ページと発表の閲覧合計（{{ days }}日）。前の同じ日数と比較します。"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
+                        </div>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="fs-4 fw-bold">{{ summary.pv|floatformat:"0g" }}</span>
+                            {% if summary.change_rate is not None %}
+                                <span class="badge {% if summary.change_rate >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                    {% if summary.change_rate > 0 %}+{% endif %}{{ summary.change_rate }}%（前{{ days }}日比）
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="analytics-kpi">
+                        <div class="text-muted small">動画再生
+                            {% if video_is_cumulative %}
+                                <span class="analytics-help" tabindex="0" role="img" title="期間の再生数は日次の記録がそろうまで出せないため、公開からの累計を表示しています。同じ動画は1回だけ計上します。" aria-label="期間の再生数は日次の記録がそろうまで出せないため、公開からの累計を表示しています。同じ動画は1回だけ計上します。"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
+                            {% else %}
+                                <span class="analytics-help" tabindex="0" role="img" title="取得できた動画の期間内再生数を合算。同じ動画は1回だけ計上します。" aria-label="取得できた動画の期間内再生数を合算。同じ動画は1回だけ計上します。"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
+                            {% endif %}
+                        </div>
+                        <div><span class="fs-4 fw-bold">{% if video_views_total is None %}—{% else %}{{ video_views_total|floatformat:"0g" }}{% endif %}</span>{% if video_is_cumulative %}<span class="text-muted small ms-1">累計</span>{% endif %}</div>
+                    </div>
+                    <div class="analytics-kpi">
+                        <div class="text-muted small">集会一覧から
+                            <span class="analytics-help" tabindex="0" role="img" title="集会一覧から詳細ページへ進んだ数とユーザー数（{{ days }}日）。GA4 の反映にはタイムラグがあります。" aria-label="集会一覧から詳細ページへ進んだ数とユーザー数（{{ days }}日）。GA4 の反映にはタイムラグがあります。"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></span>
+                        </div>
+                        <div><span class="fs-4 fw-bold">{{ poster_clicks.total.clicks|floatformat:"0g" }}</span><span class="text-muted small ms-2">{{ poster_clicks.total.users|floatformat:"0g" }} 人</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-lg-8">
+                    {# 集会ページと発表を同じランキングで比較 #}
+                    <div class="card mb-3">
                         <div class="card-body">
-                            <div class="text-muted small">閲覧合計（{{ days }}日）</div>
-                            <div class="fs-3 fw-bold">{{ summary.pv|floatformat:"0g" }}</div>
-                            <div class="small">
-                                {% if summary.change_rate is not None %}
-                                    <span class="{% if summary.change_rate >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                        {% if summary.change_rate > 0 %}+{% endif %}{{ summary.change_rate }}%（前{{ days }}日比）
-                                    </span>
-                                {% else %}
-                                    <span class="text-muted">前期間の閲覧がないため比較できません</span>
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                <h2 class="fs-5 fw-bold mb-0"><i class="fa-solid fa-ranking-star me-2"></i>ページ別ランキング</h2>
+                                <span class="text-muted small ms-auto">
+                                    {% if page_ranking.paginator.count %}{{ page_ranking.start_index }}〜{{ page_ranking.end_index }} / {% endif %}{{ page_ranking.paginator.count }}件
+                                </span>
+                            </div>
+                            <p class="text-muted small mb-3">列名で並べ替え。動画再生の — は動画なし・未取得。</p>
+                            {% if page_ranking %}
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>ページ</th>
+                                                <th class="text-nowrap">公開日</th>
+                                                <th class="text-end text-nowrap" aria-sort="{% if sort == 'pv' %}descending{% else %}none{% endif %}">
+                                                    <a href="?{{ filter_query }}&sort=pv">閲覧{% if sort == 'pv' %} ↓{% endif %}</a>
+                                                </th>
+                                                <th class="text-end text-nowrap" aria-sort="{% if sort == 'video' %}descending{% else %}none{% endif %}">
+                                                    <a href="?{{ filter_query }}&sort=video">動画再生{% if sort == 'video' %} ↓{% endif %}</a>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for row in page_ranking %}
+                                                <tr>
+                                                    <td>
+                                                        <span class="badge bg-light text-dark me-1">{% if row.kind == 'community' %}集会{% else %}発表{% endif %}</span>
+                                                        <a href="{{ row.url }}" class="text-decoration-none">{{ row.title }}</a>
+                                                    </td>
+                                                    <td class="text-muted small text-nowrap">{% if row.published_at %}{{ row.published_at|date:"Y-m-d" }}{% else %}—{% endif %}</td>
+                                                    <td class="text-end fw-bold">{{ row.pv|floatformat:"0g" }}</td>
+                                                    <td class="text-end">{% if row.video_views is None %}—{% else %}{{ row.video_views|floatformat:"0g" }}{% if row.video_is_cumulative %}<span class="text-muted small">（累計）</span>{% endif %}{% endif %}</td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% if page_ranking.has_other_pages %}
+                                    <nav aria-label="ランキングのページ" class="d-flex justify-content-center align-items-center gap-3 mt-3">
+                                        {% if page_ranking.has_previous %}<a href="?{{ filter_query }}&sort={{ sort }}&page={{ page_ranking.previous_page_number }}">前へ</a>{% endif %}
+                                        <span class="small text-muted">{{ page_ranking.number }} / {{ page_ranking.paginator.num_pages }}ページ</span>
+                                        {% if page_ranking.has_next %}<a href="?{{ filter_query }}&sort={{ sort }}&page={{ page_ranking.next_page_number }}">次へ</a>{% endif %}
+                                    </nav>
                                 {% endif %}
-                            </div>
+                            {% else %}
+                                <p class="text-muted small mb-0">対象期間にページのアクセスデータがありません。</p>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <div class="card h-100 border-start border-4 border-success">
+                <div class="col-lg-4">
+                    <div class="card mb-3">
                         <div class="card-body">
-                            <div class="text-muted small">動画再生合計（{% if video_is_cumulative %}累計{% else %}{{ days }}日{% endif %}）</div>
-                            <div class="fs-3 fw-bold">{% if video_views_total is None %}—{% else %}{{ video_views_total|floatformat:"0g" }}{% endif %}</div>
-                            <div class="text-muted small">{% if video_is_cumulative %}期間の再生数は日次の記録がそろうまで出せないため、公開からの累計を表示しています。{% else %}取得できた動画の期間内再生数を合算。{% endif %}同じ動画は1回だけ計上します。</div>
+                            <h2 class="fs-5 fw-bold mb-1"><i class="fa-solid fa-chart-column me-2"></i>週次推移</h2>
+                            <p class="text-muted small mb-3">月曜始まり・前日まで。端の週は期間内のみ。</p>
+                            {% if weekly_series %}
+                                <div class="analytics-chart" style="height: 180px;">
+                                    <canvas id="weekly-chart" aria-label="週別の閲覧数" role="img"></canvas>
+                                </div>
+                                {{ weekly_series|json_script:"weekly-data" }}
+                            {% else %}
+                                <p class="text-muted small mb-0">対象期間に推移のデータがありません。</p>
+                            {% endif %}
                         </div>
                     </div>
-                </div>
-            </div>
 
-            {# 集会ページと発表を同じランキングで比較 #}
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                        <h2 class="fs-5 fw-bold mb-0"><i class="fa-solid fa-ranking-star me-2"></i>ページ別ランキング</h2>
-                        <span class="text-muted small ms-auto">
-                            {% if page_ranking.paginator.count %}{{ page_ranking.start_index }}〜{{ page_ranking.end_index }} / {% endif %}{{ page_ranking.paginator.count }}件
-                        </span>
-                    </div>
-                    <p class="text-muted small mb-3">列名で並べ替え（多い順）。動画再生は期間内の再生数で、日次の記録がそろうまでは公開からの累計（「累計」と表示）を出します。— は動画なしまたは未取得です。</p>
-                    {% if page_ranking %}
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover align-middle mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>ページ</th>
-                                        <th class="text-nowrap">公開日</th>
-                                        <th class="text-end text-nowrap" aria-sort="{% if sort == 'pv' %}descending{% else %}none{% endif %}">
-                                            <a href="?{{ filter_query }}&sort=pv">閲覧{% if sort == 'pv' %} ↓{% endif %}</a>
-                                        </th>
-                                        <th class="text-end text-nowrap" aria-sort="{% if sort == 'video' %}descending{% else %}none{% endif %}">
-                                            <a href="?{{ filter_query }}&sort=video">動画再生{% if sort == 'video' %} ↓{% endif %}</a>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for row in page_ranking %}
-                                        <tr>
-                                            <td>
-                                                <span class="badge bg-light text-dark me-1">{% if row.kind == 'community' %}集会{% else %}発表{% endif %}</span>
-                                                <a href="{{ row.url }}" class="text-decoration-none">{{ row.title }}</a>
-                                            </td>
-                                            <td class="text-muted small text-nowrap">{% if row.published_at %}{{ row.published_at|date:"Y-m-d" }}{% else %}—{% endif %}</td>
-                                            <td class="text-end fw-bold">{{ row.pv|floatformat:"0g" }}</td>
-                                            <td class="text-end">{% if row.video_views is None %}—{% else %}{{ row.video_views|floatformat:"0g" }}{% if row.video_is_cumulative %}<span class="text-muted small">（累計）</span>{% endif %}{% endif %}</td>
-                                        </tr>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h2 class="fs-5 fw-bold mb-3"><i class="fa-solid fa-arrow-right-to-bracket me-2"></i>どこから</h2>
+                            {% if summary.pv %}
+                                <div class="d-flex rounded overflow-hidden mb-2 analytics-source-band" role="img" aria-label="流入元の割合。内訳は下の一覧を参照">
+                                    {% for row in source_categories %}
+                                        {% if row.pv %}<div class="analytics-source-{{ row.category }}" style="flex: {{ row.pv }} 1 0;" title="{{ row.label }} {{ row.percent }}%"></div>{% endif %}
                                     {% endfor %}
-                                </tbody>
-                            </table>
+                                </div>
+                                <ul class="list-unstyled small mb-3 analytics-source-legend">
+                                    {% for row in source_categories %}
+                                        <li class="mb-1"><span class="d-inline-block rounded analytics-source-{{ row.category }} analytics-source-swatch me-1"></span>{{ row.label }} {{ row.percent }}%（{{ row.pv|floatformat:"0g" }}）</li>
+                                    {% endfor %}
+                                </ul>
+                                <details>
+                                    <summary class="small">source / medium の詳細</summary>
+                                    <div class="table-responsive mt-2">
+                                        <table class="table table-sm mb-0">
+                                            <thead class="table-light"><tr><th>source / medium</th><th class="text-end">閲覧</th></tr></thead>
+                                            <tbody>{% for row in source_breakdown %}<tr><td class="small">{{ row.source_medium }}</td><td class="text-end">{{ row.pv|floatformat:"0g" }}</td></tr>{% endfor %}</tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            {% else %}
+                                <p class="text-muted small mb-0">対象期間に流入元のデータがありません。</p>
+                            {% endif %}
                         </div>
-                        {% if page_ranking.has_other_pages %}
-                            <nav aria-label="ランキングのページ" class="d-flex justify-content-center align-items-center gap-3 mt-3">
-                                {% if page_ranking.has_previous %}<a href="?{{ filter_query }}&sort={{ sort }}&page={{ page_ranking.previous_page_number }}">前へ</a>{% endif %}
-                                <span class="small text-muted">{{ page_ranking.number }} / {{ page_ranking.paginator.num_pages }}ページ</span>
-                                {% if page_ranking.has_next %}<a href="?{{ filter_query }}&sort={{ sort }}&page={{ page_ranking.next_page_number }}">次へ</a>{% endif %}
-                            </nav>
-                        {% endif %}
-                    {% else %}
-                        <p class="text-muted small mb-0">対象期間にページのアクセスデータがありません。</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h2 class="fs-5 fw-bold mb-1"><i class="fa-solid fa-chart-column me-2"></i>週次推移</h2>
-                    <p class="text-muted small mb-3">月曜始まり。選択期間の前日までを集計し、最初と最後の週は期間内の日数分のみ表示します。</p>
-                    {% if weekly_series %}
-                        <div style="position: relative; height: 280px;">
-                            <canvas id="weekly-chart" aria-label="週別の閲覧数" role="img"></canvas>
-                        </div>
-                        {{ weekly_series|json_script:"weekly-data" }}
-                    {% else %}
-                        <p class="text-muted small mb-0">対象期間に推移のデータがありません。</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h2 class="fs-5 fw-bold mb-3"><i class="fa-solid fa-arrow-right-to-bracket me-2"></i>どこから</h2>
-                    {% if summary.pv %}
-                        <div class="d-flex rounded overflow-hidden mb-2" style="height: 24px;" role="img" aria-label="流入元の割合。内訳は下の一覧を参照">
-                            {% for row in source_categories %}
-                                {% if row.pv %}<div class="analytics-source-{{ row.category }}" style="flex: {{ row.pv }} 1 0;" title="{{ row.label }} {{ row.percent }}%"></div>{% endif %}
-                            {% endfor %}
-                        </div>
-                        <ul class="list-inline small mb-3">
-                            {% for row in source_categories %}
-                                <li class="list-inline-item me-3"><span class="d-inline-block rounded analytics-source-{{ row.category }} me-1" style="width: 10px; height: 10px;"></span>{{ row.label }} {{ row.percent }}%（{{ row.pv|floatformat:"0g" }}）</li>
-                            {% endfor %}
-                        </ul>
-                        <details>
-                            <summary class="small">source / medium の詳細</summary>
-                            <div class="table-responsive mt-2">
-                                <table class="table table-sm mb-0">
-                                    <thead class="table-light"><tr><th>source / medium</th><th class="text-end">閲覧</th></tr></thead>
-                                    <tbody>{% for row in source_breakdown %}<tr><td class="small">{{ row.source_medium }}</td><td class="text-end">{{ row.pv|floatformat:"0g" }}</td></tr>{% endfor %}</tbody>
-                                </table>
-                            </div>
-                        </details>
-                    {% else %}
-                        <p class="text-muted small mb-0">対象期間に流入元のデータがありません。</p>
-                    {% endif %}
+                    </div>
                 </div>
             </div>
             <style>
+                .analytics-filters, .analytics-community-select { min-width: 0; }
+                .analytics-community-select { flex: 1; }
+                .analytics-kpis { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
+                .analytics-kpi { flex: 1 1 130px; min-width: 0; }
+                .analytics-help { cursor: help; }
+                .analytics-chart { position: relative; }
+                .analytics-source-band { height: 24px; }
+                .analytics-source-swatch { width: 10px; height: 10px; }
                 .analytics-source-search { background-color: #0d6efd; }
                 .analytics-source-sns { background-color: #198754; }
                 .analytics-source-direct { background-color: #fd7e14; }
@@ -192,33 +197,11 @@
                 .analytics-source-other { background-color: #6c757d; }
             </style>
 
-            {% comment %}
-                集会一覧からの遷移数（GA4 カスタムイベント poster_click 由来）。
-                GA4 計測開始直後はデータが少ないので total.clicks が 0 でもセクション自体は表示し、
-                説明文で計測中の旨を伝える。
-            {% endcomment %}
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h2 class="fs-5 fw-bold mb-1">
-                        <i class="fa-solid fa-hand-pointer me-2"></i>集会一覧からの遷移数（{{ days }}日）
-                    </h2>
-                    <p class="text-muted small mb-3">集会一覧ページから、この集会を選んで詳細ページへ進んだ数。GA4 計測開始から反映までタイムラグがあります。</p>
-                    {% with pc=poster_clicks %}
-                        <div class="row g-2 mb-3">
-                            <div class="col-6 col-md-3">
-                                <div class="border-start border-4 border-primary ps-2">
-                                    <div class="text-muted small">合計遷移数</div>
-                                    <div class="fs-4 fw-bold">{{ pc.total.clicks }}</div>
-                                </div>
-                            </div>
-                            <div class="col-6 col-md-3">
-                                <div class="border-start border-4 border-success ps-2">
-                                    <div class="text-muted small">ユニークユーザー</div>
-                                    <div class="fs-4 fw-bold">{{ pc.total.users }}</div>
-                                </div>
-                            </div>
-                        </div>
-                        {% if pc.per_community %}
+            {% if show_poster_communities %}
+                <details id="poster-community-details" class="card mb-3">
+                    <summary class="card-body py-2 small">集会一覧からの遷移数・集会別（上位10件）</summary>
+                    <div class="card-body pt-0">
+                        {% if poster_community_rows %}
                             <div class="table-responsive">
                                 <table class="table table-sm table-hover align-middle mb-0">
                                     <thead class="table-light">
@@ -229,7 +212,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for row in pc.per_community %}
+                                        {% for row in poster_community_rows %}
                                             <tr>
                                                 <td>
                                                     <a href="{% url 'community:detail' row.community_id %}" class="text-decoration-none">
@@ -246,33 +229,31 @@
                         {% else %}
                             <p class="text-muted small mb-0">対象期間に集会一覧からの遷移データがありません。</p>
                         {% endif %}
-                    {% endwith %}
-                </div>
-            </div>
+                    </div>
+                </details>
+            {% endif %}
 
             {# QR コード・配布リンクからのアクセス（UTM utm_campaign 別）#}
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="d-flex flex-wrap align-items-center mb-1 gap-2">
-                        <h2 class="fs-5 fw-bold mb-0">
-                            <i class="fa-solid fa-bullhorn me-2"></i>QR コード・配布リンクからのアクセス（{{ days }}日）
-                        </h2>
-                        <a href="{% url 'analytics:campaign_list' %}" class="btn btn-sm btn-outline-primary ms-auto">
-                            <i class="fa-solid fa-gear me-1"></i>配布リンクを管理
-                        </a>
-                    </div>
-                    <p class="text-muted small mb-3">
-                        チラシなどに載せた QR コードや、配布用に発行したリンクから来たアクセスです。配布リンクを使わずに来たアクセスは含みません。
-                    </p>
-
-                    {% if campaign_daily.datasets %}
-                        <div style="position: relative; height: 280px;" class="mb-3">
-                            <canvas id="campaign-daily-chart" aria-label="配布リンクごとの日別の閲覧数" role="img"></canvas>
+            {% if campaign_breakdown %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <div class="d-flex flex-wrap align-items-center mb-1 gap-2">
+                            <h2 class="fs-5 fw-bold mb-0">
+                                <i class="fa-solid fa-bullhorn me-2"></i>QR コード・配布リンクからのアクセス（{{ days }}日）
+                            </h2>
+                            <a href="{% url 'analytics:campaign_list' %}" class="btn btn-sm btn-outline-primary ms-auto">
+                                <i class="fa-solid fa-gear me-1"></i>配布リンクを管理
+                            </a>
                         </div>
-                        {{ campaign_daily|json_script:"campaign-daily-data" }}
-                    {% endif %}
-
-                    {% if campaign_breakdown %}
+                        <p class="text-muted small mb-3">
+                            チラシなどに載せた QR コードや、配布用に発行したリンクから来たアクセスです。配布リンクを使わずに来たアクセスは含みません。
+                        </p>
+                        {% if campaign_daily.datasets %}
+                            <div class="analytics-chart mb-3" style="height: 200px;">
+                                <canvas id="campaign-daily-chart" aria-label="配布リンクごとの日別の閲覧数" role="img"></canvas>
+                            </div>
+                            {{ campaign_daily|json_script:"campaign-daily-data" }}
+                        {% endif %}
                         <div class="table-responsive">
                             <table class="table table-sm table-hover align-middle mb-0">
                                 <thead class="table-light">
@@ -298,7 +279,7 @@
                                                 {% endif %}
                                             </td>
                                             <td class="text-muted small">
-                                                {% if row.meta %}{{ row.meta.community_name }}{% else %}-{% endif %}
+                                                {{ row.community_name|default:"-" }}
                                             </td>
                                             <td class="text-muted small">
                                                 {% if row.meta.distributed_at %}{{ row.meta.distributed_at|date:"Y-m-d" }}{% else %}-{% endif %}
@@ -311,12 +292,16 @@
                                 </tbody>
                             </table>
                         </div>
-                    {% else %}
-                        <p class="text-muted mb-0">この期間に、QR コード・配布リンクから来たアクセスはありません。</p>
-                        <p class="text-muted small mb-0">配布した翌日から数字が出ます。</p>
-                    {% endif %}
+                    </div>
                 </div>
-            </div>
+            {% else %}
+                <div class="card mb-3">
+                    <div class="card-body py-2 d-flex align-items-center justify-content-between gap-2 small">
+                        <span class="text-muted">配布リンク: この期間のアクセスはありません</span>
+                        <a href="{% url 'analytics:campaign_list' %}" class="flex-shrink-0">配布リンクを管理</a>
+                    </div>
+                </div>
+            {% endif %}
 
             {# サイト全体トラフィック（GLOBAL）: superuser のみ。トップ・集会一覧等の community 未紐付け URL #}
             {% if global_traffic %}
@@ -326,46 +311,42 @@
                             <i class="fa-solid fa-globe me-2"></i>サイト全体トラフィック（superuser 専用）
                         </h2>
                         <p class="text-muted small mb-3">特定の集会・記事に紐付かない URL（トップ・集会一覧・LP 等）の集計。</p>
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-4">
-                                <div class="border-start border-4 border-primary ps-2">
-                                    <div class="text-muted small">合計 PV（{{ days }}日）</div>
-                                    <div class="fs-4 fw-bold">{{ global_traffic.total.pv }}</div>
-                                </div>
+                        <div class="analytics-kpis mb-2">
+                            <div class="analytics-kpi">
+                                <div class="text-muted small">合計 PV（{{ days }}日）</div>
+                                <div class="fs-4 fw-bold">{{ global_traffic.total.pv|floatformat:"0g" }}</div>
                             </div>
-                            <div class="col-md-4">
-                                <div class="border-start border-4 border-success ps-2">
-                                    <div class="text-muted small">ユーザー</div>
-                                    <div class="fs-4 fw-bold">{{ global_traffic.total.users }}</div>
-                                </div>
+                            <div class="analytics-kpi">
+                                <div class="text-muted small">ユーザー</div>
+                                <div class="fs-4 fw-bold">{{ global_traffic.total.users|floatformat:"0g" }}</div>
                             </div>
-                            <div class="col-md-4">
-                                <div class="border-start border-4 border-info ps-2">
-                                    <div class="text-muted small">セッション</div>
-                                    <div class="fs-4 fw-bold">{{ global_traffic.total.sessions }}</div>
-                                </div>
+                            <div class="analytics-kpi">
+                                <div class="text-muted small">セッション</div>
+                                <div class="fs-4 fw-bold">{{ global_traffic.total.sessions|floatformat:"0g" }}</div>
                             </div>
                         </div>
                         {% if global_traffic.top_paths %}
-                            <h3 class="fs-6 fw-bold mb-2">PV 上位 URL</h3>
-                            <div class="table-responsive">
-                                <table class="table table-sm align-middle mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>ページパス</th>
-                                            <th class="text-end">PV</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for row in global_traffic.top_paths %}
+                            <details id="global-top-paths">
+                                <summary class="small">PV 上位 URL</summary>
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead class="table-light">
                                             <tr>
-                                                <td class="small">{{ row.page_path }}</td>
-                                                <td class="text-end">{{ row.pv|floatformat:"0g" }}</td>
+                                                <th>ページパス</th>
+                                                <th class="text-end">PV</th>
                                             </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody>
+                                            {% for row in global_traffic.top_paths %}
+                                                <tr>
+                                                    <td class="small">{{ row.page_path }}</td>
+                                                    <td class="text-end">{{ row.pv|floatformat:"0g" }}</td>
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </details>
                         {% else %}
                             <p class="text-muted small mb-0">対象期間にサイト全体トラフィックのデータがありません。</p>
                         {% endif %}
@@ -401,7 +382,7 @@
                     new Chart(canvas, {
                         type: 'bar',
                         data: {
-                            labels: rows.map(function (row) { return row.week_start + '〜'; }),
+                            labels: rows.map(function (row) { const ymd = row.week_start.split('-'); return Number(ymd[1]) + '/' + Number(ymd[2]) + '〜'; }),
                             datasets: [{ label: '閲覧', backgroundColor: '#0d6efd', data: rows.map(function (row) { return row.pv; }) }],
                         },
                         options: {

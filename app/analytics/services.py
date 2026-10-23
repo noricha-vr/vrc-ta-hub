@@ -607,6 +607,9 @@ def get_global_traffic(*, days=DEFAULT_DAYS) -> dict:
 
 # GA4 が utm_campaign 未指定セッションに付ける標準ラベル。集計時はデフォルト除外する
 CAMPAIGN_NOT_SET = '(not set)'
+# GA4 の (organic) / (direct) 等の既定名はすべて括弧形式。
+# 配布リンクの utm_campaign は SlugField で括弧を含められないため、形式で除外できる。
+GA4_DEFAULT_CAMPAIGN_FILTER = {'campaign__startswith': '(', 'campaign__endswith': ')'}
 # キャンペーン日次グラフのデフォルト表示本数。多すぎると線が重なって読めなくなる
 DEFAULT_CAMPAIGN_TOP_N = 5
 
@@ -619,11 +622,11 @@ def get_campaign_breakdown(
     Args:
         community_ids: アクセス可能な community id（必須の権限境界）。
         days: 遡る日数。
-        exclude_default: True なら GA4 の '(not set)'（utm 無し流入）を除外する。
+        exclude_default: True なら '(not set)' を含む括弧形式の GA4 既定名を除外する。
 
     Returns:
         各要素は {
-            'campaign', 'community_id', 'pv', 'users', 'sessions',
+            'campaign', 'community_id', 'community_name', 'pv', 'users', 'sessions',
             'meta': {'id', 'name', 'community_id', 'community_name', 'distributed_at'} or None,
         }（pv 降順）。meta は Campaign モデルが存在する場合のみ付く。
         異なる集会が同じ utm_campaign を使った場合は community_id ごとに別行で返す
@@ -634,7 +637,7 @@ def get_campaign_breakdown(
 
     queryset = _base_queryset(community_ids, days=days)
     if exclude_default:
-        queryset = queryset.exclude(campaign=CAMPAIGN_NOT_SET)
+        queryset = queryset.exclude(**GA4_DEFAULT_CAMPAIGN_FILTER)
 
     # community_id を group key に含めて、同 utm_campaign を別集会が使ったケースを別行にする
     rows = list(
@@ -660,7 +663,14 @@ def get_campaign_breakdown(
         .filter(community_id__in=community_ids, utm_campaign__in=utm_keys)
     }
 
+    # 未登録の識別子でも、どの集会のページに着地したかで行を見分けられるよう集会名を付ける
+    community_names = dict(
+        Community.objects
+        .filter(pk__in={row['community_id'] for row in rows})
+        .values_list('pk', 'name')
+    )
     for row in rows:
+        row['community_name'] = community_names.get(row['community_id'])
         c = campaign_map.get((row['community_id'], row['campaign']))
         if c is None:
             row['meta'] = None
@@ -686,7 +696,7 @@ def get_campaign_daily_series(
         community_ids: アクセス可能な community id（必須の権限境界）。
         days: 遡る日数。
         top_n: 上位何キャンペーンを返すか。
-        exclude_default: True なら '(not set)' を除外。
+        exclude_default: True なら '(not set)' を含む括弧形式の GA4 既定名を除外。
 
     Returns:
         {
@@ -699,7 +709,7 @@ def get_campaign_daily_series(
 
     queryset = _base_queryset(community_ids, days=days)
     if exclude_default:
-        queryset = queryset.exclude(campaign=CAMPAIGN_NOT_SET)
+        queryset = queryset.exclude(**GA4_DEFAULT_CAMPAIGN_FILTER)
 
     # 上位 N キャンペーン（PV 合計で）を選ぶ
     top_campaigns = list(
