@@ -110,3 +110,23 @@ def get_video_views(event_detail_ids, *, days=30) -> dict:
         detail_id: views_by_video.get(video_id, {'total': None, 'period': None})
         for detail_id, video_id in video_by_detail.items()
     }
+
+
+def summarize_video_views(event_detail_ids, *, days=30):
+    """発表ごとの再生数と、その合計 (views, total, is_cumulative) を返す。
+
+    同じ動画を複数の発表が使っていても合計には 1 回だけ数える。期間の再生数が出せない動画が
+    1 本でもあれば、期間と累計を混ぜないよう全体を累計で合算して is_cumulative=True にする。
+    取得できた動画が無ければ total は None。
+    """
+    views = get_video_views(event_detail_ids, days=days)
+    by_video = {}
+    for detail_id, url in EventDetail.objects.filter(pk__in=views).values_list('pk', 'youtube_url'):
+        row = views[detail_id]
+        if row['total'] is not None:
+            by_video[youtube_video_id(url)] = row
+    if not by_video:
+        return views, None, False
+    if all(row['period'] is not None for row in by_video.values()):
+        return views, sum(row['period'] for row in by_video.values()), False
+    return views, sum(row['total'] for row in by_video.values()), True

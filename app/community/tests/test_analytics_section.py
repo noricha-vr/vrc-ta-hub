@@ -156,6 +156,34 @@ class CommunityDetailAnalyticsTests(TestCase):
         self.assertIn('1,234</strong><span class="small text-muted">（累計）', html)
         self.assertIn('1,234再生（累計）', html)
 
+    def test_shared_video_is_counted_once_in_total(self):
+        self._video(self.detail, 'abcdefghijk', 60)
+        shared = make_event_detail(self.event, status='approved', youtube_url='https://youtu.be/abcdefghijk')
+        self._page(detail=shared, pv=1)
+        self.client.force_login(self.user_a)
+        self.assertEqual(self._response().context['community_analytics']['video_views'], 60)
+
+    def test_mixed_period_and_cumulative_videos_fall_back_to_cumulative_total(self):
+        self._video(self.detail, 'abcdefghijk', 410)
+        newer = make_event_detail(self.event, status='approved', youtube_url='https://youtu.be/lmnopqrstuv')
+        YouTubeVideoStats.objects.create(
+            event_detail=newer, video_id='lmnopqrstuv',
+            date=TODAY - timedelta(days=1), view_count=1234,
+        )
+        self.client.force_login(self.user_a)
+        card_data = self._response().context['community_analytics']
+        # 期間 410 だけを出すと新しい動画が黙って抜けるので、両方の累計（510 + 1,234）にそろえる
+        self.assertEqual(card_data['video_views'], 1744)
+        self.assertTrue(card_data['video_is_cumulative'])
+
+    def test_presenter_who_is_not_manager_has_no_community_analytics(self):
+        presenter = make_user(user_name='presenter', email='presenter@example.com')
+        make_event_detail(self.event, applicant=presenter, status='approved')
+        self.client.force_login(presenter)
+        with patch('community.views.public.summarize_video_views') as videos:
+            self._assert_no_analytics(self._response())
+        videos.assert_not_called()
+
     def test_video_without_any_snapshot_is_not_displayed_as_zero(self):
         self._page(detail=self.detail, pv=3)
         self.detail.youtube_url = 'https://youtu.be/abcdefghijk'
@@ -220,7 +248,7 @@ class CommunityDetailAnalyticsTests(TestCase):
         with patch('community.views.public.analytics_services.get_community_summary') as summary, \
                 patch('community.views.public.analytics_services.get_page_ranking') as ranking, \
                 patch('community.views.public.analytics_services.get_source_categories') as sources, \
-                patch('community.views.public.get_video_views') as videos:
+                patch('community.views.public.summarize_video_views') as videos:
             self._assert_no_analytics(self._response())
             self.client.force_login(self.user_b)
             self._assert_no_analytics(self._response())

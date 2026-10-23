@@ -14,7 +14,7 @@ from django.views.generic import ListView, DetailView
 
 from analytics import services as analytics_services
 from analytics.models import PageAnalytics
-from analytics.video_stats import get_video_views
+from analytics.video_stats import summarize_video_views
 from event.models import Event, EventDetail
 from ta_hub.og import image_url
 from url_filters import get_filtered_url
@@ -260,16 +260,8 @@ class CommunityDetailView(DetailView):
             detail_ids = list(EventDetail.objects.filter(
                 event__community_id__in=community_ids, status='approved', detail_type='LT',
             ).values_list('pk', flat=True))
-            video_views = get_video_views(detail_ids, days=30)
             # 期間の再生数は両端の日次スナップショットがそろうまで出ないので、その間は累計で見せる
-            periods = [
-                row['period'] for row in video_views.values() if row['period'] is not None
-            ]
-            totals = [
-                row['total'] for row in video_views.values() if row['total'] is not None
-            ]
-            video_is_cumulative = not periods and bool(totals)
-            video_total = sum(periods) if periods else (sum(totals) if totals else None)
+            video_views, video_total, video_is_cumulative = summarize_video_views(detail_ids, days=30)
             detail_id_set = set(detail_ids)
             ranking = [
                 row for row in analytics_services.get_page_ranking(community_ids, days=30)
