@@ -131,8 +131,9 @@ def _escape_unknown_html_tags(text: str) -> str:
 
 
 # 記事生成で PDF が無いのに書かれたスライドリンクの行（例: 「[発表スライド（PDF）](なし)」）。
-# 生成プロンプトが PDF の URL の代わりに「なし」を渡していた頃の出力だけを、行全体の一致で狙う
-_INVALID_SLIDE_LINK_LINE = re.compile(r'「?\[発表スライド（PDF）\]\((?:なし)?\)」?\s*')
+# 生成プロンプトが PDF の URL の代わりに「なし」を渡していた頃の出力だけを、行全体の一致で狙う。
+# 行頭の空白は 3 つまで許す（4 つ以上はインデントのコードブロックなので触らない）
+_INVALID_SLIDE_LINK_LINE = re.compile(r' {0,3}「?\[発表スライド（PDF）\]\((?:なし)?\)」?\s*')
 
 
 _CODE_FENCE = re.compile(r' {0,3}(`{3,}|~{3,})(.*)')

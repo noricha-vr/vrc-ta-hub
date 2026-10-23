@@ -905,6 +905,11 @@ class RemoveInvalidSlideLinksTest(TestCase):
         text = "[発表スライド（PDF）](なし)\n想像してみてください。\n\n## 見出し"
         self.assertEqual(remove_invalid_slide_links(text), "想像してみてください。\n\n## 見出し")
 
+    def test_removes_placeholder_link_line_indented_up_to_three_spaces(self):
+        """3 スペースまでのインデントは段落なので消す（旧プロンプトの例示行が 2 スペースだった）."""
+        text = "冒頭\n  「[発表スライド（PDF）](なし)」\n   [発表スライド（PDF）]()\n本文"
+        self.assertEqual(remove_invalid_slide_links(text), "冒頭\n本文")
+
     def test_keeps_other_links_and_code(self):
         text = (
             "詳細は[仕様](guide.html)を参照。\n"
