@@ -216,23 +216,20 @@ class GeminiApiKeyResolutionTest(SimpleTestCase):
     @override_settings(GOOGLE_API_KEY_TEST_FALLBACK="from-settings")
     def test_falls_back_to_settings_when_env_missing(self):
         """環境変数に無ければ settings から取得"""
-        # genai を import 時にモック
-        with patch.dict("sys.modules", {"google.generativeai": MagicMock()}) as patched_modules:
-            mock_genai = patched_modules["google.generativeai"]
-            mock_model = MagicMock()
-            mock_response = MagicMock(text='["2024-04-01"]')
-            mock_model.generate_content.return_value = mock_response
-            mock_genai.GenerativeModel.return_value = mock_model
-
+        with patch("google.genai.Client") as mock_client_type:
+            mock_client = mock_client_type.return_value.__enter__.return_value
+            mock_client.models.generate_content.return_value = MagicMock(text='["2024-04-01"]')
             config = GeminiProviderConfig(
                 api_key_env="GOOGLE_API_KEY_TEST_FALLBACK",
                 model_name="gemini-1.5-flash",
             )
-            service = GeminiEventDateLlmService(config)
-            result = service.generate_event_dates("prompt")
+            result = GeminiEventDateLlmService(config).generate_event_dates("prompt")
 
         self.assertEqual(result, [date(2024, 4, 1)])
-        mock_genai.configure.assert_called_once_with(api_key="from-settings")
+        mock_client_type.assert_called_once_with(
+            api_key="from-settings", http_options={"client_args": {"follow_redirects": False}},
+        )
+        mock_client_type.return_value.__exit__.assert_called_once()
 
     @patch.dict("os.environ", {}, clear=True)
     def test_raises_value_error_when_neither_env_nor_settings_have_key(self):
@@ -245,6 +242,77 @@ class GeminiApiKeyResolutionTest(SimpleTestCase):
         with self.assertRaises(ValueError) as ctx:
             service.generate_event_dates("prompt")
         self.assertIn("GEMINI_API_KEY_NOT_DEFINED_ANYWHERE", str(ctx.exception))
+
+
+class GeminiSdkTransportTest(SimpleTestCase):
+    @patch.dict("os.environ", {"GEMINI_CONTRACT_TEST_KEY": "offline-dummy-key"})
+    def test_new_sdk_serializes_existing_generation_contract(self):
+        """実 SDK の HTTP transport を差し替え、外部通信せず移行前の入出力を保つ。"""
+        import json
+        import httpx
+        from google import genai
+        from google.genai import types
+        from event.llm_service import SYSTEM_PROMPT
+
+        seen = []
+
+        def handle(request):
+            self.assertEqual(request.url.host, "generativelanguage.googleapis.com")
+            self.assertTrue(request.url.path.endswith("/models/gemini-test-model:generateContent"))
+            self.assertEqual(request.headers["x-goog-api-key"], "offline-dummy-key")
+            payload = json.loads(request.content)
+            self.assertEqual(
+                [part["text"] for part in payload["contents"][0]["parts"]],
+                [SYSTEM_PROMPT, "offline prompt"],
+            )
+            self.assertEqual(payload["generationConfig"]["temperature"], 0.3)
+            self.assertEqual(payload["generationConfig"]["maxOutputTokens"], 2000)
+            seen.append(request.url.path)
+            return httpx.Response(200, json={"candidates": [{"content": {
+                "role": "model", "parts": [{"text": '["2027-01-02", "invalid", "2027-01-02"]'}],
+            }}]})
+
+        client = genai.Client(
+            api_key="offline-dummy-key",
+            http_options=types.HttpOptions(client_args={"transport": httpx.MockTransport(handle), "follow_redirects": False}),
+        )
+        config = GeminiProviderConfig(
+            api_key_env="GEMINI_CONTRACT_TEST_KEY",
+            model_name="google/gemini-test-model:free",
+        )
+        with patch("google.genai.Client", return_value=client) as client_type:
+            result = GeminiEventDateLlmService(config).generate_event_dates("offline prompt")
+        client_type.assert_called_once_with(
+            api_key="offline-dummy-key", http_options={"client_args": {"follow_redirects": False}},
+        )
+        self.assertEqual(result, [date(2027, 1, 2)])
+        self.assertEqual(len(seen), 1)
+
+    @patch.dict("os.environ", {"GEMINI_CONTRACT_TEST_KEY": "offline-dummy-key"})
+    def test_redirect_does_not_forward_key_or_prompt(self):
+        """307 でも別ホストや HTTP にキー・本文を転送しない。"""
+        import httpx
+        from google import genai
+        from google.genai import errors, types
+
+        seen = []
+
+        def handle(request):
+            seen.append(str(request.url))
+            return httpx.Response(307, headers={"location": "http://example.invalid/capture"},
+                                  json={"error": {"code": 307, "message": "redirect blocked"}})
+
+        client = genai.Client(
+            api_key="offline-dummy-key",
+            http_options=types.HttpOptions(client_args={
+                "transport": httpx.MockTransport(handle), "follow_redirects": False,
+            }),
+        )
+        config = GeminiProviderConfig(api_key_env="GEMINI_CONTRACT_TEST_KEY", model_name="gemini-test-model")
+        with patch("google.genai.Client", return_value=client), self.assertRaises(errors.APIError):
+            GeminiEventDateLlmService(config).generate_event_dates("offline prompt")
+        self.assertEqual(len(seen), 1)
+        self.assertTrue(seen[0].startswith("https://generativelanguage.googleapis.com/"))
 
 
 class NormalizeGeminiModelNameTest(SimpleTestCase):
