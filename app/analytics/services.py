@@ -7,13 +7,15 @@ object_id だけで絞ると他 community のデータが混入するため、co
 import logging
 from datetime import date, timedelta
 
-from django.db.models import Sum
+from django.db.models import Q, Sum
+from django.urls import reverse
 from django.utils import timezone
 
 from community.models import Community
 from event.models import EventDetail
 
 from .models import Campaign, PageAnalytics, PosterClick
+from .source_category import SOURCE_CATEGORY_LABELS, classify_source
 
 logger = logging.getLogger('analytics')
 
@@ -201,6 +203,166 @@ def _empty_overall_stats() -> dict:
         'pv_prev': 0, 'users_prev': 0, 'sessions_prev': 0,
         'pv_change_pct': None, 'users_change_pct': None, 'sessions_change_pct': None,
     }
+
+
+def get_community_summary(community_ids, *, days=DEFAULT_DAYS) -> dict:
+    """集会ページ・発表記事・キャンペーンの合計 PV と直前同期間比を返す。
+
+    global は含めない。内訳は community_page_pv / article_pv、前期間が0なら
+    change_rate は None。期間は前日までの days 日と、その直前の days 日。
+    """
+    empty = {
+        'pv': 0, 'prev_pv': 0, 'change_rate': None,
+        'community_page_pv': 0, 'article_pv': 0,
+    }
+    if not community_ids:
+        return empty
+
+    content_types = (
+        PageAnalytics.ContentType.COMMUNITY,
+        PageAnalytics.ContentType.EVENT_DETAIL,
+        PageAnalytics.ContentType.CAMPAIGN,
+    )
+    current = (
+        _base_queryset(community_ids, days=days)
+        .filter(content_type__in=content_types)
+        .aggregate(
+            total_pv=Sum('pv'),
+            community_page_pv=Sum('pv', filter=Q(content_type=PageAnalytics.ContentType.COMMUNITY)),
+            article_pv=Sum('pv', filter=Q(content_type=PageAnalytics.ContentType.EVENT_DETAIL)),
+        )
+    )
+    since, _ = _date_range(days)
+    prev_pv = (
+        PageAnalytics.objects.filter(
+            community_id__in=community_ids,
+            content_type__in=content_types,
+            date__gte=since - timedelta(days=days),
+            date__lt=since,
+        )
+        .aggregate(pv=Sum('pv'))['pv'] or 0
+    )
+    pv = current['total_pv'] or 0
+    return {
+        'pv': pv,
+        'prev_pv': prev_pv,
+        'change_rate': round((pv - prev_pv) / prev_pv * 100, 1) if prev_pv else None,
+        'community_page_pv': current['community_page_pv'] or 0,
+        'article_pv': current['article_pv'] or 0,
+    }
+
+
+def get_page_ranking(community_ids, *, days=DEFAULT_DAYS, limit=None) -> list:
+    """集会ページと発表記事を PV 降順・同値は object_id 昇順で返す。
+
+    対象を一括取得し、削除済み・存在しない対象は除いてから limit を適用する。
+    published_at は発表の開催日（集会ページは None）、url は公開ページのパス。
+    """
+    if not community_ids:
+        return []
+
+    aggregates = list(
+        _base_queryset(community_ids, days=days)
+        .filter(content_type__in=(
+            PageAnalytics.ContentType.COMMUNITY,
+            PageAnalytics.ContentType.EVENT_DETAIL,
+        ))
+        .values('content_type', 'object_id', 'community_id')
+        .annotate(pv=Sum('pv'))
+        .order_by('-pv', 'object_id', 'content_type')
+    )
+    if not aggregates:
+        return []
+
+    community_map = Community.objects.filter(pk__in=community_ids).in_bulk(
+        row['object_id'] for row in aggregates
+        if row['content_type'] == PageAnalytics.ContentType.COMMUNITY
+    )
+    detail_map = (
+        EventDetail.objects.filter(event__community_id__in=community_ids)
+        .select_related('event')
+        .in_bulk(
+            row['object_id'] for row in aggregates
+            if row['content_type'] == PageAnalytics.ContentType.EVENT_DETAIL
+        )
+    )
+    results = []
+    for row in aggregates:
+        pk = row['object_id']
+        if row['content_type'] == PageAnalytics.ContentType.COMMUNITY:
+            community = community_map.get(pk)
+            if community is None or community.pk != row['community_id']:
+                continue
+            title = community.name
+            url = reverse('community:detail', kwargs={'pk': pk})
+            published_at = None
+        else:
+            detail = detail_map.get(pk)
+            if detail is None or detail.event.community_id != row['community_id']:
+                continue
+            title = detail.theme or detail.h1 or '(無題)'
+            url = reverse('event:detail', kwargs={'pk': pk})
+            published_at = detail.event.date
+        results.append({
+            'kind': row['content_type'], 'object_id': pk,
+            'title': title, 'url': url, 'published_at': published_at,
+            'community_id': row['community_id'], 'pv': row['pv'] or 0,
+        })
+    return results if limit is None else results[:limit]
+
+
+def get_event_detail_rank(event_detail, *, days=DEFAULT_DAYS) -> dict:
+    """集会の公開済み発表数と期間内 PV 順位を返す（PV 0 は rank=None）。
+
+    削除済み・未承認の発表は母数から除く。PV 同値は object_id 昇順。
+    """
+    community_ids = [event_detail.event.community_id]
+    detail_ids = list(
+        EventDetail.objects.filter(
+            event__community_id__in=community_ids, status='approved',
+        ).values_list('pk', flat=True)
+    )
+    total = len(detail_ids)
+    if event_detail.pk not in detail_ids:
+        return {'rank': None, 'total': total}
+    ranking = list(
+        _base_queryset(
+            community_ids, content_type=PageAnalytics.ContentType.EVENT_DETAIL, days=days,
+        )
+        .filter(object_id__in=detail_ids)
+        .values('object_id')
+        .annotate(pv=Sum('pv'))
+        .filter(pv__gt=0)
+        .order_by('-pv', 'object_id')
+    )
+    rank = next(
+        (index for index, row in enumerate(ranking, 1) if row['object_id'] == event_detail.pk),
+        None,
+    )
+    return {'rank': rank, 'total': total}
+
+
+def get_source_categories(
+    community_ids, *, content_type=None, object_id=None, days=DEFAULT_DAYS,
+) -> list:
+    """流入元を6分類に合算し、PV 降順で整数の割合と日本語ラベルを返す。"""
+    if not community_ids:
+        return []
+
+    categories = {}
+    for row in get_source_breakdown(
+        community_ids, content_type=content_type, object_id=object_id, days=days,
+    ):
+        category = classify_source(row['source_medium'])
+        categories[category] = categories.get(category, 0) + (row['pv'] or 0)
+    total = sum(categories.values())
+    return [
+        {
+            'category': category, 'label': SOURCE_CATEGORY_LABELS[category],
+            'pv': pv, 'percent': round(pv / total * 100) if total else 0,
+        }
+        for category, pv in sorted(categories.items(), key=lambda item: (-item[1], item[0]))
+    ]
 
 
 def get_event_detail_breakdown(
