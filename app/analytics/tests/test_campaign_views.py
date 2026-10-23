@@ -182,6 +182,13 @@ class CampaignViewPermissionTest(TestCase):
         form = CampaignForm()
         self.assertEqual(form.fields['community'].queryset.count(), 0)
 
+    def test_utm_campaign_help_text_uses_distribution_link_wording(self):
+        """画面の呼び名は「配布リンク」にそろえ、旧名称「キャンペーン」を出さない。"""
+        from analytics.forms import CampaignForm
+        help_text = CampaignForm().fields['utm_campaign'].help_text
+        self.assertIn('配布リンク', help_text)
+        self.assertNotIn('キャンペーン', help_text)
+
     def test_anonymous_user_redirected_from_list(self):
         res = self.client.get(reverse('analytics:campaign_list'))
         # LoginRequiredMixin はログインページへリダイレクト

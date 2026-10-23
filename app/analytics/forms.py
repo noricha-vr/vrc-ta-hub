@@ -52,6 +52,11 @@ class CampaignForm(forms.ModelForm):
         for name in ('utm_source', 'utm_medium', 'utm_campaign'):
             if name in self.fields:
                 self.fields[name].strip = False
+        # model の help_text は migration を避けて残し、画面の呼び名だけ「配布リンク」にそろえる
+        if 'utm_campaign' in self.fields:
+            self.fields['utm_campaign'].help_text = (
+                '配布リンクの識別子。例: 20260510-gishohaku（半角英数とハイフン）'
+            )
 
     def clean_landing_path(self):
         """着地パスは '/' で始まる安全なパスに限定する。
