@@ -110,6 +110,26 @@ def get_daily_series(community_ids, *, content_type=None, object_id=None, days=D
     )
 
 
+def get_weekly_series(community_ids, *, days=DEFAULT_DAYS) -> list:
+    """前日までの日次集計を月曜始まりの週別 PV にまとめる。空白週は0で補う。"""
+    if not community_ids:
+        return []
+    daily = get_daily_series(community_ids, days=days)
+    if not daily:
+        return []
+
+    since, until = _date_range(days)
+    week = since - timedelta(days=since.weekday())
+    totals = {}
+    while week <= until:
+        totals[week] = 0
+        week += timedelta(days=7)
+    for row in daily:
+        week = row['date'] - timedelta(days=row['date'].weekday())
+        totals[week] += row['pv'] or 0
+    return [{'week_start': week, 'pv': pv} for week, pv in totals.items()]
+
+
 def get_source_breakdown(community_ids, *, content_type=None, object_id=None, days=DEFAULT_DAYS) -> list:
     """参照元/メディア別の pv 合計を降順で返す。
 
@@ -257,7 +277,7 @@ def get_community_summary(community_ids, *, days=DEFAULT_DAYS) -> dict:
 def get_page_ranking(community_ids, *, days=DEFAULT_DAYS, limit=None) -> list:
     """集会ページと発表記事を PV 降順・同値は object_id 昇順で返す。
 
-    対象を一括取得し、削除済み・存在しない対象は除いてから limit を適用する。
+    対象を一括取得し、削除済み・存在しない・未承認の対象は除いてから limit を適用する。
     published_at は発表の開催日（集会ページは None）、url は公開ページのパス。
     """
     if not community_ids:
@@ -280,8 +300,9 @@ def get_page_ranking(community_ids, *, days=DEFAULT_DAYS, limit=None) -> list:
         row['object_id'] for row in aggregates
         if row['content_type'] == PageAnalytics.ContentType.COMMUNITY
     )
+    # 承認待ち・却下済みの申請ページは主催者や申請者しか開けないので、公開ページの実績に混ぜない
     detail_map = (
-        EventDetail.objects.filter(event__community_id__in=community_ids)
+        EventDetail.objects.filter(event__community_id__in=community_ids, status='approved')
         .select_related('event')
         .in_bulk(
             row['object_id'] for row in aggregates
@@ -393,12 +414,14 @@ def get_event_detail_breakdown(
     if not community_ids:
         return []
 
-    # まず PV 降順で event_detail 単位に集計
+    # まず PV 降順で event_detail 単位に集計。未承認の申請ページは limit の前に外す
     base = _base_queryset(
         community_ids,
         content_type=PageAnalytics.ContentType.EVENT_DETAIL,
         days=days,
-    )
+    ).filter(object_id__in=EventDetail.objects.filter(
+        event__community_id__in=community_ids, status='approved',
+    ).values('pk'))
     aggregates = list(
         base.values('object_id')
         .annotate(pv=Sum('pv'), users=Sum('users'), sessions=Sum('sessions'))
@@ -414,7 +437,7 @@ def get_event_detail_breakdown(
     event_details = (
         EventDetail.objects
         .select_related('event__community')
-        .filter(pk__in=event_detail_ids)
+        .filter(pk__in=event_detail_ids, event__community_id__in=community_ids)
     )
     detail_map = {ed.pk: ed for ed in event_details}
 

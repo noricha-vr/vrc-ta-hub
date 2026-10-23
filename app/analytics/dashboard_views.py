@@ -1,13 +1,9 @@
 """集会主催者向けアクセス解析ダッシュボード。
 
-機能（MVP + Phase 2）:
-- 集会切替（my_list と同じ active_community セッションを共有）
-- 期間切替（7 / 30 / 90 日。デフォルト 30）
-- 集会全体サマリー（PV/UU/セッション + 前期間比較）
-- 記事別アクセス一覧テーブル（PV 順、Phase 2: ソート / CSV エクスポート）
-- 流入元別 PV ランキング
-- 公開後N日積み上げチャート（上位記事の伸びを比較）
-- CSV エクスポート（?format=csv）
+機能:
+- 集会・期間切替、閲覧と動画再生のサマリー
+- 集会ページと発表のランキング、週次推移、流入元分類
+- 記事別 CSV エクスポート（?format=csv）
 
 権限境界:
 - LoginRequiredMixin に加えて accessible_community_ids で community_id を絞る
@@ -15,14 +11,17 @@
 """
 import csv
 import logging
+from urllib.parse import urlencode
 
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.paginator import Paginator
 from django.http import HttpResponse
 from django.views.generic import TemplateView
 
 from community.models import Community
+from event.models import EventDetail
 
-from . import services
+from . import services, video_stats
 
 logger = logging.getLogger('analytics')
 
@@ -47,9 +46,7 @@ def _csv_safe(value) -> str:
 ALLOWED_DAYS = [7, 30, 90]
 # 既定日数は services を単一の真実とし、二重管理による不整合を防ぐ
 DEFAULT_DAYS = services.DEFAULT_DAYS
-# 公開後 N 日積み上げチャートで遡る日数
-POST_PUBLISH_DAYS_AFTER = 14
-POST_PUBLISH_TOP_N = 5
+PAGE_SIZE = 50
 
 
 class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
@@ -84,6 +81,34 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
             return accessible_ids
         return [community_id]
 
+    def _get_sort(self) -> str:
+        value = self.request.GET.get('sort', 'pv')
+        return value if value in ('pv', 'video') else 'pv'
+
+    def _get_video_data(self, target_ids, *, days):
+        """権限内の公開済みの発表だけ取得する。合計の数え方は集会カードと同じ（video_stats.summarize_video_views）。"""
+        detail_ids = list(EventDetail.objects.filter(
+            event__community_id__in=target_ids, status='approved',
+        ).values_list('pk', flat=True)) if target_ids else []
+        return video_stats.summarize_video_views(detail_ids, days=days)
+
+    @staticmethod
+    def _video_sort_key(row):
+        """期間の再生数 → 累計で代替した行 → 不明 の順に分け、同じ範囲どうしだけで比べる。"""
+        if row['video_views'] is None:
+            return (2, 0)
+        return (1 if row['video_is_cumulative'] else 0, -row['video_views'])
+
+    @staticmethod
+    def _row_video_views(views, pk):
+        """(再生数, 累計で代替したか) を返す。"""
+        row = views.get(pk, {})
+        if row.get('period') is not None:
+            return row['period'], False
+        if row.get('total') is not None:
+            return row['total'], True
+        return None, False
+
     def get(self, request, *args, **kwargs):
         # CSV エクスポートはテンプレートを返さず直接 HttpResponse
         if request.GET.get('format') == 'csv':
@@ -96,7 +121,16 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
         target_ids = self._get_target_community_ids(accessible_ids)
         days = self._get_days()
 
-        rows = services.get_event_detail_breakdown(target_ids, days=days)
+        rows = services.get_event_detail_breakdown(target_ids, days=days, limit=None)
+        video_views, _, _ = self._get_video_data(target_ids, days=days)
+        for row in rows:
+            row['video_views'], row['video_is_cumulative'] = self._row_video_views(
+                video_views, row['event_detail_id'],
+            )
+        if self._get_sort() == 'video':
+            rows.sort(key=lambda row: (
+                *self._video_sort_key(row), -row['pv'], row['event_detail_id'],
+            ))
 
         response = HttpResponse(content_type='text/csv; charset=utf-8')
         response['Content-Disposition'] = (
@@ -109,7 +143,7 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
         writer = csv.writer(response)
         writer.writerow([
             'event_detail_id', 'タイトル', '公開日', '集会名',
-            'PV', 'ユーザー数', 'セッション数', '主要流入元',
+            'PV', 'ユーザー数', 'セッション数', '主要流入元', '動画再生数', '動画再生数の範囲',
         ])
         for row in rows:
             writer.writerow([
@@ -121,6 +155,9 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
                 row['users'],
                 row['sessions'],
                 _csv_safe(row['top_source']),
+                row['video_views'] if row['video_views'] is not None else '',
+                ('累計' if row['video_is_cumulative'] else '期間')
+                if row['video_views'] is not None else '',
             ])
         return response
 
@@ -152,17 +189,43 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
             'accessible_communities': accessible_communities,
             'selected_community': selected_community,
             'has_access': bool(accessible_ids),
-            'overall_stats': services.get_overall_stats(target_ids, days=days),
-            'daily_series': services.get_daily_series(target_ids, days=days),
+        })
+        # 権限のないユーザーには解析値そのものを context に入れない。
+        if not accessible_ids:
+            if self.request.user.is_superuser:
+                context['global_traffic'] = services.get_global_traffic(days=days)
+            return context
+
+        sort = self._get_sort()
+        video_views, video_views_total, video_is_cumulative = self._get_video_data(
+            target_ids, days=days,
+        )
+        ranking = services.get_page_ranking(target_ids, days=days)
+        for row in ranking:
+            row['video_views'], row['video_is_cumulative'] = (
+                self._row_video_views(video_views, row['object_id'])
+                if row['kind'] == 'event_detail' else (None, False)
+            )
+        if sort == 'video':
+            ranking.sort(key=lambda row: (
+                *self._video_sort_key(row), -row['pv'], row['object_id'], row['kind'],
+            ))
+        page = Paginator(ranking, PAGE_SIZE).get_page(self.request.GET.get('page'))
+        filters = {'days': days}
+        if selected_community:
+            filters['community'] = selected_community.pk
+        context.update({
+            'sort': sort,
+            'filter_query': urlencode(filters),
+            'page_ranking': page,
+            'summary': services.get_community_summary(target_ids, days=days),
+            'video_views_total': video_views_total,
+            'video_is_cumulative': video_is_cumulative,
+            # 平均視聴時間の取り込み後に、発表 ID → 秒数を設定する。
+            'average_watch_time_by_detail': {},
+            'weekly_series': services.get_weekly_series(target_ids, days=days),
+            'source_categories': services.get_source_categories(target_ids, days=days),
             'source_breakdown': services.get_source_breakdown(target_ids, days=days),
-            'event_detail_breakdown': services.get_event_detail_breakdown(
-                target_ids, days=days,
-            ),
-            'post_publish_chart': services.get_post_publish_series(
-                target_ids,
-                days_after=POST_PUBLISH_DAYS_AFTER,
-                top_n=POST_PUBLISH_TOP_N,
-            ),
             # ポスタークリック集計（権限境界は target_ids ベースで services 側が絞る）
             'poster_clicks': services.get_poster_click_stats(target_ids, days=days),
             # キャンペーン経由アクセス（UTM utm_campaign 別）
