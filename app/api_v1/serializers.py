@@ -216,6 +216,16 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         instance = self.instance or EventDetail()
+        # 撮影の扱いは登壇者の同意なので、作成時だけ受け付ける。更新は発表者・主催者の画面だけで行い、
+        # API キー（録画や bot などの自動処理）からは変えさせない。同じ値の送り直しは通す
+        if (
+            self.instance is not None
+            and 'recording_policy' in attrs
+            and attrs['recording_policy'] != self.instance.recording_policy
+        ):
+            raise serializers.ValidationError({
+                'recording_policy': '撮影の扱いは API では変更できません。発表者・主催者の画面で変更してください。',
+            })
         if 'transcript' in attrs and not youtube_video_id(attrs.get('youtube_url', instance.youtube_url)):
             raise serializers.ValidationError({'transcript': 'YouTube の動画 URL がある発表にだけ字幕を登録できます。'})
         if attrs.get('detail_type', instance.detail_type) == 'LT':

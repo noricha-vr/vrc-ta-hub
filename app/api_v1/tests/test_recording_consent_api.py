@@ -115,13 +115,26 @@ class EventDetailAPIKeyRecordingPolicyTest(TestCase):
         self.detail.refresh_from_db()
         self.assertEqual(self.detail.recording_policy, RecordingPolicy.PUBLIC)
 
-    def test_patch_policy(self):
-        """PATCH で recording_policy だけ変えられる。"""
-        response = self.client.patch(self.detail_url, {'recording_policy': 'forbidden'}, format='json')
+    def test_patch_policy_change_is_400(self):
+        """更新で撮影の扱いを変えようとすると 400 で、保存されない（変えるのは発表者・主催者の画面だけ）。"""
+        response = self.client.patch(
+            self.detail_url, {'recording_policy': 'forbidden', 'theme': '一緒に送ったテーマ'}, format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('recording_policy', response.data)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.recording_policy, RecordingPolicy.PUBLIC)
+        self.assertNotEqual(self.detail.theme, '一緒に送ったテーマ')
+
+    def test_patch_same_policy_is_ok(self):
+        """今と同じ値を送り直すだけなら通す（全項目を送る更新を壊さない）。"""
+        response = self.client.patch(self.detail_url, {'recording_policy': 'public', 'theme': '新テーマ'}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.detail.refresh_from_db()
-        self.assertEqual(self.detail.recording_policy, RecordingPolicy.FORBIDDEN)
+        self.assertEqual(self.detail.recording_policy, RecordingPolicy.PUBLIC)
+        self.assertEqual(self.detail.theme, '新テーマ')
 
     def test_invalid_policy_is_400(self):
         """選択肢にない値は 400 で、保存されない。"""
