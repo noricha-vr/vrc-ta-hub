@@ -144,6 +144,13 @@ class SummaryServicesTest(TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['object_id'], self.detail.pk)
 
+    def test_page_ranking_excludes_unpublished_presentations(self):
+        self._make(kind='event_detail', object_id=self.pending_detail.pk, pv=100)
+        self._make(kind='event_detail', object_id=self.rejected_detail.pk, pv=90)
+        self._make(kind='event_detail', pv=3)
+        rows = services.get_page_ranking(self.ids)
+        self.assertEqual([row['object_id'] for row in rows], [self.detail.pk])
+
     def test_page_ranking_respects_analytics_and_metadata_community_boundaries(self):
         self._make(kind='event_detail', pv=2)
         self._make(community=self.other_community, pv=100)
