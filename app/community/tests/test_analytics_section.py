@@ -4,7 +4,6 @@ from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
-from django.utils import timezone
 
 from analytics.models import PageAnalytics, YouTubeVideoStats
 from tests.factories import (
