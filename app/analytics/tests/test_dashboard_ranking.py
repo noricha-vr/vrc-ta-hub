@@ -260,7 +260,10 @@ class DashboardRankingTest(TestCase):
         self.assertEqual(len(kpis.select('.analytics-kpi')), 3)
         self.assertIsNone(kpis.select_one('.badge'))  # 前期間が空なら比較を出さない
         for help_icon in kpis.select('.analytics-help'):
-            self.assertEqual(help_icon['title'], help_icon['aria-label'])
+            # ホバーできないスマホでもタップで読めるよう、title ではなくポップオーバーで出す
+            self.assertEqual(help_icon['data-bs-toggle'], 'popover')
+            self.assertEqual(help_icon['data-bs-content'], help_icon['aria-label'])
+            self.assertEqual(help_icon['role'], 'button')
             self.assertEqual(help_icon['tabindex'], '0')
             self.assertIsNotNone(help_icon.select_one('.fa-circle-question'))
         self.assertNotIn('同じ動画は1回だけ計上', kpis.get_text())
