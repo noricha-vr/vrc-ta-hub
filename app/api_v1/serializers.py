@@ -289,6 +289,9 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
 
                 # save() は行全体を書くので、撮影の扱いだけは保存の直前に DB の最新値を読み直して使う。
                 # ロックは Vket 側と同じ順（Vket の行 → 発表）で取り、画面からの保存とのデッドロックを避ける
+                # 集会を移す更新では、save() が後でロックするのと同じ移動先の行を先に取る（移動元は取らない）
+                if 'event' in validated_data:
+                    instance.event = validated_data['event']
                 lock_linked_detail(instance)
                 instance.recording_policy = (
                     EventDetail.objects.select_for_update()
