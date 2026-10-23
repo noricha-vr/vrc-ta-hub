@@ -285,7 +285,11 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
         # 字幕だけの更新では save() を呼ばない（post_save が当日の告知キューを作り直し、投稿済みの本文を消すため）
         if validated_data or generate_from_pdf or transcript is None:
             with transaction.atomic():
-                # save() は行全体を書くので、撮影の扱いだけは保存の直前に DB の最新値を読み直して使う
+                from vket.application_link import lock_linked_detail
+
+                # save() は行全体を書くので、撮影の扱いだけは保存の直前に DB の最新値を読み直して使う。
+                # ロックは Vket 側と同じ順（Vket の行 → 発表）で取り、画面からの保存とのデッドロックを避ける
+                lock_linked_detail(instance)
                 instance.recording_policy = (
                     EventDetail.objects.select_for_update()
                     .values_list('recording_policy', flat=True)
