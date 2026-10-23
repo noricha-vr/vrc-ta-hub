@@ -1,10 +1,26 @@
 """テスト用ユーティリティ関数."""
 from django.contrib.auth import get_user_model
 
+from allauth.account.utils import get_next_redirect_url
 from allauth.socialaccount.models import SocialAccount
 from allauth.account.models import EmailAddress
 
 User = get_user_model()
+
+def social_login_state(request):
+    """Discord の認可開始時に allauth が保存する state を request から作る.
+
+    allauth 65.20 で SocialLogin.state_from_request が無くなったため、同じ内容をテスト側で組み立てる。
+    """
+    state = {}
+    next_url = get_next_redirect_url(request)
+    if next_url:
+        state['next'] = next_url
+    state['process'] = request.GET.get('process', 'login')
+    state['scope'] = request.GET.get('scope', '')
+    state['auth_params'] = request.GET.get('auth_params', '')
+    return state
+
 
 TEST_SOCIALACCOUNT_PROVIDERS = {
     'discord': {

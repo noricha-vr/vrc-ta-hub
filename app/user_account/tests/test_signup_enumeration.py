@@ -26,7 +26,7 @@ from tests.factories import make_discord_linked_user, make_user, make_user_witho
 from user_account.adapters import CustomAccountAdapter, CustomSocialAccountAdapter
 from user_account.email_ownership import is_email_in_use
 from user_account.forms import CONFIRM_EMAIL_RATE_LIMIT_ACTION, CustomSocialSignupForm, CustomUserChangeForm
-from user_account.tests.utils import TEST_SOCIALACCOUNT_PROVIDERS, TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS
+from user_account.tests.utils import TEST_SOCIALACCOUNT_PROVIDERS, TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS, social_login_state
 
 User = get_user_model()
 
@@ -383,7 +383,7 @@ class DiscordSignupWithPendingChangeTests(CacheResetMixin, TestCase):
 
     def _start_discord_signup(self):
         with request_context(self.request):
-            self.sociallogin.state = SocialLogin.state_from_request(self.request)
+            self.sociallogin.state = social_login_state(self.request)
             return process_signup(self.request, self.sociallogin)
 
     def _submit_signup_form(self):

@@ -42,7 +42,7 @@ from user_account.email_ownership import (
     sync_email_ownership,
 )
 from user_account.models import EmailOwnership
-from user_account.tests.utils import TEST_SOCIALACCOUNT_PROVIDERS, TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS
+from user_account.tests.utils import TEST_SOCIALACCOUNT_PROVIDERS, TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS, social_login_state
 
 User = get_user_model()
 
@@ -388,7 +388,7 @@ class ConcurrentOwnershipTests(TestCase):
         with request_context(request), patch(
             'allauth.socialaccount.internal.flows.signup.assess_unique_email', side_effect=unique_until_taken,
         ):
-            sociallogin.state = SocialLogin.state_from_request(request)
+            sociallogin.state = social_login_state(request)
             with self.assertLogs('user_account.adapters', level='WARNING'), self.assertRaises(
                 ImmediateHttpResponse,
             ) as raised:

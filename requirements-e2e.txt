@@ -89,7 +89,7 @@ django==5.2.17
     #   djangorestframework
     #   drf-spectacular
     #   sentry-sdk
-django-allauth==65.19.7
+django-allauth==65.20.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
