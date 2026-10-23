@@ -277,7 +277,7 @@ def get_community_summary(community_ids, *, days=DEFAULT_DAYS) -> dict:
 def get_page_ranking(community_ids, *, days=DEFAULT_DAYS, limit=None) -> list:
     """集会ページと発表記事を PV 降順・同値は object_id 昇順で返す。
 
-    対象を一括取得し、削除済み・存在しない対象は除いてから limit を適用する。
+    対象を一括取得し、削除済み・存在しない・未承認の対象は除いてから limit を適用する。
     published_at は発表の開催日（集会ページは None）、url は公開ページのパス。
     """
     if not community_ids:
@@ -300,8 +300,9 @@ def get_page_ranking(community_ids, *, days=DEFAULT_DAYS, limit=None) -> list:
         row['object_id'] for row in aggregates
         if row['content_type'] == PageAnalytics.ContentType.COMMUNITY
     )
+    # 承認待ち・却下済みの申請ページは主催者や申請者しか開けないので、公開ページの実績に混ぜない
     detail_map = (
-        EventDetail.objects.filter(event__community_id__in=community_ids)
+        EventDetail.objects.filter(event__community_id__in=community_ids, status='approved')
         .select_related('event')
         .in_bulk(
             row['object_id'] for row in aggregates
