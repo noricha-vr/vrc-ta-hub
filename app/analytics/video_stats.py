@@ -191,34 +191,30 @@ def get_video_watch_times(event_detail_ids, *, days=30):
         raise ValueError('days must be positive')
     if not event_detail_ids:
         return {}, None
-    video_by_detail = {}
-    community_ids = set()
+    # youtube_url は発表者が編集できるので、他集会の動画 URL を貼って数字を覗けないよう、
+    # 説明欄のリンクで決めた代表の発表が「その発表と同じ集会」に属する行だけを数える。
+    key_by_detail = {}
     for pk, url, community_id in EventDetail.objects.filter(pk__in=event_detail_ids).values_list(
         'pk', 'youtube_url', 'event__community_id',
     ):
         if video_id := youtube_video_id(url):
-            video_by_detail[pk] = video_id
-            community_ids.add(community_id)
-    if not video_by_detail:
+            key_by_detail[pk] = (video_id, community_id)
+    if not key_by_detail:
         return {}, None
+    keys = set(key_by_detail.values())
     today = timezone.localdate()
-    rows = list(
-        YouTubeVideoAnalytics.objects.filter(
-            video_id__in=set(video_by_detail.values()),
-            # youtube_url は発表者が編集できるので、他集会の動画 URL を貼って数字を覗けないよう、
-            # 説明欄のリンクで決めた代表の発表が対象と同じ集会に属する行だけを数える。
-            event_detail__event__community_id__in=community_ids,
-            date__gte=today - timedelta(days=days), date__lt=today,
-        ).values('video_id').annotate(
-            views_total=Sum('views'), minutes_total=Sum('estimated_minutes_watched'),
-        )
-    )
-    by_video = {
-        row['video_id']: row['minutes_total'] * 60 / row['views_total']
-        for row in rows if row['views_total'] > 0
-    }
-    views = sum(row['views_total'] for row in rows)
-    average = sum(row['minutes_total'] for row in rows) * 60 / views if views else None
-    return {
-        pk: by_video[video_id] for pk, video_id in video_by_detail.items() if video_id in by_video
-    }, average
+    totals = {}
+    for row in YouTubeVideoAnalytics.objects.filter(
+        video_id__in={video_id for video_id, _ in keys},
+        event_detail__event__community_id__in={community_id for _, community_id in keys},
+        date__gte=today - timedelta(days=days), date__lt=today,
+    ).values('video_id', 'event_detail__event__community_id').annotate(
+        views_total=Sum('views'), minutes_total=Sum('estimated_minutes_watched'),
+    ):
+        key = (row['video_id'], row['event_detail__event__community_id'])
+        if key in keys:
+            totals[key] = (row['views_total'], row['minutes_total'])
+    by_key = {key: minutes * 60 / views for key, (views, minutes) in totals.items() if views > 0}
+    views = sum(views for views, _ in totals.values())
+    average = sum(minutes for _, minutes in totals.values()) * 60 / views if views else None
+    return {pk: by_key[key] for pk, key in key_by_detail.items() if key in by_key}, average

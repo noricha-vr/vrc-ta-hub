@@ -333,6 +333,19 @@ class VideoWatchTimeTests(AnalyticsDataTestCase):
         self.second.save(update_fields=['youtube_url'])
         self.assertEqual(get_video_watch_times([self.second.pk]), ({}, None))
 
+    def test_each_detail_only_counts_its_own_community_video(self, _today):
+        # 両方の集会を同時に見ても、他集会の動画 URL を貼った発表には数字を出さない。
+        other = make_community(name='同時に見る集会')
+        other_detail = make_event_detail(make_event(other, event_date=TODAY), status='approved',
+                                         youtube_url='https://youtu.be/othervideo2')
+        make_youtube_video_analytics(video_id='othervideo2', date=TARGET, views=10,
+                                     estimated_minutes_watched=22)
+        self.second.youtube_url = 'https://youtu.be/othervideo2'
+        self.second.save(update_fields=['youtube_url'])
+        by_detail, combined = get_video_watch_times([self.second.pk, other_detail.pk])
+        self.assertEqual(by_detail, {other_detail.pk: 132})
+        self.assertEqual(combined, 132)
+
     def test_invalid_and_deleted_details_are_excluded(self, _today):
         make_youtube_video_analytics(date=TARGET, views=1, estimated_minutes_watched=1)
         self.detail.delete()
