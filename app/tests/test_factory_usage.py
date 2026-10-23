@@ -10,11 +10,11 @@ from tests._factory_usage_guard import (
 
 
 EXPECTED_DIRECT_CREATES_BY_MODEL = {
-    'Community': 256,
+    'Community': 254,
     'CustomUser': 119,
-    'Event': 160,
-    'EventDetail': 157,
-    'User': 106,
+    'Event': 159,
+    'EventDetail': 156,
+    'User': 103,
 }
 
 

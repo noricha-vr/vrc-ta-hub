@@ -1,0 +1,40 @@
+{% if can_view_analytics %}
+<section class="card my-4 shadow-sm" id="analytics-detail-card" aria-labelledby="analytics-detail-heading">
+    <div class="card-body p-3 p-sm-4">
+        <h2 class="fs-5 fw-bold mb-3" id="analytics-detail-heading">この発表の反響</h2>
+        {% if analytics_has_data %}
+            <dl class="row gy-2 mb-0">
+                <dt class="col-sm-3 col-lg-2 fw-normal text-muted">記事の閲覧</dt>
+                <dd class="col-sm-9 col-lg-10 mb-0">
+                    <span class="fw-bold">{{ analytics_article_views.total|floatformat:"0g" }}</span>
+                    <span class="text-muted small d-inline-block">（直近30日 {{ analytics_article_views.period|floatformat:"0g" }}）</span>
+                </dd>
+                {% if analytics_video_views %}
+                    <dt class="col-sm-3 col-lg-2 fw-normal text-muted">動画の再生</dt>
+                    <dd class="col-sm-9 col-lg-10 mb-0">
+                        <span class="fw-bold">{{ analytics_video_views.total|floatformat:"0g"|default:"集計待ち" }}</span>
+                        <span class="text-muted small d-inline-block">（直近30日 {{ analytics_video_views.period|floatformat:"0g"|default:"集計待ち" }}）</span>
+                    </dd>
+                {% endif %}
+                {% if analytics_rank.rank %}
+                    <dt class="col-sm-3 col-lg-2 fw-normal text-muted">集会内の順位</dt>
+                    <dd class="col-sm-9 col-lg-10 mb-0">{{ analytics_rank.total|floatformat:"0g" }}本中 {{ analytics_rank.rank|floatformat:"0g" }}位<span class="text-muted small">（直近30日）</span></dd>
+                {% endif %}
+                {% if analytics_sources %}
+                    <dt class="col-sm-3 col-lg-2 fw-normal text-muted">どこから</dt>
+                    <dd class="col-sm-9 col-lg-10 mb-0">
+                        {% for source in analytics_sources %}<span class="d-inline-block">{{ source.label }} {{ source.percent }}%</span>{% if not forloop.last %} / {% endif %}{% endfor %}
+                    </dd>
+                {% endif %}
+            </dl>
+            {% if analytics_dashboard_url %}
+                <div class="text-end mt-3">
+                    <a href="{{ analytics_dashboard_url }}">集会の解析を見る →</a>
+                </div>
+            {% endif %}
+        {% else %}
+            <p class="text-muted mb-0">まだ集計できるアクセスがありません</p>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
