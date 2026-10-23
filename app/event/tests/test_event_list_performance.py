@@ -1,6 +1,6 @@
 """イベント一覧の応答が未来イベントの総数に比例して重くならないことを確認する。"""
 
-from datetime import timedelta, time
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -9,10 +9,9 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
-from community.models import Community
-from event.models import Event, EventDetail
 from event_calendar import calendar_utils
 from event.views.list import EventListView
+from tests.factories import make_community, make_event, make_event_detail
 from utils.vrchat_time import get_vrchat_today
 
 
@@ -20,33 +19,14 @@ class EventListPerformanceTest(TestCase):
     def setUp(self):
         cache.clear()
         self.addCleanup(cache.clear)
-        self.community = Community.objects.create(
-            name="Perf Community",
-            start_time=time(21, 0),
-            duration=60,
-            weekdays=["Mon"],
-            frequency="Every week",
-            organizers="Perf Organizer",
-            status="approved",
-        )
+        self.community = make_community(name="Perf Community")
         today = get_vrchat_today()
         self.events = [
-            Event.objects.create(
-                community=self.community,
-                date=today + timedelta(days=i),
-                start_time=time(21, 0),
-                duration=60,
-                weekday="MON",
-            )
+            make_event(self.community, event_date=today + timedelta(days=i))
             for i in range(EventListView.paginate_by + 15)
         ]
-        EventDetail.objects.create(
-            event=self.events[0],
-            detail_type="LT",
-            status="approved",
-            speaker="Perf Speaker",
-            theme="Perf Theme",
-            start_time=time(21, 0),
+        make_event_detail(
+            self.events[0], status="approved", speaker="Perf Speaker", theme="Perf Theme",
         )
 
     def test_calendar_url_is_built_only_for_displayed_page(self):
@@ -80,13 +60,7 @@ class EventListPerformanceTest(TestCase):
 
         today = get_vrchat_today()
         for i in range(len(self.events), len(self.events) + 60):
-            Event.objects.create(
-                community=self.community,
-                date=today + timedelta(days=i),
-                start_time=time(21, 0),
-                duration=60,
-                weekday="MON",
-            )
+            make_event(self.community, event_date=today + timedelta(days=i))
 
         with CaptureQueriesContext(connection) as after:
             self.client.get(url)
