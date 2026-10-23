@@ -58,18 +58,64 @@ class HeaderCommunityDropdownTest(TestCase):
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, '<li class="dropdown-header small text-muted">集会一覧</li>')
+        self.assertNotContains(response, 'class="dropdown-menu dropdown-menu-end account-menu"')
         self.assertNotContains(response, '個人開発集会')
 
     def test_user_without_communities_does_not_see_community_section(self):
-        """集会未所属ユーザーは集会一覧セクションを見ない"""
+        """集会未所属ユーザーのメニューには集会リンクが出ない"""
         self.client.force_login(self.user_no_community)
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, '<li class="dropdown-header small text-muted">集会一覧</li>')
-        self.assertContains(response, '自分の発表')
-        self.assertContains(response, reverse('event:detail_history') + '?mine=1')
+        self.assertFalse(self._find_my_list_links(response))
+
+    def test_menu_has_no_section_header_or_redundant_links(self):
+        """集会一覧の見出し・自分の発表・集会を追加・アカウント設定の項目はメニューに出さない"""
+        self.client.force_login(self.user)
+        session = self.client.session
+        session['active_community_id'] = self.community1.id
+        session.save()
+
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        menu = self._account_menu_html(response)
+        self.assertNotIn('集会一覧', menu)
+        self.assertNotIn(reverse('event:detail_history') + '?mine=1', menu)
+        self.assertNotIn(reverse('community:create'), menu)
+        self.assertNotIn('bi-gear', menu)
+
+    def test_identity_links_to_account_settings(self):
+        """メニュー上部の表示名とユーザー名はアカウント設定へのリンクになっている"""
+        self.user.display_name = '表示名さん'
+        self.user.save(update_fields=['display_name'])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        menu = self._account_menu_html(response)
+        identity = re.search(
+            r'<a class="account-menu-identity" href="([^"]+)"[^>]*>(.*?)</a>', menu, re.DOTALL
+        )
+        self.assertIsNotNone(identity, 'アカウント設定への identity リンクが見つからない')
+        self.assertEqual(identity.group(1), reverse('account:settings'))
+        self.assertIn('表示名さん', identity.group(2))
+        self.assertIn('テストユーザー', identity.group(2))
+
+    def test_long_community_name_is_not_truncated(self):
+        """集会名は省略せずに全文を表示する"""
+        long_name = 'VRChat 技術学術ハッカソン準備会'
+        self.community2.name = long_name
+        self.community2.save(update_fields=['name'])
+        self.client.force_login(self.user)
+        session = self.client.session
+        session['active_community_id'] = self.community1.id
+        session.save()
+
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertContains(response, long_name)
 
     def test_user_sees_all_communities_in_dropdown(self):
         """ユーザーは所属する全ての集会をドロップダウンで見る"""
@@ -77,19 +123,8 @@ class HeaderCommunityDropdownTest(TestCase):
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '<li class="dropdown-header small text-muted">集会一覧</li>')
         self.assertContains(response, '個人開発集会')
         self.assertContains(response, '技術共有会')
-
-    def test_my_presentations_link_is_not_duplicated_with_active_community(self):
-        """集会所属ユーザーにも自分の発表導線を1件だけ表示する"""
-        self.client.force_login(self.user)
-        response = self.client.get(reverse('ta_hub:index'))
-
-        self.assertEqual(response.status_code, 200)
-        presentations_url = reverse('event:detail_history') + '?mine=1'
-        self.assertContains(response, f'href="{presentations_url}"', count=1)
-        self.assertContains(response, '自分の発表')
 
     def test_active_community_has_checkmark(self):
         """アクティブな集会にはチェックマークが表示される"""
@@ -105,6 +140,16 @@ class HeaderCommunityDropdownTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # チェックマークアイコンが存在することを確認
         self.assertContains(response, 'bi-check-lg')
+
+    def _account_menu_html(self, response):
+        """ヘッダーのアカウントメニュー（ul.account-menu）部分の HTML を返す"""
+        match = re.search(
+            r'<ul class="dropdown-menu dropdown-menu-end account-menu">(.*?)</ul>',
+            response.content.decode(),
+            re.DOTALL,
+        )
+        self.assertIsNotNone(match, 'アカウントメニューが見つからない')
+        return match.group(1)
 
     def _find_my_list_links(self, response):
         """マイイベント一覧への集会指定リンクを (href, 内側HTML) で列挙する"""
@@ -127,7 +172,6 @@ class HeaderCommunityDropdownTest(TestCase):
         self.assertEqual(response.status_code, 200)
         my_list_url = reverse('event:my_list')
         expected_href = f'{my_list_url}?community={self.community1.id}'
-        # テスト用集会名は truncatechars:12 に切られない12文字以内を前提にしている
         self.assertTrue(
             any(
                 expected_href in attrs and self.community1.name in inner
@@ -150,7 +194,6 @@ class HeaderCommunityDropdownTest(TestCase):
         expected_href = '{}?community={}'.format(
             reverse('event:my_list'), self.community1.id
         )
-        # テスト用集会名は truncatechars:12 に切られない12文字以内を前提にしている
         active_links = [
             attrs
             for attrs, inner in self._find_my_list_links(response)
@@ -162,8 +205,8 @@ class HeaderCommunityDropdownTest(TestCase):
         # 部分一致だと "dropdown-item" 等の別語に含まれる 'active' でも通るため class 属性値で照合する
         self.assertIn('class="dropdown-item active"', active_links[0])
 
-    def test_inactive_community_has_circle_icon(self):
-        """非アクティブな集会には丸アイコンが表示される"""
+    def test_inactive_community_has_no_circle_icon(self):
+        """非アクティブな集会には丸アイコンを出さない（選択中だけをチェックで示す）"""
         self.client.force_login(self.user)
 
         # セッションにactive_community_idを設定
@@ -174,8 +217,7 @@ class HeaderCommunityDropdownTest(TestCase):
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        # 丸アイコンが存在することを確認（非アクティブ集会用）
-        self.assertContains(response, 'bi-circle')
+        self.assertNotIn('bi-circle', self._account_menu_html(response))
 
     def test_inactive_community_links_to_my_list_with_community_param(self):
         """非アクティブな集会は集会IDを固定したGETリンクで切り替えられる"""
@@ -192,7 +234,6 @@ class HeaderCommunityDropdownTest(TestCase):
         expected_href = '{}?community={}'.format(
             reverse('event:my_list'), self.community2.id
         )
-        # テスト用集会名は truncatechars:12 に切られない12文字以内を前提にしている
         self.assertTrue(
             any(
                 expected_href in attrs and self.community2.name in inner
@@ -223,23 +264,14 @@ class HeaderCommunityDropdownTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.client.session['active_community_id'], self.community2.id)
 
-    def test_add_community_link_exists(self):
-        """集会を追加リンクが存在する"""
-        self.client.force_login(self.user)
-        response = self.client.get(reverse('ta_hub:index'))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '集会を追加')
-        self.assertContains(response, reverse('community:create'))
-
     def test_account_settings_link_exists(self):
         """アカウント設定リンクが存在する"""
         self.client.force_login(self.user)
         response = self.client.get(reverse('ta_hub:index'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'アカウント設定')
-        self.assertContains(response, reverse('account:settings'))
+        settings_url = reverse('account:settings')
+        self.assertIn(f'href="{settings_url}"', self._account_menu_html(response))
 
     def test_switch_community_redirects_to_my_list(self):
         """集会切り替え後はダッシュボードにリダイレクトする"""

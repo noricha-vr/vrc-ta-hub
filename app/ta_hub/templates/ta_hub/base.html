@@ -155,6 +155,92 @@
             }
         }
 
+        /* ヘッダーのアカウントメニュー。選択中の集会は淡い青地で示し、集会名は省略せず折り返す */
+        .account-menu {
+            width: 264px;
+            padding: 6px 0;
+            border-radius: 10px;
+        }
+
+        .account-menu .dropdown-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            width: calc(100% - 12px);
+            margin: 2px 6px 0;
+            padding: 8px 10px;
+            border-radius: 6px;
+            white-space: normal;
+            line-height: 1.4;
+        }
+
+        .account-menu .dropdown-item.active {
+            background-color: #e7f1ff;
+            color: #0a3d8f;
+            font-weight: 700;
+        }
+
+        .account-menu .account-menu-icon {
+            flex-shrink: 0;
+            width: 16px;
+            color: #0a58ca;
+        }
+
+        .account-menu .dropdown-divider {
+            margin: 6px 0;
+        }
+
+        .account-menu .account-menu-identity {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 0 6px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .account-menu .account-menu-identity:hover,
+        .account-menu .account-menu-identity:focus-visible {
+            background-color: var(--bs-tertiary-bg, #f8f9fa);
+        }
+
+        .account-menu .account-menu-chevron {
+            margin-left: auto;
+            color: #adb5bd;
+        }
+
+        .account-menu .account-menu-avatar {
+            display: flex;
+            flex-shrink: 0;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background-color: #e7f1ff;
+            color: #0a58ca;
+            font-weight: 700;
+        }
+
+        .account-menu .account-menu-names {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .account-menu .account-menu-display-name {
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .account-menu .account-menu-user-name {
+            font-size: 12px;
+            color: #6c757d;
+            overflow-wrap: anywhere;
+        }
+
         .keiko_yellow {
             background: linear-gradient(transparent 50%, #feffd5 30%);
         }
@@ -376,44 +462,44 @@
                     {% if user.is_authenticated %}
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle text-light" href="#" role="button"
-                               data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="bi bi-person-circle"></i>
+                               data-bs-toggle="dropdown" aria-expanded="false" aria-label="アカウントメニュー">
+                                <i class="bi bi-person-circle" aria-hidden="true"></i>
                             </a>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="{% url 'event:detail_history' %}?mine=1">
-                                    <i class="bi bi-person-video3 me-2" aria-hidden="true"></i>自分の発表
-                                </a></li>
+                            <ul class="dropdown-menu dropdown-menu-end account-menu">
+                                <li>
+                                    <a class="account-menu-identity" href="{% url 'account:settings' %}" title="アカウント設定">
+                                        <span class="account-menu-avatar" aria-hidden="true">{{ user.display_label|first }}</span>
+                                        <span class="account-menu-names">
+                                            <span class="account-menu-display-name">{{ user.display_label }}</span><span class="visually-hidden">（アカウント設定）</span>
+                                            {% if user.display_label != user.user_name %}
+                                                <span class="account-menu-user-name">{{ user.user_name }}</span>
+                                            {% endif %}
+                                        </span>
+                                        <i class="bi bi-chevron-right account-menu-chevron" aria-hidden="true"></i>
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
                                 {% if active_community %}
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li class="dropdown-header small text-muted">集会一覧</li>
                                     {% for membership in user_communities %}
                                         {% if not membership.community.is_ended %}
                                             {% if membership.community.id == active_community.id %}
                                                 <li><a class="dropdown-item active" aria-current="true" href="{% url 'event:my_list' %}?community={{ membership.community.id }}">
-                                                    {# .dropdown-item.active は青背景・白文字。text-primary を付けると青地に青で潰れるため継承色を使う #}
-                                                    <i class="bi bi-check-lg me-2" aria-hidden="true"></i>{{ membership.community.name|truncatechars:12 }}
+                                                    <i class="bi bi-check-lg account-menu-icon" aria-hidden="true"></i><span>{{ membership.community.name }}</span>
                                                 </a></li>
                                             {% else %}
                                                 <li><a class="dropdown-item" href="{% url 'event:my_list' %}?community={{ membership.community.id }}">
-                                                    <i class="bi bi-circle me-2 text-muted" aria-hidden="true"></i>{{ membership.community.name|truncatechars:12 }}
+                                                    <span class="account-menu-icon" aria-hidden="true"></span><span>{{ membership.community.name }}</span>
                                                 </a></li>
                                             {% endif %}
                                         {% endif %}
                                     {% endfor %}
                                     <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="{% url 'community:create' %}">
-                                        <i class="bi bi-plus-circle me-2"></i>集会を追加
-                                    </a></li>
-                                    <li><hr class="dropdown-divider"></li>
                                 {% endif %}
-                                <li><a class="dropdown-item" href="{% url 'account:settings' %}">
-                                    <i class="bi bi-gear me-2"></i>アカウント設定
-                                </a></li>
                                 <li>
                                     <form method="post" action="{% url 'account:logout' %}" class="m-0">
                                         {% csrf_token %}
                                         <button type="submit" class="dropdown-item">
-                                            <i class="bi bi-box-arrow-right me-2"></i>ログアウト
+                                            <i class="bi bi-box-arrow-right account-menu-icon text-body" aria-hidden="true"></i>ログアウト
                                         </button>
                                     </form>
                                 </li>
