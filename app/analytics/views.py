@@ -18,6 +18,7 @@ from ta_hub.request_token import is_authorized_request
 from .ga4_client import fetch_page_report, fetch_poster_click_report
 from .models import PageAnalytics, PosterClick
 from .path_resolver import resolve_page_path
+from .video_stats import sync_youtube_stats
 
 logger = logging.getLogger('analytics')
 
@@ -124,12 +125,19 @@ def sync_analytics(request):
                 )
                 saved_poster += 1
 
+    try:
+        saved_youtube = sync_youtube_stats(target_date)
+    except Exception:
+        logger.exception('YouTube statistics sync failed for date=%s', target_date)
+        saved_youtube = 'failed'
+
     logger.info(
         'sync_analytics done: date=%s fetched=%d saved=%d saved_global=%d saved_poster=%d',
         target_date, len(rows), saved, saved_global, saved_poster,
     )
     return HttpResponse(
         f'Analytics synchronized. Date: {target_date}, '
-        f'Fetched: {len(rows)}, Saved: {saved}, Global: {saved_global}, Poster: {saved_poster}',
+        f'Fetched: {len(rows)}, Saved: {saved}, Global: {saved_global}, Poster: {saved_poster}, '
+        f'YouTube: {saved_youtube}',
         status=200,
     )
