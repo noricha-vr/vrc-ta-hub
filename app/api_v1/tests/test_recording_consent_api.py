@@ -1,5 +1,7 @@
 """撮影の同意（recording_allowed / recording_policy）と detail_type の API 公開のテスト。"""
 
+from unittest import mock
+
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -134,6 +136,26 @@ class EventDetailAPIKeyRecordingPolicyTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.detail.refresh_from_db()
         self.assertEqual(self.detail.recording_policy, RecordingPolicy.PUBLIC)
+        self.assertEqual(self.detail.theme, '新テーマ')
+
+    def test_patch_keeps_policy_changed_on_screen_meanwhile(self):
+        """読み込み後に画面で同意が変わっても、API の更新は古い値で書き戻さない。"""
+        from api_v1.serializers import EventDetailWriteSerializer
+
+        original = EventDetailWriteSerializer.validate
+
+        def validate_then_change_on_screen(serializer, attrs):
+            attrs = original(serializer, attrs)
+            EventDetail.objects.filter(pk=self.detail.pk).update(recording_policy=RecordingPolicy.FORBIDDEN)
+            return attrs
+
+        with mock.patch.object(EventDetailWriteSerializer, 'validate', validate_then_change_on_screen):
+            response = self.client.patch(
+                self.detail_url, {'recording_policy': 'public', 'theme': '新テーマ'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.recording_policy, RecordingPolicy.FORBIDDEN)
         self.assertEqual(self.detail.theme, '新テーマ')
 
     def test_invalid_policy_is_400(self):

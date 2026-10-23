@@ -2,6 +2,7 @@
 from urllib.parse import urlparse
 
 from drf_spectacular.utils import extend_schema_serializer
+from django.db import transaction
 from rest_framework import serializers
 
 from community.constants import WEEKDAY_JP, WEEKDAY_ORDER as WEEKDAY_SORT_ORDER
@@ -226,6 +227,9 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'recording_policy': '撮影の扱いは API では変更できません。発表者・主催者の画面で変更してください。',
             })
+        if self.instance is not None:
+            # 同じ値でも保存の対象から外す（読み込みから保存までの間に画面で変えた同意を古い値で戻さない）
+            attrs.pop('recording_policy', None)
         if 'transcript' in attrs and not youtube_video_id(attrs.get('youtube_url', instance.youtube_url)):
             raise serializers.ValidationError({'transcript': 'YouTube の動画 URL がある発表にだけ字幕を登録できます。'})
         if attrs.get('detail_type', instance.detail_type) == 'LT':
@@ -280,7 +284,14 @@ class EventDetailWriteSerializer(serializers.ModelSerializer):
         transcript = validated_data.pop('transcript', None)
         # 字幕だけの更新では save() を呼ばない（post_save が当日の告知キューを作り直し、投稿済みの本文を消すため）
         if validated_data or generate_from_pdf or transcript is None:
-            instance = super().update(instance, validated_data)
+            with transaction.atomic():
+                # save() は行全体を書くので、撮影の扱いだけは保存の直前に DB の最新値を読み直して使う
+                instance.recording_policy = (
+                    EventDetail.objects.select_for_update()
+                    .values_list('recording_policy', flat=True)
+                    .get(pk=instance.pk)
+                )
+                instance = super().update(instance, validated_data)
         self._store_transcript(instance, transcript)
         
         # PDF自動生成が有効で、PDFファイルがある場合
