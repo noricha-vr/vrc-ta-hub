@@ -212,6 +212,9 @@ class GetVideoViewsTest(VideoStatsTestCase):
 @override_settings(REQUEST_TOKEN=TEST_TOKEN, GA4_PROPERTY_ID='123456789')
 class SyncAnalyticsYouTubeTest(VideoStatsTestCase):
     def setUp(self):
+        search_patcher = patch('analytics.views.sync_search_console', return_value=0)
+        search_patcher.start()
+        self.addCleanup(search_patcher.stop)
         for name, value in (
             ('fetch_page_report', []), ('fetch_poster_click_report', []),
         ):

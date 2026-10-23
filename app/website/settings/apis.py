@@ -36,6 +36,7 @@ _settings_logger.info('GEMINI_MODEL: %s', GEMINI_MODEL)
 # GA4 Data API（ページ別アクセス解析）
 # GA4_PROPERTY_ID は Data API 用の数値ID。base.html の measurement ID G-6BN9EHVMRW とは別物
 GA4_PROPERTY_ID = os.environ.get('GA4_PROPERTY_ID', '444114283')
+SEARCH_CONSOLE_SITE_URL = os.environ.get('SEARCH_CONSOLE_SITE_URL', 'sc-domain:vrc-ta-hub.com')
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv(
     'GOOGLE_APPLICATION_CREDENTIALS', '/app/secret/credentials.json'
 )

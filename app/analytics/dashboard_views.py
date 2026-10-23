@@ -232,6 +232,7 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
             'weekly_series': services.get_weekly_series(target_ids, days=days),
             'source_categories': services.get_source_categories(target_ids, days=days),
             'source_breakdown': services.get_source_breakdown(target_ids, days=days),
+            'search_queries': services.get_search_queries(target_ids, days),
             # ポスタークリック集計（権限境界は target_ids ベースで services 側が絞る）
             'poster_clicks': poster_clicks,
             'show_poster_communities': len(target_ids) > 1,

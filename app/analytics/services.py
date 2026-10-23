@@ -14,7 +14,7 @@ from django.utils import timezone
 from community.models import Community
 from event.models import EventDetail
 
-from .models import Campaign, PageAnalytics, PosterClick
+from .models import Campaign, PageAnalytics, PosterClick, SearchConsoleQuery
 from .source_category import SOURCE_CATEGORY_LABELS, classify_source
 
 logger = logging.getLogger('analytics')
@@ -82,6 +82,20 @@ def _base_queryset(community_ids, *, content_type=None, object_id=None, days=DEF
     if object_id is not None:
         queryset = queryset.filter(object_id=object_id)
     return queryset
+
+
+def get_search_queries(community_ids, days, limit=10) -> list:
+    """権限内の集会・発表の検索語を、前日までの表示回数順に返す。"""
+    since, until = _date_range(days)
+    return list(
+        SearchConsoleQuery.objects.filter(
+            community_id__in=community_ids, date__gte=since, date__lte=until,
+        )
+        .exclude(content_type=PageAnalytics.ContentType.GLOBAL)
+        .values('query')
+        .annotate(impressions=Sum('impressions'), clicks=Sum('clicks'))
+        .order_by('-impressions', '-clicks', 'query')[:limit]
+    )
 
 
 def get_daily_series(community_ids, *, content_type=None, object_id=None, days=DEFAULT_DAYS) -> list:

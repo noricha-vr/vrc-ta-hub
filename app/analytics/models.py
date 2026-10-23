@@ -93,6 +93,36 @@ class PageAnalytics(models.Model):
         return f'{self.date} {self.page_path} ({self.source_medium}/{self.campaign})'
 
 
+class SearchConsoleQuery(models.Model):
+    """Google 検索の日別・ページ別の検索語。community を権限判定に使う。"""
+
+    date = models.DateField('日付', db_index=True)
+    page_path = models.CharField('ページパス', max_length=255, db_index=True)
+    query = models.CharField('検索語', max_length=255)
+    clicks = models.PositiveIntegerField('クリック数', default=0)
+    impressions = models.PositiveIntegerField('表示回数', default=0)
+    position = models.FloatField('平均掲載順位', default=0)
+    content_type = models.CharField(
+        'コンテンツ種別', max_length=20, choices=PageAnalytics.ContentType.choices,
+    )
+    community = models.ForeignKey(
+        'community.Community', on_delete=models.CASCADE,
+        related_name='search_console_queries', db_index=True, verbose_name='集会',
+        null=True, blank=True,
+    )
+    object_id = models.PositiveIntegerField('オブジェクトID', default=0)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = '検索キーワード'
+        verbose_name_plural = '検索キーワード'
+        db_table = 'search_console_query'
+        # 一意制約は付けない。MySQL の照合順序は「ハハ」と「パパ」のような別の検索語を同じ値と
+        # みなすことがあり、Google が別々に返した語の保存が一意制約違反で失敗するため。
+        # 同期は日ごとに全行を消してから入れ直すので、重複は同期側で起きない。
+        indexes = [models.Index(fields=['community', 'date']), models.Index(fields=['date'])]
+
+
 class PosterClick(models.Model):
     """集会ポスター画像のクリック数（GA4 カスタムイベント `poster_click` 由来）。
 
