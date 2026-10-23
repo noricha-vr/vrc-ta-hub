@@ -241,7 +241,7 @@ class DashboardRankingTest(TestCase):
         self.assertContains(response, '対象期間に流入元のデータがありません。')
         self.assertNotContains(response, 'ランキングのページ')
         content = response.content.decode()
-        headings = ['閲覧合計', 'ページ別ランキング', '週次推移', 'どこから', '集会一覧からの遷移数', 'キャンペーン経由アクセス']
+        headings = ['閲覧合計', 'ページ別ランキング', '週次推移', 'どこから', '集会一覧からの遷移数', 'QR コード・配布リンクからのアクセス']
         positions = [content.index(heading) for heading in headings]
         self.assertEqual(positions, sorted(positions))
 
