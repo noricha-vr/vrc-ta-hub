@@ -189,6 +189,25 @@ class CampaignViewPermissionTest(TestCase):
         self.assertIn('配布リンク', help_text)
         self.assertNotIn('キャンペーン', help_text)
 
+    def test_duplicate_utm_campaign_error_uses_distribution_link_wording(self):
+        """同じ集会で識別子が重複した時のエラーも「配布リンク」と呼ぶ。"""
+        from analytics.forms import CampaignForm
+        form = CampaignForm(
+            data={
+                'community': self.community_a.pk,
+                'name': '重複',
+                'utm_source': 'flyer',
+                'utm_medium': 'qr',
+                'utm_campaign': 'campaign-a',
+                'landing_path': '/',
+            },
+            user=self.user_a,
+        )
+        self.assertFalse(form.is_valid())
+        errors = ' '.join(form.non_field_errors())
+        self.assertIn('配布リンク', errors)
+        self.assertNotIn('キャンペーン', errors)
+
     def test_anonymous_user_redirected_from_list(self):
         res = self.client.get(reverse('analytics:campaign_list'))
         # LoginRequiredMixin はログインページへリダイレクト

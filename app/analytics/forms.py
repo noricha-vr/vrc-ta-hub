@@ -2,6 +2,7 @@
 import re
 
 from django import forms
+from django.core.exceptions import NON_FIELD_ERRORS
 
 from community.models import Community
 
@@ -36,6 +37,12 @@ class CampaignForm(forms.ModelForm):
             'distributed_at': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'community': forms.Select(attrs={'class': 'form-select'}),
+        }
+        # model の verbose_name（キャンペーン）は migration を避けて残し、重複エラーの文言だけ画面の呼び名にそろえる
+        error_messages = {
+            NON_FIELD_ERRORS: {
+                'unique_together': 'この集会には同じ識別子（utm_campaign）の配布リンクがすでにあります。',
+            },
         }
 
     def __init__(self, *args, user=None, **kwargs):
