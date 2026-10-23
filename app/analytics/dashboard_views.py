@@ -86,9 +86,9 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
         return value if value in ('pv', 'video') else 'pv'
 
     def _get_video_data(self, target_ids, *, days):
-        """権限内の発表だけ取得する。合計の数え方は集会カードと同じ（video_stats.summarize_video_views）。"""
+        """権限内の公開済みの発表だけ取得する。合計の数え方は集会カードと同じ（video_stats.summarize_video_views）。"""
         detail_ids = list(EventDetail.objects.filter(
-            event__community_id__in=target_ids,
+            event__community_id__in=target_ids, status='approved',
         ).values_list('pk', flat=True)) if target_ids else []
         return video_stats.summarize_video_views(detail_ids, days=days)
 

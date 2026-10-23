@@ -97,6 +97,13 @@ class DashboardRankingTest(TestCase):
         self.assertEqual(response.context['video_views_total'], 47)
         self.assertEqual(response.context['page_ranking'].paginator.count, 4)
 
+    def test_summary_excludes_videos_of_unpublished_presentations(self):
+        for status, video_id in (('pending', 'PENDING0001'), ('rejected', 'REJECTED001')):
+            hidden = make_event_detail(self.event, status=status, youtube_url=f'https://youtu.be/{video_id}')
+            self._video(hidden, video_id, 0, 500)
+        response = self.client.get(self.url)
+        self.assertEqual(response.context['video_views_total'], 40)
+
     def test_video_sort_places_available_counts_first_and_unavailable_last(self):
         response = self.client.get(self.url, {'sort': 'video'})
         self.assertEqual([row['video_views'] for row in response.context['page_ranking']], [30, 10, None, None])
