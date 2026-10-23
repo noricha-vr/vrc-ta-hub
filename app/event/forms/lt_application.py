@@ -346,6 +346,16 @@ class LTApplicationReviewForm(forms.Form):
 
         if action == 'approve':
             self._validate_datetime_lock(cleaned_data)
+            if self.event_detail is not None and not self.errors:
+                new_event = cleaned_data['event']
+                if (
+                    new_event.pk != self.event_detail.event_id
+                    and cleaned_data['start_time'] == self.event_detail.start_time
+                    and not is_event_datetime_locked(new_event, self.user)
+                ):
+                    # 開催日だけ変えた時は、移動先の回の空きを保存時に決める。
+                    # 同時承認で枠が重ならないよう、計算はイベントをロックしてから行う。
+                    cleaned_data['start_time'] = None
 
         return cleaned_data
 
