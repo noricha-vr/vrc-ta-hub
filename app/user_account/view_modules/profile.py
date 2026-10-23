@@ -102,11 +102,10 @@ class SettingsView(LoginRequiredMixin, TemplateView):
         ).select_related('community').first()
         context['community'] = membership.community if membership else None
 
-        # アクセス可能な全 community を合算したアクセス解析（superuser は全 community）。
-        # community_ids 指定だけで content_type/object_id は指定しない（全体集計）。
-        community_ids = analytics_services.accessible_community_ids(self.request.user)
-        context['daily_series'] = analytics_services.get_daily_series(community_ids)
-        context['source_breakdown'] = analytics_services.get_source_breakdown(community_ids)
+        # 解析そのものはダッシュボードで見る。設定画面は見られる集会がある時だけ導線を出す
+        context['has_analytics_access'] = bool(
+            analytics_services.accessible_community_ids(self.request.user)
+        )
 
         if context['community'] and not context['community'].is_accepted:
             message = mark_safe(
