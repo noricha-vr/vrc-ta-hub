@@ -241,7 +241,8 @@ class SyncAnalyticsYouTubeTest(VideoStatsTestCase):
                 self.url, {'date': '2026-10-22'}, HTTP_REQUEST_TOKEN=TEST_TOKEN,
             )
 
-        self.assertEqual(response.status_code, 200)
+        # 呼び出し元（Scheduler・管理コマンド）が失敗を検知して再試行できるよう 200 以外で返す
+        self.assertEqual(response.status_code, 502)
         self.assertIn('YouTube: failed', response.content.decode())
         self.assertEqual(PageAnalytics.objects.get().pv, 10)
         self.assertFalse(YouTubeVideoStats.objects.exists())

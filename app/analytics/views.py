@@ -125,11 +125,15 @@ def sync_analytics(request):
                 )
                 saved_poster += 1
 
+    # YouTube は前日分しか取れないため、失敗は 502 で返して Scheduler に同日中の再試行をさせる。
+    # GA4 の保存は update_or_create なので再実行しても重複しない。
+    status = 200
     try:
         saved_youtube = sync_youtube_stats(target_date)
     except Exception:
         logger.exception('YouTube statistics sync failed for date=%s', target_date)
         saved_youtube = 'failed'
+        status = 502
 
     logger.info(
         'sync_analytics done: date=%s fetched=%d saved=%d saved_global=%d saved_poster=%d',
@@ -139,5 +143,5 @@ def sync_analytics(request):
         f'Analytics synchronized. Date: {target_date}, '
         f'Fetched: {len(rows)}, Saved: {saved}, Global: {saved_global}, Poster: {saved_poster}, '
         f'YouTube: {saved_youtube}',
-        status=200,
+        status=status,
     )
