@@ -87,7 +87,7 @@ def _base_queryset(community_ids, *, content_type=None, object_id=None, days=DEF
 
 
 def get_search_queries(community_ids, days, limit=10) -> list:
-    """権限内の集会・発表の検索語を、前日までの表示回数順に返す。"""
+    """権限内の集会・発表の検索語を、前日までのクリック数順（同数は表示回数順）に返す。"""
     since, until = _date_range(days)
     rows = (
         SearchConsoleQuery.objects.filter(
@@ -98,13 +98,20 @@ def get_search_queries(community_ids, days, limit=10) -> list:
         .annotate(exact_query=Collate('query', _binary_collation()))
         .values('exact_query')
         .annotate(impressions=Sum('impressions'), clicks=Sum('clicks'))
-        .order_by('-impressions', '-clicks', 'exact_query')
+        .order_by('-clicks', '-impressions', 'exact_query')
         .values('exact_query', 'impressions', 'clicks')[:limit]
     )
     return [
         {'query': row['exact_query'], 'impressions': row['impressions'], 'clicks': row['clicks']}
         for row in rows
     ]
+
+
+def get_search_queries_since(days):
+    """取り込み済みの最古の日が期間の初日より後なら、その日を返す（期間の途中からしかデータが無い）。"""
+    since, _until = _date_range(days)
+    first = SearchConsoleQuery.objects.order_by('date').values_list('date', flat=True).first()
+    return first if first and first > since else None
 
 
 def _binary_collation() -> str:

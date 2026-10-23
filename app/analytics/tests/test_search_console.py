@@ -1,9 +1,12 @@
 """検索語の日次取得・一括置換・主催者への権限付き表示を検証する。"""
 import logging
 from datetime import date, timedelta
+from io import StringIO
 from unittest.mock import call, patch
 
 from bs4 import BeautifulSoup
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import IntegrityError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
@@ -15,7 +18,7 @@ from analytics.models import PageAnalytics, SearchConsoleQuery
 from analytics.search_console_client import (
     SEARCH_CONSOLE_SCOPES, fetch_search_queries, sync_search_console,
 )
-from analytics.services import get_search_queries
+from analytics.services import get_search_queries, get_search_queries_since
 from tests.factories import (
     make_community, make_discord_linked_user, make_event, make_event_detail,
 )
@@ -142,6 +145,25 @@ class SyncSearchConsoleTests(MockSearchConsoleMixin, TestCase):
         cls.community = make_community()
         cls.event = make_event(cls.community, event_date=TARGET)
         cls.detail = make_event_detail(cls.event)
+
+    def test_backfill_command_fetches_requested_days_until_given_date(self):
+        self.query.return_value.execute.return_value = {'rows': [api_row()]}
+        out = StringIO()
+        call_command('backfill_search_console', '--days', '90', '--date', TARGET.isoformat(), stdout=out)
+        self.assertEqual(self.query.call_count, 90)
+        days = [actual.kwargs['body']['startDate'] for actual in self.query.call_args_list]
+        self.assertEqual((days[0], days[-1]), ((TARGET - timedelta(days=89)).isoformat(), TARGET.isoformat()))
+        self.assertEqual(SearchConsoleQuery.objects.count(), 90)
+        self.assertIn('saved=90', out.getvalue())
+
+    def test_backfill_command_rejects_bad_arguments_and_reports_failure(self):
+        for args in (['--days', '0'], ['--days', '481'], ['--date', '2026/10/22']):
+            with self.assertRaises(CommandError):
+                call_command('backfill_search_console', *args, stdout=StringIO())
+        self.query.return_value.execute.side_effect = RuntimeError(SECRET)
+        with self.assertRaisesMessage(CommandError, 'Search Console sync failed'):
+            call_command('backfill_search_console', '--days', '2', stdout=StringIO())
+        self.assertEqual(SearchConsoleQuery.objects.count(), 0)
 
     def test_fetches_each_of_seven_days_and_resolves_full_urls(self):
         self.query.return_value.execute.return_value = {'rows': [
@@ -312,7 +334,7 @@ class SearchQueriesDisplayTests(TestCase):
         rows = get_search_queries([self.community.pk], 7)
         self.assertEqual(len(rows), 10)
         self.assertEqual([row['query'] for row in rows], [
-            'keyword-00', '初日の語', '同数A', '同数B', 'keyword-11',
+            'keyword-00', '同数A', '同数B', '初日の語', 'keyword-11',
             'keyword-10', 'keyword-09', 'keyword-08', 'keyword-07', 'keyword-06',
         ])
         self.assertEqual(rows[0], {'query': 'keyword-00', 'impressions': 30, 'clicks': 8})
@@ -333,7 +355,7 @@ class SearchQueriesDisplayTests(TestCase):
         self.assertEqual(len(soup.select('.analytics-search-queries > li')), 10)
         html = response.content.decode()
         self.assertLess(html.index('analytics-source-legend'), html.index('検索キーワード'))
-        self.assertLess(html.index('検索キーワード'), html.index('source / medium の詳細'))
+        self.assertLess(html.index('検索キーワード'), html.index('参照元 / メディアの詳細'))
 
     def test_queries_equal_under_db_collation_are_aggregated_separately(self, _today):
         SearchConsoleQuery.objects.bulk_create([
@@ -346,10 +368,28 @@ class SearchQueriesDisplayTests(TestCase):
             {'query': 'ハハ', 'impressions': 10, 'clicks': 1},
         ])
 
+    def test_note_shows_first_date_only_when_data_starts_inside_period(self, _today):
+        SearchConsoleQuery.objects.bulk_create([
+            stored_row(community=self.community, query='語', date=TODAY - timedelta(days=5)),
+        ])
+        self.assertEqual(get_search_queries_since(30), TODAY - timedelta(days=5))
+        self.assertIsNone(get_search_queries_since(3))
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('analytics:dashboard'), {'days': 30})
+        self.assertContains(response, '（2026-10-18 以降）')
+        response = self.client.get(reverse('analytics:dashboard'), {'days': 7})
+        self.assertContains(response, '（2026-10-18 以降）')
+        SearchConsoleQuery.objects.bulk_create([
+            stored_row(community=self.community, query='古い語', date=TODAY - timedelta(days=40)),
+        ])
+        self.assertIsNone(get_search_queries_since(30))
+
     def test_empty_message_and_help_visible_even_without_ga4(self, _today):
         self.client.force_login(self.owner)
         response = self.client.get(reverse('analytics:dashboard'))
-        self.assertContains(response, '検索キーワードはまだありません（回数の少ない語は Google が伏せます）', count=1)
+        self.assertContains(response, '検索キーワードはまだありません', count=1)
+        self.assertContains(response, '回数の少ない語は Google が伏せるため一部だけ')
+        self.assertNotContains(response, '以降）')
         soup = BeautifulSoup(response.content, 'html.parser')
         title = next(tag for tag in soup.find_all('h3') if '検索キーワード' in tag.get_text())
         help_link = title.select_one('a[tabindex="0"][role="button"][data-bs-toggle="popover"][data-bs-trigger="focus"]')
