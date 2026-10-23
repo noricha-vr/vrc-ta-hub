@@ -155,6 +155,9 @@ class AnalyticsDataTestCase(TestCase):
 @override_settings(**OAUTH_SETTINGS)
 class SyncYouTubeAnalyticsTests(AnalyticsDataTestCase):
     def setUp(self):
+        search_patcher = patch('analytics.views.sync_search_console', return_value=0)
+        search_patcher.start()
+        self.addCleanup(search_patcher.stop)
         # 説明欄のリンク取得（Data API）は既定で VIDEO_ID → self.detail を返す。
         patcher = patch('analytics.video_stats.fetch_video_detail_ids')
         self.detail_links = patcher.start()

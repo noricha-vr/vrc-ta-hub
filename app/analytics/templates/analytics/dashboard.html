@@ -165,6 +165,20 @@
                                         <li class="mb-1"><span class="d-inline-block rounded analytics-source-{{ row.category }} analytics-source-swatch me-1"></span>{{ row.label }} {{ row.percent }}%（{{ row.pv|floatformat:"0g" }}）</li>
                                     {% endfor %}
                                 </ul>
+                            {% else %}
+                                <p class="text-muted small mb-3">対象期間に流入元のデータがありません。</p>
+                            {% endif %}
+                            <h3 class="small fw-bold mb-2">検索キーワード
+                                <a class="analytics-help" tabindex="0" role="button" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" data-bs-content="Google 検索で、この集会のページが表示された時の検索語です。2〜3 日遅れて反映されます" aria-label="Google 検索で、この集会のページが表示された時の検索語です。2〜3 日遅れて反映されます"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></a>
+                            </h3>
+                            <ul class="list-unstyled small mb-3 analytics-search-queries">
+                                {% for row in search_queries %}
+                                    <li class="d-flex justify-content-between gap-2 mb-1"><span>{{ row.query }}</span><span class="text-muted text-nowrap">表示 {{ row.impressions|floatformat:"0g" }}・クリック {{ row.clicks|floatformat:"0g" }}</span></li>
+                                {% empty %}
+                                    <li class="text-muted">検索キーワードはまだありません（回数の少ない語は Google が伏せます）</li>
+                                {% endfor %}
+                            </ul>
+                            {% if summary.pv %}
                                 <details>
                                     <summary class="small">source / medium の詳細</summary>
                                     <div class="table-responsive mt-2">
@@ -174,8 +188,6 @@
                                         </table>
                                     </div>
                                 </details>
-                            {% else %}
-                                <p class="text-muted small mb-0">対象期間に流入元のデータがありません。</p>
                             {% endif %}
                         </div>
                     </div>
@@ -186,6 +198,7 @@
                 .analytics-community-select { flex: 1; }
                 .analytics-kpis { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
                 .analytics-kpi { flex: 1 1 130px; min-width: 0; }
+                .analytics-search-queries { overflow-wrap: anywhere; }
                 .analytics-help { cursor: pointer; color: var(--bs-secondary-color); }
                 .analytics-chart { position: relative; }
                 .analytics-source-band { height: 24px; }

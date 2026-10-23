@@ -26,6 +26,9 @@ class GlobalTrafficSyncTest(TestCase):
     """resolve できない URL は GLOBAL レコードとして保存されることを検証。"""
 
     def setUp(self):
+        search_patcher = patch('analytics.views.sync_search_console', return_value=0)
+        search_patcher.start()
+        self.addCleanup(search_patcher.stop)
         self.url = reverse('analytics:sync')
 
     @patch('analytics.views.fetch_poster_click_report', return_value=[])
@@ -93,6 +96,9 @@ class PosterClickSyncTest(TestCase):
     """fetch_poster_click_report 結果が PosterClick に保存されることを検証。"""
 
     def setUp(self):
+        search_patcher = patch('analytics.views.sync_search_console', return_value=0)
+        search_patcher.start()
+        self.addCleanup(search_patcher.stop)
         self.community = _create_community('Poster A')
         self.url = reverse('analytics:sync')
 
