@@ -201,7 +201,13 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
             target_ids, days=days,
         )
         ranking = services.get_page_ranking(target_ids, days=days)
+        average_watch_times, _ = video_stats.get_video_watch_times([
+            row['object_id'] for row in ranking if row['kind'] == 'event_detail'
+        ], days=days)
         for row in ranking:
+            row['average_watch_time'] = (
+                average_watch_times.get(row['object_id']) if row['kind'] == 'event_detail' else None
+            )
             row['video_views'], row['video_is_cumulative'] = (
                 self._row_video_views(video_views, row['object_id'])
                 if row['kind'] == 'event_detail' else (None, False)
@@ -222,11 +228,11 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
             'summary': services.get_community_summary(target_ids, days=days),
             'video_views_total': video_views_total,
             'video_is_cumulative': video_is_cumulative,
-            # 平均視聴時間の取り込み後に、発表 ID → 秒数を設定する。
-            'average_watch_time_by_detail': {},
+            'average_watch_time_by_detail': average_watch_times,
             'weekly_series': services.get_weekly_series(target_ids, days=days),
             'source_categories': services.get_source_categories(target_ids, days=days),
             'source_breakdown': services.get_source_breakdown(target_ids, days=days),
+            'search_queries': services.get_search_queries(target_ids, days),
             # ポスタークリック集計（権限境界は target_ids ベースで services 側が絞る）
             'poster_clicks': poster_clicks,
             'show_poster_communities': len(target_ids) > 1,

@@ -1,3 +1,4 @@
+{% load analytics_filters %}
 {% if can_view_analytics %}
 <section class="card my-4 shadow-sm" id="analytics-detail-card" aria-labelledby="analytics-detail-heading">
     <div class="card-body p-3 p-sm-4">
@@ -15,6 +16,10 @@
                         <span class="fw-bold">{{ analytics_video_views.total|floatformat:"0g"|default:"集計待ち" }}</span>
                         <span class="text-muted small d-inline-block">（直近30日 {{ analytics_video_views.period|floatformat:"0g"|default:"集計待ち" }}）</span>
                     </dd>
+                {% endif %}
+                {% if analytics_average_view_duration is not None %}
+                    <dt class="col-sm-3 col-lg-2 fw-normal text-muted">平均視聴</dt>
+                    <dd class="col-sm-9 col-lg-10 mb-0">{{ analytics_average_view_duration|watch_duration }}<span class="text-muted small">（直近30日）</span></dd>
                 {% endif %}
                 {% if analytics_rank.rank %}
                     <dt class="col-sm-3 col-lg-2 fw-normal text-muted">集会内の順位</dt>

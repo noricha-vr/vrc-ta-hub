@@ -22,6 +22,11 @@ if GOOGLE_CALENDAR_ID.startswith('d80eac'):
 else:
     _settings_logger.info('Production mode: GOOGLE_CALENDAR_ID')
 
+# YouTube Analytics API（同意済みチャンネルの日別視聴実績）
+YOUTUBE_CLIENT_ID = os.environ.get('YOUTUBE_CLIENT_ID', '')
+YOUTUBE_CLIENT_SECRET = os.environ.get('YOUTUBE_CLIENT_SECRET', '')
+YOUTUBE_ANALYTICS_REFRESH_TOKEN = os.environ.get('YOUTUBE_ANALYTICS_REFRESH_TOKEN', '')
+
 # Gemini API
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 assert GEMINI_API_KEY is not None, 'Please set GEMINI_API_KEY'
@@ -31,6 +36,7 @@ _settings_logger.info('GEMINI_MODEL: %s', GEMINI_MODEL)
 # GA4 Data API（ページ別アクセス解析）
 # GA4_PROPERTY_ID は Data API 用の数値ID。base.html の measurement ID G-6BN9EHVMRW とは別物
 GA4_PROPERTY_ID = os.environ.get('GA4_PROPERTY_ID', '444114283')
+SEARCH_CONSOLE_SITE_URL = os.environ.get('SEARCH_CONSOLE_SITE_URL', 'sc-domain:vrc-ta-hub.com')
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv(
     'GOOGLE_APPLICATION_CREDENTIALS', '/app/secret/credentials.json'
 )

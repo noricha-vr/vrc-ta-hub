@@ -290,3 +290,23 @@ def make_event_detail(
         additional_info=additional_info,
         **defaults,
     )
+
+
+def make_youtube_video_analytics(*, video_id='abcdefghijk', date=None, **extra):
+    """動画の日別視聴実績を作成する。"""
+    from django.utils import timezone
+    from analytics.models import YouTubeVideoAnalytics
+
+    if 'event_detail' not in extra and 'event_detail_id' not in extra:
+        # テストの既定として、動画 ID が一致する最初の発表を代表にする（本番は説明欄のリンクで決める）。
+        from event.models import EventDetail
+        from event.youtube_urls import youtube_video_id
+
+        extra['event_detail'] = next((
+            detail for detail in EventDetail.objects.exclude(youtube_url__isnull=True)
+            .exclude(youtube_url='').order_by('pk')
+            if youtube_video_id(detail.youtube_url) == video_id
+        ), None)
+    return YouTubeVideoAnalytics.objects.create(
+        video_id=video_id, date=date or timezone.localdate() - timedelta(days=1), **extra,
+    )

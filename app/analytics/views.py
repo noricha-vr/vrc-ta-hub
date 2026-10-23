@@ -18,7 +18,8 @@ from ta_hub.request_token import is_authorized_request
 from .ga4_client import fetch_page_report, fetch_poster_click_report
 from .models import PageAnalytics, PosterClick
 from .path_resolver import resolve_page_path
-from .video_stats import sync_youtube_stats
+from .search_console_client import sync_search_console
+from .video_stats import sync_youtube_analytics, sync_youtube_stats
 
 logger = logging.getLogger('analytics')
 
@@ -135,6 +136,22 @@ def sync_analytics(request):
         saved_youtube = 'failed'
         status = 502
 
+    try:
+        saved_youtube_analytics = sync_youtube_analytics(target_date)
+    except Exception:
+        # OAuth 由来の例外詳細・トレースバックを記録しない。
+        logger.error('YouTube Analytics sync failed for date=%s', target_date)
+        saved_youtube_analytics = 'failed'
+        status = 502
+
+    try:
+        saved_search_console = sync_search_console(target_date)
+    except Exception:
+        # 検索語・資格情報を含みうる例外の詳細やトレースバックは記録しない。
+        logger.error('Search Console sync failed for date=%s', target_date)
+        saved_search_console = 'failed'
+        status = 502
+
     logger.info(
         'sync_analytics done: date=%s fetched=%d saved=%d saved_global=%d saved_poster=%d',
         target_date, len(rows), saved, saved_global, saved_poster,
@@ -142,6 +159,7 @@ def sync_analytics(request):
     return HttpResponse(
         f'Analytics synchronized. Date: {target_date}, '
         f'Fetched: {len(rows)}, Saved: {saved}, Global: {saved_global}, Poster: {saved_poster}, '
-        f'YouTube: {saved_youtube}',
+        f'YouTube: {saved_youtube}, YouTubeAnalytics: {saved_youtube_analytics}, '
+        f'SearchConsole: {saved_search_console}',
         status=status,
     )

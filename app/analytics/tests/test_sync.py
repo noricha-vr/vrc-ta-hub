@@ -27,6 +27,9 @@ class SyncAnalyticsViewTest(TestCase):
         )
 
     def setUp(self):
+        search_patcher = patch('analytics.views.sync_search_console', return_value=0)
+        search_patcher.start()
+        self.addCleanup(search_patcher.stop)
         self.url = reverse('analytics:sync')
         self.community_path = f'/community/{self.community.pk}/'
         # poster_click 取得は本テスト範囲外。実 GA4 への gRPC 接続を避けるため mock
