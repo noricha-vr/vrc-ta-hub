@@ -31,6 +31,7 @@ from event.services.content_sanitizer import remove_invalid_slide_links
 from event.services.media_service import ensure_pdf_thumbnail
 from event.services.pdf_worker import PdfWorkerError
 from event.models import Event, EventDetail
+from tests.factories import make_community, make_event, make_event_detail
 from tests.live_smoke import require_live_smoke
 
 logger = logging.getLogger(__name__)
@@ -830,8 +831,8 @@ class SlideLinkTest(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.community = Community.objects.create(name="リンク集会")
-        cls.event = Event.objects.create(date=date(2024, 5, 24), community=cls.community)
+        cls.community = make_community(name="リンク集会")
+        cls.event = make_event(cls.community, event_date=date(2024, 5, 24))
 
     def _patch_openrouter(self, text):
         mock_client = MagicMock()
@@ -852,8 +853,8 @@ class SlideLinkTest(TestCase):
         """動画だけの記事では、リンクを書かせず、書かれても消す."""
         mock_client = self._patch_openrouter("## まとめ\n\n楽しかったです。\n\n「[発表スライド（PDF）](なし)」\n")
         mock_openai_class.return_value = mock_client
-        detail = EventDetail.objects.create(
-            theme="テーマ", speaker="のりちゃん", event=self.event,
+        detail = make_event_detail(
+            self.event, theme="テーマ", speaker="のりちゃん",
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M", status="pending",
         )
 
@@ -873,8 +874,8 @@ class SlideLinkTest(TestCase):
         text = f"## まとめ\n\n楽しかったです。\n\n[発表スライド（PDF）]({slide_url})\n\n[一覧](/event/list/)"
         mock_client = self._patch_openrouter(text)
         mock_openai_class.return_value = mock_client
-        detail = EventDetail.objects.create(
-            theme="テーマ", speaker="のりちゃん", event=self.event,
+        detail = make_event_detail(
+            self.event, theme="テーマ", speaker="のりちゃん",
             youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M", slide_url=slide_url, status="pending",
         )
 
@@ -885,8 +886,8 @@ class SlideLinkTest(TestCase):
 
     def test_detail_page_hides_slide_link_left_in_old_article(self):
         """修正前に生成された記事の、行き先の無いスライドリンクは詳細ページに出さない."""
-        detail = EventDetail.objects.create(
-            theme="テーマ", speaker="のりちゃん", event=self.event, status="approved",
+        detail = make_event_detail(
+            self.event, theme="テーマ", speaker="のりちゃん", status="approved",
             contents="## まとめ\n\n楽しかったです。\n\n「[発表スライド（PDF）](なし)」",
         )
 
