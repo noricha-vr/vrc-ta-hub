@@ -8,8 +8,7 @@ from django.utils import timezone
 
 from analytics import services
 from analytics.models import PageAnalytics
-from community.models import Community
-from event.models import Event, EventDetail
+from tests.factories import make_community, make_event, make_event_detail
 
 TODAY = date(2026, 10, 23)
 
@@ -17,22 +16,18 @@ TODAY = date(2026, 10, 23)
 class SummaryServicesTest(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.community = Community.objects.create(
-            name='集会A', frequency='毎週', organizers='主催A', status='approved',
-        )
-        cls.other_community = Community.objects.create(
-            name='集会B', frequency='毎週', organizers='主催B', status='approved',
-        )
-        cls.event = Event.objects.create(community=cls.community, date=TODAY - timedelta(days=10))
-        cls.other_event = Event.objects.create(community=cls.other_community, date=cls.event.date)
-        cls.detail = EventDetail.objects.create(event=cls.event, theme='発表A')
-        cls.second_detail = EventDetail.objects.create(event=cls.event, theme='発表B')
-        cls.zero_detail = EventDetail.objects.create(event=cls.event, theme='閲覧なし')
-        cls.other_detail = EventDetail.objects.create(event=cls.other_event, theme='別集会の発表')
-        cls.pending_detail = EventDetail.objects.create(event=cls.event, status='pending')
-        cls.rejected_detail = EventDetail.objects.create(event=cls.event, status='rejected')
-        cls.deleted_detail = EventDetail.objects.create(event=cls.event, deleted_at=timezone.now())
-        cls.blog_detail = EventDetail.objects.create(event=cls.event, theme='ブログ', detail_type='BLOG')
+        cls.community = make_community(name='集会A', frequency='毎週', organizers='主催A')
+        cls.other_community = make_community(name='集会B', frequency='毎週', organizers='主催B')
+        cls.event = make_event(cls.community, event_date=TODAY - timedelta(days=10))
+        cls.other_event = make_event(cls.other_community, event_date=cls.event.date)
+        cls.detail = make_event_detail(cls.event, theme='発表A', status='approved')
+        cls.second_detail = make_event_detail(cls.event, theme='発表B', status='approved')
+        cls.zero_detail = make_event_detail(cls.event, theme='閲覧なし', status='approved')
+        cls.other_detail = make_event_detail(cls.other_event, theme='別集会の発表', status='approved')
+        cls.pending_detail = make_event_detail(cls.event, status='pending')
+        cls.rejected_detail = make_event_detail(cls.event, status='rejected')
+        cls.deleted_detail = make_event_detail(cls.event, deleted_at=timezone.now(), status='approved')
+        cls.blog_detail = make_event_detail(cls.event, theme='ブログ', detail_type='BLOG', status='approved')
 
     def setUp(self):
         patcher = patch('analytics.services.timezone.localdate', return_value=TODAY)
