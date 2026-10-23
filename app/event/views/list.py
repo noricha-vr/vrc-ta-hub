@@ -9,7 +9,7 @@ from django.views.generic import ListView, RedirectView
 
 from event.forms import EventSearchForm
 from event.models import Event, EventDetail
-from event_calendar.calendar_utils import generate_google_calendar_url
+from event_calendar.calendar_utils import build_google_calendar_url
 from url_filters import get_filtered_url
 from utils.vrchat_time import get_vrchat_today
 from website.constants import CACHE_TTL_HOUR
@@ -83,14 +83,16 @@ class EventListView(ListView):
                 for tag in tags:
                     queryset = queryset.filter(community__tags__contains=[tag])
 
-        # 各イベントにGoogleカレンダー追加用URLを設定
-        for event in queryset:
-            event.google_calendar_url = generate_google_calendar_url(self.request, event)
-
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+
+        # Googleカレンダー追加用URLは表示するページの分だけ付ける。
+        # 未来の全イベントに付けると、件数分の評価とキャッシュ往復で応答が数秒かかる
+        for event in context['object_list']:
+            event.google_calendar_url = build_google_calendar_url(self.request, event)
+
         context['form'] = EventSearchForm(self.request.GET or None)
         context['selected_weekdays'] = self.request.GET.getlist('weekday')
         context['selected_tags'] = self.request.GET.getlist('tags')

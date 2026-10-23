@@ -421,7 +421,7 @@
                                         <div class="row g-0">
                                             <div class="col-md-4">
                                                 {% if event_group.grouper.community.poster_image %}
-                                                    <img src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
+                                                    <img {% if not forloop.first %}loading="lazy" {% endif %}decoding="async" src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
                                                          class="img-fluid h-100 w-100"
                                                          alt="{{ event_group.grouper.community.name }}のポスター"
                                                          style="object-fit: cover;">
@@ -573,7 +573,7 @@
                                 <div class="row g-0">
                                     <div class="col-md-4">
                                         {% if event_group.grouper.community.poster_image %}
-                                            <img src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
+                                            <img {% if not forloop.first %}loading="lazy" {% endif %}decoding="async" src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
                                                  class="img-fluid h-100 w-100"
                                                  alt="{{ event_group.grouper.community.name }}のポスター"
                                                  style="object-fit: cover;">
@@ -673,7 +673,7 @@
                                         <div class="row g-0">
                                             <div class="col-md-4">
                                                 {% if event_group.grouper.community.poster_image %}
-                                                    <img src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
+                                                    <img loading="lazy" decoding="async" src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
                                                          class="img-fluid h-100 w-100"
                                                          alt="{{ event_group.grouper.community.name }}のポスター"
                                                          style="object-fit: cover;">
@@ -840,7 +840,7 @@
                                         <div class="col-4">
                                             <div class="event-image-container">
                                                 {% if event.community.poster_image %}
-                                                    <img src="{{ event.community.poster_image.url|cf_resize:'400' }}"
+                                                    <img loading="lazy" decoding="async" src="{{ event.community.poster_image.url|cf_resize:'400' }}"
                                                          class="img-fluid"
                                                          alt="{{ event.community.name }}のポスター">
                                                 {% else %}
@@ -1030,7 +1030,7 @@
                                 <div class="card shadow h-100 vket-achievement-card">
                                     {% if achievement.image %}
                                         <div class="card-img-top-container">
-                                            <img src="{{ achievement.image }}"
+                                            <img loading="lazy" decoding="async" src="{{ achievement.image }}"
                                                  class="card-img-top"
                                                  alt="{{ achievement.title }}"
                                                  style="height: 320px; object-fit: cover;">
