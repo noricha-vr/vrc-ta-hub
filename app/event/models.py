@@ -93,11 +93,16 @@ ARTICLE_CONTROL_FIELDS = (
     'article_source_slide_name',
     'article_body_hash',
     'article_published_notified_at',
+    'video_article_announced_id',
 )
 # 記事の列。フル保存では、読み込んだ時から変えていなければ書かない（その間にキューが作った記事を戻さない）
 ARTICLE_BODY_FIELDS = ('h1', 'contents', 'meta_description')
 # 却下された発表の申請状態。記事の自動生成と、記事の公開の通知の対象外
 REJECTED_STATUS = 'rejected'
+# 動画と記事の公開を集会へ告知する発表の種別（LT と特別回。twitter の PRESENTATION_DETAIL_TYPES と同じ）
+VIDEO_ARTICLE_DETAIL_TYPES = ('LT', 'SPECIAL')
+# 動画と記事の告知は開催日からこの日数以内の発表だけ（告知の列を足す前に公開した昔の動画を流さないため）
+VIDEO_ARTICLE_RECENT_DAYS = 30
 
 
 def article_generation_request_values(now: Optional[datetime] = None) -> dict:
@@ -113,6 +118,7 @@ def article_generation_request_values(now: Optional[datetime] = None) -> dict:
 PREVIOUS_VALUE_FIELDS = (
     'status', 'slide_url', 'youtube_url', 'slide_file', 'speaker', 'theme', 'start_time',
     'detail_type', 'event_id', 'event__date', 'event__community_id', 'article_consent', 'h1', 'contents',
+    'article_source_video_id', 'deleted_at',
 )
 _PREVIOUS_VALUES_NOT_LOADED = object()
 
@@ -558,6 +564,10 @@ class EventDetail(models.Model):
     )
     # 自動生成した記事を発表者に知らせた日時。知らせるのは最初の 1 回だけ（作り直しでは送らない）
     article_published_notified_at = models.DateTimeField('記事の公開を知らせた日時', null=True, blank=True)
+    # 動画と記事の公開を集会へ告知した動画 ID。同じ動画は 1 回だけ告知する（作り直し・付け直しでは送らない）
+    video_article_announced_id = models.CharField(
+        '動画と記事を告知した動画 ID', max_length=32, blank=True, default='', db_default='',
+    )
 
     # soft delete 用マネージャ。`objects` は既存挙動互換（生存のみ）、
     # `all_objects` は削除済みを含む全件。Django は宣言順の最初の Manager を
@@ -804,6 +814,24 @@ class EventDetail(models.Model):
             models.Q(article_consent=cls.ArticleConsent.OK, deleted_at__isnull=True)
             & ~models.Q(status=REJECTED_STATUS)
         )
+
+    def video_article_ready(self) -> bool:
+        """動画と記事の公開を集会へ告知してよい状態か。
+
+        開催日から VIDEO_ARTICLE_RECENT_DAYS 日以内の承認済みの LT・特別回で、記事化してよく（行を読み直して判定）、動画と空でない記事があり、
+        記事が今の動画から作ったものか手動の記事の時に真。真なら既存の記事公開の Discord は送らない。
+        """
+        video_id = self.video_id
+        if self.status != 'approved' or self.detail_type not in VIDEO_ARTICLE_DETAIL_TYPES or not video_id:
+            return False
+        if self.event.date < timezone.localdate() - timedelta(days=VIDEO_ARTICLE_RECENT_DAYS):
+            return False
+        state = self.article_state()
+        if state == self.ArticleState.NONE:
+            return False
+        if self.article_source_video_id != video_id and state != self.ArticleState.MANUAL:
+            return False
+        return EventDetail.all_objects.filter(self.article_notifiable_q(), pk=self.pk).exists()
 
     def article_state(self) -> str:
         """今の記事が未生成・自動生成のまま・手動で作成/編集済みのどれかを返す。

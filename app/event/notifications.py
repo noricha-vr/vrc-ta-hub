@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.utils.timezone import localtime
 
 from event.models import EventDetail
+from event.youtube_urls import youtube_video_id
 from website.constants import build_site_url
 from website.discord_webhook import (
     get_webhook_error_context,
@@ -229,7 +230,9 @@ def notify_applicant_of_article_published(event_detail: EventDetail, recipient) 
 
     メールには確認・修正用の編集ページへのリンクを入れる。承認前の発表は記事がまだ公開されないため、
     メールの文面を「作成しました」に変え、集会の Discord には流さない。
-    メールを送れなかった時は Discord にも流さない（送り直した時に 2 回流れないように）。
+    メールを送れなかった時は既存の記事公開 Discord にも流さない（送り直した時の重複を防ぐ）。
+    動画と記事の告知を送る状態（``article_discord_replaced_by_video_notice``）の時は、
+    告知が記事の公開を兼ねるため、ここではメールだけ送る。
 
     Args:
         event_detail: 記事を作った発表
@@ -248,7 +251,7 @@ def notify_applicant_of_article_published(event_detail: EventDetail, recipient) 
     sent = _send_article_published_email(event_detail, recipient, edit_url, article_url, is_published)
     if sent and is_published:
         published_detail = get_published_article_for_notification(event_detail.pk)
-        if published_detail is not None:
+        if published_detail is not None and not article_discord_replaced_by_video_notice(published_detail):
             send_discord_notification_for_article(published_detail, edit_url, article_url)
     return sent
 
@@ -340,6 +343,129 @@ def send_discord_notification_for_article(
             event_detail.pk,
             error_type,
             status_code,
+        )
+        return False
+
+
+def notify_video_article_published(event_detail: EventDetail) -> bool:
+    """動画と記事の公開を集会へ告知する。送信失敗だけ False、送信先なしは True。
+
+    重複を防ぐ担当の取得は ``announce_video_article_if_ready`` が行う（ここは送るだけ）。
+    """
+    community = event_detail.event.community
+    webhook_url = community.notification_webhook_url
+    if not webhook_url:
+        return True
+
+    article_url = build_site_url(reverse('event:detail', kwargs={'pk': event_detail.pk}))
+    embed = {
+        "title": event_detail.h1 or event_detail.theme,
+        "url": article_url,
+        "color": 3447003,
+        "fields": [
+            {"name": "👤 発表者", "value": event_detail.speaker, "inline": True},
+            {"name": "📅 開催日", "value": str(event_detail.event.date), "inline": True},
+            {"name": "🎥 動画", "value": event_detail.youtube_url, "inline": False},
+            {"name": "📝 記事", "value": article_url, "inline": False},
+        ],
+        "footer": {"text": community.name},
+    }
+    if event_detail.article_state() == EventDetail.ArticleState.AUTO:
+        edit_url = build_site_url(reverse('account:lt_application_edit', kwargs={'pk': event_detail.pk}))
+        embed["fields"].append({"name": "✏️ 確認・修正（発表者向け）", "value": edit_url, "inline": False})
+    description = event_detail.visible_meta_description
+    if description:
+        embed["description"] = description[:200] + ('…' if len(description) > 200 else '')
+    image_url = _get_event_detail_og_image_url(event_detail)
+    if image_url:
+        embed["image"] = {"url": image_url}
+    message = {
+        "content": f"🎬 {event_detail.speaker} さんの発表「{event_detail.theme}」の動画と記事を公開しました",
+        "embeds": [embed],
+        "allowed_mentions": {"parse": []},
+    }
+    try:
+        post_discord_webhook(webhook_url, message)
+        logger.info(
+            "Discord Webhook通知成功（動画と記事公開）: community_id=%s event_detail_id=%s",
+            community.pk, event_detail.pk,
+        )
+        return True
+    except Exception as error:
+        error_type, status_code = get_webhook_error_context(error)
+        logger.error(
+            "Discord Webhook通知エラー（動画と記事公開）: "
+            "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
+            community.pk, event_detail.pk, error_type, status_code,
+        )
+        return False
+
+
+def article_discord_replaced_by_video_notice(event_detail: EventDetail) -> bool:
+    """先に動画と記事の告知を試み、今の動画で告知済みの時だけ真（既存の記事公開の Discord を送らない）。
+
+    告知は担当を UPDATE の条件で取るので、保存側と重なっても 1 回しか送らない。
+    告知に失敗して列が戻った時や告知の対象でない時は偽になり、既存の Discord を送る。
+    例外は記録して偽を返し、メールや既存の通知を止めない。
+    """
+    announce_video_article_if_ready(event_detail.pk)
+    try:
+        current = EventDetail.all_objects.filter(pk=event_detail.pk).values(
+            'youtube_url', 'video_article_announced_id',
+        ).first()
+    except Exception:
+        logger.exception(
+            'video_article_announcement_check_failed',
+            extra={'event_type': 'video_article_announcement_check_failed', 'event_detail_id': event_detail.pk},
+        )
+        return False
+    if current is None:
+        return False
+    video_id = youtube_video_id(current['youtube_url'])
+    return bool(video_id) and current['video_article_announced_id'] == video_id
+
+
+def announce_video_article_if_ready(pk: int) -> None:
+    """告知してよい状態なら、その動画で 1 回だけ動画と記事の公開を告知する。
+
+    行を読み直し、告知済みの動画 ID の列を条件付きの UPDATE で入れられた時だけ送る。
+    送れなかった時は自分が入れた値の時だけ元に戻し、次の保存で送り直せるようにする。
+    例外は記録して呼び出し元（保存のコミット後の処理）には投げない。
+
+    制限:
+        - 字幕が無く動画を使わずに作った自動生成の記事（生成元の動画 ID が空）は告知しない。
+        - 初めての生成では PDF のサムネイルができる前に告知するため、画像が集会のポスターになることがある。
+    """
+    try:
+        detail = EventDetail.all_objects.select_related('event__community').filter(pk=pk).first()
+        if detail is None or not detail.video_article_ready():
+            return
+        video_id = detail.video_id
+        previous = detail.video_article_announced_id
+        claimed = EventDetail.all_objects.filter(
+            pk=pk, video_article_announced_id=previous,
+        ).exclude(video_article_announced_id=video_id).update(video_article_announced_id=video_id)
+        if not claimed:
+            return
+        if not _send_video_article_notice(detail):
+            EventDetail.all_objects.filter(
+                pk=pk, video_article_announced_id=video_id,
+            ).update(video_article_announced_id=previous)
+    except Exception:
+        logger.exception(
+            'video_article_announcement_failed',
+            extra={'event_type': 'video_article_announcement_failed', 'event_detail_id': pk},
+        )
+
+
+def _send_video_article_notice(detail: EventDetail) -> bool:
+    """告知を送る。画像の URL を作る時などの例外も失敗として扱う（例外の本文は記録しない）。"""
+    try:
+        return notify_video_article_published(detail)
+    except Exception:
+        logger.exception(
+            'video_article_notice_failed',
+            extra={'event_type': 'video_article_notice_failed', 'event_detail_id': detail.pk},
         )
         return False
 

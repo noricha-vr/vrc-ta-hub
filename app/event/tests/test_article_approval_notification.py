@@ -10,6 +10,7 @@ from django.utils import timezone
 from event.models import EventDetail
 from event.notifications import notify_applicant_of_result
 from event.services.article_generation import _notify_first_time, schedule_article_notification_on_approval
+from event.services.content_generation_service import BlogOutput, BlogSources, _with_sources, save_generated_article
 from tests.factories import make_community, make_discord_linked_user, make_event, make_event_detail
 
 
@@ -514,3 +515,130 @@ class ArticleApprovalNotificationTest(TestCase):
         detail.refresh_from_db()
         self.assertIsNone(detail.article_published_notified_at)
         post_webhook.side_effect = None
+
+    def _video_posts(self, post_webhook):
+        return [
+            call.args[1] for call in post_webhook.call_args_list
+            if call.args[1].get('content', '').endswith('の動画と記事を公開しました')
+        ]
+
+    def test_pending_video_article_announces_on_approval_instead_of_old_discord(self, send_mail, post_webhook):
+        """承認前に生成した動画記事は、メール済みかどうかによらず承認時に告知する。"""
+        video_id = 'rrKl0s23E0M'
+        for endpoint in ('lt_application_review', 'lt_application_approve'):
+            for emailed in (False, True):
+                with self.subTest(endpoint=endpoint, emailed=emailed):
+                    with self.captureOnCommitCallbacks(execute=True):
+                        detail = self._detail(youtube_url=f'https://youtu.be/{video_id}',
+                                              h1='', contents='')
+                        output = _with_sources(
+                            BlogOutput(title='動画の記事', text='本文', meta_description='要約'),
+                            BlogSources(transcript='字幕', pdf_content='', pdf_url='', video_id=video_id),
+                        )
+                        with patch('event.services.content_generation_service.ensure_pdf_thumbnail'):
+                            save_generated_article(detail, output)
+                    post_webhook.assert_not_called()
+                    if emailed:
+                        _notify_first_time(detail.pk)
+                        self.assertIn('作成しました', send_mail.call_args.kwargs['subject'])
+                        post_webhook.assert_not_called()
+                    send_mail.reset_mock()
+                    self.assertEqual(self._post(detail, endpoint).status_code, 302)
+                    self.assertEqual(len(self._video_posts(post_webhook)), 1)
+                    self.assertEqual(self._article_posts(post_webhook), [])
+                    self.assertEqual(send_mail.call_count, 1 if emailed else 2)
+                    for repeated_endpoint in ('lt_application_review', 'lt_application_approve'):
+                        self._post(detail, repeated_endpoint)
+                    _notify_first_time(detail.pk)
+                    self.assertEqual(len(self._video_posts(post_webhook)), 1)
+                    self.assertEqual(send_mail.call_count, 1 if emailed else 2)
+                    send_mail.reset_mock()
+                    post_webhook.reset_mock()
+
+    def test_video_approval_without_video_or_with_stale_source_posts_article_discord(self, send_mail, post_webhook):
+        """承認時に動画が外れていたり元の動画が古い自動記事なら、告知せず既存の記事公開を送る。"""
+        for video_url in ('', 'https://youtu.be/abcdefghijk'):
+            with self.subTest(video_url=video_url):
+                detail = self._detail(youtube_url=video_url, article_source_video_id='rrKl0s23E0M')
+                EventDetail.objects.filter(pk=detail.pk).update(
+                    article_body_hash=detail.current_article_hash(), article_published_notified_at=timezone.now(),
+                )
+                self.assertEqual(self._post(detail, 'lt_application_approve').status_code, 302)
+                self.assertEqual(self._video_posts(post_webhook), [])
+                self.assertEqual(len(self._article_posts(post_webhook)), 1)
+                send_mail.reset_mock()
+                post_webhook.reset_mock()
+
+    def test_video_approval_rechecks_visibility_and_video_before_sending(self, send_mail, post_webhook):
+        """コミット待ちの間に非公開になった動画記事には告知しない。"""
+        for changes in (
+            {'article_consent': EventDetail.ArticleConsent.NG}, {'deleted_at': timezone.now()},
+            {'status': 'rejected'}, {'h1': '', 'contents': ''},
+        ):
+            with self.subTest(changes=changes):
+                detail = self._detail(youtube_url='https://youtu.be/rrKl0s23E0M',
+                                      article_source_video_id='rrKl0s23E0M')
+                with self.captureOnCommitCallbacks(execute=False) as callbacks:
+                    self._post(detail, 'lt_application_approve', execute_callbacks=False)
+                send_mail.reset_mock()
+                post_webhook.reset_mock()
+                EventDetail.all_objects.filter(pk=detail.pk).update(**changes)
+                for callback in callbacks:
+                    callback()
+                self.assertEqual(self._video_posts(post_webhook), [])
+                self.assertEqual(self._article_posts(post_webhook), [])
+
+    def test_video_webhook_failure_does_not_cancel_approval_or_publication_email(self, send_mail, post_webhook):
+        """告知に失敗しても記事と承認を残し、公開メールと既存の記事公開の Discord を送る。"""
+        detail = self._detail(youtube_url='https://youtu.be/rrKl0s23E0M',
+                              article_source_video_id='rrKl0s23E0M')
+
+        def fail_video_notice(_url, payload):
+            if payload.get('content', '').endswith('の動画と記事を公開しました'):
+                raise RuntimeError('offline failure')
+
+        post_webhook.side_effect = fail_video_notice
+        with self.assertLogs('event.notifications', level='ERROR'):
+            self.assertEqual(self._post(detail, 'lt_application_approve').status_code, 302)
+        detail.refresh_from_db()
+        self.assertEqual(detail.status, 'approved')
+        self.assertEqual(detail.article_source_video_id, 'rrKl0s23E0M')
+        self.assertTrue(self._video_posts(post_webhook))
+        self.assertEqual(len(self._article_posts(post_webhook)), 1)
+        self.assertEqual(detail.video_article_announced_id, '')
+        self.assertTrue(any('発表の記事を公開しました' in call.kwargs['subject']
+                            for call in send_mail.call_args_list))
+
+    def test_emailed_article_announced_on_approval_posts_only_video_notice(self, send_mail, post_webhook):
+        """作成メール済みの記事を承認し告知が成功したら、告知だけを送る（2 通にならない）。"""
+        detail = self._detail(youtube_url='https://youtu.be/rrKl0s23E0M', article_source_video_id='rrKl0s23E0M')
+        EventDetail.objects.filter(pk=detail.pk).update(article_published_notified_at=timezone.now())
+        self.assertEqual(self._post(detail, 'lt_application_approve').status_code, 302)
+        self.assertEqual(len(self._video_posts(post_webhook)), 1)
+        self.assertEqual(self._article_posts(post_webhook), [])
+
+    def test_pending_manual_article_with_video_announces_on_approval(self, send_mail, post_webhook):
+        """承認待ちの手動記事に動画を付けると、承認の保存で 1 回だけ告知する。"""
+        detail = self._detail(h1='手書きの記事', contents='手で書いた本文')
+        with self.captureOnCommitCallbacks(execute=True):
+            detail.youtube_url = 'https://youtu.be/rrKl0s23E0M'
+            detail.save(update_fields=['youtube_url'])
+        self.assertEqual(self._video_posts(post_webhook), [])
+        self.assertEqual(self._post(detail, 'lt_application_approve').status_code, 302)
+        self.assertEqual(len(self._video_posts(post_webhook)), 1)
+        self.assertEqual(self._article_posts(post_webhook), [])
+        detail.refresh_from_db()
+        self.assertEqual(detail.video_article_announced_id, 'rrKl0s23E0M')
+
+    def test_thumbnail_url_error_does_not_block_publication_email(self, send_mail, post_webhook):
+        """告知の画像 URL を作る時に例外が出ても、承認・公開メールは送り、告知は送り直せる状態に戻す。"""
+        detail = self._detail(youtube_url='https://youtu.be/rrKl0s23E0M', article_source_video_id='rrKl0s23E0M')
+        with patch('event.notifications._get_event_detail_og_image_url', side_effect=OSError('storage down')):
+            with self.assertLogs('event.notifications', level='ERROR'):
+                self.assertEqual(self._post(detail, 'lt_application_approve').status_code, 302)
+        self.assertTrue(any('発表の記事を公開しました' in call.kwargs['subject']
+                            for call in send_mail.call_args_list))
+        self.assertEqual(self._video_posts(post_webhook), [])
+        detail.refresh_from_db()
+        self.assertEqual(detail.status, 'approved')
+        self.assertEqual(detail.video_article_announced_id, '')

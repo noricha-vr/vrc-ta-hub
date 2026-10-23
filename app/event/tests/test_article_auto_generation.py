@@ -1773,6 +1773,23 @@ class ArticlePublishedNotificationTest(TestCase):
         self.assertIn('承認されると公開されます', send_mail.call_args.kwargs['html_message'])
         post_webhook.assert_not_called()
 
+    def test_video_article_keeps_email_and_suppresses_old_discord(self, send_mail, post_webhook):
+        """動画を使った記事は初回通知で告知を先に試し、成功したら既存の記事公開の Discord は送らない。"""
+        from event.notifications import notify_applicant_of_article_published
+
+        detail = self._detail('approved')
+        detail.youtube_url = VIDEO_URL
+        detail.save(update_fields=['youtube_url'])
+        post_webhook.reset_mock()
+        detail.article_source_video_id = VIDEO_ID
+        detail.save(update_fields=['article_source_video_id'])
+        notify_applicant_of_article_published(detail, self.applicant)
+
+        send_mail.assert_called_once()
+        self.assertIn('発表の記事を公開しました', send_mail.call_args.kwargs['subject'])
+        post_webhook.assert_called_once()
+        self.assertIn('動画と記事を公開しました', post_webhook.call_args.args[1]['content'])
+
 
 @override_settings(REQUEST_TOKEN='test-token')
 class RunArticleGenerationViewTest(TestCase):
