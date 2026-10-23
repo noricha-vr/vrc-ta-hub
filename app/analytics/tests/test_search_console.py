@@ -18,7 +18,7 @@ from analytics.models import PageAnalytics, SearchConsoleQuery
 from analytics.search_console_client import (
     SEARCH_CONSOLE_SCOPES, fetch_search_queries, sync_search_console,
 )
-from analytics.services import get_search_queries, get_search_queries_since
+from analytics.services import get_search_queries, get_search_queries_count, get_search_queries_since
 from tests.factories import (
     make_community, make_discord_linked_user, make_event, make_event_detail,
 )
@@ -356,6 +356,8 @@ class SearchQueriesDisplayTests(TestCase):
         html = response.content.decode()
         self.assertLess(html.index('analytics-source-legend'), html.index('検索キーワード'))
         self.assertLess(html.index('検索キーワード'), html.index('参照元 / メディアの詳細'))
+        self.assertLess(html.index('</ul>', html.index('analytics-search-queries')), html.index('クリック順。'))
+        self.assertLess(html.index('クリック順。'), html.index('参照元 / メディアの詳細'))
 
     def test_queries_equal_under_db_collation_are_aggregated_separately(self, _today):
         SearchConsoleQuery.objects.bulk_create([
@@ -367,6 +369,8 @@ class SearchQueriesDisplayTests(TestCase):
             {'query': 'パパ', 'impressions': 35, 'clicks': 4},
             {'query': 'ハハ', 'impressions': 10, 'clicks': 1},
         ])
+        self.assertEqual(get_search_queries_count([self.community.pk], 7), 2)
+        self.assertEqual(get_search_queries_count([], 7), 0)
 
     def test_note_shows_first_date_only_when_data_starts_inside_period(self, _today):
         SearchConsoleQuery.objects.bulk_create([
@@ -388,7 +392,8 @@ class SearchQueriesDisplayTests(TestCase):
         self.client.force_login(self.owner)
         response = self.client.get(reverse('analytics:dashboard'))
         self.assertContains(response, '検索キーワードはまだありません', count=1)
-        self.assertContains(response, '回数の少ない語は Google が伏せるため一部だけ')
+        self.assertNotContains(response, '回数の少ない語は Google が伏せるため一部だけ')
+        self.assertNotContains(response, 'すべての検索キーワード')
         self.assertNotContains(response, '以降）')
         soup = BeautifulSoup(response.content, 'html.parser')
         title = next(tag for tag in soup.find_all('h3') if '検索キーワード' in tag.get_text())
@@ -426,3 +431,21 @@ class SearchQueriesDisplayTests(TestCase):
         self.assertNotContains(response, '集会1の語')
         response = self.client.get(reverse('analytics:dashboard'), {'community': second.pk, 'days': 7})
         self.assertEqual(response.context['search_queries'], [])
+
+    def test_card_link_counts_all_words_and_preserves_filters(self, _today):
+        SearchConsoleQuery.objects.bulk_create([
+            stored_row(community=self.community, query=f'検索語{i}') for i in range(12)
+        ] + [
+            stored_row(community=self.community, query='検索語0', date=TARGET - timedelta(days=1)),
+            stored_row(community=self.other, query='権限外の語'),
+            stored_row(community=self.community, query='古い語', date=TODAY - timedelta(days=31)),
+            stored_row(query='GLOBALの語'),
+        ])
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('analytics:dashboard'), {'community': self.community.pk, 'days': 30})
+        link = BeautifulSoup(response.content, 'html.parser').find('a', string='すべての検索キーワード（12 語）→')
+        self.assertIsNotNone(link)
+        self.assertEqual(link['href'], reverse('analytics:search_queries') + f'?days=30&community={self.community.pk}')
+        html = response.content.decode()
+        self.assertLess(html.index('</ul>', html.index('analytics-search-queries')), html.index('クリック順。'))
+        self.assertLess(html.index('クリック順。'), html.index('すべての検索キーワード'))
