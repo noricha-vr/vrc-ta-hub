@@ -180,6 +180,12 @@
             font-weight: 700;
         }
 
+        .account-menu .account-menu-label {
+            flex: 1;
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+
         .account-menu .account-menu-icon {
             flex-shrink: 0;
             width: 16px;
@@ -194,16 +200,7 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            margin: 0 6px;
-            padding: 8px 10px;
-            border-radius: 6px;
-            color: inherit;
-            text-decoration: none;
-        }
-
-        .account-menu .account-menu-identity:hover,
-        .account-menu .account-menu-identity:focus-visible {
-            background-color: var(--bs-tertiary-bg, #f8f9fa);
+            margin-top: 0;
         }
 
         .account-menu .account-menu-chevron {
@@ -467,7 +464,7 @@
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end account-menu">
                                 <li>
-                                    <a class="account-menu-identity" href="{% url 'account:settings' %}" title="アカウント設定">
+                                    <a class="dropdown-item account-menu-identity" href="{% url 'account:settings' %}" title="アカウント設定">
                                         <span class="account-menu-avatar" aria-hidden="true">{{ user.display_label|first }}</span>
                                         <span class="account-menu-names">
                                             <span class="account-menu-display-name">{{ user.display_label }}</span><span class="visually-hidden">（アカウント設定）</span>
@@ -484,11 +481,11 @@
                                         {% if not membership.community.is_ended %}
                                             {% if membership.community.id == active_community.id %}
                                                 <li><a class="dropdown-item active" aria-current="true" href="{% url 'event:my_list' %}?community={{ membership.community.id }}">
-                                                    <i class="bi bi-check-lg account-menu-icon" aria-hidden="true"></i><span>{{ membership.community.name }}</span>
+                                                    <i class="bi bi-check-lg account-menu-icon" aria-hidden="true"></i><span class="account-menu-label">{{ membership.community.name }}</span>
                                                 </a></li>
                                             {% else %}
                                                 <li><a class="dropdown-item" href="{% url 'event:my_list' %}?community={{ membership.community.id }}">
-                                                    <span class="account-menu-icon" aria-hidden="true"></span><span>{{ membership.community.name }}</span>
+                                                    <span class="account-menu-icon" aria-hidden="true"></span><span class="account-menu-label">{{ membership.community.name }}</span>
                                                 </a></li>
                                             {% endif %}
                                         {% endif %}

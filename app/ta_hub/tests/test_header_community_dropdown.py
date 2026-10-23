@@ -96,7 +96,7 @@ class HeaderCommunityDropdownTest(TestCase):
         self.assertEqual(response.status_code, 200)
         menu = self._account_menu_html(response)
         identity = re.search(
-            r'<a class="account-menu-identity" href="([^"]+)"[^>]*>(.*?)</a>', menu, re.DOTALL
+            r'<a class="dropdown-item account-menu-identity" href="([^"]+)"[^>]*>(.*?)</a>', menu, re.DOTALL
         )
         self.assertIsNotNone(identity, 'アカウント設定への identity リンクが見つからない')
         self.assertEqual(identity.group(1), reverse('account:settings'))

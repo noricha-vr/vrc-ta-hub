@@ -698,7 +698,7 @@ class HeaderDropdownMenuTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            '<a class="account-menu-identity" href="{}"'.format(reverse('account:settings')),
+            '<a class="dropdown-item account-menu-identity" href="{}"'.format(reverse('account:settings')),
         )
 
     def test_authenticated_user_dropdown_contains_logout(self):
