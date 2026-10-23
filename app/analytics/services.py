@@ -208,12 +208,12 @@ def _empty_overall_stats() -> dict:
 def get_community_summary(community_ids, *, days=DEFAULT_DAYS) -> dict:
     """集会ページ・発表記事・キャンペーンの合計 PV と直前同期間比を返す。
 
-    global は含めない。内訳は community_page_pv / article_pv、前期間が0なら
+    global は含めない。内訳は community_page_pv / article_pv / campaign_pv、前期間が0なら
     change_rate は None。期間は前日までの days 日と、その直前の days 日。
     """
     empty = {
         'pv': 0, 'prev_pv': 0, 'change_rate': None,
-        'community_page_pv': 0, 'article_pv': 0,
+        'community_page_pv': 0, 'article_pv': 0, 'campaign_pv': 0,
     }
     if not community_ids:
         return empty
@@ -230,6 +230,7 @@ def get_community_summary(community_ids, *, days=DEFAULT_DAYS) -> dict:
             total_pv=Sum('pv'),
             community_page_pv=Sum('pv', filter=Q(content_type=PageAnalytics.ContentType.COMMUNITY)),
             article_pv=Sum('pv', filter=Q(content_type=PageAnalytics.ContentType.EVENT_DETAIL)),
+            campaign_pv=Sum('pv', filter=Q(content_type=PageAnalytics.ContentType.CAMPAIGN)),
         )
     )
     since, _ = _date_range(days)
@@ -249,6 +250,7 @@ def get_community_summary(community_ids, *, days=DEFAULT_DAYS) -> dict:
         'change_rate': round((pv - prev_pv) / prev_pv * 100, 1) if prev_pv else None,
         'community_page_pv': current['community_page_pv'] or 0,
         'article_pv': current['article_pv'] or 0,
+        'campaign_pv': current['campaign_pv'] or 0,
     }
 
 
