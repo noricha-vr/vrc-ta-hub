@@ -421,7 +421,7 @@
                                         <div class="row g-0">
                                             <div class="col-md-4">
                                                 {% if event_group.grouper.community.poster_image %}
-                                                    <img loading="lazy" decoding="async" src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
+                                                    <img {% if not forloop.first %}loading="lazy" {% endif %}decoding="async" src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
                                                          class="img-fluid h-100 w-100"
                                                          alt="{{ event_group.grouper.community.name }}のポスター"
                                                          style="object-fit: cover;">
@@ -525,7 +525,7 @@
                         <div class="col-12 col-lg-8">
                             <a href="https://x.com/Virtual_Market_/status/2066810438495744041?s=20" target="_blank" class="text-decoration-none d-block">
                                 <div class="position-relative" style="transform: rotate(-2deg); transition: transform 0.3s ease;" onmouseover="this.style.transform='rotate(0deg) scale(1.02)'" onmouseout="this.style.transform='rotate(-2deg)'">
-                                    <img loading="lazy" decoding="async" src="{% static 'ta_hub/images/giga-week2026-summer.avif' %}"
+                                    <img src="{% static 'ta_hub/images/giga-week2026-summer.avif' %}"
                                          class="img-fluid rounded-3 shadow-lg border border-4 border-white"
                                          alt="Vket 2026 Summer 技術学術WEEK イメージ"
                                          style="max-height: 500px; width: auto;">
@@ -573,7 +573,7 @@
                                 <div class="row g-0">
                                     <div class="col-md-4">
                                         {% if event_group.grouper.community.poster_image %}
-                                            <img loading="lazy" decoding="async" src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
+                                            <img {% if not forloop.first %}loading="lazy" {% endif %}decoding="async" src="{{ event_group.grouper.community.poster_image.url|cf_resize:'400' }}"
                                                  class="img-fluid h-100 w-100"
                                                  alt="{{ event_group.grouper.community.name }}のポスター"
                                                  style="object-fit: cover;">
