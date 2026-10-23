@@ -1,7 +1,6 @@
-"""マイページ（SettingsView）のアクセス解析セクションの表示・権限テスト.
+"""マイページ（SettingsView）のアクセス解析の導線テスト.
 
-ログインオーナーには自分の community の集計のみが出て、他人の community の
-名前・数値が一切出ないこと、未ログインは login へリダイレクトされることを検証する。
+設定画面には解析の数字・グラフを出さず、見られる集会がある時だけダッシュボードへの導線を出す。
 """
 from datetime import timedelta
 
@@ -68,40 +67,39 @@ class SettingsAnalyticsTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('login', response.url)
 
-    def test_owner_sees_only_own_analytics(self):
-        """ログインオーナーには自分の集会の集計のみが出て、他人の数値・流入元が出ない."""
+    def test_owner_sees_link_but_no_numbers(self):
+        """オーナーには導線だけが出て、集計値・流入元・グラフは出ない."""
         self.client.force_login(self.owner)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        self.assertIn('daily_series', response.context)
-        self.assertIn('source_breakdown', response.context)
-
-        # 自分の流入元は出る
-        self.assertContains(response, 'mine-source-only / organic')
-        # 他人の流入元・固有数値は出ない（権限境界の検証）
+        self.assertTrue(response.context['has_analytics_access'])
+        self.assertContains(response, f'href="{reverse("analytics:dashboard")}"')
+        self.assertContains(response, 'アクセス解析を見る')
+        for key in ('daily_series', 'source_breakdown'):
+            self.assertNotIn(key, response.context)
+        self.assertNotContains(response, 'mine-source-only / organic')
         self.assertNotContains(response, 'other-source-only / referral')
+        self.assertNotContains(response, 'id="analytics-daily-chart"')
+        self.assertNotContains(response, 'cdn.jsdelivr.net/npm/chart.js')
 
-        # 集計は自分の community(pv=77) のみ。他人の pv=999 が混入しない
-        sources = {row['source_medium'] for row in response.context['source_breakdown']}
-        self.assertIn('mine-source-only / organic', sources)
-        self.assertNotIn('other-source-only / referral', sources)
-
-    def test_chart_section_rendered_for_owner(self):
-        """集計データがあるオーナーには canvas と Chart.js が出る."""
-        self.client.force_login(self.owner)
+    def test_superuser_without_membership_sees_link(self):
+        """superuser は所属が無くても全集会を見られるので導線が出る."""
+        admin = create_discord_linked_user(
+            user_name='admin_user', email='admin@example.com', password='pass', is_superuser=True,
+        )
+        self.client.force_login(admin)
         response = self.client.get(self.url)
-        self.assertContains(response, 'id="analytics-daily-chart"')
-        self.assertContains(response, 'cdn.jsdelivr.net/npm/chart.js')
+        self.assertTrue(response.context['has_analytics_access'])
+        self.assertContains(response, 'アクセス解析を見る')
 
-    def test_user_without_community_has_empty_series(self):
-        """所属 community が無いユーザーは集計が空（グラフ canvas は出ない）."""
+    def test_user_without_community_has_no_link(self):
+        """所属 community が無いユーザーには導線が出ない."""
         no_comm_user = create_discord_linked_user(
             user_name='no_comm', email='nocomm@example.com', password='pass',
         )
         self.client.force_login(no_comm_user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        # context キーは存在するが空（accessible_community_ids が空のため）
-        self.assertEqual(response.context['daily_series'], [])
-        self.assertEqual(response.context['source_breakdown'], [])
-        self.assertNotContains(response, 'id="analytics-daily-chart"')
+        self.assertFalse(response.context['has_analytics_access'])
+        self.assertNotContains(response, 'アクセス解析を見る')
+        self.assertNotContains(response, f'href="{reverse("analytics:dashboard")}"')
