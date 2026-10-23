@@ -1,4 +1,4 @@
-boto3==1.43.114
+boto3==1.43.115
 django==5.2.17
 django-storages==1.14.6
 mysqlclient==2.3.0
@@ -11,10 +11,10 @@ google-api-python-client==2.201.0
 google-auth-oauthlib==1.5.0
 google-genai==2.32.0
 google-cloud-bigquery==3.46.2
-google-analytics-data==0.22.0
+google-analytics-data==0.23.3
 django-bootstrap5==25.3
 pysqlite3==0.6.1
-markdown==3.11.1
+markdown==3.11.2
 youtube-transcript-api==1.2.4
 bleach==6.4.0
 tinycss2==1.5.1
