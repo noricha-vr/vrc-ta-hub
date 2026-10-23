@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('analytics', '0008_alter_campaign_utm_medium_alter_campaign_utm_source'),
-        ('event', '0034_eventdetail_source'),
+        ('event', '0001_initial'),
     ]
 
     operations = [
