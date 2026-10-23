@@ -414,12 +414,14 @@ def get_event_detail_breakdown(
     if not community_ids:
         return []
 
-    # まず PV 降順で event_detail 単位に集計
+    # まず PV 降順で event_detail 単位に集計。未承認の申請ページは limit の前に外す
     base = _base_queryset(
         community_ids,
         content_type=PageAnalytics.ContentType.EVENT_DETAIL,
         days=days,
-    )
+    ).filter(object_id__in=EventDetail.objects.filter(
+        event__community_id__in=community_ids, status='approved',
+    ).values('pk'))
     aggregates = list(
         base.values('object_id')
         .annotate(pv=Sum('pv'), users=Sum('users'), sessions=Sum('sessions'))

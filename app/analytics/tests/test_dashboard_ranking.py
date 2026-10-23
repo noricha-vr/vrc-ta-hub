@@ -189,6 +189,14 @@ class DashboardRankingTest(TestCase):
         self.assertTrue(response.content.startswith(b'\xef\xbb\xbf'))
         self.assertNotIn('平均視聴時間', rows[0])
 
+    def test_csv_excludes_unpublished_presentations(self):
+        for status in ('pending', 'rejected'):
+            hidden = make_event_detail(self.event, theme=f'非公開-{status}', status=status)
+            self._analytics(detail=hidden, pv=500)
+        response = self.client.get(self.url, {'format': 'csv'})
+        self.assertNotIn('非公開-', response.content.decode('utf-8-sig'))
+        self.assertEqual(len(list(csv.DictReader(io.StringIO(response.content.decode('utf-8-sig'))))), 3)
+
     def test_csv_marks_cumulative_fallback_when_period_is_unavailable(self):
         response = self.client.get(self.url, {'format': 'csv', 'days': 7, 'sort': 'video'})
         rows = list(csv.DictReader(io.StringIO(response.content.decode('utf-8-sig'))))
