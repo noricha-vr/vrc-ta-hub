@@ -2,6 +2,7 @@
 import re
 
 from django import forms
+from django.core.exceptions import NON_FIELD_ERRORS
 
 from community.models import Community
 
@@ -37,6 +38,12 @@ class CampaignForm(forms.ModelForm):
             'note': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'community': forms.Select(attrs={'class': 'form-select'}),
         }
+        # model の verbose_name（キャンペーン）は migration を避けて残し、重複エラーの文言だけ画面の呼び名にそろえる
+        error_messages = {
+            NON_FIELD_ERRORS: {
+                'unique_together': 'この集会には同じ識別子（utm_campaign）の配布リンクがすでにあります。',
+            },
+        }
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -52,6 +59,11 @@ class CampaignForm(forms.ModelForm):
         for name in ('utm_source', 'utm_medium', 'utm_campaign'):
             if name in self.fields:
                 self.fields[name].strip = False
+        # model の help_text は migration を避けて残し、画面の呼び名だけ「配布リンク」にそろえる
+        if 'utm_campaign' in self.fields:
+            self.fields['utm_campaign'].help_text = (
+                '配布リンクの識別子。例: 20260510-gishohaku（半角英数とハイフン）'
+            )
 
     def clean_landing_path(self):
         """着地パスは '/' で始まる安全なパスに限定する。

@@ -250,24 +250,24 @@
                 </div>
             </div>
 
-            {# キャンペーン経由アクセス（UTM utm_campaign 別）#}
+            {# QR コード・配布リンクからのアクセス（UTM utm_campaign 別）#}
             <div class="card mb-3">
                 <div class="card-body">
                     <div class="d-flex flex-wrap align-items-center mb-1 gap-2">
                         <h2 class="fs-5 fw-bold mb-0">
-                            <i class="fa-solid fa-bullhorn me-2"></i>キャンペーン経由アクセス（{{ days }}日）
+                            <i class="fa-solid fa-bullhorn me-2"></i>QR コード・配布リンクからのアクセス（{{ days }}日）
                         </h2>
                         <a href="{% url 'analytics:campaign_list' %}" class="btn btn-sm btn-outline-primary ms-auto">
-                            <i class="fa-solid fa-gear me-1"></i>キャンペーンを管理
+                            <i class="fa-solid fa-gear me-1"></i>配布リンクを管理
                         </a>
                     </div>
                     <p class="text-muted small mb-3">
-                        QR コード/UTM 付き URL 経由の流入を集計します。utm_campaign 未指定の通常流入は除外しています。
+                        チラシなどに載せた QR コードや、配布用に発行したリンクから来たアクセスです。配布リンクを使わずに来たアクセスは含みません。
                     </p>
 
                     {% if campaign_daily.datasets %}
                         <div style="position: relative; height: 280px;" class="mb-3">
-                            <canvas id="campaign-daily-chart" aria-label="キャンペーン日次PV推移" role="img"></canvas>
+                            <canvas id="campaign-daily-chart" aria-label="配布リンクごとの日別の閲覧数" role="img"></canvas>
                         </div>
                         {{ campaign_daily|json_script:"campaign-daily-data" }}
                     {% endif %}
@@ -277,12 +277,12 @@
                             <table class="table table-sm table-hover align-middle mb-0">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>キャンペーン</th>
+                                        <th>配布リンク</th>
                                         <th>集会</th>
                                         <th>配布日</th>
-                                        <th class="text-end">PV</th>
-                                        <th class="text-end">UU</th>
-                                        <th class="text-end">セッション</th>
+                                        <th class="text-end">閲覧</th>
+                                        <th class="text-end">ユーザー</th>
+                                        <th class="text-end">訪問</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -312,8 +312,8 @@
                             </table>
                         </div>
                     {% else %}
-                        <p class="text-muted mb-0">対象期間にキャンペーン経由のアクセスデータがありません。</p>
-                        <p class="text-muted small mb-0">配布後、GA4 同期翌日以降にこのカードへ反映されます。</p>
+                        <p class="text-muted mb-0">この期間に、QR コード・配布リンクから来たアクセスはありません。</p>
+                        <p class="text-muted small mb-0">配布した翌日から数字が出ます。</p>
                     {% endif %}
                 </div>
             </div>
