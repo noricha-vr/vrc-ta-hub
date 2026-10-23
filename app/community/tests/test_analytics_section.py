@@ -86,7 +86,7 @@ class CommunityDetailAnalyticsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['community_analytics']['summary'], {
             'pv': 450, 'prev_pv': 300, 'change_rate': 50.0,
-            'community_page_pv': 100, 'article_pv': 350,
+            'community_page_pv': 100, 'article_pv': 350, 'campaign_pv': 0,
         })
         self.assertContains(response, '集会のアクセス')
         card = self._card_html(response)
@@ -154,6 +154,16 @@ class CommunityDetailAnalyticsTests(TestCase):
         html = self._card_html(response)
         self.assertIn('1,234</strong><span class="small text-muted">（累計）', html)
         self.assertIn('1,234再生（累計）', html)
+
+    def test_breakdown_includes_campaign_so_it_adds_up_to_total(self):
+        PageAnalytics.objects.create(
+            community=self.community_a, content_type='campaign', object_id=1,
+            page_path='/campaign/1/', date=TODAY - timedelta(days=1), pv=7,
+        )
+        self.client.force_login(self.user_a)
+        response = self._response()
+        self.assertEqual(response.context['community_analytics']['summary']['pv'], 107)
+        self.assertIn('内訳: 集会ページ 100 / 発表記事 0 / キャンペーン 7', self._card_html(response))
 
     def test_shared_video_is_counted_once_in_total(self):
         self._video(self.detail, 'abcdefghijk', 60)
