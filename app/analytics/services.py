@@ -8,7 +8,7 @@ import logging
 from datetime import date, timedelta
 
 from django.db import connection
-from django.db.models import Q, Sum
+from django.db.models import F, Q, Sum
 from django.db.models.functions import Collate
 from django.urls import reverse
 from django.utils import timezone
@@ -86,25 +86,41 @@ def _base_queryset(community_ids, *, content_type=None, object_id=None, days=DEF
     return queryset
 
 
-def get_search_queries(community_ids, days, limit=10) -> list:
-    """権限内の集会・発表の検索語を、前日までのクリック数順（同数は表示回数順）に返す。"""
+def _search_query_totals(community_ids, days, q=''):
+    """権限・期間内の検索語を完全一致でまとめる共通クエリ。"""
     since, until = _date_range(days)
-    rows = (
+    return (
         SearchConsoleQuery.objects.filter(
             community_id__in=community_ids, date__gte=since, date__lte=until,
+            query__icontains=q,
         )
         .exclude(content_type=PageAnalytics.ContentType.GLOBAL)
         # MySQL の既定の照合順序は「ハハ」と「パパ」を同じ値として GROUP BY するため、完全一致でまとめる。
         .annotate(exact_query=Collate('query', _binary_collation()))
         .values('exact_query')
         .annotate(impressions=Sum('impressions'), clicks=Sum('clicks'))
-        .order_by('-clicks', '-impressions', 'exact_query')
-        .values('exact_query', 'impressions', 'clicks')[:limit]
+        .order_by()
     )
-    return [
-        {'query': row['exact_query'], 'impressions': row['impressions'], 'clicks': row['clicks']}
-        for row in rows
-    ]
+
+
+def get_all_search_queries(community_ids, days, sort='clicks', q=''):
+    """検索語の全件クエリセットを返す。ページ単位で取得できるよう評価は呼び出し側に任せる。"""
+    ordering = ('-impressions', '-clicks') if sort == 'impressions' else ('-clicks', '-impressions')
+    return (
+        _search_query_totals(community_ids, days, q)
+        .order_by(*ordering, 'exact_query')
+        .values('impressions', 'clicks', query=F('exact_query'))
+    )
+
+
+def get_search_queries_count(community_ids, days) -> int:
+    """期間内・権限内の検索語の総数（ページや日付をまたぐ同じ語は一語）を返す。"""
+    return _search_query_totals(community_ids, days).count()
+
+
+def get_search_queries(community_ids, days, limit=10) -> list:
+    """権限内の集会・発表の検索語を、前日までのクリック数順（同数は表示回数順）に返す。"""
+    return list(get_all_search_queries(community_ids, days)[:limit])
 
 
 def get_search_queries_since(days):

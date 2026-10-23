@@ -49,10 +49,8 @@ DEFAULT_DAYS = services.DEFAULT_DAYS
 PAGE_SIZE = 20
 
 
-class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
-    """主催者向けアクセス解析ダッシュボード。"""
-
-    template_name = 'analytics/dashboard.html'
+class AnalyticsFiltersMixin:
+    """ダッシュボードと検索語一覧で同じ集会・期間の権限境界を使う。"""
 
     def _get_days(self) -> int:
         """?days= を許可リストでバリデーションして返す。"""
@@ -80,6 +78,24 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
             # IDOR 防止: 自分が見られない community を指定されたら無視
             return accessible_ids
         return [community_id]
+
+    @staticmethod
+    def _get_filter_context(accessible_ids, target_ids, days):
+        communities = Community.objects.filter(id__in=accessible_ids).order_by('name')
+        selected = next((c for c in communities if c.id == target_ids[0]), None) if len(target_ids) == 1 else None
+        return {
+            'days': days,
+            'allowed_days': ALLOWED_DAYS,
+            'accessible_communities': communities,
+            'selected_community': selected,
+            'has_access': bool(accessible_ids),
+        }
+
+
+class AnalyticsDashboardView(LoginRequiredMixin, AnalyticsFiltersMixin, TemplateView):
+    """主催者向けアクセス解析ダッシュボード。"""
+
+    template_name = 'analytics/dashboard.html'
 
     def _get_sort(self) -> str:
         value = self.request.GET.get('sort', 'pv')
@@ -168,28 +184,8 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
         days = self._get_days()
         target_ids = self._get_target_community_ids(accessible_ids)
 
-        # 表示用: アクセス可能な community 一覧（切替セレクタで使う）
-        accessible_communities = (
-            Community.objects
-            .filter(id__in=accessible_ids)
-            .order_by('name')
-        ) if accessible_ids else Community.objects.none()
-
-        # 現在選択中の community（単一の場合のみ）
-        selected_community = None
-        if len(target_ids) == 1:
-            selected_community = next(
-                (c for c in accessible_communities if c.id == target_ids[0]),
-                None,
-            )
-
-        context.update({
-            'days': days,
-            'allowed_days': ALLOWED_DAYS,
-            'accessible_communities': accessible_communities,
-            'selected_community': selected_community,
-            'has_access': bool(accessible_ids),
-        })
+        context.update(self._get_filter_context(accessible_ids, target_ids, days))
+        selected_community = context['selected_community']
         # 権限のないユーザーには解析値そのものを context に入れない。
         if not accessible_ids:
             if self.request.user.is_superuser:
@@ -233,6 +229,7 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
             'source_categories': services.get_source_categories(target_ids, days=days),
             'source_breakdown': services.get_source_breakdown(target_ids, days=days),
             'search_queries': services.get_search_queries(target_ids, days),
+            'search_queries_count': services.get_search_queries_count(target_ids, days),
             'search_queries_since': services.get_search_queries_since(days),
             # ポスタークリック集計（権限境界は target_ids ベースで services 側が絞る）
             'poster_clicks': poster_clicks,
@@ -247,4 +244,42 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
         if self.request.user.is_superuser:
             context['global_traffic'] = services.get_global_traffic(days=days)
 
+        return context
+
+
+class SearchQueriesView(LoginRequiredMixin, AnalyticsFiltersMixin, TemplateView):
+    """主催者が検索語を絞り込み・並べ替えて確認する一覧。"""
+
+    template_name = 'analytics/search_queries.html'
+    page_size = 50
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        accessible_ids = services.accessible_community_ids(self.request.user)
+        target_ids = self._get_target_community_ids(accessible_ids)
+        days = self._get_days()
+        context.update(self._get_filter_context(accessible_ids, target_ids, days))
+        filters = {'days': days}
+        if context['selected_community']:
+            filters['community'] = context['selected_community'].pk
+        context['dashboard_query'] = urlencode(filters)
+        if not accessible_ids:
+            return context
+
+        sort = self.request.GET.get('sort', 'clicks')
+        if sort not in ('clicks', 'impressions'):
+            sort = 'clicks'
+        q = self.request.GET.get('q', '').strip()[:100]
+        rows = services.get_all_search_queries(target_ids, days, sort=sort, q=q)
+        page = Paginator(rows, self.page_size).get_page(self.request.GET.get('page'))
+        for row in page:
+            row['ctr'] = row['clicks'] / row['impressions'] * 100 if row['impressions'] else None
+
+        context.update({
+            'filter_query': urlencode({**filters, 'q': q}),
+            'q': q,
+            'sort': sort,
+            'search_queries': page,
+            'search_queries_since': services.get_search_queries_since(days),
+        })
         return context
