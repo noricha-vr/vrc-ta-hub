@@ -128,3 +128,32 @@ def _escape_unknown_html_tags(text: str) -> str:
         text = text.replace(f'\x00INLINE_CODE_{i}\x00', code)
 
     return text
+
+
+# 記事生成で PDF が無いのに書かれたスライドリンクの行（例: 「[発表スライド（PDF）](なし)」）。
+# 生成プロンプトが PDF の URL の代わりに「なし」を渡していた頃の出力だけを、行全体の一致で狙う
+_INVALID_SLIDE_LINK_LINE = re.compile(r'「?\[発表スライド（PDF）\]\((?:なし)?\)」?\s*')
+
+
+_CODE_FENCE = re.compile(r' {0,3}(`{3,}|~{3,})(.*)')
+
+
+def remove_invalid_slide_links(text: str) -> str:
+    """行き先の無いスライドリンクだけの行を消す。コードブロックの中は触らない。"""
+    if not text:
+        return text
+    lines = []
+    open_fence = ''  # 開いているコードブロックのフェンス（``` や ~~~~）。外にいる時は空
+    for line in text.split('\n'):
+        fence = _CODE_FENCE.fullmatch(line)
+        if open_fence:
+            # 同じ記号で、開きと同じ長さ以上・後ろに文字の無いフェンスだけが閉じる（CommonMark）
+            if fence and fence.group(1)[0] == open_fence[0] and len(fence.group(1)) >= len(open_fence) \
+                    and not fence.group(2).strip():
+                open_fence = ''
+        elif fence and not (fence.group(1)[0] == '`' and '`' in fence.group(2)):
+            open_fence = fence.group(1)
+        elif _INVALID_SLIDE_LINK_LINE.fullmatch(line):
+            continue
+        lines.append(line)
+    return '\n'.join(lines)

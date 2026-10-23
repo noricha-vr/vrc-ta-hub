@@ -13,6 +13,7 @@ from analytics import services as analytics_services
 from analytics.models import PageAnalytics
 from analytics.video_stats import get_video_views
 from community.constants import WEEKDAY_CHOICES
+from event.services.content_sanitizer import remove_invalid_slide_links
 from event.services.markdown_processor import convert_markdown
 from event.models import EventDetail, related_event_details_cache_key
 from event.views.helpers import (
@@ -241,7 +242,8 @@ class EventDetailView(DetailView):
         article_visible = not event_detail.is_article_ng
         return {
             'article_visible': article_visible,
-            'html_content': convert_markdown(event_detail.contents) if article_visible else '',
+            # 修正前に生成した記事に残る、行き先の無いスライドリンクも表示時に消す
+            'html_content': convert_markdown(remove_invalid_slide_links(event_detail.contents)) if article_visible else '',
             'can_generate_article': (
                 article_visible
                 and event_detail.detail_type == 'LT'

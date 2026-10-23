@@ -27,6 +27,7 @@ from event.services.content_generation_service import (
     _limit_source_text,
 )
 from event.services.youtube_service import get_transcript
+from event.services.content_sanitizer import remove_invalid_slide_links
 from event.services.media_service import ensure_pdf_thumbnail
 from event.services.pdf_worker import PdfWorkerError
 from event.models import Event, EventDetail
@@ -822,3 +823,117 @@ class TranscriptCacheTest(TestCase):
             MAX_COMBINED_SOURCE_CHARS,
         )
         self.assertGreater(embedded_pdf_chars, 0)
+
+
+class SlideLinkTest(TestCase):
+    """PDF が無い記事にスライドのリンクを出さないことのテスト"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.community = Community.objects.create(name="リンク集会")
+        cls.event = Event.objects.create(date=date(2024, 5, 24), community=cls.community)
+
+    def _patch_openrouter(self, text):
+        mock_client = MagicMock()
+        tool_call = MagicMock()
+        tool_call.function.arguments = json.dumps({"title": "t", "meta_description": "m", "text": text})
+        mock_client.chat.completions.create.return_value.choices = [
+            MagicMock(message=MagicMock(tool_calls=[tool_call]))
+        ]
+        return mock_client
+
+    def _prompt(self, mock_client):
+        return mock_client.chat.completions.create.call_args.kwargs["messages"][1]["content"]
+
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=False)
+    @patch("event.services.content_generation_service.OpenAI")
+    @patch("event.services.content_generation_service.get_transcript", return_value="字幕")
+    def test_video_only_article_has_no_slide_link(self, _mock_get_transcript, mock_openai_class):
+        """動画だけの記事では、リンクを書かせず、書かれても消す."""
+        mock_client = self._patch_openrouter("## まとめ\n\n楽しかったです。\n\n「[発表スライド（PDF）](なし)」\n")
+        mock_openai_class.return_value = mock_client
+        detail = EventDetail.objects.create(
+            theme="テーマ", speaker="のりちゃん", event=self.event,
+            youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M", status="pending",
+        )
+
+        output = generate_blog(detail, model="test-model")
+
+        prompt = self._prompt(mock_client)
+        self.assertNotIn("[発表スライド（PDF）]", prompt)
+        self.assertIn("スライドへのリンクは記載しない", prompt)
+        self.assertEqual(output.text, "## まとめ\n\n楽しかったです。\n\n")
+
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "test-key"}, clear=False)
+    @patch("event.services.content_generation_service.OpenAI")
+    @patch("event.services.content_generation_service.get_transcript", return_value="字幕")
+    def test_slide_url_article_keeps_slide_link(self, _mock_get_transcript, mock_openai_class):
+        """スライドの URL がある記事では、その URL のリンクを書かせて残す."""
+        slide_url = "https://example.com/slide.pdf"
+        text = f"## まとめ\n\n楽しかったです。\n\n[発表スライド（PDF）]({slide_url})\n\n[一覧](/event/list/)"
+        mock_client = self._patch_openrouter(text)
+        mock_openai_class.return_value = mock_client
+        detail = EventDetail.objects.create(
+            theme="テーマ", speaker="のりちゃん", event=self.event,
+            youtube_url="https://www.youtube.com/watch?v=rrKl0s23E0M", slide_url=slide_url, status="pending",
+        )
+
+        output = generate_blog(detail, model="test-model")
+
+        self.assertIn(f"[発表スライド（PDF）]({slide_url})", self._prompt(mock_client))
+        self.assertEqual(output.text, text)
+
+    def test_detail_page_hides_slide_link_left_in_old_article(self):
+        """修正前に生成された記事の、行き先の無いスライドリンクは詳細ページに出さない."""
+        detail = EventDetail.objects.create(
+            theme="テーマ", speaker="のりちゃん", event=self.event, status="approved",
+            contents="## まとめ\n\n楽しかったです。\n\n「[発表スライド（PDF）](なし)」",
+        )
+
+        response = self.client.get(f"/event/detail/{detail.pk}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("楽しかったです。", response.content.decode())
+        self.assertNotIn('href="なし"', response.content.decode())
+
+
+class RemoveInvalidSlideLinksTest(TestCase):
+    """remove_invalid_slide_links が対象の行以外に触れないことのテスト"""
+
+    def test_removes_placeholder_link_line_at_top(self):
+        text = "[発表スライド（PDF）](なし)\n想像してみてください。\n\n## 見出し"
+        self.assertEqual(remove_invalid_slide_links(text), "想像してみてください。\n\n## 見出し")
+
+    def test_keeps_other_links_and_code(self):
+        text = (
+            "詳細は[仕様](guide.html)を参照。\n"
+            "[発表スライド（PDF）](HTTPS://example.com/slide.pdf)\n"
+            "[発表スライド（PDF）](slides/talk.pdf)\n"
+            "[発表スライド（PDF）](<https://example.com/slide.pdf>)\n"
+            "`[発表スライド（PDF）](なし)` という書き方\n"
+            "前置き [発表スライド（PDF）](なし)\n"
+            "\n"
+            "    [発表スライド（PDF）](なし)\n"
+            "\n"
+            "```\n"
+            "[発表スライド（PDF）](なし)\n"
+            "```\n"
+            "````markdown\n"
+            "```\n"
+            "[発表スライド（PDF）](なし)\n"
+            "```\n"
+            "[発表スライド（PDF）](なし)\n"
+            "````\n"
+            "~~~\n"
+            "[発表スライド（PDF）](なし)\n"
+            "~~~"
+        )
+        self.assertEqual(remove_invalid_slide_links(text), text)
+
+    def test_long_unclosed_links_are_fast(self):
+        """閉じ括弧の無いリンクが続く長い行でも時間がかからない."""
+        import time
+        text = "[発表スライド（PDF）](" * 20000
+        started = time.monotonic()
+        self.assertEqual(remove_invalid_slide_links(text), text)
+        self.assertLess(time.monotonic() - started, 0.5)
