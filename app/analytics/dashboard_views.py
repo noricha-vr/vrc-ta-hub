@@ -46,7 +46,7 @@ def _csv_safe(value) -> str:
 ALLOWED_DAYS = [7, 30, 90]
 # 既定日数は services を単一の真実とし、二重管理による不整合を防ぐ
 DEFAULT_DAYS = services.DEFAULT_DAYS
-PAGE_SIZE = 50
+PAGE_SIZE = 20
 
 
 class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
@@ -214,6 +214,7 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
         filters = {'days': days}
         if selected_community:
             filters['community'] = selected_community.pk
+        poster_clicks = services.get_poster_click_stats(target_ids, days=days)
         context.update({
             'sort': sort,
             'filter_query': urlencode(filters),
@@ -227,7 +228,9 @@ class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
             'source_categories': services.get_source_categories(target_ids, days=days),
             'source_breakdown': services.get_source_breakdown(target_ids, days=days),
             # ポスタークリック集計（権限境界は target_ids ベースで services 側が絞る）
-            'poster_clicks': services.get_poster_click_stats(target_ids, days=days),
+            'poster_clicks': poster_clicks,
+            'show_poster_communities': len(target_ids) > 1,
+            'poster_community_rows': poster_clicks['per_community'][:10],
             # キャンペーン経由アクセス（UTM utm_campaign 別）
             'campaign_breakdown': services.get_campaign_breakdown(target_ids, days=days),
             'campaign_daily': services.get_campaign_daily_series(target_ids, days=days),
