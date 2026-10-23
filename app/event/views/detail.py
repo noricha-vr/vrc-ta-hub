@@ -4,11 +4,14 @@ from datetime import timedelta
 from typing import List, Dict
 
 from django.core.cache import cache
+from django.db.models import Sum
 from django.http import Http404
+from django.urls import reverse
 from django.views.generic import DetailView
 
 from analytics import services as analytics_services
 from analytics.models import PageAnalytics
+from analytics.video_stats import get_video_views
 from community.constants import WEEKDAY_CHOICES
 from event.services.markdown_processor import convert_markdown
 from event.models import EventDetail, related_event_details_cache_key
@@ -95,25 +98,7 @@ class EventDetailView(DetailView):
         # 集会の主催者・スタッフと superuser に出す
         context['can_tweet_event'] = is_event_detail_admin(self.request.user, event_detail)
 
-        # アクセス解析は集会運営データのため、閲覧権限は集会の管理者(owner/staff)または
-        # superuser に限定する。can_manage_event_detail は「承認済みLTの応募者本人」も含む
-        # ため、発表者本人（非管理者）に集会全体の流入元が漏れないよう専用判定で分離する。
-        can_view_analytics = (
-            context['is_community_owner'] or self.request.user.is_superuser
-        )
-        context['can_view_analytics'] = can_view_analytics
-        # 権限が無ければキー自体を入れない（テンプレ側の if だけに頼らず view で出し分け）。
-        if can_view_analytics:
-            context['daily_series'] = analytics_services.get_daily_series(
-                [event_detail.event.community_id],
-                content_type=PageAnalytics.ContentType.EVENT_DETAIL,
-                object_id=event_detail.pk,
-            )
-            context['source_breakdown'] = analytics_services.get_source_breakdown(
-                [event_detail.event.community_id],
-                content_type=PageAnalytics.ContentType.EVENT_DETAIL,
-                object_id=event_detail.pk,
-            )
+        context.update(self._analytics_context(event_detail))
 
         # 構造化データ（BlogPosting）を生成（ブログ記事のみ）
         try:
@@ -191,6 +176,59 @@ class EventDetailView(DetailView):
         except Exception as e:
             logger.warning(f"Failed to prepare structured data for EventDetail id={event_detail.id}: {str(e)}")
 
+        return context
+
+    def _analytics_context(self, event_detail: EventDetail) -> Dict:
+        """反響カード。発表者本人には自分の閲覧数・再生数だけを渡す。
+
+        平均視聴時間は取り込み開始後に analytics_average_view_duration として
+        管理者の context に追加する（現在はデータがないためキーも作らない）。
+        """
+        user = self.request.user
+        is_manager = is_event_detail_admin(user, event_detail)
+        can_view = is_manager or can_manage_event_detail(user, event_detail)
+        context = {'can_view_analytics': can_view}
+        if not can_view:
+            return context
+
+        community_ids = [event_detail.event.community_id]
+        if is_manager:
+            allowed_ids = analytics_services.accessible_community_ids(user)
+            community_ids = [pk for pk in community_ids if pk in allowed_ids]
+
+        # 累計を返す既存サービスはないため、権限確認済みの発表だけを期間指定なしで合算する。
+        total = PageAnalytics.objects.filter(
+            community_id__in=community_ids,
+            content_type=PageAnalytics.ContentType.EVENT_DETAIL,
+            object_id=event_detail.pk,
+        ).aggregate(pv=Sum('pv'))['pv'] or 0
+        period = sum(row['pv'] for row in analytics_services.get_daily_series(
+            community_ids,
+            content_type=PageAnalytics.ContentType.EVENT_DETAIL,
+            object_id=event_detail.pk,
+            days=30,
+        ))
+        context['analytics_article_views'] = {'total': total, 'period': period}
+        video_views = get_video_views([event_detail.pk], days=30).get(event_detail.pk)
+        if video_views is not None:
+            context['analytics_video_views'] = video_views
+        context['analytics_has_data'] = bool(
+            total or (video_views is not None and video_views['total'] is not None)
+        )
+
+        if is_manager:
+            context['analytics_rank'] = analytics_services.get_event_detail_rank(
+                community_ids, event_detail, days=30,
+            )
+            context['analytics_sources'] = analytics_services.get_source_categories(
+                community_ids,
+                content_type=PageAnalytics.ContentType.EVENT_DETAIL,
+                object_id=event_detail.pk,
+                days=30,
+            )
+            context['analytics_dashboard_url'] = (
+                f"{reverse('analytics:dashboard')}?community={event_detail.event.community_id}"
+            )
         return context
 
     @staticmethod

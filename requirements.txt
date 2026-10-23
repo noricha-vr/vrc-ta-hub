@@ -4,6 +4,7 @@ annotated-types==0.7.0
     # via pydantic
 anyio==4.15.1
     # via
+    #   google-genai
     #   httpx
     #   openai
 asgiref==3.11.1
@@ -48,7 +49,9 @@ cryptography==50.0.2
 defusedxml==0.7.1
     # via youtube-transcript-api
 distro==1.9.0
-    # via openai
+    # via
+    #   google-genai
+    #   openai
 django==5.2.17
     # via
     #   -r requirements.in
@@ -91,26 +94,19 @@ drf-spectacular==0.30.0
     # via -r requirements.in
 filetype==1.2.0
     # via -r requirements.in
-google-ai-generativelanguage==0.6.15
-    # via google-generativeai
 google-analytics-data==0.22.0
     # via -r requirements.in
 google-api-core==2.30.3
     # via
-    #   google-ai-generativelanguage
     #   google-analytics-data
     #   google-api-python-client
     #   google-cloud-bigquery
     #   google-cloud-core
-    #   google-generativeai
 google-api-python-client==2.201.0
-    # via
-    #   -r requirements.in
-    #   google-generativeai
+    # via -r requirements.in
 google-auth==2.62.0
     # via
     #   -r requirements.in
-    #   google-ai-generativelanguage
     #   google-analytics-data
     #   google-api-core
     #   google-api-python-client
@@ -118,7 +114,7 @@ google-auth==2.62.0
     #   google-auth-oauthlib
     #   google-cloud-bigquery
     #   google-cloud-core
-    #   google-generativeai
+    #   google-genai
 google-auth-httplib2==0.4.0
     # via google-api-python-client
 google-auth-oauthlib==1.5.0
@@ -129,7 +125,7 @@ google-cloud-core==2.6.0
     # via google-cloud-bigquery
 google-crc32c==1.8.0
     # via google-resumable-media
-google-generativeai==0.8.6
+google-genai==2.32.0
     # via -r requirements.in
 google-resumable-media==2.10.0
     # via google-cloud-bigquery
@@ -142,7 +138,7 @@ grpcio==1.81.0
     #   google-analytics-data
     #   google-api-core
     #   grpcio-status
-grpcio-status==1.71.2
+grpcio-status==1.81.0
     # via google-api-core
 h11==0.16.0
     # via httpcore
@@ -153,8 +149,10 @@ httplib2==0.32.0
     #   google-api-python-client
     #   google-auth-httplib2
 httpx==0.28.1
-    # via openai
-icalendar==5.0.12
+    # via
+    #   google-genai
+    #   openai
+icalendar==7.3.0
     # via -r requirements.in
 idna==3.18
     # via
@@ -201,15 +199,12 @@ pluggy==1.6.0
     # via pytest
 proto-plus==1.28.0
     # via
-    #   google-ai-generativelanguage
     #   google-analytics-data
     #   google-api-core
-protobuf==5.29.6
+protobuf==7.36.2
     # via
-    #   google-ai-generativelanguage
     #   google-analytics-data
     #   google-api-core
-    #   google-generativeai
     #   googleapis-common-protos
     #   grpcio-status
     #   proto-plus
@@ -222,7 +217,7 @@ pycparser==3.0
 pydantic==2.14.1
     # via
     #   -r requirements.in
-    #   google-generativeai
+    #   google-genai
     #   openai
 pydantic-core==2.50.1
     # via pydantic
@@ -232,7 +227,7 @@ pyjwt==2.15.1
     # via django-allauth
 pyparsing==3.3.2
     # via httplib2
-pypdf==6.20.1
+pypdf==6.21.1
     # via -r requirements.in
 pypdfium2==5.14.0
     # via -r requirements.in
@@ -245,8 +240,6 @@ python-dateutil==2.9.0.post0
     #   botocore
     #   google-cloud-bigquery
     #   icalendar
-pytz==2026.2
-    # via icalendar
 pyyaml==6.0.3
     # via drf-spectacular
 qrcode==8.2
@@ -261,7 +254,9 @@ requests==2.34.2
     #   django-allauth
     #   djangorestframework-stubs
     #   google-api-core
+    #   google-auth
     #   google-cloud-bigquery
+    #   google-genai
     #   requests-oauthlib
     #   youtube-transcript-api
 requests-oauthlib==2.0.0
@@ -279,26 +274,28 @@ sentry-sdk==2.72.0
 six==1.17.0
     # via python-dateutil
 sniffio==1.3.1
-    # via openai
+    # via
+    #   google-genai
+    #   openai
 soupsieve==2.10
     # via beautifulsoup4
 sqlparse==0.6.0
     # via django
 structlog==25.1.0
     # via -r requirements.in
-tenacity==9.2.1
-    # via -r requirements.in
+tenacity==9.1.4
+    # via
+    #   -r requirements.in
+    #   google-genai
 tinycss2==1.5.1
     # via -r requirements.in
 tqdm==4.68.2
-    # via
-    #   google-generativeai
-    #   openai
+    # via openai
 types-bleach==6.4.0.20260607
     # via -r requirements.in
 types-html5lib==1.1.11.20260518
     # via types-bleach
-types-markdown==3.10.2.20260712
+types-markdown==3.10.2.20261007
     # via -r requirements.in
 types-pyyaml==6.0.12.20260518
     # via
@@ -315,8 +312,9 @@ typing-extensions==4.16.0
     #   django-stubs
     #   django-stubs-ext
     #   djangorestframework-stubs
-    #   google-generativeai
+    #   google-genai
     #   grpcio
+    #   icalendar
     #   mypy
     #   openai
     #   pydantic
@@ -325,6 +323,8 @@ typing-extensions==4.16.0
     #   typing-inspection
 typing-inspection==0.4.4
     # via pydantic
+tzdata==2026.5
+    # via icalendar
 uritemplate==4.2.0
     # via
     #   drf-spectacular
@@ -340,5 +340,7 @@ webencodings==0.5.1
     # via
     #   bleach
     #   tinycss2
+websockets==16.1.1
+    # via google-genai
 youtube-transcript-api==1.2.4
     # via -r requirements.in

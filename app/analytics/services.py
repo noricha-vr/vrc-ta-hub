@@ -7,13 +7,15 @@ object_id だけで絞ると他 community のデータが混入するため、co
 import logging
 from datetime import date, timedelta
 
-from django.db.models import Sum
+from django.db.models import Q, Sum
+from django.urls import reverse
 from django.utils import timezone
 
 from community.models import Community
 from event.models import EventDetail
 
 from .models import Campaign, PageAnalytics, PosterClick
+from .source_category import SOURCE_CATEGORY_LABELS, classify_source
 
 logger = logging.getLogger('analytics')
 
@@ -106,6 +108,26 @@ def get_daily_series(community_ids, *, content_type=None, object_id=None, days=D
         )
         .order_by('date')
     )
+
+
+def get_weekly_series(community_ids, *, days=DEFAULT_DAYS) -> list:
+    """前日までの日次集計を月曜始まりの週別 PV にまとめる。空白週は0で補う。"""
+    if not community_ids:
+        return []
+    daily = get_daily_series(community_ids, days=days)
+    if not daily:
+        return []
+
+    since, until = _date_range(days)
+    week = since - timedelta(days=since.weekday())
+    totals = {}
+    while week <= until:
+        totals[week] = 0
+        week += timedelta(days=7)
+    for row in daily:
+        week = row['date'] - timedelta(days=row['date'].weekday())
+        totals[week] += row['pv'] or 0
+    return [{'week_start': week, 'pv': pv} for week, pv in totals.items()]
 
 
 def get_source_breakdown(community_ids, *, content_type=None, object_id=None, days=DEFAULT_DAYS) -> list:
@@ -203,6 +225,173 @@ def _empty_overall_stats() -> dict:
     }
 
 
+def get_community_summary(community_ids, *, days=DEFAULT_DAYS) -> dict:
+    """集会ページ・発表記事・キャンペーンの合計 PV と直前同期間比を返す。
+
+    global は含めない。内訳は community_page_pv / article_pv / campaign_pv、前期間が0なら
+    change_rate は None。期間は前日までの days 日と、その直前の days 日。
+    """
+    empty = {
+        'pv': 0, 'prev_pv': 0, 'change_rate': None,
+        'community_page_pv': 0, 'article_pv': 0, 'campaign_pv': 0,
+    }
+    if not community_ids:
+        return empty
+
+    content_types = (
+        PageAnalytics.ContentType.COMMUNITY,
+        PageAnalytics.ContentType.EVENT_DETAIL,
+        PageAnalytics.ContentType.CAMPAIGN,
+    )
+    current = (
+        _base_queryset(community_ids, days=days)
+        .filter(content_type__in=content_types)
+        .aggregate(
+            total_pv=Sum('pv'),
+            community_page_pv=Sum('pv', filter=Q(content_type=PageAnalytics.ContentType.COMMUNITY)),
+            article_pv=Sum('pv', filter=Q(content_type=PageAnalytics.ContentType.EVENT_DETAIL)),
+            campaign_pv=Sum('pv', filter=Q(content_type=PageAnalytics.ContentType.CAMPAIGN)),
+        )
+    )
+    since, _ = _date_range(days)
+    prev_pv = (
+        PageAnalytics.objects.filter(
+            community_id__in=community_ids,
+            content_type__in=content_types,
+            date__gte=since - timedelta(days=days),
+            date__lt=since,
+        )
+        .aggregate(pv=Sum('pv'))['pv'] or 0
+    )
+    pv = current['total_pv'] or 0
+    return {
+        'pv': pv,
+        'prev_pv': prev_pv,
+        'change_rate': round((pv - prev_pv) / prev_pv * 100, 1) if prev_pv else None,
+        'community_page_pv': current['community_page_pv'] or 0,
+        'article_pv': current['article_pv'] or 0,
+        'campaign_pv': current['campaign_pv'] or 0,
+    }
+
+
+def get_page_ranking(community_ids, *, days=DEFAULT_DAYS, limit=None) -> list:
+    """集会ページと発表記事を PV 降順・同値は object_id 昇順で返す。
+
+    対象を一括取得し、削除済み・存在しない・未承認の対象は除いてから limit を適用する。
+    published_at は発表の開催日（集会ページは None）、url は公開ページのパス。
+    """
+    if not community_ids:
+        return []
+
+    aggregates = list(
+        _base_queryset(community_ids, days=days)
+        .filter(content_type__in=(
+            PageAnalytics.ContentType.COMMUNITY,
+            PageAnalytics.ContentType.EVENT_DETAIL,
+        ))
+        .values('content_type', 'object_id', 'community_id')
+        .annotate(pv=Sum('pv'))
+        .order_by('-pv', 'object_id', 'content_type')
+    )
+    if not aggregates:
+        return []
+
+    community_map = Community.objects.filter(pk__in=community_ids).in_bulk(
+        row['object_id'] for row in aggregates
+        if row['content_type'] == PageAnalytics.ContentType.COMMUNITY
+    )
+    # 承認待ち・却下済みの申請ページは主催者や申請者しか開けないので、公開ページの実績に混ぜない
+    detail_map = (
+        EventDetail.objects.filter(event__community_id__in=community_ids, status='approved')
+        .select_related('event')
+        .in_bulk(
+            row['object_id'] for row in aggregates
+            if row['content_type'] == PageAnalytics.ContentType.EVENT_DETAIL
+        )
+    )
+    results = []
+    for row in aggregates:
+        pk = row['object_id']
+        if row['content_type'] == PageAnalytics.ContentType.COMMUNITY:
+            community = community_map.get(pk)
+            if community is None or community.pk != row['community_id']:
+                continue
+            title = community.name
+            url = reverse('community:detail', kwargs={'pk': pk})
+            published_at = None
+        else:
+            detail = detail_map.get(pk)
+            if detail is None or detail.event.community_id != row['community_id']:
+                continue
+            title = detail.theme or detail.h1 or '(無題)'
+            url = reverse('event:detail', kwargs={'pk': pk})
+            published_at = detail.event.date
+        results.append({
+            'kind': row['content_type'], 'object_id': pk,
+            'title': title, 'url': url, 'published_at': published_at,
+            'community_id': row['community_id'], 'pv': row['pv'] or 0,
+        })
+    return results if limit is None else results[:limit]
+
+
+def get_event_detail_rank(community_ids, event_detail, *, days=DEFAULT_DAYS) -> dict:
+    """集会の公開済み発表数と期間内 PV 順位を返す（PV 0 は rank=None）。
+
+    発表の集会が community_ids（閲覧者が見てよい集会）に無ければ集計せず rank=None, total=0 を返す。
+    LT 以外（特別企画・ブログ）と削除済み・未承認の発表は母数から除く。PV 同値は object_id 昇順。
+    """
+    community_id = event_detail.event.community_id
+    if community_id not in set(community_ids):
+        return {'rank': None, 'total': 0}
+    community_ids = [community_id]
+    detail_ids = list(
+        EventDetail.objects.filter(
+            event__community_id__in=community_ids, status='approved', detail_type='LT',
+        ).values_list('pk', flat=True)
+    )
+    total = len(detail_ids)
+    if event_detail.pk not in detail_ids:
+        return {'rank': None, 'total': total}
+    ranking = list(
+        _base_queryset(
+            community_ids, content_type=PageAnalytics.ContentType.EVENT_DETAIL, days=days,
+        )
+        .filter(object_id__in=detail_ids)
+        .values('object_id')
+        .annotate(pv=Sum('pv'))
+        .filter(pv__gt=0)
+        .order_by('-pv', 'object_id')
+    )
+    rank = next(
+        (index for index, row in enumerate(ranking, 1) if row['object_id'] == event_detail.pk),
+        None,
+    )
+    return {'rank': rank, 'total': total}
+
+
+def get_source_categories(
+    community_ids, *, content_type=None, object_id=None, days=DEFAULT_DAYS,
+) -> list:
+    """流入元を6分類に合算し、PV 降順で整数の割合と日本語ラベルを返す。"""
+    if not community_ids:
+        return []
+
+    categories = {}
+    for row in get_source_breakdown(
+        community_ids, content_type=content_type, object_id=object_id, days=days,
+    ):
+        category = classify_source(row['source_medium'])
+        categories[category] = categories.get(category, 0) + (row['pv'] or 0)
+    total = sum(categories.values())
+    return [
+        {
+            'category': category, 'label': SOURCE_CATEGORY_LABELS[category],
+            'pv': pv, 'percent': round(pv / total * 100) if total else 0,
+        }
+        for category, pv in sorted(categories.items(), key=lambda item: (-item[1], item[0]))
+    ]
+
+
 def get_event_detail_breakdown(
     community_ids, *, days=DEFAULT_DAYS, limit=TOP_EVENT_DETAILS_LIMIT,
 ) -> list:
@@ -225,12 +414,14 @@ def get_event_detail_breakdown(
     if not community_ids:
         return []
 
-    # まず PV 降順で event_detail 単位に集計
+    # まず PV 降順で event_detail 単位に集計。未承認の申請ページは limit の前に外す
     base = _base_queryset(
         community_ids,
         content_type=PageAnalytics.ContentType.EVENT_DETAIL,
         days=days,
-    )
+    ).filter(object_id__in=EventDetail.objects.filter(
+        event__community_id__in=community_ids, status='approved',
+    ).values('pk'))
     aggregates = list(
         base.values('object_id')
         .annotate(pv=Sum('pv'), users=Sum('users'), sessions=Sum('sessions'))
@@ -246,7 +437,7 @@ def get_event_detail_breakdown(
     event_details = (
         EventDetail.objects
         .select_related('event__community')
-        .filter(pk__in=event_detail_ids)
+        .filter(pk__in=event_detail_ids, event__community_id__in=community_ids)
     )
     detail_map = {ed.pk: ed for ed in event_details}
 

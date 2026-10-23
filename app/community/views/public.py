@@ -14,6 +14,7 @@ from django.views.generic import ListView, DetailView
 
 from analytics import services as analytics_services
 from analytics.models import PageAnalytics
+from analytics.video_stats import summarize_video_views
 from event.models import Event, EventDetail
 from ta_hub.og import image_url
 from url_filters import get_filtered_url
@@ -243,25 +244,47 @@ class CommunityDetailView(DetailView):
         # アクセス解析の閲覧権限は owner/staff/superuser の3つ。
         # 編集権限（is_owner）とは別の context キーにすることで、staff にも
         # 解析を見せつつ集会情報の編集権限は owner に限定する。
-        # 未ログイン時は is_manager クエリを叩かないよう短絡評価
+        # 未ログイン時は can_edit クエリを叩かないよう短絡評価
         user = self.request.user
         context['can_view_analytics'] = user.is_authenticated and (
-            user.is_superuser or community.is_manager(user)
+            user.is_superuser or community.can_edit(user)
         )
 
         # 集会管理者または superuser のときだけアクセス解析を context に入れる。
         # 権限が無ければキー自体を入れない（テンプレ側の if だけに頼らず view で出し分け）。
         if context['can_view_analytics']:
-            context['daily_series'] = analytics_services.get_daily_series(
-                [community.pk],
-                content_type=PageAnalytics.ContentType.COMMUNITY,
-                object_id=community.pk,
-            )
-            context['source_breakdown'] = analytics_services.get_source_breakdown(
-                [community.pk],
-                content_type=PageAnalytics.ContentType.COMMUNITY,
-                object_id=community.pk,
-            )
+            community_ids = [
+                pk for pk in analytics_services.accessible_community_ids(user)
+                if pk == community.pk
+            ]
+            detail_ids = list(EventDetail.objects.filter(
+                event__community_id__in=community_ids, status='approved', detail_type='LT',
+            ).values_list('pk', flat=True))
+            # 期間の再生数は両端の日次スナップショットがそろうまで出ないので、その間は累計で見せる
+            video_views, video_total, video_is_cumulative = summarize_video_views(detail_ids, days=30)
+            detail_id_set = set(detail_ids)
+            ranking = [
+                row for row in analytics_services.get_page_ranking(community_ids, days=30)
+                if row['kind'] == PageAnalytics.ContentType.EVENT_DETAIL
+                and row['object_id'] in detail_id_set
+            ][:5]
+            for row in ranking:
+                views = video_views.get(row['object_id'], {})
+                row['video_views'] = views.get('period')
+                if row['video_views'] is None and views.get('total') is not None:
+                    row['video_views'] = views['total']
+                    row['video_is_cumulative'] = True
+            summary = analytics_services.get_community_summary(community_ids, days=30)
+            context['community_analytics'] = {
+                'summary': summary,
+                'video_views': video_total,
+                'video_is_cumulative': video_is_cumulative,
+                'top_presentations': ranking,
+                'sources': analytics_services.get_source_categories(community_ids, days=30),
+                'has_data': bool(summary['pv'] or video_total),
+                # 平均視聴時間の取り込み後に使用する。未取得の間は表示しない。
+                'average_watch_time': None,
+            }
 
         # superuserの場合、集会オーナーのDiscord IDとメールアドレスをSocialAccountから取得
         if self.request.user.is_superuser:
