@@ -21,9 +21,14 @@ class EventDetailImageLoadingTest(SimpleTestCase):
 
     def test_thumbnail_offers_smaller_widths_and_stays_eager(self):
         tag = self._img_tag("event-detail-thumbnail img-fluid")
-        self.assertIn("srcset=", tag)
-        self.assertIn("cf_resize:'800' }} 800w", tag)
-        self.assertIn("sizes=", tag)
+        for width in ("600", "800", "1200"):
+            self.assertIn(f"cf_resize:'{width}' }}}} {width}w", tag)
+        # 表示幅は Bootstrap の container 幅から gutter（24px）を引いた値
+        self.assertIn(
+            'sizes="(min-width: 1400px) 1296px, (min-width: 1200px) 1116px, (min-width: 992px) 936px, '
+            '(min-width: 768px) 696px, (min-width: 576px) 516px, calc(100vw - 24px)"',
+            tag,
+        )
         self.assertIn('fetchpriority="high"', tag)
         self.assertNotIn('loading="lazy"', tag)
 
