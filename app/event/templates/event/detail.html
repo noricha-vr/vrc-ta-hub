@@ -21,8 +21,6 @@
     {% if structured_data_json %}
         <script type="application/ld+json">{{ structured_data_json|safe }}</script>
     {% endif %}
-    {#  FontAwesome  #}
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 {% endblock %}
 {% block main %}
     <style>
@@ -159,7 +157,10 @@
                 {% if event_detail.thumbnail_image %}
                     <div class="mb-4">
                         {# ファーストビューの主要画像（LCP 候補）のため lazy にせず優先読み込みする #}
+                        {# srcset の幅は Bootstrap の container 幅（gutter 抜き）に合わせ、スマホに 1200px を読ませない #}
                         <img src="{{ event_detail.thumbnail_image.url|cf_resize:'1200' }}"
+                             srcset="{{ event_detail.thumbnail_image.url|cf_resize:'600' }} 600w, {{ event_detail.thumbnail_image.url|cf_resize:'800' }} 800w, {{ event_detail.thumbnail_image.url|cf_resize:'1200' }} 1200w"
+                             sizes="(min-width: 1400px) 1296px, (min-width: 1200px) 1116px, (min-width: 992px) 936px, (min-width: 768px) 696px, (min-width: 576px) 516px, calc(100vw - 24px)"
                              class="event-detail-thumbnail img-fluid rounded shadow-sm"
                              alt="{{ event_detail.title }}のサムネイル"
                              fetchpriority="high">
@@ -369,6 +370,7 @@
                                 <div class="col-md-4">
                                     {% if event_detail.event.community.poster_image %}
                                         <img src="{{ event_detail.event.community.poster_image.url|cf_resize:'400' }}"
+                                             loading="lazy" decoding="async"
                                              class="img-fluid rounded"
                                              alt="{{ event_detail.event.community.name }}のポスター">
                                     {% endif %}
