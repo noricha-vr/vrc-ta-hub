@@ -30,7 +30,7 @@ bleach==6.4.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
-boto3==1.43.115
+boto3==1.43.118
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -55,7 +55,7 @@ charset-normalizer==3.4.7
     # via
     #   -c requirements.txt
     #   requests
-coverage==7.16.2
+coverage==7.17.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -299,7 +299,7 @@ pillow==13.0.0
     #   -c requirements.txt
     #   -r requirements.in
     #   qrcode
-playwright==1.64.0
+playwright==1.64.1
     # via -r requirements-e2e.in
 pluggy==1.6.0
     # via
@@ -354,7 +354,7 @@ pyparsing==3.3.2
     # via
     #   -c requirements.txt
     #   httplib2
-pypdf==6.21.1
+pypdf==6.21.2
     # via
     #   -c requirements.txt
     #   -r requirements.in
