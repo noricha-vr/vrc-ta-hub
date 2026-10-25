@@ -17,6 +17,10 @@ asgiref==3.11.1
     #   django-allauth
     #   django-cors-headers
     #   django-stubs
+ast-serialize==0.13.1
+    # via
+    #   -c requirements.txt
+    #   mypy
 attrs==26.1.0
     # via
     #   -c requirements.txt
@@ -264,11 +268,15 @@ jsonschema-specifications==2025.9.1
     # via
     #   -c requirements.txt
     #   jsonschema
+librt==0.16.0
+    # via
+    #   -c requirements.txt
+    #   mypy
 markdown==3.11.2
     # via
     #   -c requirements.txt
     #   -r requirements.in
-mypy==1.14.1
+mypy==2.4.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -294,6 +302,10 @@ packaging==26.2
     #   -c requirements.txt
     #   google-cloud-bigquery
     #   pytest
+pathspec==1.1.1
+    # via
+    #   -c requirements.txt
+    #   mypy
 pillow==13.0.0
     # via
     #   -c requirements.txt
