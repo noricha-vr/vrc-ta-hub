@@ -21,7 +21,7 @@ beautifulsoup4==4.15.0
     # via -r requirements.in
 bleach==6.4.0
     # via -r requirements.in
-boto3==1.43.115
+boto3==1.43.118
     # via
     #   -r requirements.in
     #   django-ses
@@ -39,7 +39,7 @@ cffi==2.0.0
     # via cryptography
 charset-normalizer==3.4.7
     # via requests
-coverage==7.16.2
+coverage==7.17.0
     # via -r requirements.in
 cryptography==50.0.2
     # via
@@ -66,7 +66,7 @@ django==5.2.17
     #   djangorestframework
     #   drf-spectacular
     #   sentry-sdk
-django-allauth==65.20.0
+django-allauth==65.20.1
     # via -r requirements.in
 django-bootstrap5==25.3
     # via -r requirements.in
@@ -227,7 +227,7 @@ pyjwt==2.15.1
     # via django-allauth
 pyparsing==3.3.2
     # via httplib2
-pypdf==6.21.1
+pypdf==6.21.2
     # via -r requirements.in
 pypdfium2==5.14.0
     # via -r requirements.in
@@ -269,7 +269,7 @@ rpds-py==2026.5.1
     #   referencing
 s3transfer==0.19.2
     # via boto3
-sentry-sdk==2.72.0
+sentry-sdk==2.73.0
     # via -r requirements.in
 six==1.17.0
     # via python-dateutil
