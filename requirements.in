@@ -36,7 +36,7 @@ qrcode[pil]==8.2
 coverage==7.17.0
 tenacity==9.1.4
 structlog==25.1.0
-mypy==1.14.1
+mypy==2.4.0
 django-stubs==6.1.2
 djangorestframework-stubs==3.15.2
 # mypy 用の型スタブ（bleach / markdown 本体には型情報が同梱されていない）
