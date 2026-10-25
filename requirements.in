@@ -37,7 +37,7 @@ coverage==7.16.2
 tenacity==9.1.4
 structlog==25.1.0
 mypy==1.14.1
-django-stubs==5.1.2
+django-stubs==6.1.2
 djangorestframework-stubs==3.15.2
 # mypy 用の型スタブ（bleach / markdown 本体には型情報が同梱されていない）
 types-bleach==6.4.0.20260607
