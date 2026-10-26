@@ -3,6 +3,7 @@ from django.urls import path
 from . import views
 from .views.auto_confirm import run_auto_confirm
 from .views.og import notice_og
+from .views.stage_copy import StageCopyView, StageThumbnailDownloadView, StageThumbnailGenerateView
 
 app_name = 'vket'
 
@@ -14,6 +15,15 @@ urlpatterns = [
     path('<int:pk>/apply/', views.ApplyView.as_view(), name='apply'),
     path('<int:pk>/status/', views.ParticipationStatusView.as_view(), name='status'),
     path('<int:pk>/stage-register/', views.StageRegisterView.as_view(), name='stage_register'),
+    path('<int:pk>/stage-copy/<int:participation_id>/', StageCopyView.as_view(), name='stage_copy'),
+    path(
+        '<int:pk>/stage-copy/<int:participation_id>/thumbnail/',
+        StageThumbnailGenerateView.as_view(), name='stage_thumbnail_generate',
+    ),
+    path(
+        '<int:pk>/stage-copy/<int:participation_id>/thumbnail/download/',
+        StageThumbnailDownloadView.as_view(), name='stage_thumbnail_download',
+    ),
     path('<int:pk>/notices/og.png', notice_og, name='notice_og_list'),
     path('<int:pk>/notices/<int:notice_id>/og.png', notice_og, name='notice_og_detail'),
     path('<int:pk>/notices/', views.NoticeListView.as_view(), name='notice_list'),
