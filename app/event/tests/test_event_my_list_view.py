@@ -1056,7 +1056,8 @@ class EventMyListFutureEventsTest(TestCase):
         self.assertEqual(collapsed, [False, False, True, True, True])
         self.assertFalse(response.context['open_more_future_events'])
         self.assertContains(response, 'id="more-future-events-toggle"')
-        self.assertContains(response, '▼ もっと見る')
+        self.assertContains(response, '残り 3 件を表示')
+        self.assertContains(response, self.instances[1].date.strftime('%-m/%-d') + '〜' + self.instances[-1].date.strftime('%-m/%-d'))
         self.assertContains(response, 'js-more-future-event d-none', count=3)
 
     def test_no_toggle_when_two_or_fewer_future_events(self):
@@ -1131,3 +1132,174 @@ class EventMyListFutureEventsTest(TestCase):
                 recurring_master=self.master,
             )
         self.assertEqual(count_queries(), base)
+
+
+class EventMyListActionFirstTest(TestCase):
+    """要対応の集約と未設定時の導線、画面内の削除確認を検証する。"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = make_user(user_name='action_owner', email='action@example.com')
+        cls.community = make_community(name='要対応テスト集会', owner=cls.owner)
+        cls.event = make_event(cls.community, event_date=get_vrchat_today() + timedelta(days=7))
+
+    def setUp(self):
+        self.client.force_login(self.owner)
+
+    def _get(self, params=None):
+        response = self.client.get(reverse('event:my_list'), params or {})
+        self.assertEqual(response.status_code, 200)
+        return response
+
+    def _soup(self, response):
+        from bs4 import BeautifulSoup
+        return BeautifulSoup(response.content, 'html.parser')
+
+    def test_no_twitter_template_links_directly_to_creation(self):
+        response = self._get()
+        link = self._soup(response).find('a', string='X の告知文を作成')
+        self.assertIsNotNone(link)
+        self.assertEqual(link['href'], reverse('twitter:template_create') + f'?community={self.community.pk}')
+        self.assertEqual(link['data-mylist-setup'], 'twitter_template')
+
+    def test_missing_calendar_entry_links_to_settings(self):
+        from event_calendar.models import CalendarEntry
+        CalendarEntry.objects.filter(community=self.community).delete()
+        response = self._get()
+        link = self._soup(response).find('a', string='VRCイベントカレンダーの設定をする')
+        self.assertIsNotNone(link)
+        self.assertEqual(link['href'], reverse('community:calendar_update'))
+        self.assertEqual(link['data-mylist-setup'], 'calendar')
+        self.assertNotContains(response, '>VRCイベントカレンダーに投稿</a>')
+
+    def test_calendar_configuration_switches_setup_and_posting(self):
+        from event_calendar.models import CalendarEntry
+        for event_detail, how_to_join in (('', ''), (' \n\t', '　 ')):
+            with self.subTest(event_detail=event_detail, how_to_join=how_to_join):
+                CalendarEntry.objects.update_or_create(community=self.community, defaults={
+                    'event_detail': event_detail, 'how_to_join': how_to_join,
+                })
+                self.assertContains(self._get(), 'VRCイベントカレンダーの設定をする')
+
+        for event_detail, how_to_join in (('詳細', ''), ('', '参加方法')):
+            with self.subTest(event_detail=event_detail):
+                CalendarEntry.objects.update_or_create(community=self.community, defaults={
+                    'event_detail': event_detail, 'how_to_join': how_to_join,
+                })
+                response = self._get()
+                self.assertContains(response, 'VRCイベントカレンダーに投稿')
+                self.assertNotContains(response, 'VRCイベントカレンダーの設定をする')
+
+    def test_pending_details_appear_in_action_box_with_modal_buttons(self):
+        detail = EventDetail.objects.create(event=self.event, theme='要対応の発表', status='pending')
+        EventDetail.objects.create(event=self.event, theme='承認済みの発表', status='approved')
+        response = self._get()
+        box = self._soup(response).select_one('#action-required')
+        self.assertIsNotNone(box)
+        self.assertIn(detail.theme, box.get_text())
+        self.assertNotIn('承認済みの発表', box.get_text())
+        self.assertIsNotNone(box.select_one(f'[data-bs-target="#approveModal{detail.pk}"]'))
+        self.assertIsNotNone(box.select_one(f'[data-bs-target="#rejectModal{detail.pk}"]'))
+        self.assertEqual(response.context['action_required_count'], len(response.context['warnings']) + 1)
+
+    def test_action_box_only_contains_details_from_current_page(self):
+        older = []
+        for offset in range(21):
+            event = make_event(self.community, event_date=get_vrchat_today() - timedelta(days=offset + 1))
+            older.append(EventDetail.objects.create(event=event, theme=f'過去{offset}', status='pending'))
+        future = EventDetail.objects.create(event=self.event, theme='未来', status='pending')
+        response = self._get({'page': 2})
+        pending_ids = [detail.pk for detail in response.context['pending_details']]
+        self.assertEqual(pending_ids, [older[-1].pk])
+        self.assertNotIn(future.pk, pending_ids)
+
+    def test_delete_confirmation_is_inline_for_events_and_details(self):
+        detail = EventDetail.objects.create(event=self.event, theme='削除確認', status='approved')
+        response = self._get()
+        self.assertNotContains(response, 'confirm(')
+        soup = self._soup(response)
+        for panel_id, url in (
+            (f'event-delete-{self.event.pk}', reverse('event:delete', args=[self.event.pk])),
+            (f'detail-delete-{detail.pk}', reverse('event:detail_delete', args=[detail.pk])),
+        ):
+            panel = soup.select_one(f'#{panel_id}')
+            self.assertIsNotNone(panel)
+            self.assertTrue(panel.has_attr('hidden'))
+            self.assertEqual(panel.find('form')['action'], url)
+            self.assertIsNotNone(panel.select_one('[name="csrfmiddlewaretoken"]'))
+            self.assertIsNotNone(soup.select_one(f'[data-confirm-panel="{panel_id}"]'))
+        self.assertIsNotNone(soup.select_one(f'#event-delete-{self.event.pk} [name="delete_subsequent"]'))
+
+    def test_past_event_has_no_subsequent_deletion_option(self):
+        past = make_event(self.community, event_date=get_vrchat_today() - timedelta(days=1))
+        soup = self._soup(self._get())
+        panel = soup.select_one(f'#event-delete-{past.pk}')
+        self.assertIsNotNone(panel)
+        self.assertIsNone(panel.select_one('[name="delete_subsequent"]'))
+
+    def test_applicant_only_shown_when_different_from_speaker(self):
+        detail = EventDetail.objects.create(event=self.event, theme='本人の発表', speaker=self.owner.display_label,
+                                           applicant=self.owner, status='approved')
+        row = self._soup(self._get()).select_one(f'#presentation-{detail.pk}')
+        self.assertIsNotNone(row)
+        self.assertNotIn('申請者:', row.get_text())
+        detail.speaker = '別の発表者'
+        detail.save(update_fields=['speaker'])
+        row = self._soup(self._get()).select_one(f'#presentation-{detail.pk}')
+        self.assertIn('申請者:', row.get_text())
+
+    def test_pending_applicants_do_not_add_queries_per_detail(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        EventDetail.objects.create(event=self.event, theme='申請1', applicant=self.owner, status='pending')
+        self._get()
+        with CaptureQueriesContext(connection) as before:
+            self._get()
+        for i in range(4):
+            applicant = make_user(user_name=f'applicant_{i}', email=f'applicant{i}@example.com')
+            EventDetail.objects.create(event=self.event, theme=f'追加申請{i}', applicant=applicant, status='pending')
+        with CaptureQueriesContext(connection) as after:
+            self._get()
+        self.assertEqual(len(after), len(before))
+
+    def test_twitter_templates_are_menu_items_with_same_display_period(self):
+        from twitter.models import TwitterTemplate
+        template = TwitterTemplate.objects.create(community=self.community, name='開催案内', template='{date}')
+        recent = make_event(self.community, event_date=get_vrchat_today() - timedelta(days=7))
+        expired = make_event(self.community, event_date=get_vrchat_today() - timedelta(days=8))
+        response = self._get()
+        soup = self._soup(response)
+        for event in (self.event, recent):
+            link = soup.select_one(f'a[href="{reverse("twitter:tweet_event_with_template", args=[event.pk, template.pk])}"]')
+            self.assertIsNotNone(link)
+            self.assertIn('dropdown-item', link['class'])
+        self.assertNotContains(response, reverse('twitter:tweet_event_with_template', args=[expired.pk, template.pk]))
+        self.assertNotContains(response, 'X の告知文を作成')
+
+    def test_presentation_actions_and_chips_keep_existing_conditions(self):
+        details = []
+        for status in ('pending', 'approved', 'rejected'):
+            details.append(EventDetail.objects.create(
+                event=self.event, theme=status, speaker='発表者', status=status,
+                source='discord_bot', source_url='https://example.com/source',
+                youtube_url='https://www.youtube.com/watch?v=abcdefghijk',
+                slide_url='https://example.com/slides',
+            ))
+        response = self._get()
+        soup = self._soup(response)
+        for detail in details:
+            row = soup.select_one(f'#presentation-{detail.pk}')
+            self.assertIsNotNone(row)
+            self.assertIsNotNone(row.select_one(f'a[href="{reverse("event:lt_application_review", args=[detail.pk])}"]'))
+            for url_name in ('event:detail', 'event:detail_update'):
+                self.assertIsNotNone(row.select_one(f'a[href="{reverse(url_name, args=[detail.pk])}"]'))
+            source = row.select_one('a[href="https://example.com/source"]')
+            self.assertEqual(source['target'], '_blank')
+            for label in ('動画', 'スライドURL', 'Discord から自動登録'):
+                self.assertIn(label, row.get_text())
+            self.assertIsNotNone(row.select_one('.generate-button'))
+        details[-1].contents = '記事あり'
+        details[-1].save(update_fields=['contents'])
+        row = self._soup(self._get()).select_one(f'#presentation-{details[-1].pk}')
+        self.assertIsNone(row.select_one('.generate-button'))
+        self.assertIn('記事あり', row.get_text())
