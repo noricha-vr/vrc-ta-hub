@@ -16,9 +16,9 @@ def apply(c):
     shot(c, '.row:has(#id_requested_start_time)', '#id_requested_start_time', '#id_requested_duration')
     shot(c, '#lt-formset-container', '#id_lt-0-speaker', '#id_lt-0-theme', '#id_lt-0-lt_start_time')
     shot(c, '#id_organizer_note >> xpath=..', '#id_organizer_note')
-    shot(c, 'form.card .d-flex.justify-content-end', 'button:has-text("保存する")')
+    shot(c, '.admin-action-bar', 'button[form="vket-apply-form"]')
     c.goto('/vket/1/status/')
-    shot(c, '.card:has(h2:has-text("日程情報"))', '.card:has(h2:has-text("日程情報")) a:has-text("編集")')
+    shot(c, '.admin-card:has(h2:has-text("日程情報"))', '.admin-card:has(h2:has-text("日程情報")) a:has-text("編集")')
     verify_guide(c)
 
 
@@ -26,11 +26,11 @@ def apply(c):
 def stage(c):
     c.login('owner')
     c.goto('/vket/1/status/')
-    shot(c, '.card:has(h2:has-text("Vketステージ登録"))', 'a:has-text("登録用の入力値・サムネイルを用意する")')
+    shot(c, '.admin-card:has(h2:has-text("Vketステージ登録"))', 'a:has-text("登録用の入力値・サムネイルを用意する")')
     c.goto('/vket/1/stage-copy/1/')
-    shot(c, '.card:has(#stage-title)', 'button[data-copy-target="stage-title"]')
-    shot(c, '.card:has(#stage-body)', '#stage-body', 'button[data-copy-target="stage-body"]')
-    shot(c, '.card:has(#stage-start)', 'button[data-copy-target="stage-start"]')
+    shot(c, '.admin-card:has(#stage-title)', 'button[data-copy-target="stage-title"]')
+    shot(c, '.admin-card:has(#stage-body)', '#stage-body', 'button[data-copy-target="stage-body"]')
+    shot(c, '.admin-card:has(#stage-start)', 'button[data-copy-target="stage-start"]')
     # 「未生成」の状態は別の架空参加で用意済み。生成 API は呼ばない。
     c.login('staff')
     c.goto('/vket/1/stage-copy/2/')
@@ -41,7 +41,7 @@ def stage(c):
     shot(c, 'main', '#fields', '#thumbnail', '#complete')
     c.login('owner')
     c.goto('/vket/1/status/')
-    shot(c, '.card:has(h2:has-text("Vketステージ登録"))', 'button:has-text("Vketで登録したことを記録する")')
+    shot(c, '.admin-card:has(h2:has-text("Vketステージ登録"))', 'button:has-text("Vketで登録したことを記録する")')
     verify_guide(c)
 
 
@@ -49,7 +49,7 @@ def stage(c):
 def notices(c):
     c.login('owner')
     c.goto('/vket/1/status/')
-    shot(c, '.alert-warning', '.alert-warning a:has-text("確認する")')
+    shot(c, '#member-attention', '#member-attention a:has-text("確認する")')
     c.goto('/vket/1/notices/?open=1')
     shot(c, '#unackedAccordion', 'button:has-text("確認しました")')
     c.goto('/vket/1/notices/?open=2')

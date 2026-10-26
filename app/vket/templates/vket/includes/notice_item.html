@@ -33,12 +33,13 @@
             {% if notice.requires_ack and not receipt.acknowledged_at %}
                 <form method="post" action="{% url 'vket:notice_list_ack' collaboration.pk receipt.pk %}"
                       data-loading-text="送信中…"
+                      aria-label="お知らせの確認を完了する"
                       class="notice-ack-form js-submit-once border-top pt-3 mt-3 d-flex flex-wrap align-items-center gap-2">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-success fw-bold text-nowrap">
                         <i class="fas fa-check me-1"></i>確認しました
                     </button>
-                    <span class="text-muted small">内容を読んだら押してください。</span>
+                    <span class="text-muted small">内容を読んだら確認を完了してください。</span>
                 </form>
             {% elif receipt.acknowledged_at %}
                 <div class="mt-2 text-muted small">
