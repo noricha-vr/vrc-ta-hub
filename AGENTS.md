@@ -154,6 +154,8 @@ GOOGLE_CALENDAR_ID=d80eac7bdea1505cd9bc16153047c261be94e78607896c5ca567f8cfa78f0
 
 使い方ガイド（`docs/guide/`、`/guide/`）を触る時は、先に `docs/guide/AGENTS.md`（読者像・ページの型・画像の決まり）を読む。
 
+ログイン後の管理画面（イベント管理・集会設定・発表の申請と編集など）のテンプレートを作る・触る時は、先に `docs/design/admin-ui.md`（ページの骨組み・一覧とフォームの型・確認と未設定の出し方）を読む。
+
 プロジェクトの全体像やアーキテクチャを把握する際は、DeepWikiを参照する。
 
 **DeepWiki**: https://deepwiki.com/noricha-vr/vrc-ta-hub
