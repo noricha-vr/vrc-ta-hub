@@ -337,13 +337,12 @@ class GuideViewsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # タイトル（フロントマターのtitle）
         self.assertContains(response, "ポスターを掲示する")
-        # 本文の内容
-        self.assertContains(response, "ワールドへのポスター掲示")
-        self.assertContains(response, "A4比率・縦4096px")
-        self.assertContains(
-            response,
-            "半分に縮小して Image Loader 用に流用しやすくなります",
-        )
+        # 配布画像の実寸と、Hub全体・集会個別の紹介手順を確認する。
+        self.assertContains(response, "1875×2500px")
+        self.assertContains(response, "横と縦の比率は3:4")
+        self.assertContains(response, "集会を紹介するためのポスターの転載可")
+        self.assertContains(response, "promotion/poster-01.webp")
+        self.assertContains(response, "promotion/poster-01-sp.webp")
 
     def test_guide_promotion_asset_page(self):
         """promotion/assetページが表示されること"""
@@ -353,12 +352,8 @@ class GuideViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "アセットを設置する")
-        self.assertContains(response, "技術・学術系イベント情報アセット")
-        self.assertContains(response, "開催予定を一覧表示できます")
-        self.assertContains(response, "Prefab を置くだけ")
-        self.assertContains(response, "更新負担がほとんどありません")
-        self.assertContains(response, "VCCから導入")
-        self.assertContains(
-            response,
-            "https://data.vrc-ta-hub.com/images/VRChat_2023-10-24_23-09-50.771_1920x1080-720-480.png",
-        )
+        self.assertContains(response, "TaAGatheringListSystem")
+        self.assertContains(response, "TaAGatheringInfoSys.prefab")
+        self.assertContains(response, "Add to VCC")
+        self.assertContains(response, "promotion/asset-09.webp")
+        self.assertContains(response, "promotion/asset-09-sp.webp")

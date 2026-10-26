@@ -102,7 +102,13 @@ class Capture:
         for selector in self.masks:
             self.page.locator(selector).evaluate_all('''elements => elements.forEach(e => {
                 if ('value' in e) {e.value = ''; e.placeholder = '';} 
-                else e.textContent = '非表示';
+                else {
+                    // 伏せ字で要素が縮み、表や注釈の位置が変わらないようにする。
+                    const rect = e.getBoundingClientRect();
+                    if (getComputedStyle(e).display === 'inline') e.style.display = 'inline-block';
+                    e.style.minWidth = `${rect.width}px`; e.style.minHeight = `${rect.height}px`;
+                    e.textContent = '非表示';
+                }
                 e.style.backgroundColor = '#9ca3af'; e.style.color = 'transparent';
                 e.style.textShadow = 'none';
             })''')

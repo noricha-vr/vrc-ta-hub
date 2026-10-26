@@ -79,6 +79,12 @@
       path: settings/discord
     - title: 発表申請の受付と撮影を設定する
       path: settings/lt-application
+    - title: VRCイベントカレンダーへの投稿を準備する
+      path: settings/event-calendar
+    - title: Xの告知文テンプレートを作る
+      path: settings/x-template
+    - title: APIキーを作成・無効化する
+      path: settings/api-key
 
 - title: Hubを広める
   children:
