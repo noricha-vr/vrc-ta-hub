@@ -1,0 +1,9 @@
+<nav aria-label="パンくず"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+    {% if current == 'list' %}
+        <li class="breadcrumb-item active" aria-current="page">Discord 告知の予約</li>
+    {% else %}
+        <li class="breadcrumb-item"><a href="{% url 'announcement:discord_list' %}">Discord 告知の予約</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{% if current == 'create' %}作成{% else %}予約 #{{ message.pk }}{% endif %}</li>
+    {% endif %}
+</ol></nav>

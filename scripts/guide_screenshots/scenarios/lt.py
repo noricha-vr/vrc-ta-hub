@@ -220,7 +220,7 @@ def link_speaker(capture):
     capture.goto(invite.removeprefix(capture.base_url))
     capture.page.locator('#speaker-link-confirm-button').wait_for(state='visible')
     capture.annotate('#speaker-link-confirm-button', 1)
-    capture.shot(selector='.card')
+    capture.shot(selector='.speaker-link .admin-card')
     # 完了後の例は seed の紐づけ済み発表。確定POSTや通知は実行しない。
     menu(capture, 'account')
     capture.goto('/account/settings/')

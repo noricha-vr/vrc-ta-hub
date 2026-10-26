@@ -56,6 +56,10 @@ class ScheduledMessageListView(StaffRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['header_actions'] = [{
+            'url': reverse('announcement:discord_create'),
+            'label': '新しく予約する', 'primary': True,
+        }]
         context.update(DiscordScheduledMessage.objects.aggregate(
             scheduled_count=Count('pk', filter=Q(status=Status.SCHEDULED)),
             failed_count=Count('pk', filter=Q(status=Status.FAILED)),
@@ -67,6 +71,13 @@ class ScheduledMessageCreateView(StaffRequiredMixin, CreateView):
     model = DiscordScheduledMessage
     form_class = DiscordScheduledMessageForm
     template_name = 'announcement/discord/create.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['save_actions'] = [{
+            'form_id': 'announce-create-form', 'scope': '告知の予約', 'label': '予約する',
+        }]
+        return context
 
     def form_valid(self, form):
         form.instance.created_by = self.request.user
@@ -108,7 +119,12 @@ class ScheduledMessageDetailView(StaffRequiredMixin, View):
         return get_object_or_404(DiscordScheduledMessage.objects.select_related('created_by'), pk=pk)
 
     def _render(self, message: DiscordScheduledMessage, form):
-        context = {'message': message, 'form': form}
+        context = {
+            'message': message, 'form': form,
+            'save_actions': [{
+                'form_id': 'announce-edit-form', 'scope': '告知の予約', 'label': '変更を保存',
+            }],
+        }
         return render(self.request, self.template_name, context)
 
 

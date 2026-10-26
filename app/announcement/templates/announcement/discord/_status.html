@@ -1,0 +1,9 @@
+{% if message.status == 'failed' %}
+    {% include 'ta_hub/admin/includes/status_chip.html' with label=message.status_label tone='danger' only %}
+{% elif message.status == 'sent' %}
+    {% include 'ta_hub/admin/includes/status_chip.html' with label=message.status_label tone='success' only %}
+{% elif message.is_waiting_retry %}
+    {% include 'ta_hub/admin/includes/status_chip.html' with label='再試行待ち' tone='warning' only %}
+{% else %}
+    {% include 'ta_hub/admin/includes/status_chip.html' with label=message.status_label only %}
+{% endif %}
