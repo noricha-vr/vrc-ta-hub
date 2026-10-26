@@ -1,4 +1,4 @@
-boto3==1.43.115
+boto3==1.43.118
 django==5.2.17
 django-storages==1.14.6
 mysqlclient==2.3.0
@@ -26,21 +26,21 @@ django-cors-headers==4.9.0
 filetype==1.2.0
 pytest==9.1.1
 django-ses==4.8.2
-pypdf==6.21.1
+pypdf==6.21.2
 pypdfium2==5.14.0
 pydantic==2.14.1
 drf-spectacular==0.30.0
-django-allauth[socialaccount]==65.20.0
+django-allauth[socialaccount]==65.20.1
 requests-oauthlib==2.0.0
 qrcode[pil]==8.2
-coverage==7.16.2
+coverage==7.17.0
 tenacity==9.1.4
 structlog==25.1.0
-mypy==1.14.1
-django-stubs==5.1.2
+mypy==2.4.0
+django-stubs==6.1.2
 djangorestframework-stubs==3.15.2
 # mypy 用の型スタブ（bleach / markdown 本体には型情報が同梱されていない）
 types-bleach==6.4.0.20260607
 types-Markdown==3.10.2.20261007
-sentry-sdk[django]==2.72.0
+sentry-sdk[django]==2.73.0
 cryptography==50.0.2

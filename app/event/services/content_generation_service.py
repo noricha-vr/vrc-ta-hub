@@ -350,7 +350,7 @@ def collect_blog_sources(event_detail: EventDetail,
         pdf_content=pdf_content,
         pdf_url=pdf_url,
         video_id=(event_detail.video_id or '') if limited_transcript else '',
-        slide_name=event_detail.slide_file.name if pdf_content else '',
+        slide_name=(event_detail.slide_file.name or '') if pdf_content else '',
     )
 
 
