@@ -1,425 +1,164 @@
-{% extends 'ta_hub/base.html' %}
-{% load custom_filters %}
-
-{% block title %}集会設定 - {{ community.name }}{% endblock %}
-
-{% block main %}
-<div class="container py-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
-            <li class="breadcrumb-item active">集会設定</li>
-        </ol>
-    </nav>
-
-    <h1 class="h3 mb-4">集会設定: {{ community.name }}</h1>
-
-    {% include 'ta_hub/messages.html' %}
-
-    <!-- 基本情報セクション -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <i class="fa-solid fa-info-circle me-2"></i>基本情報
-        </div>
-        <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-4">
-                    <label class="text-muted">集会名</label>
-                    <p class="mb-0">{{ community.name }}</p>
-                </div>
-                <div class="col-md-4">
-                    <label class="text-muted">開催曜日</label>
-                    <p class="mb-0">
-                        {% for weekday in community.weekdays %}
-                            {{ weekday|weekday_jp }}{% if not forloop.last %}、{% endif %}
-                        {% empty %}
-                            -
-                        {% endfor %}
-                    </p>
-                </div>
-                <div class="col-md-4">
-                    <label class="text-muted">開始時刻</label>
-                    <p class="mb-0">{{ community.start_time|time:"H:i" }}</p>
-                </div>
-            </div>
-            <a href="{% url 'community:update' %}" class="btn btn-primary">
-                <i class="fa-solid fa-edit me-1"></i>集会情報を編集
-            </a>
-        </div>
-    </div>
-
-    <!-- 外部連携セクション -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <i class="fa-solid fa-link me-2"></i>外部連携
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-4 mb-3 mb-md-0">
-                    <h6 class="mb-2">VRCイベントカレンダー連携</h6>
-                    <p class="text-muted small mb-2">VRCイベントカレンダー用の情報を設定します。</p>
-                    <a href="{% url 'community:calendar_update' %}" class="btn btn-outline-primary">
-                        <i class="fa-solid fa-calendar me-1"></i>カレンダー設定
-                    </a>
-                </div>
-                <div class="col-md-4 mb-3 mb-md-0">
-                    <h6 class="mb-2">X投稿テンプレート</h6>
-                    <p class="text-muted small mb-2">イベント告知用のテンプレートを管理します。</p>
-                    <a href="{% url 'twitter:template_list' %}" class="btn btn-outline-primary">
-                        <i class="fa-brands fa-x-twitter me-1"></i>テンプレート管理
-                    </a>
-                </div>
-                <div class="col-md-4">
-                    <h6 class="mb-2">API管理</h6>
-                    <p class="text-muted small mb-2">外部連携用のAPIキーを管理します。</p>
-                    <a href="{% url 'account:api_key_list' %}" class="btn btn-outline-primary">
-                        <i class="fa-solid fa-key me-1"></i>API管理
-                    </a>
-                </div>
-            </div>
-
-            <div class="border-top pt-4 mt-4">
-                <h6 class="fw-medium mb-2">
-                    <i class="fa-brands fa-discord me-2"></i>Discord通知
-                </h6>
-                <p class="text-muted small mb-3">
-                    Webhook URLの取得方法やメンション設定は、
-                    <a href="/guide/settings/discord/" class="fw-medium">Discord Webhook設定ガイド</a>
-                    をご確認ください。
-                </p>
-                <div class="d-flex gap-2 align-items-stretch">
-                    <form method="post" action="{% url 'community:update_webhook' community.pk %}"
-                          class="d-flex flex-grow-1 gap-2">
-                        {% csrf_token %}
-                        <input type="url" name="notification_webhook_url"
-                               value="{{ community.notification_webhook_url }}"
-                               class="form-control flex-grow-1"
-                               placeholder="https://discord.com/api/webhooks/...">
-                        <button type="submit" class="btn btn-primary flex-shrink-0">保存</button>
-                    </form>
-                    {% if community.notification_webhook_url %}
-                    <form method="post" action="{% url 'community:test_webhook' community.pk %}">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-outline-secondary flex-shrink-0">
-                            <i class="fa-solid fa-paper-plane me-1"></i>テスト送信
-                        </button>
-                    </form>
-                    {% endif %}
-                </div>
-                <p class="text-muted small mb-1 mt-3">
-                    以下のタイミングでDiscordに通知を送信します。
-                </p>
-                <ul class="text-muted small mb-2 ps-3">
-                    <li>発表申請があった時</li>
-                    <li>申請が承認／却下された時</li>
-                    <li>過去イベントの発表資料（スライドURL／PDF）が初めて公開された時</li>
-                </ul>
-                <p class="text-muted small mb-0">
-                    ※同じ資料を再アップロード（更新）した場合は、重複通知は送信されません。
-                </p>
-            </div>
-        </div>
-    </div>
-
-    <!-- 発表申請設定セクション -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <i class="fa-solid fa-microphone me-2"></i>発表申請設定
-        </div>
-        <div class="card-body">
-            <form method="post" action="{% url 'community:update_lt_settings' community.pk %}">
-                {% csrf_token %}
-                <div class="mb-3">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="accepts_lt_application" name="accepts_lt_application"
-                               {% if community.accepts_lt_application %}checked{% endif %}
-                               onchange="toggleLTSettings()">
-                        <label class="form-check-label fw-medium" for="accepts_lt_application">
-                            発表申請を受け付ける
-                        </label>
-                    </div>
-                    <small class="form-text text-muted">
-                        ONにすると、イベントページに発表申請ボタンが表示されます。
-                    </small>
-                </div>
-                <div class="mb-3">
-                    <p class="form-label fw-medium mb-1">撮影許可</p>
-                    <div class="d-flex flex-wrap gap-3" role="radiogroup" aria-label="撮影許可">
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" id="recording_allowed_true" name="recording_allowed" value="true"
-                                   {% if community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()">
-                            <label class="form-check-label" for="recording_allowed_true">許可する</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" id="recording_allowed_false" name="recording_allowed" value="false"
-                                   {% if not community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()">
-                            <label class="form-check-label" for="recording_allowed_false">許可しない</label>
-                        </div>
-                    </div>
-                    <small class="form-text text-muted">
-                        「許可しない」にすると、この集会の発表はハブの自動撮影の対象になりません。発表申請フォームにも撮影の選択肢を出さず、「禁止」で受け付けます。
-                    </small>
-                </div>
-                <div class="mb-3" id="default-recording-policy-section" style="{% if not community.recording_allowed %}display: none;{% endif %}">
-                    <p class="form-label fw-medium mb-1">撮影ステータスの初期値</p>
-                    <div class="d-flex flex-column gap-1" role="radiogroup" aria-label="撮影ステータスの初期値">
-                        {% for value, label in recording_policy_choices %}
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" id="default_recording_policy_{{ value }}" name="default_recording_policy" value="{{ value }}"
-                                       {% if community.default_recording_policy == value %}checked{% endif %} onchange="markRecordingPolicyTouched()">
-                                <label class="form-check-label" for="default_recording_policy_{{ value }}">{{ label }}</label>
-                            </div>
-                        {% endfor %}
-                    </div>
-                    {# JS が動いた送信で 1 になる。許可に切り替えた時の「禁止」が、画面で選ばれていた値か（1）、JS の無い送信で残っていた古い値かをサーバーが見分ける #}
-                    <input type="hidden" id="default_recording_policy_chosen" name="default_recording_policy_chosen" value="">
-                    <small class="form-text text-muted">
-                        発表申請フォームで、撮影の選択肢の初期値になります。登壇者は申請時に変えられます。
-                    </small>
-                </div>
-                <div id="lt-settings-detail" style="{% if not community.accepts_lt_application %}display: none;{% endif %}">
-                    <hr class="my-3">
-                    <div class="mb-3">
-                        <label for="lt_application_template" class="form-label fw-medium">追加情報テンプレート</label>
-                        <textarea name="lt_application_template" id="lt_application_template"
-                                  class="form-control" rows="7">{{ lt_application_template_display }}</textarea>
-                        <small class="form-text text-muted">
-                            入力すると、申請フォームの追加情報欄に初期値として表示されます。空の場合も自由記入欄として表示されます。
-                        </small>
-                    </div>
-                    <div class="mb-3">
-                        <label for="default_lt_duration" class="form-label fw-medium">発表の持ち時間（デフォルト）</label>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="number" name="default_lt_duration" id="default_lt_duration"
-                                   class="form-control" style="width: 100px;" min="1"
-                                   value="{{ community.default_lt_duration|default:30 }}">
-                            <span>分</span>
-                        </div>
-                        <small class="form-text text-muted">
-                            発表と質疑応答を含めた合計時間（分）。
-                        </small>
-                    </div>
-                    <div class="mb-3">
-                        <label for="lt_start_offset_minutes" class="form-label fw-medium">最初の発表を始めるタイミング</label>
-                        <div class="d-flex flex-wrap align-items-center gap-2">
-                            <span>集会開始から</span>
-                            <input type="number" name="lt_start_offset_minutes" id="lt_start_offset_minutes"
-                                   class="form-control" style="width: 100px;" min="0"
-                                   aria-describedby="lt_start_offset_help"
-                                   value="{{ community.lt_start_offset_minutes }}">
-                            <span>分後</span>
-                        </div>
-                        <small id="lt_start_offset_help" class="form-text text-muted">
-                            例：集会開始が22:00の場合、15分後なら発表開始は22:15です。
-                        </small>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary">保存</button>
-            </form>
-        </div>
-    </div>
-
-    <script>
-    function toggleLTSettings() {
-        var checkbox = document.getElementById('accepts_lt_application');
-        var detailSection = document.getElementById('lt-settings-detail');
-        if (checkbox.checked) {
-            detailSection.style.display = 'block';
-        } else {
-            detailSection.style.display = 'none';
-        }
-    }
-    var recordingPolicyTouched = false;
-    function toggleRecordingSettings() {
-        var allowed = document.getElementById('recording_allowed_true');
-        var section = document.getElementById('default-recording-policy-section');
-        section.style.display = allowed.checked ? 'block' : 'none';
-        // 撮影を許可していなかった集会を「許可する」に切り替えた時は、撮影ステータスの初期値を「公開」にしておく。
-        // 許可済みの集会で保存してある値と、この画面で主催者が選んだ値は変えない
-        if (allowed.checked && !allowed.defaultChecked && !recordingPolicyTouched) {
-            document.getElementById('default_recording_policy_public').checked = true;
-        }
-    }
-    function markRecordingPolicyTouched() {
-        recordingPolicyTouched = true;
-    }
-    (function () {
-        var chosen = document.getElementById('default_recording_policy_chosen');
-        // JS が動く画面では、許可に切り替えた時に JS が「公開」を選ぶため、送る初期値は主催者が画面で見ていた選択そのもの。
-        // 戻る操作でフォームが復元されても hidden は空に戻るので、送信の直前に印を立てる
-        chosen.form.addEventListener('submit', function () {
-            chosen.value = '1';
-        });
-        // 戻る操作でフォームだけ復元された時に、初期値の欄の表示と「主催者が選んだか」を復元後の選択から戻す
-        window.addEventListener('pageshow', function () {
-            var allowed = document.getElementById('recording_allowed_true');
-            var section = document.getElementById('default-recording-policy-section');
-            section.style.display = allowed.checked ? 'block' : 'none';
-            var radios = document.querySelectorAll('input[name="default_recording_policy"]');
-            for (var i = 0; i < radios.length; i++) {
-                // 画面を出した時と違う選択、または許可へ切り替え後に「公開」以外（JS は「公開」を選ぶ）なら主催者が選んだもの
-                var switchedAndChanged = allowed.checked && !allowed.defaultChecked
-                    && radios[i].checked && radios[i].value !== 'public';
-                if (radios[i].checked !== radios[i].defaultChecked || switchedAndChanged) {
-                    markRecordingPolicyTouched();
-                    break;
-                }
-            }
-        });
-    })();
-    </script>
-
-    <!-- メンバー管理セクション（主催者のみ） -->
-    {% if is_owner %}
-    <div class="card mb-4">
-        <div class="card-header">
-            <i class="fa-solid fa-users me-2"></i>メンバー管理
-        </div>
-        <div class="card-body">
-            <p class="text-muted small mb-2">スタッフの追加・削除や招待リンクの管理を行います。</p>
-            <a href="{% url 'community:member_manage' community.pk %}" class="btn btn-outline-primary">
-                <i class="fa-solid fa-user-cog me-1"></i>メンバーを管理
-            </a>
-        </div>
-    </div>
-    {% endif %}
-
-    {% if is_owner %}
-    {# 危険な操作セクション（主催者のみ） #}
-    <div class="card mb-4 border-danger">
-        <div class="card-header bg-danger bg-opacity-10 text-danger">
-            <i class="fa-solid fa-exclamation-triangle me-2"></i>危険な操作
-        </div>
-        <div class="card-body">
-            {% if community.end_at %}
-            <div class="alert alert-warning mb-3">
-                <i class="fa-solid fa-info-circle me-2"></i>
-                この集会は {{ community.end_at|date:"Y年n月j日" }} に閉鎖されています。
-            </div>
-            <h6 class="mb-2">集会の再開</h6>
-            <p class="text-muted small mb-2">閉鎖した集会を再開します。定期イベントは別途設定し直す必要があります。</p>
-            <a href="{% url 'community:reopen' community.pk %}" class="btn btn-outline-success">
-                <i class="fa-solid fa-play me-1"></i>集会を再開する
-            </a>
-            {% else %}
-            <h6 class="mb-2">集会の閉鎖</h6>
-            <p class="text-muted small mb-2">集会を閉鎖すると、閉鎖日以降のイベントは削除されます。</p>
-            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#closeCommunityModal">
-                <i class="fa-solid fa-stop me-1"></i>集会を閉鎖する
-            </button>
-            {% endif %}
-
-            <hr class="my-4">
-
-            {# 主催者引き継ぎセクション #}
-            <h6 class="mb-2">主催者の引き継ぎ</h6>
-            <p class="text-muted small mb-2">主催者権限を他のユーザーに引き継ぎます。</p>
-
-            {% if ownership_transfer_invitation %}
-            <div class="alert alert-warning mb-3">
-                <i class="fa-solid fa-link me-2"></i>
-                <strong>有効な引き継ぎリンクがあります</strong><br>
-                <small class="text-muted">有効期限: {{ ownership_transfer_invitation.expires_at|date:"Y/m/d H:i" }}</small>
-            </div>
-            <div class="input-group mb-3">
-                <input type="text" class="form-control" id="transferLinkInput"
-                       value="{{ request.scheme }}://{{ request.get_host }}{% url 'community:accept_ownership_transfer' ownership_transfer_invitation.token %}"
-                       readonly>
-                <button class="btn btn-outline-secondary" type="button" onclick="copyTransferLink()">
-                    <i class="fa-solid fa-copy me-1"></i>コピー
-                </button>
-            </div>
-            <form action="{% url 'community:revoke_ownership_transfer' community.pk ownership_transfer_invitation.pk %}" method="post" class="d-inline">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-outline-danger btn-sm">
-                    <i class="fa-solid fa-trash me-1"></i>リンクを削除
-                </button>
-            </form>
-            {% else %}
-            <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#createTransferModal">
-                <i class="fa-solid fa-right-left me-1"></i>引き継ぎリンクを作成
-            </button>
-            {% endif %}
-        </div>
-    </div>
-    {% endif %}
-
-    <div class="mt-4">
-        <a href="{% url 'event:my_list' %}" class="btn btn-secondary">
-            <i class="fa-solid fa-arrow-left me-1"></i>イベント管理に戻る
-        </a>
-    </div>
-</div>
-
-{% if is_owner %}
-<!-- 閉鎖確認モーダル -->
-<div class="modal fade" id="closeCommunityModal" tabindex="-1" aria-labelledby="closeCommunityModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="closeCommunityModalLabel">集会の閉鎖確認</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>この集会を閉鎖しますか？</p>
-                <p class="text-danger">閉鎖日以降のイベントは削除されます。</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                <form action="{% url 'community:close' community.pk %}" method="post" class="d-inline">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-danger">閉鎖する</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 引き継ぎリンク作成モーダル -->
-<div class="modal fade" id="createTransferModal" tabindex="-1" aria-labelledby="createTransferModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-warning bg-opacity-10">
-                <h5 class="modal-title" id="createTransferModalLabel">
-                    <i class="fa-solid fa-exclamation-triangle text-warning me-2"></i>主催者引き継ぎの確認
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-danger">
-                    <strong>注意: この操作は取り消せません</strong>
-                </div>
-                <p>引き継ぎリンクを作成すると、リンクを受け取った人が主催者になります。</p>
-                <ul class="text-muted">
-                    <li>あなたはスタッフに降格されます</li>
-                    <li>主催者権限（メンバー管理、集会閉鎖など）を失います</li>
-                    <li>リンクは7日間有効です</li>
-                </ul>
-                <p class="mb-0"><strong>本当に引き継ぎリンクを作成しますか？</strong></p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                <form action="{% url 'community:create_ownership_transfer' community.pk %}" method="post" class="d-inline">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-warning">引き継ぎリンクを作成</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-function copyTransferLink() {
-    const input = document.getElementById('transferLinkInput');
-    input.select();
-    input.setSelectionRange(0, 99999);
-    navigator.clipboard.writeText(input.value).then(function() {
-        alert('リンクをコピーしました');
-    }).catch(function() {
-        alert('コピーに失敗しました。手動でコピーしてください。');
-    });
-}
-</script>
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}集会設定 - {{ community.name }} - {% site_name_seo %}{% endblock %}
+{% block extra_css %}{{ block.super }}{% include 'community/includes/admin_styles.html' %}{% endblock %}
+{% block admin_breadcrumbs %}{% include 'community/includes/admin_breadcrumbs.html' %}{% endblock %}
+{% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='集会設定' target=community.name only %}{% endblock %}
+{% block admin_subnav %}{% include 'ta_hub/admin/includes/subnav.html' with links_template='community/includes/admin_nav.html' current='settings' %}{% endblock %}
+{% block admin_attention %}
+{% if community.status != 'approved' %}{% include 'community/includes/approval_progress.html' %}{% endif %}
+{% endblock %}
+{% block admin_toc %}
+<aside class="admin-toc" aria-label="設定の目次"><nav class="d-flex flex-column gap-2">
+<a href="#basic-information">基本情報</a>
+<a href="#applications">発表の受付</a>
+<a href="#integrations">通知と連携</a>
+{% if is_owner %}<a href="#members">メンバー</a>{% endif %}
+{% if is_owner %}<a href="#danger">危険な操作</a>{% endif %}
+</nav></aside>
+{% endblock %}
+{% block admin_content %}
+<form id="community-form" data-admin-dirty method="post" action="{% url 'community:update' %}" enctype="multipart/form-data">
+{% csrf_token %}{% include 'community/includes/community_fields.html' %}
+</form>
+<section class="admin-card" id="applications">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='発表の受付' save_scope='発表受付' form_id='lt-form' only %}
+{% include 'community/includes/lt_settings.html' %}
+</section>
+<section class="admin-card" id="integrations">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='通知と連携' save_scope='通知' form_id='notification-form' only %}
+<h3 class="h6">Discord通知</h3>
+<form id="notification-form" data-admin-dirty method="post" action="{% url 'community:update_webhook' community.pk %}">
+{% csrf_token %}
+{% include 'ta_hub/admin/includes/secret_field.html' with field=webhook_field label='Discord Webhook URL' configured=community.notification_webhook_url suffix=webhook_suffix only %}
+<div class="invalid-feedback d-block" id="webhook-blank-error" data-webhook-blank-error role="alert" hidden>Webhook URL を入力してください。通知先を消す時は『通知先を削除…』から操作してください。</div>
+</form>
+<p class="form-text">以下のタイミングでDiscordに通知を送信します: 発表申請があった時、申請が承認／却下された時、過去イベントの発表資料（スライドURL／PDF）が初めて公開された時。資料の更新では重複通知は送信されません。</p>
+<a href="/guide/settings/discord/">Discord Webhook設定ガイド</a>
+{% if community.notification_webhook_url %}
+<form method="post" action="{% url 'community:test_webhook' community.pk %}" class="mt-3">{% csrf_token %}<button class="btn btn-outline-secondary" type="submit">テスト送信</button></form>
+<button type="button" class="btn btn-sm btn-outline-danger mt-2" data-confirm-panel="clear-webhook" aria-controls="clear-webhook" aria-expanded="false">通知先を削除…</button>
+{% url 'community:update_webhook' community.pk as webhook_url %}
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='clear-webhook' label='通知先の削除の確認' message='保存済みのDiscord通知先を削除します。' action_url=webhook_url submit_label='通知先を削除する' fields_template='community/includes/clear_webhook_fields.html' %}
 {% endif %}
-
+<div class="d-flex flex-wrap gap-2 mt-4">
+<a href="{% url 'community:calendar_update' %}" class="btn btn-outline-secondary">カレンダー設定</a>
+<a href="{% url 'twitter:template_list' %}" class="btn btn-outline-secondary">テンプレート管理</a>
+<a href="{% url 'account:api_key_list' %}" class="btn btn-outline-secondary">API管理</a>
+</div>
+</section>
+{% if is_owner %}<section class="admin-card" id="members">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='メンバー管理' only %}
+<p>スタッフの追加・削除や招待リンクを管理します。</p>
+<a href="{% url 'community:member_manage' community.pk %}" class="btn btn-outline-secondary">メンバーを管理</a>
+</section>{% endif %}
+{% if is_owner %}
+<section class="admin-card" id="danger"><details><summary class="text-danger fw-bold">危険な操作</summary>
+<div class="mt-3">
+{% if community.end_at %}
+<p>この集会は {{ community.end_at|date:'Y年n月j日' }} に閉鎖されています。</p>
+<a href="{% url 'community:reopen' community.pk %}" class="btn btn-outline-success">集会を再開する</a>
+{% else %}
+<button type="button" class="btn btn-outline-danger" data-confirm-panel="close-community" aria-controls="close-community" aria-expanded="false">集会を閉鎖する</button>
+{% url 'community:close' community.pk as close_url %}
+{% with message=community.name|add:'を閉鎖します。閉鎖日以降のイベントは削除されます。' %}
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='close-community' label='集会の閉鎖確認' message=message action_url=close_url submit_label='集会を閉鎖する' %}
+{% endwith %}
+{% endif %}
+<hr><h2 class="h6">主催者の引き継ぎ</h2>
+{% if ownership_transfer_invitation %}
+<div id="invitation-{{ ownership_transfer_invitation.pk }}">
+<p>有効な引き継ぎリンクがあります。有効期限: {{ ownership_transfer_invitation.expires_at|date:'Y/m/d H:i' }}</p>
+{% include 'community/includes/invitation_secret.html' with invitation=ownership_transfer_invitation %}
+<button type="button" class="btn btn-sm btn-outline-danger mt-2" data-confirm-panel="revoke-transfer" aria-controls="revoke-transfer" aria-expanded="false">リンクを削除</button>
+{% url 'community:revoke_ownership_transfer' community.pk ownership_transfer_invitation.pk as revoke_url %}
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='revoke-transfer' label='引き継ぎリンクの削除の確認' message='この集会の主催者引き継ぎリンクを削除します。' action_url=revoke_url submit_label='リンクを削除する' %}
+</div>
+{% else %}
+<button type="button" class="btn btn-outline-danger" data-confirm-panel="create-transfer" aria-controls="create-transfer" aria-expanded="false">引き継ぎリンクを作成</button>
+{% url 'community:create_ownership_transfer' community.pk as transfer_url %}
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='create-transfer' label='主催者引き継ぎの確認' message='リンクを受け取った人が主催者になると、あなたはスタッフに降格され、メンバー管理・閉鎖の権限を失います。リンクは7日間有効です。' action_url=transfer_url submit_label='引き継ぎリンクを作成' %}
+{% endif %}
+</div></details></section>
+{% endif %}
+{% endblock %}
+{% block admin_action_bar %}
+{% url 'event:my_list' as return_url %}
+{% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions cancel_url=return_url only %}
+<p class="text-danger small mb-0" id="unsaved-other-form-notice" data-unsaved-other-form-notice role="alert" hidden></p>
+{% endblock %}
+{% block extra_js %}{{ block.super }}
+{% include 'community/includes/invitation_copy_script.html' %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const root = document.querySelector('.hub-admin');
+    if (!root) return;
+    const bar = root.querySelector('[data-admin-action-bar]');
+    if (!bar) return;
+    {% if is_reopening %}return;{% endif %}
+    // 変更のあるまとまりだけ保存ボタンを表示する。Webhook を変更しない送信は行わない。
+    bar.querySelectorAll('button[form]').forEach(function (button) {
+        const form = document.getElementById(button.getAttribute('form'));
+        if (!form) return;
+        function update() {
+            const clean = form.dataset.adminDirtyState !== 'dirty';
+            button.hidden = clean;
+            button.disabled = clean;
+        }
+        new MutationObserver(update).observe(form, { attributes: true, attributeFilter: ['data-admin-dirty-state'] });
+        update();
+    });
+    const notificationForm = document.getElementById('notification-form');
+    if (notificationForm) notificationForm.addEventListener('submit', function (event) {
+        const field = notificationForm.elements.namedItem('notification_webhook_url');
+        const blankError = document.getElementById('webhook-blank-error');
+        if (blankError) blankError.hidden = true;
+        if (field.disabled || notificationForm.dataset.adminDirtyState !== 'dirty') { event.preventDefault(); return; }
+        // 空白だけの送信はサーバーで空になり通知先が消えるため止める。削除は確認パネルから行う。
+        if (field.value.trim() === '') {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            if (blankError) blankError.hidden = false;
+            field.focus();
+        }
+    });
+    // 他のまとまりに未保存の変更がある時は、保存後のリダイレクトで消えることを案内し、同じボタンをもう一度押した時だけ送信する。
+    const notice = document.getElementById('unsaved-other-form-notice');
+    const statusArea = bar.querySelector('.admin-action-status');
+    if (notice && statusArea) statusArea.appendChild(notice);
+    const saveButtons = Array.from(bar.querySelectorAll('button[form]'));
+    let armedButton = null;
+    root.addEventListener('input', function () { armedButton = null; if (notice) notice.hidden = true; });
+    saveButtons.forEach(function (button) {
+        button.addEventListener('click', function (event) {
+            if (notice) notice.hidden = true;
+            const others = saveButtons.filter(function (other) {
+                if (other === button) return false;
+                const form = document.getElementById(other.getAttribute('form'));
+                return form && form.dataset.adminDirtyState === 'dirty';
+            });
+            if (!others.length || !notice || armedButton === button) { armedButton = null; return; }
+            event.preventDefault();
+            armedButton = button;
+            const names = others.map(function (other) {
+                const status = bar.querySelector('[data-admin-form-status="' + other.getAttribute('form') + '"]');
+                return (status && status.dataset.adminScope) || other.textContent.trim();
+            });
+            notice.textContent = '「' + names.join('」「') + '」の変更は、この保存で消えます。先にそちらを保存するか、消してよければもう一度押してください。';
+            notice.hidden = false;
+        });
+    });
+    // 通知の試し送り・削除・引継ぎなど、保存以外の操作で画面を離れる時は未保存の変更を確かめる。
+    let leavingBySave = false;
+    document.addEventListener('submit', function (event) {
+        if (!event.defaultPrevented && event.target.matches('form[data-admin-dirty]')) leavingBySave = true;
+    });
+    window.addEventListener('pageshow', function () { leavingBySave = false; });
+    window.addEventListener('beforeunload', function (event) {
+        if (leavingBySave) return;
+        if (!root.querySelector('form[data-admin-dirty][data-admin-dirty-state="dirty"]')) return;
+        event.preventDefault();
+        event.returnValue = '';
+    });
+});
+</script>
 {% endblock %}

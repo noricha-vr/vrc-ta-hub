@@ -205,6 +205,11 @@ class CommunityCreateViewTest(TestCase):
         session = self.client.session
         session['active_community_id'] = community.pk
         session.save()
+        pending_html = self.client.get(reverse('community:settings')).content.decode()
+        self.assertIn('まだ公開されていません', pending_html)
+        self.assertIn('id="recording_allowed_false"', pending_html)
+        community.status = 'approved'
+        community.save(update_fields=['status'])
         html = self.client.get(reverse('community:settings')).content.decode()
         self.assertRegex(html, r'id="recording_allowed_false"[^>]*checked')
         self.assertIn('id="default-recording-policy-section" style="display: none;"', html)

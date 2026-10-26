@@ -145,13 +145,14 @@ class CommunitySettingsViewTest(TestCase):
         self.assertContains(response, '月曜日')
         self.assertContains(response, '水曜日')
 
-    def test_settings_page_shows_edit_link(self):
-        """設定ページに集会編集リンクが表示される"""
+    def test_settings_page_contains_edit_form(self):
+        """設定画面内の集会情報フォームから従来の更新先へ保存する"""
         self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '集会情報を編集')
+        self.assertContains(response, 'id="community-form"')
+        self.assertContains(response, '集会情報を保存')
         self.assertContains(response, reverse('community:update'))
 
     def test_active_community_from_session(self):
@@ -240,7 +241,7 @@ class CommunitySettingsCloseReopenTest(TestCase):
         self.assertContains(response, '危険な操作')
         # 閉鎖ボタンが表示される
         self.assertContains(response, '集会を閉鎖する')
-        self.assertContains(response, 'closeCommunityModal')
+        self.assertContains(response, 'close-community')
         # 再開ボタンは表示されない
         self.assertNotContains(response, '集会を再開する')
 
@@ -275,14 +276,14 @@ class CommunitySettingsCloseReopenTest(TestCase):
         self.assertNotContains(response, '危険な操作')
         self.assertNotContains(response, '集会を閉鎖する')
 
-    def test_close_modal_exists(self):
-        """閉鎖確認モーダルが存在する"""
+    def test_close_confirmation_panel_exists(self):
+        """カード内の閉鎖確認が存在する"""
         self.client.force_login(self.owner_user)
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
-        # モーダルの内容が含まれている
-        self.assertContains(response, 'id="closeCommunityModal"')
+        # カード内の確認内容が含まれている
+        self.assertContains(response, 'id="close-community"')
         self.assertContains(response, '集会の閉鎖確認')
         self.assertContains(response, '閉鎖日以降のイベントは削除されます')
         self.assertContains(response, '閉鎖する')
@@ -297,7 +298,7 @@ class CommunitySettingsCloseReopenTest(TestCase):
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
-        # モーダルの内容が含まれている
+        # カード内の確認内容が含まれている
         self.assertContains(response, reverse('community:reopen', args=[self.community.pk]))
         self.assertNotContains(response, 'reopenCommunityModal')
         self.assertContains(response, '再開する')
@@ -632,7 +633,7 @@ class LTSettingsTest(TestCase):
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '発表申請設定')
+        self.assertContains(response, '発表の受付')
         self.assertContains(response, '追加情報テンプレート')
 
     def test_update_lt_settings_success(self):
@@ -924,8 +925,8 @@ class LTSettingsUpdateFormTest(TestCase):
             role=CommunityMember.Role.OWNER
         )
 
-    def test_update_page_does_not_have_accepts_lt_application(self):
-        """集会更新ページにaccepts_lt_applicationフィールドがない"""
+    def test_update_page_has_separate_application_settings_form(self):
+        """統合後も発表受付は集会情報とは別の保存先を持つ"""
         self.client.force_login(self.owner_user)
 
         # セッションにアクティブな集会を設定
@@ -936,9 +937,9 @@ class LTSettingsUpdateFormTest(TestCase):
         response = self.client.get(reverse('community:update'))
 
         self.assertEqual(response.status_code, 200)
-        # accepts_lt_applicationのラベルがページに含まれていないことを確認
-        self.assertNotContains(response, '発表申請を受け付ける')
-        # フォームフィールドがないことを確認
+        self.assertContains(response, '発表申請を受け付ける')
+        self.assertContains(response, 'id="lt-form"')
+        # ModelForm の項目には追加せず、既存の専用フォームを使う
         self.assertNotContains(response, 'id="id_accepts_lt_application"')
 
     def test_update_page_shows_poster_requirements(self):
