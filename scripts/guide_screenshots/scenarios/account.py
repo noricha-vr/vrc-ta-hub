@@ -14,6 +14,9 @@ from urllib.parse import urlsplit
 
 from capture import scenario
 
+# 管理画面のカードを優先し、無ければ登録・ログイン画面の .card を撮る。
+DEFAULT_AREAS = ('main section.admin-card', '.card')
+
 
 @contextmanager
 def account_context(capture):
@@ -73,14 +76,17 @@ class AccountScreens:
         self.capture.page.evaluate('document.fonts.ready')
         self.capture.page.unroute(url)
 
-    def shot(self, *selectors, area='.card'):
+    def shot(self, *selectors, area=None):
         # フォーカスやマウス位置で入力欄の描画が揺れない撮影状態にそろえる。
         self.capture.page.evaluate('document.activeElement?.blur()')
         self.capture.page.mouse.move(0, 0)
         self.capture.page.wait_for_timeout(200)
         for number, selector in enumerate(selectors, 1):
             self.capture.annotate(selector, number)
-        if area == 'body':
+        area = area or self.default_area()
+        if isinstance(area, tuple):
+            self.shot_union(area)
+        elif area == 'body':
             # allauth 標準画面は本文が全幅。文字の実寸を測り、メニューと余白を除く。
             self.capture.page.locator('h1').evaluate("e => e.style.width = 'fit-content'")
             clip = self.capture.page.evaluate("""() => {
@@ -118,6 +124,25 @@ class AccountScreens:
                                     'height': box['height'] + padding + 6})
         else:
             self.capture.shot(selector=area)
+
+    def default_area(self):
+        # 管理画面の共通部品で描く画面はカード、登録・ログイン画面は従来の .card を撮る。
+        for area in DEFAULT_AREAS:
+            if self.capture.page.locator(area).count() == 1:
+                return area
+        raise ValueError(f'撮影範囲が一意に決まりません: {DEFAULT_AREAS}')
+
+    def shot_union(self, areas):
+        # 離れた要素（カードと下部の保存ボタン等）をまとめて 1 枚に収める。
+        page = self.capture.page
+        page.locator(areas[0]).scroll_into_view_if_needed()
+        boxes = [page.locator(area).bounding_box() for area in areas]
+        scroll = page.evaluate('({x:scrollX, y:scrollY})')
+        left = max(0, min(box['x'] for box in boxes) - 16)
+        top = max(0, min(box['y'] for box in boxes) + scroll['y'] - 32)
+        right = min(page.viewport_size['width'], max(box['x'] + box['width'] for box in boxes) + 16)
+        bottom = max(box['y'] + box['height'] for box in boxes) + scroll['y'] + 16
+        self.capture.shot(clip={'x': left, 'y': top, 'width': right - left, 'height': bottom - top})
         self.capture.annotations.clear()
 
     def verify_guide(self):
@@ -243,9 +268,10 @@ def profile(capture):
         s.show('/account/update/')
         # 実在のユーザー名を例示する既存 placeholder を撮影画面だけ伏せる。
         capture.page.locator('#id_x_account').evaluate("e => e.placeholder = 'hina_demo'")
-        s.shot('#id_display_name', '#id_user_name')  # 02
+        s.shot('#id_display_name', '#id_user_name', area='main section.admin-card:has(#id_display_name)')  # 02
         capture.page.locator('#id_email').fill('hina-new@example.com')
-        s.shot('#id_email', 'button[form=profile-form]')  # 03
+        s.shot('#id_email', 'button[form=profile-form]',
+               area=('main section.admin-card:has(#id_email)', '.admin-action-bar'))  # 03
         s.show(s.confirmation('hina-new@example.com'))
         s.shot('button[type=submit]', area='body')  # 04
         s.verify_guide()

@@ -7,7 +7,7 @@ from scenarios.speaker import region
 def lt_application(capture):
     capture.login('owner')
     capture.goto('/account/settings/')
-    region(capture, ['h6:has-text("集会一覧")',
+    region(capture, ['#communities-heading',
                      '.list-group-item:has(input[value="/community/settings/"]):has-text("さくら技術交流会")'],
            marks=['.list-group-item:has-text("さくら技術交流会") form:has(input[value="/community/settings/"]) button'])
     capture.goto('/community/settings/')
