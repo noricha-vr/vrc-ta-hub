@@ -66,7 +66,7 @@ def manage(capture):
     menu(capture)
     management(capture)
     for number, selector in enumerate((
-        '.community-selector', '.mylist-header-actions', NAV, '#action-required',
+        '.community-selector', '.mylist-header-actions', NAV, 'nav[aria-label="個人用"]', '#action-required',
         f'{CARD} .event-date', f'{CARD} .event-actions > a',
         f'{CARD} .event-actions .dropdown-toggle', f'{CARD} {EVENT_MENU}',
         '#presentation-1 .presentation-actions', '#presentation-2 .presentation-actions',

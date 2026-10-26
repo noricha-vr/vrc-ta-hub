@@ -220,7 +220,7 @@ def link_speaker(capture):
     capture.goto(invite.removeprefix(capture.base_url))
     capture.page.locator('#speaker-link-confirm-button').wait_for(state='visible')
     capture.annotate('#speaker-link-confirm-button', 1)
-    capture.shot(selector='.speaker-link .admin-card')
+    region(capture, '.speaker-link .admin-page-header', '.speaker-link .admin-card')
     # 完了後の例は seed の紐づけ済み発表。確定POSTや通知は実行しない。
     menu(capture, 'account')
     capture.goto('/account/settings/')
@@ -244,4 +244,5 @@ def link_speaker(capture):
     capture.login('speaker')
     capture.goto('/event/detail/history/?mine=1')
     capture.annotate(f'a[href="/event/detail/{linked}/update/"]', 1)
-    capture.shot(selector=f'article:has(a[href="/event/detail/{linked}/update/"])')
+    region(capture, 'section[aria-labelledby="mine-filter-heading"]',
+           f'article.mine-presentation:has(a[href="/event/detail/{linked}/update/"])')
