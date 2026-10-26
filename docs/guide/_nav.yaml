@@ -49,10 +49,14 @@
   children:
     - title: 発表情報を登録する
       path: lt/create
+    - title: 発表情報を編集・削除する
+      path: lt/edit-delete
     - title: 発表申請を承認・却下する
       path: lt/approve
     - title: ブログ記事を自動生成する
       path: lt/auto-generate
+    - title: 発表とアカウントを紐づける
+      path: lt/link-speaker
 
 - title: 発表する（発表者向け）
   children:
