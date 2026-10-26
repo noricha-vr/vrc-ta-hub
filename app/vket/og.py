@@ -12,7 +12,7 @@ from django.urls import reverse
 
 from ta_hub.og_image import absolute_static_url, render_text_png
 from website.constants import DEFAULT_NEWS_IMAGE_URL
-from .models import VketNotice
+from .models import VketCollaboration, VketNotice
 
 logger = logging.getLogger(__name__)
 ASSET_ROOT = Path(__file__).resolve().parent / 'og_assets'
@@ -29,16 +29,23 @@ def _images(collaboration) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+def _static_image(collaboration, key: str) -> str | None:
+    """設定の画像パスが静的ファイルの相対パスとして安全な時だけ返す。"""
+    image = _images(collaboration).get(key)
+    if not isinstance(image, str):
+        return None
+    image = image.strip()
+    if (image and not re.match(r'[A-Za-z][A-Za-z0-9+.-]*:', image)
+            and not any(c in image for c in '?#') and not image.startswith('/')
+            and '\\' not in image and '..' not in image and not any(ord(c) < 32 for c in image)):
+        return image
+    return None
+
+
 def page_metadata(request, collaboration, page: str) -> dict:
     label = {'apply': '参加登録', 'status': '参加状況', 'stage_register': 'ステージ登録', 'detail': ''}[page]
-    image = _images(collaboration).get(page)
-    image_url = DEFAULT_NEWS_IMAGE_URL
-    if isinstance(image, str):
-        image = image.strip()
-        if (image and not re.match(r'[A-Za-z][A-Za-z0-9+.-]*:', image)
-                and not any(c in image for c in '?#') and not image.startswith('/')
-                and '\\' not in image and '..' not in image and not any(ord(c) < 32 for c in image)):
-            image_url = absolute_static_url(request, image)
+    image = _static_image(collaboration, page)
+    image_url = absolute_static_url(request, image) if image else DEFAULT_NEWS_IMAGE_URL
     return {
         'og_title': f'{collaboration.name} {label}'.rstrip(),
         'og_image_url': image_url,
@@ -141,3 +148,15 @@ def notice_metadata(request, collaboration) -> dict:
 
 def render_notice_png(base: Path, title: str) -> bytes:
     return render_text_png(base, title, 'notice-base')
+
+
+def top_page_og_image_url(request, today) -> str | None:
+    """会期中（初日〜最終日）のコラボに og_images.top があれば、トップの OG 画像の URL を返す。"""
+    collaborations = VketCollaboration.objects.exclude(
+        phase=VketCollaboration.Phase.DRAFT,
+    ).filter(period_start__lte=today, period_end__gte=today).order_by('period_start', 'pk')
+    for collaboration in collaborations:
+        image = _static_image(collaboration, 'top')
+        if image:
+            return absolute_static_url(request, image)
+    return None

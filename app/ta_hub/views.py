@@ -13,6 +13,7 @@ from ta_hub.index_cache import (
 )
 from utils.vrchat_time import get_vrchat_today
 from vket.timetable import build_collaboration_timetable
+from vket.og import top_page_og_image_url
 from vket.top_banner import get_active_top_banner
 
 logger = logging.getLogger(__name__)
@@ -63,12 +64,14 @@ class IndexView(TemplateView):
         context['upcoming_events'] = []
         context['upcoming_event_details'] = []
         context['special_events'] = []
+        context['top_og_image_url'] = None
 
         try:
             context.update(build_index_database_context(self.request, today, cache_key))
             # vket_achievements は request.build_absolute_uri() に依存するためキャッシュ外で毎回生成する。
             context['vket_achievements'] = self._build_vket_achievements(with_images=True)
             # 告知時刻と公開枠の更新を日付キャッシュに閉じ込めない。
+            context['top_og_image_url'] = top_page_og_image_url(self.request, timezone.localdate())
             banner = get_active_top_banner(timezone.now())
             if banner:
                 collaboration = banner['collaboration']
