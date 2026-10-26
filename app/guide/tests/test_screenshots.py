@@ -2,7 +2,7 @@
 import importlib.util
 import os
 from datetime import datetime, timezone
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from unittest import mock
 from unittest.mock import Mock
@@ -60,6 +60,11 @@ class ScreenshotGuardTest(SimpleTestCase):
         with self.assertRaises(ValueError):
             capture.shot()
         page.screenshot.assert_not_called()
+
+    def test_youtube_thumbnail_is_a_local_image(self):
+        # 架空の動画 URL のサムネイルを画像切れにしない（外部の画像は撮影で読まない）。
+        with capture_module.Image.open(BytesIO(capture_module.youtube_thumbnail())) as image:
+            self.assertEqual((image.format, image.size), ('JPEG', (320, 180)))
 
 
 class GuideDemoDataTest(TestCase):
