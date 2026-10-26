@@ -99,7 +99,7 @@ class VketTopBannerTests(TestCase):
         timetable = soup.find(id='vket-timetable')
         self.assertEqual(timetable.select_one('.vket-timetable-block-body')['href'], reverse('community:detail', args=[community.pk]))
         self.assertIn('テスト発表', timetable.get_text())
-        self.assertIn('21:00〜21:30 LT', timetable.get_text())
+        self.assertIn('21:00〜21:30 発表', timetable.get_text())
         self.assertEqual(timetable.select_one('.vket-timetable-rail-lt')['style'], 'top:0.0000%;height:50.0000%;')
         calendar = timetable.select_one('.vket-timetable-calendar')
         self.assertTrue(calendar['href'].startswith('https://www.google.com/calendar/render?action=TEMPLATE'))

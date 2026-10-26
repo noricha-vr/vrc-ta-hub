@@ -693,7 +693,7 @@
                                         {% for block in day.blocks %}
                                             <div class="vket-timetable-block" style="{{ block.style }}">
                                                 <a href="{% url 'community:detail' block.community.pk %}" class="vket-timetable-block-body"
-                                                   aria-label="{{ block.community.name }} {{ day.date|date:'n/j' }} {{ block.time_label }} {% for lt in block.lt_segments %}{{ lt.time_label }} LT {{ lt.title }} {% empty %}発表は後日公開{% endfor %}">
+                                                   aria-label="{{ block.community.name }} {{ day.date|date:'n/j' }} {{ block.time_label }} {% for lt in block.lt_segments %}{{ lt.time_label }} 発表 {{ lt.title }} {% empty %}発表は後日公開{% endfor %}">
                                                     <span class="vket-timetable-rail" aria-hidden="true">{% for lt in block.lt_segments %}{% if lt.rail_style %}<span class="vket-timetable-rail-lt" style="{{ lt.rail_style }}"></span>{% endif %}{% endfor %}</span>
                                                     <span class="vket-timetable-head d-block">
                                                         <strong class="d-block text-truncate" title="{{ block.community.name }}">{{ block.community.name }}</strong>
@@ -702,7 +702,7 @@
                                                     {% for lt in block.lt_segments %}
                                                         {% if lt.label_style %}
                                                             <span class="vket-timetable-lt" style="{{ lt.label_style }}">
-                                                                <span class="vket-timetable-lt-time d-block">{{ lt.time_label }} LT</span>
+                                                                <span class="vket-timetable-lt-time d-block">{{ lt.time_label }} 発表</span>
                                                                 <span class="d-block text-truncate" title="{{ lt.title }}">{{ lt.title }}</span>
                                                             </span>
                                                         {% endif %}
@@ -726,7 +726,7 @@
                 {% endfor %}
                 <div class="d-flex justify-content-center gap-4 flex-wrap mt-3 small text-secondary">
                     <span><i class="vket-timetable-legend"></i>水色の枠 = 集会の開催時間</span>
-                    <span><i class="vket-timetable-legend vket-timetable-legend-lt"></i>枠内の濃い青の線 = LT の時間</span>
+                    <span><i class="vket-timetable-legend vket-timetable-legend-lt"></i>枠内の濃い青の線 = 発表の時間</span>
                     <span>枠を押すと集会のページへ移動します</span>
                     <span><i class="bi bi-calendar-plus" aria-hidden="true"></i> で Google カレンダーに追加できます</span>
                 </div>
