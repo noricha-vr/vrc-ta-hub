@@ -11,8 +11,10 @@
                 <h1 class="fw-bold mb-1">{{ collaboration.name }}</h1>
                 <div class="text-muted">
                     期間: {{ collaboration.period_start|date:"Y/m/d" }}〜{{ collaboration.period_end|date:"Y/m/d" }}
-                    / 締切1: {{ collaboration.registration_deadline|date:"Y/m/d" }}
-                    / 締切2: {{ collaboration.lt_deadline|date:"Y/m/d" }}
+                    {% if can_apply or is_admin %}
+                        / 参加登録の締切: {{ collaboration.registration_deadline|date:"Y/m/d" }}
+                        / 発表登録の締切: {{ collaboration.lt_deadline|date:"Y/m/d" }}
+                    {% endif %}
                 </div>
                 {% if collaboration.hashtags %}
                     <div class="mt-2">
@@ -32,11 +34,22 @@
             </div>
         </div>
 
+        {% if archive_news %}
+            <div class="{% if is_after_period %}alert alert-primary p-4{% else %}mb-4 small{% endif %}">
+                {% if is_after_period %}<h2 class="h4 fw-bold">発表動画のアーカイブ</h2>{% endif %}
+                <a href="{% url 'news:detail' archive_news.slug %}" class="{% if is_after_period %}btn btn-primary{% endif %}">
+                    {% if not is_after_period %}発表動画のアーカイブ: {% endif %}{{ archive_news.title }}
+                </a>
+            </div>
+        {% endif %}
+
         {% if collaboration.description %}
             <div class="alert alert-light">{{ collaboration.description|linebreaksbr }}</div>
         {% endif %}
 
-        <h2 class="h4 fw-bold mb-3">スケジュール（確定分）</h2>
+        {% include 'vket/includes/timetable.html' with timetable_collaboration=collaboration %}
+
+        <h2 class="h4 fw-bold mb-3">日ごとの発表一覧（確定分）</h2>
 
         {% if grouped_entries %}
             {% for group in grouped_entries %}
@@ -56,11 +69,21 @@
                                     </div>
                                 </div>
                                 <div class="mt-1 small">
-                                    {% if e.lt_detail %}
-                                        発表: {{ e.lt_detail.speaker|default:"—" }}「{{ e.lt_detail.theme|default:"—" }}」
-                                    {% else %}
+                                    {% for detail in e.lt_details %}
+                                        <div class="mb-2">
+                                            発表: {{ detail.speaker|default:"—" }}「{{ detail.theme|default:"—" }}」
+                                            {% if detail.slide_url %}
+                                                <a href="{{ detail.slide_url }}" target="_blank" rel="noopener noreferrer" class="ms-2">スライド</a>
+                                            {% elif detail.slide_file %}
+                                                <a href="{{ detail.slide_file.url }}" target="_blank" rel="noopener noreferrer" class="ms-2">スライド</a>
+                                            {% endif %}
+                                            {% if detail.youtube_url %}
+                                                <a href="{{ detail.youtube_url }}" target="_blank" rel="noopener noreferrer" class="ms-2">動画</a>
+                                            {% endif %}
+                                        </div>
+                                    {% empty %}
                                         <span class="text-muted">発表情報は後日公開</span>
-                                    {% endif %}
+                                    {% endfor %}
                                 </div>
                             </div>
                         {% endfor %}

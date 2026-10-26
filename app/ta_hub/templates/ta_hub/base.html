@@ -32,7 +32,7 @@
     <link rel="icon" type="image/x-icon" href="https://data.vrc-ta-hub.com/images%2Fsite%2Ffavicon.ico">
     <link rel="mask-icon" href="https://data.vrc-ta-hub.com/images%2Fsite%2Fsafari-pinned-tab.svg" color="#5bbad5">
     {% block meta %}
-        <title>{% site_name_seo %} - VRChat技術学術系集会の世界へ！ようこそ！</title>
+        <title>{% block title %}{% site_name_seo %} - VRChat技術学術系集会の世界へ！ようこそ！{% endblock %}</title>
         <meta name="twitter:title" content="{% site_name_seo %} - VRChat技術学術系集会の世界へ！ようこそ！">
         <meta property="og:title" content="{% site_name_seo %} - VRChat技術学術系集会の世界へ！ようこそ！">
         <meta name="description"
@@ -425,6 +425,7 @@
             }
         }
     </style>
+    {% block extra_css %}{% endblock %}
 </head>
 
 <body class="d-flex flex-column min-vh-100">
@@ -562,6 +563,9 @@
                     </li>
                     <li class="mb-2">
                         <a href="{% url 'news:list' %}" class="text-light text-decoration-none small">お知らせ</a>
+                    </li>
+                    <li class="mb-2">
+                        <a href="{% url 'vket:list' %}" class="text-light text-decoration-none small">Vket コラボ</a>
                     </li>
                 </ul>
             </div>

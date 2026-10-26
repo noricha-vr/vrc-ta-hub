@@ -6,6 +6,7 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, D
 from django.core.cache import cache
 
 from ta_hub.access_mixins import AuthenticatedForbiddenMixin
+from vket.models import VketCollaboration
 
 from .models import Post, Category
 from .forms import PostForm
@@ -104,6 +105,13 @@ class PostDetailView(DetailView):
         context = super().get_context_data(**kwargs)
         # requestをモデルメソッドで使用できるように追加
         context['request'] = self.request
+        # JSON の検索は DB による差異を避け、少数のコラボを Python 側で照合する。
+        context['vket_collaborations'] = [
+            collaboration
+            for collaboration in VketCollaboration.objects.exclude(phase=VketCollaboration.Phase.DRAFT)
+            if isinstance(collaboration.settings_json, dict)
+            and collaboration.settings_json.get('archive_news_slug') == self.object.slug
+        ]
 
         # 構造化データ（BlogPosting）を生成
         try:

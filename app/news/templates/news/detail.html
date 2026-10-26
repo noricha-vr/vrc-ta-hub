@@ -96,6 +96,15 @@
             font-size: 1.6rem;
         }
 
+        .post .vket-collaboration-link h2 {
+            background-color: transparent;
+            border-left: 0;
+            margin: 0 0 .5rem;
+            padding: 0;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
         .post h3 {
             padding: 5px;
             margin-top: 1.5rem;
@@ -241,6 +250,17 @@
                 <div>
                     {{ object.body_markdown|markdown|safe }}
                 </div>
+
+                {% if vket_collaborations %}
+                    <section class="vket-collaboration-link alert alert-light mt-4" aria-labelledby="vket-collaboration-heading">
+                        <h2 id="vket-collaboration-heading" class="h5 fw-bold">このコラボの日程とタイムテーブル</h2>
+                        <ul class="mb-0">
+                            {% for collaboration in vket_collaborations %}
+                                <li><a href="{% url 'vket:detail' collaboration.pk %}">{{ collaboration.name }}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </section>
+                {% endif %}
 
                 <div class="mt-5 pt-4 border-top">
                     <a href="{% url 'news:list' %}" class="btn btn-outline-primary">

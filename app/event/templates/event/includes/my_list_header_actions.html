@@ -1,0 +1,6 @@
+            {% if community %}
+            <div class="mylist-header-actions">
+                <a href="{% url 'community:detail' community.pk %}" class="btn btn-outline-secondary">公開ページを見る ↗</a>
+                <a href="{% url 'event:calendar_create' %}" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i> イベント登録</a>
+            </div>
+            {% endif %}

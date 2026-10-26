@@ -1,0 +1,29 @@
+{% extends 'ta_hub/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'ta_hub/css/admin-ui.css' %}">
+{% endblock %}
+
+{% block main %}
+<div class="container my-4 hub-admin {% block admin_classes %}{% endblock %}">
+    {% block admin_breadcrumbs %}{% endblock %}
+    {% block admin_header %}{% endblock %}
+    {% block admin_subnav %}{% endblock %}
+    {% block messages %}{% include 'ta_hub/messages.html' %}{% endblock %}
+    {% block admin_attention %}{% endblock %}
+    {% block admin_layout %}
+        <div class="admin-layout">
+            {% block admin_toc %}{% endblock %}
+            <div class="admin-content">{% block admin_content %}{% endblock %}</div>
+        </div>
+    {% endblock %}
+    {% block admin_action_bar %}{% endblock %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+    {{ block.super }}
+    <script src="{% static 'ta_hub/js/admin-ui.js' %}" defer></script>
+{% endblock %}

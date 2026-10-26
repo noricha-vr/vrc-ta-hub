@@ -1,0 +1,18 @@
+<header class="admin-page-header mylist-header mb-2">
+    <div class="admin-page-heading">
+        {% if switcher_template %}
+            {% include switcher_template %}
+            <h1 class="visually-hidden">{{ title }}{% if target %}: {{ target }}{% endif %}</h1>
+        {% else %}
+            <h1>{{ title }}{% if target %}: {{ target }}{% endif %}</h1>
+        {% endif %}
+        {% if subtitle %}<p class="admin-muted mb-0">{{ subtitle }}</p>{% endif %}
+    </div>
+    {% if actions_template %}{% include actions_template %}{% elif actions %}
+    <div class="admin-header-actions mylist-header-actions">
+        {% for item in actions %}
+        <a href="{{ item.url }}" class="btn {% if item.primary %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ item.label }}</a>
+        {% endfor %}
+    </div>
+    {% endif %}
+</header>
