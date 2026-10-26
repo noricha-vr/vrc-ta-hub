@@ -98,6 +98,16 @@ class VketAchievementsSectionTest(TestCase):
 class VketNoticeLayoutTest(TestCase):
     """Vket告知見出しの装飾配置テスト"""
 
+    def setUp(self):
+        from vket.models import VketCollaboration
+
+        VketCollaboration.objects.create(
+            slug='summer-layout', name='夏の技術学術WEEK', phase='locked',
+            period_start='2026-07-11', period_end='2026-07-25',
+            registration_deadline='2026-06-01', lt_deadline='2026-06-20',
+            settings_json={'top_banner': {'start': '2026-07-01T20:00:00+09:00'}},
+        )
+
     @patch(
         'ta_hub.views.timezone.now',
         return_value=datetime(2026, 7, 20, tzinfo=timezone.utc),

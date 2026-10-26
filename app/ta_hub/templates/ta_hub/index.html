@@ -324,6 +324,90 @@
             transform: scale(1.05);
         }
 
+        .vket-top-banner-winter {
+            background: linear-gradient(135deg, #cde8ff 0%, #c7d2ff 100%);
+            border-bottom: 3px solid #3f6fd8;
+        }
+        .vket-top-banner-summer {
+            background: linear-gradient(135deg, #ffb37a 0%, #ff6b9d 100%);
+            border-bottom: 3px solid #ff6b9d;
+        }
+        .vket-banner-image { max-height: 500px; width: auto; }
+        .vket-week-button { min-height: 44px; }
+        .vket-timetable-scroll {
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 12px;
+            padding-bottom: 14px;
+        }
+        .vket-timetable-grid {
+            display: grid;
+            grid-template-columns: 64px repeat(7, minmax(120px, 1fr));
+            min-width: 920px;
+        }
+        .vket-timetable-day {
+            min-height: 76px;
+            padding: 10px 8px;
+            text-align: center;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            border-left: 1px solid #dee2e6;
+        }
+        .vket-timetable-day .badge { width: fit-content; }
+        .vket-timetable-times, .vket-timetable-column { position: relative; min-height: 60px; }
+        .vket-timetable-times span {
+            position: absolute;
+            right: 8px;
+            font-size: 12px;
+            line-height: 1;
+            margin-top: -6px;
+            background: white;
+        }
+        .vket-timetable-column {
+            border-left: 1px solid #dee2e6;
+            background-image: repeating-linear-gradient(to bottom, #e9ecef 0 1px, transparent 1px 60px);
+        }
+        .vket-timetable-today { background-color: #e7f1ff; }
+        .vket-timetable-off {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+            font-size: 13px;
+        }
+        .vket-timetable-block { position: absolute; padding: 3px; text-decoration: none; }
+        .vket-timetable-block-body {
+            display: block;
+            height: 100%;
+            overflow: hidden;
+            border: 1px solid #9ec5fe;
+            border-radius: 6px;
+            padding: 6px;
+            background: #e7f1ff;
+            color: #0a3d8f;
+            font-size: 12px;
+            line-height: 1.35;
+        }
+        .vket-timetable-confirmed .vket-timetable-block-body {
+            background: #1664b8;
+            border-color: #1664b8;
+            color: white;
+        }
+        .vket-timetable-block:hover .vket-timetable-block-body { outline: 2px solid #084298; }
+        .vket-timetable-legend {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            margin-right: 6px;
+            border: 1px solid #9ec5fe;
+            border-radius: 4px;
+            background: #e7f1ff;
+            vertical-align: -2px;
+        }
+        .vket-timetable-legend-confirmed { background: #1664b8; border-color: #1664b8; }
+
         .vket-notice-heading {
             display: inline-grid;
             grid-template-columns: auto minmax(0, auto) auto;
@@ -338,7 +422,7 @@
         }
 
         @media (max-width: 991.98px) {
-            .vket-notice-heading h3 {
+            .vket-notice-heading h2 {
                 font-size: 1.5rem;
             }
 
@@ -352,7 +436,7 @@
                 column-gap: 0.4rem;
             }
 
-            .vket-notice-heading h3 {
+            .vket-notice-heading h2 {
                 font-size: 1.25rem;
             }
         }
@@ -497,49 +581,93 @@
         </section>
     {% endif %}
 
-    <!-- Vketコラボ技術学術Week告知 -->
+    <!-- Vketコラボ告知と週のタイムテーブル -->
     {% if show_vket_notice %}
-        <section class="py-4 shadow-sm"
-                 style="background: linear-gradient(135deg, #ffb37a 0%, #ff6b9d 100%); border-bottom: 3px solid #ff6b9d;">
-            <div class="container">
-                <div class="text-center">
-                    <div class="vket-notice-heading mb-2">
-                        <span class="vket-notice-sunflower" aria-hidden="true">🌻</span>
-                        <h3 class="mb-0 fw-bold text-dark">7月11日〜7月25日はVket2026Summer 技術学術WEEK！</h3>
-                        <span class="vket-notice-sunflower" aria-hidden="true">🌻</span>
+        <section id="vket-top-banner" class="vket-top-banner vket-top-banner-{{ vket_banner.theme }} py-4 shadow-sm">
+            <div class="container text-center">
+                <div class="vket-notice-heading mb-2">
+                    <span class="vket-notice-sunflower" aria-hidden="true">{{ vket_banner.emoji }}</span>
+                    <h2 class="h3 mb-0 fw-bold text-dark">{{ vket_banner.heading }}</h2>
+                    <span class="vket-notice-sunflower" aria-hidden="true">{{ vket_banner.emoji }}</span>
+                </div>
+                {% if vket_banner.collaboration.hashtags %}
+                    <div class="d-flex justify-content-center gap-2 flex-wrap mb-3">
+                        {% for hashtag in vket_banner.collaboration.hashtags %}
+                            <a href="https://x.com/hashtag/{{ hashtag|cut:'#'|urlencode }}" target="_blank" rel="noopener"
+                               class="badge bg-dark fs-6 px-3 py-2 text-decoration-none">
+                                <i class="bi bi-twitter-x me-1"></i>{% if not hashtag|slice:':1' == '#' %}#{% endif %}{{ hashtag }}
+                            </a>
+                        {% endfor %}
                     </div>
-                    <div class="d-flex align-items-center justify-content-center gap-2 flex-wrap mb-2">
-                        <a href="https://x.com/hashtag/Vketステージ" target="_blank"
-                           class="badge fs-6 px-3 py-2 text-decoration-none"
-                           style="background-color: #000000; color: white;">
-                            <i class="bi bi-twitter-x me-1"></i>#Vketステージ
-                        </a>
-                        <a href="https://x.com/hashtag/Vket技術学術WEEK" target="_blank"
-                           class="badge fs-6 px-3 py-2 text-decoration-none"
-                           style="background-color: #000000; color: white;">
-                            <i class="bi bi-twitter-x me-1"></i>#Vket技術学術WEEK
-                        </a>
-                    </div>
-
+                {% endif %}
+                {% if vket_banner.image %}
                     <div class="row justify-content-center my-4">
                         <div class="col-12 col-lg-8">
-                            <a href="https://x.com/Virtual_Market_/status/2066810438495744041?s=20" target="_blank" class="text-decoration-none d-block">
-                                <div class="position-relative" style="transform: rotate(-2deg); transition: transform 0.3s ease;" onmouseover="this.style.transform='rotate(0deg) scale(1.02)'" onmouseout="this.style.transform='rotate(-2deg)'">
-                                    <img src="{% static 'ta_hub/images/giga-week2026-summer.avif' %}"
-                                         class="img-fluid rounded-3 shadow-lg border border-4 border-white"
-                                         alt="Vket 2026 Summer 技術学術WEEK イメージ"
-                                         style="max-height: 500px; width: auto;">
-                                </div>
+                            <a href="{{ vket_banner.link }}" class="d-block">
+                                <img src="{{ vket_banner.image }}" class="vket-banner-image img-fluid rounded-3 shadow-lg border border-4 border-white"
+                                     alt="{{ vket_banner.collaboration.name }} 告知画像">
                             </a>
                         </div>
                     </div>
-
-                    <div class="d-flex align-items-center justify-content-center gap-3 flex-wrap">
-                        <a href="#vket-lt-section" class="btn btn-light px-4 py-2 fw-bold text-danger"
-                           style="cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                            <i class="bi bi-calendar-event me-2"></i>特別イベント開催中
-                        </a>
+                {% endif %}
+                <div class="d-flex justify-content-center gap-3 flex-wrap">
+                    <a href="#vket-timetable" class="btn btn-light px-4 py-2 fw-bold text-primary">
+                        <i class="bi bi-calendar-event me-2"></i>タイムテーブルを見る
+                    </a>
+                    <a href="{{ vket_banner.link }}" class="btn btn-outline-dark px-4 py-2">
+                        {% if vket_banner.has_official_link %}公式の告知を見る{% else %}コラボの詳細を見る{% endif %}
+                    </a>
+                </div>
+            </div>
+        </section>
+        <section id="vket-timetable" class="bg-white py-5" aria-labelledby="vket-timetable-heading">
+            <div class="container">
+                <h2 id="vket-timetable-heading" class="h2 text-center text-primary fw-bold">{{ vket_banner.collaboration.name }} タイムテーブル</h2>
+                <p class="text-center text-muted mb-4">{{ vket_start_date|date:"n/j" }}〜{{ vket_end_date|date:"n/j" }} · 確定 {{ vket_timetable.scheduled_count }} 枠 · 時刻は日本時間</p>
+                <div class="d-flex justify-content-center gap-2 flex-wrap mb-4" role="group" aria-label="表示する週">
+                    {% for week in vket_timetable.weeks %}
+                        <button type="button" class="btn rounded-pill vket-week-button {% if week.active %}btn-primary{% else %}btn-outline-primary{% endif %}"
+                                data-vket-week="vket-week-{{ week.number }}" aria-controls="vket-week-{{ week.number }}" aria-pressed="{{ week.active|yesno:'true,false' }}">{{ week.label }}</button>
+                    {% endfor %}
+                </div>
+                {% if not vket_timetable.scheduled_count %}<p class="text-center text-muted">日程は後日公開します。</p>{% endif %}
+                {% for week in vket_timetable.weeks %}
+                    <div id="vket-week-{{ week.number }}" class="vket-week-panel" {% if not week.active %}hidden{% endif %}>
+                        <div class="vket-timetable-scroll" role="region" aria-label="{{ week.label }}のタイムテーブル" tabindex="0">
+                            <div class="vket-timetable-grid">
+                                <div class="vket-timetable-day bg-light" aria-hidden="true"></div>
+                                {% for day in week.days %}
+                                    <div class="vket-timetable-day {% if day.is_today %}vket-timetable-today{% endif %} {% if not day.in_period %}text-muted{% endif %}">
+                                        <strong class="d-block fs-5">{{ day.date|date:"n/j" }}</strong>（{{ day.weekday }}）
+                                        {% if day.is_today %}<span class="badge bg-warning text-dark d-block mx-auto mt-1">今日</span>{% endif %}
+                                    </div>
+                                {% endfor %}
+                                <div class="vket-timetable-times" style="height:{{ vket_timetable.height }}px;">
+                                    {% for tick in vket_timetable.ticks %}<span style="{{ tick.style }}">{{ tick.label }}</span>{% endfor %}
+                                </div>
+                                {% for day in week.days %}
+                                    <div class="vket-timetable-column {% if day.is_today %}vket-timetable-today{% endif %} {% if not day.in_period %}bg-light{% endif %}" style="height:{{ vket_timetable.height }}px;">
+                                        {% if not day.in_period %}<span class="vket-timetable-off">会期外</span>{% endif %}
+                                        {% for block in day.blocks %}
+                                            <a href="{% url 'community:detail' block.community.pk %}" class="vket-timetable-block {% if block.has_lt %}vket-timetable-confirmed{% endif %}"
+                                               style="{{ block.style }}" aria-label="{{ block.community.name }} {{ block.time_label }} {% for title in block.titles %}{{ title }} {% empty %}発表は後日公開{% endfor %}">
+                                                <span class="vket-timetable-block-body">
+                                                    <strong class="d-block text-truncate" title="{{ block.community.name }}">{{ block.community.name }}</strong>
+                                                    <span class="d-block text-truncate">{{ block.time_label }}</span>
+                                                    {% for title in block.titles %}<span class="d-block text-truncate" title="{{ title }}">{{ title|truncatechars:35 }}</span>{% empty %}<span class="d-block text-truncate">発表は後日公開</span>{% endfor %}
+                                                </span>
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
                     </div>
+                {% endfor %}
+                <div class="d-flex justify-content-center gap-4 flex-wrap mt-3 small text-secondary">
+                    <span><i class="vket-timetable-legend vket-timetable-legend-confirmed"></i>発表が決まっている枠</span>
+                    <span><i class="vket-timetable-legend"></i>発表は後日公開</span>
+                    <span>枠を押すと集会のページへ移動します</span>
                 </div>
             </div>
         </section>
@@ -562,7 +690,7 @@
                     {% regroup upcoming_event_details by event as event_list %}
                     {% for event_group in event_list %}
                         <div class="col-12 col-md-10 offset-md-1"
-                             {% if event_group.grouper.date >= vket_start_date and event_group.grouper.date <= vket_end_date %}data-vket-event="true"{% endif %}>
+                             {% if show_vket_notice and event_group.grouper.date >= vket_start_date and event_group.grouper.date <= vket_end_date %}data-vket-event="true"{% endif %}>
                             <div class="card shadow h-100 {% if event_group.grouper.date == current_date %}today-event-card{% endif %}"
                                  style="position: relative;">
                                 <a href="{% url 'community:detail' event_group.grouper.community.pk %}"
@@ -1376,27 +1504,28 @@
     <script src="{% static 'ta_hub/js/index.js' %}"></script>
     <script type="text/javascript" src="https://petipeti-object-storage.work/dist/pp-calendar.umd.js"></script>
 
-    <!-- Vket告知クリック時のスクロール -->
+    <!-- 週の切り替えと告知からのスクロール -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const vketBadge = document.querySelector('a[href="#vket-lt-section"]');
-            if (vketBadge) {
-                vketBadge.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    // Vket期間内の最初のLTカードを探す
-                    const vketEvent = document.querySelector('[data-vket-event="true"]');
-                    if (vketEvent) {
-                        // スムーズスクロール
-                        vketEvent.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center'
-                        });
-                        // 一時的にハイライト
-                        vketEvent.style.transition = 'box-shadow 0.3s ease';
-                        vketEvent.style.boxShadow = '0 0 20px rgba(255, 107, 107, 0.8)';
-                        setTimeout(() => {
-                            vketEvent.style.boxShadow = '';
-                        }, 2000);
+            const weekButtons = document.querySelectorAll('[data-vket-week]');
+            weekButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    weekButtons.forEach(function (tab) {
+                        const active = tab === button;
+                        tab.setAttribute('aria-pressed', String(active));
+                        tab.classList.toggle('btn-primary', active);
+                        tab.classList.toggle('btn-outline-primary', !active);
+                        document.getElementById(tab.dataset.vketWeek).hidden = !active;
+                    });
+                });
+            });
+            const timetableLink = document.querySelector('a[href="#vket-timetable"]');
+            if (timetableLink) {
+                timetableLink.addEventListener('click', function (event) {
+                    const timetable = document.getElementById('vket-timetable');
+                    if (timetable) {
+                        event.preventDefault();
+                        timetable.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
                 });
             }
