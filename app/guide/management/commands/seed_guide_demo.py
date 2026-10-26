@@ -61,10 +61,26 @@ def seed_sections(context):
     ページの撮影に要る状態はセクションごとのファイルに足す（並行して書いても衝突しないように）。
     context は users（役割→ユーザー）・community（主催者の集会）・base_date を持つ辞書。
     """
+    for module in _section_modules():
+        module.seed(context)
+
+
+def finalize_sections(context):
+    """各セクションの finalize(context) を名前順に呼ぶ。
+
+    seed のトランザクションを閉じた後に呼ぶ。発表の保存などで on_commit に積まれた同期処理（告知キューの
+    作り直しなど）が先に終わるので、その後の表示用の状態をここで整える。
+    """
+    for module in _section_modules():
+        if hasattr(module, 'finalize'):
+            module.finalize(context)
+
+
+def _section_modules():
     from guide import demo_seeds
-    for module in sorted(pkgutil.iter_modules(demo_seeds.__path__), key=lambda m: m.name):
-        if not module.name.startswith('_'):
-            importlib.import_module(f'guide.demo_seeds.{module.name}').seed(context)
+    return [importlib.import_module(f'guide.demo_seeds.{module.name}')
+            for module in sorted(pkgutil.iter_modules(demo_seeds.__path__), key=lambda m: m.name)
+            if not module.name.startswith('_')]
 
 
 class Command(BaseCommand):
@@ -86,5 +102,8 @@ class Command(BaseCommand):
             community = seed_communities(users)
             seed_events(community, users)
             seed_invitations(community, users)
-            seed_sections({'users': users, 'community': community, 'base_date': BASE_DATE})
+            context = {'users': users, 'community': community, 'base_date': BASE_DATE}
+            seed_sections(context)
+        with transaction.atomic():
+            finalize_sections(context)
         self.stdout.write('guide_demo: users=4 communities=2 events=1 presentations=2 invitations=1')

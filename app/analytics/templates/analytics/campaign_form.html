@@ -1,51 +1,45 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 
-{% block title %}{% if object %}配布リンクの編集{% else %}配布リンクの新規作成{% endif %} - {% site_name_seo %}{% endblock %}
-
-{% block main %}
-    <div class="container my-4" style="max-width: 800px;">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-            <h1 class="h3 mb-0">
-                <i class="fa-solid fa-bullhorn me-2"></i>
-                {% if object %}配布リンクの編集{% else %}配布リンクの新規作成{% endif %}
-            </h1>
-            <a href="{% url 'analytics:campaign_list' %}" class="btn btn-sm btn-outline-secondary ms-auto">
-                <i class="fa-solid fa-arrow-left me-1"></i>一覧に戻る
-            </a>
-        </div>
-
-        <form method="post">
-            {% csrf_token %}
-            {% if form.non_field_errors %}
-                <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-            {% endif %}
-
-            <div class="card mb-3">
-                <div class="card-body">
-                    {% for field in form %}
-                        <div class="mb-3">
-                            <label for="{{ field.id_for_label }}" class="form-label">
-                                {{ field.label }}{% if field.field.required %} <span class="text-danger">*</span>{% endif %}
-                            </label>
-                            {{ field }}
-                            {% if field.help_text %}
-                                <div class="form-text">{{ field.help_text }}</div>
-                            {% endif %}
-                            {% if field.errors %}
-                                <div class="text-danger small">{{ field.errors }}</div>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                </div>
+{% block title %}{% if object %}配布リンクの編集{% else %}配布リンクの作成{% endif %} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}
+    {% include 'analytics/includes/breadcrumbs.html' with current='配布リンクの管理' %}
+{% endblock %}
+{% block admin_header %}
+    {% if object %}
+        {% include 'ta_hub/admin/includes/page_header.html' with title='配布リンクの編集' target=object.community.name subtitle=object.name %}
+    {% else %}
+        {% include 'ta_hub/admin/includes/page_header.html' with title='配布リンクの作成' %}
+    {% endif %}
+{% endblock %}
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with links_template='analytics/includes/nav_links.html' active='campaigns' %}
+{% endblock %}
+{% block admin_content %}
+    <form id="campaign-form" method="post" data-admin-dirty>
+        {% csrf_token %}
+        {% include 'ta_hub/admin/includes/form_errors.html' with form=form only %}
+        <section class="admin-card" aria-labelledby="campaign-target-heading">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='対象と配布先' heading_id='campaign-target-heading' only %}
+            {% include 'ta_hub/admin/includes/form_field.html' with field=form.community only %}
+            {% include 'ta_hub/admin/includes/form_field.html' with field=form.name only %}
+            {% include 'ta_hub/admin/includes/form_field.html' with field=form.landing_path only %}
+        </section>
+        <section class="admin-card" aria-labelledby="campaign-tracking-heading">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='計測名' heading_id='campaign-tracking-heading' only %}
+            <div class="row">
+                <div class="col-md-6">{% include 'ta_hub/admin/includes/form_field.html' with field=form.utm_source only %}</div>
+                <div class="col-md-6">{% include 'ta_hub/admin/includes/form_field.html' with field=form.utm_medium only %}</div>
             </div>
-
-            <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fa-solid fa-save me-1"></i>
-                    {% if object %}更新{% else %}作成{% endif %}
-                </button>
-                <a href="{% url 'analytics:campaign_list' %}" class="btn btn-outline-secondary">キャンセル</a>
-            </div>
-        </form>
-    </div>
+            {% include 'ta_hub/admin/includes/form_field.html' with field=form.utm_campaign only %}
+        </section>
+        <section class="admin-card" aria-labelledby="campaign-schedule-heading">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='配布予定' heading_id='campaign-schedule-heading' only %}
+            {% include 'ta_hub/admin/includes/form_field.html' with field=form.distributed_at only %}
+            {% include 'ta_hub/admin/includes/form_field.html' with field=form.note only %}
+        </section>
+    </form>
+{% endblock %}
+{% block admin_action_bar %}
+    {% url 'analytics:campaign_list' as cancel_url %}
+    {% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions cancel_url=cancel_url only %}
 {% endblock %}

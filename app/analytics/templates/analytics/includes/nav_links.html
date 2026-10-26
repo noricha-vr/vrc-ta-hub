@@ -1,0 +1,6 @@
+<a href="{% url 'event:my_list' %}">イベント</a>
+<a href="{% url 'analytics:dashboard' %}{% if dashboard_query %}?{{ dashboard_query }}{% elif filter_query %}?{{ filter_query }}{% endif %}"{% if active == 'dashboard' %} aria-current="page"{% endif %}>アクセス</a>
+{% if has_access or active == 'campaigns' %}
+<a href="{% url 'analytics:search_queries' %}{% if dashboard_query %}?{{ dashboard_query }}{% elif filter_query %}?{{ filter_query }}{% endif %}"{% if active == 'search_queries' %} aria-current="page"{% endif %}>検索キーワード</a>
+{% endif %}
+<a href="{% url 'analytics:campaign_list' %}"{% if active == 'campaigns' %} aria-current="page"{% endif %}>配布リンク</a>
