@@ -30,6 +30,7 @@
                             <p class="admin-muted mb-0">
                                 {{ c.community.name }} · <code>{{ c.utm_campaign }}</code> · {{ c.utm_source }} / {{ c.utm_medium }} · {% if c.distributed_at %}{{ c.distributed_at|date:'Y-m-d' }} 配布{% else %}配布日未設定{% endif %}
                             </p>
+                            <p class="mb-0 small text-truncate analytics-campaign-url"><code class="user-select-all">{{ c.url }}</code></p>
                         </div>
                     </div>
                     <div class="event-actions">
@@ -62,6 +63,7 @@
     <style>
         .hub-admin .analytics-campaign { overflow-wrap: anywhere; }
         .hub-admin .analytics-campaign-heading, .hub-admin .analytics-campaign-heading > div { min-width: 0; }
+        .hub-admin .analytics-campaign-url { max-width: 40rem; }
         .hub-admin .analytics-campaign-heading > a { flex-shrink: 0; }
         .hub-admin .analytics-campaign .event-actions .btn { white-space: nowrap; }
         .hub-admin .analytics-campaign .dropdown-menu { min-width: 12rem; }
@@ -78,6 +80,15 @@
                     navigator.clipboard.writeText(this.dataset.url).then(function () {
                         btn.textContent = 'コピーしました';
                         setTimeout(function () { btn.textContent = 'URL をコピー'; }, 1500);
+                    }, function () {
+                        // クリップボードが拒否された時は、下の URL を選択して手でコピーしてもらう
+                        btn.textContent = 'URL を選択してコピーしてください';
+                        const code = btn.closest('.analytics-campaign').querySelector('.analytics-campaign-url code');
+                        const range = document.createRange();
+                        range.selectNodeContents(code);
+                        const selection = window.getSelection();
+                        selection.removeAllRanges();
+                        selection.addRange(range);
                     });
                 });
             });

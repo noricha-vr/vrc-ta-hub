@@ -225,3 +225,9 @@ class AnalyticsAdminUITest(TestCase):
                 links = {a.get_text(strip=True): a['href'] for a in soup.select('.admin-subnav a')}
                 self.assertIn('days=90', links['アクセス'])
                 self.assertIn('days=90', links['検索キーワード'])
+
+    def test_list_keeps_selectable_url_for_manual_copy(self):
+        # クリップボードが使えない時のために、配布用 URL を画面に残す
+        self.client.force_login(self.owner)
+        soup = self.soup(self.get_page('campaign_list'))
+        self.assertEqual(soup.select_one('.analytics-campaign-url code').get_text(), self.campaign.url)
