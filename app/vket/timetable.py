@@ -27,13 +27,18 @@ def _lt_segments(event, details, visible_minutes):
     """
     event_start = _minutes(event.start_time)
     body_px = visible_minutes * PX_PER_MINUTE - 6
-    segments = []
-    floor = HEADER_PX
+    timed = []
     for detail in details:
         offset = _minutes(detail.start_time) - event_start
         if offset < 0 and offset + 24 * 60 < event.duration:
             # 日付をまたぐ集会の、0 時以降に始まる LT
             offset += 24 * 60
+        timed.append((offset, detail))
+    # 取得順は時刻（0 時以降が先）なので、集会の開始からの順に並べ直してから見出しを積む
+    timed.sort(key=lambda item: item[0])
+    segments = []
+    floor = HEADER_PX
+    for offset, detail in timed:
         start = max(offset, 0)
         end = min(offset + (detail.duration or 0), event.duration)
         if end <= start:

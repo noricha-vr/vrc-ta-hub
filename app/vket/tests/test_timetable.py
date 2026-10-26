@@ -203,6 +203,14 @@ class CollaborationTimetableTests(TestCase):
         self.assertIsNone(segment['rail_style'])
         self.assertEqual(segment['label_style'], 'top:34px;')
 
+    def test_lt_across_midnight_are_ordered_from_slot_start(self):
+        _, event = self.add_slot(start=time(23), duration=120)
+        make_event_detail(event, status='approved', theme='深夜', start_time=time(0, 15), duration=30)
+        make_event_detail(event, status='approved', theme='前半', start_time=time(23, 10), duration=20)
+        segments = self.first_day_blocks(self.build())[0]['lt_segments']
+        self.assertEqual([s['title'] for s in segments], ['前半', '深夜'])
+        self.assertEqual([s['label_style'] for s in segments], ['top:34px;', 'top:64px;'])
+
     def test_seconds_are_kept_in_lt_position(self):
         _, event = self.add_slot(start=time(21, 0, 30), duration=60)
         make_event_detail(event, status='approved', theme='秒', start_time=time(21, 1), duration=10)
