@@ -84,8 +84,12 @@
                             {% endfor %}
                             {% if turnstile_site_key %}
                                 <div class="mb-3" role="group" aria-label="ボット対策の確認" aria-describedby="turnstile-help">
-                                    <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-size="flexible"></div>
-                                    <div id="turnstile-help" class="form-text">ボット対策の確認です。通常は自動で完了します。確認が表示された場合は、画面の指示に従ってください。</div>
+                                    <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-size="flexible"
+                                         data-callback="onTurnstileSuccess"
+                                         data-expired-callback="onTurnstileExpired"
+                                         data-error-callback="onTurnstileError"></div>
+                                    <div id="turnstile-help" class="form-text">ボット対策の確認です。通常は自動で完了します。確認が表示された場合は、画面の指示に従ってください。確認が終わるとログインボタンを押せます。</div>
+                                    <div id="turnstile-status" class="alert alert-warning mt-2 mb-0 d-none" role="status" aria-live="polite"></div>
                                     <noscript>
                                         <div class="alert alert-warning mt-2 mb-0">
                                             JavaScript が無効なため、ボット対策の確認ができずログインできません。ブラウザの設定で JavaScript を有効にしてください。
@@ -93,7 +97,7 @@
                                     </noscript>
                                 </div>
                             {% endif %}
-                            <button type="submit" class="btn btn-primary w-100">
+                            <button type="submit" id="login-submit" class="btn btn-primary w-100"{% if turnstile_site_key %} disabled{% endif %}>
                                 <i class="fas fa-sign-in-alt me-2"></i>ログイン
                             </button>
                         </form>
@@ -109,6 +113,24 @@
 
 {% block extra_js %}
     {% if turnstile_site_key %}
+        <script>
+            {# 確認が終わる前の送信はトークン無しで弾かれ、ログイン失敗の回数にも数えられるので、完了までボタンを押せなくする #}
+            (function () {
+                function update(passed, message) {
+                    document.getElementById('login-submit').disabled = !passed;
+                    var status = document.getElementById('turnstile-status');
+                    status.textContent = message || '';
+                    status.classList.toggle('d-none', !message);
+                }
+                window.onTurnstileSuccess = function () { update(true); };
+                window.onTurnstileExpired = function () {
+                    update(false, 'ボット対策の確認の期限が切れました。自動で確認し直すので、終わるまでお待ちください。');
+                };
+                window.onTurnstileError = function () {
+                    update(false, 'ボット対策の確認に失敗しました。ページを再読み込みして、もう一度お試しください。');
+                };
+            })();
+        </script>
         <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     {% endif %}
 {% endblock %}
