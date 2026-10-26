@@ -1,5 +1,6 @@
 """news.views のテスト"""
 import json
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
@@ -7,6 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from news.models import Category, Post
+from vket.models import VketCollaboration
 
 CustomUser = get_user_model()
 
@@ -237,6 +239,55 @@ class PostDetailViewTestCase(TestCase):
             '<div class="detail-thumbnail-container">',
         )
         self.assertEqual(structured_data["image"], [expected_url])
+
+    def test_archive_links_to_non_draft_collaborations_after_body(self):
+        today = timezone.localdate()
+        collaborations = []
+        for phase in VketCollaboration.Phase.values:
+            collaborations.append(VketCollaboration.objects.create(
+                slug=f'archive-{phase}', name=f'関連コラボ{phase}', phase=phase,
+                period_start=today, period_end=today + timedelta(days=7),
+                registration_deadline=today, lt_deadline=today,
+                settings_json={'archive_news_slug': self.published_post.slug},
+            ))
+        response = self.client.get(reverse('news:detail', args=[self.published_post.slug]))
+        self.assertContains(response, 'このコラボの日程とタイムテーブル')
+        for collaboration in collaborations:
+            link = f'href="{reverse("vket:detail", args=[collaboration.pk])}"'
+            if collaboration.phase == VketCollaboration.Phase.DRAFT:
+                self.assertNotContains(response, link)
+            else:
+                self.assertContains(response, link)
+        body = response.content.decode()
+        self.assertLess(body.index(self.published_post.body_markdown), body.index('このコラボの日程とタイムテーブル'))
+        self.published_post.refresh_from_db()
+        self.assertEqual(self.published_post.body_markdown, '詳細ページの本文です。')
+
+    def test_archive_link_section_is_absent_for_draft_only_collaboration(self):
+        today = timezone.localdate()
+        VketCollaboration.objects.create(
+            slug='draft-only-archive', name='下書きコラボ',
+            phase=VketCollaboration.Phase.DRAFT,
+            period_start=today, period_end=today,
+            registration_deadline=today, lt_deadline=today,
+            settings_json={'archive_news_slug': self.published_post.slug},
+        )
+        response = self.client.get(reverse('news:detail', args=[self.published_post.slug]))
+        self.assertNotContains(response, 'このコラボの日程とタイムテーブル')
+        self.assertNotContains(response, '下書きコラボ')
+
+    def test_archive_link_section_is_absent_without_matching_collaboration(self):
+        today = timezone.localdate()
+        for index, settings in enumerate((None, [], 'invalid', {}, {'archive_news_slug': 42}, {'archive_news_slug': 'other'})):
+            VketCollaboration.objects.create(
+                slug=f'unrelated-{index}', name=f'無関係{index}',
+                phase=VketCollaboration.Phase.ARCHIVED,
+                period_start=today, period_end=today,
+                registration_deadline=today, lt_deadline=today,
+                settings_json=settings,
+            )
+        response = self.client.get(reverse('news:detail', args=[self.published_post.slug]))
+        self.assertNotContains(response, 'このコラボの日程とタイムテーブル')
 
     def _create_archive_post(self, thumbnail: str = "") -> Post:
         return Post.objects.create(

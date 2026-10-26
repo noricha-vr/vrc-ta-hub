@@ -8,6 +8,7 @@ from django.urls import reverse
 
 from community.models import Community
 from event.models import Event, EventDetail
+from vket.models import VketCollaboration
 
 SITEMAP_NS = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
 
@@ -186,3 +187,27 @@ class SitemapUrlsResolveTestCase(TestCase):
         # 認証ページは sitemap に載せない方針
         self.assertNotIn("account/login", body)
         self.assertNotIn("account/register", body)
+
+
+class SitemapCollaborationTests(TestCase):
+    def test_sitemap_includes_list_and_all_non_draft_collaborations(self):
+        collaborations = [
+            VketCollaboration.objects.create(
+                slug=f'sitemap-{phase}', name=f'サイトマップ{phase}', phase=phase,
+                period_start=date(2026, 12, 1), period_end=date(2026, 12, 7),
+                registration_deadline=date(2026, 11, 1), lt_deadline=date(2026, 11, 15),
+            )
+            for phase in VketCollaboration.Phase.values
+        ]
+        response = self.client.get(reverse('sitemap:sitemap'))
+        root = ET.fromstring(response.content)
+        paths = [urlparse(loc.text).path for loc in root.findall('sm:url/sm:loc', SITEMAP_NS)]
+        self.assertIn(reverse('vket:list'), paths)
+        for collaboration in collaborations:
+            with self.subTest(phase=collaboration.phase):
+                path = reverse('vket:detail', args=[collaboration.pk])
+                if collaboration.phase == VketCollaboration.Phase.DRAFT:
+                    self.assertNotIn(path, paths)
+                else:
+                    self.assertIn(path, paths)
+                    self.assertEqual(self.client.get(path).status_code, 200)

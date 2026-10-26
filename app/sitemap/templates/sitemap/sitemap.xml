@@ -20,6 +20,16 @@
         <loc>{{ base_url }}event/detail/history/</loc>
     </url>
 
+    <url>
+        <loc>{{ base_url|slice:":-1" }}{% url 'vket:list' %}</loc>
+    </url>
+    {% for collaboration in vket_collaborations %}
+        <url>
+            <loc>{{ base_url|slice:":-1" }}{% url 'vket:detail' collaboration.pk %}</loc>
+            <lastmod>{{ collaboration.updated_at|date:"Y-m-d" }}</lastmod>
+        </url>
+    {% endfor %}
+
     {% for event_detail in event_details %}
         <url>
             <loc>{{ base_url }}event/detail/{{ event_detail.pk }}/</loc>

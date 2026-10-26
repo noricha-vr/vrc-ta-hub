@@ -6,6 +6,9 @@ from django.db.models import Case, IntegerField, Prefetch, When
 from django.views.generic import DetailView, ListView
 
 from event.models import EventDetail
+from news.models import Post
+from utils.vrchat_time import get_vrchat_today
+from ..timetable import build_collaboration_timetable
 from ..og import page_metadata
 
 from ..models import (
@@ -70,16 +73,28 @@ class CollaborationDetailView(DetailView):
         collaboration: VketCollaboration = context['collaboration']
         context.update(page_metadata(self.request, collaboration, 'detail'))
 
+        context['vket_timetable'] = build_collaboration_timetable(collaboration, request=self.request)
+        context['is_after_period'] = get_vrchat_today() > collaboration.period_end
+        settings = collaboration.settings_json
+        archive_slug = settings.get('archive_news_slug') if isinstance(settings, dict) else None
+        context['archive_news'] = (
+            Post.objects.filter(slug=archive_slug, is_published=True).only('slug', 'title').first()
+            if isinstance(archive_slug, str) and archive_slug else None
+        )
+
         lt_details_qs = (
             EventDetail.objects.filter(detail_type='LT', status='approved')
-            .only('id', 'event_id', 'speaker', 'theme', 'start_time', 'duration', 'status', 'detail_type')
+            .only('id', 'event_id', 'speaker', 'theme', 'start_time', 'duration', 'status', 'detail_type',
+                  'slide_url', 'slide_file', 'youtube_url')
             .order_by('start_time', 'id')
         )
 
         # published_event が紐づいている参加のみ表示（公開済み）
         participations = (
-            collaboration.participations.filter(published_event__isnull=False)
-            .select_related('community', 'published_event')
+            collaboration.participations.filter(
+                published_event__isnull=False, community__status='approved',
+            )
+            .select_related('community', 'published_event', 'published_event__community')
             .prefetch_related(
                 Prefetch('published_event__details', queryset=lt_details_qs)
             )
@@ -92,14 +107,10 @@ class CollaborationDetailView(DetailView):
 
         entries = []
         for p in participations:
-            # published_event 経由でLT詳細を取得
-            lt_detail = next(
-                (d for d in p.published_event.details.all() if d.speaker or d.theme),
-                None,
-            )
-            entries.append(
-                {'participation': p, 'event': p.published_event, 'lt_detail': lt_detail}
-            )
+            entries.append({
+                'participation': p, 'event': p.published_event,
+                'lt_details': list(p.published_event.details.all()),
+            })
 
         grouped = []
         for d, group in groupby(entries, key=lambda e: e['event'].date):
