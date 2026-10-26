@@ -204,6 +204,10 @@ class ApplyView(PublicParticipationShellMixin, LoginRequiredMixin, View):
                 'form': form,
                 'formset': formset,
                 'permissions': permissions,
+                'save_actions': [{
+                    'form_id': 'vket-apply-form', 'scope': '参加登録', 'label': '保存する',
+                    'disabled': not (permissions.can_edit_schedule or permissions.can_edit_lt),
+                }],
                 'busy_payload': busy,
                 'schedule_buffer_minutes': get_schedule_buffer_minutes(collaboration),
                 'stage_register_open': _is_stage_register_open(participation, collaboration),

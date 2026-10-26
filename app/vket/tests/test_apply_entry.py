@@ -70,11 +70,11 @@ class VketApplyFlowTests(VketApplyFlowBase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            'スタッフが少なく、当日ステージへの案内などサポートが欲しい場合は「サポート希望」と記載してください。',
+            '当日の案内などサポートが必要な場合は「サポート希望」と記載してください。',
         )
         self.assertContains(
             response,
-            'その他、運営に連絡事項があれば記載をお願いします。',
+            'その他の連絡事項もこちらへ記載できます。',
         )
         self.assertContains(response, 'background: #eef6ff; color: #2f5f8f;')
         self.assertContains(response, 'text-decoration-underline')
