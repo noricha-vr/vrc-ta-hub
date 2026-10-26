@@ -1,5 +1,13 @@
 {% extends 'ta_hub/base.html' %}
 {% load static custom_filters image_tags %}
+{% block og_image_meta %}
+    {% if top_og_image_url %}
+        <meta property="og:image" content="{{ top_og_image_url }}">
+        <meta name="twitter:image" content="{{ top_og_image_url }}">
+    {% else %}
+        {{ block.super }}
+    {% endif %}
+{% endblock %}
 {% block main %}
     <style>
         .rounded-custom {
