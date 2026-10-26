@@ -10,6 +10,7 @@ from django.urls import reverse
 from community.constants import RecordingPolicy
 from community.forms import CommunityCreateForm, CommunityUpdateForm
 from community.models import Community, CommunityMember
+from tests.factories import make_community
 from user_account.models import CustomUser
 
 
@@ -344,10 +345,7 @@ class CommunityCreateViewTest(TestCase):
                 response = self.client.post(self.create_url, data)
                 self.assertEqual(response.status_code, 302)
                 created = Community.objects.get(name=data['name'])
-                existing = Community.objects.create(name=f'既存-{index}')
-                CommunityMember.objects.create(
-                    community=existing, user=self.user, role=CommunityMember.Role.OWNER,
-                )
+                existing = make_community(name=f'既存-{index}', owner=self.user)
                 response = self.client.post(
                     reverse('community:update_lt_settings', kwargs={'pk': existing.pk}), values,
                 )
