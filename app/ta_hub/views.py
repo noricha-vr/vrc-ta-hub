@@ -75,7 +75,7 @@ class IndexView(TemplateView):
             banner = get_active_top_banner(timezone.now())
             if banner:
                 collaboration = banner['collaboration']
-                timetable = build_collaboration_timetable(collaboration, today)
+                timetable = build_collaboration_timetable(collaboration, today, request=self.request)
                 context.update({
                     'show_vket_notice': True,
                     'vket_banner': banner,
