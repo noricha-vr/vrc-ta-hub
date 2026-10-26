@@ -2,15 +2,15 @@
 
 {% load og_tags %}
 {% block meta %}
-    <title>掲載・審査基準 - VRChat 技術・学術系イベントHub</title>
-    <meta name="twitter:title" content="掲載・審査基準 - VRChat 技術・学術系イベントHub">
-    <meta property="og:title" content="掲載・審査基準 - VRChat 技術・学術系イベントHub">
+    <title>掲載・審査基準 - {% site_name_seo %}</title>
+    <meta name="twitter:title" content="掲載・審査基準 - {% site_name_seo %}">
+    <meta property="og:title" content="掲載・審査基準 - {% site_name_seo %}">
     <meta name="description"
-          content="VRChat 技術・学術系イベントHubにおける技術系・学術系・協力団体の定義と、協力団体の審査基準をご案内します。">
+          content="{% site_name_seo %}における技術系・学術系・協力団体の定義と、協力団体の審査基準をご案内します。">
     <meta name="twitter:description"
-          content="VRChat 技術・学術系イベントHubにおける技術系・学術系・協力団体の定義と、協力団体の審査基準をご案内します。">
+          content="{% site_name_seo %}における技術系・学術系・協力団体の定義と、協力団体の審査基準をご案内します。">
     <meta property="og:description"
-          content="VRChat 技術・学術系イベントHubにおける技術系・学術系・協力団体の定義と、協力団体の審査基準をご案内します。">
+          content="{% site_name_seo %}における技術系・学術系・協力団体の定義と、協力団体の審査基準をご案内します。">
     {% og_static 'ta_hub/og/community-criteria.jpg' as image_url %}
     {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
 {% endblock %}
@@ -20,7 +20,7 @@
         <header class="mx-auto mb-5 text-center" style="max-width: 52rem;">
             <h1 class="fw-bold keiko_yellow mb-4">集会・協力団体の掲載・審査基準</h1>
             <p class="lead mb-0">
-                技術・学術系イベントHubへの掲載区分と、協力団体を審査する際の共通基準を公開しています。
+                {% site_name %}への掲載区分と、協力団体を審査する際の共通基準を公開しています。
             </p>
         </header>
 

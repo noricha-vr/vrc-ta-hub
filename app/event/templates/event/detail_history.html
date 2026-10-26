@@ -3,9 +3,9 @@
 {% block og_url_path %}{{ canonical_path }}{% endblock %}
 {% load og_tags %}
 {% block meta %}
-    <title>{{ page_title }} - 技術・学術系イベントHub</title>
-    <meta name="twitter:title" content="{{ page_title }} - 技術・学術系イベントHub">
-    <meta property="og:title" content="{{ page_title }} - 技術・学術系イベントHub">
+    <title>{{ page_title }} - {% site_name_seo %}</title>
+    <meta name="twitter:title" content="{{ page_title }} - {% site_name_seo %}">
+    <meta property="og:title" content="{{ page_title }} - {% site_name_seo %}">
     <meta name="description" content="{{ meta_description }}">
     <meta name="twitter:description" content="{{ meta_description }}">
     <meta property="og:description" content="{{ meta_description }}">

@@ -251,7 +251,7 @@ class SettingsViewTests(TestCase):
         self.assertNotIn('既に公開されている技術・学術系集会に承認されると', message_text)
         # Discordリンクが含まれていること
         self.assertIn('https://discord.gg/6jCkUUb9VN', message_text)
-        self.assertIn('技術・学術系Hub', message_text)
+        self.assertIn('技術・学術系イベントHub', message_text)
         # リンクが適切な属性を持っていること
         self.assertIn('target="_blank"', message_text)
         self.assertIn('rel="noopener noreferrer"', message_text)

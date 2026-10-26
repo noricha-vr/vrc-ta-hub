@@ -2,15 +2,15 @@
 {% load static %}
 {% load og_tags %}
 {% block meta %}
-    <title>技術・学術イベントHubってなに？ - VRChat 技術・学術系イベントHub</title>
-    <meta name="twitter:title" content="技術・学術イベントHubってなに？ - VRChat 技術・学術系イベントHub">
-    <meta property="og:title" content="技術・学術イベントHubってなに？ - VRChat 技術・学術系イベントHub">
+    <title>{% site_name %}ってなに？ - {% site_name_seo %}</title>
+    <meta name="twitter:title" content="{% site_name %}ってなに？ - {% site_name_seo %}">
+    <meta property="og:title" content="{% site_name %}ってなに？ - {% site_name_seo %}">
     <meta name="description"
-          content="VRChat技術・学術系イベントHubは、VRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくための仕組み作りをしているコミュニティです。Web、本、電子書籍、アセットなど様々な方法で技術学術系集会を紹介しています。">
+          content="{% site_name_seo %}は、VRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくための仕組み作りをしているコミュニティです。Web、本、電子書籍、アセットなど様々な方法で技術学術系集会を紹介しています。">
     <meta name="twitter:description"
-          content="VRChat技術・学術系イベントHubは、VRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくための仕組み作りをしているコミュニティです。Web、本、電子書籍、アセットなど様々な方法で技術学術系集会を紹介しています。">
+          content="{% site_name_seo %}は、VRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくための仕組み作りをしているコミュニティです。Web、本、電子書籍、アセットなど様々な方法で技術学術系集会を紹介しています。">
     <meta property="og:description"
-          content="VRChat技術・学術系イベントHubは、VRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくための仕組み作りをしているコミュニティです。Web、本、電子書籍、アセットなど様々な方法で技術学術系集会を紹介しています。">
+          content="{% site_name_seo %}は、VRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくための仕組み作りをしているコミュニティです。Web、本、電子書籍、アセットなど様々な方法で技術学術系集会を紹介しています。">
     {% og_static 'ta_hub/og/about.jpg' as image_url %}
     {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
 {% endblock %}
@@ -21,7 +21,7 @@
         <div class="row">
             <div class="col-lg-12">
                 <div class="jumbotron">
-                    <h1 class="text-center my-5 fw-bold keiko_yellow">技術・学術イベントHub ってなに？</h1>
+                    <h1 class="text-center my-5 fw-bold keiko_yellow">{% site_name %} ってなに？</h1>
                     <p class="lead">
                         VRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくための仕組み作りをしているコミュニティです</p>
                 </div>
@@ -42,7 +42,7 @@
                         </div>
                         <div class="col-md-8">
                             <h3 class="">1. Webサイトの制作・運営</h3>
-                            <p class=""><a href="https://vrc-ta-hub.com/">VRChat技術学術系イベントHub</a>の制作や運営をしています
+                            <p class=""><a href="https://vrc-ta-hub.com/">{% site_name %}</a>の制作や運営をしています
                             </p>
                         </div>
                     </div>
@@ -189,11 +189,11 @@
                         <a href="https://x.com/vrc_ta_hub" class="text-decoration-none" target="_blank">
                             <div class="d-flex align-items-center bg-light rounded-4 p-3">
                                 <img src="https://gh-image-uploader.kaisha3.com/uploads/2026/03/e1eda72e4ae4-vrc_ta_hub_official.avif"
-                                     alt="技術・学術系イベントHub"
+                                     alt="{% site_name %}"
                                      height="80" width="80"
                                      class="rounded-circle object-fit-cover flex-shrink-0">
                                 <div class="ms-3">
-                                    <div class="fw-bold text-dark">技術・学術系イベントHub</div>
+                                    <div class="fw-bold text-dark">{% site_name %}</div>
                                     <div class="text-muted small">@vrc_ta_hub</div>
                                     <div class="text-secondary mt-1" style="font-size: 0.875rem;">最新のイベント情報はXでお届けしています</div>
                                 </div>

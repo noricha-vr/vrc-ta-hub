@@ -3,11 +3,11 @@ description:
 globs: 
 alwaysApply: true
 ---
-# VRC 技術学術ハブ
+# 技術・学術系イベントHub
 
 ## 概要
 
-VRChat技術学術ハブは、VRChat内で開催される技術・学術系イベントの情報を集約し、利用者が簡単にイベントの情報にアクセスできるようにするためのWebサイトです。
+技術・学術系イベントHubは、VRChat内で開催される技術・学術系イベントの情報を集約し、利用者が簡単にイベントの情報にアクセスできるようにするためのWebサイトです。
 
 https://vrc-ta-hub.com
 
@@ -48,7 +48,7 @@ https://vrc-ta-hub.com
 
 ## API エンドポイント
 
-VRC技術学術ハブは、以下のAPIエンドポイントを提供しています：
+技術・学術系イベントHubは、以下のAPIエンドポイントを提供しています：
 
 1. **集会情報 API:**
     - エンドポイント: `http://vrc-ta-hub.com/api/v1/community/`

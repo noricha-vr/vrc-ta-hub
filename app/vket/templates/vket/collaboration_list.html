@@ -1,7 +1,7 @@
 {% extends 'ta_hub/base.html' %}
 {% load og_tags %}
 {% block meta %}
-    <title>Vketコラボ一覧 - VRChat 技術・学術系イベントHub</title>
+    <title>Vketコラボ一覧 - {% site_name_seo %}</title>
     {% og_static 'vket/og/list.jpg' as image_url %}
     {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
 {% endblock %}

@@ -64,7 +64,7 @@ class SchemaAPITest(TestCase):
 
         payload = json.loads(response.content)
         self.assertEqual(payload['openapi'], '3.0.3')
-        self.assertEqual(payload['info']['title'], 'VRC技術学術系Hub API')
+        self.assertEqual(payload['info']['title'], '技術・学術系イベントHub API')
         self.assertEqual(payload['info']['version'], '1.0.0')
 
     def test_schema_endpoint_contains_expected_paths(self):

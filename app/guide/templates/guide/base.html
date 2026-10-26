@@ -1,12 +1,12 @@
 {% extends 'ta_hub/base.html' %}
 
 {% block meta %}
-    <title>{% block page_title %}使い方ガイド{% endblock %} - VRChat 技術・学術系イベントHub</title>
-    <meta name="twitter:title" content="{% block twitter_title %}使い方ガイド{% endblock %} - VRChat 技術・学術系イベントHub">
-    <meta property="og:title" content="{% block og_title %}使い方ガイド{% endblock %} - VRChat 技術・学術系イベントHub">
-    <meta name="description" content="{% block meta_description %}VRChat技術・学術系イベントHubの主催者・スタッフ向けマニュアルです。集会やイベントの登録・管理方法を説明します。{% endblock %}">
-    <meta name="twitter:description" content="{% block twitter_description %}VRChat技術・学術系イベントHubの主催者・スタッフ向けマニュアルです。集会やイベントの登録・管理方法を説明します。{% endblock %}">
-    <meta property="og:description" content="{% block og_description %}VRChat技術・学術系イベントHubの主催者・スタッフ向けマニュアルです。集会やイベントの登録・管理方法を説明します。{% endblock %}">
+    <title>{% block page_title %}使い方ガイド{% endblock %} - {% site_name_seo %}</title>
+    <meta name="twitter:title" content="{% block twitter_title %}使い方ガイド{% endblock %} - {% site_name_seo %}">
+    <meta property="og:title" content="{% block og_title %}使い方ガイド{% endblock %} - {% site_name_seo %}">
+    <meta name="description" content="{% block meta_description %}{% site_name_seo %}の主催者・スタッフ向けマニュアルです。集会やイベントの登録・管理方法を説明します。{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}{% site_name_seo %}の主催者・スタッフ向けマニュアルです。集会やイベントの登録・管理方法を説明します。{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}{% site_name_seo %}の主催者・スタッフ向けマニュアルです。集会やイベントの登録・管理方法を説明します。{% endblock %}">
     {% block guide_og_image %}
     {% include 'ta_hub/includes/og_image.html' with image_url=og_image_url only %}
     {% endblock %}
