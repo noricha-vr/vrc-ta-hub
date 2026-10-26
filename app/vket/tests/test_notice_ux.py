@@ -246,7 +246,7 @@ class AckTokenFlowTests(NoticeUxTestBase):
         self.assertRedirects(response, self._token_url(receipt, '?done=1'))
         followed = self.client.get(response['Location'])
         self.assertTrue(followed.context['just_acked'])
-        self.assertContains(followed, '<h1 class="h3 fw-bold mb-2">確認しました</h1>', html=True)
+        self.assertContains(followed, '<h2 class="h5 fw-bold mb-2">確認しました</h2>', html=True)
 
     def test_previously_acked_get_says_already_acked(self):
         receipt = self._make_receipt('前に確認', acked=True)
@@ -254,7 +254,7 @@ class AckTokenFlowTests(NoticeUxTestBase):
         response = self.client.get(self._token_url(receipt))
 
         self.assertFalse(response.context['just_acked'])
-        self.assertContains(response, '<h1 class="h3 fw-bold mb-2">確認済みです</h1>', html=True)
+        self.assertContains(response, '<h2 class="h5 fw-bold mb-2">確認済みです</h2>', html=True)
         self.assertNotContains(response, 'すでに確認済み')
 
     def test_previously_acked_post_does_not_claim_just_acked(self):
