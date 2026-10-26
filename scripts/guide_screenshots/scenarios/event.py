@@ -144,7 +144,9 @@ def delete(capture):
     capture.login('owner')
     management(capture)
     # 親の削除による連鎖と区別できるよう、子開催回のカードを使う。
-    capture.page.locator('.card.shadow-sm').nth(1).evaluate(
+    # 先頭の .card.shadow-sm は Vket の案内や親（4月8日）なので、開催日で子開催回のカードに絞る。
+    capture.page.locator('.card.shadow-sm:has(form[action^="/event/delete/"])',
+                         has_text='2030年4月15日').first.evaluate(
         "e => e.dataset.guideDeleteCard = 'selected'")
     card = '[data-guide-delete-card=selected]'
     capture.annotate(f'{card} .card-text >> nth=0', 1)

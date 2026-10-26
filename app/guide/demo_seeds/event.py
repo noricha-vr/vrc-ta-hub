@@ -39,5 +39,7 @@ def finalize(context):
     existing = TweetQueue.objects.filter(event=parent, tweet_type='daily_reminder')
     if not existing.exists():
         TweetQueue.objects.bulk_create([queue])
+    # トークンを差し替え、起動済みの生成スレッドが固定した状態を書き戻せないようにする。
     existing.update(status='ready', generated_text=queue.generated_text,
-                    scheduled_at=queue.scheduled_at, created_at=stamp, error_message='')
+                    scheduled_at=queue.scheduled_at, created_at=stamp, error_message='',
+                    generation_token='guide-demo-fixed')
