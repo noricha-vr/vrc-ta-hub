@@ -336,7 +336,7 @@
                                 </div>
                                 <div class="d-flex flex-wrap gap-1 mt-2">
                                     {% if detail.status == 'pending' %}<span class="detail-chip bg-warning-subtle text-warning-emphasis">承認待ち</span>{% elif detail.status == 'approved' %}<span class="detail-chip bg-success-subtle text-success-emphasis">承認済み</span>{% elif detail.status == 'rejected' %}<span class="detail-chip bg-danger-subtle text-danger-emphasis">却下</span>{% endif %}
-                                    {% if detail.source == 'discord_bot' %}<span class="detail-chip">Discord から自動登録</span>{% endif %}
+                                    {% if detail.source == 'discord_bot' %}<span class="detail-chip">Discord から自動で登録</span>{% endif %}
                                     {% if detail.youtube_url %}<span class="detail-chip"><i class="bi bi-play-btn" aria-hidden="true"></i>動画</span>{% endif %}
                                     {% if detail.slide_url %}<span class="detail-chip"><i class="bi bi-link-45deg" aria-hidden="true"></i>スライドURL</span>{% endif %}
                                     {% if detail.slide_file %}<span class="detail-chip"><i class="bi bi-file-text" aria-hidden="true"></i>スライド</span>{% endif %}

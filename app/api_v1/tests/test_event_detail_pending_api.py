@@ -211,7 +211,7 @@ class BotPendingReviewTest(TestCase):
         self.assertContains(response, reverse('event:lt_application_reject', kwargs={'pk': self.pending.pk}))
         self.assertContains(
             response,
-            f'href="{self.pending.source_url}" class="btn btn-outline-secondary btn-sm" '
+            f'href="{self.pending.source_url}" class="dropdown-item" '
             'target="_blank" rel="noopener noreferrer"',
         )
         self.assertContains(response, 'Discord から自動で登録')

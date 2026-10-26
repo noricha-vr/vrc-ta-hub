@@ -16,6 +16,7 @@ from tests.factories import (
     make_community,
     make_community_member,
     make_event,
+    make_event_detail,
     make_user,
 )
 from utils.vrchat_time import get_vrchat_today
@@ -1188,8 +1189,8 @@ class EventMyListActionFirstTest(TestCase):
         self.assertEqual(followed.status_code, 200)
 
     def test_review_link_only_for_applications(self):
-        manual = EventDetail.objects.create(event=self.event, theme='手入力の発表', status='approved')
-        from_bot = EventDetail.objects.create(
+        manual = make_event_detail(event=self.event, theme='手入力の発表', status='approved')
+        from_bot = make_event_detail(
             event=self.event, theme='Discord の発表', status='approved', source='discord_bot',
         )
         response = self._get()
@@ -1226,8 +1227,8 @@ class EventMyListActionFirstTest(TestCase):
                 self.assertNotContains(response, 'VRCイベントカレンダーの設定をする')
 
     def test_pending_details_appear_in_action_box_with_modal_buttons(self):
-        detail = EventDetail.objects.create(event=self.event, theme='要対応の発表', status='pending')
-        EventDetail.objects.create(event=self.event, theme='承認済みの発表', status='approved')
+        detail = make_event_detail(event=self.event, theme='要対応の発表', status='pending')
+        make_event_detail(event=self.event, theme='承認済みの発表', status='approved')
         response = self._get()
         box = self._soup(response).select_one('#action-required')
         self.assertIsNotNone(box)
@@ -1241,15 +1242,15 @@ class EventMyListActionFirstTest(TestCase):
         older = []
         for offset in range(21):
             event = make_event(self.community, event_date=get_vrchat_today() - timedelta(days=offset + 1))
-            older.append(EventDetail.objects.create(event=event, theme=f'過去{offset}', status='pending'))
-        future = EventDetail.objects.create(event=self.event, theme='未来', status='pending')
+            older.append(make_event_detail(event=event, theme=f'過去{offset}', status='pending'))
+        future = make_event_detail(event=self.event, theme='未来', status='pending')
         response = self._get({'page': 2})
         pending_ids = [detail.pk for detail in response.context['pending_details']]
         self.assertEqual(pending_ids, [older[-1].pk])
         self.assertNotIn(future.pk, pending_ids)
 
     def test_delete_confirmation_is_inline_for_events_and_details(self):
-        detail = EventDetail.objects.create(event=self.event, theme='削除確認', status='approved')
+        detail = make_event_detail(event=self.event, theme='削除確認', status='approved')
         response = self._get()
         self.assertNotContains(response, 'confirm(')
         soup = self._soup(response)
@@ -1273,7 +1274,7 @@ class EventMyListActionFirstTest(TestCase):
         self.assertIsNone(panel.select_one('[name="delete_subsequent"]'))
 
     def test_applicant_only_shown_when_different_from_speaker(self):
-        detail = EventDetail.objects.create(event=self.event, theme='本人の発表', speaker=self.owner.display_label,
+        detail = make_event_detail(event=self.event, theme='本人の発表', speaker=self.owner.display_label,
                                            applicant=self.owner, status='approved')
         row = self._soup(self._get()).select_one(f'#presentation-{detail.pk}')
         self.assertIsNotNone(row)
@@ -1286,13 +1287,13 @@ class EventMyListActionFirstTest(TestCase):
     def test_pending_applicants_do_not_add_queries_per_detail(self):
         from django.db import connection
         from django.test.utils import CaptureQueriesContext
-        EventDetail.objects.create(event=self.event, theme='申請1', applicant=self.owner, status='pending')
+        make_event_detail(event=self.event, theme='申請1', applicant=self.owner, status='pending')
         self._get()
         with CaptureQueriesContext(connection) as before:
             self._get()
         for i in range(4):
             applicant = make_user(user_name=f'applicant_{i}', email=f'applicant{i}@example.com')
-            EventDetail.objects.create(event=self.event, theme=f'追加申請{i}', applicant=applicant, status='pending')
+            make_event_detail(event=self.event, theme=f'追加申請{i}', applicant=applicant, status='pending')
         with CaptureQueriesContext(connection) as after:
             self._get()
         self.assertEqual(len(after), len(before))
@@ -1314,7 +1315,7 @@ class EventMyListActionFirstTest(TestCase):
     def test_presentation_actions_and_chips_keep_existing_conditions(self):
         details = []
         for status in ('pending', 'approved', 'rejected'):
-            details.append(EventDetail.objects.create(
+            details.append(make_event_detail(
                 event=self.event, theme=status, speaker='発表者', status=status,
                 source='discord_bot', source_url='https://example.com/source',
                 youtube_url='https://www.youtube.com/watch?v=abcdefghijk',
@@ -1330,7 +1331,7 @@ class EventMyListActionFirstTest(TestCase):
                 self.assertIsNotNone(row.select_one(f'a[href="{reverse(url_name, args=[detail.pk])}"]'))
             source = row.select_one('a[href="https://example.com/source"]')
             self.assertEqual(source['target'], '_blank')
-            for label in ('動画', 'スライドURL', 'Discord から自動登録'):
+            for label in ('動画', 'スライドURL', 'Discord から自動で登録'):
                 self.assertIn(label, row.get_text())
             self.assertIsNotNone(row.select_one('.generate-button'))
         details[-1].contents = '記事あり'
