@@ -151,6 +151,7 @@ class TurnstileDisabledLoginTests(TurnstileLoginTestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertNotContains(response, 'cf-turnstile')
                 self.assertNotContains(response, 'challenges.cloudflare.com')
+                self.assertContains(response, 'id="login-submit" class="btn btn-primary w-100">')
 
     def test_login_without_token_succeeds_without_siteverify(self) -> None:
         for keys in self.KEY_PATTERNS:
@@ -175,6 +176,16 @@ class TurnstileEnabledLoginTests(TurnstileLoginTestCase):
         self.assertContains(response, 'aria-describedby="turnstile-help"')
         self.assertContains(response, '<noscript>')
         self.assertNotContains(response, TEST_SECRET_KEY)
+
+    def test_login_button_waits_for_widget_callbacks(self) -> None:
+        response = self.client.get(self.login_url)
+
+        self.assertContains(response, 'id="login-submit" class="btn btn-primary w-100" disabled')
+        self.assertContains(response, 'data-callback="onTurnstileSuccess"')
+        self.assertContains(response, 'data-expired-callback="onTurnstileExpired"')
+        self.assertContains(response, 'data-error-callback="onTurnstileError"')
+        for callback in ('onTurnstileSuccess', 'onTurnstileExpired', 'onTurnstileError'):
+            self.assertContains(response, f'window.{callback} = function')
 
     def test_missing_or_empty_token_is_rejected_without_siteverify(self) -> None:
         for token in (None, ''):
