@@ -4,6 +4,17 @@
 - title: 用語集
   path: glossary
 
+- title: アカウントを作る
+  children:
+    - title: 登録してログインする
+      path: account/login
+    - title: Discordと連携する
+      path: account/discord
+    - title: パスワードを設定・変更する
+      path: account/password
+    - title: ユーザー情報を変更する
+      path: account/profile
+
 - title: 集会を始める・管理する
   children:
     - title: 集会を登録する
