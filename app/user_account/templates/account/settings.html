@@ -1,196 +1,136 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 {% load socialaccount account_tags %}
 
-{% block main %}
-    <div class="container my-4">
-        <div class="row">
-            <div class="col-md-8 offset-md-2">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0">アカウント設定</h4>
-                    </div>
-                    <div class="card-body p-0">
-                        {% include 'ta_hub/messages.html' %}
-
-                        {% if not user.email %}
-                            <div class="alert alert-warning m-3 mb-0" role="alert">
-                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                                <strong>メールアドレスが未設定です。</strong>
-                                集会の承認通知などを受け取るために、<a href="{% url 'account:user_update' %}" class="alert-link">ユーザー情報を更新</a>してメールアドレスを設定してください。
-                            </div>
-                        {% endif %}
-
-                        <!-- 集会一覧セクション -->
-                        <div class="p-3 pb-1">
-                            <h6 class="text-muted mb-0">
-                                <i class="fa-solid fa-users me-2"></i>集会一覧
-                            </h6>
-                        </div>
-                        <div class="list-group list-group-flush">
-                            {% if user_communities %}
-                                {% for membership in user_communities %}
-                                    <div class="list-group-item d-flex justify-content-between align-items-center mb-0 flex-wrap gap-3">
-                                        <div class="d-inline flex-grow-1">
-                                            {% if membership.community.is_ended %}
-                                                <span class="text-muted">
-                                                    <i class="fa-solid fa-house me-2"></i>{{ membership.community.name }}
-                                                    <span class="badge bg-secondary ms-1">{{ membership.get_role_display }}</span>
-                                                    <span class="badge bg-light text-muted ms-1">終了</span>
-                                                </span>
-                                            {% else %}
-                                                <form method="post" action="{% url 'community:switch' %}" class="d-inline">
-                                                    {% csrf_token %}
-                                                    <input type="hidden" name="community_id" value="{{ membership.community.id }}">
-                                                    <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
-                                                    <button type="submit" class="btn btn-link text-decoration-none p-0 text-start">
-                                                        <i class="fa-solid fa-house me-2"></i>{{ membership.community.name }}
-                                                        <span class="badge bg-secondary ms-1">{{ membership.get_role_display }}</span>
-                                                    </button>
-                                                </form>
-                                            {% endif %}
-                                        </div>
-                                        {% if membership.community.is_ended %}
-                                            {% if membership.is_owner or user.is_superuser %}
-                                            <a href="{% url 'community:reopen' membership.community.pk %}" class="btn btn-outline-primary flex-shrink-0">
-                                                集会を再開
-                                            </a>
-                                            {% else %}
-                                            <span class="small text-muted">再開は主催者が行えます</span>
-                                            {% endif %}
-                                        {% else %}
-                                            <form method="post" action="{% url 'community:switch' %}" class="d-inline">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="community_id" value="{{ membership.community.id }}">
-                                                <input type="hidden" name="redirect_to" value="{% url 'community:settings' %}">
-                                                <button type="submit" class="btn btn-link text-decoration-none p-0">
-                                                    <span class="text-muted">設定</span>
-                                                    <i class="fa-solid fa-chevron-right ms-2 text-muted"></i>
-                                                </button>
-                                            </form>
-                                        {% endif %}
-                                    </div>
-                                {% endfor %}
-                                <a href="{% url 'community:create' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center border-top-0 mt-0">
-                                    <span>
-                                        <i class="fa-solid fa-plus me-2 text-primary"></i>新しい技術・学術系集会を始める
-                                    </span>
-                                    <i class="fa-solid fa-chevron-right text-muted"></i>
-                                </a>
-                            {% else %}
-                                <div class="list-group-item text-muted mb-0">
-                                    所属している集会はありません。
-                                </div>
-                                <a href="{% url 'community:create' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center border-top-0 mt-0">
-                                    <span>
-                                        <i class="fa-solid fa-plus me-2 text-primary"></i>新しい技術・学術系集会を始める
-                                    </span>
-                                    <i class="fa-solid fa-chevron-right text-muted"></i>
-                                </a>
-                            {% endif %}
-                        </div>
-
-                        <hr class="my-0">
-
-                        <!-- アカウントセクション -->
-                        <div class="list-group list-group-flush">
-                            {% if has_analytics_access %}
-                                <a href="{% url 'analytics:dashboard' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span>
-                                        <i class="bi bi-bar-chart-line me-2" aria-hidden="true"></i>アクセス解析を見る
-                                    </span>
-                                    <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
-                                </a>
-                            {% endif %}
-                            <a href="{% url 'event:detail_history' %}?mine=1" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                <span>
-                                    <i class="bi bi-person-video3 me-2" aria-hidden="true"></i>自分の発表
-                                </span>
-                                <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
-                            </a>
-                            <a href="{% url 'account:user_update' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                <span>
-                                    <i class="fa-solid fa-user me-2"></i>ユーザー情報を編集
-                                </span>
-                                <i class="fa-solid fa-chevron-right text-muted"></i>
-                            </a>
-                            <a href="{% url 'account:password_change' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                <span>
-                                    <i class="fa-solid fa-lock me-2"></i>パスワードを変更
-                                </span>
-                                <i class="fa-solid fa-chevron-right text-muted"></i>
-                            </a>
-                            {% get_social_accounts user as social_accounts %}
-                            {% if social_accounts.discord %}
-                                <a href="{% url 'socialaccount_connections' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span>
-                                        <i class="fa-brands fa-discord me-2" style="color: #5865F2;"></i>Discord連携
-                                    </span>
-                                    <span class="d-flex align-items-center">
-                                        <span class="badge bg-success me-2">
-                                            <i class="fa-solid fa-check me-1"></i>連携済み
-                                        </span>
-                                        <span class="text-muted me-2">連携を管理</span>
-                                        <i class="fa-solid fa-chevron-right text-muted"></i>
-                                    </span>
-                                </a>
-                            {% else %}
-                                {% discord_oauth_available as discord_oauth_enabled %}
-                                {% if discord_oauth_enabled %}
-                                <a href="{% provider_login_url 'discord' process='connect' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span>
-                                        <i class="fa-brands fa-discord me-2" style="color: #5865F2;"></i>Discord連携
-                                    </span>
-                                    <span>
-                                        <span class="text-muted me-2">未連携</span>
-                                        <i class="fa-solid fa-chevron-right text-muted"></i>
-                                    </span>
-                                </a>
-                                {% else %}
-                                <div class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span>
-                                        <i class="fa-brands fa-discord me-2" style="color: #5865F2;"></i>Discord連携
-                                    </span>
-                                    <span class="text-muted">未設定</span>
-                                </div>
-                                {% endif %}
-                            {% endif %}
-                        </div>
-
-                        <!-- 管理セクション（スタッフのみ） -->
-                        {% if user.is_staff %}
-                            <hr class="my-0">
-                            <div class="list-group list-group-flush">
-                                <a href="{% url 'community:waiting_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span>
-                                        <i class="fa-solid fa-gear me-2"></i>承認待集会一覧
-                                    </span>
-                                    <i class="fa-solid fa-chevron-right text-muted"></i>
-                                </a>
-                                <a href="{% url 'twitter:tweet_queue_list' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span>
-                                        <i class="fa-brands fa-x-twitter me-2"></i>ポスト一覧
-                                    </span>
-                                    <i class="fa-solid fa-chevron-right text-muted"></i>
-                                </a>
-                            </div>
-                        {% endif %}
-
-                        <hr class="my-0">
-
-                        <!-- ログアウトセクション -->
-                        <div class="list-group list-group-flush">
-                            <form method="post" action="{% url 'account:logout' %}" class="m-0">
+{% block title %}アカウント設定 - {% site_name_seo %}{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
+    <style>
+        .hub-admin .list-group-item { flex-wrap: wrap; gap: .5rem; overflow-wrap: anywhere; }
+        .hub-admin .list-group-item > span, .hub-admin .list-group-item > div { min-width: 0; }
+        .hub-admin .list-group-item > .d-flex { flex-wrap: wrap; }
+        .hub-admin .list-group-item form .btn { white-space: normal; overflow-wrap: anywhere; }
+    </style>
+{% endblock %}
+{% block admin_breadcrumbs %}
+    {% include 'account/includes/breadcrumbs.html' with current='アカウント設定' %}
+{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='アカウント設定' target=user.display_label %}
+{% endblock %}
+{% block admin_attention %}
+    {% if not user.email %}
+        <div class="action-required" role="alert">
+            <strong>メールアドレスが未設定です。</strong>
+            集会の承認通知などを受け取るために、<a href="{% url 'account:user_update' %}">ユーザー情報を更新</a>してメールアドレスを設定してください。
+        </div>
+    {% endif %}
+{% endblock %}
+{% block admin_content %}
+    <section class="admin-card" aria-labelledby="communities-heading">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='管理中の集会' heading_id='communities-heading' %}
+        <div class="list-group list-group-flush">
+            {% for membership in user_communities %}
+                <div class="list-group-item d-flex justify-content-between align-items-center gap-3">
+                    <div class="flex-grow-1">
+                        {% if membership.community.is_ended %}
+                            <span class="text-muted">{{ membership.community.name }}</span>
+                            {% include 'ta_hub/admin/includes/status_chip.html' with label=membership.get_role_display only %}
+                            {% include 'ta_hub/admin/includes/status_chip.html' with label='終了' only %}
+                        {% else %}
+                            <form method="post" action="{% url 'community:switch' %}" class="d-inline">
                                 {% csrf_token %}
-                                <button type="submit" class="list-group-item list-group-item-action text-danger w-100 text-start border-0">
-                                    <i class="fa-solid fa-right-from-bracket me-2"></i>ログアウト
+                                <input type="hidden" name="community_id" value="{{ membership.community.id }}">
+                                <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
+                                <button type="submit" class="btn btn-link text-decoration-none p-0 text-start">
+                                    <i class="fa-solid fa-house me-2" aria-hidden="true"></i>{{ membership.community.name }}
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label=membership.get_role_display only %}
                                 </button>
                             </form>
-                        </div>
+                        {% endif %}
                     </div>
+                    {% if membership.community.is_ended %}
+                        {% if membership.is_owner or user.is_superuser %}
+                            <a href="{% url 'community:reopen' membership.community.pk %}" class="btn btn-outline-secondary">集会を再開</a>
+                        {% else %}
+                            <span class="small admin-muted">再開は主催者が行えます</span>
+                        {% endif %}
+                    {% else %}
+                        <form method="post" action="{% url 'community:switch' %}" class="d-inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="community_id" value="{{ membership.community.id }}">
+                            <input type="hidden" name="redirect_to" value="{% url 'community:settings' %}">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">設定</button>
+                        </form>
+                    {% endif %}
                 </div>
-
-            </div>
+            {% empty %}
+                {% include 'ta_hub/admin/includes/empty_state.html' with title='所属している集会はありません。' %}
+            {% endfor %}
+            <a href="{% url 'community:create' %}" class="list-group-item list-group-item-action">
+                <i class="fa-solid fa-plus me-2" aria-hidden="true"></i>新しい技術・学術系集会を始める
+            </a>
         </div>
-    </div>
+    </section>
+    <section class="admin-card" aria-labelledby="profile-heading">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='プロフィールと認証' heading_id='profile-heading' %}
+        <div class="list-group list-group-flush">
+            {% if has_analytics_access %}
+                <a href="{% url 'analytics:dashboard' %}" class="list-group-item list-group-item-action">
+                    <i class="bi bi-bar-chart-line me-2" aria-hidden="true"></i>アクセス解析を見る
+                </a>
+            {% endif %}
+            <a href="{% url 'event:detail_history' %}?mine=1" class="list-group-item list-group-item-action">
+                <i class="bi bi-person-video3 me-2" aria-hidden="true"></i>自分の発表
+            </a>
+            <a href="{% url 'account:user_update' %}" class="list-group-item list-group-item-action">
+                <i class="fa-solid fa-user me-2" aria-hidden="true"></i>ユーザー情報を編集
+            </a>
+            <a href="{% url 'account:password_change' %}" class="list-group-item list-group-item-action">
+                <i class="fa-solid fa-lock me-2" aria-hidden="true"></i>パスワードを変更
+            </a>
+            {% get_social_accounts user as social_accounts %}
+            {% if social_accounts.discord %}
+                <a href="{% url 'socialaccount_connections' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                    <span><i class="fa-brands fa-discord me-2" aria-hidden="true"></i>Discord連携</span>
+                    <span class="d-flex align-items-center gap-2">
+                        {% include 'ta_hub/admin/includes/status_chip.html' with label='連携済み' tone='success' only %}
+                        <span class="admin-muted">連携を管理</span>
+                    </span>
+                </a>
+            {% else %}
+                {% discord_oauth_available as discord_oauth_enabled %}
+                {% if discord_oauth_enabled %}
+                    <a href="{% provider_login_url 'discord' process='connect' %}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <span><i class="fa-brands fa-discord me-2" aria-hidden="true"></i>Discord連携</span>
+                        <span class="admin-muted">未連携</span>
+                    </a>
+                {% else %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span><i class="fa-brands fa-discord me-2" aria-hidden="true"></i>Discord連携</span>
+                        <span class="admin-muted">未設定</span>
+                    </div>
+                {% endif %}
+            {% endif %}
+        </div>
+    </section>
+    {% if user.is_staff or user.is_superuser %}
+        <section class="admin-card" aria-labelledby="operator-heading">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='運営' heading_id='operator-heading' %}
+            <div class="list-group list-group-flush">
+                {% if user.is_superuser %}
+                    <a href="{% url 'community:waiting_list' %}" class="list-group-item list-group-item-action">承認待集会一覧</a>
+                {% endif %}
+                {% if user.is_staff %}
+                    <a href="{% url 'twitter:tweet_queue_list' %}" class="list-group-item list-group-item-action">ポスト一覧</a>
+                {% endif %}
+            </div>
+        </section>
+    {% endif %}
+    <section class="admin-card" aria-labelledby="logout-heading">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='ログアウト' heading_id='logout-heading' %}
+        <form method="post" action="{% url 'account:logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-secondary">ログアウト</button>
+        </form>
+    </section>
 {% endblock %}
-

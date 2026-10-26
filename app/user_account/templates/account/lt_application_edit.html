@@ -1,92 +1,45 @@
-{% extends 'ta_hub/base.html' %}
-
-{% block main %}
-    <style>
-        .card {
-            transition: none !important;
-        }
-        .card:hover {
-            transform: none !important;
-            box-shadow: none !important;
-        }
-        .field-wrapper[data-field="generate_blog_article"] {
-            padding: 0.75rem 1rem;
-            background-color: #f8f9fa;
-            border-radius: 0.375rem;
-            border: 1px solid #dee2e6;
-        }
-        .field-wrapper[data-field="generate_blog_article"]:hover {
-            background-color: #e9ecef;
-        }
-        .field-wrapper[data-field="generate_blog_article"] .form-check-input {
-            width: 2.5rem;
-            height: 1.25rem;
-            cursor: pointer;
-            margin-top: 0;
-        }
-        .field-wrapper[data-field="generate_blog_article"] .form-check-label {
-            font-weight: 600;
-            cursor: pointer;
-            user-select: none;
-        }
-    </style>
-    <div class="container my-4">
-        <div class="row">
-            <div class="col-md-10 mx-auto">
-                <div class="card">
-                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0"><i class="fa-solid fa-pen-to-square me-2"></i>発表情報の編集</h4>
-                        <a href="{% url 'account:lt_application_list' %}" class="btn btn-sm btn-light">
-                            <i class="fa-solid fa-arrow-left"></i> 一覧に戻る
-                        </a>
-                    </div>
-                    <div class="card-body">
-                        {% include 'ta_hub/messages.html' %}
-
-                        {# 読み取り専用情報 #}
-                        <div class="mb-4 p-3 bg-light rounded border">
-                            <div class="row">
-                                <div class="col-md-4 mb-2">
-                                    <small class="text-muted d-block">集会</small>
-                                    <strong>{{ community.name }}</strong>
-                                </div>
-                                <div class="col-md-3 mb-2">
-                                    <small class="text-muted d-block">開催日</small>
-                                    <strong>{{ event.date|date:"Y年n月j日" }}</strong>
-                                </div>
-                                <div class="col-md-2 mb-2">
-                                    <small class="text-muted d-block">ステータス</small>
-                                    {% if object.status == 'pending' %}
-                                        <span class="badge bg-warning text-dark"><i class="fa-solid fa-clock"></i> 承認待ち</span>
-                                    {% elif object.status == 'approved' %}
-                                        <span class="badge bg-success"><i class="fa-solid fa-check"></i> 承認済み</span>
-                                    {% elif object.status == 'rejected' %}
-                                        <span class="badge bg-danger"><i class="fa-solid fa-xmark"></i> 却下</span>
-                                    {% endif %}
-                                </div>
-                                <div class="col-md-1 mb-2">
-                                    <small class="text-muted d-block">開始</small>
-                                    <strong>{{ object.start_time|time:"H:i" }}</strong>
-                                </div>
-                                <div class="col-md-2 mb-2">
-                                    <small class="text-muted d-block">発表の持ち時間</small>
-                                    <strong>{{ object.duration }}分</strong>
-                                </div>
-                            </div>
-                        </div>
-
-                        {# 編集フォーム #}
-                        <form method="post"
-                              enctype="multipart/form-data"
-                              data-article-generation-form
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}自分の発表の編集 - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}{% include 'account/includes/breadcrumbs.html' with current='自分の発表の編集' %}{% endblock %}
+{% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='自分の発表の編集' target=community.name %}{% endblock %}
+{% block extra_css %}{{ block.super }}
+<style>.hub-admin .admin-form-field div.form-check-input { width: auto; height: auto; margin: 0; padding: 0; border: 0; background: none; float: none; }</style>
+{% endblock %}
+{% block admin_content %}
+<section class="admin-card" aria-label="編集する発表">
+<p class="fw-bold">{{ community.name }} / {{ event.date|date:"Y年n月j日" }} / {{ object.theme }}</p>
+<p>開始 {{ object.start_time|time:"H:i" }} / 発表の持ち時間 {{ object.duration }}分</p>
+{% include 'account/includes/application_status.html' with app=object only %}
+</section>
+<form id="application-form" method="post" enctype="multipart/form-data" data-admin-dirty
+data-article-generation-form
                               data-has-existing-slide-url="{% if object.slide_url %}true{% else %}false{% endif %}"
                               data-has-existing-slide-file="{% if object.slide_file %}true{% else %}false{% endif %}"
                               data-has-existing-youtube-url="{% if object.youtube_url %}true{% else %}false{% endif %}">
                             {% csrf_token %}
-                            {# 画面を開いた時点の記事のハッシュなど（保存時に、その後に作られた記事を消さないため） #}
-                            {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+{% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+{% include 'ta_hub/admin/includes/form_errors.html' with form=form %}
+<section class="admin-card" aria-labelledby="content-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='内容' heading_id='content-heading' %}
+{% if form.theme %}<div class="field-wrapper" data-field="theme">{% include 'ta_hub/admin/includes/form_field.html' with field=form.theme %}</div>{% endif %}
+{% if form.speaker %}<div class="field-wrapper" data-field="speaker">{% include 'ta_hub/admin/includes/form_field.html' with field=form.speaker %}</div>{% endif %}
+{% if form.h1 %}<div class="field-wrapper" data-field="h1">{% include 'ta_hub/admin/includes/form_field.html' with field=form.h1 %}</div>{% endif %}
+{% if form.contents %}<div class="field-wrapper" data-field="contents">{% include 'ta_hub/admin/includes/form_field.html' with field=form.contents %}</div>{% endif %}
 
-                            <div class="alert alert-info" role="note">
+</section>
+<section class="admin-card" aria-labelledby="materials-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='資料' heading_id='materials-heading' %}
+{% if form.slide_file %}<div class="field-wrapper" data-field="slide_file">{% include 'ta_hub/admin/includes/form_field.html' with field=form.slide_file %}</div>{% endif %}
+{% if form.slide_url %}<div class="field-wrapper" data-field="slide_url">{% include 'ta_hub/admin/includes/form_field.html' with field=form.slide_url %}</div>{% endif %}
+{% if form.thumbnail_image %}<div class="field-wrapper" data-field="thumbnail_image">{% include 'ta_hub/admin/includes/form_field.html' with field=form.thumbnail_image %}</div>{% endif %}
+{% if form.youtube_url %}<div class="field-wrapper" data-field="youtube_url">{% include 'ta_hub/admin/includes/form_field.html' with field=form.youtube_url %}</div>{% endif %}
+
+</section>
+<section class="admin-card" aria-labelledby="consent-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='撮影・記事化' heading_id='consent-heading' %}
+{% if form.recording_policy %}<fieldset class="mb-3 field-wrapper" data-field="recording_policy"><legend class="form-label fs-6">{{ form.recording_policy.label }}</legend>{% include 'event/includes/recording_policy_radios.html' with field=form.recording_policy %}<div class="form-text">{{ form.recording_policy.help_text }}</div>{{ form.recording_policy.errors }}</fieldset>{% endif %}
+{% if form.article_consent %}<fieldset class="mb-3 field-wrapper" data-field="article_consent"><legend class="form-label fs-6">{{ form.article_consent.label }}</legend>{% include 'event/includes/recording_policy_radios.html' with field=form.article_consent %}<div class="form-text">{{ form.article_consent.help_text }}</div>{{ form.article_consent.errors }}</fieldset>{% endif %}
+<div class="alert alert-info" role="note">
                                 <strong>記事生成の流れ:</strong>
                                 <ol class="mb-1 ps-3">
                                     <li>最初にスライドPDFをアップロードします。</li>
@@ -101,49 +54,13 @@
                                 {% endif %}
                             </div>
 
-                            {% for field in form.visible_fields %}
-                                <div class="mb-3 field-wrapper" data-field="{{ field.name }}">
-                                    {% if field.name == 'generate_blog_article' %}
-                                        <div class="form-check form-switch d-flex align-items-center">
-                                            {{ field }}
-                                            <label class="form-check-label ms-2 mb-0" for="{{ field.id_for_label }}">
-                                                {{ field.label }}
-                                            </label>
-                                        </div>
-                                        {% if field.help_text %}
-                                            <div class="form-text ms-5">{{ field.help_text }}</div>
-                                        {% endif %}
-                                    {% elif field.name == 'recording_policy' or field.name == 'article_consent' %}
-                                        <label class="form-label">{{ field.label }}</label>
-                                        {% include "event/includes/recording_policy_radios.html" with field=field %}
-                                        {% if field.help_text %}
-                                            <div class="form-text">{{ field.help_text }}</div>
-                                        {% endif %}
-                                    {% else %}
-                                        {{ field.label_tag }}
-                                        {% if field.name == 'speaker' %}
-                                            <div class="input-group">
-                                                {{ field }}
-                                                <span class="input-group-text">さん</span>
-                                            </div>
-                                        {% else %}
-                                            {{ field }}
-                                        {% endif %}
-                                        {% if field.help_text %}
-                                            <div class="form-text">{{ field.help_text }}</div>
-                                        {% endif %}
-                                    {% endif %}
-                                    {% if field.errors %}
-                                        <div class="text-danger">{{ field.errors }}</div>
-                                    {% endif %}
-                                </div>
-                            {% endfor %}
+                            {% if form.generate_blog_article %}<div class="field-wrapper" data-field="generate_blog_article">{% include 'ta_hub/admin/includes/form_field.html' with field=form.generate_blog_article %}</div>{% endif %}
 
-                            <div class="d-flex justify-content-between">
-                                <a href="{% url 'account:lt_application_list' %}" class="btn btn-secondary">
-                                    <i class="fa-solid fa-arrow-left me-1"></i>戻る
-                                </a>
-                                <button type="submit" class="btn btn-primary article-submit-button" data-article-submit-button>
+</section>
+<div class="admin-action-bar stickybar" data-admin-action-bar role="region" aria-label="保存操作">
+<div class="admin-action-status"><span class="admin-dirty-status" data-admin-form-status="application-form" data-admin-scope="発表情報" aria-live="polite">発表情報: 変更はありません</span></div>
+<div class="admin-action-buttons"><a href="{% url 'account:lt_application_list' %}" class="btn btn-outline-secondary">キャンセル</a>
+<button type="submit" class="btn btn-primary article-submit-button" data-article-submit-button>
                                     <span class="article-submit-button__content" data-submit-default>
                                         <i class="fa-solid fa-floppy-disk me-1" aria-hidden="true"></i>保存
                                     </span>
@@ -151,15 +68,11 @@
                                         <span class="article-submit-button__spinner" aria-hidden="true"></span>
                                         生成しながら保存中…
                                     </span>
-                                </button>
-                            </div>
-                            {% include 'event/includes/article_generation_submit_feedback.html' %}
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+                                </button></div></div>
+{% include 'event/includes/article_generation_submit_feedback.html' %}
+</form>
+{% endblock %}
+{% block extra_js %}{{ block.super }}
     <script>
         (function() {
             const checkbox = document.getElementById('id_generate_blog_article');
