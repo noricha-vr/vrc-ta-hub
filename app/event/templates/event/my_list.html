@@ -1,150 +1,17 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 {% load django_bootstrap5 %}
 
-{% block meta %}
-<title>イベント管理 - {% site_name_seo %}</title>
-<style>
-.mylist { max-width: 1120px; }
-.mylist .dropdown-menu { min-width: 12rem; max-width: min(26rem, calc(100vw - 3rem)); }
-.mylist .dropdown-item { white-space: normal; overflow-wrap: anywhere; }
-.mylist-header, .event-summary, .presentation-heading, .action-required-row {
-    display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
-}
-.community-selector { min-width: 0; max-width: 100%; }
-.mylist .community-selector-button { border: 0; text-align: left; max-width: 100%; white-space: normal; border-radius: .6rem; padding: .5rem .75rem; }
-.community-selector-button:hover, .community-selector-button:focus-visible { background: #edf5fe; }
-.community-selector-button:hover::after { color: var(--custom-primary); }
-.community-label { display: block; font-size: .75rem; font-weight: 400; color: #657080; margin-bottom: .2rem; }
-.community-name { font-size: clamp(1.25rem, 3vw, 1.8rem); font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
-.mylist-nav { display: flex; flex-wrap: wrap; gap: .25rem .75rem; border-bottom: 1px solid #dce2e9; padding: .75rem 0; margin-bottom: 1.5rem; }
-.mylist-nav a { color: #586573; text-decoration: none; padding: .5rem; border-radius: .3rem; }
-.mylist-nav a[aria-current] { color: var(--custom-primary); background: #edf5fe; font-weight: 700; }
-.mylist-nav a:hover { background: #f1f4f8; }
-@media (max-width: 575.98px) {
-    /* スマホでは折り返さず横にスクロールさせ、見出しの下を 1 行に保つ */
-    .mylist-nav { flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
-}
-.action-required { border: 1px solid #ead29f; border-left: 4px solid #d69620; background: #fffcf4; border-radius: .75rem; padding: 1.25rem; margin-bottom: 2rem; }
-.action-required-row + .action-required-row { border-top: 1px solid #ebdfc5; margin-top: .9rem; padding-top: .9rem; }
-.action-required-text, .presentation-text { flex: 1 1 15rem; min-width: 0; overflow-wrap: anywhere; }
-.event-card { border: 1px solid #dce2e9; border-radius: .8rem; margin-bottom: 1rem; }
-.event-card .card-body { padding: 1.25rem; }
-.event-date { color: #22354c; font-weight: 700; font-size: 1.3rem; }
-.event-time { font-size: 1rem; font-weight: 500; }
-.event-meta { color: #637080; font-size: .875rem; margin-top: .35rem; }
-.event-actions, .presentation-actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
-.setup-placeholder { border-style: dashed; border-color: #7c8fa4; color: #3a526c; background: #f8fbff; }
-.presentation-row { border-top: 1px solid #e5e9ee; padding-top: 1rem; margin-top: 1rem; }
-.presentation-theme { font-size: 1rem; font-weight: 700; margin: 0 0 .35rem; overflow-wrap: anywhere; }
-.presentation-speaker { color: #586573; font-size: .875rem; margin-bottom: .5rem; }
-.detail-chip { display: inline-flex; align-items: center; gap: .3rem; border-radius: .35rem; background: #f0f3f7; color: #45556a; font-size: .75rem; padding: .25rem .45rem; }
-.confirm-panel { background: #fff6f6; border: 1px solid #e7b9b9; border-radius: .5rem; padding: 1rem; margin-top: 1rem; }
-.event-footer { border-top: 1px solid #e5e9ee; padding-top: 1rem; margin-top: 1rem; }
-.section-title { font-size: 1.2rem; font-weight: 700; margin: 1.75rem 0 1rem; }
-.past-section { border-top: 2px solid #dce2e9; padding-top: 1.5rem; }
-@media (max-width: 575.98px) {
-    .mylist-header { align-items: stretch; }
-    .mylist-header-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
-    .event-actions { width: 100%; }
-    .event-actions > .setup-placeholder { flex: 1 1 100%; white-space: normal; }
-    .event-summary > div, .presentation-actions, .action-required-row > div { min-width: 0; max-width: 100%; }
-    .event-card .card-body, .action-required { padding: 1rem; }
-}
+{% block title %}イベント管理 - {% site_name_seo %}{% endblock %}
+{% block admin_classes %}mylist{% endblock %}
 
-.card.vket-banner {
-    color: #fff;
-    background: linear-gradient(120deg, #101f46 0%, #164766 65%, #24617a 100%);
-}
-.vket-banner-content { flex: 1 1 24rem; min-width: 0; }
-.vket-banner-countdown {
-    flex-shrink: 0;
-    display: flex;
-    align-items: baseline;
-    gap: .2rem;
-    white-space: nowrap;
-    color: #d8f3ff;
-}
-.vket-banner-number {
-    font-size: 3rem;
-    font-weight: 800;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-}
-.vket-banner-today { font-size: 2rem; font-weight: 800; }
-.vket-banner-details { min-width: 0; }
-.vket-banner-message { font-size: 1rem; }
-.vket-banner-date { white-space: nowrap; }
-.vket-banner-subtitle { color: #d8f3ff; font-size: .8rem; }
-.vket-banner-tentative {
-    color: #e6f7ff;
-    border: 1px solid #94c9dc;
-    font-size: .65rem;
-    vertical-align: middle;
-}
-.vket-banner-btn:hover { background-color: #e2e6ea; }
-@media (max-width: 575.98px) {
-    .vket-banner-content { flex-basis: 100%; }
-    .vket-banner-number { font-size: 2.5rem; }
-    .vket-banner-countdown { flex-direction: column; align-items: center; gap: 0; font-size: .75rem; }
-    .vket-banner-today { font-size: 1.5rem; }
-    .vket-banner-message { font-size: .875rem; }
-    .vket-banner-actions { width: 100%; }
-    .vket-banner-btn { flex: 1 1 auto; }
-}
-</style>
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with subtitle='' title='イベント管理' target=active_community.name switcher_template='ta_hub/admin/includes/community_switcher.html' actions_template='event/includes/my_list_header_actions.html' %}
 {% endblock %}
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with label='集会管理' links_template='event/includes/my_list_nav_links.html' %}
 
-{% block main %}
-    <div class="container my-4 mylist">
-        <header class="mylist-header mb-2">
-            <div class="dropdown community-selector">
-                {% if communities|length > 1 %}
-                <button class="btn community-selector-button dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="管理中の集会を切り替え">
-                    <span class="community-label">管理中の集会</span>
-                    <span class="community-name">{% if active_community %}{{ active_community.name }}{% else %}集会を選択{% endif %}</span>
-                </button>
-                <ul class="dropdown-menu">
-                    {% for community in communities %}
-                    <li>
-                        {% if community.is_ended %}
-                        <span class="dropdown-item disabled text-muted">{{ community.name }} <span class="badge bg-light text-muted">終了</span></span>
-                        {% else %}
-                        <form method="post" action="{% url 'community:switch' %}">
-                            {% csrf_token %}
-                            <input type="hidden" name="community_id" value="{{ community.id }}">
-                            {# 集会指定付きの参照元に戻ると切替が取り消されるため、一覧へ戻す #}
-                            <input type="hidden" name="redirect_to" value="{% url 'event:my_list' %}">
-                            <button type="submit" class="dropdown-item {% if active_community and community.id == active_community.id %}active{% endif %}">{{ community.name }}</button>
-                        </form>
-                        {% endif %}
-                    </li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                <div class="px-2 py-1"><span class="community-label">管理中の集会</span><span class="community-name">{% if active_community %}{{ active_community.name }}{% else %}集会未登録{% endif %}</span></div>
-                {% endif %}
-            </div>
-            {% if community %}
-            <div class="mylist-header-actions">
-                <a href="{% url 'community:detail' community.pk %}" class="btn btn-outline-secondary">公開ページを見る ↗</a>
-                <a href="{% url 'event:calendar_create' %}" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i> イベント登録</a>
-            </div>
-            {% endif %}
-        </header>
-        <h1 class="visually-hidden">イベント管理</h1>
-        <nav class="mylist-nav" aria-label="集会管理">
-            <a href="{% url 'event:my_list' %}" aria-current="page">イベント</a>
-            <a href="{% url 'account:lt_application_list' %}">発表申請一覧</a>
-            {% if community %}
-            <a href="{% url 'event:detail_history' %}?community_name={{ community.name|urlencode }}"><i class="fas fa-history" aria-hidden="true"></i> 発表履歴</a>
-            <a href="{% url 'analytics:dashboard' %}?community={{ community.id }}">アクセス</a>
-            <a href="{% url 'community:settings' %}">集会設定</a>
-            {% endif %}
-            {% if user.is_staff or user.is_superuser %}
-            <a href="{% url 'announcement:discord_list' %}" data-testid="discord-announce-link">Discord 告知の予約 <span class="badge bg-secondary">運営</span></a>
-            {% endif %}
-        </nav>
-        {% include 'ta_hub/messages.html' %}
+{% endblock %}
+{% block admin_attention %}
 
         {# Vketコラボバナー #}
         {% if vket_banner %}
@@ -218,6 +85,8 @@
         </section>
         {% endif %}
 
+{% endblock %}
+{% block admin_content %}
         {% if has_future_events %}<h2 class="section-title">これからの開催 {{ future_events_count }} 件</h2>{% endif %}
         {% for event in events %}
             {% if not event.is_future %}
@@ -256,7 +125,12 @@
                                             </ul>
                                         </div>
                                         {% else %}
-                                        <a href="{% url 'twitter:template_create' %}?community={{ event.community.pk }}" class="btn btn-sm setup-placeholder" data-mylist-setup="twitter_template" data-community-id="{{ event.community_id }}">X の告知文を作成</a>
+                                        {% url 'twitter:template_create' as template_create_url %}
+                                        {% with community_id=event.community_id|stringformat:'s' %}
+                                            {% with setup_url=template_create_url|add:'?community='|add:community_id %}
+                                                {% include 'ta_hub/admin/includes/setup_link.html' with url=setup_url label='X の告知文を作成' setup_type='twitter_template' community_id=event.community_id only %}
+                                            {% endwith %}
+                                        {% endwith %}
                                         {% endif %}
                                         {% endwith %}
                                     {% endif %}
@@ -278,22 +152,12 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="confirm-panel" id="event-delete-{{ event.pk }}" hidden tabindex="-1" role="region" aria-label="カレンダーから削除の確認">
-                                <p>{{ event.date|date:"n/j" }} のイベントをカレンダーから削除しますか？ この操作は取り消せません。</p>
-                                <form method="post" action="{% url 'event:delete' event.pk %}">
-                                    {% csrf_token %}
-                                    {% if event.is_future %}
-                                    <div class="form-check mb-3">
-                                        <input class="form-check-input" type="checkbox" name="delete_subsequent" id="delete_subsequent_{{ event.pk }}">
-                                        <label class="form-check-label" for="delete_subsequent_{{ event.pk }}">以降のイベントもまとめて削除する</label>
-                                    </div>
-                                    {% endif %}
-                                    <div class="d-flex gap-2 flex-wrap">
-                                        <button type="submit" class="btn btn-sm btn-danger">カレンダーから削除する</button>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" data-cancel-panel="event-delete-{{ event.pk }}">キャンセル</button>
-                                    </div>
-                                </form>
-                            </div>
+                            {% url 'event:delete' event.pk as delete_url %}
+                            {% with event_id=event.pk|stringformat:'s' deletion_date=event.date|date:'n/j' %}
+                                {% with panel_id='event-delete-'|add:event_id message=deletion_date|add:' のイベントをカレンダーから削除しますか？ この操作は取り消せません。' %}
+                                    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id message=message label='カレンダーから削除の確認' action_url=delete_url submit_label='カレンダーから削除する' fields_template='event/includes/my_list_delete_fields.html' event=event csrf_token=csrf_token only %}
+                                {% endwith %}
+                            {% endwith %}
                             {% for detail in event.detail_list %}
                             <div class="presentation-row" id="presentation-{{ detail.pk }}">
                                 <div class="presentation-heading">
@@ -335,23 +199,19 @@
                                     </div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-1 mt-2">
-                                    {% if detail.status == 'pending' %}<span class="detail-chip bg-warning-subtle text-warning-emphasis">承認待ち</span>{% elif detail.status == 'approved' %}<span class="detail-chip bg-success-subtle text-success-emphasis">承認済み</span>{% elif detail.status == 'rejected' %}<span class="detail-chip bg-danger-subtle text-danger-emphasis">却下</span>{% endif %}
-                                    {% if detail.source == 'discord_bot' %}<span class="detail-chip">Discord から自動で登録</span>{% endif %}
-                                    {% if detail.youtube_url %}<span class="detail-chip"><i class="bi bi-play-btn" aria-hidden="true"></i>動画</span>{% endif %}
-                                    {% if detail.slide_url %}<span class="detail-chip"><i class="bi bi-link-45deg" aria-hidden="true"></i>スライドURL</span>{% endif %}
-                                    {% if detail.slide_file %}<span class="detail-chip"><i class="bi bi-file-text" aria-hidden="true"></i>スライド</span>{% endif %}
-                                    {% if detail.contents %}<span class="detail-chip"><i class="bi bi-pencil-square" aria-hidden="true"></i>記事あり</span>{% endif %}
+                                    {% if detail.status == 'pending' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='承認待ち' tone='warning' only %}{% elif detail.status == 'approved' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='承認済み' tone='success' only %}{% elif detail.status == 'rejected' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='却下' tone='danger' only %}{% endif %}
+                                    {% if detail.source == 'discord_bot' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='Discord から自動で登録' only %}{% endif %}
+                                    {% if detail.youtube_url %}{% include 'ta_hub/admin/includes/status_chip.html' with label='動画' icon='bi bi-play-btn' only %}{% endif %}
+                                    {% if detail.slide_url %}{% include 'ta_hub/admin/includes/status_chip.html' with label='スライドURL' icon='bi bi-link-45deg' only %}{% endif %}
+                                    {% if detail.slide_file %}{% include 'ta_hub/admin/includes/status_chip.html' with label='スライド' icon='bi bi-file-text' only %}{% endif %}
+                                    {% if detail.contents %}{% include 'ta_hub/admin/includes/status_chip.html' with label='記事あり' icon='bi bi-pencil-square' only %}{% endif %}
                                 </div>
-                                <div class="confirm-panel" id="detail-delete-{{ detail.pk }}" hidden tabindex="-1" role="region" aria-label="発表を削除の確認">
-                                    <p>「{{ detail.theme }}」を削除しますか？ この操作は取り消せません。</p>
-                                    <form method="post" action="{% url 'event:detail_delete' detail.pk %}">
-                                        {% csrf_token %}
-                                        <div class="d-flex gap-2 flex-wrap">
-                                            <button type="submit" class="btn btn-sm btn-danger">この発表を削除する</button>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary" data-cancel-panel="detail-delete-{{ detail.pk }}">キャンセル</button>
-                                        </div>
-                                    </form>
-                                </div>
+                                {% url 'event:detail_delete' detail.pk as delete_url %}
+                                {% with detail_id=detail.pk|stringformat:'s' %}
+                                    {% with panel_id='detail-delete-'|add:detail_id message='「'|add:detail.theme|add:'」を削除しますか？ この操作は取り消せません。' %}
+                                        {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id message=message label='発表を削除の確認' action_url=delete_url submit_label='この発表を削除する' csrf_token=csrf_token only %}
+                                    {% endwith %}
+                                {% endwith %}
                             </div>
                             {% endfor %}
                             <div class="event-footer">
@@ -438,9 +298,10 @@
             {% endfor %}
         {% endfor %}
 
-    </div>
+{% endblock %}
 
-
+{% block extra_js %}
+    {{ block.super }}
     <script>
         (function () {
             var toggle = document.getElementById('more-future-events-toggle');
@@ -455,23 +316,6 @@
             });
         })();
 
-        document.querySelectorAll('[data-confirm-panel]').forEach(function (button) {
-            button.addEventListener('click', function () {
-                var panel = document.getElementById(button.dataset.confirmPanel);
-                panel.hidden = false;
-                button.setAttribute('aria-expanded', 'true');
-                panel.focus();
-            });
-        });
-        document.querySelectorAll('[data-cancel-panel]').forEach(function (button) {
-            button.addEventListener('click', function () {
-                var id = button.dataset.cancelPanel;
-                document.getElementById(id).hidden = true;
-                var trigger = document.querySelector('[data-confirm-panel="' + id + '"]');
-                trigger.setAttribute('aria-expanded', 'false');
-                trigger.closest('.dropdown').querySelector('[data-bs-toggle="dropdown"]').focus();
-            });
-        });
         document.querySelectorAll('[data-mylist-setup]').forEach(function (link) {
             link.addEventListener('click', function () {
                 if (typeof window.gtag === 'function') {

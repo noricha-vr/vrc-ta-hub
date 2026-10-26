@@ -95,6 +95,7 @@ test_db.sqlite3
 app/test_db.sqlite3
 /.local.env
 /app/ta_hub/static/ta_hub/js/*.js
+!/app/ta_hub/static/ta_hub/js/admin-ui.js
 /output.txt
 secret
 /summary.config.json

@@ -1,0 +1,13 @@
+<div class="admin-action-bar{% if not inline %} stickybar{% endif %}"{% if not inline %} data-admin-action-bar{% endif %} role="region" aria-label="保存操作">
+    <div class="admin-action-status">
+        {% for item in actions %}
+        <span class="admin-dirty-status" data-admin-form-status="{{ item.form_id }}" aria-live="polite"{% if item.scope %} data-admin-scope="{{ item.scope }}"{% endif %}>{{ item.scope }}{% if item.scope %}: {% endif %}変更はありません</span>
+        {% endfor %}
+    </div>
+    <div class="admin-action-buttons">
+        {% if cancel_url %}<a href="{{ cancel_url }}" class="btn btn-outline-secondary">{{ cancel_label|default:'キャンセル' }}</a>{% endif %}
+        {% for item in actions %}
+        <button type="submit" form="{{ item.form_id }}" class="btn {% if item.danger %}btn-danger{% else %}btn-primary{% endif %}"{% if item.name %} name="{{ item.name }}" value="{{ item.value }}"{% endif %}{% if item.disabled %} disabled{% endif %}>{{ item.label }}</button>
+        {% endfor %}
+    </div>
+</div>

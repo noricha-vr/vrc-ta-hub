@@ -1,0 +1,6 @@
+                                    {% if event.is_future %}
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="delete_subsequent" id="delete_subsequent_{{ event.pk }}">
+                                        <label class="form-check-label" for="delete_subsequent_{{ event.pk }}">以降のイベントもまとめて削除する</label>
+                                    </div>
+                                    {% endif %}

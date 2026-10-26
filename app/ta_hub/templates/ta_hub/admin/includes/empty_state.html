@@ -1,0 +1,4 @@
+<div class="admin-empty-state alert alert-secondary" role="status">
+    <p class="mb-0">{{ title }}{% if description %} {{ description }}{% endif %}</p>
+    {% if action_url and action_label %}<a href="{{ action_url }}" class="btn btn-outline-secondary mt-3">{{ action_label }}</a>{% endif %}
+</div>

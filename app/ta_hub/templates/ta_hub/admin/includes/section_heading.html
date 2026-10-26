@@ -1,0 +1,6 @@
+<div class="admin-section-heading">
+    <h2 class="section-title{% if past %} past-section{% endif %}"{% if heading_id %} id="{{ heading_id }}"{% endif %}>{{ title }}</h2>
+    {% if description %}<p class="admin-muted">{{ description }}</p>{% endif %}
+    {% if save_scope %}<p class="admin-muted">このカードだけ保存: {{ save_scope }}</p>{% endif %}
+    {% if form_id %}<span class="admin-dirty-status" data-admin-form-status="{{ form_id }}" aria-live="polite">変更はありません</span>{% endif %}
+</div>

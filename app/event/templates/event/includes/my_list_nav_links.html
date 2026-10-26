@@ -1,0 +1,10 @@
+            <a href="{% url 'event:my_list' %}" aria-current="page">イベント</a>
+            <a href="{% url 'account:lt_application_list' %}">発表申請一覧</a>
+            {% if community %}
+            <a href="{% url 'event:detail_history' %}?community_name={{ community.name|urlencode }}"><i class="fas fa-history" aria-hidden="true"></i> 発表履歴</a>
+            <a href="{% url 'analytics:dashboard' %}?community={{ community.id }}">アクセス</a>
+            <a href="{% url 'community:settings' %}">集会設定</a>
+            {% endif %}
+            {% if user.is_staff or user.is_superuser %}
+            <a href="{% url 'announcement:discord_list' %}" data-testid="discord-announce-link">Discord 告知の予約 <span class="badge bg-secondary">運営</span></a>
+            {% endif %}

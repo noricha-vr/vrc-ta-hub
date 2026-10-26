@@ -1,0 +1,5 @@
+{% if form_id %}
+<button type="submit" form="{{ form_id }}" class="btn btn-sm setup-placeholder"{% if setup_type %} data-mylist-setup="{{ setup_type }}" data-community-id="{{ community_id }}"{% endif %}>{{ label }}</button>
+{% else %}
+<a href="{{ url }}" class="btn btn-sm setup-placeholder"{% if setup_type %} data-mylist-setup="{{ setup_type }}" data-community-id="{{ community_id }}"{% endif %}>{{ label }}</a>
+{% endif %}

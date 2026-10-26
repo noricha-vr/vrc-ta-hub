@@ -1,0 +1,148 @@
+/* 共通部品のトークン。公開画面やサイト共通の Bootstrap には適用しない。 */
+.hub-admin {
+    --admin-bg: #fff;
+    --admin-surface: #fff;
+    --admin-surface-muted: #f8f9fa;
+    --admin-text: #212529;
+    --admin-muted: #586573;
+    --admin-border: #dce2e9;
+    --admin-primary: var(--custom-primary);
+    --admin-primary-hover: rgb(22, 100, 184);
+    --admin-primary-soft: #edf5fe;
+    --admin-attention-border: #ead29f;
+    --admin-attention-accent: #d69620;
+    --admin-attention-bg: #fffcf4;
+    --admin-danger-border: #e7b9b9;
+    --admin-danger-bg: #fff6f6;
+    --admin-marker: #feffd5;
+    --admin-radius-card: .8rem;
+    --admin-radius-box: .75rem;
+    --admin-radius-control: .5rem;
+    --admin-space-1: 4px;
+    --admin-space-2: 8px;
+    --admin-space-3: 12px;
+    --admin-space-4: 16px;
+    --admin-space-5: 24px;
+    --admin-space-6: 32px;
+    --admin-action-bar-height: 12rem;
+    color: var(--admin-text);
+    min-width: 0;
+}
+.hub-admin .admin-layout:has(> .admin-toc) { display: flex; align-items: flex-start; gap: var(--admin-space-5); }
+.hub-admin .admin-content { flex: 1; min-width: 0; }
+.hub-admin .admin-toc { flex: 0 0 12rem; position: sticky; top: 1rem; }
+.hub-admin .admin-toc a { display: block; padding: .5rem; overflow-wrap: anywhere; }
+.hub-admin .admin-page-heading { min-width: 0; max-width: 100%; }
+.hub-admin .admin-page-heading h1:not(.visually-hidden) { font-size: clamp(1.25rem, 3vw, 1.8rem); font-weight: 700; overflow-wrap: anywhere; }
+.hub-admin .admin-header-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.hub-admin .admin-muted { color: var(--admin-muted); font-size: .875rem; overflow-wrap: anywhere; }
+.hub-admin .admin-card { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-card); background: var(--admin-surface); padding: var(--admin-space-5); margin-bottom: var(--admin-space-5); }
+.hub-admin .admin-card > .admin-section-heading { background: var(--admin-surface-muted); margin: calc(-1 * var(--admin-space-5)) calc(-1 * var(--admin-space-5)) var(--admin-space-5); padding: var(--admin-space-4) var(--admin-space-5); border-radius: var(--admin-radius-card) var(--admin-radius-card) 0 0; }
+.hub-admin .admin-card > .admin-section-heading .section-title { margin: 0; font-size: 1rem; }
+.hub-admin .admin-form-field { min-width: 0; overflow-wrap: anywhere; }
+.hub-admin .admin-form-field input, .hub-admin .admin-form-field select, .hub-admin .admin-form-field textarea { max-width: 100%; }
+.hub-admin .admin-dirty-status { font-size: .875rem; color: var(--admin-muted); }
+.hub-admin .admin-dirty-status.is-dirty { font-weight: 700; color: var(--admin-text); background: var(--admin-marker); }
+.hub-admin .admin-action-bar { background: var(--admin-surface); border-top: 1px solid var(--admin-border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--admin-space-3); padding: var(--admin-space-4); }
+.hub-admin .stickybar { position: fixed; z-index: 1020; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 1120px; padding-bottom: calc(var(--admin-space-4) + env(safe-area-inset-bottom)); }
+.hub-admin:has(.stickybar), .hub-admin.has-action-bar { padding-bottom: calc(var(--admin-action-bar-height) + var(--admin-space-5) + env(safe-area-inset-bottom)); }
+.hub-admin:has(.stickybar) :is(input, select, textarea, .invalid-feedback, .admin-form-errors) { scroll-margin-bottom: calc(var(--admin-action-bar-height) + var(--admin-space-5)); }
+.hub-admin .admin-action-status { display: flex; gap: .5rem; flex-wrap: wrap; }
+.hub-admin .admin-action-buttons { display: flex; flex-wrap: wrap; gap: .5rem; }
+.hub-admin .admin-action-buttons .btn { white-space: nowrap; }
+.hub-admin .admin-secret-status { overflow-wrap: anywhere; }
+.hub-admin .admin-secret-edit summary { cursor: pointer; }
+.hub-admin .confirm-panel:focus { outline: 2px solid var(--admin-primary); outline-offset: 2px; }
+@media (max-width: 767.98px) {
+    .hub-admin .admin-layout { flex-direction: column; }
+    .hub-admin .admin-content { width: 100%; }
+    .hub-admin .admin-toc { position: static; flex-basis: auto; width: 100%; }
+}
+
+/* イベント管理の手本から移した一覧部品。寸法・並び順を維持する。 */
+.hub-admin.mylist .dropdown-menu { min-width: 12rem; max-width: min(26rem, calc(100vw - 3rem)); }
+.hub-admin.mylist .dropdown-item { white-space: normal; overflow-wrap: anywhere; }
+.hub-admin .mylist-header, .hub-admin .event-summary, .hub-admin .presentation-heading, .hub-admin .action-required-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+}
+.hub-admin .community-selector { min-width: 0; max-width: 100%; }
+.hub-admin.mylist .community-selector-button { border: 0; text-align: left; max-width: 100%; white-space: normal; border-radius: .6rem; padding: .5rem .75rem; }
+.hub-admin .community-selector-button:hover, .hub-admin .community-selector-button:focus-visible { background: var(--admin-primary-soft); }
+.hub-admin .community-selector-button:hover::after { color: var(--custom-primary); }
+.hub-admin .community-label { display: block; font-size: .75rem; font-weight: 400; color: #657080; margin-bottom: .2rem; }
+.hub-admin .community-name { font-size: clamp(1.25rem, 3vw, 1.8rem); font-weight: 700; white-space: normal; overflow-wrap: anywhere; }
+.hub-admin .mylist-nav { display: flex; flex-wrap: wrap; gap: .25rem .75rem; border-bottom: 1px solid var(--admin-border); padding: .75rem 0; margin-bottom: 1.5rem; }
+.hub-admin .mylist-nav a { color: var(--admin-muted); text-decoration: none; padding: .5rem; border-radius: .3rem; }
+.hub-admin .mylist-nav a[aria-current] { color: var(--custom-primary); background: var(--admin-primary-soft); font-weight: 700; }
+.hub-admin .mylist-nav a:hover { background: #f1f4f8; }
+@media (max-width: 575.98px) {
+    /* スマホでは折り返さず横にスクロールさせ、見出しの下を 1 行に保つ */
+.hub-admin .mylist-nav { flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+}
+.hub-admin .action-required { border: 1px solid var(--admin-attention-border); border-left: 4px solid var(--admin-attention-accent); background: var(--admin-attention-bg); border-radius: var(--admin-radius-box); padding: 1.25rem; margin-bottom: 2rem; }
+.hub-admin .action-required-row + .action-required-row { border-top: 1px solid #ebdfc5; margin-top: .9rem; padding-top: .9rem; }
+.hub-admin .action-required-text, .hub-admin .presentation-text { flex: 1 1 15rem; min-width: 0; overflow-wrap: anywhere; }
+.hub-admin .event-card { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-card); margin-bottom: 1rem; }
+.hub-admin .event-card .card-body { padding: 1.25rem; }
+.hub-admin .event-date { color: #22354c; font-weight: 700; font-size: 1.3rem; }
+.hub-admin .event-time { font-size: 1rem; font-weight: 500; }
+.hub-admin .event-meta { color: #637080; font-size: .875rem; margin-top: .35rem; }
+.hub-admin .event-actions, .hub-admin .presentation-actions { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.hub-admin .setup-placeholder { border-style: dashed; border-color: #7c8fa4; color: #3a526c; background: #f8fbff; }
+.hub-admin .presentation-row { border-top: 1px solid #e5e9ee; padding-top: 1rem; margin-top: 1rem; }
+.hub-admin .presentation-theme { font-size: 1rem; font-weight: 700; margin: 0 0 .35rem; overflow-wrap: anywhere; }
+.hub-admin .presentation-speaker { color: var(--admin-muted); font-size: .875rem; margin-bottom: .5rem; }
+.hub-admin .detail-chip { display: inline-flex; align-items: center; gap: .3rem; border-radius: .35rem; background: #f0f3f7; color: #45556a; font-size: .75rem; padding: .25rem .45rem; }
+.hub-admin .confirm-panel { background: var(--admin-danger-bg); border: 1px solid var(--admin-danger-border); border-radius: .5rem; padding: 1rem; margin-top: 1rem; }
+.hub-admin .event-footer { border-top: 1px solid #e5e9ee; padding-top: 1rem; margin-top: 1rem; }
+.hub-admin .section-title { font-size: 1.2rem; font-weight: 700; margin: 1.75rem 0 1rem; }
+.hub-admin .past-section { border-top: 2px solid var(--admin-border); padding-top: 1.5rem; }
+@media (max-width: 575.98px) {
+.hub-admin .mylist-header { align-items: stretch; }
+.hub-admin .mylist-header-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.hub-admin .event-actions { width: 100%; }
+.hub-admin .event-actions > .setup-placeholder { flex: 1 1 100%; white-space: normal; }
+.hub-admin .event-summary > div, .hub-admin .presentation-actions, .hub-admin .action-required-row > div { min-width: 0; max-width: 100%; }
+.hub-admin .event-card .card-body, .hub-admin .action-required { padding: 1rem; }
+}
+
+.hub-admin .card.vket-banner {
+    color: #fff;
+    background: linear-gradient(120deg, #101f46 0%, #164766 65%, #24617a 100%);
+}
+.hub-admin .vket-banner-content { flex: 1 1 24rem; min-width: 0; }
+.hub-admin .vket-banner-countdown {
+    flex-shrink: 0;
+    display: flex;
+    align-items: baseline;
+    gap: .2rem;
+    white-space: nowrap;
+    color: #d8f3ff;
+}
+.hub-admin .vket-banner-number {
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+.hub-admin .vket-banner-today { font-size: 2rem; font-weight: 800; }
+.hub-admin .vket-banner-details { min-width: 0; }
+.hub-admin .vket-banner-message { font-size: 1rem; }
+.hub-admin .vket-banner-date { white-space: nowrap; }
+.hub-admin .vket-banner-subtitle { color: #d8f3ff; font-size: .8rem; }
+.hub-admin .vket-banner-tentative {
+    color: #e6f7ff;
+    border: 1px solid #94c9dc;
+    font-size: .65rem;
+    vertical-align: middle;
+}
+.hub-admin .vket-banner-btn:hover { background-color: #e2e6ea; }
+@media (max-width: 575.98px) {
+.hub-admin .vket-banner-content { flex-basis: 100%; }
+.hub-admin .vket-banner-number { font-size: 2.5rem; }
+.hub-admin .vket-banner-countdown { flex-direction: column; align-items: center; gap: 0; font-size: .75rem; }
+.hub-admin .vket-banner-today { font-size: 1.5rem; }
+.hub-admin .vket-banner-message { font-size: .875rem; }
+.hub-admin .vket-banner-actions { width: 100%; }
+.hub-admin .vket-banner-btn { flex: 1 1 auto; }
+}
