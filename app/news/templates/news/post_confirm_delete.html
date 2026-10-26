@@ -1,60 +1,36 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 
-{% block main %}
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    <h1 class="h3 fw-bold mb-4 text-danger">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        記事の削除確認
-                    </h1>
-
-                    <div class="alert alert-warning" role="alert">
-                        <i class="bi bi-info-circle me-1"></i>
-                        この操作は取り消すことができません。本当に削除してもよろしいですか？
-                    </div>
-
-                    <div class="bg-light p-3 rounded mb-4">
-                        <h2 class="h5 mb-3">削除する記事</h2>
-                        <dl class="row mb-0">
-                            <dt class="col-sm-3">タイトル：</dt>
-                            <dd class="col-sm-9">{{ object.title }}</dd>
-
-                            <dt class="col-sm-3">カテゴリ：</dt>
-                            <dd class="col-sm-9">{{ object.category.name }}</dd>
-
-                            <dt class="col-sm-3">公開日：</dt>
-                            <dd class="col-sm-9">
-                                {% if object.published_at %}
-                                    {{ object.published_at|date:'Y年n月j日' }}
-                                {% else %}
-                                    未公開
-                                {% endif %}
-                            </dd>
-
-                            <dt class="col-sm-3">作成日：</dt>
-                            <dd class="col-sm-9">{{ object.created_at|date:'Y年n月j日 H:i' }}</dd>
-                        </dl>
-                    </div>
-
-                    <form method="post" class="d-inline">
-                        {% csrf_token %}
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-danger">
-                                <i class="bi bi-trash me-1"></i>
-                                削除する
-                            </button>
-                            <a href="{% url 'news:detail' object.slug %}" class="btn btn-secondary">
-                                <i class="bi bi-arrow-left me-1"></i>
-                                キャンセル
-                            </a>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+{% block title %}ニュースの削除: {{ object.title }} - {% site_name_seo %}{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
+    <style>.hub-admin .news-delete-card { overflow-wrap: anywhere; }</style>
+{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'news:list' %}">ニュース</a></li>
+    <li class="breadcrumb-item active" aria-current="page">削除確認</li>
+</ol></nav>
+{% endblock %}
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with label='運営管理' links_template='announcement/discord/_admin_nav.html' admin_section='news' %}
+{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='ニュースの削除' target=object.title subtitle='運営用' only %}
+{% endblock %}
+{% block admin_content %}
+<section class="admin-card news-delete-card" aria-labelledby="delete-news-heading">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='削除するニュース' heading_id='delete-news-heading' only %}
+    <dl class="row">
+        <dt class="col-sm-3">タイトル</dt><dd class="col-sm-9">{{ object.title }}</dd>
+        <dt class="col-sm-3">カテゴリ</dt><dd class="col-sm-9">{{ object.category.name }}</dd>
+        <dt class="col-sm-3">公開日</dt><dd class="col-sm-9">{% if object.published_at %}{{ object.published_at|date:'Y年n月j日' }}{% else %}未公開{% endif %}</dd>
+        <dt class="col-sm-3">作成日</dt><dd class="col-sm-9">{{ object.created_at|date:'Y年n月j日 H:i' }}</dd>
+    </dl>
+    {% url 'news:delete' object.slug as delete_url %}
+    {% url 'news:detail' object.slug as detail_url %}
+    {% with warning='「'|add:object.title|add:'」を削除します。この操作は取り消せません。' %}
+        {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='delete-news' label='ニュースの削除確認' message=warning action_url=delete_url submit_label='このニュースを削除する' open=True cancel_url=detail_url %}
+    {% endwith %}
+</section>
 {% endblock %}

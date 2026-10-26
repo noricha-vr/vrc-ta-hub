@@ -1,154 +1,59 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 
-{% block main %}
-<div class="container py-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <h1 class="h3 fw-bold mb-4">
-                {% if object %}
-                    記事編集
-                {% else %}
-                    新規記事作成
-                {% endif %}
-            </h1>
-
-            <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-                
-                {% if form.non_field_errors %}
-                    <div class="alert alert-danger" role="alert">
-                        {{ form.non_field_errors }}
-                    </div>
-                {% endif %}
-
-                <div class="mb-3">
-                    <label for="{{ form.title.id_for_label }}" class="form-label">
-                        {{ form.title.label }}
-                        <span class="text-danger">*</span>
-                    </label>
-                    {{ form.title }}
-                    {% if form.title.errors %}
-                        <div class="text-danger small mt-1">
-                            {{ form.title.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="mb-3">
-                    <label for="{{ form.slug.id_for_label }}" class="form-label">
-                        {{ form.slug.label }}
-                        <span class="text-danger">*</span>
-                    </label>
-                    {{ form.slug }}
-                    {% if form.slug.help_text %}
-                        <div class="form-text">{{ form.slug.help_text }}</div>
-                    {% endif %}
-                    {% if form.slug.errors %}
-                        <div class="text-danger small mt-1">
-                            {{ form.slug.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="mb-3">
-                    <label for="{{ form.category.id_for_label }}" class="form-label">
-                        {{ form.category.label }}
-                        <span class="text-danger">*</span>
-                    </label>
-                    {{ form.category }}
-                    {% if form.category.errors %}
-                        <div class="text-danger small mt-1">
-                            {{ form.category.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="mb-3">
-                    <label for="{{ form.body_markdown.id_for_label }}" class="form-label">
-                        {{ form.body_markdown.label }}
-                        <span class="text-danger">*</span>
-                    </label>
-                    {{ form.body_markdown }}
-                    {% if form.body_markdown.help_text %}
-                        <div class="form-text">{{ form.body_markdown.help_text }}</div>
-                    {% endif %}
-                    {% if form.body_markdown.errors %}
-                        <div class="text-danger small mt-1">
-                            {{ form.body_markdown.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="mb-3">
-                    <label for="{{ form.meta_description.id_for_label }}" class="form-label">
-                        {{ form.meta_description.label }}
-                    </label>
-                    {{ form.meta_description }}
-                    {% if form.meta_description.help_text %}
-                        <div class="form-text">{{ form.meta_description.help_text }}</div>
-                    {% endif %}
-                    {% if form.meta_description.errors %}
-                        <div class="text-danger small mt-1">
-                            {{ form.meta_description.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="mb-3">
-                    <label for="{{ form.thumbnail.id_for_label }}" class="form-label">
-                        {{ form.thumbnail.label }}
-                    </label>
-                    {% if object and object.thumbnail %}
-                        <div class="mb-2">
-                            <img src="{{ object.thumbnail.url }}" alt="現在のサムネイル" class="img-thumbnail" style="max-height: 200px;">
-                            <p class="small text-muted mt-1">現在のサムネイル画像</p>
-                        </div>
-                    {% endif %}
-                    {{ form.thumbnail }}
-                    {% if form.thumbnail.errors %}
-                        <div class="text-danger small mt-1">
-                            {{ form.thumbnail.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="mb-4">
-                    <div class="form-check">
-                        {{ form.is_published }}
-                        <label class="form-check-label" for="{{ form.is_published.id_for_label }}">
-                            {{ form.is_published.label }}
-                        </label>
-                    </div>
-                    {% if form.is_published.errors %}
-                        <div class="text-danger small mt-1">
-                            {{ form.is_published.errors }}
-                        </div>
-                    {% endif %}
-                </div>
-
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-circle me-1"></i>
-                        {% if object %}
-                            更新
-                        {% else %}
-                            作成
-                        {% endif %}
-                    </button>
-                    <a href="{% if object %}{% url 'news:detail' object.slug %}{% else %}{% url 'news:list' %}{% endif %}" class="btn btn-secondary">
-                        <i class="bi bi-x-circle me-1"></i>
-                        キャンセル
-                    </a>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<style>
-    /* Markdownエディタのプレビュー用スタイル */
-    .form-control[name="body_markdown"] {
-        font-family: monospace;
-    }
-</style>
+{% block title %}{% if object %}ニュースの編集: {{ object.title }}{% else %}ニュースの作成{% endif %} - {% site_name_seo %}{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
+    <style>.hub-admin .form-control[name="body_markdown"] { font-family: monospace; }</style>
+{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'news:list' %}">ニュース</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{% if object %}編集{% else %}作成{% endif %}</li>
+</ol></nav>
+{% endblock %}
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with label='運営管理' links_template='announcement/discord/_admin_nav.html' admin_section='news' %}
+{% endblock %}
+{% block admin_header %}
+    {% if object %}
+        {% include 'ta_hub/admin/includes/page_header.html' with title='ニュースの編集' target=object.title subtitle='運営用・ニュース全体を保存します。' only %}
+    {% else %}
+        {% include 'ta_hub/admin/includes/page_header.html' with title='ニュースの作成' target='新しい記事' subtitle='運営用・ニュース全体を保存します。' only %}
+    {% endif %}
+{% endblock %}
+{% block admin_toc %}
+<aside class="admin-toc" aria-label="ニュースの編集項目">
+    <a href="#news-content">内容</a>
+    <a href="#news-sharing">検索・共有の表示</a>
+    <a href="#news-publication">公開設定</a>
+</aside>
+{% endblock %}
+{% block admin_content %}
+<form id="news-form" method="post" enctype="multipart/form-data" data-admin-dirty>
+    {% csrf_token %}
+    {% include 'ta_hub/admin/includes/form_errors.html' with form=form only %}
+    <section class="admin-card" aria-labelledby="news-content">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='内容' heading_id='news-content' only %}
+        {% include 'ta_hub/admin/includes/form_field.html' with field=form.title only %}
+        {% include 'ta_hub/admin/includes/form_field.html' with field=form.category only %}
+        {% include 'ta_hub/admin/includes/form_field.html' with field=form.body_markdown only %}
+    </section>
+    <section class="admin-card" aria-labelledby="news-sharing">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='検索・共有の表示' heading_id='news-sharing' only %}
+        {% include 'ta_hub/admin/includes/form_field.html' with field=form.slug only %}
+        {% include 'ta_hub/admin/includes/form_field.html' with field=form.meta_description only %}
+        {% if object and object.thumbnail %}
+            <img src="{{ object.thumbnail.url }}" alt="現在のサムネイル" class="img-thumbnail mb-2" style="max-height: 200px;">
+        {% endif %}
+        {% include 'ta_hub/admin/includes/form_field.html' with field=form.thumbnail only %}
+    </section>
+    <section class="admin-card" aria-labelledby="news-publication">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='公開設定' heading_id='news-publication' description='「公開する」にチェックして保存すると、ニュースが公開されます。' only %}
+        {% include 'ta_hub/admin/includes/form_field.html' with field=form.is_published only %}
+    </section>
+</form>
+{% endblock %}
+{% block admin_action_bar %}
+    {% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions cancel_url=cancel_url only %}
 {% endblock %}
