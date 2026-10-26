@@ -1,51 +1,25 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 {% block meta %}
     {% include 'vket/includes/og_meta.html' %}
 {% endblock %}
-{% block main %}
-    <div class="container my-4" style="max-width: 860px;">
-        {% include 'ta_hub/messages.html' %}
-
-        <div class="d-flex justify-content-between align-items-start mb-4">
-            <div>
-                <h1 class="fw-bold mb-1 me-3">{{ collaboration.name }} 参加状況</h1>
-                {% if community %}
-                    <div class="text-muted">集会: <strong>{{ community.name }}</strong></div>
-                {% endif %}
-            </div>
-            {% if collaborations|length > 1 %}
-            <div class="dropdown flex-shrink-0">
-                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button"
-                        data-bs-toggle="dropdown">
-                    切替
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                    {% for c in collaborations %}
-                    <li>
-                        <a class="dropdown-item {% if c.pk == collaboration.pk %}active{% endif %}"
-                           href="{% url 'vket:status' c.pk %}">
-                            {{ c.name }}
-                        </a>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
-        </div>
-
-        <div class="d-flex gap-2 flex-wrap mb-4">
-            <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-arrow-left me-1"></i>イベント管理
-            </a>
-            {% if is_admin %}
-                <a href="{% url 'vket:manage' collaboration.pk %}" class="btn btn-outline-dark btn-sm">
-                    <i class="fas fa-gear me-1"></i>管理
-                </a>
-            {% endif %}
-        </div>
-
+{% block admin_classes %}vket-member{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
+    {% include 'vket/includes/member_styles.html' %}
+{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='Vket 参加状況' target=community.name|default:collaboration.name subtitle=collaboration.name actions_template='vket/includes/member_collaboration_switcher.html' %}
+{% endblock %}
+{% block admin_subnav %}{% include 'ta_hub/admin/includes/subnav.html' with links_template='vket/includes/member_nav_links.html' member_page='status' %}{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず" class="mb-3"><ol class="breadcrumb mb-0"><li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li><li class="breadcrumb-item active" aria-current="page">Vket 参加状況</li></ol></nav>
+{% endblock %}
+{% block admin_attention %}
+    {% if unacked_count or not participation or stage_register_open %}
+    <section id="member-attention" class="action-required" aria-labelledby="attention-heading">
+        <h2 id="attention-heading" class="h6 fw-bold">要対応 {{ attention_count }}</h2>
         {% if unacked_count %}
-            <div class="alert alert-warning d-flex align-items-center mb-4">
+            <div class="action-required-row">
                 <i class="fas fa-exclamation-triangle me-2"></i>
                 <div class="flex-grow-1">
                     未確認のお知らせが <strong>{{ unacked_count }}件</strong> あります。
@@ -58,183 +32,173 @@
         {% endif %}
 
         {% if not participation %}
-            <div class="alert alert-info">
+            <div class="action-required-row">
                 <i class="fas fa-info-circle me-2"></i>
                 まだ参加登録がありません。
                 <a href="{% url 'vket:apply' collaboration.pk %}" class="alert-link">参加登録する</a>
             </div>
-        {% else %}
+        {% endif %}
+        {% if stage_register_open %}
+        <div class="action-required-row">
+            <p class="mb-0">Vketステージが未登録です。公式サイトで登録したら、登録完了を記録してください。</p>
+            <a href="#stage-registration" class="btn btn-sm btn-outline-secondary">ステージ登録を確認する</a>
+        </div>
+        {% endif %}
+    </section>
+    {% endif %}
+{% endblock %}
+{% block admin_content %}
+        {% if participation %}
             {# 進捗ステップ #}
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h2 class="h5 fw-bold mb-3">
-                        <i class="fas fa-tasks me-2"></i>進捗ステップ
-                    </h2>
-                    <div class="d-flex flex-wrap gap-2 align-items-center">
-                        {% for step in progress_steps %}
-                            {% if participation.progress == step.value %}
-                                <span class="badge bg-primary px-3 py-2">
-                                    <i class="fas fa-circle-dot me-1"></i>{{ step.label }}
-                                </span>
-                            {% else %}
-                                <span class="badge bg-light text-muted border px-2 py-1">{{ step.label }}</span>
-                            {% endif %}
-                            {% if not forloop.last %}
-                                <i class="fas fa-chevron-right text-muted small"></i>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
+            <div class="admin-card">
+                {% include 'ta_hub/admin/includes/section_heading.html' with title='進捗ステップ' only %}
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    {% for step in progress_steps %}
+                        {% if participation.progress == step.value %}
+                            <span class="badge bg-primary px-3 py-2">
+                                <i class="fas fa-circle-dot me-1"></i>{{ step.label }}
+                            </span>
+                        {% else %}
+                            <span class="badge bg-light text-muted border px-2 py-1">{{ step.label }}</span>
+                        {% endif %}
+                        {% if not forloop.last %}
+                            <i class="fas fa-chevron-right text-muted small"></i>
+                        {% endif %}
+                    {% endfor %}
                 </div>
             </div>
 
             {# 最新お知らせ #}
             {% if latest_notices %}
-                <div class="card shadow-sm mb-4">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h2 class="h5 fw-bold mb-0">
-                                <i class="fas fa-bell me-2"></i>最新お知らせ
-                            </h2>
-                            <a href="{% url 'vket:notice_list' collaboration.pk %}" class="btn btn-sm btn-outline-secondary">
-                                すべて見る
-                            </a>
-                        </div>
-                        {% for receipt in latest_notices %}
-                            <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
-                                <div>
-                                    <a href="{% url 'vket:notice_list' collaboration.pk %}?open={{ receipt.notice.id }}"
-                                       class="fw-bold text-decoration-none">
-                                        {{ receipt.notice.title }}
-                                    </a>
-                                    <div class="text-muted small">{{ receipt.created_at|date:"Y/m/d H:i" }}</div>
-                                </div>
-                                <div class="d-flex gap-2 align-items-center ms-2 flex-shrink-0">
-                                    {% if receipt.acknowledged_at %}
-                                        <span class="badge bg-success">確認済み</span>
-                                    {% elif receipt.notice.requires_ack %}
-                                        <span class="badge bg-warning text-dark">要確認</span>
-                                    {% endif %}
-                                    <a href="{% url 'vket:notice_list' collaboration.pk %}?open={{ receipt.notice.id }}"
-                                       class="btn btn-sm btn-outline-secondary">
-                                        詳細
-                                    </a>
-                                </div>
-                            </div>
-                        {% endfor %}
+                <div class="admin-card">
+                    <div class="member-row mb-3">
+                        {% include 'ta_hub/admin/includes/section_heading.html' with title='最新お知らせ' only %}
+                        <a href="{% url 'vket:notice_list' collaboration.pk %}" class="btn btn-sm btn-outline-secondary">
+                            すべて見る
+                        </a>
                     </div>
+                    {% for receipt in latest_notices %}
+                        <div class="member-row border-bottom pb-2 mb-2">
+                            <div>
+                                <a href="{% url 'vket:notice_list' collaboration.pk %}?open={{ receipt.notice.id }}"
+                                   class="fw-bold text-decoration-none">
+                                    {{ receipt.notice.title }}
+                                </a>
+                                <div class="text-muted small">{{ receipt.created_at|date:"Y/m/d H:i" }}</div>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center ms-2 flex-shrink-0">
+                                {% if receipt.acknowledged_at %}
+                                    <span class="badge bg-success">確認済み</span>
+                                {% elif receipt.notice.requires_ack %}
+                                    <span class="badge bg-warning text-dark">要確認</span>
+                                {% endif %}
+                                <a href="{% url 'vket:notice_list' collaboration.pk %}?open={{ receipt.notice.id }}"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    詳細
+                                </a>
+                            </div>
+                        </div>
+                    {% endfor %}
                 </div>
             {% endif %}
 
             {# Vketステージ登録 #}
-            <div class="card shadow-sm mb-4 {% if stage_register_open %}border-warning{% else %}border-secondary{% endif %}">
-                <div class="card-body">
-                    <div class="d-flex flex-wrap gap-2 align-items-center{% if not participation.stage_registered_at %} mb-2{% endif %}">
-                        <h2 class="h5 fw-bold mb-0">
-                            <i class="fas fa-external-link-alt me-2 text-muted"></i>Vketステージ登録
-                        </h2>
-                        {% if participation.stage_registered_at %}
-                            <span class="badge bg-success">登録済み {{ participation.stage_registered_at|date:"n/j" }}</span>
-                        {% else %}
-                            <span class="badge bg-secondary">未登録</span>
-                        {% endif %}
-                    </div>
-                    {% if stage_registration_enabled %}
-                        <a href="{% url 'vket:stage_copy' collaboration.pk participation.pk %}" class="btn btn-outline-primary my-2">
-                            登録用の入力値・サムネイルを用意する
-                        </a>
-                    {% endif %}
-                    {% if not participation.stage_registered_at %}
-                        {% if not stage_registration_enabled %}
-                            <p class="fw-bold mb-2">Coming Soon</p>
-                            <p class="text-muted mb-0">Vket ステージの登録ができるようになりましたら、Discord でお知らせします。</p>
-                        {% elif stage_register_open %}
-                            <p class="mb-3">
-                                Vket公式サイトのステージページに、イベント情報を暫定内容で登録してください。
-                                日程や発表内容が未確定でも、後から更新できます。
-                                登録が終わったら、この画面に戻って「Vketで登録したことを記録する」を押してください。
-                            </p>
-                            {% if stage_registration_guidance %}
-                                <div class="alert alert-info py-2 mb-3">
-                                    <div class="fw-bold mb-1">Vketステージ登録画面での設定</div>
-                                    <div>開催会場は「{{ stage_registration_guidance.venue }}」に設定してください。</div>
-                                    <div>タグは「{{ stage_registration_guidance.tag }}」を選択してください。</div>
-                                </div>
-                            {% endif %}
-                            <div class="d-flex flex-wrap gap-2 align-items-center">
-                                {% if stage_url %}
-                                    <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary">
-                                        <i class="fas fa-external-link-alt me-1"></i>Vketステージに登録する
-                                    </a>
-                                {% else %}
-                                    <span class="small text-muted">登録先URLは運営からのお知らせをご確認ください。</span>
-                                {% endif %}
-                                <form method="post" action="{% url 'vket:stage_register' collaboration.pk %}"
-                                      class="d-inline">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-outline-secondary"
-                                            onclick="return confirm('Vketステージページへの登録は完了しましたか？')">
-                                        Vketで登録したことを記録する
-                                    </button>
-                                </form>
-                            </div>
-                            <div class="small text-muted mt-2">
-                                Vket側で登録しただけでは Hub の進捗は更新されません。登録後は Hub 側でも「Vketで登録したことを記録する」を押してください。
-                            </div>
-                        {% elif stage_url %}
-                            <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
-                                <i class="fas fa-external-link-alt me-1"></i>ステージページ
-                            </a>
-                        {% endif %}
+            <div id="stage-registration" class="admin-card">
+                <div class="d-flex flex-wrap gap-2 align-items-center{% if not participation.stage_registered_at %} mb-2{% endif %}">
+                    {% include 'ta_hub/admin/includes/section_heading.html' with title='Vketステージ登録' only %}
+                    {% if participation.stage_registered_at %}
+                        <span class="badge bg-success">登録済み {{ participation.stage_registered_at|date:"n/j" }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">未登録</span>
                     {% endif %}
                 </div>
+                {% if stage_registration_enabled %}
+                    <a href="{% url 'vket:stage_copy' collaboration.pk participation.pk %}" class="btn btn-outline-primary my-2">
+                        登録用の入力値・サムネイルを用意する
+                    </a>
+                {% endif %}
+                {% if not participation.stage_registered_at %}
+                    {% if not stage_registration_enabled %}
+                        <p class="fw-bold mb-2">Coming Soon</p>
+                        <p class="text-muted mb-0">Vket ステージの登録ができるようになりましたら、Discord でお知らせします。</p>
+                    {% elif stage_register_open %}
+                        <p class="mb-3">
+                            Vket公式サイトのステージページに、イベント情報を暫定内容で登録してください。
+                            日程や発表内容が未確定でも、後から更新できます。
+                            登録が終わったら、この画面に戻って「Vketで登録したことを記録する」を押してください。
+                        </p>
+                        {% if stage_registration_guidance %}
+                            <div class="alert alert-info py-2 mb-3">
+                                <div class="fw-bold mb-1">Vketステージ登録画面での設定</div>
+                                <div>開催会場は「{{ stage_registration_guidance.venue }}」に設定してください。</div>
+                                <div>タグは「{{ stage_registration_guidance.tag }}」を選択してください。</div>
+                            </div>
+                        {% endif %}
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            {% if stage_url %}
+                                <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary">
+                                    <i class="fas fa-external-link-alt me-1"></i>Vketステージに登録する
+                                </a>
+                            {% else %}
+                                <span class="small text-muted">登録先URLは運営からのお知らせをご確認ください。</span>
+                            {% endif %}
+                            <button type="button" class="btn btn-outline-secondary" data-confirm-panel="stage-register-confirm" aria-controls="stage-register-confirm" aria-expanded="false">Vketで登録したことを記録する</button>
+                        </div>
+                        {% url 'vket:stage_register' collaboration.pk as register_url %}
+                        {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='stage-register-confirm' label='ステージ登録完了の確認' message='Vketステージページへの登録は完了しましたか？' action_url=register_url submit_label='登録完了を記録する' %}
+                        <div class="small text-muted mt-2">
+                            Vket側で登録しただけでは Hub の進捗は更新されません。登録後は Hub 側でも「Vketで登録したことを記録する」を押してください。
+                        </div>
+                    {% elif stage_url %}
+                        <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-external-link-alt me-1"></i>ステージページ
+                        </a>
+                    {% endif %}
+                {% endif %}
             </div>
 
             {# 日程情報 #}
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h2 class="h5 fw-bold mb-0">
-                            <i class="fas fa-calendar me-2"></i>日程情報
-                        </h2>
-                        {% if participation %}
-                            <a href="{% url 'vket:apply' collaboration.pk %}" class="btn btn-outline-primary btn-sm">
-                                <i class="fas fa-edit me-1"></i>編集
-                            </a>
-                        {% endif %}
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-12 col-md-6">
-                            <div class="p-3 bg-light rounded">
-                                <div class="text-muted small mb-1">
-                                    <i class="fas fa-hand-paper me-1"></i>希望日程
-                                </div>
-                                {% if participation.requested_date %}
-                                    <div class="fw-bold">{{ participation.requested_date|date:"Y年n月j日（D）" }}</div>
-                                    <div>
-                                        {{ participation.requested_start_time|date:"H:i" }}
-                                        {% if participation.requested_duration %}（{{ participation.requested_duration }}分）{% endif %}
-                                    </div>
-                                {% else %}
-                                    <div class="text-muted">未入力</div>
-                                {% endif %}
+            <div class="admin-card">
+                <div class="member-row mb-3">
+                    {% include 'ta_hub/admin/includes/section_heading.html' with title='日程情報' only %}
+                    {% if participation %}
+                        <a href="{% url 'vket:apply' collaboration.pk %}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-edit me-1"></i>編集
+                        </a>
+                    {% endif %}
+                </div>
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 bg-light rounded">
+                            <div class="text-muted small mb-1">
+                                <i class="fas fa-hand-paper me-1"></i>希望日程
                             </div>
+                            {% if participation.requested_date %}
+                                <div class="fw-bold">{{ participation.requested_date|date:"Y年n月j日（D）" }}</div>
+                                <div>
+                                    {{ participation.requested_start_time|date:"H:i" }}
+                                    {% if participation.requested_duration %}（{{ participation.requested_duration }}分）{% endif %}
+                                </div>
+                            {% else %}
+                                <div class="text-muted">未入力</div>
+                            {% endif %}
                         </div>
-                        <div class="col-12 col-md-6">
-                            <div class="p-3 {% if participation.confirmed_date %}bg-success bg-opacity-10 border border-success border-opacity-25{% else %}bg-light{% endif %} rounded">
-                                <div class="small mb-1">
-                                    <i class="fas fa-check-circle me-1 {% if participation.confirmed_date %}text-success{% else %}text-muted{% endif %}"></i>
-                                    <span class="{% if participation.confirmed_date %}text-success fw-bold{% else %}text-muted{% endif %}">確定日程（運営）</span>
-                                </div>
-                                {% if participation.confirmed_date %}
-                                    <div class="fw-bold text-success">{{ participation.confirmed_date|date:"Y年n月j日（D）" }}</div>
-                                    <div>
-                                        {{ participation.confirmed_start_time|date:"H:i" }}
-                                        {% if participation.confirmed_duration %}（{{ participation.confirmed_duration }}分）{% endif %}
-                                    </div>
-                                {% else %}
-                                    <div class="text-muted">調整中（運営からの通知をお待ちください）</div>
-                                {% endif %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 {% if participation.confirmed_date %}bg-success bg-opacity-10 border border-success border-opacity-25{% else %}bg-light{% endif %} rounded">
+                            <div class="small mb-1">
+                                <i class="fas fa-check-circle me-1 {% if participation.confirmed_date %}text-success{% else %}text-muted{% endif %}"></i>
+                                <span class="{% if participation.confirmed_date %}text-success fw-bold{% else %}text-muted{% endif %}">確定日程（運営）</span>
                             </div>
+                            {% if participation.confirmed_date %}
+                                <div class="fw-bold text-success">{{ participation.confirmed_date|date:"Y年n月j日（D）" }}</div>
+                                <div>
+                                    {{ participation.confirmed_start_time|date:"H:i" }}
+                                    {% if participation.confirmed_duration %}（{{ participation.confirmed_duration }}分）{% endif %}
+                                </div>
+                            {% else %}
+                                <div class="text-muted">調整中（運営からの通知をお待ちください）</div>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -243,85 +207,73 @@
             {# 発表情報 #}
             {% with presentations=participation.presentations.all %}
                 {% if presentations or event_details %}
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-body">
-                            <h2 class="h5 fw-bold mb-3">
-                                <i class="fas fa-microphone me-2"></i>発表情報
-                            </h2>
-                            {% if event_details %}
-                                <p class="text-muted small mb-2">
-                                    集会終了後、公開可能な場合は「編集」から資料をアップロードしてください。
-                                </p>
-                            {% endif %}
-                            {% for pres in presentations %}
-                                <div class="p-2 bg-light rounded mb-2">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div>
-                                            <div><span class="text-muted small">登壇者:</span> {{ pres.speaker|default:"（未入力）" }}</div>
-                                            <div><span class="text-muted small">テーマ:</span> {{ pres.theme|default:"（未入力）" }}</div>
-                                            {% if pres.confirmed_start_time or pres.requested_start_time %}
-                                                <div><span class="text-muted small">開始時刻:</span> {{ pres.confirmed_start_time|default:pres.requested_start_time|date:"H:i" }}{% if pres.duration %} （{{ pres.duration }}分）{% endif %}</div>
-                                            {% endif %}
-                                        </div>
-                                        <div class="d-flex align-items-center gap-2">
-                                            {% if pres.published_event_detail %}
-                                                <a href="{% url 'event:detail_update' pres.published_event_detail.pk %}" class="btn btn-outline-primary btn-sm">
-                                                    <i class="fas fa-edit me-1"></i>編集
-                                                </a>
-                                            {% endif %}
-                                            {% if can_edit_presentations %}
-                                                <form method="post"
-                                                      action="{% url 'vket:presentation_delete' collaboration.pk pres.pk %}"
-                                                      onsubmit="return confirm('{{ pres.speaker|default:"この発表"|escapejs }} を削除しますか？公開中の発表は次の自動確定で公開ページから取り下げます。')"
-                                                      class="d-inline">
-                                                    {% csrf_token %}
-                                                    <button class="btn btn-outline-danger btn-sm" type="submit">
-                                                        <i class="fas fa-trash-alt me-1"></i>削除
-                                                    </button>
-                                                </form>
-                                            {% endif %}
-                                            <span class="badge
-                                                {% if pres.status == 'confirmed' %}bg-success
-                                                {% elif pres.status == 'submitted' %}bg-primary
-                                                {% else %}bg-secondary{% endif %}">
-                                                {{ pres.get_status_display }}
-                                            </span>
-                                        </div>
+                    <div class="admin-card">
+                        {% include 'ta_hub/admin/includes/section_heading.html' with title='発表情報' only %}
+                        {% if event_details %}
+                            <p class="text-muted small mb-2">
+                                集会終了後、公開可能な場合は「編集」から資料をアップロードしてください。
+                            </p>
+                        {% endif %}
+                        {% for pres in presentations %}
+                            <div class="p-2 bg-light rounded mb-2">
+                                <div class="member-row">
+                                    <div>
+                                        <div><span class="text-muted small">登壇者:</span> {{ pres.speaker|default:"（未入力）" }}</div>
+                                        <div><span class="text-muted small">テーマ:</span> {{ pres.theme|default:"（未入力）" }}</div>
+                                        {% if pres.confirmed_start_time or pres.requested_start_time %}
+                                            <div><span class="text-muted small">開始時刻:</span> {{ pres.confirmed_start_time|default:pres.requested_start_time|date:"H:i" }}{% if pres.duration %} （{{ pres.duration }}分）{% endif %}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="d-flex align-items-center gap-2">
+                                        {% if pres.published_event_detail %}
+                                            <a href="{% url 'event:detail_update' pres.published_event_detail.pk %}" class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-edit me-1"></i>編集
+                                            </a>
+                                        {% endif %}
+                                        {% if can_edit_presentations %}
+                                            <button type="button" class="btn btn-outline-danger btn-sm" data-confirm-panel="presentation-delete-{{ pres.pk }}" aria-controls="presentation-delete-{{ pres.pk }}" aria-expanded="false">削除</button>
+
+                                        {% endif %}
+                                        <span class="badge
+                                            {% if pres.status == 'confirmed' %}bg-success
+                                            {% elif pres.status == 'submitted' %}bg-primary
+                                            {% else %}bg-secondary{% endif %}">
+                                            {{ pres.get_status_display }}
+                                        </span>
                                     </div>
                                 </div>
-                            {% endfor %}
-                        </div>
+                                {% if can_edit_presentations %}
+                                    {% url 'vket:presentation_delete' collaboration.pk pres.pk as delete_url %}
+                                    {% with pres_id=pres.pk|stringformat:'s' %}
+                                        {% with panel_id='presentation-delete-'|add:pres_id %}
+                                            {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label='発表の削除確認' message='この発表を削除しますか？公開中の発表は次の自動確定で公開ページから取り下げます。' action_url=delete_url submit_label='この発表を削除する' %}
+                                        {% endwith %}
+                                    {% endwith %}
+                                {% endif %}
+                            </div>
+                        {% endfor %}
                     </div>
                 {% endif %}
             {% endwith %}
 
             {# リハーサル #}
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h2 class="h5 fw-bold mb-2">
-                        <i class="fas fa-headset me-2"></i>リハーサル
-                    </h2>
-                    <p class="mb-0">
-                        {% if rehearsal_schedule %}<span class="fw-bold">{{ rehearsal_schedule }}</span>に実施します。{% else %}日時は決まり次第お知らせします。{% endif %}ワールド、スライド、マイクの使い方などを確認します。Vket運営の方や他の技術学術系集会の方と交流できる機会です。
-                    </p>
-                    <p class="mb-0 mt-2 small text-body-secondary">
-                        <i class="fas fa-user-check me-1"></i>参加は各集会の<span class="fw-bold">主催・スタッフの方のみ</span>です。ワールドの人数上限があるため、登壇者の方の参加はご遠慮ください。確認した内容は登壇者の方へ共有をお願いします。
-                    </p>
-                </div>
+            <div class="admin-card">
+                {% include 'ta_hub/admin/includes/section_heading.html' with title='リハーサル' only %}
+                <p class="mb-0">
+                    {% if rehearsal_schedule %}<span class="fw-bold">{{ rehearsal_schedule }}</span>に実施します。{% else %}日時は決まり次第お知らせします。{% endif %}ワールド、スライド、マイクの使い方などを確認します。Vket運営の方や他の技術学術系集会の方と交流できる機会です。
+                </p>
+                <p class="mb-0 mt-2 small text-body-secondary">
+                    <i class="fas fa-user-check me-1"></i>参加は各集会の<span class="fw-bold">主催・スタッフの方のみ</span>です。ワールドの人数上限があるため、登壇者の方の参加はご遠慮ください。確認した内容は登壇者の方へ共有をお願いします。
+                </p>
             </div>
 
             {# 日程表 #}
             {% if rows and slots %}
-                <div class="card shadow-sm mb-4">
-                    <div class="card-body">
-                        <h2 class="h5 fw-bold mb-3">
-                            <i class="fas fa-table me-2"></i>日程表
-                        </h2>
-                        {% include 'vket/includes/schedule_table.html' with show_warnings=False show_legend=True %}
-                    </div>
+                <div class="admin-card">
+                    {% include 'ta_hub/admin/includes/section_heading.html' with title='日程表' only %}
+                    {% include 'vket/includes/schedule_table.html' with show_warnings=False show_legend=True %}
                 </div>
             {% endif %}
 
         {% endif %}
-    </div>
 {% endblock %}

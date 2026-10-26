@@ -1,21 +1,30 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 {% load django_bootstrap5 %}
 {% block meta %}
     {% include 'vket/includes/og_meta.html' %}
 {% endblock %}
-{% block main %}
-    <div class="container my-4" style="max-width: 860px;">
-        {% include 'ta_hub/messages.html' %}
-
-        <div class="mb-4">
-            <h1 class="fw-bold mb-1">{{ collaboration.name }} 参加登録</h1>
-            <div class="text-muted">
-                集会: <span class="fw-bold">{{ community.name }}</span><br>
-                締切1(参加表明): {{ collaboration.registration_deadline|date:"Y/m/d" }}
-                / 締切2(発表情報): {{ collaboration.lt_deadline|date:"Y/m/d" }}
-            </div>
-        </div>
-
+{% block admin_classes %}vket-member{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
+    {% include 'vket/includes/member_styles.html' %}
+{% endblock %}
+{% block admin_breadcrumbs %}{% include 'vket/includes/member_breadcrumbs.html' with page_label='Vket 参加登録' %}{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='Vket 参加登録' target=community.name|default:collaboration.name subtitle=collaboration.name %}
+{% endblock %}
+{% block admin_subnav %}{% include 'ta_hub/admin/includes/subnav.html' with links_template='vket/includes/member_nav_links.html' member_page='apply' %}{% endblock %}
+{% block admin_toc %}
+<aside class="admin-toc" aria-label="参加登録の目次">
+    <a href="#schedule">参加日程の希望</a>
+    <a href="#presentations">発表情報</a>
+    <a href="#organizer-note">運営への連絡</a>
+    {% if rows and slots %}<a href="#schedule-table">日程表</a>{% endif %}
+</aside>
+{% endblock %}
+{% block admin_attention %}
+    <section class="action-required" aria-label="受付と編集できる範囲">
+        <h2 class="h6 fw-bold">受付と編集できる範囲</h2>
+        <p>締切1(参加表明): {{ collaboration.registration_deadline|date:"Y/m/d" }} / 締切2(発表情報): {{ collaboration.lt_deadline|date:"Y/m/d" }}</p>
         {% if participation %}
             <div class="alert alert-info py-2">
                 <i class="fas fa-info-circle me-1"></i>
@@ -27,31 +36,29 @@
         {% endif %}
 
         {% if stage_register_open %}
-            <div class="card border-warning shadow-sm mb-4">
-                <div class="card-body">
-                    <h2 class="h5 fw-bold mb-2">
-                        <i class="fas fa-external-link-alt me-2 text-muted"></i>Vketステージ登録
-                        <span class="badge bg-secondary ms-1">未登録</span>
-                    </h2>
-                    <p class="mb-2">
-                        Vket公式サイトのステージページにも、イベント情報を登録してください。
-                        日程や発表内容が未確定でも、暫定の内容で登録して後から更新できます。
+            <div class="admin-card">
+                <h2 class="h5 fw-bold mb-2">
+                    <i class="fas fa-external-link-alt me-2 text-muted"></i>Vketステージ登録
+                    <span class="badge bg-secondary ms-1">未登録</span>
+                </h2>
+                <p class="mb-2">
+                    Vket公式サイトのステージページにも、イベント情報を登録してください。
+                    日程や発表内容が未確定でも、暫定の内容で登録して後から更新できます。
+                </p>
+                {% if stage_registration_guidance %}
+                    <p class="small mb-3">
+                        開催会場は「{{ stage_registration_guidance.venue }}」、タグは「{{ stage_registration_guidance.tag }}」を選んでください。
                     </p>
-                    {% if stage_registration_guidance %}
-                        <p class="small mb-3">
-                            開催会場は「{{ stage_registration_guidance.venue }}」、タグは「{{ stage_registration_guidance.tag }}」を選んでください。
-                        </p>
-                    {% endif %}
-                    <div class="d-flex flex-wrap gap-2 align-items-center">
-                        {% if stage_url %}
-                            <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary">
-                                <i class="fas fa-external-link-alt me-1"></i>Vketステージに登録する
-                            </a>
-                        {% endif %}
-                        <a href="{% url 'vket:status' collaboration.pk %}" class="btn btn-outline-secondary">
-                            登録したら申込み状況の画面で記録する
+                {% endif %}
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    {% if stage_url %}
+                        <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
+                            <i class="fas fa-external-link-alt me-1"></i>Vketステージに登録する
                         </a>
-                    </div>
+                    {% endif %}
+                    <a href="{% url 'vket:status' collaboration.pk %}" class="btn btn-outline-secondary btn-sm">
+                        登録したら申込み状況の画面で記録する
+                    </a>
                 </div>
             </div>
         {% endif %}
@@ -75,22 +82,20 @@
             </div>
         {% endif %}
 
-        <form method="post" class="card shadow-sm">
-            <div class="card-body">
-                {% csrf_token %}
-                {% bootstrap_form_errors form %}
+    </section>
+{% endblock %}
+{% block admin_content %}
+        <form id="vket-apply-form" method="post" data-admin-dirty>
 
-                <h2 class="h5 fw-bold mb-3">参加日程の希望（締切1）</h2>
+                {% csrf_token %}
+                {% include 'ta_hub/admin/includes/form_errors.html' with form=form only %}
+
+                <section id="schedule" class="admin-card" aria-labelledby="schedule-heading">
+                {% include 'ta_hub/admin/includes/section_heading.html' with title='参加日程の希望（締切1）' heading_id='schedule-heading' only %}
                 <p class="text-muted small mb-3">1 日 1 回、日程を自動で確定します。他の集会と発表時間が重なる場合も登録でき、警告が表示されます。確定後はこの画面で「確定日程」として表示されます。</p>
 
                 <div class="mb-3">
-                    <label class="form-label fw-bold">{{ form.requested_date.label }}</label>
-                    <div class="ms-2">
-                        {{ form.requested_date }}
-                    </div>
-                    {% if form.requested_date.errors %}
-                        <div class="text-danger small mt-1">{{ form.requested_date.errors }}</div>
-                    {% endif %}
+                    {% include 'ta_hub/admin/includes/form_field.html' with field=form.requested_date only %}
                     <div class="alert border-0 py-2 px-3 mt-2 mb-0 small"
                          style="background: #eef6ff; color: #2f5f8f;" role="note">
                         <i class="fas fa-info-circle me-1"></i>
@@ -103,7 +108,6 @@
                 </div>
 
                 {% if busy_payload %}
-                    <style>#busy-slots-list li:last-child { border-bottom: 0 !important; }</style>
                     <section id="busy-slots" class="rounded-3 border p-3 mb-3" style="max-width: 36rem;" aria-live="polite"
                              data-buffer-minutes="{{ schedule_buffer_minutes }}"
                              data-slot-minutes="{{ participation.lt_slot_minutes|default:30 }}">
@@ -130,20 +134,21 @@
 
                 <div class="row g-3 mb-4">
                     <div class="col-12 col-md-4">
-                        {% bootstrap_field form.requested_start_time %}
+                        {% include 'ta_hub/admin/includes/form_field.html' with field=form.requested_start_time only %}
                     </div>
                     <div class="col-12 col-md-4">
-                        {% bootstrap_field form.requested_duration %}
+                        {% include 'ta_hub/admin/includes/form_field.html' with field=form.requested_duration only %}
                     </div>
                 </div>
 
-                <hr class="my-4">
-
-                <h2 class="h5 fw-bold mb-3">発表情報（{{ collaboration.lt_deadline|date:"n/j" }} 締切・今入力しなくてもOK）</h2>
+                </section>
+                <section id="presentations" class="admin-card" aria-labelledby="presentations-heading">
+                {% include 'ta_hub/admin/includes/section_heading.html' with title='発表情報' heading_id='presentations-heading' only %}
+                <p class="admin-muted">{{ collaboration.lt_deadline|date:"n/j" }} 締切・今入力しなくてもOK</p>
 
                 <div class="row g-3 align-items-end mb-2">
                     <div class="col-12 col-md-4">
-                        {% bootstrap_field form.lt_slot_minutes %}
+                        {% include 'ta_hub/admin/includes/form_field.html' with field=form.lt_slot_minutes only %}
                     </div>
                 </div>
                 <p class="text-muted small mb-3">
@@ -157,18 +162,16 @@
                 <div id="lt-formset-container">
                     {% for lt_form in formset %}
                     <div class="lt-row mb-3 {% if lt_form.DELETE.value %}d-none{% endif %}" data-lt-index="{{ forloop.counter0 }}">
+                        {% include 'ta_hub/admin/includes/form_errors.html' with form=lt_form only %}
                         <div class="row g-2 align-items-end">
                             <div class="col-12 col-md-4">
-                                <label class="form-label">{{ lt_form.speaker.label }}</label>
-                                {{ lt_form.speaker }}
+                                {% include 'ta_hub/admin/includes/form_field.html' with field=lt_form.speaker only %}
                             </div>
                             <div class="col-12 col-md-4">
-                                <label class="form-label">{{ lt_form.theme.label }}</label>
-                                {{ lt_form.theme }}
+                                {% include 'ta_hub/admin/includes/form_field.html' with field=lt_form.theme only %}
                             </div>
                             <div class="col-12 col-md-3">
-                                <label class="form-label">{{ lt_form.lt_start_time.label }}</label>
-                                {{ lt_form.lt_start_time }}
+                                {% include 'ta_hub/admin/includes/form_field.html' with field=lt_form.lt_start_time only %}
                             </div>
                             {% if permissions.can_edit_lt and lt_form.can_organizer_delete %}
                             <div class="col-12 col-md-1 d-flex align-items-end">
@@ -187,18 +190,16 @@
                 <template id="lt-empty-row">
                     {% with lt_form=formset.empty_form %}
                     <div class="lt-row mb-3" data-lt-index="__prefix__">
+                        {% include 'ta_hub/admin/includes/form_errors.html' with form=lt_form only %}
                         <div class="row g-2 align-items-end">
                             <div class="col-12 col-md-4">
-                                <label class="form-label">{{ lt_form.speaker.label }}</label>
-                                {{ lt_form.speaker }}
+                                {% include 'ta_hub/admin/includes/form_field.html' with field=lt_form.speaker only %}
                             </div>
                             <div class="col-12 col-md-4">
-                                <label class="form-label">{{ lt_form.theme.label }}</label>
-                                {{ lt_form.theme }}
+                                {% include 'ta_hub/admin/includes/form_field.html' with field=lt_form.theme only %}
                             </div>
                             <div class="col-12 col-md-3">
-                                <label class="form-label">{{ lt_form.lt_start_time.label }}</label>
-                                {{ lt_form.lt_start_time }}
+                                {% include 'ta_hub/admin/includes/form_field.html' with field=lt_form.lt_start_time only %}
                             </div>
                             <div class="col-12 col-md-1 d-flex align-items-end">
                                 <button type="button" class="btn btn-outline-danger btn-sm lt-delete-btn" title="削除">
@@ -218,38 +219,27 @@
                 </button>
                 {% endif %}
 
-                <div class="col-12 mt-3">
-                    <label for="{{ form.organizer_note.id_for_label }}" class="form-label fw-bold">
-                        {{ form.organizer_note.label }}
-                    </label>
-                    <div class="small text-muted mb-2">
-                        1. スタッフが少なく、当日ステージへの案内などサポートが欲しい場合は「サポート希望」と記載してください。<br>
-                        2. その他、運営に連絡事項があれば記載をお願いします。
-                    </div>
-                    {{ form.organizer_note }}
-                    {% if form.organizer_note.errors %}
-                        <div class="text-danger small mt-1">{{ form.organizer_note.errors }}</div>
-                    {% endif %}
-                </div>
-
-                <div class="d-flex justify-content-end mt-3">
-                    <button class="btn btn-primary" type="submit">保存する</button>
-                </div>
-            </div>
+                </section>
+                <section id="organizer-note" class="admin-card" aria-labelledby="note-heading">
+                    {% include 'ta_hub/admin/includes/section_heading.html' with title='運営への連絡' heading_id='note-heading' only %}
+                    <p class="admin-muted">当日の案内などサポートが必要な場合は「サポート希望」と記載してください。その他の連絡事項もこちらへ記載できます。</p>
+                    {% include 'ta_hub/admin/includes/form_field.html' with field=form.organizer_note only %}
+                </section>
         </form>
 
         {% if rows and slots %}
-            <div class="card shadow-sm mt-4">
-                <div class="card-body">
-                    <h2 class="h5 fw-bold mb-3">
-                        <i class="fas fa-table me-2"></i>日程表
-                    </h2>
-                    {% include 'vket/includes/schedule_table.html' with show_warnings=False show_legend=True %}
-                </div>
-            </div>
+            <section id="schedule-table" class="admin-card">
+                {% include 'ta_hub/admin/includes/section_heading.html' with title='日程表' only %}
+                {% include 'vket/includes/schedule_table.html' with show_warnings=False show_legend=True %}
+            </section>
         {% endif %}
-    </div>
-
+{% endblock %}
+{% block admin_action_bar %}
+    {% url 'vket:status' collaboration.pk as status_url %}
+    {% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions cancel_url=status_url only %}
+{% endblock %}
+{% block extra_js %}
+    {{ block.super }}
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         var panel = document.getElementById('busy-slots');
@@ -280,7 +270,7 @@
 
         function selectedLabel() {
             var checked = document.querySelector('input[name="requested_date"]:checked');
-            var label = checked && checked.closest('label');
+            var label = checked && (checked.closest('label') || document.querySelector('label[for="' + checked.id + '"]'));
             return label ? label.textContent.trim() : '';
         }
 
@@ -445,7 +435,11 @@
             newRow.dataset.ltIndex = newIndex;
 
             container.appendChild(newRow);
+            newRow.querySelectorAll('label[for]').forEach(function(label) {
+                label.htmlFor = label.htmlFor.replace('__prefix__', newIndex);
+            });
             totalForms.value = newIndex + 1;
+            totalForms.dispatchEvent(new Event('change', {bubbles: true}));
         });
 
         document.addEventListener('click', function(e) {
@@ -460,6 +454,7 @@
             var deleteInput = row.querySelector('input[name$="-DELETE"]');
             if (deleteInput) {
                 deleteInput.checked = true;
+                deleteInput.dispatchEvent(new Event('change', {bubbles: true}));
             }
             row.classList.add('d-none');
         });

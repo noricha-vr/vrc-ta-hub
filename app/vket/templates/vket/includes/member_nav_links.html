@@ -1,0 +1,6 @@
+<a href="{% url 'event:my_list' %}">イベント</a>
+<a href="{% url 'vket:status' collaboration.pk %}"{% if member_page == 'status' %} aria-current="page"{% endif %}>Vket 参加状況</a>
+{% if community %}<a href="{% url 'vket:apply' collaboration.pk %}"{% if member_page == 'apply' %} aria-current="page"{% endif %}>参加登録・変更</a>{% endif %}
+<a href="{% url 'vket:notice_list' collaboration.pk %}"{% if member_page == 'notices' %} aria-current="page"{% endif %}>お知らせ</a>
+{% if member_page == 'stage' %}<a href="{% url 'vket:stage_copy' collaboration.pk participation.pk %}" aria-current="page">ステージ登録用コピー</a>{% endif %}
+{% if is_admin %}<a href="{% url 'vket:manage' collaboration.pk %}">管理 <span class="badge bg-secondary">運営</span></a>{% endif %}

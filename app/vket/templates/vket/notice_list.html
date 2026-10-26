@@ -1,52 +1,44 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 {% load markdown_extras static %}
 {% block meta %}
     {% include 'vket/includes/og_meta.html' %}
 {% endblock %}
-{% block main %}
+{% block admin_classes %}vket-member{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
+    {% include 'vket/includes/member_styles.html' %}
     <style>
-        .notice-body h1,
-        .notice-body h2,
-        .notice-body h3,
-        .notice-body h4 {
+        .hub-admin .notice-body h1,
+        .hub-admin .notice-body h2,
+        .hub-admin .notice-body h3,
+        .hub-admin .notice-body h4 {
             font-weight: 600;
             margin-top: 1.25rem;
             margin-bottom: 0.5rem;
         }
-        .notice-body h1 { font-size: 1.35rem; }
-        .notice-body h2 { font-size: 1.2rem; }
-        .notice-body h3 { font-size: 1.1rem; }
-        .notice-body h4 { font-size: 1rem; }
-        .notice-body p { margin-bottom: 0.75rem; }
-        .notice-body a { word-break: break-all; }
-        .notice-done .accordion-button { background-color: var(--bs-tertiary-bg); }
-        .notice-done .accordion-button:not(.collapsed) { color: inherit; box-shadow: none; }
-        .notice-done .accordion-item { opacity: .8; }
-        .notice-title-text { min-width: 0; overflow-wrap: anywhere; }
+        .hub-admin .notice-body h1 { font-size: 1.35rem; }
+        .hub-admin .notice-body h2 { font-size: 1.2rem; }
+        .hub-admin .notice-body h3 { font-size: 1.1rem; }
+        .hub-admin .notice-body h4 { font-size: 1rem; }
+        .hub-admin .notice-body p { margin-bottom: 0.75rem; }
+        .hub-admin .notice-body a { word-break: break-all; }
+        .hub-admin .notice-done .accordion-button { background-color: var(--bs-tertiary-bg); }
+        .hub-admin .notice-done .accordion-button:not(.collapsed) { color: inherit; box-shadow: none; }
+        .hub-admin .notice-done .accordion-item { opacity: .8; }
+        .hub-admin .notice-title-text { min-width: 0; overflow-wrap: anywhere; }
     </style>
-    <div class="container my-4" style="max-width: 860px;">
-        {% include 'ta_hub/messages.html' %}
+{% endblock %}
+{% block admin_breadcrumbs %}{% include 'vket/includes/member_breadcrumbs.html' with page_label='Vket お知らせ' %}{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='Vket お知らせ' target=community.name|default:collaboration.name subtitle=collaboration.name %}
+{% endblock %}
+{% block admin_subnav %}{% include 'ta_hub/admin/includes/subnav.html' with links_template='vket/includes/member_nav_links.html' member_page='notices' %}{% endblock %}
 
-        <div class="mb-4">
-            <h1 class="fw-bold mb-1">{{ collaboration.name }} お知らせ一覧</h1>
-            {% if community %}
-                <div class="text-muted">集会: <strong>{{ community.name }}</strong></div>
-            {% endif %}
-        </div>
-
-        <div class="mb-3">
-            <a href="{% url 'vket:status' collaboration.pk %}" class="btn btn-sm btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i>参加状況に戻る
-            </a>
-        </div>
-
+{% block admin_content %}
         {% if not receipts %}
-            <div class="alert alert-secondary">
-                <i class="fas fa-info-circle me-2"></i>
-                お知らせはまだありません。
-            </div>
+            {% include 'ta_hub/admin/includes/empty_state.html' with title='お知らせはまだありません。' only %}
         {% else %}
-            <section class="mb-4" aria-labelledby="unackedHeading">
+            <section class="admin-card" aria-labelledby="unackedHeading">
                 <h2 id="unackedHeading" class="h5 fw-bold mb-2">
                     {% if unacked_receipts %}
                         <i class="fas fa-exclamation-circle text-warning me-1"></i>未確認 {{ unacked_receipts|length }} 件
@@ -64,7 +56,7 @@
             </section>
 
             {% if other_receipts %}
-                <section class="notice-done" aria-labelledby="doneHeading">
+                <section class="admin-card notice-done" aria-labelledby="doneHeading">
                     <h2 id="doneHeading" class="h6 text-muted fw-bold mb-2">確認済み・確認不要 {{ other_receipts|length }} 件</h2>
                     <div class="accordion" id="doneAccordion">
                         {% for receipt in other_receipts %}
@@ -74,8 +66,9 @@
                 </section>
             {% endif %}
         {% endif %}
-    </div>
-
+{% endblock %}
+{% block extra_js %}
+    {{ block.super }}
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         {% if scroll_to_open and open_notice_id %}
@@ -86,8 +79,5 @@
         {% endif %}
     });
     </script>
-{% endblock %}
-
-{% block extra_js %}
     <script src="{% static 'vket/js/submit_once.js' %}"></script>
 {% endblock %}
