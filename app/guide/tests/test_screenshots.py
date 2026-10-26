@@ -69,15 +69,21 @@ class GuideDemoDataTest(TestCase):
         demo_root = str(Path(settings.DATABASES['default']['NAME']).resolve().parent)
         with override_settings(GUIDE_DEMO_ROOT=demo_root):
             call_command('seed_guide_demo', stdout=StringIO())
+            counts = (CustomUser.objects.count(), Community.objects.count(), Event.objects.count(),
+                      EventDetail.objects.count())
             call_command('seed_guide_demo', stdout=StringIO())
-        self.assertEqual(CustomUser.objects.count(), 4)
-        self.assertEqual(Community.objects.count(), 2)
-        self.assertEqual(CommunityMember.objects.count(), 3)
-        self.assertEqual(Event.objects.count(), 1)
-        self.assertEqual(RecurrenceRule.objects.count(), 1)
-        self.assertEqual(EventDetail.objects.filter(status='pending').count(), 1)
-        self.assertEqual(EventDetail.objects.filter(status='approved').count(), 1)
-        self.assertEqual(CommunityInvitation.objects.count(), 1)
+        self.assertEqual((CustomUser.objects.count(), Community.objects.count(), Event.objects.count(),
+                          EventDetail.objects.count()), counts)
+        # セクション別のデータ（guide/demo_seeds/）が増えても壊れないよう、共通の土台の最低限だけを見る。
+        # 2 回目の実行で増えないこと（冪等）は、件数を 1 回目と比べて確かめる。
+        self.assertGreaterEqual(CustomUser.objects.count(), 4)
+        self.assertGreaterEqual(Community.objects.count(), 2)
+        self.assertGreaterEqual(CommunityMember.objects.count(), 3)
+        self.assertGreaterEqual(Event.objects.count(), 1)
+        self.assertGreaterEqual(RecurrenceRule.objects.count(), 1)
+        self.assertGreaterEqual(EventDetail.objects.filter(status='pending').count(), 1)
+        self.assertGreaterEqual(EventDetail.objects.filter(status='approved').count(), 1)
+        self.assertGreaterEqual(CommunityInvitation.objects.count(), 1)
         for role, (_, email) in DEMO_USERS.items():
             user = CustomUser.objects.get(email=email)
             self.assertTrue(user.check_password(os.environ['GUIDE_DEMO_PASSWORD']))
