@@ -1,0 +1,54 @@
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}メールアドレスの変更 - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}{% include 'account/includes/breadcrumbs.html' with current='メールアドレスの変更' %}{% endblock %}
+{% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='メールアドレスの変更' target=user.display_label %}{% endblock %}
+{% block extra_css %}{{ block.super }}<style>.hub-admin .admin-layout { max-width: 42rem; margin-inline: auto; }</style>{% endblock %}
+{% block admin_content %}
+<section class="admin-card" aria-labelledby="email-change-heading">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='ログイン用メールアドレス' heading_id='email-change-heading' description='新しいアドレスの確認が完了するまで現在のアドレスを使用します。' %}
+    {% if not emailaddresses %}
+        {% include 'ta_hub/admin/includes/empty_state.html' with title='メールアドレスはまだ登録されていません' description='ログインと通知に使うメールアドレスを入力してください。' %}
+    {% endif %}
+    <form id="email-change-form" method="post" action="{% url 'account_email' %}" data-admin-dirty>
+        {% csrf_token %}
+        {% if current_emailaddress %}
+        <div class="mb-3">
+            <label for="current_email" class="form-label">現在のメールアドレス</label>
+            <input id="current_email" type="email" class="form-control" value="{{ current_emailaddress.email }}" disabled>
+            {% include 'ta_hub/admin/includes/status_chip.html' with label='確認済み' tone='success' %}
+        </div>
+        {% endif %}
+        {% if new_emailaddress %}
+        <div class="mb-3">
+            <label for="new_email" class="form-label">{% if current_emailaddress %}変更先のメールアドレス{% else %}現在のメールアドレス{% endif %}</label>
+            <input id="new_email" type="email" class="form-control" value="{{ new_emailaddress.email }}" disabled>
+            {% include 'ta_hub/admin/includes/status_chip.html' with label='確認待ち' tone='warning' %}
+            <p class="admin-muted mt-2 mb-2">確認メールのリンクを開いて、メールアドレスを確認してください。</p>
+            <div class="d-flex flex-wrap gap-2">
+                <button form="pending-email" type="submit" name="action_send" class="btn btn-sm btn-outline-secondary">確認メールを再送</button>
+                {% if current_emailaddress %}
+                <button type="button" class="btn btn-sm btn-outline-danger" data-confirm-panel="cancel-email-change" aria-controls="cancel-email-change" aria-expanded="false">変更を取り消す…</button>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% include 'ta_hub/admin/includes/form_errors.html' with form=form %}
+        {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+        {% for field in form.visible_fields %}{% include 'ta_hub/admin/includes/form_field.html' with field=field %}{% endfor %}
+        <div class="d-flex flex-wrap gap-2">
+            <button name="action_add" type="submit" class="btn btn-primary">メールアドレスを変更</button>
+            <a href="{% url 'account:settings' %}" class="btn btn-outline-secondary">キャンセル</a>
+        </div>
+    </form>
+    {% if new_emailaddress %}
+        <form id="pending-email" method="post" action="{% url 'account_email' %}" hidden>
+            {% csrf_token %}
+            <input type="hidden" name="email" value="{{ new_emailaddress.email }}">
+        </form>
+        {% if current_emailaddress %}
+            {% url 'account_email' as email_url %}
+            {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='cancel-email-change' label='メールアドレス変更の取り消し' message='確認待ちのメールアドレスへの変更を取り消しますか？現在のメールアドレスはそのまま使えます。' action_url=email_url submit_label='変更を取り消す' submit_name='action_remove' submit_value='' fields_template='account/includes/pending_email_field.html' %}
+        {% endif %}
+    {% endif %}
+</section>
+{% endblock %}
