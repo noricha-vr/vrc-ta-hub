@@ -5,7 +5,7 @@
 {% block extra_css %}{{ block.super }}<style>.hub-admin .admin-layout { max-width: 42rem; margin-inline: auto; }</style>{% endblock %}
 {% block admin_content %}
 <section class="admin-card" aria-labelledby="email-change-heading">
-    {% include 'ta_hub/admin/includes/section_heading.html' with title='ログイン用メールアドレス' heading_id='email-change-heading' description='新しいアドレスの確認が完了するまで現在のアドレスを使用します。' form_id='email-change-form' %}
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='ログイン用メールアドレス' heading_id='email-change-heading' description='新しいアドレスの確認が完了するまで現在のアドレスを使用します。' %}
     {% if not emailaddresses %}
         {% include 'ta_hub/admin/includes/empty_state.html' with title='メールアドレスはまだ登録されていません' description='ログインと通知に使うメールアドレスを入力してください。' %}
     {% endif %}
