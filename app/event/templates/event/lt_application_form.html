@@ -1,56 +1,29 @@
-{% extends 'ta_hub/base.html' %}
-
-{% block meta %}
-    {% include 'ta_hub/includes/og_meta.html' %}
+{% extends 'ta_hub/admin_base.html' %}
+{% block meta %}{% include 'ta_hub/includes/og_meta.html' %}{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb">
+<li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+<li class="breadcrumb-item"><a href="{% url 'community:detail' community.pk %}">{{ community.name }}</a></li>
+<li class="breadcrumb-item active" aria-current="page">発表を申請</li>
+</ol></nav>
 {% endblock %}
-
-{% block main %}
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <nav aria-label="breadcrumb" class="mb-4">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{% url 'community:list' %}">集会一覧</a></li>
-                    <li class="breadcrumb-item"><a href="{% url 'community:detail' community.pk %}">{{ community.name }}</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">発表を申請</li>
-                </ol>
-            </nav>
-
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <h1 class="h4 mb-0">
-                        <i class="bi bi-mic me-2"></i>発表を申請
-                    </h1>
-                </div>
-                <div class="card-body">
-                    <div class="alert alert-info mb-4">
-                        <h5 class="alert-heading"><i class="bi bi-info-circle me-2"></i>申請について</h5>
-                        <p class="mb-2">発表の申請は、主催者の承認後に正式に登録されます。</p>
-                        <ul class="mb-2">
-                            <li>申請後、主催者にメールで通知されます</li>
-                            <li>承認または却下の結果はメールでお知らせします</li>
-                            <li>発表内容の詳細（スライドや動画）は承認後に編集できます</li>
-                        </ul>
-                        <p class="mb-2">発表開始時刻は申請順に自動で割り当てられます。</p>
-                        <p class="mb-2">Vketコラボの開催回への応募は、承認後にVketの発表にも反映されます。最後の発表まで開催時間を延長します。</p>
-                        <p class="mb-0">発表後にスライドの登録にご協力をお願いします。</p>
-                    </div>
-
-                    {% if not form.fields.event.queryset.exists %}
-                        <div class="alert alert-warning">
-                            <h5 class="alert-heading"><i class="bi bi-exclamation-triangle me-2"></i>申請可能な日程がありません</h5>
-                            <p class="mb-0">現在、発表を申請できる今後の開催日がありません。</p>
-                        </div>
-                        <div class="text-center mt-4">
-                            <a href="{% url 'community:detail' community.pk %}" class="btn btn-secondary">
-                                <i class="bi bi-arrow-left me-2"></i>集会ページに戻る
-                            </a>
-                        </div>
-                    {% else %}
-                        {{ next_start_times|json_script:"next-start-times" }}
-                        <form method="post">
-                            {% csrf_token %}
-
+{% block admin_header %}
+{% include 'ta_hub/admin/includes/page_header.html' with title='発表を申請' target=community.name only %}
+{% endblock %}
+{% block admin_content %}
+{% if not form.fields.event.queryset.exists %}
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/empty_state.html' with title='申請可能な日程がありません' description='現在、発表を申請できる今後の開催日がありません。' only %}
+<a href="{% url 'community:detail' community.pk %}" class="btn btn-outline-secondary">集会ページに戻る</a>
+</section>
+{% else %}
+{{ next_start_times|json_script:"next-start-times" }}
+<form method="post" id="application-form" data-admin-dirty>
+{% csrf_token %}
+{% include 'ta_hub/admin/includes/form_errors.html' with form=form only %}
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='集会と開催回' only %}
+<p>{{ community.name }}</p>
                             <div class="mb-4">
                                 <label for="id_event" class="form-label fw-bold">
                                     <i class="bi bi-calendar-event me-1"></i>{{ form.event.label }}
@@ -68,6 +41,22 @@
                                 {% endif %}
                             </div>
 
+</section>
+                    <div class="alert alert-info mb-4">
+                        <h5 class="alert-heading"><i class="bi bi-info-circle me-2"></i>申請について</h5>
+                        <p class="mb-2">発表の申請は、主催者の承認後に正式に登録されます。</p>
+                        <ul class="mb-2">
+                            <li>申請後、主催者にメールで通知されます</li>
+                            <li>承認または却下の結果はメールでお知らせします</li>
+                            <li>発表内容の詳細（スライドや動画）は承認後に編集できます</li>
+                        </ul>
+                        <p class="mb-2">発表開始時刻は申請順に自動で割り当てられます。</p>
+                        <p class="mb-2">Vketコラボの開催回への応募は、承認後にVketの発表にも反映されます。最後の発表まで開催時間を延長します。</p>
+                        <p class="mb-0">発表後にスライドの登録にご協力をお願いします。</p>
+                    </div>
+
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='発表内容' only %}
                             <div class="mb-4">
                                 <label for="id_theme" class="form-label fw-bold">
                                     <i class="bi bi-chat-left-text me-1"></i>{{ form.theme.label }}
@@ -125,6 +114,9 @@
                                 {% endif %}
                             </div>
 
+</section>
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='撮影・記事化' only %}
                             {% if form.recording_policy %}
                             <div class="mb-4">
                                 <p class="form-label fw-bold mb-1">
@@ -158,6 +150,9 @@
                                 {% endif %}
                             </div>
 
+</section>
+{% if form.additional_info %}<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='追加情報' only %}
                             {% if form.additional_info %}
                             <div class="mb-4">
                                 <label for="id_additional_info" class="form-label fw-bold">
@@ -175,32 +170,18 @@
                             </div>
                             {% endif %}
 
-                            {% if form.non_field_errors %}
-                                <div class="alert alert-danger">
-                                    {% for error in form.non_field_errors %}{{ error }}{% endfor %}
-                                </div>
-                            {% endif %}
-
-                            <hr class="my-4">
-
-                            <div class="d-flex justify-content-between">
-                                <a href="{% url 'community:detail' community.pk %}" class="btn btn-outline-secondary">
-                                    <i class="bi bi-arrow-left me-2"></i>キャンセル
-                                </a>
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-send me-2"></i>申請する
-                                </button>
-                            </div>
-                        </form>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+</section>{% endif %}
+</form>
+{% endif %}
 {% endblock %}
-
+{% block admin_action_bar %}
+{% if form.fields.event.queryset.exists %}
+{% url 'community:detail' community.pk as cancel_url %}
+{% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions cancel_url=cancel_url only %}
+{% endif %}
+{% endblock %}
 {% block extra_js %}
+{{ block.super }}
 <script>
     (() => {
         const eventSelect = document.getElementById('id_event');
