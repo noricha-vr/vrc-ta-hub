@@ -15,23 +15,32 @@ LT_LABEL_PX = 30
 TIME_AXIS_PX = 64
 
 
+def _minutes(value):
+    return value.hour * 60 + value.minute + value.second / 60
+
+
 def _lt_segments(event, details, visible_minutes):
     """集会の開催時間のうち LT がある区間を、枠の高さに対する割合と見出しの位置にする。
 
     visible_minutes は表に描く枠の長さ（日付をまたぐ集会は 24:00 で切れる）。
+    0 時を過ぎてから始まる LT はレールに描けないので、見出しだけ出す。
     """
-    event_start = event.start_time.hour * 60 + event.start_time.minute
+    event_start = _minutes(event.start_time)
     body_px = visible_minutes * PX_PER_MINUTE - 6
     segments = []
     floor = HEADER_PX
     for detail in details:
-        offset = detail.start_time.hour * 60 + detail.start_time.minute - event_start
-        duration = detail.duration or 0
+        offset = _minutes(detail.start_time) - event_start
+        if offset < 0 and offset + 24 * 60 < event.duration:
+            # 日付をまたぐ集会の、0 時以降に始まる LT
+            offset += 24 * 60
         start = max(offset, 0)
-        end = min(offset + duration, visible_minutes)
+        end = min(offset + (detail.duration or 0), event.duration)
         if end <= start:
             continue
-        label_top = max(start * PX_PER_MINUTE - 3, floor)
+        visible_end = min(end, visible_minutes)
+        anchor = start * PX_PER_MINUTE - 3 if start < visible_minutes else floor
+        label_top = round(max(anchor, floor))
         show_label = label_top + LT_LABEL_PX - 2 <= body_px
         if show_label:
             floor = label_top + LT_LABEL_PX
@@ -39,7 +48,10 @@ def _lt_segments(event, details, visible_minutes):
         segments.append({
             'time_label': f'{detail.start_time:%H:%M}〜{end_minutes // 60:02d}:{end_minutes % 60:02d}',
             'title': detail.theme or f'発表者: {detail.speaker}',
-            'rail_style': f'top:{start / visible_minutes * 100:.4f}%;height:{(end - start) / visible_minutes * 100:.4f}%;',
+            'rail_style': (
+                f'top:{start / visible_minutes * 100:.4f}%;height:{(visible_end - start) / visible_minutes * 100:.4f}%;'
+                if visible_end > start else None
+            ),
             'label_style': f'top:{label_top}px;' if show_label else None,
         })
     return segments

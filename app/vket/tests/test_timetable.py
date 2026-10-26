@@ -193,6 +193,21 @@ class CollaborationTimetableTests(TestCase):
         segment = self.first_day_blocks(self.build())[0]['lt_segments'][0]
         self.assertEqual(segment['rail_style'], 'top:50.0000%;height:50.0000%;')
         self.assertEqual(segment['label_style'], 'top:57px;')
+        self.assertEqual(segment['time_label'], '23:30〜00:30')
+
+    def test_lt_after_midnight_is_listed_without_rail(self):
+        _, event = self.add_slot(start=time(23), duration=120)
+        make_event_detail(event, status='approved', theme='日付またぎ', start_time=time(0, 15), duration=30)
+        segment = self.first_day_blocks(self.build())[0]['lt_segments'][0]
+        self.assertEqual(segment['time_label'], '00:15〜00:45')
+        self.assertIsNone(segment['rail_style'])
+        self.assertEqual(segment['label_style'], 'top:34px;')
+
+    def test_seconds_are_kept_in_lt_position(self):
+        _, event = self.add_slot(start=time(21, 0, 30), duration=60)
+        make_event_detail(event, status='approved', theme='秒', start_time=time(21, 1), duration=10)
+        segment = self.first_day_blocks(self.build())[0]['lt_segments'][0]
+        self.assertEqual(segment['rail_style'], 'top:0.8333%;height:16.6667%;')
 
     def test_short_slot_keeps_rail_but_hides_label_that_does_not_fit(self):
         _, event = self.add_slot(start=time(21), duration=30)
