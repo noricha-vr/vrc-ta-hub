@@ -3,8 +3,7 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from event.models import EventDetail
-from tests.factories import make_community, make_event
+from tests.factories import make_community, make_event, make_event_detail
 from vket.models import VketCollaboration, VketParticipation
 from vket.timetable import build_collaboration_timetable
 
@@ -26,7 +25,8 @@ class CollaborationTimetableTests(TestCase):
             collaboration=self.collaboration, community=community, published_event=event,
         )
         if details:
-            EventDetail.objects.create(event=event, **details)
+            # factory の既定値を空にして、指定した項目だけで判定させる
+            make_event_detail(event, **{'speaker': '', 'theme': '', **details})
         return participation, event
 
     def build(self, today=date(2026, 12, 5)):
