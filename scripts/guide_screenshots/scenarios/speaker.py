@@ -48,8 +48,8 @@ def apply(capture):
            marks=['#id_event', '#id_theme', '#id_speaker'])
     region(capture, ['form .mb-4:has([aria-label="撮影"])', 'form .mb-4:has([aria-label="発表の記事化"])'])
     page.locator('#id_additional_info').fill('【発表概要】\nワールドを作る手順を紹介します。\n【希望する時間】\n質疑応答を含めて30分です。')
-    region(capture, ['form .mb-4:has(#id_additional_info)', 'main form button[type=submit]'],
-           marks=['#id_additional_info', 'main form button[type=submit]'])
+    region(capture, ['#application-form .admin-card:has(#id_additional_info)', '[data-admin-action-bar]'],
+           marks=['#id_additional_info', 'button[form="application-form"]'])
     # 保存・通知は実行せず、seed 済みの承認待ち状態と実際の完了テンプレートを撮る。
     capture.goto('/event/apply/1/complete/')
     region(capture, ['main h1', 'main .alert-success', 'a[href="/account/lt-applications/"]'],
@@ -69,11 +69,12 @@ def manage(capture):
     url = edit_url(capture)
     capture.goto(url)
     region(capture, [field('theme'), field('speaker')], marks=['#id_theme', '#id_speaker'])
-    region(capture, [field('recording_policy'), field('article_consent')])
+    region(capture, [field('h1'), field('contents')], marks=['#id_h1', '#id_contents'])
     region(capture, [field('slide_file'), field('slide_url'), field('youtube_url')],
            marks=['#id_slide_file', '#id_slide_url', '#id_youtube_url'])
-    region(capture, [field('h1'), field('contents')], marks=['#id_h1', '#id_contents'])
-    region(capture, ['main form button[type=submit]'])
+    region(capture, [field('recording_policy'), field('article_consent')])
+    region(capture, ['#application-form [data-admin-action-bar]'],
+           marks=['#application-form button[type=submit]'])
 
 
 @scenario('speaker/slide-video', mobile=True)
@@ -85,7 +86,8 @@ def slide_video(capture):
     capture.shot(selector='.diagram')
     capture.goto(edit_url(capture))
     region(capture, [field('slide_file')], marks=['#id_slide_file'])
-    region(capture, ['main form button[type=submit]'])
+    region(capture, ['#application-form [data-admin-action-bar]'],
+           marks=['#application-form button[type=submit]'])
     for name, selectors in [
         ('speaker-webscreen-upload.html', ['#login', '#upload']),
         ('speaker-webscreen-result.html', ['#video-url', '#copy']),

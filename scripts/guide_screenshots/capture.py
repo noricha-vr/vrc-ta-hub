@@ -49,6 +49,13 @@ def assert_safe(text):
         raise ValueError('撮影ガード: 鍵・トークン形式の文字列')
 
 
+STATIC_ACTION_BAR = '''document.addEventListener('DOMContentLoaded', () => {
+    const style = document.createElement('style');
+    style.textContent = '.hub-admin .stickybar {position: static !important; transform: none !important;}';
+    document.head.append(style);
+});'''
+
+
 class Capture:
     def __init__(self, page, base_url, path, mobile=False):
         self.page = page
@@ -178,7 +185,7 @@ class Capture:
             if not box:
                 raise ValueError('切り出し対象がありません')
             scroll = self.page.evaluate('({x: scrollX, y: scrollY})')
-            top = max(0, box['y'] + scroll['y'] - 32)
+            top = max(0, box['y'] + scroll['y'] - 20)
             clip = {'x': max(0, box['x'] + scroll['x'] - 16), 'y': top,
                     'width': min(box['width'] + 32, self.page.viewport_size['width'] - max(0, box['x'] - 16)),
                     'height': box['y'] + scroll['y'] + box['height'] + 6 - top}
@@ -229,6 +236,9 @@ def main():
                             else:
                                 route.abort()
                         context.route('**/*', route_request)
+                        # 管理画面の保存バーは画面下に固定されるので、全体撮影や要素の切り出しで手前の項目に重なる。
+                        # リンクのクリックで移った先でも効くよう、どのページでも読み込み時にフォームの末尾へ置く。
+                        context.add_init_script(STATIC_ACTION_BAR)
                         capture = Capture(context.new_page(), sys.argv[1], path, mobile)
                         SCENARIOS[path](capture)
                         count += capture.count
