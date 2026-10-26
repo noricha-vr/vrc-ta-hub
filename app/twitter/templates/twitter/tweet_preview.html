@@ -1,114 +1,59 @@
-{% extends 'ta_hub/base.html' %}
-{% load static %}
+{% extends 'ta_hub/admin_base.html' %}
 
-{% block main %}
-    <div class="container mt-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">ポストプレビュー</h5>
-            </div>
-            <div class="card-body">
-                <div class="tweet-content p-3 bg-light rounded mb-4">
-                    <p id="tweet-text" class="mb-0">{{ tweet_text|safe }}</p>
-                </div>
-
-                <hr class="my-4">
-                <h6 class="text-muted mb-3">投稿方法を選択</h6>
-
-                {# 方法1: 予約投稿する場合（推奨） #}
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h6 class="card-subtitle mb-2 text-muted">方法1: 予約投稿する場合（推奨）</h6>
-                        <hr class="my-2">
-                        <div class="d-flex flex-wrap gap-2 mb-2">
-                            <button id="copy-button" class="btn btn-secondary" onclick="copyTweet()">
-                                <i id="copy-icon" class="fas fa-copy me-2"></i><span id="copy-text">コピー</span>
-                            </button>
-                            <a href="https://x.com" target="_blank" class="btn x-button">
-                                <i class="fa-brands fa-x-twitter me-2"></i>Xを開く
-                            </a>
-                        </div>
-                        <small class="text-muted">コピーしてから投稿画面に貼り付け。予約投稿が可能。</small>
-                    </div>
-                </div>
-
-                {# 方法2: 今すぐ投稿する場合 #}
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h6 class="card-subtitle mb-2 text-muted">方法2: 今すぐ投稿する場合</h6>
-                        <hr class="my-2">
-                        <div class="mb-2">
-                            <a href="{{ intent_url }}" target="_blank" class="btn x-button">
-                                <i class="fa-brands fa-x-twitter me-2"></i>Xで投稿する
-                            </a>
-                        </div>
-                        <small class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>予約投稿はできません</small>
-                    </div>
-                </div>
-
-                <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left me-2"></i>戻る
-                </a>
-            </div>
-        </div>
-    </div>
-
-    <style>
-        .x-button {
-            background-color: #000000;
-            border-color: #000000;
-            color: white;
-        }
-        .x-button:hover {
-            background-color: #1f1f1f;
-            border-color: #1f1f1f;
-            color: white;
-        }
-    </style>
+{% block title %}X 告知のプレビュー: {{ event.community.name }} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li><li class="breadcrumb-item active" aria-current="page">X 告知のプレビュー</li></ol></nav>
 {% endblock %}
-
+{% block admin_header %}
+{% include 'ta_hub/admin/includes/page_header.html' with title='X 告知のプレビュー' target=event.community.name only %}
+<p class="admin-muted">{{ event.date|date:'Y/m/d' }} · {{ template.name }}</p>
+{% endblock %}
+{% block admin_content %}
+<section class="admin-card" aria-labelledby="tweet-heading">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='投稿文' heading_id='tweet-heading' only %}
+    {% if tweet_text %}
+    <p id="tweet-text" class="text-break mb-0">{{ tweet_text|safe }}</p>
+    {% else %}
+    {% include 'ta_hub/admin/includes/empty_state.html' with title='投稿文を生成できませんでした' description='イベント管理に戻り、もう一度プレビューを開いてください。' only %}
+    {% endif %}
+</section>
+<section class="admin-card" aria-labelledby="schedule-heading">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='予約投稿の手順' heading_id='schedule-heading' only %}
+    <p>投稿文をコピーし、X の投稿画面に貼り付けて、X 側で予約日時を設定してください。</p>
+    <p class="admin-muted">このサイトでは予約は完了しません。</p>
+    <div class="event-actions">
+        <button type="button" id="copy-button" class="btn btn-outline-secondary" onclick="copyTweet()"{% if not tweet_text %} disabled{% endif %}><i id="copy-icon" class="fas fa-copy me-2" aria-hidden="true"></i><span id="copy-text" aria-live="polite">投稿文をコピー</span></button>
+        <a href="https://x.com" target="_blank" rel="noopener noreferrer" class="btn btn-outline-secondary">X を開いて予約する ↗</a>
+    </div>
+    <p id="copy-status" class="admin-muted mt-2 mb-0" role="status"></p>
+</section>
+<section class="admin-card" aria-labelledby="post-heading">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='今すぐ投稿' heading_id='post-heading' only %}
+    <p class="admin-muted">X の投稿画面を開きます。内容を確認して X 側で投稿してください。この方法では予約投稿はできません。</p>
+    {% if intent_url %}<a href="{{ intent_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-primary"><i class="fa-brands fa-x-twitter me-2" aria-hidden="true"></i>X の投稿画面を開く ↗</a>{% endif %}
+</section>
+{% endblock %}
 {% block extra_js %}
-    <script>
-        function copyTweet() {
-            const tweetText = document.getElementById('tweet-text').innerText;
-            const copyButton = document.getElementById('copy-button');
-            const copyIcon = document.getElementById('copy-icon');
-            const copyText = document.getElementById('copy-text');
-
-            navigator.clipboard.writeText(tweetText).then(() => {
-                // コピー成功時の表示変更
-                copyIcon.className = 'fas fa-check me-2';
-                copyText.textContent = 'コピーしました!';
-                copyButton.classList.remove('btn-secondary');
-                copyButton.classList.add('btn-success');
-                copyButton.disabled = true;
-
-                // 2秒後に元の表示に戻す
-                setTimeout(() => {
-                    copyIcon.className = 'fas fa-copy me-2';
-                    copyText.textContent = 'コピー';
-                    copyButton.classList.remove('btn-success');
-                    copyButton.classList.add('btn-secondary');
-                    copyButton.disabled = false;
-                }, 2000);
-            }).catch(err => {
-                console.error('コピーに失敗しました:', err);
-                // コピー失敗時の表示変更
-                copyIcon.className = 'fas fa-times me-2';
-                copyText.textContent = 'コピー失敗';
-                copyButton.classList.remove('btn-secondary');
-                copyButton.classList.add('btn-danger');
-                copyButton.disabled = true;
-
-                // 3秒後に元の表示に戻す
-                setTimeout(() => {
-                    copyIcon.className = 'fas fa-copy me-2';
-                    copyText.textContent = 'コピー';
-                    copyButton.classList.remove('btn-danger');
-                    copyButton.classList.add('btn-secondary');
-                    copyButton.disabled = false;
-                }, 3000);
-            });
-        }
-    </script>
+{{ block.super }}
+<script>
+async function copyTweet() {
+    const button = document.getElementById('copy-button');
+    const label = document.getElementById('copy-text');
+    const status = document.getElementById('copy-status');
+    button.disabled = true;
+    status.textContent = '';
+    try {
+        await navigator.clipboard.writeText(document.getElementById('tweet-text').innerText);
+        label.textContent = 'コピーしました';
+    } catch (error) {
+        label.textContent = 'コピー失敗';
+        status.textContent = '投稿文を選択してコピーしてください。';
+    } finally {
+        setTimeout(() => {
+            label.textContent = '投稿文をコピー';
+            button.disabled = false;
+        }, 2500);
+    }
+}
+</script>
 {% endblock %}

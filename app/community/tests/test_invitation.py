@@ -442,7 +442,8 @@ class MemberManageViewInvitationTest(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, invitation.token[:10])
+        self.assertNotContains(response, invitation.token)
+        self.assertContains(response, '共有用にリンクを表示')
 
     def test_expired_invitations_are_not_displayed(self):
         """期限切れの招待リンクは表示されない"""

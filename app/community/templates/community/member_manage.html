@@ -1,85 +1,32 @@
-{% extends 'ta_hub/base.html' %}
-{% load static %}
-
-{% block title %}メンバー管理 - {{ community.name }}{% endblock %}
-
-{% block main %}
-<div class="container py-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'community:update' %}">{{ community.name }}</a></li>
-            <li class="breadcrumb-item active">メンバー管理</li>
-        </ol>
-    </nav>
-
-    <h1 class="h3 mb-4">メンバー管理</h1>
-
-    {% include 'ta_hub/messages.html' %}
-
-    <div class="card mb-4">
-        <div class="card-header">
-            <i class="bi bi-link-45deg me-2"></i>招待リンク
-        </div>
-        <div class="card-body">
-            <p class="text-muted mb-3">
-                招待リンクを共有すると、リンクにアクセスした人がスタッフとして参加できます。リンクは1週間有効です。
-            </p>
-            <form method="post" action="{% url 'community:create_invitation' community.pk %}">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-plus-circle me-1"></i>招待リンクを生成
-                </button>
-            </form>
-
-            {% if invitations %}
-            <hr>
-            <h6 class="mb-3">有効な招待リンク</h6>
-            <ul class="list-group">
-                {% for invitation in invitations %}
-                <li class="list-group-item">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div class="flex-grow-1">
-                            <div class="input-group mb-2">
-                                <input type="text" class="form-control form-control-sm"
-                                       id="invitation-{{ invitation.pk }}"
-                                       value="{{ request.scheme }}://{{ request.get_host }}{% url 'community:accept_invitation' invitation.token %}"
-                                       readonly>
-                                <button class="btn btn-outline-secondary btn-sm" type="button"
-                                        onclick="copyInvitationLink('invitation-{{ invitation.pk }}', this)">
-                                    <i class="bi bi-clipboard"></i>
-                                </button>
-                            </div>
-                            <small class="text-muted">
-                                作成: {{ invitation.created_by.display_label }}
-                                ({{ invitation.created_at|date:"Y/m/d H:i" }}) |
-                                有効期限: {{ invitation.expires_at|date:"Y/m/d H:i" }}
-                            </small>
-                        </div>
-                        <form method="post"
-                              action="{% url 'community:revoke_invitation' community.pk invitation.pk %}"
-                              class="ms-2"
-                              onsubmit="return confirm('この招待リンクを削除しますか？');">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-danger btn-sm">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </form>
-                    </div>
-                </li>
-                {% endfor %}
-            </ul>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header">
-            <i class="bi bi-people me-2"></i>メンバー一覧
-        </div>
-        <ul class="list-group list-group-flush">
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}メンバー管理 - {{ community.name }} - {% site_name_seo %}{% endblock %}
+{% block extra_css %}{{ block.super }}{% include 'community/includes/admin_styles.html' %}{% endblock %}
+{% block admin_breadcrumbs %}{% include 'community/includes/admin_breadcrumbs.html' with label='メンバー管理' %}{% endblock %}
+{% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='メンバー管理' target=community.name only %}{% endblock %}
+{% block admin_subnav %}{% include 'ta_hub/admin/includes/subnav.html' with links_template='community/includes/admin_nav.html' current='members' is_owner=True %}{% endblock %}
+{% block admin_content %}
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='招待リンク' only %}
+<p class="admin-muted">リンクにアクセスした人がスタッフとして参加できます。リンクは1週間有効です。</p>
+<form method="post" action="{% url 'community:create_invitation' community.pk %}">{% csrf_token %}<button type="submit" class="btn btn-primary">招待リンクを生成</button></form>
+{% for invitation in invitations %}
+<div class="border-top mt-3 pt-3" id="invitation-{{ invitation.pk }}">
+<p>作成: {{ invitation.created_by.display_label }} ({{ invitation.created_at|date:'Y/m/d H:i' }})<br>有効期限: {{ invitation.expires_at|date:'Y/m/d H:i' }}</p>
+{% include 'community/includes/invitation_secret.html' %}
+<button type="button" class="btn btn-outline-danger btn-sm mt-2" data-confirm-panel="revoke-invitation-{{ invitation.pk }}" aria-controls="revoke-invitation-{{ invitation.pk }}" aria-expanded="false">招待を取り消す…</button>
+{% url 'community:revoke_invitation' community.pk invitation.pk as revoke_url %}
+{% with panel_id=invitation.pk|stringformat:'s' message=invitation.created_by.display_label|add:' が作成した招待（'|add:invitation.get_invitation_type_display|add:'）を取り消します。' %}
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='revoke-invitation-'|add:panel_id label='招待の取消の確認' message=message action_url=revoke_url submit_label='招待を取り消す' %}
+{% endwith %}
+</div>
+{% empty %}{% include 'ta_hub/admin/includes/empty_state.html' with title='有効な招待リンクはありません' description='スタッフを追加するには、招待リンクを生成してください。' only %}{% endfor %}
+</section>
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='メンバー一覧' only %}
+<ul class="list-group list-group-flush">
             {% for member in members %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
+            <li class="list-group-item">
+<div class="community-row">
                 <div>
                     <strong>{{ member.user.display_label }}</strong>
                     <span class="badge {% if member.is_owner %}bg-primary{% else %}bg-secondary{% endif %} ms-2">
@@ -103,45 +50,18 @@
                 </div>
                 {% if not member.is_owner or members|length > 1 %}
                 {% if member.user != request.user or not member.is_owner %}
-                <form method="post" action="{% url 'community:remove_staff' community.pk member.pk %}"
-                      onsubmit="return confirm('{{ member.user.display_label|escapejs }} を削除しますか？');">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-danger btn-sm">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </form>
+                <button type="button" class="btn btn-outline-danger btn-sm" data-confirm-panel="remove-member-{{ member.pk }}" aria-controls="remove-member-{{ member.pk }}" aria-expanded="false">メンバーを削除…</button>
                 {% endif %}
                 {% endif %}
-            </li>
-            {% empty %}
-            <li class="list-group-item text-muted">メンバーがいません</li>
-            {% endfor %}
-        </ul>
-    </div>
-
-    <div class="mt-4">
-        <a href="{% url 'event:my_list' %}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left me-1"></i>イベント管理に戻る
-        </a>
-    </div>
 </div>
-
-<script>
-function copyInvitationLink(inputId, button) {
-    const input = document.getElementById(inputId);
-    input.select();
-    input.setSelectionRange(0, 99999);
-    navigator.clipboard.writeText(input.value).then(function() {
-        const originalHtml = button.innerHTML;
-        button.innerHTML = '<i class="bi bi-check"></i>';
-        button.classList.remove('btn-outline-secondary');
-        button.classList.add('btn-success');
-        setTimeout(function() {
-            button.innerHTML = originalHtml;
-            button.classList.remove('btn-success');
-            button.classList.add('btn-outline-secondary');
-        }, 2000);
-    });
-}
-</script>
+{% if not member.is_owner or members|length > 1 %}{% if member.user != request.user or not member.is_owner %}
+{% url 'community:remove_staff' community.pk member.pk as remove_url %}
+{% with panel_id=member.pk|stringformat:'s' message=member.user.display_label|add:'（'|add:member.get_role_display|add:'）をメンバーから削除します。' %}
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='remove-member-'|add:panel_id label='メンバーの削除の確認' message=message action_url=remove_url submit_label='メンバーを削除する' %}
+{% endwith %}
+{% endif %}{% endif %}
+            </li>
+{% empty %}<li class="list-group-item">{% include 'ta_hub/admin/includes/empty_state.html' with title='メンバーがいません' only %}</li>{% endfor %}
+</ul></section>
 {% endblock %}
+{% block extra_js %}{{ block.super }}{% include 'community/includes/invitation_copy_script.html' %}{% endblock %}

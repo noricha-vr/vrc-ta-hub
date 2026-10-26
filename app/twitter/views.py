@@ -88,6 +88,17 @@ class TwitterTemplateBaseView(LoginRequiredMixin, AuthenticatedForbiddenMixin):
     def get_success_url(self):
         return reverse_lazy('twitter:template_list')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['target_community'] = (
+            self.object.community if getattr(self, 'object', None) else self.get_target_community()
+        )
+        context['save_actions'] = [{
+            'form_id': 'twitter-template-form', 'scope': '告知テンプレート',
+            'label': 'テンプレートを保存',
+        }]
+        return context
+
 
 class TwitterTemplateCreateView(TwitterTemplateBaseView, CreateView):
     def test_func(self):
@@ -124,6 +135,17 @@ class TwitterTemplateListView(LoginRequiredMixin, ListView):
         # 「新規作成」はアクティブな集会に作る。選び方はヘッダーの集会切替と同じ。
         # 集会に所属しない superuser には出さない
         context['create_community'] = active_community(self.request).get('active_community')
+        communities = {item.community_id: item.community for item in context['templates']}
+        context['template_list_target'] = (
+            next(iter(communities.values())).name if len(communities) == 1
+            else 'すべての集会' if self.request.user.is_superuser else '所属する集会'
+        )
+        context['multiple_template_communities'] = len(communities) > 1
+        if context['create_community']:
+            context['header_actions'] = [{
+                'url': f"{reverse('twitter:template_create')}?community={context['create_community'].pk}",
+                'label': '新規作成', 'primary': True,
+            }]
         return context
 
 
@@ -340,6 +362,7 @@ class TweetQueueListView(TweetQueueViewerMixin, ListView):
         current_order = self._get_sort_order()
         context['current_status'] = status
         context['status_choices'] = TweetQueue.STATUS_CHOICES
+        context['queue_list_target'] = 'すべての集会' if self.request.user.is_superuser else '所属する集会'
         context['current_sort'] = current_sort
         context['current_order'] = current_order
 
@@ -381,6 +404,15 @@ class TweetQueueDetailView(TweetQueueViewerMixin, DetailView):
     def get_queryset(self):
         qs = TweetQueue.objects.select_related('community', 'event', 'event_detail')
         return _scope_tweet_queue_to_user(qs, self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.user.is_superuser:
+            context['save_actions'] = [{
+                'form_id': 'tweet-queue-form', 'scope': f'キュー #{self.object.pk}',
+                'label': '変更を保存',
+            }]
+        return context
 
     def post(self, request, *args, **kwargs):
         # 編集系アクションは superuser のみ許可（スタッフは閲覧のみ）

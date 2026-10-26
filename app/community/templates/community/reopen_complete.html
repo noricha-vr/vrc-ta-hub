@@ -1,14 +1,9 @@
-{% extends 'ta_hub/base.html' %}
-{% block meta %}<title>集会の再開完了 - {{ community.name }}</title>{% endblock %}
-{% block main %}
-<div class="container py-4">
-    <div class="row justify-content-center"><div class="col-lg-8">
-        <nav aria-label="breadcrumb"><ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'account:settings' %}">アカウント設定</a></li>
-            <li class="breadcrumb-item active" aria-current="page">再開完了</li>
-        </ol></nav>
-        <div class="card"><div class="card-body p-4">
-            <h1 class="h3 mb-3">{{ community.name }}を再開しました</h1>
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}集会の再開完了 - {{ community.name }} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}{% include 'community/includes/admin_breadcrumbs.html' with label='再開完了' %}{% endblock %}
+{% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='集会の再開完了' target=community.name only %}{% endblock %}
+{% block admin_content %}<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='集会を再開しました' only %}
             <p>集会情報を保存しました。次に、開催予定を登録しましょう。</p>
             <p class="text-muted">以前の開催周期・曜日は未設定に戻りました。削除済みの開催予定・定期イベントは自動復元されません。初回開催日・開催時間・開催周期を登録すると、その周期で以後の開催予定が自動生成されます。</p>
             {% if community.status != 'approved' %}
@@ -38,7 +33,4 @@
             {% endif %}
             <a href="{% url 'community:detail' community.pk %}">集会ページを見る</a>
             <a href="{% url 'account:settings' %}" class="ms-3">アカウント設定に戻る</a>
-        </div></div>
-    </div></div>
-</div>
-{% endblock %}
+</section>{% endblock %}

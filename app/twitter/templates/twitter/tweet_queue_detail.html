@@ -1,145 +1,92 @@
-{% extends 'ta_hub/base.html' %}
-{% load twitter_tags %}
+{% extends 'ta_hub/admin_base.html' %}
 
-{% block meta %}
-    <title>ポストキュー #{{ object.pk }} - {% site_name_seo %}</title>
+{% block title %}ポストキュー #{{ object.pk }}: {{ object.community.name }} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li><li class="breadcrumb-item"><a href="{% url 'twitter:tweet_queue_list' %}">ポストキュー</a></li><li class="breadcrumb-item active" aria-current="page">#{{ object.pk }}</li></ol></nav>
 {% endblock %}
-
-{% block main %}
-<div class="container my-5">
-    {% include 'ta_hub/messages.html' %}
-    <h1 class="fw-bold mb-4">ポストキュー #{{ object.pk }}</h1>
-
-    {# メインレイアウト: 左（情報+テキスト） / 右（画像） #}
-    <form method="post" class="js-disable-on-submit">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="update">
-
-        <div class="row mb-4">
-            {# 左カラム: 情報 + 生成テキスト #}
-            <div class="{% if object.image_url %}col-md-7{% else %}col-12{% endif %}">
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <div class="row mb-2">
-                            <div class="col-sm-6">
-                                <strong>種別:</strong> {{ object.get_tweet_type_display }}
-                            </div>
-                            <div class="col-sm-6">
-                                <strong>ステータス:</strong>
-                                <span class="badge bg-{{ object.status|status_badge_color }}">{{ object.get_status_display }}</span>
-                            </div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-sm-6">
-                                <strong>集会:</strong>
-                                <a href="{% url 'community:detail' object.community.pk %}">{{ object.community.name }}</a>
-                            </div>
-                            <div class="col-sm-6">
-                                <strong>作成日時:</strong> {{ object.created_at|date:"Y/m/d H:i" }}
-                            </div>
-                        </div>
-                        <div class="row mb-2">
-                            <div class="col-sm-6">
-                                <strong>予約日時:</strong> {{ object.scheduled_at|date:"Y/m/d H:i" }}
-                            </div>
-                            <div class="col-sm-6">
-                                {% if object.posted_at %}
-                                <strong>投稿日時:</strong> {{ object.posted_at|date:"Y/m/d H:i" }}
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% if object.event %}
-                        <div class="row mb-2">
-                            <div class="col-sm-6">
-                                <strong>イベント:</strong> {{ object.event.date|date:"Y/m/d" }}
-                            </div>
-                        </div>
-                        {% endif %}
-                        {% if object.tweet_id %}
-                        <div class="mb-2">
-                            <strong>ポストID:</strong>
-                            <a href="https://x.com/vrc_ta_hub/status/{{ object.tweet_id }}" target="_blank" rel="noopener">
-                                {{ object.tweet_id }} <i class="fas fa-external-link-alt fa-sm"></i>
-                            </a>
-                        </div>
-                        {% endif %}
-                        {% if object.error_message %}
-                        <div class="alert {% if object.status == 'skipped' %}alert-secondary{% else %}alert-danger{% endif %} mt-2 mb-0">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            <strong>{% if object.status == 'skipped' %}理由{% else %}エラー{% endif %}:</strong> {{ object.error_message }}
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="mb-3">
-                    <label for="id_generated_text" class="form-label fw-bold">生成テキスト</label>
-                    <textarea name="generated_text" id="id_generated_text" class="form-control" rows="12">{{ object.generated_text }}</textarea>
-                    <div class="form-text">{{ object.generated_text|length }}/280文字</div>
-                </div>
-
-                <div class="mb-3">
-                    <label for="id_scheduled_at" class="form-label fw-bold">予約日時</label>
-                    <input type="datetime-local" name="scheduled_at" id="id_scheduled_at" class="form-control" value="{{ object.scheduled_at|date:'Y-m-d\\TH:i' }}">
-                    <div class="form-text">30分刻みで指定できます（00分 / 30分）。</div>
-                </div>
-
-                <div class="mb-3">
-                    <label for="id_image_url" class="form-label fw-bold">画像URL</label>
-                    <input type="url" name="image_url" id="id_image_url" class="form-control" value="{{ object.image_url }}" placeholder="https://...">
-                </div>
-
-                <div class="d-flex flex-wrap gap-2">
-                    <a href="{% url 'twitter:tweet_queue_list' %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left me-1"></i>一覧に戻る
-                    </a>
-
-                    {% if object.status == 'generation_failed' or object.status == 'generating' %}
-                    <button type="submit" name="action" value="retry" class="btn btn-warning">
-                        <i class="fas fa-redo me-1"></i>リトライ生成
-                    </button>
-                    {% endif %}
-
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-1"></i>保存
-                    </button>
-
-                    {% if object.status != 'posted' %}
-                    <button type="submit" name="action" value="post_now" class="btn btn-outline-success"
-                            data-submitting-label="投稿中..."
-                            onclick="return confirm('このポストを今すぐ投稿しますか？')">
-                        <i class="fab fa-x-twitter me-1"></i>今すぐポスト
-                    </button>
-                    {% endif %}
-
-                    <button type="submit" name="action" value="delete" class="btn btn-outline-danger ms-auto"
-                            onclick="return confirm('このキューを削除しますか？')">
-                        <i class="fas fa-trash me-1"></i>削除
-                    </button>
-                </div>
-            </div>
-
-            {# 右カラム: 添付画像プレビュー #}
-            {% if object.image_url %}
-            <div class="col-md-5">
-                <div>
-                    <img src="{{ object.image_url }}" alt="添付画像" class="rounded border w-100">
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </form>
-</div>
-<script>
-document.querySelectorAll('.js-disable-on-submit').forEach((form) => {
-    form.addEventListener('submit', (event) => {
-        const button = event.submitter;
-        if (!button || button.dataset.submittingLabel === undefined) return;
-        setTimeout(() => {
-            button.disabled = true;
-            button.innerText = button.dataset.submittingLabel || '処理中...';
-        }, 0);
-    });
-});
-</script>
+{% block admin_header %}
+{% with queue_id=object.pk|stringformat:'s' %}
+{% with heading='ポストキュー #'|add:queue_id %}
+{% include 'ta_hub/admin/includes/page_header.html' with title=heading target=object.community.name only %}
+{% endwith %}{% endwith %}
+{% endblock %}
+{% block admin_attention %}
+{% if not request.user.is_superuser %}<p class="admin-muted">閲覧専用です。投稿文の編集・配信・削除は運営のスーパーユーザーが行います。</p>{% endif %}
+{% if object.status == 'generating' %}
+<div class="action-required" role="status"><h2 class="h6 fw-bold">お知らせ</h2><p class="mb-0">投稿文を生成中です。しばらくしてからページを開き直してください。</p></div>
+{% endif %}
+{% if object.error_message %}
+<div class="action-required" role="alert"><h2 class="h6 fw-bold">{% if object.status == 'skipped' %}スキップの理由{% else %}要対応: {{ object.get_status_display }}{% endif %}</h2><p class="text-break mb-0">{{ object.error_message }}</p></div>
+{% endif %}
+{% endblock %}
+{% block admin_content %}
+<section class="admin-card" aria-labelledby="queue-info-heading">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='ポストの情報' heading_id='queue-info-heading' only %}
+    <p>予約 {{ object.scheduled_at|date:'Y/m/d H:i' }} · {% include 'twitter/includes/queue_status.html' with queue=object only %}</p>
+    <dl class="row mb-0">
+        <dt class="col-sm-3">対象</dt><dd class="col-sm-9 text-break"><a href="{% url 'community:detail' object.community.pk %}">{{ object.community.name }}</a> · {{ object.get_tweet_type_display }}</dd>
+        <dt class="col-sm-3">作成日時</dt><dd class="col-sm-9">{{ object.created_at|date:'Y/m/d H:i' }}</dd>
+        <dt class="col-sm-3">投稿日時</dt><dd class="col-sm-9">{% if object.posted_at %}{{ object.posted_at|date:'Y/m/d H:i' }}{% else %}未投稿{% endif %}</dd>
+        {% if object.event %}<dt class="col-sm-3">イベント</dt><dd class="col-sm-9">{{ object.event.date|date:'Y/m/d' }}</dd>{% endif %}
+        {% if object.tweet_id %}<dt class="col-sm-3">ポストID</dt><dd class="col-sm-9 text-break"><a href="https://x.com/vrc_ta_hub/status/{{ object.tweet_id }}" target="_blank" rel="noopener noreferrer">{{ object.tweet_id }}（X で開く ↗）</a></dd>{% endif %}
+    </dl>
+</section>
+{% if request.user.is_superuser %}<form id="tweet-queue-form" method="post" data-admin-dirty>
+    {% csrf_token %}
+    <input type="hidden" name="action" value="update">
+{% endif %}
+<section class="admin-card" aria-labelledby="queue-text-heading">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='投稿文と予約日時' heading_id='queue-text-heading' only %}
+    <div class="admin-form-field mb-3">
+        <label for="id_generated_text" class="form-label fw-bold">生成テキスト</label>
+        <textarea name="generated_text" id="id_generated_text" class="form-control" rows="12"{% if not request.user.is_superuser %} readonly{% endif %}>{{ object.generated_text }}</textarea>
+        <div class="form-text">{{ object.generated_text|length }}/280文字</div>
+    </div>
+    <div class="admin-form-field mb-3">
+        <label for="id_scheduled_at" class="form-label fw-bold">予約日時</label>
+        <input type="datetime-local" name="scheduled_at" id="id_scheduled_at" class="form-control" value="{{ object.scheduled_at|date:'Y-m-d\TH:i' }}"{% if not request.user.is_superuser %} readonly{% endif %}>
+        <div class="form-text">30分刻みで指定できます（00分 / 30分）。</div>
+    </div>
+    <div class="admin-form-field">
+        <label for="id_image_url" class="form-label fw-bold">画像URL</label>
+        <input type="url" name="image_url" id="id_image_url" class="form-control" value="{{ object.image_url }}" placeholder="https://..."{% if not request.user.is_superuser %} readonly{% endif %}>
+    </div>
+</section>
+{% if request.user.is_superuser %}</form>{% endif %}
+{% if object.image_url %}
+<section class="admin-card" aria-labelledby="queue-image-heading">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='添付画像' heading_id='queue-image-heading' only %}
+    <img src="{{ object.image_url }}" alt="投稿に添付する画像" class="img-fluid rounded border">
+</section>
+{% endif %}
+{% if request.user.is_superuser %}
+<section class="admin-card" aria-labelledby="queue-actions-heading">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='配信・削除' heading_id='queue-actions-heading' only %}
+    <p class="admin-muted">以下の操作は保存済みの内容に対して行います。編集中の変更は、先に「変更を保存」で保存してください。</p>
+    <div class="event-actions">
+        {% if object.status == 'generation_failed' or object.status == 'generating' %}
+        <form method="post">{% csrf_token %}<button type="submit" name="action" value="retry" class="btn btn-outline-secondary">リトライ生成</button></form>
+        {% endif %}
+        {% if object.status != 'posted' %}<button type="button" class="btn btn-outline-secondary" data-confirm-panel="post-queue" aria-controls="post-queue" aria-expanded="false">今すぐポスト</button>{% endif %}
+        <button type="button" class="btn btn-outline-danger" data-confirm-panel="delete-queue" aria-controls="delete-queue" aria-expanded="false">削除</button>
+    </div>
+    {% url 'twitter:tweet_queue_detail' object.pk as detail_url %}
+    {% with queue=object %}
+    {% if object.status != 'posted' %}
+    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='post-queue' label='即時投稿の確認' message='保存済みの次の内容を今すぐ X に投稿しますか？' action_url=detail_url submit_label='この内容で投稿する' submit_name='action' submit_value='post_now' fields_template='twitter/includes/queue_confirm_content.html' %}
+    {% endif %}
+    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='delete-queue' label='キュー削除の確認' message='次のキューを削除しますか？' action_url=detail_url submit_label='このキューを削除する' submit_name='action' submit_value='delete' fields_template='twitter/includes/queue_confirm_content.html' %}
+    {% endwith %}
+</section>
+{% endif %}
+{% endblock %}
+{% block admin_action_bar %}
+{% if request.user.is_superuser %}
+{% url 'twitter:tweet_queue_list' as return_url %}
+{% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions cancel_url=return_url only %}
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
+{% include 'twitter/includes/queue_submit_script.html' %}
 {% endblock %}

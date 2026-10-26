@@ -1,0 +1,6 @@
+<div class="action-required mb-4" role="note">
+<ol class="d-flex flex-wrap gap-4 mb-2" aria-label="掲載までの進み具合">
+<li{% if applying %} aria-current="step"{% endif %}>入力</li><li{% if not applying %} aria-current="step"{% endif %}>運営が確認</li><li>掲載</li>
+</ol>
+{% if applying %}<p class="mb-0">申請内容を運営が確認し、承認後に公開します。</p>{% else %}<p class="mb-0">掲載状態: {{ community.get_status_display }}。この集会はまだ公開されていません。申請内容は下のフォームから編集できます。</p>{% endif %}
+</div>

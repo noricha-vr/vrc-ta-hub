@@ -16,8 +16,9 @@ from website.discord_webhook import (
     post_discord_webhook,
 )
 
-from ..constants import DEFAULT_LT_APPLICATION_TEMPLATE, RECORDING_POLICY_FORM_CHOICES, RecordingPolicy
+from ..constants import RecordingPolicy
 from ..models import Community, CommunityMember, CommunityInvitation, INVITATION_EXPIRATION_DAYS
+from .admin_ui import settings_display
 
 logger = logging.getLogger(__name__)
 
@@ -57,31 +58,10 @@ class CommunitySettingsView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        community, membership = self.get_active_community()
+        community, _ = self.get_active_community()
         context['community'] = community
 
-        # is_owner の判定
-        if membership:
-            context['is_owner'] = membership.role == CommunityMember.Role.OWNER
-        else:
-            context['is_owner'] = False
-
-        # 有効な引き継ぎリンクを取得
-        if context['is_owner'] and community:
-            context['ownership_transfer_invitation'] = CommunityInvitation.objects.filter(
-                community=community,
-                invitation_type=CommunityInvitation.InvitationType.OWNERSHIP_TRANSFER,
-                expires_at__gt=timezone.now()
-            ).first()
-
-        # LT申請テンプレートのデフォルト値を設定
-        if community:
-            context['lt_application_template_display'] = (
-                community.lt_application_template or DEFAULT_LT_APPLICATION_TEMPLATE
-            )
-            context['recording_policy_choices'] = RECORDING_POLICY_FORM_CHOICES
-
-        return context
+        return settings_display(context, community, self.request)
 
 
 class CreateOwnershipTransferView(LoginRequiredMixin, View):

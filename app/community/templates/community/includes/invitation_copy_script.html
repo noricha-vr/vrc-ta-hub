@@ -1,0 +1,35 @@
+<script>
+document.addEventListener('click', async function(event) {
+    const reveal = event.target.closest('[data-reveal-invitation], [data-hide-invitation]');
+    if (reveal) {
+        event.preventDefault();
+        if (reveal.hasAttribute('aria-busy')) return;
+        const showing = reveal.hasAttribute('data-reveal-invitation');
+        const container = document.getElementById('invitation-' + (reveal.dataset.revealInvitation || reveal.dataset.hideInvitation));
+        const status = container.querySelector('[data-invitation-copy-status]');
+        reveal.setAttribute('aria-busy', 'true');
+        status.textContent = showing ? '共有リンクを読み込んでいます' : '共有リンクを隠しています';
+        try {
+            // 編集中のフォームを維持し、明示操作の後だけ共有リンクを取得する。
+            const response = await fetch(reveal.href, {credentials: 'same-origin', cache: 'no-store'});
+            if (!response.ok) throw new Error('Unable to display invitation');
+            const documentCopy = new DOMParser().parseFromString(await response.text(), 'text/html');
+            const source = documentCopy.getElementById(container.id);
+            const focusTarget = showing ? '[data-copy-invitation]' : '[data-reveal-invitation]';
+            if (!source || !source.querySelector(focusTarget)) throw new Error('Invitation unavailable');
+            container.replaceChildren(...source.childNodes);
+            container.querySelector(focusTarget).focus();
+        } catch (_) {
+            status.textContent = 'リンクを表示できませんでした。再度お試しください。';
+            reveal.removeAttribute('aria-busy');
+        }
+        return;
+    }
+    const button = event.target.closest('[data-copy-invitation]');
+    if (!button) return;
+    const input = document.getElementById(button.dataset.copyInvitation);
+    const status = button.parentElement.querySelector('[data-invitation-copy-status]');
+    try { await navigator.clipboard.writeText(input.value); status.textContent = 'コピーしました'; }
+    catch (_) { input.focus(); input.select(); status.textContent = 'リンクを選択してコピーしてください'; }
+});
+</script>
