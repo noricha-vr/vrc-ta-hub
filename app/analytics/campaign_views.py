@@ -52,6 +52,15 @@ class CampaignFormMixin:
         kwargs['user'] = self.request.user
         return kwargs
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['save_actions'] = [{
+            'form_id': 'campaign-form',
+            'scope': '配布リンク',
+            'label': '配布リンクを更新' if self.object else '配布リンクを作成',
+        }]
+        return context
+
     def _regenerate_qr_if_needed(self, campaign: Campaign, force: bool):
         """force=True または qr_image 未設定なら QR を再生成する。"""
         if force or not campaign.qr_image:

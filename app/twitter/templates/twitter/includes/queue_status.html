@@ -1,0 +1,9 @@
+{% if queue.status == 'posted' %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label=queue.get_status_display tone='success' only %}
+{% elif queue.status == 'generation_failed' %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label=queue.get_status_display tone='warning' only %}
+{% elif queue.status == 'failed' %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label=queue.get_status_display tone='danger' only %}
+{% else %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label=queue.get_status_display only %}
+{% endif %}

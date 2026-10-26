@@ -1,31 +1,23 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 
 {% block title %}配布リンクの削除確認 - {% site_name_seo %}{% endblock %}
-
-{% block main %}
-    <div class="container my-4" style="max-width: 600px;">
-        <h1 class="h3 mb-3">
-            <i class="fa-solid fa-triangle-exclamation me-2 text-danger"></i>配布リンクの削除
-        </h1>
-        <div class="card border-danger mb-3">
-            <div class="card-body">
-                <p>以下の配布リンクを削除します。着地先が集会や発表のページなら、削除後のアクセスもそのページの閲覧として数えられます（名前の代わりに識別子で表示）。トップページなどに着地させたリンクは、削除するとこの集会の解析に出なくなります。</p>
-                <dl class="row mb-0">
-                    <dt class="col-sm-3">名称</dt>
-                    <dd class="col-sm-9">{{ object.name }}</dd>
-                    <dt class="col-sm-3">集会</dt>
-                    <dd class="col-sm-9">{{ object.community.name }}</dd>
-                    <dt class="col-sm-3">utm_campaign</dt>
-                    <dd class="col-sm-9"><code>{{ object.utm_campaign }}</code></dd>
-                </dl>
-            </div>
-        </div>
-        <form method="post">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-danger">
-                <i class="fa-solid fa-trash me-1"></i>削除する
-            </button>
-            <a href="{% url 'analytics:campaign_list' %}" class="btn btn-outline-secondary">キャンセル</a>
-        </form>
-    </div>
+{% block admin_breadcrumbs %}
+    {% include 'analytics/includes/breadcrumbs.html' with current='配布リンクの削除確認' %}
+{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='配布リンクの削除確認' target=object.community.name %}
+{% endblock %}
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with links_template='analytics/includes/nav_links.html' active='campaigns' %}
+{% endblock %}
+{% block admin_content %}
+    <section class="admin-card">
+        {% url 'analytics:campaign_delete' object.pk as delete_url %}
+        {% url 'analytics:campaign_list' as cancel_url %}
+        {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='campaign-delete' label='配布リンクの削除確認' message='着地先が集会や発表のページなら、削除後もそのページの閲覧として数えられます（名前の代わりに識別子で表示）。トップページなどに着地させたリンクは、削除するとこの集会の解析に出なくなります。' action_url=delete_url submit_label='配布リンクを削除する' open=True cancel_url=cancel_url fields_template='analytics/includes/campaign_delete_fields.html' campaign=object csrf_token=csrf_token only %}
+    </section>
+{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
+    <style>.hub-admin .confirm-panel { overflow-wrap: anywhere; }</style>
 {% endblock %}

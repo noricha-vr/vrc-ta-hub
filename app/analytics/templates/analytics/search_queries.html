@@ -1,28 +1,32 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 
 {% block meta %}
     <title>検索キーワード - {% site_name_seo %}</title>
     <meta name="description" content="所属する集会の検索キーワードを表示回数・クリック数で確認できます。">
 {% endblock %}
 
-{% block main %}
-    <div class="container my-4">
-        <div class="d-flex flex-wrap align-items-baseline gap-2 mb-1">
-            <h1 class="h3 mb-0">検索キーワード</h1>
-            {% if has_access %}<span class="text-muted">{{ search_queries.paginator.count|floatformat:"0g" }} 語</span>{% endif %}
-        </div>
-        {% if selected_community %}<p class="text-muted mb-1">{{ selected_community.name }}</p>{% endif %}
-        <p class="mb-3"><a href="{% url 'analytics:dashboard' %}{% if dashboard_query %}?{{ dashboard_query }}{% endif %}"><i class="fa-solid fa-arrow-left me-1" aria-hidden="true"></i>ダッシュボードへ戻る</a></p>
-
+{% block admin_breadcrumbs %}
+    {% include 'analytics/includes/breadcrumbs.html' with current='検索キーワード' %}
+{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='検索キーワード' target=selected_community.name|default:'すべての所属集会' %}
+{% endblock %}
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with links_template='analytics/includes/nav_links.html' active='search_queries' %}
+{% endblock %}
+{% block admin_content %}
         {% if not has_access %}
+            <p><a href="{% url 'analytics:dashboard' %}?{{ dashboard_query }}">解析へ戻る</a></p>
             <div class="alert alert-warning">所属している集会がありません。集会の管理者になるとここでアクセス解析を確認できます。</div>
         {% else %}
-            <form method="get" class="card card-body mb-3 py-2">
+            <p class="admin-muted">{{ search_queries.paginator.count|floatformat:"0g" }} 語</p>
+            <p><a href="{% url 'analytics:dashboard' %}{% if dashboard_query %}?{{ dashboard_query }}{% endif %}">解析へ戻る</a></p>
+            <form method="get" class="admin-card" aria-label="集会と期間の絞り込み">
                 <input type="hidden" name="days" value="{{ days }}">
                 <input type="hidden" name="sort" value="{{ sort }}">
                 <input type="hidden" name="q" value="{{ q }}">
                 <div class="d-flex flex-wrap align-items-center gap-2 analytics-query-filters">
-                    <label for="community-select" class="visually-hidden">対象集会</label>
+                    <label for="community-select" class="form-label small mb-0">対象集会</label>
                     <select name="community" id="community-select" class="form-select form-select-sm analytics-query-community" onchange="this.form.submit()">
                         <option value="">すべての所属集会（合算）</option>
                         {% for community in accessible_communities %}
@@ -38,7 +42,7 @@
                 </div>
             </form>
 
-            <div class="card">
+            <div class="card admin-card p-0">
                 <div class="card-body">
                     <form method="get" class="mb-3" role="search" aria-label="検索キーワードの絞り込み">
                         <input type="hidden" name="days" value="{{ days }}">
@@ -92,15 +96,18 @@
                 </div>
             </div>
         {% endif %}
-    </div>
+{% endblock %}
+
+{% block extra_css %}
+    {{ block.super }}
     <style>
-        .analytics-query-filters .form-control,
-        .analytics-query-community { min-width: 0; }
-        .analytics-query-community { flex: 1 1 14rem; width: auto; }
-        .analytics-query-table { width: 100%; table-layout: fixed; font-size: .875rem; }
-        .analytics-query-table th,
-        .analytics-query-table td { overflow-wrap: anywhere; }
-        .analytics-query-table .analytics-query-word { width: 40%; }
-        .analytics-query-table td { font-variant-numeric: tabular-nums; }
+        .hub-admin .analytics-query-filters .form-control,
+        .hub-admin .analytics-query-community { min-width: 0; }
+        .hub-admin .analytics-query-community { flex: 1 1 14rem; width: auto; }
+        .hub-admin .analytics-query-table { width: 100%; table-layout: fixed; font-size: .875rem; }
+        .hub-admin .analytics-query-table th,
+        .hub-admin .analytics-query-table td { overflow-wrap: anywhere; }
+        .hub-admin .analytics-query-table .analytics-query-word { width: 40%; }
+        .hub-admin .analytics-query-table td { font-variant-numeric: tabular-nums; }
     </style>
 {% endblock %}

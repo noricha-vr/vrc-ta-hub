@@ -1,0 +1,4 @@
+<a href="{% url 'twitter:tweet_queue_list' %}"{% if not current_status %} aria-current="page"{% endif %}>すべて</a>
+{% for value, label in status_choices %}
+<a href="?status={{ value }}"{% if current_status == value %} aria-current="page"{% endif %}>{{ label }}</a>
+{% endfor %}

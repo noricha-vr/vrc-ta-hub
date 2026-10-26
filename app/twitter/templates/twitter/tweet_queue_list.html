@@ -1,116 +1,56 @@
-{% extends 'ta_hub/base.html' %}
-{% load twitter_tags %}
+{% extends 'ta_hub/admin_base.html' %}
 
-{% block meta %}
-    <title>ポストキュー - {% site_name_seo %}</title>
+{% block title %}ポストキュー: {{ queue_list_target }} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li><li class="breadcrumb-item active" aria-current="page">ポストキュー</li></ol></nav>
 {% endblock %}
-
-{% block main %}
-<div class="container my-5">
-    {% include 'ta_hub/messages.html' %}
-    <h1 class="text-center mb-4 fw-bold">ポストキュー</h1>
-
-    {# ステータスフィルタ #}
-    <div class="mb-3 d-flex flex-wrap gap-2">
-        <a href="{% url 'twitter:tweet_queue_list' %}"
-           class="btn btn-sm btn-outline-secondary {% if not current_status %}active{% endif %}">すべて</a>
-        {% for value, label in status_choices %}
-        <a href="?status={{ value }}"
-           class="btn btn-sm btn-outline-{{ value|status_badge_color }} {% if current_status == value %}active{% endif %}">{{ label }}</a>
-        {% endfor %}
-    </div>
-
-    {# テーブル #}
-    <div class="table-responsive">
-        <table class="table table-hover align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>ID</th>
-                    <th>種別</th>
-                    <th>集会</th>
-                    <th>ステータス</th>
-                    <th>画像</th>
-                    <th>
-                        <a href="?{{ sort_links.created_at }}" class="link-dark text-decoration-none">
-                            作成日時
-                            {% if current_sort == 'created_at' %}
-                                {% if current_order == 'asc' %}▲{% else %}▼{% endif %}
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th>
-                        <a href="?{{ sort_links.scheduled_at }}" class="link-dark text-decoration-none">
-                            予約日時
-                            {% if current_sort == 'scheduled_at' %}
-                                {% if current_order == 'asc' %}▲{% else %}▼{% endif %}
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th>
-                        <a href="?{{ sort_links.posted_at }}" class="link-dark text-decoration-none">
-                            投稿日時
-                            {% if current_sort == 'posted_at' %}
-                                {% if current_order == 'asc' %}▲{% else %}▼{% endif %}
-                            {% endif %}
-                        </a>
-                    </th>
-                    {% if request.user.is_superuser %}
-                    <th>操作</th>
-                    {% endif %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in page_obj %}
-                <tr class="{% if item.pk in today_tweet_queue_ids %}table-warning{% endif %}" onclick="location.href='{% url 'twitter:tweet_queue_detail' item.pk %}'" style="cursor:pointer">
-                    <td>{{ item.pk }}</td>
-                    <td>{{ item.get_tweet_type_display }}</td>
-                    <td>{{ item.community.name }}</td>
-                    <td><span class="badge bg-{{ item.status|status_badge_color }}">{{ item.get_status_display }}</span></td>
-                    <td>{% if item.image_url %}<i class="fas fa-image text-muted"></i>{% else %}-{% endif %}</td>
-                    <td>{{ item.created_at|date:"m/d H:i" }}</td>
-                    <td>{{ item.scheduled_at|date:"m/d H:i" }}</td>
-                    <td>{% if item.posted_at %}{{ item.posted_at|date:"m/d H:i" }}{% else %}-{% endif %}</td>
-                    {% if request.user.is_superuser %}
-                    <td onclick="event.stopPropagation();">
-                        {% if item.status != 'posted' %}
-                        <form method="post" action="{% url 'twitter:tweet_queue_detail' item.pk %}" class="d-inline js-disable-on-submit">
-                            {% csrf_token %}
-                            <button type="submit" name="action" value="post_now" class="btn btn-sm btn-outline-success"
-                                    data-submitting-label="投稿中..."
-                                    onclick="return confirm('このポストを今すぐ投稿しますか？')">
-                                <i class="fab fa-x-twitter me-1"></i>今すぐポスト
-                            </button>
-                        </form>
-                        {% else %}
-                        -
-                        {% endif %}
-                    </td>
-                    {% endif %}
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="{% if request.user.is_superuser %}9{% else %}8{% endif %}" class="text-center text-muted py-4">ポストキューがありません</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    {# ページネーション #}
-    {% if page_obj.has_other_pages %}
-        {% include 'ta_hub/pagination.html' %}
-    {% endif %}
+{% block admin_header %}
+{% include 'ta_hub/admin/includes/page_header.html' with title='ポストキュー' target=queue_list_target only %}
+{% endblock %}
+{% block admin_subnav %}
+{% include 'ta_hub/admin/includes/subnav.html' with label='ポストの状態で絞り込み' links_template='twitter/includes/queue_filters.html' %}
+{% endblock %}
+{% block admin_content %}
+<div class="d-flex flex-wrap gap-3 mb-3 small" aria-label="並び順">
+    <span>並び順:</span>
+    <a href="?{{ sort_links.scheduled_at }}"{% if current_sort == 'scheduled_at' %} aria-current="true"{% endif %}>予約日時{% if current_sort == 'scheduled_at' %} {% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}</a>
+    <a href="?{{ sort_links.created_at }}"{% if current_sort == 'created_at' %} aria-current="true"{% endif %}>作成日時{% if current_sort == 'created_at' %} {% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}</a>
+    <a href="?{{ sort_links.posted_at }}"{% if current_sort == 'posted_at' %} aria-current="true"{% endif %}>投稿日時{% if current_sort == 'posted_at' %} {% if current_order == 'asc' %}▲{% else %}▼{% endif %}{% endif %}</a>
 </div>
-<script>
-document.querySelectorAll('.js-disable-on-submit').forEach((form) => {
-    form.addEventListener('submit', () => {
-        const button = form.querySelector('button[type="submit"]');
-        if (!button) return;
-        setTimeout(() => {
-            button.disabled = true;
-            button.innerText = button.dataset.submittingLabel || '処理中...';
-        }, 0);
-    });
-});
-</script>
+<p class="admin-muted">{{ page_obj.paginator.count }} 件{% if page_obj.paginator.count %}（{{ page_obj.start_index }}〜{{ page_obj.end_index }} 件を表示）{% endif %}</p>
+{% for item in page_obj %}
+<article class="admin-card queue-row">
+    <div class="event-summary">
+        <div>
+            <h2 class="h6 fw-bold text-break mb-1"><a href="{% url 'twitter:tweet_queue_detail' item.pk %}">{{ item.community.name }} · {{ item.get_tweet_type_display }} #{{ item.pk }}</a>
+                {% include 'twitter/includes/queue_status.html' with queue=item only %}{% if item.pk in today_tweet_queue_ids %} {% include 'ta_hub/admin/includes/status_chip.html' with label='本日予約' tone='warning' only %}{% endif %}</h2>
+            <p class="admin-muted mb-0">予約 {{ item.scheduled_at|date:'Y/m/d H:i' }} · 作成 {{ item.created_at|date:'Y/m/d H:i' }} · 投稿 {% if item.posted_at %}{{ item.posted_at|date:'Y/m/d H:i' }}{% else %}未投稿{% endif %} · {% if item.image_url %}画像あり{% else %}画像なし{% endif %}</p>
+        </div>
+        <div class="event-actions">
+            <a href="{% url 'twitter:tweet_queue_detail' item.pk %}" class="btn btn-sm btn-outline-secondary">詳細</a>
+            {% if request.user.is_superuser and item.status != 'posted' %}
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-confirm-panel="post-queue-{{ item.pk }}" aria-controls="post-queue-{{ item.pk }}" aria-expanded="false">今すぐポスト</button>
+            {% endif %}
+        </div>
+    </div>
+    {% if request.user.is_superuser and item.status != 'posted' %}
+    {% url 'twitter:tweet_queue_detail' item.pk as detail_url %}
+    {% with queue=item panel_id=item.pk|stringformat:'s' %}
+    {% with panel_id='post-queue-'|add:panel_id %}
+    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label='即時投稿の確認' message='保存済みの次の内容を今すぐ X に投稿しますか？' action_url=detail_url submit_label='この内容で投稿する' submit_name='action' submit_value='post_now' fields_template='twitter/includes/queue_confirm_content.html' %}
+    {% endwith %}{% endwith %}
+    {% endif %}
+</article>
+{% empty %}
+{% include 'ta_hub/admin/includes/empty_state.html' with title='ポストキューがありません' description='この条件に一致するポストはありません。' only %}
+{% endfor %}
+{% if page_obj.has_other_pages %}{% include 'ta_hub/pagination.html' %}{% endif %}
+{% endblock %}
+{% block extra_css %}
+{{ block.super }}
+<style>.hub-admin .queue-row.admin-card { padding: .75rem 1rem; margin-bottom: .5rem; } .hub-admin .pagination { flex-wrap: wrap; gap: .25rem; }</style>
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
+{% include 'twitter/includes/queue_submit_script.html' %}
 {% endblock %}

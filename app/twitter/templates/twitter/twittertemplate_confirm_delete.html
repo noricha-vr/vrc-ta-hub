@@ -1,0 +1,23 @@
+{% extends 'ta_hub/admin_base.html' %}
+
+{% block title %}X 告知テンプレートの削除: {{ object.community.name }} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li><li class="breadcrumb-item"><a href="{% url 'twitter:template_list' %}">X 告知テンプレート</a></li><li class="breadcrumb-item active" aria-current="page">削除</li></ol></nav>
+{% endblock %}
+{% block admin_header %}
+{% include 'ta_hub/admin/includes/page_header.html' with title='X 告知テンプレートの削除' target=object.community.name only %}
+{% endblock %}
+{% block admin_content %}
+<section class="admin-card" data-template-delete data-success-url="{% url 'twitter:template_list' %}">
+    <h2 class="h6 fw-bold text-break">{{ object.name }}</h2>
+    {% url 'twitter:template_list' as return_url %}
+    {% url 'twitter:template_delete' object.pk as delete_url %}
+    {% with message=object.name|add:' を削除しますか？' %}
+    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='delete-template' label='テンプレート削除の確認' message=message action_url=delete_url csrf_token=csrf_token submit_label='テンプレートを削除する' open=True cancel_url=return_url only %}
+    {% endwith %}
+</section>
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
+{% include 'twitter/includes/template_delete_script.html' %}
+{% endblock %}
