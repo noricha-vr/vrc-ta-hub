@@ -8,6 +8,8 @@
   children:
     - title: 登録してログインする
       path: account/login
+    - title: スタッフの招待を受ける
+      path: member/accept
     - title: Discordと連携する
       path: account/discord
     - title: パスワードを設定・変更する

@@ -98,6 +98,6 @@ Webhook は、通知を送るための仕組みです。「Discord Webhook URL�
 
 ## 次にやること
 
-- [集会情報を編集する](edit.md)
-- [Discord Webhookを設定する](../settings/discord.md)
-- [発表申請受付を設定する](../settings/lt-application.md)
+- [集会情報を編集する](edit.md)（主催者・スタッフ向け）
+- [Discord Webhookを設定する](../settings/discord.md)（主催者・スタッフ向け）
+- [発表申請受付を設定する](../settings/lt-application.md)（主催者・スタッフ向け）

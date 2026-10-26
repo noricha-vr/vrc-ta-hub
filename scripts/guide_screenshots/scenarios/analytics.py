@@ -28,6 +28,24 @@ def shot(capture, region, *marks):
         capture.shot(selector=region)
 
 
+def table_row(capture, row, *marks):
+    """名前から操作までを一枚に収める。スマホは横スクロールの全範囲を示す。"""
+    capture.annotations.clear()
+    container = capture.page.locator('.table-responsive')
+    original_style = container.get_attribute('style')
+    container.evaluate("e => { e.scrollLeft = 0; e.style.overflow = 'visible'; }")
+    try:
+        target = capture.page.locator(row)
+        target.scroll_into_view_if_needed()
+        box = target.evaluate("e => { const r = e.getBoundingClientRect(); return {x: r.x + scrollX, y: r.y + scrollY, width: r.width, height: r.height}; }")
+        for number, mark in enumerate(marks, 1):
+            capture.annotate(mark, number)
+        capture.shot(clip={'x': max(0, box['x'] - 16), 'y': max(0, box['y'] - 32),
+                           'width': box['width'] + 32, 'height': box['height'] + 48})
+    finally:
+        container.evaluate("(e, style) => { if (style === null) e.removeAttribute('style'); else e.setAttribute('style', style); }", original_style)
+
+
 def verify_guide(capture):
     """共通の検証（capture.verify_guide）に任せる。"""
     capture.verify_guide()
@@ -77,7 +95,7 @@ def distribution(c):
     c.goto('/analytics/campaigns/')
     shot(c, 'tbody td:has(.campaign-url-input)', '.campaign-url-input', '.copy-url-btn')
     shot(c, 'tbody td:first-child', 'tbody td:first-child img')
-    shot(c, 'tbody td:last-child', 'a:has-text("編集")', 'a:has-text("削除")')
+    table_row(c, 'tbody tr:has(.campaign-url-input)', 'a:has-text("編集")', 'a:has-text("削除")')
     c.goto('/analytics/campaigns/1/delete/')
     shot(c, 'main .container', 'button:has-text("削除する")', 'a:has-text("キャンセル")')
     c.goto('/analytics/dashboard/')

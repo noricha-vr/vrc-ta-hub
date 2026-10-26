@@ -125,5 +125,5 @@ VRChat グループや Discord サーバーの意味は、[用語集](../glossar
 
 ## 次にやること
 
-- [イベントを登録する](../event/create.md)
-- [スタッフを招待する](../member/invite.md)
+- [イベントを登録する](../event/create.md)（主催者・スタッフ向け）
+- [スタッフを招待する](../member/invite.md)（主催者向け）

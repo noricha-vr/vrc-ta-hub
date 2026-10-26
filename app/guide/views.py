@@ -38,7 +38,7 @@ START_LINKS = [
     {'label': '集会や発表を探したい', 'path': 'browse/find', 'icon': 'bi-search'},
     {'label': '集会で発表したい', 'path': 'speaker/apply', 'icon': 'bi-mic'},
     {'label': '自分の集会を載せたい', 'path': 'community/create', 'icon': 'bi-people'},
-    {'label': 'スタッフに招待された', 'path': 'account/login', 'icon': 'bi-person-plus'},
+    {'label': 'スタッフに招待された', 'path': 'member/accept', 'icon': 'bi-person-plus'},
     {'label': '開催日を登録したい', 'path': 'event/manage', 'icon': 'bi-calendar-event'},
     {'label': '言葉の意味を知りたい', 'path': 'glossary', 'icon': 'bi-book'},
 ]

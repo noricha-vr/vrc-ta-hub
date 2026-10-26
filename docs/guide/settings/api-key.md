@@ -87,5 +87,5 @@ APIキーは、外部ツールからHubを使う時の秘密の文字列です�
 
 ## 次にやること
 
-- [Discord Webhookを設定する](discord.md)
+- [Discord Webhookを設定する](discord.md)（主催者・スタッフ向け）
 - [用語集でAPIの言葉を確認する](../glossary.md)

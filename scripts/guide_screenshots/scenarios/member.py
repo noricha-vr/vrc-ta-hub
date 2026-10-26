@@ -24,16 +24,18 @@ def invite(capture):
     snap(capture, 'form[action$="/invite/create/"]', 'form[action$="/invite/create/"] button')
     snap(capture, '.card:has(form[action$="/invite/create/"]) li.list-group-item',
          'button[onclick^="copyInvitationLink"]')
+    snap(capture, '.card:has(form[action$="/invite/create/"]) li.list-group-item',
+         'form[action*="/revoke/"] button')
+
+
+@scenario('member/accept', mobile=True)
+def accept(capture):
     capture.page.context.clear_cookies()
     capture.goto('/community/invite/guide-demo-staff-invitation/')
     snap(capture, '.card', '.card a:has-text("ログイン")')
     capture.login('general')
     capture.goto('/community/invite/guide-demo-staff-invitation/')
     snap(capture, '.card', '.card button:has-text("招待を受ける")')
-    capture.login('owner')
-    members(capture)
-    snap(capture, '.card:has(form[action$="/invite/create/"]) li.list-group-item',
-         'form[action*="/revoke/"] button')
 
 
 @scenario('member/remove', mobile=True)

@@ -120,6 +120,6 @@ Webhook は、Hub から Discord の投稿先へ通知を送る仕組みです�
 
 ## 次にやること
 
-- [発表申請を承認・却下する](../lt/approve.md)
+- [発表申請を承認・却下する](../lt/approve.md)（主催者・スタッフ向け）
 - [発表を申し込む](../speaker/apply.md)
-- [Discord Webhookを設定する](discord.md)
+- [Discord Webhookを設定する](discord.md)（主催者・スタッフ向け）

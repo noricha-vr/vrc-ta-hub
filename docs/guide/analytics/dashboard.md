@@ -151,5 +151,5 @@ Google 検索でページが表示された時の検索語が出ます。
 
 ## 次にやること
 
-- [配布用のリンクとQRコードを作る](distribution-link.md)
+- [配布用のリンクとQRコードを作る](distribution-link.md)（主催者・スタッフ向け）
 - [集会と発表を探す](../browse/find.md)

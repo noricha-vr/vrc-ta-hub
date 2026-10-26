@@ -1,5 +1,6 @@
 """外部連携設定。外部への通知・投稿は実行しない。"""
 from capture import scenario
+from scenarios.analytics import table_row
 
 
 SETTINGS = '/community/settings/'
@@ -11,17 +12,26 @@ def shot(capture, selector, *targets):
     for number, target in enumerate(targets, 1):
         capture.annotate(target, number)
     capture.page.locator(selector).scroll_into_view_if_needed()
-    box = capture.page.locator(selector).bounding_box()
-    left, top = box['x'], box['y'] - 4
-    right, bottom = box['x'] + box['width'], box['y'] + box['height'] + 4
-    for target in targets:
-        mark = capture.page.locator(target).bounding_box()
-        left, top = min(left, mark['x'] - 3), min(top, mark['y'] - 16)
-        right, bottom = max(right, mark['x'] + mark['width'] + 16), max(bottom, mark['y'] + mark['height'] + 4)
-    scroll_y = capture.page.evaluate('scrollY')
-    capture.shot(clip={'x': max(0, left), 'y': max(0, top + scroll_y),
-                       'width': min(right, capture.page.viewport_size['width']) - max(0, left),
-                       'height': bottom - top})
+    # full_page の撮影は表示の高さをページ全体に広げ、vh 基準の余白で中身が下にずれる。
+    # 先に同じ高さへ広げてから測り、撮り終えたら戻す（下端の番号やボタンが切れないように）。
+    viewport = capture.page.viewport_size
+    height = capture.page.evaluate('document.documentElement.scrollHeight')
+    capture.page.set_viewport_size({'width': viewport['width'], 'height': max(viewport['height'], height)})
+    capture.page.evaluate('document.fonts.ready')
+    try:
+        box = capture.page.locator(selector).bounding_box()
+        left, top = box['x'], box['y'] - 4
+        right, bottom = box['x'] + box['width'], box['y'] + box['height'] + 16
+        for target in targets:
+            mark = capture.page.locator(target).bounding_box()
+            left, top = min(left, mark['x'] - 3), min(top, mark['y'] - 16)
+            right, bottom = max(right, mark['x'] + mark['width'] + 16), max(bottom, mark['y'] + mark['height'] + 16)
+        scroll_y = capture.page.evaluate('scrollY')
+        capture.shot(clip={'x': max(0, left), 'y': max(0, top + scroll_y),
+                           'width': min(right, viewport['width']) - max(0, left),
+                           'height': bottom - top})
+    finally:
+        capture.page.set_viewport_size(viewport)
 
 
 def verify_guide(capture):
@@ -127,7 +137,5 @@ def api_key(capture):
     capture.page.wait_for_load_state('networkidle')
     capture.mask('td code')
     row = 'tr:has-text("資料連携用")'
-    # スマホは実画面の表を横スクロールして操作列を出す。
-    capture.page.locator(f'{row} button').scroll_into_view_if_needed()
-    shot(capture, '.table-responsive', f'{row} button')
+    table_row(capture, row, f'{row} button')
     verify_guide(capture)

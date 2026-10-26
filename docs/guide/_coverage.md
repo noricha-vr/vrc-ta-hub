@@ -67,7 +67,7 @@
 | メンバー | メンバー管理 | `/community/<id>/members/` | 主催者のみ | 集会設定「メンバー管理」→「メンバーを管理」 | [スタッフを招待する](member/invite.md) | 記載あり |
 | メンバー | スタッフ招待リンクの作成 | `/community/<id>/invite/create/`（POST） | 主催者のみ | メンバー管理「招待リンクを生成」 | [スタッフを招待する](member/invite.md) | 記載あり |
 | メンバー | スタッフ招待リンクの削除 | `/community/<id>/invite/<招待ID>/revoke/`（POST） | 主催者のみ | 「有効な招待リンク」のごみ箱アイコン | [スタッフを招待する](member/invite.md) | 記載あり |
-| メンバー | スタッフ招待の受け入れ | `/community/invite/<token>/` | リンクの所持者。確定時はログインが必要 | 共有されたリンク→「招待を受ける」 | [スタッフを招待する](member/invite.md) | 記載あり |
+| メンバー | スタッフ招待の受け入れ | `/community/invite/<token>/` | リンクの所持者。確定時はログインが必要 | 共有されたリンク→「招待を受ける」 | [スタッフの招待を受ける](member/accept.md) | 記載あり |
 | メンバー | メンバーの削除 | `/community/<id>/members/<メンバーID>/remove/`（POST） | 主催者のみ。自身・最後の主催者には制限 | メンバー一覧のごみ箱アイコン | [スタッフを削除する](member/remove.md) | 記載あり |
 | メンバー | 主催者引き継ぎリンクの作成 | `/community/<id>/transfer/create/`（POST） | 現在の主催者のみ | 集会設定「危険な操作」→「主催者の引き継ぎ」→「引き継ぎリンクを作成」 | [主催者を引き継ぐ](member/transfer.md) | 記載あり |
 | メンバー | 主催者引き継ぎの受け入れ | `/community/transfer/<token>/` | 有効なリンクの所持者。確定時はログインが必要 | 共有されたリンク→「主催者を引き継ぐ」 | [主催者を引き継ぐ](member/transfer.md) | 記載あり |

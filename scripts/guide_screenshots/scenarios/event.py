@@ -70,10 +70,13 @@ def manage(capture):
     capture.annotate(f'{CARD} a[href*="/date/update/"]', 8)
     capture.annotate(f'{CARD} a[href^="/twitter/"] >> nth=0', 9)
     capture.annotate(f'{CARD} form[action^="/event/delete/"]', 10)
-    for index, number in ((0, 11), (1, 12)):
-        capture.annotate(
-            f'{CARD} .col-md-7 > .mb-2:has(> a.btn-primary) >> nth={index}', number,
-        )
+    # 並び順ではなく、承認済み・未紐づけと承認待ちの操作で行を特定する。
+    capture.annotate(
+        f'{CARD} .col-md-7 > .mb-2:has(> a[href$="#speaker-account-heading"])', 11,
+    )
+    capture.annotate(
+        f'{CARD} .col-md-7 > .mb-2:has(> button[data-bs-target^="#approveModal"])', 12,
+    )
     capture.annotate(f'{CARD} a[href$="/detail/create/"]', 13)
     region(capture, f'{QUICK} a >> nth=0', f'{QUICK} a >> nth=5', CARD)
     capture.annotations.clear()
