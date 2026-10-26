@@ -27,7 +27,7 @@
 </style>
 {% endblock %}
 {% block admin_attention %}
-{% if form.datetime_locked %}<div class="admin-attention" role="alert">{{ form.datetime_lock_message }}</div>{% endif %}
+{% if form.datetime_locked %}<div class="admin-attention" role="alert"><i class="fas fa-lock me-1" aria-hidden="true"></i>{{ form.datetime_lock_message }}</div>{% endif %}
 {% endblock %}
 {% block admin_content %}
                         <form method="post" id="detail-form" data-admin-dirty

@@ -14,7 +14,11 @@
 {% block admin_content %}
 <section class="admin-card">
 {% include 'ta_hub/admin/includes/section_heading.html' with title='削除する発表' only %}
-<dl><dt>テーマ</dt><dd>{{ object.theme }}</dd><dt>発表者</dt><dd>{{ object.speaker }}</dd></dl>
+<ul class="mb-0">
+    <li>開催日: {{ object.event.date|date:"Y/m/d" }}</li>
+    <li>テーマ: {{ object.theme }}</li>
+    <li>発表者: {{ object.speaker }}</li>
+</ul>
 {% url 'event:detail_delete' object.pk as delete_url %}
 {% url 'event:detail' object.pk as cancel_url %}
 {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='delete-presentation' label='発表の削除確認' message='次の発表を削除しますか？ この操作は取り消せません。' action_url=delete_url submit_label='この発表を削除する' open=True cancel_url=cancel_url %}
