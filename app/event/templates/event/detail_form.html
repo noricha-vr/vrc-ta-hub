@@ -1,60 +1,36 @@
-{% extends 'ta_hub/base.html' %}
-
-{% block main %}
-    <style>
-        label {
-            margin-bottom: 0.5rem;
-        }
-        .field-wrapper {
-            transition: opacity 0.3s ease, max-height 0.3s ease;
-        }
-        .field-hidden {
-            display: none;
-        }
-        /* カードのホバー効果を無効化 */
-        .card {
-            transition: none !important;
-        }
-        .card:hover {
-            transform: none !important;
-            box-shadow: none !important;
-        }
-        /* 記事自動生成チェックボックスのスタイル */
-        .field-wrapper[data-field="generate_blog_article"] {
-            padding: 0.75rem 1rem;
-            background-color: #f8f9fa;
-            border-radius: 0.375rem;
-            border: 1px solid #dee2e6;
-        }
-        .field-wrapper[data-field="generate_blog_article"]:hover {
-            background-color: #e9ecef;
-        }
-        .field-wrapper[data-field="generate_blog_article"] .form-check-input {
-            width: 2.5rem;
-            height: 1.25rem;
-            cursor: pointer;
-            margin-top: 0;
-        }
-        .field-wrapper[data-field="generate_blog_article"] .form-check-label {
-            font-weight: 600;
-            cursor: pointer;
-            user-select: none;
-        }
-    </style>
-    <div class="container my-5">
-        <div class="row">
-            <div class="col-md-10 mx-auto">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0">イベント詳細の{% if form.instance.pk %}編集{% else %}作成{% endif %}{% if event %}（{{ event.date|date:"Y年n月j日" }}）{% endif %}</h4>
-                    </div>
-                    <div class="card-body">
-                        {% if form.datetime_locked %}
-                            <div class="alert alert-warning mb-3">
-                                <i class="fas fa-lock me-1"></i>{{ form.datetime_lock_message }}
-                            </div>
-                        {% endif %}
-                        <form method="post"
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}発表の{% if form.instance.pk %}編集{% else %}追加{% endif %}: {{ event.community.name }} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb">
+<li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+<li class="breadcrumb-item active" aria-current="page">発表の{% if form.instance.pk %}編集{% else %}追加{% endif %}</li>
+</ol></nav>
+{% endblock %}
+{% block admin_header %}
+{% if form.instance.pk %}
+{% include 'ta_hub/admin/includes/page_header.html' with title='発表の編集' target=event.community.name only %}
+{% else %}
+{% include 'ta_hub/admin/includes/page_header.html' with title='発表の追加' target=event.community.name only %}
+{% endif %}
+<p class="admin-muted">開催日時: {{ event.date }} {{ event.start_time }}</p>
+{% endblock %}
+{% block extra_css %}
+{{ block.super }}
+<style>
+.hub-admin .field-hidden { display: none; }
+.hub-admin .field-wrapper label { margin-bottom: .5rem; }
+.hub-admin .field-wrapper[data-field="start_time"] input,
+.hub-admin .field-wrapper[data-field="duration"] input { width: 100% !important; max-width: 16rem; }
+.hub-admin .field-wrapper input[type="file"] { max-width: 100%; }
+.hub-admin .field-wrapper a { overflow-wrap: anywhere; }
+.hub-admin .field-wrapper[data-field="generate_blog_article"] { padding: .75rem; background: #f8f9fa; border-radius: .375rem; }
+</style>
+{% endblock %}
+{% block admin_attention %}
+{% if form.datetime_locked %}<div class="admin-attention" role="alert">{{ form.datetime_lock_message }}</div>{% endif %}
+{% endblock %}
+{% block admin_content %}
+                        <form method="post" id="detail-form" data-admin-dirty
                               enctype="multipart/form-data"
                               data-article-generation-form
                               data-has-existing-slide-url="{% if form.instance.slide_url %}true{% else %}false{% endif %}"
@@ -63,11 +39,52 @@
                             {% csrf_token %}
                             {# 画面を開いた時点の記事のハッシュなど（保存時に、その後に作られた記事を消さないため） #}
                             {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
-                            {% if form.datetime_locked %}
-                                <div class="alert alert-warning" role="alert">
-                                    {{ form.datetime_lock_message }}
+{% include 'ta_hub/admin/includes/form_errors.html' with form=form only %}
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='内容' only %}
+                            <!-- detail_type フィールドを特別に表示 -->
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">{{ form.detail_type.label }}</label>
+                                <div class="d-flex gap-3 flex-wrap">
+                                    {% for radio in form.detail_type %}
+                                        <div class="form-check">
+                                            {{ radio.tag }}
+                                            <label class="form-check-label" for="{{ radio.id_for_label }}">
+                                                {{ radio.choice_label }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
                                 </div>
-                            {% endif %}
+                                {% if form.detail_type.help_text %}
+                                    <div class="form-text">{{ form.detail_type.help_text }}</div>
+                                {% endif %}
+                                {% if form.detail_type.errors %}
+                                    <div class="text-danger">{{ form.detail_type.errors }}</div>
+                                {% endif %}
+                            </div>
+                            
+{% if form.theme and not form.theme.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.theme %}{% endif %}
+{% if form.speaker and not form.speaker.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.speaker %}{% endif %}
+{% if form.recording_policy and not form.recording_policy.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.recording_policy %}{% endif %}
+</section>
+<section class="admin-card" data-detail-card>
+{% include 'ta_hub/admin/includes/section_heading.html' with title='日時' only %}
+{% if form.start_time and not form.start_time.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.start_time %}{% endif %}
+{% if form.duration and not form.duration.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.duration %}{% endif %}
+</section>
+<div id="detail-settings-toggle" class="mb-3" style="display: none;">
+<button type="button" class="btn btn-outline-secondary" onclick="toggleDetailSettings()" aria-expanded="false" aria-controls="detail-materials detail-article"><i class="bi bi-gear"></i> 詳細設定を表示</button>
+<small class="admin-muted">スライドやYouTube URLなど</small>
+</div>
+<section class="admin-card" id="detail-materials" data-detail-card>
+{% include 'ta_hub/admin/includes/section_heading.html' with title='資料' only %}
+{% if form.slide_file and not form.slide_file.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.slide_file %}{% endif %}
+{% if form.slide_url and not form.slide_url.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.slide_url %}{% endif %}
+{% if form.thumbnail_image and not form.thumbnail_image.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.thumbnail_image %}{% endif %}
+{% if form.youtube_url and not form.youtube_url.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.youtube_url %}{% endif %}
+</section>
+<section class="admin-card" id="detail-article">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='記事' only %}
                             <div class="alert alert-info" role="note">
                                 <strong>記事生成の流れ:</strong>
                                 <ol class="mb-1 ps-3">
@@ -88,87 +105,16 @@
                                     {% endif %}
                                 </p>
                             {% endif %}
-                            <!-- detail_type フィールドを特別に表示 -->
-                            <div class="mb-4">
-                                <label class="form-label fw-bold">{{ form.detail_type.label }}</label>
-                                <div class="d-flex gap-3">
-                                    {% for radio in form.detail_type %}
-                                        <div class="form-check">
-                                            {{ radio.tag }}
-                                            <label class="form-check-label" for="{{ radio.id_for_label }}">
-                                                {{ radio.choice_label }}
-                                            </label>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                                {% if form.detail_type.help_text %}
-                                    <div class="form-text">{{ form.detail_type.help_text }}</div>
-                                {% endif %}
-                                {% if form.detail_type.errors %}
-                                    <div class="text-danger">{{ form.detail_type.errors }}</div>
-                                {% endif %}
-                            </div>
-                            
-                            <!-- その他のフィールド -->
-                            {% for field in form.visible_fields %}
-                                {% if field.name != 'detail_type' %}
-                                    <div class="mb-3 field-wrapper" data-field="{{ field.name }}">
-                                        {% if field.name == 'generate_blog_article' %}
-                                            <!-- 記事自動生成チェックボックスを特別に表示 -->
-                                            <div class="form-check form-switch d-flex align-items-center">
-                                                {{ field }}
-                                                <label class="form-check-label ms-2 mb-0" for="{{ field.id_for_label }}">
-                                                    {{ field.label }}
-                                                </label>
-                                            </div>
-                                            {% if field.help_text %}
-                                                <div class="form-text ms-5">{{ field.help_text }}</div>
-                                            {% endif %}
-                                        {% elif field.name == 'recording_policy' %}
-                                            <label class="form-label">{{ field.label }}</label>
-                                            {% include "event/includes/recording_policy_radios.html" with field=field %}
-                                            {% if field.help_text %}
-                                                <div class="form-text">{{ field.help_text }}</div>
-                                            {% endif %}
-                                        {% else %}
-                                            {{ field.label_tag }}
-                                            {% if field.name == 'speaker' %}
-                                                <div class="input-group">
-                                                    {{ field }}
-                                                    <span class="input-group-text">さん</span>
-                                                </div>
-                                            {% else %}
-                                                {{ field }}
-                                            {% endif %}
-                                            {% if field.help_text %}
-                                                <div class="form-text">{{ field.help_text }}</div>
-                                            {% endif %}
-                                        {% endif %}
-                                        {% if field.errors %}
-                                            <div class="text-danger">{{ field.errors }}</div>
-                                        {% endif %}
-                                    </div>
-                                    {% if field.name == 'duration' and form.recording_not_allowed %}
-                                        <div class="mb-3 field-wrapper" data-field="recording_policy">
-                                            <div class="form-label">撮影</div>
-                                            <p class="form-text mb-0">
-                                                この集会は撮影を許可していません。
-                                                <a href="{% url 'community:settings' %}">集会設定</a>で許可すると選べます
-                                            </p>
-                                        </div>
-                                    {% endif %}
-                                {% endif %}
-                            {% endfor %}
-                            
-                            <div class="d-flex justify-content-between align-items-center">
-                                <!-- 詳細設定ボタン（開催前のLTタイプ用） -->
-                                <div id="detail-settings-toggle" style="display: none;">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="toggleDetailSettings()">
-                                        <i class="bi bi-gear"></i> 詳細設定を表示
-                                    </button>
-                                    <small class="text-muted ms-2">スライドやYouTube URLなど</small>
-                                </div>
-                                <div class="ms-auto">
+
+{% if form.h1 and not form.h1.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.h1 %}{% endif %}
+{% if form.contents and not form.contents.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.contents %}{% endif %}
+{% if form.generate_blog_article and not form.generate_blog_article.is_hidden %}{% include 'event/includes/detail_form_field.html' with field=form.generate_blog_article %}{% endif %}
+</section>
+<p class="admin-muted">※ 利用可能な<a href="{% url 'event:markdown' %}">markdownの一覧と書き方</a></p>
+<div class="admin-action-bar stickybar" data-admin-action-bar role="region" aria-label="保存操作">
+<span class="admin-dirty-status" data-admin-form-status="detail-form" aria-live="polite">変更はありません</span>
+<div class="admin-action-buttons">
+<a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">キャンセル</a>
                                     <button type="submit" class="btn btn-primary article-submit-button" data-article-submit-button>
                                         <span class="article-submit-button__content" data-submit-default>
                                             <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
@@ -179,23 +125,12 @@
                                             生成しながら保存中…
                                         </span>
                                     </button>
-                                </div>
-                            </div>
-                            {% include 'event/includes/article_generation_submit_feedback.html' %}
-                        </form>
-                        <div class="p-2">
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-md-10 mx-auto mt-2">
-                ※ 利用可能な<a href="{% url 'event:markdown' %}">markdownの一覧と書き方</a><br>
-            </div>
-
-        </div>
-    </div>
-
+</div></div>
+{% include 'event/includes/article_generation_submit_feedback.html' %}
+</form>
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
     <script>
         // イベント開催前かどうかのフラグ（Djangoテンプレートから渡される）
         const isBeforeEvent = {{ is_before_event|lower }};
@@ -204,7 +139,7 @@
         function toggleDetailSettings() {
             detailSettingsExpanded = !detailSettingsExpanded;
             const button = document.querySelector('#detail-settings-toggle button');
-            const optionalFields = ['slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents'];
+            const optionalFields = ['slide_file', 'slide_url', 'thumbnail_image', 'youtube_url', 'h1', 'contents', 'generate_blog_article'];
             
             optionalFields.forEach(fieldName => {
                 const wrapper = document.querySelector(`.field-wrapper[data-field="${fieldName}"]`);
@@ -217,6 +152,8 @@
                 }
             });
             
+            updateDetailCards();
+            button.setAttribute('aria-expanded', String(detailSettingsExpanded));
             // ボタンのテキストを変更
             if (detailSettingsExpanded) {
                 button.innerHTML = '<i class="bi bi-gear-fill"></i> 詳細設定を隠す';
@@ -225,6 +162,14 @@
             }
         }
         
+        function updateDetailCards() {
+            document.querySelectorAll('[data-detail-card]').forEach(card => {
+                card.hidden = !Array.from(card.querySelectorAll('.field-wrapper')).some(
+                    wrapper => !wrapper.classList.contains('field-hidden')
+                );
+            });
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const detailTypeRadios = document.querySelectorAll('input[name="detail_type"]');
             const fieldWrappers = document.querySelectorAll('.field-wrapper');
@@ -288,6 +233,9 @@
                         wrapper.classList.remove('field-hidden');
                     }
                 });
+                const toggleButton = detailSettingsToggle.querySelector('button');
+                toggleButton.setAttribute('aria-expanded', String(detailSettingsExpanded));
+                updateDetailCards();
             }
             
             // 初期表示の設定

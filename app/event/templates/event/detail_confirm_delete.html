@@ -1,22 +1,22 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 
-{% block main %}
-    <div class="container my-4" style="max-width: 640px;">
-        <h1 class="h4 mb-3">発表の削除: {{ object.event.community.name }}</h1>
-        <div class="card" style="border-color: #e7b9b9; background: #fff6f6;">
-            <div class="card-body">
-                <p class="mb-2">次の発表を削除しますか？ この操作は取り消せません。</p>
-                <ul class="mb-3">
-                    <li>開催日: {{ object.event.date|date:"Y/m/d" }}</li>
-                    <li>テーマ: {{ object.theme }}</li>
-                    <li>発表者: {{ object.speaker }}</li>
-                </ul>
-                <form method="post" class="d-flex gap-2 flex-wrap">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-danger">この発表を削除する</button>
-                    <a href="{% url 'event:detail' object.pk %}" class="btn btn-outline-secondary">キャンセル</a>
-                </form>
-            </div>
-        </div>
-    </div>
+{% block title %}発表の削除: {{ object.event.community.name }} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+    <li class="breadcrumb-item active" aria-current="page">発表の削除</li>
+</ol></nav>
+{% endblock %}
+{% block admin_header %}
+{% include 'ta_hub/admin/includes/page_header.html' with title='発表の削除' target=object.event.community.name only %}
+<p class="admin-muted">{{ object.event.date }} {{ object.start_time }}</p>
+{% endblock %}
+{% block admin_content %}
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='削除する発表' only %}
+<dl><dt>テーマ</dt><dd>{{ object.theme }}</dd><dt>発表者</dt><dd>{{ object.speaker }}</dd></dl>
+{% url 'event:detail_delete' object.pk as delete_url %}
+{% url 'event:detail' object.pk as cancel_url %}
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='delete-presentation' label='発表の削除確認' message='次の発表を削除しますか？ この操作は取り消せません。' action_url=delete_url submit_label='この発表を削除する' open=True cancel_url=cancel_url %}
+</section>
 {% endblock %}

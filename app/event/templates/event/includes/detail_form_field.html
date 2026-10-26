@@ -1,0 +1,45 @@
+<div class="mb-3 field-wrapper" data-field="{{ field.name }}">
+    {% if field.name == 'generate_blog_article' %}
+        <!-- 記事自動生成チェックボックスを特別に表示 -->
+        <div class="form-check form-switch d-flex align-items-center">
+            {{ field }}
+            <label class="form-check-label ms-2 mb-0" for="{{ field.id_for_label }}">
+                {{ field.label }}
+            </label>
+        </div>
+        {% if field.help_text %}
+            <div class="form-text ms-5">{{ field.help_text }}</div>
+        {% endif %}
+    {% elif field.name == 'recording_policy' %}
+        <label class="form-label">{{ field.label }}</label>
+        {% include "event/includes/recording_policy_radios.html" with field=field %}
+        {% if field.help_text %}
+            <div class="form-text">{{ field.help_text }}</div>
+        {% endif %}
+    {% else %}
+        {{ field.label_tag }}
+        {% if field.name == 'speaker' %}
+            <div class="input-group">
+                {{ field }}
+                <span class="input-group-text">さん</span>
+            </div>
+        {% else %}
+            {{ field }}
+        {% endif %}
+        {% if field.help_text %}
+            <div class="form-text">{{ field.help_text }}</div>
+        {% endif %}
+    {% endif %}
+    {% if field.errors %}
+        <div class="text-danger">{{ field.errors }}</div>
+    {% endif %}
+</div>
+{% if field.name == 'duration' and form.recording_not_allowed %}
+    <div class="mb-3 field-wrapper" data-field="recording_policy">
+        <div class="form-label">撮影</div>
+        <p class="form-text mb-0">
+            この集会は撮影を許可していません。
+            <a href="{% url 'community:settings' %}">集会設定</a>で許可すると選べます
+        </p>
+    </div>
+{% endif %}
