@@ -1,6 +1,8 @@
 """サニタイズ後のガイド HTML に配信 URL と画像の表示属性を付ける。"""
+import hashlib
 import posixpath
 import re
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit, urlunsplit
 
@@ -27,6 +29,22 @@ def guide_link(href: str, page_path: str) -> str:
     if not is_public_path(target):
         return href
     return urlunsplit(('', '', f'/guide/{target}/', url.query, url.fragment))
+
+
+@lru_cache(maxsize=None)
+def content_digest(path: str) -> str | None:
+    file = STATIC_GUIDE_ROOT / path
+    return hashlib.md5(file.read_bytes(), usedforsecurity=False).hexdigest()[:10] if file.is_file() else None
+
+
+def guide_static(path: str) -> str:
+    """画像の配信 URL に中身のハッシュを付ける。
+
+    配信側は同じ URL の画像を数時間キャッシュするので、撮り直した画像が古いまま出ないよう URL ごと変える。
+    """
+    url = static(f'guide/{path}')
+    digest = content_digest(path)
+    return f'{url}?v={digest}' if digest else url
 
 
 def mobile_variant(image_path: str) -> str | None:
@@ -63,7 +81,7 @@ def render_guide_html(html: str, page_path: str) -> str:
         image_path = posixpath.normpath(unquote(url.path))
         if not image_path.startswith('images/') or '\\' in image_path:
             continue
-        image_url = static(f'guide/{image_path}')
+        image_url = guide_static(image_path)
         img['src'] = image_url
         img['loading'] = 'lazy'
         img['class'] = ' '.join(dict.fromkeys([*img.get_attribute_list('class'), 'guide-screenshot']))
@@ -72,7 +90,7 @@ def render_guide_html(html: str, page_path: str) -> str:
         if mobile_path:
             # 本文には PC 版だけを書き、スマホ幅では同じ手順の -sp 版を出す（同じ画面を 2 枚並べない）。
             picture = soup.new_tag('picture')
-            picture.append(soup.new_tag('source', media=MOBILE_MEDIA, srcset=static(f'guide/{mobile_path}')))
+            picture.append(soup.new_tag('source', media=MOBILE_MEDIA, srcset=guide_static(mobile_path)))
             img.wrap(picture)
             picture.append(img.extract())
             target = picture
