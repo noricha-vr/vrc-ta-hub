@@ -1,4 +1,5 @@
 """ガイド本文・目次・画像を実ファイルと照合する契約テスト。"""
+import hashlib
 import posixpath
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -30,6 +31,11 @@ def nav_paths(items):
         if 'path' in item:
             yield item['path']
         yield from nav_paths(item.get('children', []))
+
+
+def versioned(path):
+    digest = hashlib.md5((IMAGE_ROOT.parent / path).read_bytes(), usedforsecurity=False).hexdigest()[:10]
+    return f"{static(f'guide/{path}')}?v={digest}"
 
 
 class GuideContentContractTest(SimpleTestCase):
@@ -201,10 +207,16 @@ class GuideRenderingTest(SimpleTestCase):
         soup = self.render('![入口](images/community/create-01.webp)')
         picture = soup.img.parent
         self.assertEqual(picture.name, 'picture')
-        self.assertEqual(picture.source['srcset'], static('guide/images/community/create-01-sp.webp'))
+        self.assertEqual(picture.source['srcset'], versioned('images/community/create-01-sp.webp'))
         self.assertEqual(picture.source['media'], '(max-width: 575.98px)')
         self.assertEqual(picture.parent.name, 'a')
-        self.assertEqual(picture.parent['href'], static('guide/images/community/create-01.webp'))
+        self.assertEqual(picture.parent['href'], versioned('images/community/create-01.webp'))
+
+    def test_existing_image_url_changes_with_its_content(self):
+        # 配信側は同じ URL の画像を数時間キャッシュする。撮り直した画像が古いまま出ないよう、中身のハッシュを URL に付ける。
+        soup = self.render('![入口](images/community/create-01.webp)')
+        self.assertTrue(soup.img['src'].startswith(static('guide/images/community/create-01.webp') + '?v='))
+        self.assertEqual(soup.img['src'], versioned('images/community/create-01.webp'))
 
     def test_image_without_mobile_variant_is_not_wrapped_in_picture(self):
         soup = self.render('![入力欄](images/section/page-01.webp)')
