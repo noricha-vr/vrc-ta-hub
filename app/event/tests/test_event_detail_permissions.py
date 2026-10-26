@@ -147,6 +147,21 @@ class EventDetailPermissionTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/account/login/", response.url)
 
+    def test_owner_sees_delete_confirmation_body(self):
+        """削除の確認画面に本文（対象とボタン）が出て、キャンセルは発表の詳細へ戻る."""
+        self.client.force_login(self.owner)
+
+        url = reverse("event:detail_delete", kwargs={"pk": self.event_detail.pk})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "この発表を削除する")
+        self.assertContains(response, self.event_detail.theme)
+        self.assertContains(
+            response,
+            f'href="{reverse("event:detail", kwargs={"pk": self.event_detail.pk})}"',
+        )
+
     def test_non_member_cannot_delete_event_detail(self):
         """非メンバーはEventDetailを削除できない（403）."""
         self.client.force_login(self.other_user)

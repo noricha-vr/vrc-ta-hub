@@ -101,7 +101,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         # 今後のイベントなし警告
         future_events = Event.objects.filter(
             community=community,
-            date__gte=timezone.now().date()
+            date__gte=get_vrchat_today()
         ).exists()
         if not future_events:
             warnings.append({
@@ -169,16 +169,28 @@ class EventMyList(LoginRequiredMixin, ListView):
         )
         return future_events, open_more
 
+    @staticmethod
+    def _is_calendar_configured(calendar_entry):
+        """説明か参加方法が入力済みなら、カレンダーへの投稿設定がある。"""
+        return bool(calendar_entry and (
+            calendar_entry.event_detail.strip() or calendar_entry.how_to_join.strip()
+        ))
+
     def set_vrc_event_calendar_post_url(self, queryset: QuerySet) -> QuerySet:
         """イベントのGoogleフォームのURLを設定する"""
         today = get_vrchat_today()
         # CalendarEntry は集会単位なので、集会ごとに1回だけ取得して使い回す
         calendar_entries = {}
         for event in queryset:
+            event.is_future = event.date >= today
+            event.calendar_configured = False
             if today > event.date:
                 continue
             if event.community_id not in calendar_entries:
                 calendar_entries[event.community_id] = CalendarEntry.get_or_create_from_event(event)
+            event.calendar_configured = self._is_calendar_configured(
+                calendar_entries[event.community_id]
+            )
             event.calendar_url = create_calendar_entry_url(
                 event, calendar_entry=calendar_entries[event.community_id]
             )
@@ -257,7 +269,7 @@ class EventMyList(LoginRequiredMixin, ListView):
             # イベント詳細を一括取得（管理画面のため全ステータスを含む）
             event_details = EventDetail.objects.filter(
                 event_id__in=event_ids
-            ).select_related('event').order_by('created_at')
+            ).select_related('event', 'applicant').order_by('created_at')
 
             # イベント詳細をイベントIDごとに整理
             event_detail_dict = {}
@@ -269,6 +281,7 @@ class EventMyList(LoginRequiredMixin, ListView):
             # 各イベントに詳細リストを設定
             for event in events:
                 event.detail_list = event_detail_dict.get(event.id, [])
+                event.pending_count = sum(detail.status == 'pending' for detail in event.detail_list)
         else:
             # イベントが存在しない場合は空のリストを設定
             for event in events:
@@ -309,6 +322,7 @@ class EventMyList(LoginRequiredMixin, ListView):
 
         # イベントリストを取得（1ページ目だけ未来のイベントを先頭に差し込む）
         events = list(context['events'])
+        future_events = []
         context['open_more_future_events'] = False
         if context['page_obj'].number == 1:
             future_events, open_more = self._get_future_events()
@@ -329,6 +343,19 @@ class EventMyList(LoginRequiredMixin, ListView):
 
         # 更新されたイベントリストをコンテキストに再設定
         context['events'] = events
+        context['pending_details'] = [
+            detail for event in events for detail in event.detail_list
+            if detail.status == 'pending'
+        ]
+        # 「今後のイベントなし」(info) は案内なので、要対応の件数には数えない
+        context['action_required_count'] = len(context['pending_details']) + sum(
+            warning['type'] != 'info' for warning in context['warnings']
+        )
+        context['future_events_count'] = len(future_events)
+        remaining = future_events[self.VISIBLE_FUTURE_EVENTS:]
+        context['remaining_future_events_count'] = len(remaining)
+        context['remaining_future_start'] = remaining[0].date if remaining else None
+        context['remaining_future_end'] = remaining[-1].date if remaining else None
         # ページネーション用のパラメータを設定
         context['current_query_params'] = self._prepare_pagination_params()
 

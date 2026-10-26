@@ -107,3 +107,9 @@ class SiteNameMetadataTests(TestCase):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(_MetaParser(response.content).site_names, [SITE_NAME])
+
+    def test_footer_site_name_keeps_its_letter_case(self):
+        # text-uppercase が付くと「VRCHAT 技術・学術系イベントHUB」と表示される
+        content = self.client.get('/').content.decode('utf-8')
+        self.assertIn(f'<h5 class="mb-3 fw-bold">{SITE_NAME_SEO}</h5>', content)
+        self.assertNotIn('text-uppercase', content)
