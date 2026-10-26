@@ -1,6 +1,7 @@
 {% extends 'ta_hub/admin_base.html' %}
-{% load custom_filters %}
+{% load custom_filters og_tags %}
 {% block title %}承認待ちの集会 - {% site_name_seo %}{% endblock %}
+{% block og_image_meta %}{% og_static 'ta_hub/og/community-waiting.jpg' as image_url %}{% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}{% endblock %}
 {% block admin_breadcrumbs %}{% include 'community/includes/admin_breadcrumbs.html' with label='承認待ちの集会' %}{% endblock %}
 {% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='承認待ちの集会' subtitle='運営専用' only %}{% endblock %}
 {% block admin_content %}
