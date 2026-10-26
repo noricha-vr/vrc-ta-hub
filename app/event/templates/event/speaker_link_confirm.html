@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -59,88 +60,102 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
           integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+"
           crossorigin="anonymous">
+    <link rel="stylesheet" href="{% static 'ta_hub/css/admin-ui.css' %}">
+    <style>
+        .hub-admin.speaker-link {
+            --custom-primary: rgb(27,125,230);
+            max-width: 48rem;
+            font-family: 'Noto Sans JP', system-ui, sans-serif;
+            overflow-wrap: anywhere;
+        }
+        .hub-admin.speaker-link .btn-primary {
+            --bs-btn-bg: var(--custom-primary);
+            --bs-btn-border-color: var(--custom-primary);
+            --bs-btn-hover-bg: rgb(22,100,184);
+            --bs-btn-hover-border-color: rgb(22,100,184);
+        }
+        .hub-admin.speaker-link .speaker-link-actions .btn { white-space: nowrap; }
+        @media (max-width: 575.98px) {
+            .hub-admin.speaker-link .admin-card { padding: 1rem; }
+        }
+    </style>
 </head>
 <body>
-    <main class="container my-5">
-        <div class="row justify-content-center">
-            <div class="col-lg-7">
-                <div class="card shadow-sm">
-                    <div class="card-header bg-primary text-white">
-                        <h1 class="h4 mb-0">
-                            <i class="bi bi-person-check me-2" aria-hidden="true"></i>発表者アカウントの紐づけ
-                        </h1>
+    <main class="container my-4 hub-admin speaker-link">
+        {% if event_detail %}
+            {% include 'ta_hub/admin/includes/page_header.html' with title='発表者アカウントの紐づけ' target=event_detail.theme|default:'テーマ未設定' only %}
+        {% else %}
+            {% include 'ta_hub/admin/includes/page_header.html' with title='発表者アカウントの紐づけ' target='招待リンクの確認' only %}
+        {% endif %}
+        <section class="admin-card" aria-labelledby="speaker-link-heading">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='紐づけ内容の確認' heading_id='speaker-link-heading' only %}
+            {% if needs_token_exchange %}
+                <noscript>
+                    <div class="alert alert-warning" role="alert">
+                        このページの表示には JavaScript が必要です。ブラウザの設定で JavaScript を有効にしてから、招待リンクを開き直してください。
                     </div>
-                    <div class="card-body p-4">
-                        {% if needs_token_exchange %}
-                            <noscript>
-                                <div class="alert alert-warning" role="alert">
-                                    このページの表示には JavaScript が必要です。ブラウザの設定で JavaScript を有効にしてから、招待リンクを開き直してください。
-                                </div>
-                            </noscript>
-                            <form id="speaker-token-exchange-form"
-                                  action="{% url 'event:speaker_invite_token_exchange' %}"
-                                  method="post">
-                                {% csrf_token %}
-                            </form>
-                            <div id="speaker-token-exchange-feedback" class="alert alert-info" hidden
-                                 role="status" aria-live="polite">
-                                招待リンクを確認しています。
-                            </div>
-                        {% endif %}
-
-                        {% if error_message %}
-                            <div class="alert alert-danger" role="alert" aria-live="assertive">
-                                <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>{{ error_message }}
-                            </div>
-                        {% endif %}
-
-                        {% if event_detail %}
-                            <dl class="row mb-4">
-                                <dt class="col-sm-3">発表テーマ</dt>
-                                <dd class="col-sm-9">{{ event_detail.theme|default:"未設定" }}</dd>
-                                <dt class="col-sm-3">発表者名</dt>
-                                <dd class="col-sm-9">{{ event_detail.speaker|default:"未設定" }}</dd>
-                            </dl>
-                        {% endif %}
-
-                        {% if can_confirm %}
-                            <p>上記の承認済みの発表を、次のログイン中アカウントに紐づけます。</p>
-                            <div class="alert alert-info" role="status">
-                                <div>
-                                    <strong>紐づけ先:</strong> {{ request.user.display_label }}
-                                    {% if request.user.display_label != request.user.user_name %}
-                                        （{{ request.user.user_name }}）
-                                    {% endif %}
-                                </div>
-                                <div class="mt-2">紐づけ後は、「自分の発表」ページからこの発表を編集できます。</div>
-                            </div>
-                            <div class="d-flex flex-wrap gap-2 align-items-center">
-                                <form method="post" id="speaker-link-confirm-form">
-                                    {% csrf_token %}
-                                    <button type="submit" class="btn btn-primary" id="speaker-link-confirm-button">
-                                        <i class="bi bi-link-45deg me-1" aria-hidden="true"></i><span id="speaker-link-confirm-label">このアカウントに紐づける</span>
-                                    </button>
-                                </form>
-                                <a href="{% url 'event:detail' event_detail.pk %}" class="btn btn-outline-secondary">
-                                    <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>今は紐づけない
-                                </a>
-                            </div>
-                            <p class="text-muted small mt-3 mb-0">
-                                別のアカウントに紐づける場合は、一度ログアウトしてから、この招待リンクを開き直してください。
-                            </p>
-                        {% elif event_detail %}
-                            <a href="{% url 'event:detail' event_detail.pk %}" class="btn btn-outline-secondary">
-                                <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>発表詳細に戻る
-                            </a>
-                        {% elif not needs_token_exchange %}
-                            <a href="{% url 'ta_hub:index' %}" class="btn btn-outline-secondary">
-                                <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>トップページに戻る
-                            </a>
-                        {% endif %}
-                    </div>
+                </noscript>
+                <form id="speaker-token-exchange-form"
+                      action="{% url 'event:speaker_invite_token_exchange' %}"
+                      method="post">
+                    {% csrf_token %}
+                </form>
+                <div id="speaker-token-exchange-feedback" class="alert alert-info" hidden
+                     role="status" aria-live="polite">
+                    招待リンクを確認しています。
                 </div>
-            </div>
-        </div>
+            {% endif %}
+
+            {% if error_message %}
+                <div class="alert alert-danger" role="alert" aria-live="assertive">
+                    <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>{{ error_message }}
+                </div>
+            {% endif %}
+
+            {% if event_detail %}
+                <dl class="row mb-4">
+                    <dt class="col-sm-3">発表テーマ</dt>
+                    <dd class="col-sm-9">{{ event_detail.theme|default:"未設定" }}</dd>
+                    <dt class="col-sm-3">発表者名</dt>
+                    <dd class="col-sm-9">{{ event_detail.speaker|default:"未設定" }}</dd>
+                </dl>
+            {% endif %}
+
+            {% if can_confirm %}
+                <p>上記の承認済みの発表を、次のログイン中アカウントに紐づけます。</p>
+                <div class="alert alert-info" role="status">
+                    <div>
+                        <strong>紐づけ先:</strong> {{ request.user.display_label }}
+                        {% if request.user.display_label != request.user.user_name %}
+                            （{{ request.user.user_name }}）
+                        {% endif %}
+                    </div>
+                    <div class="mt-2">紐づけ後は、「自分の発表」ページからこの発表を編集できます。</div>
+                </div>
+                <div class="speaker-link-actions d-flex flex-wrap gap-2 align-items-center">
+                    <form method="post" id="speaker-link-confirm-form">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary" id="speaker-link-confirm-button">
+                            <i class="bi bi-link-45deg me-1" aria-hidden="true"></i><span id="speaker-link-confirm-label">このアカウントに紐づける</span>
+                        </button>
+                    </form>
+                    <a href="{% url 'event:detail' event_detail.pk %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>今は紐づけない
+                    </a>
+                </div>
+                <p class="admin-muted mt-3 mb-0">
+                    別のアカウントに紐づける場合は、一度ログアウトしてから、この招待リンクを開き直してください。
+                </p>
+            {% elif event_detail %}
+                <a href="{% url 'event:detail' event_detail.pk %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>発表詳細に戻る
+                </a>
+            {% elif not needs_token_exchange %}
+                <a href="{% url 'ta_hub:index' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-1" aria-hidden="true"></i>トップページに戻る
+                </a>
+            {% endif %}
+        </section>
     </main>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
