@@ -1,5 +1,15 @@
 {% extends 'ta_hub/admin_base.html' %}
 {% block title %}自分の発表申請 - {% site_name_seo %}{% endblock %}
+{% block extra_css %}{{ block.super }}
+<style>
+.hub-admin .app-row{padding:.6rem 1rem;margin-bottom:.5rem}
+.hub-admin .app-row-main{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.hub-admin .app-row-text{flex:1 1 18rem;min-width:0}
+.hub-admin .app-row-meta{margin:0;font-size:.8rem;color:var(--bs-secondary-color)}
+.hub-admin .app-row-theme{margin:.1rem 0 0;font-size:.95rem;font-weight:600;overflow-wrap:anywhere}
+.hub-admin .app-row-side{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+</style>
+{% endblock %}
 {% block admin_breadcrumbs %}{% include 'account/includes/breadcrumbs.html' with current='自分の発表申請' %}{% endblock %}
 {% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='自分の発表申請' target=user.display_label %}{% endblock %}
 {% block admin_content %}
@@ -7,17 +17,18 @@
 {% include 'ta_hub/admin/includes/section_heading.html' with title='申請した発表' %}
 <p class="admin-muted">{{ applications|length }} 件</p>
 {% for app in applications %}
-<article class="admin-card" aria-labelledby="application-{{ app.pk }}">
-<div class="presentation-heading">
-<div class="presentation-text"><p class="event-meta">{{ app.event.community.name }} / {{ app.event.date|date:"Y/m/d" }}</p>
-<h2 class="presentation-theme" id="application-{{ app.pk }}">{{ app.theme }}</h2>
-<p class="presentation-speaker">{{ app.speaker }}</p>
-{% include 'account/includes/application_status.html' with app=app only %}</div>
-<div class="presentation-actions">
+<article class="admin-card app-row" aria-labelledby="application-{{ app.pk }}">
+<div class="app-row-main">
+<div class="app-row-text">
+<p class="app-row-meta">{{ app.event.date|date:"Y/m/d" }} ・ {{ app.event.community.name }} ・ {{ app.speaker }}</p>
+<h2 class="app-row-theme" id="application-{{ app.pk }}">{{ app.theme }}</h2>
+</div>
+<div class="app-row-side">
+{% include 'account/includes/application_status.html' with app=app only %}
 {% if app.status != 'rejected' %}<a href="{% url 'account:lt_application_edit' app.pk %}" class="btn btn-sm btn-outline-secondary">編集</a>{% endif %}
 {% if app.status == 'approved' %}<a href="{% url 'event:detail' app.pk %}" class="btn btn-sm btn-outline-secondary">確認</a>{% endif %}
 </div></div>
-{% if app.status == 'rejected' and app.rejection_reason %}<p class="alert alert-warning mt-3 mb-0">却下理由: {{ app.rejection_reason }}</p>{% endif %}
+{% if app.status == 'rejected' and app.rejection_reason %}<p class="alert alert-warning mt-2 mb-0 py-2 small">却下理由: {{ app.rejection_reason }}</p>{% endif %}
 </article>
 {% endfor %}
 {% else %}{% include 'ta_hub/admin/includes/empty_state.html' with title='発表申請はまだありません。' %}{% endif %}
