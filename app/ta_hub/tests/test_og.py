@@ -90,12 +90,20 @@ class HubOgTests(TestCase):
         self.assert_image(self.client.get('/community/waiting_list/'),
                           'http://testserver/static/ta_hub/og/community-waiting.jpg')
 
-    def test_news_preserves_base_title_and_description(self):
-        response = self.client.get('/news/')
-        # ニュース一覧にはタイトル指定が無いため base の既定を使う。
-        meta = MetaParser(response.content).values
-        self.assertEqual(meta['og:title'], ['VRChat 技術・学術系イベントHub - VRChat技術学術系集会の世界へ！ようこそ！'])
-        self.assertIn('最新イベント情報', meta['description'][0])
+    def test_news_lists_have_own_title_and_description(self):
+        # 以前はトップの既定タイトルをそのまま継いでいて、検索結果で一覧とトップの見分けがつかなかった
+        meta = MetaParser(self.client.get('/news/').content).values
+        self.assertEqual(meta['og:title'], ['お知らせ - VRChat 技術・学術系イベントHub'])
+        self.assertIn('からのお知らせです', meta['description'][0])
+
+        meta = MetaParser(self.client.get(f'/news/category/{self.category.slug}/').content).values
+        self.assertEqual(meta['og:title'], [f'{self.category.name} - お知らせ - VRChat 技術・学術系イベントHub'])
+        self.assertIn(f'「{self.category.name}」の記事一覧', meta['description'][0])
+
+    def test_terms_title_is_terms(self):
+        meta = MetaParser(self.client.get('/terms/').content).values
+        self.assertEqual(meta['og:title'], ['利用規約 - VRChat 技術・学術系イベントHub'])
+        self.assertIn('利用規約です', meta['description'][0])
 
     def test_community_png_is_public_and_1200_by_630(self):
         self.assert_png(self.client.get(reverse('ta_hub:og_community', kwargs={'pk': self.community.pk})))

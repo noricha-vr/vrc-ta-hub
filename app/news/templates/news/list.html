@@ -1,11 +1,17 @@
 {% extends 'ta_hub/base.html' %}
 {% load og_tags %}
-{% block og_image_meta %}
-    {% og_static 'ta_hub/og/news.jpg' as image_url %}
-    {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
-{% endblock %}
 {% block meta %}
-    {{ block.super }}
+    <title>お知らせ - {% site_name_seo %}</title>
+    <meta name="twitter:title" content="お知らせ - {% site_name_seo %}">
+    <meta property="og:title" content="お知らせ - {% site_name_seo %}">
+    <meta name="description" content="{% site_name_seo %}からのお知らせです。イベントの告知、開催の記録、サイトのアップデートをまとめています。">
+    <meta name="twitter:description" content="{% site_name_seo %}からのお知らせです。イベントの告知、開催の記録、サイトのアップデートをまとめています。">
+    <meta property="og:description" content="{% site_name_seo %}からのお知らせです。イベントの告知、開催の記録、サイトのアップデートをまとめています。">
+    {# og_image_meta は base の meta の中にあるので、meta を上書きする時はここで書く #}
+    {% block og_image_meta %}
+        {% og_static 'ta_hub/og/news.jpg' as image_url %}
+        {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
+    {% endblock %}
     {% if structured_data_json %}
         <script type="application/ld+json">{{ structured_data_json|safe }}</script>
     {% endif %}
