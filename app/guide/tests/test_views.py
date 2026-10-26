@@ -244,6 +244,14 @@ class GuideViewsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "はじめに")
 
+    def test_guide_page_shows_title_as_single_h1(self):
+        """本文先頭の H1 は共通処理で外れるので、ページの大見出しが 1 つだけ出ること"""
+        response = self.client.get(
+            reverse("guide:page", kwargs={"path": "community/create"})
+        )
+
+        self.assertContains(response, "<h1>集会を登録する</h1>", html=True, count=1)
+
     def test_guide_page_view_nested(self):
         """ネストしたパスのページが表示されること"""
         response = self.client.get(
