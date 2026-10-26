@@ -27,12 +27,23 @@
 
 <form id="community-form" data-admin-dirty method="post" enctype="multipart/form-data">
 {% csrf_token %}{% include 'community/includes/community_fields.html' %}
+{% include 'community/includes/create_lt_settings.html' %}
 <section class="admin-card">
 {% include 'ta_hub/admin/includes/section_heading.html' with title='登録前の確認' only %}
 {% include 'ta_hub/admin/includes/form_field.html' with field=form.guidelines_agreed only %}
 <p class="form-text">同意対象: <a href="{% url 'community:criteria' %}" target="_blank" rel="noopener">掲載・審査基準</a></p>
 </section></form>
-{% include 'community/includes/locked_settings.html' %}
+<section class="setup-placeholder d-block border rounded-3 p-3 mt-3" aria-labelledby="after-approval-heading">
+<h2 id="after-approval-heading" class="h6">承認後に設定できること</h2>
+<ul class="mb-0">
+<li>Discord 通知</li>
+<li>VRCイベントカレンダー</li>
+<li>X の告知テンプレート</li>
+<li>メンバー</li>
+<li>API キー</li>
+<li>発表申請の追加情報テンプレート</li>
+</ul>
+</section>
 {% endblock %}
 {% block admin_action_bar %}
 {% url 'account:settings' as return_url %}

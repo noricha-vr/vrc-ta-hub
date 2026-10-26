@@ -2,7 +2,8 @@ from django import forms
 from django.forms.widgets import CheckboxSelectMultiple
 
 
-from .constants import WEEKDAY_CHOICES
+from .constants import WEEKDAY_CHOICES, RECORDING_POLICY_FORM_CHOICES
+from .recording_settings import _parse_recording_allowed, _resolve_default_recording_policy
 from .libs import resolve_vrc_group_url
 from .models import Community, TAGS, FORM_TAGS
 
@@ -198,12 +199,62 @@ class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
         }
     )
 
+    accepts_lt_application = forms.TypedChoiceField(
+        label='発表申請の受付',
+        choices=[('on', '受け付ける'), ('off', '受け付けない')],
+        coerce=lambda value: value == 'on',
+        empty_value=True,
+        required=False,
+        initial='on',
+    )
+    recording_allowed = forms.CharField(
+        label='撮影許可',
+        required=False,
+        strip=False,
+        initial='false',
+        widget=forms.RadioSelect(choices=[('true', '許可する'), ('false', '許可しない')]),
+        help_text='「許可しない」場合は自動撮影の対象にならず、発表申請も撮影「禁止」で受け付けます。',
+    )
+    default_recording_policy = forms.CharField(
+        label='撮影ステータスの初期値',
+        required=False,
+        strip=False,
+        widget=forms.RadioSelect(choices=RECORDING_POLICY_FORM_CHOICES),
+        help_text='発表申請フォームの初期値です。登壇者は申請時に変えられます。',
+    )
+    default_recording_policy_chosen = forms.CharField(required=False, strip=False, widget=forms.HiddenInput)
+    default_lt_duration = forms.IntegerField(
+        label='発表の持ち時間（分）', required=False, initial=30, min_value=1, max_value=240,
+        help_text='発表と質疑応答を含めた合計時間（分）。',
+    )
+    lt_start_offset_minutes = forms.IntegerField(
+        label='最初の発表を始めるタイミング（集会開始から何分後）',
+        required=False, initial=30, min_value=0, max_value=1440,
+        help_text='例：集会開始が22:00の場合、15分後なら発表開始は22:15です。',
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        allowed = _parse_recording_allowed(cleaned.get('recording_allowed'))
+        cleaned['recording_allowed'] = allowed
+        cleaned['default_recording_policy'] = _resolve_default_recording_policy(
+            cleaned.get('default_recording_policy'), self.instance.default_recording_policy,
+            was_allowed=self.instance.recording_allowed, allowed=allowed,
+            chosen=cleaned.get('default_recording_policy_chosen') == '1',
+        )
+        for name in ('default_lt_duration', 'lt_start_offset_minutes'):
+            if name in cleaned and cleaned[name] is None:
+                cleaned[name] = Community._meta.get_field(name).get_default()
+        return cleaned
+
     class Meta:
         model = Community
         fields = [
             'name', 'start_time', 'duration', 'weekdays', 'frequency', 'organizers',
             'group_url', 'organizer_url', 'sns_url', 'discord', 'twitter_hashtag',
-            'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags'
+            'poster_image', 'allow_poster_repost', 'description', 'platform', 'tags',
+            'accepts_lt_application', 'recording_allowed', 'default_recording_policy',
+            'default_lt_duration', 'lt_start_offset_minutes'
         ]
         labels = {
             'sns_url': 'XアカウントURL',
@@ -233,6 +284,9 @@ class CommunityCreateForm(VrcGroupUrlMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.initial['accepts_lt_application'] = 'on' if self.instance.accepts_lt_application else 'off'
+        self.initial['recording_allowed'] = 'true' if self.instance.recording_allowed else 'false'
+        self.initial['default_recording_policy'] = self.instance.default_recording_policy
         self.fields['poster_image'].required = True
         self.fields['poster_image'].help_text = (
             "最大サイズ: 30MB。"

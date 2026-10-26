@@ -7,8 +7,10 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
 
+from community.constants import RecordingPolicy
 from community.forms import CommunityCreateForm, CommunityUpdateForm
 from community.models import Community, CommunityMember
+from tests.factories import make_community
 from user_account.models import CustomUser
 
 
@@ -200,8 +202,11 @@ class CommunityCreateViewTest(TestCase):
 
         self.assertEqual(response.status_code, 302)
         community = Community.objects.get(name='撮影初期値の集会')
+        self.assertTrue(community.accepts_lt_application)
         self.assertFalse(community.recording_allowed)
         self.assertEqual(community.default_recording_policy, 'public')
+        self.assertEqual(community.default_lt_duration, 30)
+        self.assertEqual(community.lt_start_offset_minutes, 30)
         session = self.client.session
         session['active_community_id'] = community.pk
         session.save()
@@ -215,6 +220,141 @@ class CommunityCreateViewTest(TestCase):
         self.assertIn('id="default-recording-policy-section" style="display: none;"', html)
         self.assertRegex(html, r'id="default_recording_policy_public" name="default_recording_policy" value="public"\s+checked')
         self.assertNotRegex(html, r'id="default_recording_policy_allowed"[^>]*checked')
+
+    def test_create_page_shows_reception_card_and_defers_complex_settings(self):
+        """受付カードと承認後の案内を表示し、手間のかかる入力は出さない。"""
+        self.client.force_login(self.user)
+        response = self.client.get(self.create_url)
+        self.assertContains(response, '発表の受付')
+        self.assertContains(response, '承認後に設定できること')
+        for name in (
+            'accepts_lt_application', 'recording_allowed', 'default_recording_policy',
+            'default_lt_duration', 'lt_start_offset_minutes',
+        ):
+            self.assertContains(response, f'name="{name}"')
+        form = response.context['form']
+        self.assertEqual(form['accepts_lt_application'].value(), 'on')
+        self.assertEqual(form['recording_allowed'].value(), 'false')
+        self.assertEqual(form['default_recording_policy'].value(), RecordingPolicy.PUBLIC)
+        self.assertEqual(form['default_lt_duration'].value(), 30)
+        self.assertEqual(form['lt_start_offset_minutes'].value(), 30)
+        for label in (
+            'Discord 通知', 'VRCイベントカレンダー', 'X の告知テンプレート',
+            'メンバー', 'API キー', '発表申請の追加情報テンプレート',
+        ):
+            self.assertContains(response, label)
+        for name in (
+            'notification_webhook_url', 'discord_mention_user_ids', 'custom_calendar_description',
+            'custom_calendar_join_method', 'custom_tweet_template', 'lt_application_template',
+            'members', 'api_key',
+        ):
+            self.assertNotIn(name, form.fields)
+            self.assertNotContains(response, f'name="{name}"')
+
+    @patch('community.views.manage.requests.post')
+    def test_selected_reception_settings_are_saved(self, mock_discord_post):
+        """受付の有無・撮影・持ち時間・開始のずれを申請時に保存する。"""
+        mock_discord_post.return_value = MagicMock(status_code=200)
+        self.client.force_login(self.user)
+        for accepts in ('on', 'off'):
+            with self.subTest(accepts=accepts):
+                data = self._make_post_data(name=f'受付設定-{accepts}')
+                data.update({
+                    'accepts_lt_application': accepts,
+                    'recording_allowed': 'true',
+                    'default_recording_policy': RecordingPolicy.ALLOWED,
+                    'default_recording_policy_chosen': '1',
+                    'default_lt_duration': '15',
+                    'lt_start_offset_minutes': '0',
+                    # 画面にない欄を送信されても申請では保存しない。
+                    'lt_application_template': '申請では受け付けない',
+                })
+                response = self.client.post(self.create_url, data)
+                self.assertEqual(response.status_code, 302)
+                community = Community.objects.get(name=data['name'])
+                self.assertEqual(community.accepts_lt_application, accepts == 'on')
+                self.assertTrue(community.recording_allowed)
+                self.assertEqual(community.default_recording_policy, RecordingPolicy.ALLOWED)
+                self.assertEqual(community.default_lt_duration, 15)
+                self.assertEqual(community.lt_start_offset_minutes, 0)
+                self.assertEqual(community.lt_application_template, '')
+                self.assertEqual(community.status, 'pending')
+
+    @patch('community.views.manage.requests.post')
+    def test_blank_duration_and_offset_use_existing_defaults(self, mock_discord_post):
+        """数値欄を空にしても従来の30分を保存する。"""
+        mock_discord_post.return_value = MagicMock(status_code=200)
+        self.client.force_login(self.user)
+        data = self._make_post_data()
+        data.update(default_lt_duration='', lt_start_offset_minutes='')
+        response = self.client.post(self.create_url, data)
+        self.assertEqual(response.status_code, 302)
+        community = Community.objects.get(name=data['name'])
+        self.assertEqual(community.default_lt_duration, 30)
+        self.assertEqual(community.lt_start_offset_minutes, 30)
+
+    def test_invalid_duration_and_offset_are_rejected(self):
+        """持ち時間0分や負の開始時刻を保存しない。"""
+        self.client.force_login(self.user)
+        data = self._make_post_data()
+        data.update(default_lt_duration='0', lt_start_offset_minutes='-1')
+        response = self.client.post(self.create_url, data)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('default_lt_duration', response.context['form'].errors)
+        self.assertIn('lt_start_offset_minutes', response.context['form'].errors)
+        self.assertFalse(Community.objects.filter(name=data['name']).exists())
+
+    def test_too_large_duration_and_offset_are_rejected(self):
+        """時刻計算があふれる大きな値を保存しない。"""
+        self.client.force_login(self.user)
+        data = self._make_post_data()
+        data.update(default_lt_duration='241', lt_start_offset_minutes='4294967295')
+        response = self.client.post(self.create_url, data)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('default_lt_duration', response.context['form'].errors)
+        self.assertIn('lt_start_offset_minutes', response.context['form'].errors)
+        self.assertFalse(Community.objects.filter(name=data['name']).exists())
+
+    @patch('community.views.manage.requests.post')
+    def test_recording_results_match_settings_save_for_same_input(self, mock_discord_post):
+        """未送信・旧形式・不正値・明示選択でも設定画面と同じ撮影設定になる。"""
+        mock_discord_post.return_value = MagicMock(status_code=200)
+        self.client.force_login(self.user)
+        cases = [
+            ({}, False, RecordingPolicy.PUBLIC),
+            ({'recording_allowed': 'true'}, True, RecordingPolicy.PUBLIC),
+            ({'recording_allowed': 'on'}, True, RecordingPolicy.PUBLIC),
+            ({'recording_allowed': 'invalid'}, False, RecordingPolicy.PUBLIC),
+            ({'recording_allowed': ' true '}, False, RecordingPolicy.PUBLIC),
+            ({'recording_allowed': 'true', 'default_recording_policy': 'invalid'}, True, RecordingPolicy.PUBLIC),
+            ({'recording_allowed': 'true', 'default_recording_policy': ' public '}, True, RecordingPolicy.PUBLIC),
+            ({'recording_allowed': 'false', 'default_recording_policy': 'forbidden'}, False, RecordingPolicy.FORBIDDEN),
+        ]
+        for policy in RecordingPolicy.values:
+            for chosen in ('', '1'):
+                cases.append((
+                    {'recording_allowed': 'true', 'default_recording_policy': policy,
+                     'default_recording_policy_chosen': chosen},
+                    True,
+                    RecordingPolicy.PUBLIC if policy == 'forbidden' and not chosen else policy,
+                ))
+        for index, (values, expected_allowed, expected_policy) in enumerate(cases):
+            with self.subTest(values=values):
+                data = self._make_post_data(name=f'撮影設定一致-{index}')
+                data.update(values)
+                response = self.client.post(self.create_url, data)
+                self.assertEqual(response.status_code, 302)
+                created = Community.objects.get(name=data['name'])
+                existing = make_community(name=f'既存-{index}', owner=self.user)
+                response = self.client.post(
+                    reverse('community:update_lt_settings', kwargs={'pk': existing.pk}), values,
+                )
+                self.assertEqual(response.status_code, 302)
+                existing.refresh_from_db()
+                self.assertEqual(created.recording_allowed, expected_allowed)
+                self.assertEqual(created.default_recording_policy, expected_policy)
+                self.assertEqual(created.recording_allowed, existing.recording_allowed)
+                self.assertEqual(created.default_recording_policy, existing.default_recording_policy)
 
     @patch('community.views.manage.requests.post')
     def test_community_creation_via_post(self, mock_discord_post):

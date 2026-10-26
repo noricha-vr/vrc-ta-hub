@@ -1,0 +1,34 @@
+<section class="admin-card" aria-labelledby="lt-settings-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='発表の受付' heading_id='lt-settings-heading' only %}
+{% include 'ta_hub/admin/includes/form_field.html' with field=form.accepts_lt_application only %}
+{% include 'ta_hub/admin/includes/form_field.html' with field=form.recording_allowed only %}
+<fieldset id="create-recording-policy"{% if form.recording_allowed.value != 'true' and form.recording_allowed.value != 'on' %} disabled{% endif %} aria-describedby="create-recording-help">
+<legend class="visually-hidden">撮影の既定</legend>
+{% include 'ta_hub/admin/includes/form_field.html' with field=form.default_recording_policy only %}
+</fieldset>
+<p id="create-recording-help" class="form-text">撮影を許可する場合に、撮影ステータスの初期値を選べます。</p>
+{{ form.default_recording_policy_chosen }}
+<div class="row">
+<div class="col-md-6">{% include 'ta_hub/admin/includes/form_field.html' with field=form.default_lt_duration only %}</div>
+<div class="col-md-6">{% include 'ta_hub/admin/includes/form_field.html' with field=form.lt_start_offset_minutes only %}</div>
+</div>
+</section>
+<script>
+(function () {
+    var form = document.getElementById('community-form');
+    var section = document.getElementById('create-recording-policy');
+    function updateRecordingSettings() {
+        var selected = form.querySelector('input[name="recording_allowed"]:checked');
+        section.disabled = !selected || selected.value !== 'true';
+    }
+    form.querySelectorAll('input[name="recording_allowed"]').forEach(function (radio) {
+        radio.addEventListener('change', updateRecordingSettings);
+    });
+    form.addEventListener('submit', function () {
+        // 設定画面と同じく、撮影を許可しない場合も選択済みの既定値は保存する。
+        section.disabled = false;
+        form.elements.default_recording_policy_chosen.value = '1';
+    });
+    window.addEventListener('pageshow', updateRecordingSettings);
+})();
+</script>
