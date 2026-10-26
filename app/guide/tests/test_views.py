@@ -224,6 +224,17 @@ class GuideViewsTest(TestCase):
         self.assertContains(response, "使い方ガイド")
         self.assertIn("nav_items", response.context)
 
+    def test_guide_index_start_links_point_to_listed_pages(self):
+        """「やりたいことから選ぶ」は目次にあるページだけを、目次と同じタイトルで出すこと"""
+        response = self.client.get(reverse("guide:index"))
+
+        start_links = response.context["start_links"]
+        self.assertTrue(start_links)
+        listed = {item.path: item.title for item in get_flat_nav_items(response.context["nav_items"])}
+        for link in start_links:
+            self.assertEqual(link["page"], listed[link["path"]])
+            self.assertContains(response, f'href="{link["url"]}"')
+
     def test_guide_page_view(self):
         """個別ページが表示されること"""
         response = self.client.get(

@@ -13,11 +13,31 @@
 <h1>使い方ガイド</h1>
 
 <p class="lead">
-    {% site_name_seo %}の主催者・スタッフ向けマニュアルです。<br>
-    集会やイベントの登録・管理方法を説明します。
+    {% site_name_seo %}の使い方を、画面の画像つきで説明します。<br>
+    Discord や VRChat を始めたばかりの人は、<a href="/guide/index/">はじめに</a>から読んでください。
 </p>
 
-<div class="row mt-4">
+<section class="guide-start card border-0 bg-light mt-4" aria-labelledby="guide-start-title">
+    <div class="card-body">
+        <h2 id="guide-start-title" class="h5 fw-bold mb-3">やりたいことから選ぶ</h2>
+        <div class="row g-2">
+            {% for start in start_links %}
+                <div class="col-sm-6 col-lg-4">
+                    <a href="{{ start.url }}" class="guide-start-link d-flex align-items-center h-100 p-3 bg-white rounded text-decoration-none">
+                        <i class="bi {{ start.icon }} fs-4 me-3 text-primary" aria-hidden="true"></i>
+                        <span>
+                            <span class="d-block fw-bold text-dark">{{ start.label }}</span>
+                            <span class="d-block small text-muted">{{ start.page }}</span>
+                        </span>
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<h2 class="h4 fw-bold mt-5">すべてのページ</h2>
+<div class="row mt-3">
     {% for item in nav_items %}
         {% if item.has_children %}
             <div class="col-md-6 mb-4">
