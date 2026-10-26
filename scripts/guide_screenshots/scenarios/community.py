@@ -31,7 +31,7 @@ def fields(capture, first, last, *marks):
     boxes = [element.bounding_box() for element in (a, b)]
     scroll = capture.page.evaluate('({x: scrollX, y: scrollY})')
     left = max(0, boxes[0]['x'] - 16)
-    top = max(0, boxes[0]['y'] + scroll['y'] - 30)
+    top = max(0, boxes[0]['y'] + scroll['y'] - 20)
     capture.shot(clip={'x': left, 'y': top,
                        'width': min(boxes[0]['width'] + 32, capture.page.viewport_size['width'] - left),
                        'height': boxes[1]['y'] + scroll['y'] + boxes[1]['height'] + 10 - top})
@@ -46,7 +46,7 @@ def account_menu(capture):
 
 
 def account_row(capture, name):
-    return capture.page.locator('.list-group-item').filter(has_text=name).filter(
+    return capture.page.locator('section[aria-labelledby="communities-heading"] .list-group-item').filter(has_text=name).filter(
         has=capture.page.locator('input[name=community_id]')).first
 
 
@@ -172,7 +172,7 @@ def close(capture):
     confirm(capture, 'close-community')
     snap(capture, '#close-community', '#close-community button[type=submit]')
     capture.goto('/account/settings/')
-    target = capture.page.locator('.list-group-item').filter(has_text='ひだまり学習会')
+    target = capture.page.locator('section[aria-labelledby="communities-heading"] .list-group-item').filter(has_text='ひだまり学習会')
     target.evaluate("e => e.dataset.guideEnded = '1'")
     snap(capture, '[data-guide-ended]', '[data-guide-ended] a')
     target.locator('a').click()

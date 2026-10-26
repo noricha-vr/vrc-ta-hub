@@ -185,7 +185,7 @@ class Capture:
             if not box:
                 raise ValueError('切り出し対象がありません')
             scroll = self.page.evaluate('({x: scrollX, y: scrollY})')
-            top = max(0, box['y'] + scroll['y'] - 32)
+            top = max(0, box['y'] + scroll['y'] - 20)
             clip = {'x': max(0, box['x'] + scroll['x'] - 16), 'y': top,
                     'width': min(box['width'] + 32, self.page.viewport_size['width'] - max(0, box['x'] - 16)),
                     'height': box['y'] + scroll['y'] + box['height'] + 6 - top}

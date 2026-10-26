@@ -1,6 +1,5 @@
 """外部連携設定。外部への通知・投稿は実行しない。"""
 from capture import scenario
-from scenarios.analytics import table_row
 
 
 SETTINGS = '/community/settings/'
@@ -160,13 +159,16 @@ def api_key(capture):
     # 作成は一時SQLite内だけ。外部サービスには送らない。
     capture.page.locator('form:has(#keyName) button').click()
     capture.page.wait_for_load_state('networkidle')
-    capture.mask('.alert-warning code')
-    shot(capture, '.alert-warning:has(code)', '.alert-warning code')
+    shot(capture, 'section[aria-labelledby="new-key-heading"]', '#copy-new-key', '#reveal-new-key')
     capture.goto('/account/api-keys/')
-    capture.page.once('dialog', lambda dialog: dialog.accept())
-    capture.page.locator('tr:has-text("記録ツール用") button').click()
+    # 撮影用に作ったキーだけを無効化し、既存のキーで確認欄を説明する。
+    created = 'article.presentation-row:has(h3:text-is("記録ツール用"))'
+    capture.page.locator(f'{created} [data-confirm-panel]').click()
+    capture.page.locator(f'{created} .confirm-panel button[type=submit]').click()
     capture.page.wait_for_load_state('networkidle')
-    capture.mask('td code')
-    row = 'tr:has-text("資料連携用")'
-    table_row(capture, row, f'{row} button')
+    row = 'article.presentation-row:has(h3:text-is("資料連携用"))'
+    capture.page.locator(f'{row} [data-confirm-panel]').click()
+    capture.page.locator(f'{row} .confirm-panel').wait_for(state='visible')
+    capture.mask(f'{row} code')
+    shot(capture, row, f'{row} [data-confirm-panel]', f'{row} .confirm-panel button[type=submit]')
     verify_guide(capture)

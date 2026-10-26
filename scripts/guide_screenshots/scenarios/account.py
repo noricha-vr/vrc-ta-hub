@@ -139,7 +139,7 @@ class AccountScreens:
         boxes = [page.locator(area).bounding_box() for area in areas]
         scroll = page.evaluate('({x:scrollX, y:scrollY})')
         left = max(0, min(box['x'] for box in boxes) - 16)
-        top = max(0, min(box['y'] for box in boxes) + scroll['y'] - 32)
+        top = max(0, min(box['y'] for box in boxes) + scroll['y'] - 20)
         right = min(page.viewport_size['width'], max(box['x'] + box['width'] for box in boxes) + 16)
         bottom = max(box['y'] + box['height'] for box in boxes) + scroll['y'] + 16
         self.capture.shot(clip={'x': left, 'y': top, 'width': right - left, 'height': bottom - top})
