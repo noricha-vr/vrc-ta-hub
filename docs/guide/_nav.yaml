@@ -4,47 +4,68 @@
 - title: 用語集
   path: glossary
 
-- title: Hubを広める
+- title: アカウントを作る
   children:
-    - title: ポスターを掲示する
-      path: promotion/poster
-    - title: アセットを設置する
-      path: promotion/asset
+    - title: 登録してログインする
+      path: account/login
+    - title: スタッフの招待を受ける
+      path: member/accept
+    - title: Discordと連携する
+      path: account/discord
+    - title: パスワードを設定・変更する
+      path: account/password
+    - title: ユーザー情報を変更する
+      path: account/profile
 
-- title: 集会を管理する
+- title: 集会を始める・管理する
   children:
     - title: 集会を登録する
       path: community/create
     - title: 集会情報を編集する
       path: community/edit
-    - title: 集会設定
+    - title: 集会設定を開く
       path: community/settings
+    - title: 管理する集会を切り替える
+      path: community/switch
     - title: 集会を閉鎖・再開する
       path: community/close
       owner_only: true
     - title: 活動停止を通報する
       path: community/report
 
-- title: イベントを管理する
+- title: イベント（開催日）を管理する
   children:
+    - title: イベント管理画面の見方
+      path: event/manage
     - title: イベントを登録する
       path: event/create
+    - title: 開催日と開始時刻を変更する
+      path: event/edit
     - title: イベントを削除する
       path: event/delete
+      owner_only: true
     - title: Hub公式Xアカウントでの自動告知
       path: event/auto-post
 
-- title: 発表情報を管理する
+- title: 発表を管理する（主催者・スタッフ向け）
   children:
     - title: 発表情報を登録する
       path: lt/create
-    - title: ブログ記事を自動生成する
-      path: lt/auto-generate
+    - title: 発表情報を編集・削除する
+      path: lt/edit-delete
     - title: 発表申請を承認・却下する
       path: lt/approve
+    - title: ブログ記事を自動生成する
+      path: lt/auto-generate
+    - title: 発表とアカウントを紐づける
+      path: lt/link-speaker
 
-- title: 発表する
+- title: 発表する（発表者向け）
   children:
+    - title: 発表を申し込む
+      path: speaker/apply
+    - title: 申し込んだ発表を確認・更新する
+      path: speaker/manage
     - title: スライドをVRChatで映す
       path: speaker/slide-video
 
@@ -62,8 +83,44 @@
   children:
     - title: Discord Webhookを設定する
       path: settings/discord
-    - title: 発表申請受付を設定する
+    - title: 発表申請の受付と撮影を設定する
       path: settings/lt-application
+    - title: VRCイベントカレンダーへの投稿を準備する
+      path: settings/event-calendar
+    - title: Xの告知文テンプレートを作る
+      path: settings/x-template
+    - title: APIキーを作成・無効化する
+      path: settings/api-key
+
+- title: アクセスを確認する
+  children:
+    - title: アクセス解析を見る
+      path: analytics/dashboard
+    - title: 配布用のリンクとQRコードを作る
+      path: analytics/distribution-link
+
+- title: Vketコラボに参加する
+  children:
+    - title: Vketコラボに参加登録する
+      path: vket/apply
+    - title: Vketステージへの登録を進める
+      path: vket/stage
+    - title: コラボのお知らせを確認する
+      path: vket/notices
+
+- title: サイトを使う
+  children:
+    - title: 集会と発表を探す
+      path: browse/find
+    - title: 予定を自分のカレンダーに追加する
+      path: browse/calendar
+
+- title: Hubを広める
+  children:
+    - title: ポスターを掲示する
+      path: promotion/poster
+    - title: アセットを設置する
+      path: promotion/asset
 
 - title: よくある質問
   path: faq

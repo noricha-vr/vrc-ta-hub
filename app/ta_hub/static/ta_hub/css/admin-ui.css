@@ -35,6 +35,7 @@
 .hub-admin .admin-page-heading { min-width: 0; max-width: 100%; }
 .hub-admin .admin-page-heading h1:not(.visually-hidden) { font-size: clamp(1.25rem, 3vw, 1.8rem); font-weight: 700; overflow-wrap: anywhere; }
 .hub-admin .admin-header-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.hub-admin .admin-required > .form-label::after { content: " *"; color: #b42318; }
 .hub-admin .admin-muted { color: var(--admin-muted); font-size: .875rem; overflow-wrap: anywhere; }
 .hub-admin .admin-card { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-card); background: var(--admin-surface); padding: var(--admin-space-5); margin-bottom: var(--admin-space-5); }
 .hub-admin .admin-card > .admin-section-heading { background: var(--admin-surface-muted); margin: calc(-1 * var(--admin-space-5)) calc(-1 * var(--admin-space-5)) var(--admin-space-5); padding: var(--admin-space-4) var(--admin-space-5); border-radius: var(--admin-radius-card) var(--admin-radius-card) 0 0; }

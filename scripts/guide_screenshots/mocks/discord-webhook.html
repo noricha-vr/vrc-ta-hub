@@ -1,21 +1,11 @@
-<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Discord のウェブフック設定（イメージ図）</title>
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Discord ウェブフック（イメージ図）</title>
 <style>
-* {box-sizing:border-box} body {margin:0;background:#313338;color:#f2f3f5;font:16px/1.7 sans-serif}
-.diagram {display:flex;min-height:440px} aside {width:260px;padding:60px 24px;background:#2b2d31;flex-shrink:0}
-.server {font-size:18px;font-weight:bold;margin-bottom:28px} .menu {padding:10px 14px;border-radius:5px;margin:12px 0}
-.active {background:#404249;color:white} main {padding:70px 48px;flex:1;min-width:0}
-h1 {font-size:26px;margin:0 0 32px} h2 {font-size:20px;margin:0 0 12px} .card {border:1px solid #4e5058;border-radius:8px;padding:24px;margin-bottom:30px}
-p {color:#b5bac1} button {font:inherit;background:#5865f2;color:white;border:0;border-radius:5px;padding:10px 20px}
-.badge {position:absolute;top:16px;right:20px;font-size:13px;color:#b5bac1;border:1px solid #6d6f78;border-radius:4px;padding:3px 10px}
-@media(max-width:600px){.diagram {display:block} aside {width:100%;padding:60px 24px 18px} main {padding:35px 24px}.server {margin-bottom:12px}.menu{display:inline-block;margin:8px 12px 8px 0}h1{font-size:24px}.card {padding:20px}}
-</style>
-</head>
-<body><div class="diagram" style="position:relative"><span class="badge">イメージ図</span>
-<aside><div class="server">さくら技術交流会</div><div class="menu">サーバー設定</div><div id="integrations" class="menu active">連携サービス</div></aside>
-<main><h1>連携サービス</h1><section id="webhooks" class="card"><h2>ウェブフック</h2><p>チャンネルに自動でお知らせを送るための設定です。</p></section>
-<button id="new-webhook">新しいウェブフック</button><p>通知を届けたいチャンネルを選んで設定します。</p></main>
-</div></body></html>
+*{box-sizing:border-box}body{margin:0;background:#313338;color:#f2f3f5;font:16px/1.7 sans-serif}.diagram{position:relative;max-width:780px;margin:0 auto;padding:60px 32px 36px;min-height:330px}.badge{position:absolute;right:20px;top:12px;color:#b5bac1;font-size:13px}h1{font-size:24px;margin:0 0 24px}h2{font-size:19px}button,select,input{font:inherit;max-width:100%;border-radius:5px;padding:12px;border:1px solid #666;background:#404249;color:white}button{cursor:pointer;background:#5865f2}.panel{padding:24px;background:#2b2d31;border-radius:8px;margin-top:20px}.menu{display:block;text-align:left;width:100%;margin:14px 0}.muted{color:#b5bac1}.stage{display:none}.stage.active{display:block}label{display:block;margin:14px 0 8px}@media(max-width:600px){.diagram{padding:60px 24px 30px}.panel{padding:20px}button{white-space:normal}}
+</style><body><div class="diagram"><span class="badge">イメージ図</span>
+<section class="stage" data-stage="server"><h1>さくら技術交流会 ▾</h1><div class="panel"><p>サーバーのメニュー</p><button class="menu" id="server-settings">サーバー設定</button></div></section>
+<section class="stage" data-stage="integrations"><h1>サーバー設定</h1><p class="muted">さくら技術交流会</p><div class="panel"><div>概要</div><button class="menu" id="integrations">連携サービス</button><div>メンバー</div></div></section>
+<section class="stage" data-stage="webhooks"><h1>連携サービス</h1><div class="panel"><h2>ウェブフック</h2><p>外部サービスからチャンネルへメッセージを送信</p><button id="webhooks">ウェブフック</button></div></section>
+<section class="stage" data-stage="new"><h1>ウェブフック</h1><p>このサーバーのウェブフックを管理します。</p><button id="new-webhook">新しいウェブフック</button></section>
+<section class="stage" data-stage="channel"><h1>ウェブフック</h1><div class="panel"><label>名前</label><input value="さくらの通知"><label for="channel">チャンネル</label><select id="channel"><option># お知らせ</option><option># 雑談</option></select><p class="muted">選んだチャンネルに通知が届きます。</p><button>変更を保存する</button></div></section>
+<section class="stage" data-stage="copy"><h1>ウェブフック</h1><div class="panel"><h2>さくらの通知</h2><p>チャンネル：# お知らせ</p><button id="copy-url">ウェブフックURLをコピー</button></div></section>
+</div><script>function showStage(stage){document.querySelectorAll('.stage').forEach(e=>e.classList.toggle('active',e.dataset.stage===stage))}showStage('server')</script></body></html>

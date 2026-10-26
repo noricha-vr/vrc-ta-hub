@@ -17,7 +17,7 @@ from django.views.generic import TemplateView
 from event.services.markdown_processor import convert_markdown
 from ta_hub.og import image_url
 
-from guide.rendering import is_public_path, render_guide_html
+from guide.rendering import is_public_path, page_table_of_contents, render_guide_html
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,17 @@ GUIDE_REDIRECTS = {
 GUIDE_CONTENT_ALIASES = {
     'event/auto-post': 'event/auto-tweet',
 }
+
+# ガイドのトップに出す「やりたいことから選ぶ」の入口。はじめての人が最初の 1 ページを選べるようにする
+START_LINKS = [
+    {'label': '集会や発表を探したい', 'path': 'browse/find', 'icon': 'bi-search'},
+    {'label': '集会で発表したい', 'path': 'speaker/apply', 'icon': 'bi-mic'},
+    {'label': '自分の集会を載せたい', 'path': 'community/create', 'icon': 'bi-people'},
+    {'label': 'スタッフに招待された', 'path': 'member/accept', 'icon': 'bi-person-plus'},
+    {'label': '開催日を登録したい', 'path': 'event/manage', 'icon': 'bi-calendar-event'},
+    {'label': '言葉の意味を知りたい', 'path': 'glossary', 'icon': 'bi-book'},
+]
+
 
 class NavItem:
     """ナビゲーションアイテムを表すクラス"""
@@ -263,6 +274,16 @@ def load_markdown_content(path: str, render_body: bool = True) -> tuple[str, dic
         raise Http404(f"ガイドページの読み込みに失敗しました: {path}")
 
 
+def _start_links(nav_items: list[NavItem]) -> list[dict]:
+    """目次に載っているページだけを入口に出す（タイトルは目次と揃える）"""
+    titles = {item.path: item.title for item in get_flat_nav_items(nav_items)}
+    return [
+        {**link, 'url': f"/guide/{link['path']}/", 'page': titles[link['path']]}
+        for link in START_LINKS
+        if link['path'] in titles
+    ]
+
+
 class GuideIndexView(TemplateView):
     """ガイドのインデックスページ"""
 
@@ -273,6 +294,7 @@ class GuideIndexView(TemplateView):
 
         nav_items = load_navigation()
         context['nav_items'] = nav_items
+        context['start_links'] = _start_links(nav_items)
         context['breadcrumbs'] = [
             {'title': 'ホーム', 'url': '/'},
             {'title': '使い方ガイド', 'url': None},
@@ -314,6 +336,7 @@ class GuidePageView(TemplateView):
         context.update({
             'og_image_url': image_url(self.request, 'ta_hub:og_guide', frontmatter.get('title', 'ガイド'), path=path),
             'content': content,
+            'page_toc': page_table_of_contents(content),
             'frontmatter': frontmatter,
             'page_title': frontmatter.get('title', 'ガイド'),
             'page_description': frontmatter.get('description', ''),
