@@ -348,11 +348,10 @@
             border-radius: 12px;
             padding-bottom: 14px;
         }
-        .vket-timetable-grid {
-            display: grid;
-            grid-template-columns: 64px repeat(7, minmax(120px, 1fr));
-            min-width: 920px;
-        }
+        /* 7 日 1 レーンずつで PC のコンテナ幅に収まる最小幅 */
+        .vket-timetable-grid { display: grid; --vket-lane-min: 130px; }
+        .vket-timetable-grid .vket-timetable-times, .vket-timetable-grid .vket-timetable-corner { position: sticky; left: 0; z-index: 4; }
+        .vket-timetable-times { background: white; }
         .vket-timetable-day {
             min-height: 76px;
             padding: 10px 8px;
@@ -390,7 +389,7 @@
             display: block;
             height: 100%;
             overflow: hidden;
-            border: 1px solid #9ec5fe;
+            border: 1px solid #6ea8fe;
             border-radius: 6px;
             padding: 6px;
             background: #e7f1ff;
@@ -398,23 +397,57 @@
             font-size: 12px;
             line-height: 1.35;
         }
-        .vket-timetable-confirmed .vket-timetable-block-body {
-            background: #1664b8;
-            border-color: #1664b8;
-            color: white;
+        .vket-timetable-rail {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 5px;
+            width: 6px;
+            border-radius: 3px;
+            background: #c9dcf3;
         }
-        .vket-timetable-block:hover .vket-timetable-block-body { outline: 2px solid #084298; }
+        .vket-timetable-rail-lt { position: absolute; left: 0; right: 0; border-radius: 3px; background: #1664b8; }
+        .vket-timetable-lt { position: absolute; left: 16px; right: 6px; font-size: 11.5px; }
+        .vket-timetable-lt-time { font-weight: 700; color: #1664b8; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .vket-timetable-block-body:hover { outline: 2px solid #084298; }
+        .vket-timetable-block-body:focus-visible,
+        .vket-timetable-calendar:focus-visible { outline: 3px solid #084298; outline-offset: 2px; }
+        .vket-timetable-block-body { position: relative; padding-left: 16px; padding-right: 6px; text-decoration: none; }
+        .vket-timetable-head { padding-right: 24px; }
+        .vket-timetable-head span { white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .vket-timetable-calendar {
+            position: absolute;
+            top: 7px;
+            right: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border: 1px solid #9ec5fe;
+            border-radius: 5px;
+            background: white;
+            color: #1664b8;
+            font-size: 13px;
+            text-decoration: none;
+        }
+        .vket-timetable-calendar:hover { background: #084298; border-color: #084298; color: white; }
+        @media (pointer: coarse) {
+            .vket-timetable-calendar { top: 5px; right: 5px; width: 32px; height: 32px; font-size: 16px; }
+            .vket-timetable-head { padding-right: 36px; }
+            .vket-timetable-grid { --vket-lane-min: 150px; }
+        }
         .vket-timetable-legend {
             display: inline-block;
             width: 14px;
             height: 14px;
             margin-right: 6px;
-            border: 1px solid #9ec5fe;
+            border: 1px solid #6ea8fe;
             border-radius: 4px;
             background: #e7f1ff;
             vertical-align: -2px;
         }
-        .vket-timetable-legend-confirmed { background: #1664b8; border-color: #1664b8; }
+        .vket-timetable-legend-lt { width: 6px; background: #1664b8; border-color: #1664b8; }
 
         .vket-notice-heading {
             display: inline-grid;
@@ -639,11 +672,12 @@
                     {% endfor %}
                 </div>
                 {% if not vket_timetable.scheduled_count %}<p class="text-center text-muted">日程は後日公開します。</p>{% endif %}
+                {% if vket_timetable.scheduled_count %}<p class="d-xl-none text-center small text-secondary mb-2"><i class="bi bi-arrow-left-right" aria-hidden="true"></i> 表は左右にスクロールできます</p>{% endif %}
                 {% for week in vket_timetable.weeks %}
                     <div id="vket-week-{{ week.number }}" class="vket-week-panel" {% if not week.active %}hidden{% endif %}>
                         <div class="vket-timetable-scroll" role="region" aria-label="{{ week.label }}のタイムテーブル" tabindex="0">
-                            <div class="vket-timetable-grid">
-                                <div class="vket-timetable-day bg-light" aria-hidden="true"></div>
+                            <div class="vket-timetable-grid" style="{{ week.grid_style }}">
+                                <div class="vket-timetable-day vket-timetable-corner bg-light" aria-hidden="true"></div>
                                 {% for day in week.days %}
                                     <div class="vket-timetable-day {% if day.is_today %}vket-timetable-today{% endif %} {% if not day.in_period %}text-muted{% endif %}">
                                         <strong class="d-block fs-5">{{ day.date|date:"n/j" }}</strong>（{{ day.weekday }}）
@@ -657,14 +691,32 @@
                                     <div class="vket-timetable-column {% if day.is_today %}vket-timetable-today{% endif %} {% if not day.in_period %}bg-light{% endif %}" style="height:{{ vket_timetable.height }}px;">
                                         {% if not day.in_period %}<span class="vket-timetable-off">会期外</span>{% endif %}
                                         {% for block in day.blocks %}
-                                            <a href="{% url 'community:detail' block.community.pk %}" class="vket-timetable-block {% if block.has_lt %}vket-timetable-confirmed{% endif %}"
-                                               style="{{ block.style }}" aria-label="{{ block.community.name }} {{ block.time_label }} {% for title in block.titles %}{{ title }} {% empty %}発表は後日公開{% endfor %}">
-                                                <span class="vket-timetable-block-body">
-                                                    <strong class="d-block text-truncate" title="{{ block.community.name }}">{{ block.community.name }}</strong>
-                                                    <span class="d-block text-truncate">{{ block.time_label }}</span>
-                                                    {% for title in block.titles %}<span class="d-block text-truncate" title="{{ title }}">{{ title|truncatechars:35 }}</span>{% empty %}<span class="d-block text-truncate">発表は後日公開</span>{% endfor %}
-                                                </span>
-                                            </a>
+                                            <div class="vket-timetable-block" style="{{ block.style }}">
+                                                <a href="{% url 'community:detail' block.community.pk %}" class="vket-timetable-block-body"
+                                                   aria-label="{{ block.community.name }} {{ day.date|date:'n/j' }} {{ block.time_label }} {% for lt in block.lt_segments %}{{ lt.time_label }} LT {{ lt.title }} {% empty %}発表は後日公開{% endfor %}">
+                                                    <span class="vket-timetable-rail" aria-hidden="true">{% for lt in block.lt_segments %}<span class="vket-timetable-rail-lt" style="{{ lt.rail_style }}"></span>{% endfor %}</span>
+                                                    <span class="vket-timetable-head d-block">
+                                                        <strong class="d-block text-truncate" title="{{ block.community.name }}">{{ block.community.name }}</strong>
+                                                        <span class="d-block">{{ block.time_label }}</span>
+                                                    </span>
+                                                    {% for lt in block.lt_segments %}
+                                                        {% if lt.label_style %}
+                                                            <span class="vket-timetable-lt" style="{{ lt.label_style }}">
+                                                                <span class="vket-timetable-lt-time d-block">{{ lt.time_label }} LT</span>
+                                                                <span class="d-block text-truncate" title="{{ lt.title }}">{{ lt.title }}</span>
+                                                            </span>
+                                                        {% endif %}
+                                                    {% empty %}
+                                                        <span class="d-block text-truncate text-secondary">発表は後日公開</span>
+                                                    {% endfor %}
+                                                </a>
+                                                {% if block.google_calendar_url %}
+                                                    <a href="{{ block.google_calendar_url }}" class="vket-timetable-calendar" target="_blank" rel="noopener noreferrer"
+                                                       title="Googleカレンダーに追加" aria-label="{{ block.community.name }} {{ day.date|date:'n/j' }} {{ block.time_label }} をGoogleカレンダーに追加（新しいタブで開きます）">
+                                                        <i class="bi bi-calendar-plus" aria-hidden="true"></i>
+                                                    </a>
+                                                {% endif %}
+                                            </div>
                                         {% endfor %}
                                     </div>
                                 {% endfor %}
@@ -673,9 +725,10 @@
                     </div>
                 {% endfor %}
                 <div class="d-flex justify-content-center gap-4 flex-wrap mt-3 small text-secondary">
-                    <span><i class="vket-timetable-legend vket-timetable-legend-confirmed"></i>発表が決まっている枠</span>
-                    <span><i class="vket-timetable-legend"></i>発表は後日公開</span>
+                    <span><i class="vket-timetable-legend"></i>水色の枠 = 集会の開催時間</span>
+                    <span><i class="vket-timetable-legend vket-timetable-legend-lt"></i>枠内の濃い青の線 = LT の時間</span>
                     <span>枠を押すと集会のページへ移動します</span>
+                    <span><i class="bi bi-calendar-plus" aria-hidden="true"></i> で Google カレンダーに追加できます</span>
                 </div>
             </div>
         </section>

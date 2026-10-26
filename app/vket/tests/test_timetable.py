@@ -1,7 +1,8 @@
 from datetime import date, time, timedelta
 from unittest.mock import patch
+from urllib.parse import unquote
 
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 
 from tests.factories import make_community, make_event, make_event_detail
 from vket.models import VketCollaboration, VketParticipation
@@ -141,6 +142,77 @@ class CollaborationTimetableTests(TestCase):
         with self.assertNumQueries(2):
             timetable = self.build()
         self.assertEqual(timetable['scheduled_count'], 30)
+
+    def test_day_with_parallel_slots_gets_wider_column(self):
+        self.add_slot(day=date(2026, 12, 16), start=time(21))
+        self.add_slot(day=date(2026, 12, 16), start=time(21, 30))
+        week = self.build()['weeks'][2]
+        self.assertEqual(
+            week['grid_style'],
+            'grid-template-columns:64px ' + ' '.join(
+                f'minmax(calc(var(--vket-lane-min) * {n}),{n}fr)' for n in [1, 1, 2, 1, 1, 1, 1]
+            ) + ';min-width:calc(64px + var(--vket-lane-min) * 8);',
+        )
+        self.assertIn('var(--vket-lane-min) * 7);', self.build()['weeks'][0]['grid_style'])
+
+    def test_lt_segments_show_where_lt_runs_inside_the_slot(self):
+        _, event = self.add_slot(start=time(21), duration=120)
+        make_event_detail(event, status='approved', theme='後半', start_time=time(22, 30), duration=15)
+        make_event_detail(event, status='approved', theme='前半', start_time=time(22), duration=30)
+        segments = self.first_day_blocks(self.build())[0]['lt_segments']
+        self.assertEqual([s['title'] for s in segments], ['前半', '後半'])
+        self.assertEqual([s['time_label'] for s in segments], ['22:00〜22:30', '22:30〜22:45'])
+        self.assertEqual([s['rail_style'] for s in segments], [
+            'top:50.0000%;height:25.0000%;', 'top:75.0000%;height:12.5000%;',
+        ])
+        # 見出しは LT の始まる高さに置き、前の見出しとは重ねない
+        self.assertEqual([s['label_style'] for s in segments], ['top:117px;', 'top:177px;'])
+
+    def test_lt_at_slot_start_keeps_label_below_community_name(self):
+        _, event = self.add_slot(start=time(21), duration=60)
+        make_event_detail(event, status='approved', theme='冒頭', start_time=time(21), duration=20)
+        make_event_detail(event, status='approved', theme='続き', start_time=time(21, 20), duration=20)
+        first, second = self.first_day_blocks(self.build())[0]['lt_segments']
+        self.assertEqual(first['rail_style'], 'top:0.0000%;height:33.3333%;')
+        self.assertEqual(first['label_style'], 'top:34px;')
+        # 21:20 の高さ（37px）は1本目の見出しと重なるので、その下へずらす
+        self.assertEqual(second['label_style'], 'top:64px;')
+
+    def test_lt_outside_slot_is_clipped_or_dropped(self):
+        _, event = self.add_slot(start=time(21), duration=60)
+        make_event_detail(event, status='approved', theme='はみ出し', start_time=time(21, 45), duration=30)
+        make_event_detail(event, status='approved', theme='枠外', start_time=time(23), duration=30)
+        segments = self.first_day_blocks(self.build())[0]['lt_segments']
+        self.assertEqual([s['title'] for s in segments], ['はみ出し'])
+        self.assertEqual(segments[0]['rail_style'], 'top:75.0000%;height:25.0000%;')
+        self.assertEqual(segments[0]['time_label'], '21:45〜22:00')
+
+    def test_lt_after_midnight_clip_is_measured_on_visible_slot(self):
+        _, event = self.add_slot(start=time(23), duration=120)
+        make_event_detail(event, status='approved', theme='深夜', start_time=time(23, 30), duration=60)
+        segment = self.first_day_blocks(self.build())[0]['lt_segments'][0]
+        self.assertEqual(segment['rail_style'], 'top:50.0000%;height:50.0000%;')
+        self.assertEqual(segment['label_style'], 'top:57px;')
+
+    def test_short_slot_keeps_rail_but_hides_label_that_does_not_fit(self):
+        _, event = self.add_slot(start=time(21), duration=30)
+        make_event_detail(event, status='approved', theme='短い', start_time=time(21, 10), duration=20)
+        segment = self.first_day_blocks(self.build())[0]['lt_segments'][0]
+        self.assertEqual(segment['rail_style'], 'top:33.3333%;height:66.6667%;')
+        self.assertIsNone(segment['label_style'])
+
+    def test_calendar_url_only_with_request_and_without_extra_queries(self):
+        _, event = self.add_slot(theme='発表テーマ', detail_type='LT', status='approved')
+        self.assertIsNone(self.first_day_blocks(self.build())[0]['google_calendar_url'])
+        request = RequestFactory().get('/')
+        for _ in range(5):
+            self.add_slot(theme='発表', detail_type='LT', status='approved')
+        with self.assertNumQueries(2):
+            timetable = build_collaboration_timetable(self.collaboration, date(2026, 12, 5), request=request)
+        url = unquote(self.first_day_blocks(timetable)[0]['google_calendar_url'])
+        self.assertIn(event.community.name, url)
+        self.assertIn('20261205T210000/20261205T220000', url)
+        self.assertIn('テーマ: 発表テーマ', url)
 
     def test_empty_schedule_has_no_invented_time_range(self):
         timetable = self.build()
