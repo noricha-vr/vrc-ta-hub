@@ -9,7 +9,10 @@
 {% endblock %}
 {% block admin_subnav %}
     {% include 'ta_hub/admin/includes/subnav.html' with label='集会管理' links_template='event/includes/my_list_nav_links.html' %}
-
+    <nav class="d-flex flex-wrap align-items-center gap-2 mb-4" aria-label="個人用">
+        <span class="admin-muted">個人用</span>
+        <a href="{% url 'account:lt_application_list' %}" class="btn btn-sm btn-outline-secondary">自分の発表申請</a>
+    </nav>
 {% endblock %}
 {% block admin_attention %}
 
@@ -174,15 +177,17 @@
                                         <a href="{% url 'event:detail_update' detail.pk %}" class="btn btn-sm btn-outline-secondary">編集</a>
                                         <a href="{% url 'event:detail' detail.pk %}" class="btn btn-sm btn-outline-secondary">記事</a>
                                         {% endif %}
-                                        {% if detail.slide_file or detail.youtube_url %}{% if detail.contents == '' %}
-                                        <form method="post" action="{% url 'event:generate_blog' detail.pk %}">
-                                            {% csrf_token %}
-                                            <button type="submit" class="btn btn-sm btn-outline-primary generate-button">記事を生成</button>
-                                        </form>
-                                        {% endif %}{% endif %}
                                         <div class="dropdown">
                                             <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{{ detail.theme }}のその他の操作">…</button>
                                             <ul class="dropdown-menu dropdown-menu-end">
+                                                {% if detail.slide_file or detail.youtube_url %}{% if detail.contents == '' %}
+                                                <li>
+                                                    <form method="post" action="{% url 'event:generate_blog' detail.pk %}">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="dropdown-item generate-button">記事を生成</button>
+                                                    </form>
+                                                </li>
+                                                {% endif %}{% endif %}
                                                 {% if detail.source_url %}<li><a href="{{ detail.source_url }}" class="dropdown-item" target="_blank" rel="noopener noreferrer">元の投稿 ↗</a></li>{% endif %}
                                                 {% if not detail.applicant and detail.detail_type == 'LT' and detail.status == 'approved' %}
                                                 <li><a href="{% url 'event:detail' detail.pk %}#speaker-account-heading" class="dropdown-item">紐づけ用リンクを作成</a></li>
@@ -199,6 +204,7 @@
                                     </div>
                                 </div>
                                 <div class="d-flex flex-wrap gap-1 mt-2">
+                                    <span class="generation-status small text-primary" role="status" aria-live="polite" hidden></span>
                                     {% if detail.status == 'pending' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='承認待ち' tone='warning' only %}{% elif detail.status == 'approved' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='承認済み' tone='success' only %}{% elif detail.status == 'rejected' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='却下' tone='danger' only %}{% endif %}
                                     {% if detail.source == 'discord_bot' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='Discord から自動で登録' only %}{% endif %}
                                     {% if detail.youtube_url %}{% include 'ta_hub/admin/includes/status_chip.html' with label='動画' icon='bi bi-play-btn' only %}{% endif %}
@@ -329,10 +335,12 @@
         });
 
         document.querySelectorAll('.generate-button').forEach(function(button) {
-            button.addEventListener('click', function (event) {
-                event.target.disabled = true;
-                event.target.textContent = '生成中...';
-                event.target.form.submit();
+            button.form.addEventListener('submit', function () {
+                button.disabled = true;
+                button.textContent = '生成中...';
+                var status = button.closest('.presentation-row').querySelector('.generation-status');
+                status.hidden = false;
+                status.textContent = '記事を生成しています…';
             });
         });
     </script>

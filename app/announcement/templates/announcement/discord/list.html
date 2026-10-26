@@ -1,56 +1,46 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 {% load tz %}
 
 {% block meta %}
     <title>Discord 告知の予約送信 - {% site_name_seo %}</title>
     <meta name="robots" content="noindex">
+{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
     <style>
-        .announce-excerpt {
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            word-break: break-word;
-        }
+        .hub-admin .announce-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+        .hub-admin .announce-card-link { color: inherit; text-decoration: none; display: block; }
     </style>
 {% endblock %}
-
-{% block main %}
+{% block admin_breadcrumbs %}{% include 'announcement/discord/_breadcrumbs.html' with current='list' %}{% endblock %}
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with label='運営管理' links_template='announcement/discord/_admin_nav.html' admin_section='announcement' %}
+{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='Discord 告知の予約' target='告知チャンネル' subtitle='運営用・日時（日本時間）を決めてメッセージを送ります。' actions=header_actions only %}
+{% endblock %}
+{% block admin_content %}
 {% timezone "Asia/Tokyo" %}
-<div class="container my-4 my-md-5" style="max-width: 880px;">
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-        <div>
-            <h1 class="h3 fw-bold mb-1">Discord 告知の予約送信</h1>
-            <p class="text-muted small mb-0">告知チャンネルへ、日時（日本時間）を決めてメッセージを送ります。</p>
-        </div>
-        <a href="{% url 'announcement:discord_create' %}" class="btn btn-primary">
-            <i class="fas fa-plus me-1"></i>新しく予約する
-        </a>
-    </div>
-
-    {% include 'ta_hub/messages.html' %}
-
     {% if scheduled_messages %}
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-2 small" data-testid="announce-counts">
-            <span class="badge rounded-pill text-bg-primary">予約中 {{ scheduled_count }} 件</span>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-3 small" data-testid="announce-counts">
+            {% with count=scheduled_count|stringformat:'d' %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='予約中 '|add:count|add:' 件' only %}
+            {% endwith %}
             {% if failed_count %}
-                <span class="badge rounded-pill text-bg-danger">失敗 {{ failed_count }} 件</span>
+                {% with count=failed_count|stringformat:'d' %}
+                    {% include 'ta_hub/admin/includes/status_chip.html' with label='失敗 '|add:count|add:' 件' tone='danger' only %}
+                {% endwith %}
             {% endif %}
-            <span class="text-muted ms-auto">全 {{ paginator.count }} 件</span>
+            <span class="admin-muted ms-auto">全 {{ paginator.count }} 件</span>
         </div>
-
-        <div class="list-group shadow-sm">
-            {% for message in scheduled_messages %}
-                <a href="{% url 'announcement:discord_detail' message.pk %}"
-                   class="list-group-item list-group-item-action py-3"
-                   data-testid="announce-item">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='予約と送信履歴' only %}
+        {% for message in scheduled_messages %}
+            <article class="admin-card" data-testid="announce-item">
+                <a href="{% url 'announcement:discord_detail' message.pk %}" class="announce-card-link">
                     <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-                        <span class="badge {{ message.status_badge_class }}">{{ message.status_label }}</span>
+                        {% include 'announcement/discord/_status.html' with message=message only %}
                         <span class="fw-bold">{{ message.scheduled_at|date:"Y/m/d（D）H:i" }}</span>
                         {% include 'announcement/discord/_mention_badge.html' %}
-                        {% if message.is_waiting_retry %}
-                            <span class="small text-danger"><i class="fas fa-rotate-right me-1"></i>再試行待ち</span>
-                        {% endif %}
                     </div>
                     {% if message.subject %}
                         <div class="fw-semibold text-truncate mb-1" data-testid="announce-subject">{{ message.subject }}</div>
@@ -58,22 +48,16 @@
                     {% if message.excerpt %}
                         <div class="announce-excerpt text-body-secondary small" data-testid="announce-excerpt">{{ message.excerpt|truncatechars:140 }}</div>
                     {% endif %}
+                    <span class="small text-primary">予約の詳細を見る</span>
                 </a>
-            {% endfor %}
-        </div>
-
-        {% if page_obj.has_other_pages %}
-            {% include 'ta_hub/pagination.html' %}
-        {% endif %}
+            </article>
+        {% endfor %}
+        {% if page_obj.has_other_pages %}{% include 'ta_hub/pagination.html' %}{% endif %}
     {% else %}
-        <div class="card border-0 bg-body-tertiary text-center py-4" data-testid="announce-empty">
-            <div class="card-body">
-                <i class="fa-brands fa-discord fa-2x text-secondary mb-3"></i>
-                <p class="fw-bold mb-1">予約はまだありません</p>
-                <p class="text-muted small mb-0">「新しく予約する」から、本文と送信日時を決めて予約できます。</p>
-            </div>
+        <div data-testid="announce-empty">
+            {% url 'announcement:discord_create' as create_url %}
+            {% include 'ta_hub/admin/includes/empty_state.html' with title='予約はまだありません' description='本文と送信日時を決めて予約できます。' action_url=create_url action_label='新しく予約する' only %}
         </div>
     {% endif %}
-</div>
 {% endtimezone %}
 {% endblock %}
