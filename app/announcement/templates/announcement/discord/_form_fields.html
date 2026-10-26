@@ -1,32 +1,23 @@
-{% if form.non_field_errors %}
-    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
-{% endif %}
-
-<div class="mb-4">
-    <div class="d-flex justify-content-between align-items-baseline gap-2">
-        <label for="{{ form.body.id_for_label }}" class="form-label fw-bold">{{ form.body.label }}</label>
-        <span class="small text-muted" data-role="body-counter"><span data-role="body-count">{{ form.body.value|default:""|length }}</span> / {{ form.body.field.max_length }} 文字</span>
+{% include 'ta_hub/admin/includes/form_errors.html' with form=form only %}
+<section class="admin-card" aria-labelledby="announce-destination">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='送信先' heading_id='announce-destination' only %}
+    <p class="mb-0">Discord の告知チャンネル <span class="detail-chip">運営用</span></p>
+</section>
+<section class="admin-card" aria-labelledby="announce-content">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='内容' heading_id='announce-content' only %}
+    <div class="admin-form-field mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-baseline gap-2">
+            <label for="{{ form.body.id_for_label }}" class="form-label fw-bold">{{ form.body.label }}</label>
+            <span class="small text-muted" data-role="body-counter"><span data-role="body-count">{{ form.body.value|default:""|length }}</span> / {{ form.body.field.max_length }} 文字</span>
+        </div>
+        {{ form.body }}
+        {% for error in form.body.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+        <div class="form-text">ロールとユーザーのメンションは、そのまま通知されます。@everyone と @here は本文に書かず、下の「メンション」で選びます。</div>
     </div>
-    {{ form.body }}
-    {% for error in form.body.errors %}
-        <div class="invalid-feedback d-block">{{ error }}</div>
-    {% endfor %}
-    <div class="form-text">ロールとユーザーのメンションは、そのまま通知されます。@everyone と @here は本文に書かず、下の「メンション」で選びます。</div>
-</div>
-
-<div class="mb-4">
-    <label for="{{ form.scheduled_at.id_for_label }}" class="form-label fw-bold">{{ form.scheduled_at.label }}</label>
-    {{ form.scheduled_at }}
-    {% for error in form.scheduled_at.errors %}
-        <div class="invalid-feedback d-block">{{ error }}</div>
-    {% endfor %}
-    <div class="form-text">1 分ごとの送信処理で送るため、指定した時刻から最大 1 分ほど遅れて届くことがあります。</div>
-</div>
-
-<div class="mb-1">
-    <label class="form-label fw-bold" for="{{ form.mention.id_for_label }}">{{ form.mention.label }}</label>
-    {{ form.mention }}
-    {% for error in form.mention.errors %}
-        <div class="invalid-feedback d-block">{{ error }}</div>
-    {% endfor %}
-</div>
+    {% include 'ta_hub/admin/includes/form_field.html' with field=form.mention only %}
+</section>
+<section class="admin-card" aria-labelledby="announce-schedule">
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='日時' heading_id='announce-schedule' only %}
+    {% include 'ta_hub/admin/includes/form_field.html' with field=form.scheduled_at only %}
+    <p class="form-text mb-0">1 分ごとの送信処理で送るため、指定した時刻から最大 1 分ほど遅れて届くことがあります。</p>
+</section>
