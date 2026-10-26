@@ -184,6 +184,18 @@
         margin-bottom: 0;
     }
 
+    /* PC では 2 段組にして、本文の書き出しを押し下げすぎないようにする */
+    @media (min-width: 992px) {
+        .guide-page-toc nav > ul {
+            column-count: 2;
+            column-gap: 2rem;
+        }
+
+        .guide-page-toc nav > ul > li {
+            break-inside: avoid;
+        }
+    }
+
     .guide-table-wrap {
         max-width: 100%;
         overflow-x: auto;
