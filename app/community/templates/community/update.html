@@ -1,102 +1,30 @@
-{% extends 'ta_hub/base.html' %}
-{% load django_bootstrap5 image_tags %}
-
-{% block meta %}<title>{% if is_reopening %}集会の再開{% else %}集会情報の編集{% endif %} - {{ community.name }}</title>{% endblock %}
-
-{% block main %}
-    <div class="container my-5">
-        <div class="row">
-            <div class="col-md-10 offset-md-1">
-                {% if is_reopening %}
-                <nav aria-label="breadcrumb"><ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{% url 'account:settings' %}">アカウント設定</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">集会の再開</li>
-                </ol></nav>
-                <h1 class="h3 mb-3">{{ community.name }}を再開</h1>
-                <p>集会情報を確認・編集して、この内容で再開しますか？</p>
-                <div class="alert alert-info">
-                    {% if community.is_ended %}
-                    <p>{{ community.end_at|date:"Y年n月j日" }}に終了した集会です。</p>
-                    {% else %}
-                    <p>{{ community.end_at|date:"Y年n月j日" }}の終了予定を取り消します。</p>
-                    {% endif %}
-                    <p class="mb-0">保存すると、情報の更新と再開が同時に反映されます。削除済みの開催予定・定期イベントは自動復元されません。以前の開催周期・曜日は未設定に戻ります。再開後に初回開催日・開催時間・開催周期を登録してください。</p>
-                </div>
-                {% endif %}
-                {% include 'ta_hub/messages.html' %}
-                {% if form.errors %}
-                <div class="alert alert-danger mb-4">
-                    <strong>入力内容にエラーがあります。</strong>
-                    <ul class="mb-0 mt-2">
-                    {% for field in form %}
-                        {% for error in field.errors %}
-                        <li>{{ field.label }}: {{ error }}</li>
-                        {% endfor %}
-                    {% endfor %}
-                    {% for error in form.non_field_errors %}
-                        <li>{{ error }}</li>
-                    {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
-                <form method="post" enctype="multipart/form-data">
-                    {% csrf_token %}
-
-                    <!-- 基本情報カード -->
-                    <div class="card mb-4">
-                        <div class="card-header bg-primary text-white">
-                            <h4 class="mb-0">基本情報</h4>
-                        </div>
-                        <div class="card-body">
-                            {% bootstrap_field form.name %}
-                            {% bootstrap_field form.start_time %}
-                            {% bootstrap_field form.duration %}
-                            {% if not is_reopening %}
-                            {% bootstrap_field form.weekdays %}
-                            {% bootstrap_field form.frequency %}
-                            {% endif %}
-                            {% bootstrap_field form.organizers %}
-                            {% bootstrap_field form.group_url %}
-                            {% bootstrap_field form.organizer_url %}
-                            {% bootstrap_field form.sns_url %}
-                            {% bootstrap_field form.twitter_hashtag %}
-                            {% bootstrap_field form.discord %}
-                            {% bootstrap_field form.poster_image %}
-                            <div class="mb-3">
-                                <label class="form-label">現在のポスター</label>
-                                <div>
-                                    {% if community.poster_image %}
-                                        <img src="{{ community.poster_image.url|cf_resize:'400' }}"
-                                             alt="{{ community.name }}"
-                                             class="img-fluid rounded border"
-                                             style="max-width: min(100%, 320px);">
-                                    {% else %}
-                                        <p class="text-muted mb-0">ポスターは登録されていません。</p>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            {% bootstrap_field form.allow_poster_repost %}
-                            {% bootstrap_field form.description %}
-                            {% bootstrap_field form.platform %}
-                            {% bootstrap_field form.tags %}
-                        </div>
-                    </div>
-
-                    <div class="mt-4 d-flex flex-wrap gap-2">
-                        {% if is_reopening %}
-                        <button type="submit" class="btn btn-primary">この内容で再開する</button>
-                        <a href="{% url 'account:settings' %}" class="btn btn-outline-secondary">アカウント設定に戻る</a>
-                        {% else %}
-                        <button type="submit" class="btn btn-primary">更新</button>
-                        {% if active_membership.is_owner %}
-                        <a href="{% url 'community:member_manage' active_community.pk %}" class="btn btn-outline-secondary">
-                            <i class="bi bi-person-gear me-1"></i>メンバー管理
-                        </a>
-                        {% endif %}
-                        {% endif %}
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+{% extends 'community/settings.html' %}
+{% block title %}{% if is_reopening %}集会の再開{% else %}集会情報の編集{% endif %} - {{ community.name }}{% endblock %}
+{% block admin_header %}
+{% if is_reopening %}{% include 'ta_hub/admin/includes/page_header.html' with title='集会の再開' target=community.name only %}
+{% else %}{% include 'ta_hub/admin/includes/page_header.html' with title='集会情報の編集' target=community.name only %}{% endif %}
+{% endblock %}
+{% block admin_breadcrumbs %}{% if is_reopening %}{% include 'community/includes/admin_breadcrumbs.html' with label='集会の再開' %}{% else %}{{ block.super }}{% endif %}{% endblock %}
+{% block admin_subnav %}{% if not is_reopening %}{{ block.super }}{% endif %}{% endblock %}
+{% block admin_attention %}
+{% if is_reopening %}
+<div class="action-required mb-4" role="note">
+{% if community.is_ended %}<p>{{ community.end_at|date:'Y年n月j日' }}に終了した集会です。</p>{% else %}<p>{{ community.end_at|date:'Y年n月j日' }}の終了予定を取り消します。</p>{% endif %}
+<p class="mb-0">保存すると、情報の更新と再開が同時に反映されます。以前の開催周期・曜日は未設定に戻ります。削除済みの開催予定・定期イベントは自動復元されません。再開後に初回開催日・開催時間・開催周期を登録してください。</p>
+</div>
+{% else %}{{ block.super }}{% endif %}
+{% endblock %}
+{% block admin_toc %}{% if not is_reopening %}{{ block.super }}{% endif %}{% endblock %}
+{% block admin_content %}
+{% if is_reopening %}
+<form id="community-form" data-admin-dirty method="post" enctype="multipart/form-data">
+{% csrf_token %}{% include 'community/includes/community_fields.html' %}
+</form>
+{% else %}{{ block.super }}{% endif %}
+{% endblock %}
+{% block admin_action_bar %}
+{% if is_reopening %}
+{% url 'account:settings' as return_url %}
+{% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions cancel_url=return_url only %}
+{% else %}{{ block.super }}{% endif %}
 {% endblock %}

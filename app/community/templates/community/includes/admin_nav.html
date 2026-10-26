@@ -1,0 +1,6 @@
+{% if community.pk and user.is_authenticated %}
+<a href="{% url 'event:my_list' %}">イベント管理</a>
+<a href="{% url 'community:settings' %}"{% if current == 'settings' %} aria-current="page"{% endif %}>集会設定</a>
+{% if is_owner %}<a href="{% url 'community:member_manage' community.pk %}"{% if current == 'members' %} aria-current="page"{% endif %}>メンバー管理</a>{% endif %}
+{% if user.is_superuser %}<a href="{% url 'community:waiting_list' %}">承認待ちの集会 <span class="badge text-bg-secondary">運営</span></a>{% endif %}
+{% endif %}

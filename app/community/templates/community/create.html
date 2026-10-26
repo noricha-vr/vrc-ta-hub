@@ -1,11 +1,11 @@
-{% extends 'ta_hub/base.html' %}
-{% load django_bootstrap5 %}
-
-{% block main %}
-    <div class="container my-5">
-        <div class="row">
-            <div class="col-md-10 offset-md-1">
-                <div id="criteria-summary" class="alert alert-info" role="note">
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}集会の登録を申請する - {% site_name_seo %}{% endblock %}
+{% block extra_css %}{{ block.super }}{% include 'community/includes/admin_styles.html' %}{% endblock %}
+{% block admin_breadcrumbs %}{% include 'community/includes/admin_breadcrumbs.html' with label='集会の登録申請' %}{% endblock %}
+{% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='集会の登録を申請する' only %}{% endblock %}
+{% block admin_attention %}{% include 'community/includes/approval_progress.html' with applying=True %}{% endblock %}
+{% block admin_content %}
+                <div id="criteria-summary" class="admin-card" role="note">
                     <h2 class="h5 alert-heading">登録種別と審査基準</h2>
                     <p>このフォームでは、登録する集会の主な目的に合う「技術系」または「学術系」のタグを選択してください。</p>
                     <ul class="mb-3">
@@ -24,54 +24,17 @@
                         をご確認ください。
                     </p>
                 </div>
-                <form method="post" enctype="multipart/form-data">
-                    {% csrf_token %}
 
-                    <!-- 基本情報カード -->
-                    <div class="card mb-4">
-                        <div class="card-header bg-primary text-white">
-                            <h4 class="mb-0">集会を登録</h4>
-                        </div>
-                        <div class="card-body">
-                            {% bootstrap_field form.name %}
-                            {% bootstrap_field form.start_time %}
-                            {% bootstrap_field form.duration %}
-                            {% bootstrap_field form.weekdays %}
-                            {% bootstrap_field form.frequency %}
-                            {% bootstrap_field form.organizers %}
-                            {% bootstrap_field form.group_url %}
-                            {% bootstrap_field form.organizer_url %}
-                            {% bootstrap_field form.sns_url %}
-                            {% bootstrap_field form.twitter_hashtag %}
-                            {% bootstrap_field form.discord %}
-                            {% bootstrap_field form.poster_image %}
-                            {% bootstrap_field form.allow_poster_repost %}
-                            {% bootstrap_field form.description %}
-                            {% bootstrap_field form.platform %}
-                            {% bootstrap_field form.tags %}
-                        </div>
-                    </div>
-
-                    <div class="card mb-4">
-                        <div class="card-header fw-bold">登録前の確認</div>
-                        <div class="card-body">
-                            {% bootstrap_field form.guidelines_agreed %}
-                            <p class="text-muted small mb-0">
-                                同意対象: <a href="{% url 'community:criteria' %}" target="_blank" rel="noopener">掲載・審査基準</a>
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="mt-4">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-plus-circle me-2"></i>集会を登録
-                        </button>
-                        <a href="{% url 'account:settings' %}" class="btn btn-secondary ms-2">
-                            <i class="bi bi-arrow-left me-2"></i>戻る
-                        </a>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+<form id="community-form" data-admin-dirty method="post" enctype="multipart/form-data">
+{% csrf_token %}{% include 'community/includes/community_fields.html' %}
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='登録前の確認' only %}
+{% include 'ta_hub/admin/includes/form_field.html' with field=form.guidelines_agreed only %}
+<p class="form-text">同意対象: <a href="{% url 'community:criteria' %}" target="_blank" rel="noopener">掲載・審査基準</a></p>
+</section></form>
+{% include 'community/includes/locked_settings.html' %}
+{% endblock %}
+{% block admin_action_bar %}
+{% url 'account:settings' as return_url %}
+{% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions cancel_url=return_url only %}
 {% endblock %}

@@ -74,7 +74,7 @@ class ReopenCommunityTest(TestCase):
     def test_invalid_form_does_not_update_or_reopen(self):
         response = self.client.post(self.url, {**self.data, 'name': ''})
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '入力内容にエラーがあります')
+        self.assertContains(response, '入力内容を確認してください')
         self.community.refresh_from_db()
         self.assertIsNotNone(self.community.end_at)
         self.assertEqual(self.community.description, '')

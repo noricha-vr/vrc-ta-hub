@@ -1,0 +1,49 @@
+"""集会管理画面の表示データ。保存処理・権限判定は既存ビューに置く。"""
+from django import forms
+from django.urls import reverse
+from django.utils import timezone
+
+from ..constants import DEFAULT_LT_APPLICATION_TEMPLATE, RECORDING_POLICY_FORM_CHOICES
+from ..forms import CommunityUpdateForm
+from ..models import CommunityInvitation
+
+
+def invitation_display(invitation, request, route='community:accept_invitation'):
+    """通常表示ではトークンを出さず、共有する時だけ明示操作で表示する。"""
+    form = forms.Form(prefix=f'invitation-{invitation.pk}')
+    form.fields['link'] = forms.CharField(required=False, disabled=True)
+    invitation.secret_field = form['link']
+    invitation.secret_suffix = str(invitation.token)[-4:]
+    invitation.shared_link = ''
+    if request.GET.get('reveal_invitation') == str(invitation.pk):
+        invitation.shared_link = request.build_absolute_uri(reverse(route, args=[invitation.token]))
+    return invitation
+
+
+def settings_display(context, community, request):
+    """設定と旧編集 URL で同じまとまり・保存バーを使う。"""
+    if 'form' not in context:
+        context['form'] = CommunityUpdateForm(instance=community)
+    context['is_owner'] = community.is_owner(request.user)
+    context['lt_application_template_display'] = community.lt_application_template or DEFAULT_LT_APPLICATION_TEMPLATE
+    context['recording_policy_choices'] = RECORDING_POLICY_FORM_CHOICES
+    webhook_form = forms.Form()
+    webhook_form.fields['notification_webhook_url'] = forms.URLField(required=False)
+    context['webhook_field'] = webhook_form['notification_webhook_url']
+    context['webhook_suffix'] = community.notification_webhook_url[-4:]
+    context['save_actions'] = [
+        {'form_id': 'community-form', 'scope': '集会情報', 'label': '集会情報を保存'},
+        {'form_id': 'notification-form', 'scope': '通知', 'label': '通知を保存', 'disabled': True},
+        {'form_id': 'lt-form', 'scope': '発表受付', 'label': '発表受付を保存'},
+    ]
+    if context['is_owner']:
+        invitation = CommunityInvitation.objects.filter(
+            community=community,
+            invitation_type=CommunityInvitation.InvitationType.OWNERSHIP_TRANSFER,
+            expires_at__gt=timezone.now(),
+        ).first()
+        context['ownership_transfer_invitation'] = (
+            invitation_display(invitation, request, route='community:accept_ownership_transfer')
+            if invitation else None
+        )
+    return context

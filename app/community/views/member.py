@@ -15,6 +15,7 @@ from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 
 from ..models import Community, CommunityMember, CommunityInvitation
 from ..services import ActivationError, activate_community
+from .admin_ui import invitation_display
 
 # 失敗理由（community.services.ActivationError）ごとの表示文言
 SWITCH_ERROR_MESSAGES = {
@@ -96,6 +97,7 @@ class CommunityMemberManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin,
         context['invitations'] = community.invitations.filter(
             expires_at__gt=timezone.now()
         ).select_related('created_by').order_by('-created_at')
+        context['invitations'] = [invitation_display(item, self.request) for item in context['invitations']]
         return context
 
 
