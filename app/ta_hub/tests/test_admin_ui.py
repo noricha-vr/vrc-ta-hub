@@ -8,6 +8,7 @@ from django.template import Context, Template
 from django.template.loader import render_to_string
 from django.test import RequestFactory, SimpleTestCase
 
+from community.forms import CommunityUpdateForm
 from website.constants import SITE_NAME_SEO
 
 
@@ -19,11 +20,11 @@ class AdminUITemplateTest(SimpleTestCase):
         return BeautifulSoup(self.render(name, **context), 'html.parser')
 
     def test_existing_settings_title_is_used_once(self):
-        html = self.render('community/settings.html', community=SimpleNamespace(
+        html = self.render('community/settings.html', form=CommunityUpdateForm(), community=SimpleNamespace(
             pk=1, name='テスト集会', weekdays=[], members=SimpleNamespace(all=lambda: []),
         ))
         titles = BeautifulSoup(html, 'html.parser').find_all('title')
-        self.assertEqual([title.text for title in titles], ['集会設定 - テスト集会'])
+        self.assertEqual([title.text for title in titles], [f'集会設定 - テスト集会 - {SITE_NAME_SEO}'])
 
     def test_default_title_and_public_css_are_unchanged(self):
         html = self.render('ta_hub/base.html')

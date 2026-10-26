@@ -28,6 +28,7 @@ from ..forms import CommunitySearchForm, CommunityUpdateForm, CommunityCreateFor
 from ..libs import get_join_type
 from ..constants import WEEKDAY_CHOICES
 from ..models import Community
+from .admin_ui import settings_display
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,10 @@ class CommunityUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Updat
 
         return None
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        return settings_display(context, self.object, self.request)
+
     def form_valid(self, form):
         try:
             response = super().form_valid(form)
@@ -78,6 +83,11 @@ class CommunityCreateView(LoginRequiredMixin, CreateView):
     form_class = CommunityCreateForm
     template_name = 'community/create.html'
     success_url = reverse_lazy('account:settings')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['save_actions'] = [{'form_id': 'community-form', 'scope': '登録申請', 'label': '集会を登録'}]
+        return context
 
     def form_valid(self, form):
         response = super().form_valid(form)
@@ -240,6 +250,7 @@ class ReopenCommunityView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View)
             'community': community,
             'form': form,
             'is_reopening': True,
+            'save_actions': [{'form_id': 'community-form', 'label': 'この内容で再開する'}],
         })
 
     def post(self, request, pk):

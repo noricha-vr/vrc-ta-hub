@@ -441,7 +441,8 @@ class CommunitySettingsOwnershipTransferTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '有効な引き継ぎリンクがあります')
-        self.assertContains(response, invitation.token)
+        self.assertNotContains(response, invitation.token)
+        self.assertContains(response, '共有用にリンクを表示')
 
     def test_expired_transfer_link_is_not_displayed(self):
         """期限切れの引き継ぎリンクは表示されない"""

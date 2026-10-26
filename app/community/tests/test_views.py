@@ -178,18 +178,17 @@ class AcceptViewTest(TestCase):
         self.assertIn('開催日を登録', html_content)
         self.assertIn('<h1>', html_content)  # HTML形式であることを確認
 
-    def test_waiting_list_renders_poster_image_src(self):
-        """承認待ち一覧でポスター画像のsrc属性を正しく描画する。"""
+    def test_waiting_list_uses_compact_rows_with_detail_link(self):
+        """承認待ち一覧はポスターを出さず、集会名と詳細への導線を出す。"""
         self.client.force_login(self.admin_user)
 
         response = self.client.get(reverse('community:waiting_list'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'src="')
-        self.assertContains(response, 'poster/pending-test.jpg"')
-        self.assertContains(response, 'loading="lazy"')
-        self.assertNotContains(response, 'src=”')
-        self.assertNotContains(response, 'loading=”')
+        self.assertNotContains(response, 'poster/pending-test.jpg')
+        self.assertContains(response, self.pending_community.name)
+        self.assertContains(response, reverse('community:detail', args=[self.pending_community.pk]))
+        self.assertContains(response, '詳細')
 
 
 
