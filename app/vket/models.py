@@ -193,9 +193,10 @@ class VketParticipation(models.Model):
     def save(self, *args, **kwargs):
         # サムネイル生成の列は条件付き UPDATE だけで書く。読み込み後の全列保存で予約や回数を巻き戻さない。
         if not self._state.adding and kwargs.get("update_fields") is None and not kwargs.get("force_insert"):
+            deferred = self.get_deferred_fields()
             kwargs["update_fields"] = [
                 field.name for field in self._meta.concrete_fields
-                if not field.primary_key and field.name not in STAGE_THUMBNAIL_FIELDS
+                if not field.primary_key and field.name not in STAGE_THUMBNAIL_FIELDS and field.attname not in deferred
             ]
         super().save(*args, **kwargs)
 

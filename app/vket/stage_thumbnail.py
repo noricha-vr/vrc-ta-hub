@@ -24,10 +24,10 @@ THUMBNAIL_TIMEOUT = 110
 MAX_THUMBNAIL_ATTEMPTS = 3
 
 
-def log_thumbnail(participation, result, elapsed=0):
+def log_thumbnail(participation, result, elapsed=0, **extra):
     logger.info(
         'vket_stage_thumbnail', community_id=participation.community_id,
-        participation_id=participation.pk, duration_seconds=round(elapsed, 3), result=result,
+        participation_id=participation.pk, duration_seconds=round(elapsed, 3), result=result, **extra,
     )
 
 
@@ -102,10 +102,10 @@ def generate_stage_thumbnail(participation) -> str:
             participation.stage_thumbnail.delete(save=False)
             log_thumbnail(participation, 'reservation_changed', monotonic() - started)
             return 'already_requested'
-    except Exception:
-        # 応答や例外には認証情報が含まれ得るため、ログにも画面にも渡さない。
+    except Exception as exc:
+        # 応答や例外の本文には認証情報が含まれ得るため、ログには例外の種類だけを残す。
         reservation.update(stage_thumbnail_requested_at=None)
-        log_thumbnail(participation, 'failed', monotonic() - started)
+        log_thumbnail(participation, 'failed', monotonic() - started, error_type=type(exc).__name__)
         return 'failed'
     log_thumbnail(participation, 'generated', monotonic() - started)
     return 'generated'

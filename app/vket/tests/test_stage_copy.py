@@ -323,7 +323,10 @@ class StageCopyTests(TestCase):
         self.assertFalse(self.participation.stage_thumbnail)
         self.assertNotContains(response, 'secret-value-do-not-log')
         self.assertNotIn('secret-value-do-not-log', str(logger.mock_calls))
-        self.assertTrue(any(call.kwargs.get('result') == 'failed' for call in logger.info.call_args_list))
+        self.assertTrue(any(
+            call.kwargs.get('result') == 'failed' and call.kwargs.get('error_type') == 'Timeout'
+            for call in logger.info.call_args_list
+        ))
         self.api.side_effect = None
         self.client.post(self.generate_url)
         self.participation.refresh_from_db()
