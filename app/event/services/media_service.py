@@ -29,7 +29,7 @@ def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False, overw
     if (event_detail.thumbnail_image and not overwrite) or not event_detail.slide_file:
         return False
     # 画像を作る間に PDF が差し替えられたら、古い PDF の画像を書かないよう、元の PDF の名前を覚えておく
-    source_slide_name = event_detail.slide_file.name
+    source_slide_name = event_detail.slide_file.name or ''
 
     temp_file_path = None
     try:
