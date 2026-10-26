@@ -1,4 +1,7 @@
 """ガイドビューのテスト"""
+from unittest.mock import patch
+
+from bs4 import BeautifulSoup
 from django.test import TestCase, Client
 from django.urls import reverse
 
@@ -216,6 +219,37 @@ class GuideViewsTest(TestCase):
     def setUp(self):
         self.client = Client()
 
+    def test_page_toc_is_immediately_after_h1_with_nested_links(self):
+        content = '<h2 id="手順">手順</h2><h3 id="開く">開く</h3>'
+        with patch('guide.views.load_markdown_content', return_value=(content, {'title': '操作案内'})):
+            response = self.client.get('/guide/index/')
+        soup = BeautifulSoup(response.content, 'html.parser')
+        toc = soup.article.h1.find_next_sibling()
+        self.assertEqual(toc.name, 'details')
+        self.assertIn('guide-page-toc', toc['class'])
+        self.assertTrue(toc.has_attr('open'))
+        self.assertEqual(toc.summary.get_text(), 'このページの内容')
+        self.assertEqual(toc.select_one('nav > ul > li > a')['href'], '#手順')
+        self.assertEqual(toc.select_one('nav > ul > li > ul > li > a')['href'], '#開く')
+
+    def test_page_does_not_render_toc_for_a_single_heading(self):
+        with patch('guide.views.load_markdown_content', return_value=('<h2 id="案内">案内</h2>', {})):
+            response = self.client.get('/guide/index/')
+        self.assertIsNone(BeautifulSoup(response.content, 'html.parser').select_one('details.guide-page-toc'))
+
+    def test_sidebar_button_exposes_collapsed_state_and_controlled_nav(self):
+        response = self.client.get('/guide/index/')
+        soup = BeautifulSoup(response.content, 'html.parser')
+        button = soup.select_one('.guide-sidebar-toggle')
+        self.assertEqual(button['aria-expanded'], 'false')
+        self.assertEqual(soup.find(id=button['aria-controls']).name, 'nav')
+
+    def test_page_navigation_labels_describe_table_of_contents_order(self):
+        response = self.client.get('/guide/community/create/')
+        soup = BeautifulSoup(response.content, 'html.parser')
+        self.assertEqual([label.get_text() for label in soup.select('.guide-page-nav .nav-direction')],
+                         ['目次の前のページ', '目次の次のページ'])
+
     def test_guide_index_view(self):
         """インデックスページが表示されること"""
         response = self.client.get(reverse("guide:index"))
@@ -223,6 +257,30 @@ class GuideViewsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "使い方ガイド")
         self.assertIn("nav_items", response.context)
+
+    def test_guide_index_lists_single_pages_as_links_and_sections_as_cards(self):
+        """子ページの無い項目は 1 行のリンク、節はカード（見出しは h3）で出ること"""
+        response = self.client.get(reverse("guide:index"))
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        single = soup.select_one(".guide-single-pages")
+        self.assertIsNotNone(single)
+        self.assertIn("/guide/glossary/", [a["href"] for a in single.select("a")])
+        card_titles = [h.get_text(strip=True) for h in soup.select(".card-title")]
+        self.assertNotIn("用語集", card_titles)
+        self.assertTrue(card_titles)
+        self.assertFalse(soup.select("h2.card-title"))
+
+    def test_guide_index_start_links_point_to_listed_pages(self):
+        """「やりたいことから選ぶ」は目次にあるページだけを、目次と同じタイトルで出すこと"""
+        response = self.client.get(reverse("guide:index"))
+
+        start_links = response.context["start_links"]
+        self.assertTrue(start_links)
+        listed = {item.path: item.title for item in get_flat_nav_items(response.context["nav_items"])}
+        for link in start_links:
+            self.assertEqual(link["page"], listed[link["path"]])
+            self.assertContains(response, f'href="{link["url"]}"')
 
     def test_guide_page_view(self):
         """個別ページが表示されること"""
@@ -232,6 +290,14 @@ class GuideViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "はじめに")
+
+    def test_guide_page_shows_title_as_single_h1(self):
+        """本文先頭の H1 は共通処理で外れるので、ページの大見出しが 1 つだけ出ること"""
+        response = self.client.get(
+            reverse("guide:page", kwargs={"path": "community/create"})
+        )
+
+        self.assertContains(response, "<h1>集会を登録する</h1>", html=True, count=1)
 
     def test_guide_page_view_nested(self):
         """ネストしたパスのページが表示されること"""
@@ -326,13 +392,12 @@ class GuideViewsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # タイトル（フロントマターのtitle）
         self.assertContains(response, "ポスターを掲示する")
-        # 本文の内容
-        self.assertContains(response, "ワールドへのポスター掲示")
-        self.assertContains(response, "A4比率・縦4096px")
-        self.assertContains(
-            response,
-            "半分に縮小して Image Loader 用に流用しやすくなります",
-        )
+        # 配布画像の実寸と、Hub全体・集会個別の紹介手順を確認する。
+        self.assertContains(response, "1875×2500px")
+        self.assertContains(response, "横と縦の比率は3:4")
+        self.assertContains(response, "集会を紹介するためのポスターの転載可")
+        self.assertContains(response, "promotion/poster-01.webp")
+        self.assertContains(response, "promotion/poster-01-sp.webp")
 
     def test_guide_promotion_asset_page(self):
         """promotion/assetページが表示されること"""
@@ -342,12 +407,8 @@ class GuideViewsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "アセットを設置する")
-        self.assertContains(response, "技術・学術系イベント情報アセット")
-        self.assertContains(response, "開催予定を一覧表示できます")
-        self.assertContains(response, "Prefab を置くだけ")
-        self.assertContains(response, "更新負担がほとんどありません")
-        self.assertContains(response, "VCCから導入")
-        self.assertContains(
-            response,
-            "https://data.vrc-ta-hub.com/images/VRChat_2023-10-24_23-09-50.771_1920x1080-720-480.png",
-        )
+        self.assertContains(response, "TaAGatheringListSystem")
+        self.assertContains(response, "TaAGatheringInfoSys.prefab")
+        self.assertContains(response, "Add to VCC")
+        self.assertContains(response, "promotion/asset-09.webp")
+        self.assertContains(response, "promotion/asset-09-sp.webp")
