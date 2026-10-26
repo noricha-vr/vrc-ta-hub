@@ -21,7 +21,7 @@ from user_account.tests.utils import create_discord_linked_user
 User = get_user_model()
 
 # 説明文中の「申請者」と混同しないよう、申請内容テーブルの見出しセルで判定する
-APPLICANT_ROW_HEADER = '<th scope="row" class="bg-light">申請者</th>'
+APPLICANT_ROW_HEADER = '<dt class="col-sm-4">申請者</dt>'
 
 def create_test_image():
     """テスト用の画像ファイルを生成する"""

@@ -350,7 +350,7 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
         self.page.get_by_label('発表者名').fill('E2E Applicant')
         self.page.locator('input[name="article_consent"][value="ok"]').check()
         self.page.get_by_role('button', name=re.compile(r'申請する$')).click()
-        expect(self.page.get_by_role('heading', name='発表申請完了', exact=True)).to_be_visible()
+        expect(self.page.get_by_role('heading', name=re.compile(r'^発表申請完了'))).to_be_visible()
 
         application = EventDetail.objects.get(event=self.event, theme=application_theme)
         self.logout()

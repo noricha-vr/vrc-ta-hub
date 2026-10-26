@@ -104,4 +104,7 @@ class GoogleCalendarEventCreateView(LoginRequiredMixin, FormView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['community'] = self._get_active_community()
+        context['save_actions'] = [
+            {'form_id': 'calendar-form', 'scope': 'イベント登録', 'label': '登録'},
+        ]
         return context

@@ -1,119 +1,59 @@
-{% extends 'ta_hub/base.html' %}
-
-{% block meta %}
-    <title>発表申請の確認 - {{ community.name }} - {% site_name_seo %}</title>
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}発表申請の審査: {{ community.name }} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb">
+<li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+<li class="breadcrumb-item active" aria-current="page">発表申請の審査</li>
+</ol></nav>
 {% endblock %}
-
-{% block main %}
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <nav aria-label="breadcrumb" class="mb-4">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">マイページ</a></li>
-                    <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">マイリスト</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">申請の確認</li>
-                </ol>
-            </nav>
-
-            <div class="card shadow-sm mb-4">
-                <div class="card-header {% if event_detail.status == 'approved' %}bg-success text-white{% elif event_detail.status == 'rejected' %}bg-danger text-white{% else %}bg-warning{% endif %}">
-                    <h1 class="h4 mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                        <span>
-                            <i class="bi bi-clipboard-check me-2"></i>発表申請の確認
-                        </span>
-                        {% if event_detail.status == 'approved' %}
-                            <span class="badge bg-light text-success"><i class="fas fa-check me-1"></i>承認済み</span>
-                        {% elif event_detail.status == 'rejected' %}
-                            <span class="badge bg-light text-danger"><i class="fas fa-times me-1"></i>却下</span>
-                        {% else %}
-                            <span class="badge bg-light text-warning"><i class="fas fa-clock me-1"></i>承認待ち</span>
-                        {% endif %}
-                    </h1>
-                </div>
-                <div class="card-body">
-                    <h5 class="card-title mb-4">申請内容</h5>
-
-                    <div class="table-responsive">
-                        <table class="table table-bordered">
-                            <tbody>
-                                <tr>
-                                    <th scope="row" class="bg-light" style="width: 30%;">集会</th>
-                                    <td>{{ community.name }}</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row" class="bg-light">開催日</th>
-                                    <td>{{ event_detail.event.date|date:"Y年n月j日" }}</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row" class="bg-light">テーマ</th>
-                                    <td>{{ event_detail.theme }}</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row" class="bg-light">発表者</th>
-                                    <td>{{ event_detail.speaker }}</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row" class="bg-light">発表の持ち時間</th>
-                                    <td>{{ event_detail.duration }}分</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row" class="bg-light">撮影</th>
-                                    <td>{{ event_detail.get_recording_policy_display }}</td>
-                                </tr>
-                                <tr>
-                                    <th scope="row" class="bg-light">発表の記事化</th>
-                                    <td>{{ event_detail.get_article_consent_display }}</td>
-                                </tr>
-                                {# 代理申請でのみ意味がある情報なので、発表者と同名なら出さない #}
-                                {% if event_detail.applicant and event_detail.applicant.display_label != event_detail.speaker %}
-                                <tr>
-                                    <th scope="row" class="bg-light">申請者</th>
-                                    <td>{{ event_detail.applicant.display_label }}</td>
-                                </tr>
-                                {% endif %}
-                                {% if event_detail.source == 'discord_bot' %}
-                                <tr>
-                                    <th scope="row" class="bg-light">登録経路</th>
-                                    <td>Discord から自動で登録</td>
-                                </tr>
-                                {% endif %}
-                                {% if event_detail.source_url %}
-                                <tr>
-                                    <th scope="row" class="bg-light">元の投稿</th>
-                                    <td><a href="{{ event_detail.source_url }}" target="_blank" rel="noopener noreferrer">元の投稿を開く</a></td>
-                                </tr>
-                                {% endif %}
-                                <tr>
-                                    <th scope="row" class="bg-light">申請日時</th>
-                                    <td>{{ event_detail.created_at|date:"Y年n月j日 H:i" }}</td>
-                                </tr>
-                                {% if event_detail.additional_info %}
-                                <tr>
-                                    <th scope="row" class="bg-light">追加情報</th>
-                                    <td><pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ event_detail.additional_info }}</pre></td>
-                                </tr>
-                                {% endif %}
-                                {% if event_detail.status == 'rejected' and event_detail.rejection_reason %}
-                                <tr>
-                                    <th scope="row" class="bg-light">却下理由</th>
-                                    <td><pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ event_detail.rejection_reason }}</pre></td>
-                                </tr>
-                                {% endif %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            {% if event_detail.status == 'pending' %}
-            <div class="card shadow-sm">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="bi bi-check2-square me-2"></i>アクション</h5>
-                </div>
-                <div class="card-body">
-                    <form method="post" id="review-form">
+{% block admin_header %}
+{% include 'ta_hub/admin/includes/page_header.html' with title='発表申請の審査' target=community.name only %}
+<p class="admin-muted">開催日時: {{ event_detail.event.date }} {{ event_detail.start_time }}</p>
+{% if event_detail.status == 'approved' %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label='承認済み' tone='success' only %}
+{% elif event_detail.status == 'rejected' %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label='却下' tone='danger' only %}
+{% else %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label='承認待ち' tone='warning' only %}
+{% endif %}
+{% endblock %}
+{% block extra_css %}
+{{ block.super }}
+<style>
+.hub-admin .application-information dd { overflow-wrap: anywhere; }
+.hub-admin .application-text { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; }
+</style>
+{% endblock %}
+{% block admin_content %}
+<section class="admin-card application-information">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='申請内容' only %}
+<dl class="row">
+<dt class="col-sm-4">集会</dt><dd class="col-sm-8">{{ community.name }}</dd>
+<dt class="col-sm-4">開催日</dt><dd class="col-sm-8">{{ event_detail.event.date|date:"Y年n月j日" }}</dd>
+<dt class="col-sm-4">テーマ</dt><dd class="col-sm-8">{{ event_detail.theme }}</dd>
+<dt class="col-sm-4">発表者</dt><dd class="col-sm-8">{{ event_detail.speaker }}</dd>
+<dt class="col-sm-4">発表の持ち時間</dt><dd class="col-sm-8">{{ event_detail.duration }}分</dd>
+<dt class="col-sm-4">撮影</dt><dd class="col-sm-8">{{ event_detail.get_recording_policy_display }}</dd>
+<dt class="col-sm-4">発表の記事化</dt><dd class="col-sm-8">{{ event_detail.get_article_consent_display }}</dd>
+{% if event_detail.applicant and event_detail.applicant.display_label != event_detail.speaker %}
+<dt class="col-sm-4">申請者</dt><dd class="col-sm-8">{{ event_detail.applicant.display_label }}</dd>
+{% endif %}
+{% if event_detail.source == 'discord_bot' %}<dt class="col-sm-4">登録経路</dt><dd class="col-sm-8">Discord から自動で登録</dd>{% endif %}
+{% if event_detail.source_url %}<dt class="col-sm-4">元の投稿</dt><dd class="col-sm-8"><a href="{{ event_detail.source_url }}" target="_blank" rel="noopener noreferrer">元の投稿を開く</a></dd>{% endif %}
+<dt class="col-sm-4">申請日時</dt><dd class="col-sm-8">{{ event_detail.created_at|date:"Y年n月j日 H:i" }}</dd>
+</dl></section>
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='追加情報' only %}
+{% if event_detail.additional_info %}<p class="application-text">{{ event_detail.additional_info }}</p>
+{% else %}<p class="admin-muted mb-0">追加情報はありません。</p>{% endif %}
+{% if event_detail.status == 'rejected' and event_detail.rejection_reason %}<h3 class="h6">却下理由</h3><p class="application-text">{{ event_detail.rejection_reason }}</p>{% endif %}
+</section>
+{% if event_detail.status == 'pending' %}
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='審査の操作' description='日時の調整は承認時に反映されます。' only %}
+                    <form method="post" id="review-form" data-admin-dirty>
                         {% csrf_token %}
+{% include 'ta_hub/admin/includes/form_errors.html' with form=form only %}
 
                         <div class="mb-4">
                             <h6 class="fw-bold mb-2">
@@ -180,37 +120,23 @@
                             </div>
                         {% endif %}
 
-                        <hr class="my-4">
-
-                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-                            <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">
-                                <i class="bi bi-arrow-left me-2"></i>マイリストに戻る
-                            </a>
-                            <div class="d-flex gap-2">
-                                <button type="submit" name="action" value="reject" id="reject-button"
-                                        class="btn btn-outline-danger btn-lg">
-                                    <i class="bi bi-x-circle me-2"></i>却下する
-                                </button>
-                                <button type="submit" name="action" value="approve"
-                                        class="btn btn-success btn-lg">
-                                    <i class="bi bi-check-circle me-2"></i>承認する
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            {% else %}
-            <div class="d-flex justify-content-start">
-                <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">
-                    <i class="bi bi-arrow-left me-2"></i>マイリストに戻る
-                </a>
-            </div>
-            {% endif %}
-        </div>
+</form>
+<div class="admin-action-bar" role="region" aria-label="審査操作">
+    <span class="admin-dirty-status" data-admin-form-status="review-form" data-admin-scope="申請の審査" aria-live="polite">申請の審査: 変更はありません</span>
+    <div class="admin-action-buttons">
+        <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">イベント管理に戻る</a>
+        <button type="submit" form="review-form" name="action" value="reject" id="reject-button" class="btn btn-outline-danger">却下する</button>
+        <button type="submit" form="review-form" name="action" value="approve" class="btn btn-primary">承認する</button>
     </div>
 </div>
-
+</section>
+{% else %}
+<p class="admin-muted">審査済みの申請です。申請内容を閲覧できます。</p>
+<a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary">イベント管理に戻る</a>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
 {% if event_detail.status == 'pending' %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {

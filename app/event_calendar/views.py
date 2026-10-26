@@ -28,6 +28,13 @@ class CalendarEntryUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'event_calendar/calendar_entry_form.html'
     success_url = reverse_lazy('account:settings')
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['save_actions'] = [
+            {'form_id': 'calendar-entry-form', 'scope': 'カレンダー設定', 'label': '更新'},
+        ]
+        return context
+
     def test_func(self):
         """
         ユーザーがカレンダーエントリーを更新する権限があるか確認

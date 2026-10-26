@@ -56,6 +56,9 @@ class LTApplicationCreateView(LoginRequiredMixin, FormView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['community'] = self.community
+        context['save_actions'] = [
+            {'form_id': 'application-form', 'scope': '発表申請', 'label': '申請する'},
+        ]
         context.update(application_metadata(self.request, self.community))
         event_queryset = context['form'].fields['event'].queryset
         lt_prefetch = Prefetch(
