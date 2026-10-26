@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
 from django.core.cache import cache
+from django.db.utils import OperationalError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -51,7 +52,10 @@ class TopOgImageTests(TestCase):
 
     def test_missing_or_unsafe_setting_keeps_default(self):
         now = datetime(2026, 12, 10, 12, tzinfo=TOKYO)
-        for images in [{}, {'top': ''}, {'top': 'https://example.com/x.jpg'}, {'top': '../secret.jpg'}, {'top': 1}]:
+        for images in [
+            {}, {'top': ''}, {'top': 1}, {'top': 'https://example.com/x.jpg'}, {'top': '//evil.example/x.jpg'},
+            {'top': '../secret.jpg'}, {'top': 'vket\\x.jpg'}, {'top': 'vket/x.jpg?v=1'}, {'top': 'vket/\nx.jpg'},
+        ]:
             with self.subTest(images=images):
                 self.collaboration.settings_json = {'og_images': images}
                 self.collaboration.save(update_fields=['settings_json'])
@@ -63,3 +67,9 @@ class TopOgImageTests(TestCase):
         self.collaboration.save(update_fields=['phase'])
         og, _ = self.og_images(datetime(2026, 12, 10, 12, tzinfo=TOKYO))
         self.assertEqual(og, [DEFAULT_IMAGE])
+
+    def test_database_error_keeps_default_image(self):
+        with patch('ta_hub.views.top_page_og_image_url', side_effect=OperationalError('down')):
+            og, twitter = self.og_images(datetime(2026, 12, 10, 12, tzinfo=TOKYO))
+        self.assertEqual(og, [DEFAULT_IMAGE])
+        self.assertEqual(twitter, [DEFAULT_IMAGE])
