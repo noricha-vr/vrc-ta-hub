@@ -152,6 +152,8 @@ GOOGLE_CALENDAR_ID=d80eac7bdea1505cd9bc16153047c261be94e78607896c5ca567f8cfa78f0
 
 ## ドキュメント参照
 
+使い方ガイド（`docs/guide/`、`/guide/`）を触る時は、先に `docs/guide/AGENTS.md`（読者像・ページの型・画像の決まり）を読む。
+
 プロジェクトの全体像やアーキテクチャを把握する際は、DeepWikiを参照する。
 
 **DeepWiki**: https://deepwiki.com/noricha-vr/vrc-ta-hub
