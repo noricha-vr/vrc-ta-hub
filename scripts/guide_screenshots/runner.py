@@ -23,6 +23,7 @@ GUIDE_DEMO_ROOT = Path(__file__).resolve().parent
 DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': str(GUIDE_DEMO_ROOT / 'demo.sqlite3')}}
 CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 MEDIA_ROOT = GUIDE_DEMO_ROOT / 'media'
+ROOT_URLCONF = 'guide_demo_urls'
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'http'
 SESSION_COOKIE_SECURE = False
@@ -66,6 +67,13 @@ def main():
     base_url = f'http://127.0.0.1:{port}'
     with tempfile.TemporaryDirectory(prefix='guide-demo-') as tmp:
         (Path(tmp) / 'guide_demo_settings.py').write_text(SETTINGS)
+        # 撮影専用のローカル画像を配信する。本体の URL 設定は変更しない。
+        (Path(tmp) / 'guide_demo_urls.py').write_text(
+            'from django.conf import settings\n'
+            'from django.conf.urls.static import static\n'
+            'from website.urls import urlpatterns as website_patterns\n'
+            'urlpatterns = [*website_patterns, *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)]\n'
+        )
         # デモユーザーのパスワードは 1 回の撮影でだけ使う使い捨て（DB も撮影後に消える）。
         env = dict(os.environ, DJANGO_SETTINGS_MODULE='guide_demo_settings', FERNET_KEY=Fernet.generate_key().decode(),
                    GUIDE_DEMO_PASSWORD=secrets.token_urlsafe(16),

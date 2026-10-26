@@ -4,21 +4,16 @@
 - title: 用語集
   path: glossary
 
-- title: Hubを広める
-  children:
-    - title: ポスターを掲示する
-      path: promotion/poster
-    - title: アセットを設置する
-      path: promotion/asset
-
-- title: 集会を管理する
+- title: 集会を始める・管理する
   children:
     - title: 集会を登録する
       path: community/create
     - title: 集会情報を編集する
       path: community/edit
-    - title: 集会設定
+    - title: 集会設定を開く
       path: community/settings
+    - title: 管理する集会を切り替える
+      path: community/switch
     - title: 集会を閉鎖・再開する
       path: community/close
       owner_only: true
@@ -39,16 +34,16 @@
     - title: Hub公式Xアカウントでの自動告知
       path: event/auto-post
 
-- title: 発表情報を管理する
+- title: 発表を管理する（主催者・スタッフ向け）
   children:
     - title: 発表情報を登録する
       path: lt/create
-    - title: ブログ記事を自動生成する
-      path: lt/auto-generate
     - title: 発表申請を承認・却下する
       path: lt/approve
+    - title: ブログ記事を自動生成する
+      path: lt/auto-generate
 
-- title: 発表する
+- title: 発表する（発表者向け）
   children:
     - title: スライドをVRChatで映す
       path: speaker/slide-video
@@ -67,8 +62,15 @@
   children:
     - title: Discord Webhookを設定する
       path: settings/discord
-    - title: 発表申請受付を設定する
+    - title: 発表申請の受付と撮影を設定する
       path: settings/lt-application
+
+- title: Hubを広める
+  children:
+    - title: ポスターを掲示する
+      path: promotion/poster
+    - title: アセットを設置する
+      path: promotion/asset
 
 - title: よくある質問
   path: faq
