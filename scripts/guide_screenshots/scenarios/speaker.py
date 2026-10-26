@@ -24,7 +24,7 @@ def field(name):
 
 def edit_url(capture):
     capture.goto('/account/lt-applications/')
-    return capture.page.locator('tbody tr:has(.bg-success) a:has-text("編集")').get_attribute('href')
+    return capture.page.locator('tbody tr:has(.bg-success) a:has-text("編集")').first.get_attribute('href')
 
 
 @scenario('speaker/apply', mobile=True)
@@ -63,7 +63,7 @@ def manage(capture):
         # 折り返しで縦長になる表の、右端の操作列を最後まで見せる。
         capture.page.locator('.table-responsive').evaluate('e => e.scrollLeft = e.scrollWidth')
     region(capture, ['.table-responsive'],
-           marks=['tbody .bg-success', 'tbody .bg-warning', 'tbody tr:has(.bg-success) a:has-text("編集")'])
+           marks=['tbody .bg-success >> nth=0', 'tbody .bg-warning >> nth=0', 'tbody tr:has(.bg-success) a:has-text("編集") >> nth=0'])
     url = edit_url(capture)
     capture.goto(url)
     region(capture, [field('theme'), field('speaker')], marks=['#id_theme', '#id_speaker'])

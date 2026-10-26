@@ -28,14 +28,9 @@ def shot(capture, region, *marks):
         capture.shot(selector=region)
 
 
-def verify_guide(c):
-    """撮影した画像を埋め込むガイドも、同じ幅で表示と画像の読込を確かめる。"""
-    c.goto(f'/guide/{c.path}/')
-    assert c.page.locator('article h2:text-is("始める前に")').count() == 1
-    c.page.locator('article img').evaluate_all("images => images.forEach(i => i.loading = 'eager')")
-    c.page.wait_for_function("Array.from(document.querySelectorAll('article img')).every(i => i.complete && i.naturalWidth > 0)")
-    suffix = 'sp' if c.mobile else 'pc'
-    c.page.screenshot(path=f'/tmp/guide-explore-page-{c.path.replace("/", "-")}-{suffix}.png')
+def verify_guide(capture):
+    """共通の検証（capture.verify_guide）に任せる。"""
+    capture.verify_guide()
 
 
 @scenario('analytics/dashboard', mobile=True)

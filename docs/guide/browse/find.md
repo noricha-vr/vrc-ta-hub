@@ -19,24 +19,21 @@ description: ホーム、開催日程、集会と発表の検索、お知らせ�
 
 ### 1. ホームとメニューを開く
 
-<div class="d-none d-md-block"><img src="images/browse/find-01.webp" alt="Hubの上部メニューで「ホーム」を赤枠①、「集会一覧」を赤枠②、「発表一覧」を赤枠③で示した画面"></div>
+![Hubの上部メニューで「ホーム」を赤枠①、「集会一覧」を赤枠②、「発表一覧」を赤枠③で示した画面](images/browse/find-01.webp)
 
-<div class="d-md-none"><img src="images/browse/find-01-sp.webp" alt="スマートフォン表示で、Hubの上部メニューで「ホーム」を赤枠①、「集会一覧」を赤枠②、「発表一覧」を赤枠③で示した画面"></div>
 
 ① の「ホーム」で、近日中の開催予定を見ます。
 集会の紹介は ②「集会一覧」、過去の発表は ③「発表一覧」へ進みます。
 
-<div class="d-none d-md-block"><img src="images/browse/find-02.webp" alt="ホームの開催予定の下にある「すべてのイベントを見る」を赤枠①で示した画面"></div>
+![ホームの開催予定の下にある「すべてのイベントを見る」を赤枠①で示した画面](images/browse/find-02.webp)
 
-<div class="d-md-none"><img src="images/browse/find-02-sp.webp" alt="スマートフォン表示で、ホームの開催予定の下にある「すべてのイベントを見る」を赤枠①で示した画面"></div>
 
 ホームを下へ進み、① の「すべてのイベントを見る」を押すと開催日程が開きます。
 
 ### 2. 開催日程を調べる
 
-<div class="d-none d-md-block"><img src="images/browse/find-03.webp" alt="開催日程の検索欄を赤枠①、「検索」を赤枠②で示した画面"></div>
+![開催日程の検索欄を赤枠①、「検索」を赤枠②で示した画面](images/browse/find-03.webp)
 
-<div class="d-md-none"><img src="images/browse/find-03-sp.webp" alt="スマートフォン表示で、開催日程の検索欄を赤枠①、「検索」を赤枠②で示した画面"></div>
 
 ① に集会名の一部を入れ、② の「検索」を押します。
 曜日やタグのボタンでも絞れます。「クリア」で条件を外します。
@@ -50,16 +47,14 @@ description: ホーム、開催日程、集会と発表の検索、お知らせ�
 
 上の「集会一覧」を押します。
 
-<div class="d-none d-md-block"><img src="images/browse/find-04.webp" alt="集会一覧の検索欄を赤枠①、「検索」を赤枠②、「アーカイブ」を赤枠③で示した画面"></div>
+![集会一覧の検索欄を赤枠①、「検索」を赤枠②、「アーカイブ」を赤枠③で示した画面](images/browse/find-04.webp)
 
-<div class="d-md-none"><img src="images/browse/find-04-sp.webp" alt="スマートフォン表示で、集会一覧の検索欄を赤枠①、「検索」を赤枠②、「アーカイブ」を赤枠③で示した画面"></div>
 
 ① に集会名や紹介文に含まれる言葉を入れ、② の「検索」を押します。
 曜日や「技術系集会」「学術系集会」などのタグでも絞れます。
 
-<div class="d-none d-md-block"><img src="images/browse/find-05.webp" alt="集会一覧で見つかった集会のカード内の集会名を赤枠①で示した画面"></div>
+![集会一覧で見つかった集会のカード内の集会名を赤枠①で示した画面](images/browse/find-05.webp)
 
-<div class="d-md-none"><img src="images/browse/find-05-sp.webp" alt="スマートフォン表示で、集会一覧で見つかった集会のカード内の集会名を赤枠①で示した画面"></div>
 
 ① の集会名やポスターを押すと、集会の詳細が開きます。
 紹介・開催周期・参加先のリンクを確認します。
@@ -70,9 +65,8 @@ description: ホーム、開催日程、集会と発表の検索、お知らせ�
 手順3の画像の ③「アーカイブ」を押します。
 アーカイブは、活動を終えた集会の記録です。
 
-<div class="d-none d-md-block"><img src="images/browse/find-06.webp" alt="アーカイブ一覧の集会カードで、集会名を赤枠①で示した画面"></div>
+![アーカイブ一覧の集会カードで、集会名を赤枠①で示した画面](images/browse/find-06.webp)
 
-<div class="d-md-none"><img src="images/browse/find-06-sp.webp" alt="スマートフォン表示で、アーカイブ一覧の集会カードで、集会名を赤枠①で示した画面"></div>
 
 ① の集会名を押すと、紹介や過去の記録を読めます。
 現在開催中の集会を探す時は「現在の集会一覧に戻る」を押して戻ります。
@@ -82,9 +76,8 @@ description: ホーム、開催日程、集会と発表の検索、お知らせ�
 
 上の「発表一覧」を押します。
 
-<div class="d-none d-md-block"><img src="images/browse/find-07.webp" alt="発表一覧で検索欄を赤枠①、「すべて」を赤枠②、「特別企画・ブログ」を赤枠③で示した画面"></div>
+![発表一覧で検索欄を赤枠①、「すべて」を赤枠②、「特別企画・ブログ」を赤枠③で示した画面](images/browse/find-07.webp)
 
-<div class="d-md-none"><img src="images/browse/find-07-sp.webp" alt="スマートフォン表示で、発表一覧で検索欄を赤枠①、「すべて」を赤枠②、「特別企画・ブログ」を赤枠③で示した画面"></div>
 
 ① にテーマ・発表者・集会名の一部を入れ、「検索」を押します。
 最初は、記事・動画・スライドのどれかがある「資料あり」が出ます。
@@ -99,9 +92,8 @@ description: ホーム、開催日程、集会と発表の検索、お知らせ�
 
 手順5の画像の ③「特別企画・ブログ」を押します。
 
-<div class="d-none d-md-block"><img src="images/browse/find-08.webp" alt="特別企画・ブログ一覧のカードで、記事の題名を赤枠①で示した画面"></div>
+![特別企画・ブログ一覧のカードで、記事の題名を赤枠①で示した画面](images/browse/find-08.webp)
 
-<div class="d-md-none"><img src="images/browse/find-08-sp.webp" alt="スマートフォン表示で、特別企画・ブログ一覧のカードで、記事の題名を赤枠①で示した画面"></div>
 
 ① の題名を押して開きます。
 発表の検索へ戻る時は「発表」を押します。
@@ -111,16 +103,14 @@ description: ホーム、開催日程、集会と発表の検索、お知らせ�
 
 上のメニューの「お知らせ」を押します。
 
-<div class="d-none d-md-block"><img src="images/browse/find-09.webp" alt="お知らせ一覧のカードで、お知らせを開くリンクを赤枠①で示した画面"></div>
+![お知らせ一覧のカードで、お知らせを開くリンクを赤枠①で示した画面](images/browse/find-09.webp)
 
-<div class="d-md-none"><img src="images/browse/find-09-sp.webp" alt="スマートフォン表示で、お知らせ一覧のカードで、お知らせを開くリンクを赤枠①で示した画面"></div>
 
 ① のカードを押し、お知らせの本文を読みます。
 カテゴリのボタンを押すと、同じ種類のお知らせに絞れます。
 
-<div class="d-none d-md-block"><img src="images/browse/find-10.webp" alt="ページ末尾のリンク一覧で「掲載・審査基準」を赤枠①で示した画面"></div>
+![ページ末尾のリンク一覧で「掲載・審査基準」を赤枠①で示した画面](images/browse/find-10.webp)
 
-<div class="d-md-none"><img src="images/browse/find-10-sp.webp" alt="スマートフォン表示で、ページ末尾のリンク一覧で「掲載・審査基準」を赤枠①で示した画面"></div>
 
 ページの一番下にある、① の「掲載・審査基準」を押します。
 掲載の対象や、審査で確かめる内容が読めます。
@@ -134,9 +124,8 @@ description: ホーム、開催日程、集会と発表の検索、お知らせ�
 
 紹介したい集会の詳細を開き、ポスターの下を見ます。
 
-<div class="d-none d-md-block"><img src="images/browse/find-11.webp" alt="集会の詳細で、ポスター下の「集会を紹介するためのポスターの転載可」を赤枠①で示した画面"></div>
+![集会の詳細で、ポスター下の「集会を紹介するためのポスターの転載可」を赤枠①で示した画面](images/browse/find-11.webp)
 
-<div class="d-md-none"><img src="images/browse/find-11-sp.webp" alt="スマートフォン表示で、集会の詳細で、ポスター下の「集会を紹介するためのポスターの転載可」を赤枠①で示した画面"></div>
 
 ① の「集会を紹介するためのポスターの転載可」を押すと、画像を保存できます。
 集会の紹介に使い、改変などの条件があれば主催者の案内に従います。

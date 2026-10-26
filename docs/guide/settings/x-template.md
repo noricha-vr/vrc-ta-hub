@@ -23,8 +23,7 @@ description: 集会用の告知文のひな型を作り、開催回のプレビ�
 
 [集会設定](../community/settings.md)の「外部連携」を開きます。
 
-<img src="images/settings/x-template-01.webp" alt="「X投稿テンプレート」の「テンプレート管理」を赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/x-template-01-sp.webp" alt="「X投稿テンプレート」の「テンプレート管理」を赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![「X投稿テンプレート」の「テンプレート管理」を赤枠①で示した画面](images/settings/x-template-01.webp)
 
 ① の「テンプレート管理」を押します。
 
@@ -32,8 +31,7 @@ description: 集会用の告知文のひな型を作り、開催回のプレビ�
 
 「X告知テンプレート」の一覧が出ます。
 
-<img src="images/settings/x-template-02.webp" alt="X告知テンプレート一覧の「新規作成」を赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/x-template-02-sp.webp" alt="X告知テンプレート一覧の「新規作成」を赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![X告知テンプレート一覧の「新規作成」を赤枠①で示した画面](images/settings/x-template-02.webp)
 
 ① の「新規作成」を押します。
 
@@ -41,8 +39,7 @@ description: 集会用の告知文のひな型を作り、開催回のプレビ�
 
 名前と文章を入力します。
 
-<img src="images/settings/x-template-03.webp" alt="新規X告知テンプレートで名前を赤枠①、本文を②、保存を③で示した画面" class="d-none d-md-block">
-<img src="images/settings/x-template-03-sp.webp" alt="新規X告知テンプレートで名前を赤枠①、本文を②、保存を③で示した画面（スマホ幅）" class="d-md-none">
+![新規X告知テンプレートで名前を赤枠①、本文を②、保存を③で示した画面](images/settings/x-template-03.webp)
 
 ① の「テンプレート名」と、② の「テンプレート」を入力します。
 ③ の「保存」を押します。
@@ -60,8 +57,7 @@ description: 集会用の告知文のひな型を作り、開催回のプレビ�
 
 一覧で、対象の名前と集会名を確認します。
 
-<img src="images/settings/x-template-04.webp" alt="保存済みテンプレートの「編集」を赤枠①、「削除」を②で示した画面" class="d-none d-md-block">
-<img src="images/settings/x-template-04-sp.webp" alt="保存済みテンプレートの「編集」を赤枠①、「削除」を②で示した画面（スマホ幅）" class="d-md-none">
+![保存済みテンプレートの「編集」を赤枠①、「削除」を②で示した画面](images/settings/x-template-04.webp)
 
 ① の「編集」を押します。
 ② の「削除」は、手順8で使います。
@@ -70,8 +66,7 @@ description: 集会用の告知文のひな型を作り、開催回のプレビ�
 
 本文を直します。
 
-<img src="images/settings/x-template-05.webp" alt="X告知テンプレート編集で本文を赤枠①、保存ボタンを②で示した画面" class="d-none d-md-block">
-<img src="images/settings/x-template-05-sp.webp" alt="X告知テンプレート編集で本文を赤枠①、保存ボタンを②で示した画面（スマホ幅）" class="d-md-none">
+![X告知テンプレート編集で本文を赤枠①、保存ボタンを②で示した画面](images/settings/x-template-05.webp)
 
 ① を修正し、② の「保存」を押します。
 名前も同じ画面で変更できます。
@@ -80,8 +75,7 @@ description: 集会用の告知文のひな型を作り、開催回のプレビ�
 
 イベント管理を開き、告知したい開催日を探します。
 
-<img src="images/settings/x-template-06.webp" alt="イベント管理の開催回でテンプレート名「いつもの告知」のボタンを赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/x-template-06-sp.webp" alt="イベント管理の開催回でテンプレート名「いつもの告知」のボタンを赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![イベント管理の開催回でテンプレート名「いつもの告知」のボタンを赤枠①で示した画面](images/settings/x-template-06.webp)
 
 ① のテンプレート名のボタンを押します。
 図では「いつもの告知」です。
@@ -90,8 +84,7 @@ description: 集会用の告知文のひな型を作り、開催回のプレビ�
 
 「ポストプレビュー」に文章が出ます。
 
-<img src="images/settings/x-template-07.webp" alt="ポストプレビューの本文を赤枠①、コピーを②、Xを開くを③で示した画面" class="d-none d-md-block">
-<img src="images/settings/x-template-07-sp.webp" alt="ポストプレビューの本文を赤枠①、コピーを②、Xを開くを③で示した画面（スマホ幅）" class="d-md-none">
+![ポストプレビューの本文を赤枠①、コピーを②、Xを開くを③で示した画面](images/settings/x-template-07.webp)
 
 ① の日付・時刻・発表者・テーマを確認します。
 ② の「コピー」を押し、③ の「Xを開く」を押します。
@@ -102,8 +95,7 @@ Xの投稿欄に貼り付け、確認してから投稿します。
 
 一覧に戻り、手順4の画像の②「削除」を押します。
 
-<img src="images/settings/x-template-08.webp" alt="テンプレートの削除確認で確定用の「削除」を赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/x-template-08-sp.webp" alt="テンプレートの削除確認で確定用の「削除」を赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![テンプレートの削除確認で確定用の「削除」を赤枠①で示した画面](images/settings/x-template-08.webp)
 
 表示されたテンプレート名を確認します。
 ① の「削除」で確定すると、一覧から消えます。

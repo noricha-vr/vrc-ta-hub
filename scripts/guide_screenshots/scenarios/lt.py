@@ -5,6 +5,19 @@ from capture import scenario
 FORM = 'form[enctype="multipart/form-data"]'
 
 
+def link_state_pk(linked):
+    """紐づけの例に使う発表の ID。ほかのセクションのデモ投入で番号がずれるので、テーマと紐づけの有無で引く。"""
+    import os
+    from unittest.mock import patch
+
+    import django
+    django.setup()
+    from event.models import EventDetail
+    # Playwright の同期 API がイベントループを持つため、読み取りだけ許可する（一時 SQLite のみ）。
+    with patch.dict(os.environ, DJANGO_ALLOW_ASYNC_UNSAFE='true'):
+        return EventDetail.objects.get(theme='小さな実験を始める', applicant__isnull=not linked).pk
+
+
 def region(capture, *selectors):
     """関連する項目だけを、番号の余白を含めて切り出す。"""
     boxes = []
@@ -168,10 +181,11 @@ def auto_generate(capture):
 
 @scenario('lt/link-speaker', mobile=True)
 def link_speaker(capture):
+    unlinked, linked = link_state_pk(False), link_state_pk(True)
     manage(capture)
-    capture.annotate('a[href="/event/detail/3/#speaker-account-heading"]', 1)
-    entry(capture, 3)
-    capture.goto('/event/detail/3/')
+    capture.annotate(f'a[href="/event/detail/{unlinked}/#speaker-account-heading"]', 1)
+    entry(capture, unlinked)
+    capture.goto(f'/event/detail/{unlinked}/')
     capture.annotate('#speaker-invite-issue-button', 1)
     capture.shot(selector='.speaker-account-card')
     capture.annotations.clear()
@@ -195,7 +209,7 @@ def link_speaker(capture):
     capture.annotate('a[href="/event/detail/history/?mine=1"]', 1)
     region(capture, 'a[href="/event/detail/history/?mine=1"]')
     capture.login('owner')
-    capture.goto('/event/detail/4/')
+    capture.goto(f'/event/detail/{linked}/')
     capture.annotate('[data-bs-target="#speaker-unlink-modal"]', 1)
     capture.shot(selector='.speaker-account-card')
     capture.annotations.clear()
@@ -211,5 +225,5 @@ def link_speaker(capture):
     capture.shot(clip={**dialog, 'x': dialog['x'] + scroll['x'], 'y': dialog['y'] + scroll['y']})
     capture.login('speaker')
     capture.goto('/event/detail/history/?mine=1')
-    capture.annotate('a[href="/event/detail/4/update/"]', 1)
-    capture.shot(selector='article:has(a[href="/event/detail/4/update/"])')
+    capture.annotate(f'a[href="/event/detail/{linked}/update/"]', 1)
+    capture.shot(selector=f'article:has(a[href="/event/detail/{linked}/update/"])')

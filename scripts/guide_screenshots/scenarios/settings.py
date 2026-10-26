@@ -25,19 +25,8 @@ def shot(capture, selector, *targets):
 
 
 def verify_guide(capture):
-    """本文のPC/SP切替と、表示する全画像の読み込みを実ページで確かめる。"""
-    capture.goto(f'/guide/{capture.path}/')
-    images = capture.page.locator('.guide-content img.guide-screenshot')
-    visible = 0
-    for image in images.all():
-        if image.evaluate("e => getComputedStyle(e).display === 'none'"):
-            continue
-        visible += 1
-        assert ('-sp.webp' in image.get_attribute('src')) == capture.mobile
-        image.evaluate("e => e.loading = 'eager'")
-        capture.page.wait_for_function('(e) => e.complete && e.naturalWidth > 0', arg=image.element_handle())
-    assert visible > 0, f'{capture.path}: total images={images.count()}'
-    assert capture.page.evaluate('document.documentElement.scrollWidth <= innerWidth'), capture.path
+    """共通の検証（capture.verify_guide）に任せる。"""
+    capture.verify_guide()
 
 
 def entry(capture, href):

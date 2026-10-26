@@ -25,17 +25,15 @@ description: 集会の参加希望日、開催時間、発表情報をHubに登�
 
 イベント管理画面で、コラボの案内を探します。
 
-<div class="d-none d-md-block"><img src="images/vket/apply-01.webp" alt="イベント管理のコラボ案内で参加状況を開くボタンを赤枠①で示した画面"></div>
+![イベント管理のコラボ案内で参加状況を開くボタンを赤枠①で示した画面](images/vket/apply-01.webp)
 
-<div class="d-md-none"><img src="images/vket/apply-01-sp.webp" alt="スマートフォン表示で、イベント管理のコラボ案内で参加状況を開くボタンを赤枠①で示した画面"></div>
 
 ① のボタンから参加状況を開きます。
 未登録なら「参加登録する」、登録済みなら日程情報の「編集」を押します。
 案内されたコラボの詳細ページからも進めます。
 
-<div class="d-none d-md-block"><img src="images/vket/apply-02.webp" alt="コラボ詳細の「参加登録」ボタンを赤枠①で示した画面"></div>
+![コラボ詳細の「参加登録」ボタンを赤枠①で示した画面](images/vket/apply-02.webp)
 
-<div class="d-md-none"><img src="images/vket/apply-02-sp.webp" alt="スマートフォン表示で、コラボ詳細の「参加登録」ボタンを赤枠①で示した画面"></div>
 
 詳細ページでは、開催期間と締切を読み、① の「参加登録」を押します。
 
@@ -43,9 +41,8 @@ description: 集会の参加希望日、開催時間、発表情報をHubに登�
 
 画面の集会名が、申し込みたい集会か確認します。
 
-<div class="d-none d-md-block"><img src="images/vket/apply-03.webp" alt="参加登録の「参加希望日」の選択肢を赤枠①で示した画面"></div>
+![参加登録の「参加希望日」の選択肢を赤枠①で示した画面](images/vket/apply-03.webp)
 
-<div class="d-md-none"><img src="images/vket/apply-03-sp.webp" alt="スマートフォン表示で、参加登録の「参加希望日」の選択肢を赤枠①で示した画面"></div>
 
 ① で日付を選びます。
 出てくるのは、コラボ期間内に登録済みの開催日です。
@@ -53,9 +50,8 @@ description: 集会の参加希望日、開催時間、発表情報をHubに登�
 
 ### 3. 開始時刻と開催時間を入れる
 
-<div class="d-none d-md-block"><img src="images/vket/apply-04.webp" alt="参加登録の「開始希望時刻」を赤枠①、「希望開催時間（分）」を赤枠②で示した画面"></div>
+![参加登録の「開始希望時刻」を赤枠①、「希望開催時間（分）」を赤枠②で示した画面](images/vket/apply-04.webp)
 
-<div class="d-md-none"><img src="images/vket/apply-04-sp.webp" alt="スマートフォン表示で、参加登録の「開始希望時刻」を赤枠①、「希望開催時間（分）」を赤枠②で示した画面"></div>
 
 ① に開始時刻を入れ、② で開催時間を選びます。
 「埋まっている時間」に他の集会の時間が出る場合は、見比べて決めます。
@@ -67,9 +63,8 @@ description: 集会の参加希望日、開催時間、発表情報をHubに登�
 決まっている場合は「1人あたりの持ち時間（分）」を選びます。
 発表と質問への回答を合わせた時間です。
 
-<div class="d-none d-md-block"><img src="images/vket/apply-05.webp" alt="発表情報で「登壇者名」を赤枠①、「テーマ」を赤枠②、「発表開始時刻」を赤枠③で示した画面"></div>
+![発表情報で「登壇者名」を赤枠①、「テーマ」を赤枠②、「発表開始時刻」を赤枠③で示した画面](images/vket/apply-05.webp)
 
-<div class="d-md-none"><img src="images/vket/apply-05-sp.webp" alt="スマートフォン表示で、発表情報で「登壇者名」を赤枠①、「テーマ」を赤枠②、「発表開始時刻」を赤枠③で示した画面"></div>
 
 ① に名前、② に話すテーマを入れます。
 ③ に発表の開始時刻を入れます。
@@ -78,25 +73,22 @@ description: 集会の参加希望日、開催時間、発表情報をHubに登�
 
 ### 5. 備考を書いて保存する
 
-<div class="d-none d-md-block"><img src="images/vket/apply-06.webp" alt="参加登録の「備考」の入力欄を赤枠①で示した画面"></div>
+![参加登録の「備考」の入力欄を赤枠①で示した画面](images/vket/apply-06.webp)
 
-<div class="d-md-none"><img src="images/vket/apply-06-sp.webp" alt="スマートフォン表示で、参加登録の「備考」の入力欄を赤枠①で示した画面"></div>
 
 ① に運営への連絡を入れます。
 当日の案内などを手伝ってほしい場合は「サポート希望」と書きます。
 
-<div class="d-none d-md-block"><img src="images/vket/apply-07.webp" alt="参加登録フォームの末尾で「保存する」を赤枠①で示した画面"></div>
+![参加登録フォームの末尾で「保存する」を赤枠①で示した画面](images/vket/apply-07.webp)
 
-<div class="d-md-none"><img src="images/vket/apply-07-sp.webp" alt="スマートフォン表示で、参加登録フォームの末尾で「保存する」を赤枠①で示した画面"></div>
 
 ① の「保存する」を押します。
 「参加登録を保存しました。」と表示され、参加状況が開きます。
 
 ### 6. 希望日程と確定日程を確認する
 
-<div class="d-none d-md-block"><img src="images/vket/apply-08.webp" alt="参加状況の「日程情報」で希望日程と確定日程が並び、「編集」を赤枠①で示した画面"></div>
+![参加状況の「日程情報」で希望日程と確定日程が並び、「編集」を赤枠①で示した画面](images/vket/apply-08.webp)
 
-<div class="d-md-none"><img src="images/vket/apply-08-sp.webp" alt="スマートフォン表示で、参加状況の「日程情報」で希望日程と確定日程が並び、「編集」を赤枠①で示した画面"></div>
 
 「希望日程」は申し込んだ内容です。「確定日程」は確定処理後の内容です。
 変更したい時は、① の「編集」から同じフォームを開きます。

@@ -21,9 +21,8 @@ description: Hubの開催予定をGoogleカレンダーにまとめて追加す�
 
 ホームを下へ進み、開催予定の近くにある連携の案内を探します。
 
-<div class="d-none d-md-block"><img src="images/browse/calendar-01.webp" alt="ホームのカレンダー連携欄で「Googleカレンダーと連携して予定を管理」を赤枠①で示した画面"></div>
+![ホームのカレンダー連携欄で「Googleカレンダーと連携して予定を管理」を赤枠①で示した画面](images/browse/calendar-01.webp)
 
-<div class="d-md-none"><img src="images/browse/calendar-01-sp.webp" alt="スマートフォン表示で、ホームのカレンダー連携欄で「Googleカレンダーと連携して予定を管理」を赤枠①で示した画面"></div>
 
 ① の「Googleカレンダーと連携して予定を管理」を押します。
 説明が開き、全イベントを同期するボタンが出ます。
@@ -32,9 +31,8 @@ description: Hubの開催予定をGoogleカレンダーにまとめて追加す�
 
 今後追加される予定も、まとめて追いたい場合に使います。
 
-<div class="d-none d-md-block"><img src="images/browse/calendar-02.webp" alt="展開したカレンダー連携の案内で「Googleカレンダーに追加」を赤枠①で示した画面"></div>
+![展開したカレンダー連携の案内で「Googleカレンダーに追加」を赤枠①で示した画面](images/browse/calendar-02.webp)
 
-<div class="d-md-none"><img src="images/browse/calendar-02-sp.webp" alt="スマートフォン表示で、展開したカレンダー連携の案内で「Googleカレンダーに追加」を赤枠①で示した画面"></div>
 
 ① の「Googleカレンダーに追加」を押します。
 別のタブで Google カレンダーが開きます。
@@ -50,9 +48,8 @@ description: Hubの開催予定をGoogleカレンダーにまとめて追加す�
 一つだけ追加したい場合は、ホームのイベントカードを探します。
 全イベントの同期を使う場合、この操作は不要です。
 
-<div class="d-none d-md-block"><img src="images/browse/calendar-03.webp" alt="ホームのイベントカードの右上で、予定追加のプラスアイコンを赤枠①で示した画面"></div>
+![ホームのイベントカードの右上で、予定追加のプラスアイコンを赤枠①で示した画面](images/browse/calendar-03.webp)
 
-<div class="d-md-none"><img src="images/browse/calendar-03-sp.webp" alt="スマートフォン表示で、ホームのイベントカードの右上で、予定追加のプラスアイコンを赤枠①で示した画面"></div>
 
 ① のプラスアイコンを押します。
 Google カレンダーで、集会名・日付・時刻を確かめて保存します。

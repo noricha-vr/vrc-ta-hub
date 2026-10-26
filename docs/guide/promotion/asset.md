@@ -24,8 +24,7 @@ description: 技術・学術系イベントの開催予定を表示するアセ�
 
 [アセットの配布ページ](https://azukimochi.github.io/vpm-repos-world/)を開きます。
 
-<img src="images/promotion/asset-01.webp" alt="配布ページのTaAGatheringListSystemでAdd to VCCを赤枠①で示した図" class="d-none d-md-block">
-<img src="images/promotion/asset-01-sp.webp" alt="配布ページのTaAGatheringListSystemでAdd to VCCを赤枠①で示した図（スマホ幅）" class="d-md-none">
+![配布ページのTaAGatheringListSystemでAdd to VCCを赤枠①で示した図](images/promotion/asset-01.webp)
 
 「TaAGatheringListSystem」の ①「Add to VCC」を押します。
 ブラウザがVCCを開くか尋ねたら許可します。（画面はイメージです）
@@ -34,8 +33,7 @@ description: 技術・学術系イベントの開催予定を表示するアセ�
 
 リポジトリは、VCCがアセットを取得する配布先です。
 
-<img src="images/promotion/asset-02.webp" alt="VCCのリポジトリ追加確認でI Understand, Add Repositoryを赤枠①で示した図" class="d-none d-md-block">
-<img src="images/promotion/asset-02-sp.webp" alt="VCCのリポジトリ追加確認でI Understand, Add Repositoryを赤枠①で示した図（スマホ幅）" class="d-md-none">
+![VCCのリポジトリ追加確認でI Understand, Add Repositoryを赤枠①で示した図](images/promotion/asset-02.webp)
 
 配布元が「Azukimochi-world」であることを確認します。
 ① の「I Understand, Add Repository」を押します。（画面はイメージです）
@@ -44,8 +42,7 @@ description: 技術・学術系イベントの開催予定を表示するアセ�
 
 VCCの「Projects」を開きます。
 
-<img src="images/promotion/asset-03.webp" alt="VCCのProjectsで架空のワールド「さくらの広場」のManage Projectを赤枠①で示した図" class="d-none d-md-block">
-<img src="images/promotion/asset-03-sp.webp" alt="VCCのProjectsで架空のワールド「さくらの広場」のManage Projectを赤枠①で示した図（スマホ幅）" class="d-md-none">
+![VCCのProjectsで架空のワールド「さくらの広場」のManage Projectを赤枠①で示した図](images/promotion/asset-03.webp)
 
 編集したいワールドの ①「Manage Project」を押します。（画面はイメージです）
 
@@ -53,13 +50,11 @@ VCCの「Projects」を開きます。
 
 パッケージは、アセットをまとめて導入する単位です。
 
-<img src="images/promotion/asset-04.webp" alt="VCCのAvailable PackagesでTaAGatheringListSystemの追加ボタンを赤枠①で示した図" class="d-none d-md-block">
-<img src="images/promotion/asset-04-sp.webp" alt="VCCのAvailable PackagesでTaAGatheringListSystemの追加ボタンを赤枠①で示した図（スマホ幅）" class="d-md-none">
+![VCCのAvailable PackagesでTaAGatheringListSystemの追加ボタンを赤枠①で示した図](images/promotion/asset-04.webp)
 
 「TaAGatheringListSystem」の行の ①「＋」を押します。（画面はイメージです）
 
-<img src="images/promotion/asset-05.webp" alt="VCCで導入後のOpen Projectを赤枠①で示した図" class="d-none d-md-block">
-<img src="images/promotion/asset-05-sp.webp" alt="VCCで導入後のOpen Projectを赤枠①で示した図（スマホ幅）" class="d-md-none">
+![VCCで導入後のOpen Projectを赤枠①で示した図](images/promotion/asset-05.webp)
 
 追加が終わったら、① の「Open Project」を押します。
 Unityが開くまで待ちます。（画面はイメージです）
@@ -69,8 +64,7 @@ Unityが開くまで待ちます。（画面はイメージです）
 Unityの「Project」は、素材を探す欄です。
 「Packages」の「TaAGatheringListSystem」を開きます。
 
-<img src="images/promotion/asset-06.webp" alt="UnityでTaAGatheringInfoSys.prefabを赤枠①、置き先のHierarchyを②で示した図" class="d-none d-md-block">
-<img src="images/promotion/asset-06-sp.webp" alt="UnityでTaAGatheringInfoSys.prefabを赤枠①、置き先のHierarchyを②で示した図（スマホ幅）" class="d-md-none">
+![UnityでTaAGatheringInfoSys.prefabを赤枠①、置き先のHierarchyを②で示した図](images/promotion/asset-06.webp)
 
 ① の「TaAGatheringInfoSys.prefab」を、② の「Hierarchy」へドラッグします。
 Prefabは、部品を組み合わせた配置用のひな型です。（画面はイメージです）
@@ -80,8 +74,7 @@ Prefabは、部品を組み合わせた配置用のひな型です。（画面�
 「Hierarchy」の「TaAGatheringInfoSys」を押します。
 「Inspector」は、選んだ物の設定を変える欄です。
 
-<img src="images/promotion/asset-07.webp" alt="UnityのInspectorで表示板のTransformを赤枠①で示した図" class="d-none d-md-block">
-<img src="images/promotion/asset-07-sp.webp" alt="UnityのInspectorで表示板のTransformを赤枠①で示した図（スマホ幅）" class="d-md-none">
+![UnityのInspectorで表示板のTransformを赤枠①で示した図](images/promotion/asset-07.webp)
 
 ① の「Transform」で調整します。（画面はイメージです）
 
@@ -99,8 +92,7 @@ Prefabは、部品を組み合わせた配置用のひな型です。（画面�
 Unity上部の「VRChat SDK」→「Show Control Panel」を開きます。
 「Builder」を選びます。
 
-<img src="images/promotion/asset-08.webp" alt="VRChat SDKのBuilderでBuild &amp; Testを赤枠①で示した図" class="d-none d-md-block">
-<img src="images/promotion/asset-08-sp.webp" alt="VRChat SDKのBuilderでBuild &amp; Testを赤枠①で示した図（スマホ幅）" class="d-md-none">
+![VRChat SDKのBuilderでBuild &amp; Testを赤枠①で示した図](images/promotion/asset-08.webp)
 
 ① の「Build & Test」で、手元のVRChatから表示を確認します。（画面はイメージです）
 
@@ -108,8 +100,7 @@ Unity上部の「VRChat SDK」→「Show Control Panel」を開きます。
 
 ワールドで、置いた表示板の前へ移動します。
 
-<img src="images/promotion/asset-09.webp" alt="ワールド内の開催予定表示板で架空の予定一覧を赤枠①で示した図" class="d-none d-md-block">
-<img src="images/promotion/asset-09-sp.webp" alt="ワールド内の開催予定表示板で架空の予定一覧を赤枠①で示した図（スマホ幅）" class="d-md-none">
+![ワールド内の開催予定表示板で架空の予定一覧を赤枠①で示した図](images/promotion/asset-09.webp)
 
 ① の一覧が読めることを確認します。（画面はイメージです）
 図は説明用の架空データです。実際の表示は配布アセットの版によって異なります。

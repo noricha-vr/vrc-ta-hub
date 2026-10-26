@@ -4,7 +4,6 @@
 URL へのブラウザ要求にそのレスポンスを返す。外部メール/OAuth は送らない。
 各シナリオの DB 変更はロールバックし、PC/スマホで同じ初期状態を使う。
 """
-import json
 import os
 import shutil
 import tempfile
@@ -122,19 +121,7 @@ class AccountScreens:
         self.capture.annotations.clear()
 
     def verify_guide(self):
-        """実際のガイド表示を両幅で検証する。画像枚数には含めない。"""
-        self.show('/guide/' + self.capture.path + '/')
-        page = self.capture.page
-        expected = ['始める前に', '手順', 'うまくいかない時', '次にやること']
-        if page.locator('main h2').all_text_contents() != expected:
-            raise RuntimeError('ガイドの見出しが指定の型と一致しません')
-        page.locator('main img').evaluate_all("images => images.forEach(i => i.loading = 'eager')")
-        page.wait_for_function("""() => [...document.querySelectorAll('main img')]
-            .every(i => i.complete && i.naturalWidth > 0)""")
-        if page.evaluate('document.documentElement.scrollWidth > innerWidth'):
-            raise RuntimeError('ガイドに横方向のはみ出しがあります')
-        print(json.dumps({'event': 'guide_account_page_verified', 'path': self.capture.path,
-                          'mobile': self.capture.mobile, 'images': page.locator('main img').count()}))
+        self.capture.verify_guide()
 
     def confirmation(self, email):
         from allauth.account.models import EmailAddress, EmailConfirmationHMAC
@@ -211,7 +198,7 @@ def password(capture):
     with account_context(capture) as s:
         from allauth.account.forms import default_token_generator
         from allauth.account.utils import user_pk_to_url_str
-        from guide.demo import DEMO_PASSWORD
+        from guide.demo import demo_password
         s.login()
         s.show('/account/settings/')
         s.shot('a[href="/account/password_change/"]', area='a[href="/account/password_change/"]')  # 01
@@ -223,7 +210,7 @@ def password(capture):
         s.login()
         s.show('/accounts/password/set/')
         s.shot('#id_password1', '#id_password2', 'button[name=action]', area='body')  # 03
-        user.set_password(DEMO_PASSWORD)
+        user.set_password(demo_password())
         user.save(update_fields=['password'])
         s.client.logout()
         s.show('/account/login/')
@@ -239,7 +226,7 @@ def password(capture):
         actual_path = urlsplit(response.redirect_chain[-1][0]).path if response.redirect_chain else path
         s.show(actual_path, response=response)
         s.shot('#id_password1', '#id_password2', 'button[name=action]', area='body')  # 07
-        response = s.client.post(actual_path, {'password1': DEMO_PASSWORD, 'password2': DEMO_PASSWORD}, follow=True)
+        response = s.client.post(actual_path, {'password1': demo_password(), 'password2': demo_password()}, follow=True)
         if response.wsgi_request.path != '/accounts/password/reset/key/done/':
             raise RuntimeError('パスワード再設定の完了を確認できませんでした')
         s.show('/accounts/password/reset/key/done/', response=response)

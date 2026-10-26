@@ -28,8 +28,7 @@ Discordの図は、PC版の操作を簡略化したものです。
 
 Discordで通知先のサーバー名を押します。
 
-<img src="images/settings/discord-01.webp" alt="Discordのサーバーメニューで「サーバー設定」を赤枠①で示した図" class="d-none d-md-block">
-<img src="images/settings/discord-01-sp.webp" alt="Discordのサーバーメニューで「サーバー設定」を赤枠①で示した図（スマホ幅）" class="d-md-none">
+![Discordのサーバーメニューで「サーバー設定」を赤枠①で示した図](images/settings/discord-01.webp)
 
 ① の「サーバー設定」を押します。（画面はイメージです）
 
@@ -37,8 +36,7 @@ Discordで通知先のサーバー名を押します。
 
 設定画面のメニューを探します。
 
-<img src="images/settings/discord-02.webp" alt="Discordのサーバー設定で「連携サービス」を赤枠①で示した図" class="d-none d-md-block">
-<img src="images/settings/discord-02-sp.webp" alt="Discordのサーバー設定で「連携サービス」を赤枠①で示した図（スマホ幅）" class="d-md-none">
+![Discordのサーバー設定で「連携サービス」を赤枠①で示した図](images/settings/discord-02.webp)
 
 ① の「連携サービス」を押します。（画面はイメージです）
 
@@ -46,8 +44,7 @@ Discordで通知先のサーバー名を押します。
 
 連携サービスの一覧を確認します。
 
-<img src="images/settings/discord-03.webp" alt="Discordの連携サービスで「ウェブフック」を赤枠①で示した図" class="d-none d-md-block">
-<img src="images/settings/discord-03-sp.webp" alt="Discordの連携サービスで「ウェブフック」を赤枠①で示した図（スマホ幅）" class="d-md-none">
+![Discordの連携サービスで「ウェブフック」を赤枠①で示した図](images/settings/discord-03.webp)
 
 ① の「ウェブフック」を押します。（画面はイメージです）
 
@@ -55,8 +52,7 @@ Discordで通知先のサーバー名を押します。
 
 通知用のウェブフックを1つ作ります。
 
-<img src="images/settings/discord-04.webp" alt="Discordのウェブフック一覧で「新しいウェブフック」を赤枠①で示した図" class="d-none d-md-block">
-<img src="images/settings/discord-04-sp.webp" alt="Discordのウェブフック一覧で「新しいウェブフック」を赤枠①で示した図（スマホ幅）" class="d-md-none">
+![Discordのウェブフック一覧で「新しいウェブフック」を赤枠①で示した図](images/settings/discord-04.webp)
 
 ① の「新しいウェブフック」を押します。（画面はイメージです）
 
@@ -66,8 +62,7 @@ Discordで通知先のサーバー名を押します。
 
 作ったウェブフックを開きます。
 
-<img src="images/settings/discord-05.webp" alt="Discordのウェブフック編集でチャンネル選択欄を赤枠①で示した図" class="d-none d-md-block">
-<img src="images/settings/discord-05-sp.webp" alt="Discordのウェブフック編集でチャンネル選択欄を赤枠①で示した図（スマホ幅）" class="d-md-none">
+![Discordのウェブフック編集でチャンネル選択欄を赤枠①で示した図](images/settings/discord-05.webp)
 
 ① の「チャンネル」で通知先を選びます。
 「変更を保存する」が出たら押します。（画面はイメージです）
@@ -76,8 +71,7 @@ Discordで通知先のサーバー名を押します。
 
 通知先が合っていることを確認します。
 
-<img src="images/settings/discord-06.webp" alt="Discordのウェブフック設定で「ウェブフックURLをコピー」を赤枠①で示した図" class="d-none d-md-block">
-<img src="images/settings/discord-06-sp.webp" alt="Discordのウェブフック設定で「ウェブフックURLをコピー」を赤枠①で示した図（スマホ幅）" class="d-md-none">
+![Discordのウェブフック設定で「ウェブフックURLをコピー」を赤枠①で示した図](images/settings/discord-06.webp)
 
 ① の「ウェブフックURLをコピー」を押します。（画面はイメージです）
 
@@ -86,14 +80,12 @@ Discordで通知先のサーバー名を押します。
 Hubの[集会設定](../community/settings.md)を開きます。
 「外部連携」の中の「Discord通知」まで下へ進みます。
 
-<img src="images/settings/discord-07.webp" alt="HubのDiscord通知でURL入力欄を赤枠①、保存ボタンを赤枠②で示した画面。URLは非表示" class="d-none d-md-block">
-<img src="images/settings/discord-07-sp.webp" alt="HubのDiscord通知でURL入力欄を赤枠①、保存ボタンを赤枠②で示した画面。URLは非表示（スマホ幅）" class="d-md-none">
+![HubのDiscord通知でURL入力欄を赤枠①、保存ボタンを赤枠②で示した画面。URLは非表示](images/settings/discord-07.webp)
 
 ① にコピーしたURLを貼り付け、② の「保存」を押します。
 ガイド画像ではURLを灰色で隠しています。
 
-<img src="images/settings/discord-08.webp" alt="HubのDiscord通知で保存後に表示される「テスト送信」を赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/discord-08-sp.webp" alt="HubのDiscord通知で保存後に表示される「テスト送信」を赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![HubのDiscord通知で保存後に表示される「テスト送信」を赤枠①で示した画面](images/settings/discord-08.webp)
 
 ① の「テスト送信」を押します。
 「テスト通知を送信しました。Discordを確認してください。」が出たらDiscordへ戻ります。
@@ -102,8 +94,7 @@ Hubの[集会設定](../community/settings.md)を開きます。
 
 手順5で選んだチャンネルを開きます。
 
-<img src="images/settings/discord-09.webp" alt="Discordのお知らせチャンネルで受信したテスト通知を赤枠①で示した図" class="d-none d-md-block">
-<img src="images/settings/discord-09-sp.webp" alt="Discordのお知らせチャンネルで受信したテスト通知を赤枠①で示した図（スマホ幅）" class="d-md-none">
+![Discordのお知らせチャンネルで受信したテスト通知を赤枠①で示した図](images/settings/discord-09.webp)
 
 ① に集会名と「このメッセージはテスト送信です。」が出れば完了です。（画面はイメージです）
 

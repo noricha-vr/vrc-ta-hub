@@ -21,17 +21,15 @@ description: チラシやSNSからのアクセスを数えるためのリンク�
 [アクセス解析を見る](dashboard.md) の手順でダッシュボードを開きます。
 下へ進み、配布リンクの欄を探します。
 
-<div class="d-none d-md-block"><img src="images/analytics/distribution-link-01.webp" alt="アクセス解析の配布リンク欄で「配布リンクを管理」を赤枠①で示した画面"></div>
+![アクセス解析の配布リンク欄で「配布リンクを管理」を赤枠①で示した画面](images/analytics/distribution-link-01.webp)
 
-<div class="d-md-none"><img src="images/analytics/distribution-link-01-sp.webp" alt="スマートフォン表示で、アクセス解析の配布リンク欄で「配布リンクを管理」を赤枠①で示した画面"></div>
 
 ① の「配布リンクを管理」を押します。
 
 ### 2. 新規作成を開く
 
-<div class="d-none d-md-block"><img src="images/analytics/distribution-link-02.webp" alt="配布リンクの管理の右上にある「新規作成」を赤枠①で示した画面"></div>
+![配布リンクの管理の右上にある「新規作成」を赤枠①で示した画面](images/analytics/distribution-link-02.webp)
 
-<div class="d-md-none"><img src="images/analytics/distribution-link-02-sp.webp" alt="スマートフォン表示で、配布リンクの管理の右上にある「新規作成」を赤枠①で示した画面"></div>
 
 ① の「新規作成」を押します。
 
@@ -40,9 +38,8 @@ description: チラシやSNSからのアクセスを数えるためのリンク�
 UTM は、どの案内から来たかを区別するためにリンクへ付ける情報です。
 半角英数字の短い名前を使うと、あとで見分けやすくなります。
 
-<div class="d-none d-md-block"><img src="images/analytics/distribution-link-03.webp" alt="配布リンクの作成フォームで集会を赤枠①、表示名を赤枠②、Utm_sourceを赤枠③で示した画面"></div>
+![配布リンクの作成フォームで集会を赤枠①、表示名を赤枠②、Utm_sourceを赤枠③で示した画面](images/analytics/distribution-link-03.webp)
 
-<div class="d-md-none"><img src="images/analytics/distribution-link-03-sp.webp" alt="スマートフォン表示で、配布リンクの作成フォームで集会を赤枠①、表示名を赤枠②、Utm_sourceを赤枠③で示した画面"></div>
 
 ① で集会を選び、② に案内の名前を入力します。
 ③ には配布する媒体を入れます。残りの必須欄も埋めます。
@@ -61,9 +58,8 @@ UTM は、どの案内から来たかを区別するためにリンクへ付け�
 
 ### 4. 開く先を決めて作成する
 
-<div class="d-none d-md-block"><img src="images/analytics/distribution-link-04.webp" alt="配布リンク作成フォームの「着地パス」を赤枠①で示した画面"></div>
+![配布リンク作成フォームの「着地パス」を赤枠①で示した画面](images/analytics/distribution-link-04.webp)
 
-<div class="d-md-none"><img src="images/analytics/distribution-link-04-sp.webp" alt="スマートフォン表示で、配布リンク作成フォームの「着地パス」を赤枠①で示した画面"></div>
 
 ① の「着地パス」に、Hub 内で開くページのパスを入れます。
 ホームなら `/`、集会のページなら `/community/数字/` です。
@@ -75,25 +71,22 @@ UTM は、どの案内から来たかを区別するためにリンクへ付け�
 | 配布予定日 | 案内を配る日 | いいえ |
 | メモ | どこで配るかなど、自分用の記録 | いいえ |
 
-<div class="d-none d-md-block"><img src="images/analytics/distribution-link-05.webp" alt="配布リンク作成フォームの末尾で「作成」を赤枠①で示した画面"></div>
+![配布リンク作成フォームの末尾で「作成」を赤枠①で示した画面](images/analytics/distribution-link-05.webp)
 
-<div class="d-md-none"><img src="images/analytics/distribution-link-05-sp.webp" alt="スマートフォン表示で、配布リンク作成フォームの末尾で「作成」を赤枠①で示した画面"></div>
 
 ① の「作成」を押します。一覧に戻り、リンクとQR画像が作られます。
 
 ### 5. リンクとQR画像を保存する
 
-<div class="d-none d-md-block"><img src="images/analytics/distribution-link-06.webp" alt="配布リンク一覧のURL欄を赤枠①、右のコピー用アイコンを赤枠②で示した画面"></div>
+![配布リンク一覧のURL欄を赤枠①、右のコピー用アイコンを赤枠②で示した画面](images/analytics/distribution-link-06.webp)
 
-<div class="d-md-none"><img src="images/analytics/distribution-link-06-sp.webp" alt="スマートフォン表示で、配布リンク一覧のURL欄を赤枠①、右のコピー用アイコンを赤枠②で示した画面"></div>
 
 ② のコピー用アイコンを押し、案内文に貼り付けます。
 コピーできない場合は、① のURLを選択してコピーします。
 スマホで欄が見えない時は、表を横へ動かします。
 
-<div class="d-none d-md-block"><img src="images/analytics/distribution-link-07.webp" alt="配布リンク一覧のQR画像を開く場所を赤枠①で示した画面"></div>
+![配布リンク一覧のQR画像を開く場所を赤枠①で示した画面](images/analytics/distribution-link-07.webp)
 
-<div class="d-md-none"><img src="images/analytics/distribution-link-07-sp.webp" alt="スマートフォン表示で、配布リンク一覧のQR画像を開く場所を赤枠①で示した画面"></div>
 
 ① のQR画像を押すと、大きな画像が別のタブで開きます。
 PCでは画像を右クリック、スマホでは長押しして保存します。
@@ -101,9 +94,8 @@ PCでは画像を右クリック、スマホでは長押しして保存します
 
 ### 6. 配布リンクを編集する
 
-<div class="d-none d-md-block"><img src="images/analytics/distribution-link-08.webp" alt="配布リンク一覧の「編集」を赤枠①、「削除」を赤枠②で示した画面"></div>
+![配布リンク一覧の「編集」を赤枠①、「削除」を赤枠②で示した画面](images/analytics/distribution-link-08.webp)
 
-<div class="d-md-none"><img src="images/analytics/distribution-link-08-sp.webp" alt="スマートフォン表示で、配布リンク一覧の「編集」を赤枠①、「削除」を赤枠②で示した画面"></div>
 
 ① の「編集」を押し、変更後に「更新」を押します。
 UTMの値か着地パスを変えると、QR画像も作り直されます。
@@ -113,9 +105,8 @@ UTMの値か着地パスを変えると、QR画像も作り直されます。
 
 手順6の画像の ②「削除」を押すと、確認画面が開きます。
 
-<div class="d-none d-md-block"><img src="images/analytics/distribution-link-09.webp" alt="配布リンクの削除確認で「削除する」を赤枠①、「キャンセル」を赤枠②で示した画面"></div>
+![配布リンクの削除確認で「削除する」を赤枠①、「キャンセル」を赤枠②で示した画面](images/analytics/distribution-link-09.webp)
 
-<div class="d-md-none"><img src="images/analytics/distribution-link-09-sp.webp" alt="スマートフォン表示で、配布リンクの削除確認で「削除する」を赤枠①、「キャンセル」を赤枠②で示した画面"></div>
 
 表示名と集会を確かめ、① の「削除する」を押します。
 残す場合は、② の「キャンセル」を押します。
@@ -127,9 +118,8 @@ UTMの値か着地パスを変えると、QR画像も作り直されます。
 
 ### 8. 配布後のアクセスを確認する
 
-<div class="d-none d-md-block"><img src="images/analytics/distribution-link-10.webp" alt="アクセス解析の配布リンク別のアクセス表を赤枠①で示した画面"></div>
+![アクセス解析の配布リンク別のアクセス表を赤枠①で示した画面](images/analytics/distribution-link-10.webp)
 
-<div class="d-md-none"><img src="images/analytics/distribution-link-10-sp.webp" alt="スマートフォン表示で、アクセス解析の配布リンク別のアクセス表を赤枠①で示した画面"></div>
 
 配布の翌日以降、ダッシュボードで集会と期間を選びます。
 ① で案内ごとの「閲覧」「ユーザー」「訪問」を比べます。

@@ -24,12 +24,14 @@ def seed(context):
     stamp = datetime(2030, 4, 1, 3, tzinfo=timezone.utc)
     participation = VketParticipation.objects.create(
         collaboration=collaboration, community=context['community'], progress='applied',
-        requested_date=base + timedelta(days=7), requested_start_time=time(22), requested_duration=60,
-        confirmed_date=base + timedelta(days=7), confirmed_start_time=time(22), confirmed_duration=60,
+        # 確定日が集会の通常の開催回（月曜）と同じ日時だとコラボ本体とみなされて編集がロックされ、
+        # イベント管理の撮影が変わるので、開催回の無い火曜にする。
+        requested_date=base + timedelta(days=8), requested_start_time=time(22), requested_duration=60,
+        confirmed_date=base + timedelta(days=8), confirmed_start_time=time(22), confirmed_duration=60,
         applied_by=context['users']['owner'], applied_at=stamp,
         stage_thumbnail_generated_at=stamp,
     )
-    participation.stage_thumbnail.save('guide-demo-stage.jpg', demo_image('さくら技術交流会\n\n2030/4/8（月）22:00\n\nデモ用の架空の告知', (960, 540)), save=False)
+    participation.stage_thumbnail.save('guide-demo-stage.jpg', demo_image('さくら技術交流会\n\n2030/4/9（火）22:00\n\nデモ用の架空の告知', (960, 540)), save=False)
     participation.save(update_fields=['stage_thumbnail'])
     VketPresentation.objects.create(participation=participation, speaker='アオイ',
                                     theme='はじめてのワールド制作', status='confirmed',
@@ -52,6 +54,6 @@ def seed(context):
     # 未生成のサムネイル欄も、外部の画像生成を呼ばずに撮影する。
     VketParticipation.objects.create(
         collaboration=collaboration, community=Community.objects.get(name='こはるの学びの会'),
-        progress='applied', requested_date=base + timedelta(days=8),
+        progress='applied', requested_date=base + timedelta(days=9),
         requested_start_time=time(21), requested_duration=60,
     )

@@ -20,6 +20,13 @@ def seed(context):
         make_event(community, event_date=base + timedelta(days=days),
                    recurring_master=parent)
     make_event(community, event_date=base - timedelta(days=3653))
+
+
+def finalize(context):
+    # 発表の保存で告知キューが作り直されるため、全セクションの投入が確定した後に表示用の予約を整える。
+    community = context['community']
+    base = context['base_date']
+    parent = community.events.get(is_recurring_master=True)
     stamp = timezone.make_aware(datetime.combine(base, time(9)))
     # bulk_create で外部処理を起動せず、予約の表示だけを用意する。
     queue = TweetQueue(

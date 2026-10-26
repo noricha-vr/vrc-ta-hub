@@ -1,5 +1,4 @@
 """イベントの入口・管理・日時変更・削除・公式告知を撮影する。"""
-import json
 
 from capture import scenario
 
@@ -32,14 +31,16 @@ def menu(capture):
         page.locator('.navbar-toggler').click()
     page.locator('[aria-label="アカウントメニュー"]').click()
     capture.annotate('[aria-label="アカウントメニュー"]', 1)
-    capture.annotate('.account-menu a[href^="/event/my_list/?community="]', 2)
+    capture.annotate('.account-menu a[href^="/event/my_list/?community="]:has-text("さくら技術交流会")', 2)
     region(capture, '[aria-label="アカウントメニュー"]', '.account-menu')
 
 
 def management(capture):
     capture.goto('/event/my_list/')
-    capture.page.locator('.card.shadow-sm').first.wait_for()
-    capture.page.locator('.card.shadow-sm').first.evaluate(
+    # Vket のお知らせなど開催回以外のカードを除き、最初の開催回のカードを使う。
+    card = capture.page.locator('.card.shadow-sm:has(a[href*="/date/update/"])').first
+    card.wait_for()
+    card.evaluate(
         "e => e.dataset.guideEventCard = 'first'")
 
 
@@ -47,21 +48,9 @@ def event_link(capture, action):
     return capture.page.locator(CARD).locator(f'a[href*="{action}"]').get_attribute('href')
 
 
-def verify_guide(capture, images):
-    """ガイド本文と参照画像を PC・スマホの両幅で直接確かめる。"""
-    capture.goto(f'/guide/{capture.path}/')
-    page = capture.page
-    for heading in ('始める前に', '手順', 'うまくいかない時', '次にやること'):
-        if page.get_by_role('heading', name=heading, exact=True).count() != 1:
-            raise AssertionError(f'ガイドの必須見出しがありません: {heading}')
-    if page.locator('img.guide-screenshot').count() != images:
-        raise AssertionError('ガイドの画像枚数が一致しません')
-    page.locator('img.guide-screenshot').evaluate_all(
-        'elements => elements.forEach(e => e.loading = "eager")')
-    page.wait_for_function('''() => Array.from(document.querySelectorAll('img.guide-screenshot'))
-        .every(e => e.complete && e.naturalWidth > 0)''')
-    print(json.dumps({'event': 'guide_page_verified', 'path': capture.path,
-                      'mobile': capture.mobile, 'images': images}))
+def verify_guide(capture, images=None):
+    """共通の検証（capture.verify_guide）に任せる。"""
+    capture.verify_guide()
 
 
 @scenario('event/manage', mobile=True)
@@ -79,7 +68,7 @@ def manage(capture):
         capture.annotate(selector, number)
     capture.annotate(f'{CARD} a[title="開始時刻を編集"]', 7)
     capture.annotate(f'{CARD} a[href*="/date/update/"]', 8)
-    capture.annotate(f'{CARD} a[href^="/twitter/template/create/"]', 9)
+    capture.annotate(f'{CARD} a[href^="/twitter/"] >> nth=0', 9)
     capture.annotate(f'{CARD} form[action^="/event/delete/"]', 10)
     for index, number in ((0, 11), (1, 12)):
         capture.annotate(

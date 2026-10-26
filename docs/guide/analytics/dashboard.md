@@ -20,25 +20,22 @@ description: 集会や発表が見られた回数、検索キーワード、配�
 
 管理する集会のイベント管理画面を開きます。
 
-<div class="d-none d-md-block"><img src="images/analytics/dashboard-01.webp" alt="イベント管理の操作列で「アクセス」を赤枠①で示した画面"></div>
+![イベント管理の操作列で「アクセス」を赤枠①で示した画面](images/analytics/dashboard-01.webp)
 
-<div class="d-md-none"><img src="images/analytics/dashboard-01-sp.webp" alt="スマートフォン表示で、イベント管理の操作列で「アクセス」を赤枠①で示した画面"></div>
 
 ① の「アクセス」を押します。その集会の解析が開きます。
 
 アカウント設定からも開けます。
 
-<div class="d-none d-md-block"><img src="images/analytics/dashboard-02.webp" alt="アカウント設定の一覧で「アクセス解析を見る」を赤枠①で示した画面"></div>
+![アカウント設定の一覧で「アクセス解析を見る」を赤枠①で示した画面](images/analytics/dashboard-02.webp)
 
-<div class="d-md-none"><img src="images/analytics/dashboard-02-sp.webp" alt="スマートフォン表示で、アカウント設定の一覧で「アクセス解析を見る」を赤枠①で示した画面"></div>
 
 ① の「アクセス解析を見る」を押します。
 
 ### 2. 集会と期間を選ぶ
 
-<div class="d-none d-md-block"><img src="images/analytics/dashboard-03.webp" alt="解析の上部で対象集会を赤枠①、集計期間を赤枠②で示した画面"></div>
+![解析の上部で対象集会を赤枠①、集計期間を赤枠②で示した画面](images/analytics/dashboard-03.webp)
 
-<div class="d-md-none"><img src="images/analytics/dashboard-03-sp.webp" alt="スマートフォン表示で、解析の上部で対象集会を赤枠①、集計期間を赤枠②で示した画面"></div>
 
 ① で集会を選びます。複数の集会を管理している場合は、合算も選べます。
 ② の「7日」「30日」「90日」から期間を選びます。
@@ -46,9 +43,8 @@ description: 集会や発表が見られた回数、検索キーワード、配�
 
 ### 3. 閲覧とページ別の数字を読む
 
-<div class="d-none d-md-block"><img src="images/analytics/dashboard-04.webp" alt="解析の「閲覧」「動画再生」「集会一覧から」の数字の帯を赤枠①で示した画面"></div>
+![解析の「閲覧」「動画再生」「集会一覧から」の数字の帯を赤枠①で示した画面](images/analytics/dashboard-04.webp)
 
-<div class="d-md-none"><img src="images/analytics/dashboard-04-sp.webp" alt="スマートフォン表示で、解析の「閲覧」「動画再生」「集会一覧から」の数字の帯を赤枠①で示した画面"></div>
 
 ① の数字を、次の表で確かめます。
 
@@ -60,9 +56,8 @@ description: 集会や発表が見られた回数、検索キーワード、配�
 
 「人」の数字は日ごとの値の合算です。期間全体の実人数とは限りません。
 
-<div class="d-none d-md-block"><img src="images/analytics/dashboard-05.webp" alt="ページ別ランキングで「閲覧」の列名を赤枠①、「動画再生」を赤枠②で示した画面"></div>
+![ページ別ランキングで「閲覧」の列名を赤枠①、「動画再生」を赤枠②で示した画面](images/analytics/dashboard-05.webp)
 
-<div class="d-md-none"><img src="images/analytics/dashboard-05-sp.webp" alt="スマートフォン表示で、ページ別ランキングで「閲覧」の列名を赤枠①、「動画再生」を赤枠②で示した画面"></div>
 
 ① の「閲覧」か、② の「動画再生」を押して並べ替えます。
 ページ名を押すと、その公開ページが開きます。
@@ -73,18 +68,16 @@ description: 集会や発表が見られた回数、検索キーワード、配�
 
 参照元は、読んだ人がどのサイトやリンクから来たかを示します。
 
-<div class="d-none d-md-block"><img src="images/analytics/dashboard-06.webp" alt="週次推移の見出しを赤枠①、流入元の内訳を赤枠②、検索キーワード一覧へのリンクを赤枠③で示した画面"></div>
+![週次推移の見出しを赤枠①、流入元の内訳を赤枠②、検索キーワード一覧へのリンクを赤枠③で示した画面](images/analytics/dashboard-06.webp)
 
-<div class="d-md-none"><img src="images/analytics/dashboard-06-sp.webp" alt="スマートフォン表示で、週次推移の見出しを赤枠①、流入元の内訳を赤枠②、検索キーワード一覧へのリンクを赤枠③で示した画面"></div>
 
 ① の「週次推移」で、月曜始まりの閲覧数を見ます。
 期間の端の週は、期間に入る日だけの合計です。
 ② の「どこから」で、検索やSNSなどの割合を見ます。
 「参照元 / メディアの詳細」を開くと、細かな内訳が出ます。
 
-<div class="d-none d-md-block"><img src="images/analytics/dashboard-07.webp" alt="配布リンクのアクセス表を赤枠①で示した画面"></div>
+![配布リンクのアクセス表を赤枠①で示した画面](images/analytics/dashboard-07.webp)
 
-<div class="d-md-none"><img src="images/analytics/dashboard-07-sp.webp" alt="スマートフォン表示で、配布リンクのアクセス表を赤枠①で示した画面"></div>
 
 ① で、配布用のリンクから来た数を見ます。
 「閲覧」はページを見た回数、「ユーザー」は日別の利用者数の合算です。
@@ -95,9 +88,8 @@ description: 集会や発表が見られた回数、検索キーワード、配�
 
 CSV は、表計算ソフトなどで開ける表のファイルです。
 
-<div class="d-none d-md-block"><img src="images/analytics/dashboard-08.webp" alt="解析上部の「CSV」ボタンを赤枠①で示した画面"></div>
+![解析上部の「CSV」ボタンを赤枠①で示した画面](images/analytics/dashboard-08.webp)
 
-<div class="d-md-none"><img src="images/analytics/dashboard-08-sp.webp" alt="スマートフォン表示で、解析上部の「CSV」ボタンを赤枠①で示した画面"></div>
 
 ① の「CSV」を押します。選択した集会・期間の発表別データを保存します。
 集会ページの行や検索キーワードは、このCSVには入りません。
@@ -107,9 +99,8 @@ CSV は、表計算ソフトなどで開ける表のファイルです。
 手順4の画像の ③「すべての検索キーワード」を押します。
 Google 検索でページが表示された時の検索語が出ます。
 
-<div class="d-none d-md-block"><img src="images/analytics/dashboard-09.webp" alt="検索キーワードの入力欄を赤枠①、「絞り込む」を赤枠②、表示回数の列名を赤枠③で示した画面"></div>
+![検索キーワードの入力欄を赤枠①、「絞り込む」を赤枠②、表示回数の列名を赤枠③で示した画面](images/analytics/dashboard-09.webp)
 
-<div class="d-md-none"><img src="images/analytics/dashboard-09-sp.webp" alt="スマートフォン表示で、検索キーワードの入力欄を赤枠①、「絞り込む」を赤枠②、表示回数の列名を赤枠③で示した画面"></div>
 
 ① にキーワードの一部を入れ、② の「絞り込む」を押します。
 ③ の「表示」か「クリック」を押して、多い順に並べ替えます。
@@ -128,18 +119,16 @@ Google 検索でページが表示された時の検索語が出ます。
 ログインしたまま、自分に紐づく発表の詳細を開きます。
 アカウント設定の「自分の発表」から、発表名を押すと開けます。
 
-<div class="d-none d-md-block"><img src="images/analytics/dashboard-10.webp" alt="発表詳細の「この発表の反響」の見出しを赤枠①で示した画面"></div>
+![発表詳細の「この発表の反響」の見出しを赤枠①で示した画面](images/analytics/dashboard-10.webp)
 
-<div class="d-md-none"><img src="images/analytics/dashboard-10-sp.webp" alt="スマートフォン表示で、発表詳細の「この発表の反響」の見出しを赤枠①で示した画面"></div>
 
 ① の「この発表の反響」を探します。
 「記事の閲覧」は保存されている集計の合計と直近30日です。
 動画の数字を取得していれば「動画の再生」も出ます。
 この欄は、集会の主催者・スタッフと発表者本人が見られます。
 
-<div class="d-none d-md-block"><img src="images/analytics/dashboard-11.webp" alt="主催者が開いた発表詳細の反響欄で、追加の指標がある見出しを赤枠①で示した画面"></div>
+![主催者が開いた発表詳細の反響欄で、追加の指標がある見出しを赤枠①で示した画面](images/analytics/dashboard-11.webp)
 
-<div class="d-md-none"><img src="images/analytics/dashboard-11-sp.webp" alt="スマートフォン表示で、主催者が開いた発表詳細の反響欄で、追加の指標がある見出しを赤枠①で示した画面"></div>
 
 主催者・スタッフには、① の欄に追加の内訳が出ます。
 「平均視聴」は直近30日の平均の視聴時間です。

@@ -24,13 +24,11 @@ description: Hubの紹介ポスターを保存し、Unityでワールドに掲�
 
 次の3種類から選びます。リンクを押すと元の画像が開きます。
 
-<img src="images/promotion/poster-01.webp" alt="Hubの紹介ポスター3種類を並べ、ポスター1を赤枠①、2を②、3を③で示した図" class="d-none d-md-block">
-<img src="images/promotion/poster-01-sp.webp" alt="Hubの紹介ポスター3種類を並べ、ポスター1を赤枠①、2を②、3を③で示した図（スマホ幅）" class="d-md-none">
+![Hubの紹介ポスター3種類を並べ、ポスター1を赤枠①、2を②、3を③で示した図](images/promotion/poster-01.webp)
 
 ① は [ポスター1](https://data.vrc-ta-hub.com/guide/images/posters/vrc-ta-hub-poster-1.jpg)、② は [ポスター2](https://data.vrc-ta-hub.com/guide/images/posters/vrc-ta-hub-poster-2.jpg)、③ は [ポスター3](https://data.vrc-ta-hub.com/guide/images/posters/vrc-ta-hub-poster-3.jpg)です。（画面はイメージです）
 
-<img src="images/promotion/poster-02.webp" alt="ブラウザでポスターを右クリックし、画像を保存するメニューを赤枠①で示した図" class="d-none d-md-block">
-<img src="images/promotion/poster-02-sp.webp" alt="ブラウザでポスターを右クリックし、画像を保存するメニューを赤枠①で示した図（スマホ幅）" class="d-md-none">
+![ブラウザでポスターを右クリックし、画像を保存するメニューを赤枠①で示した図](images/promotion/poster-02.webp)
 
 開いた画像を右クリックし、① の保存メニューを選びます。
 ブラウザによってメニュー名は異なります。（画面はイメージです）
@@ -43,8 +41,7 @@ description: Hubの紹介ポスターを保存し、Unityでワールドに掲�
 ワールドのプロジェクトを開きます。
 「Project」は、画像などの素材を置く欄です。
 
-<img src="images/promotion/poster-03.webp" alt="保存した画像ファイルを赤枠①、UnityのProjectのAssets欄を②で示した図" class="d-none d-md-block">
-<img src="images/promotion/poster-03-sp.webp" alt="保存した画像ファイルを赤枠①、UnityのProjectのAssets欄を②で示した図（スマホ幅）" class="d-md-none">
+![保存した画像ファイルを赤枠①、UnityのProjectのAssets欄を②で示した図](images/promotion/poster-03.webp)
 
 ① の画像ファイルを、② の「Project」の「Assets」へドラッグします。
 ドラッグは、押したまま移動して離す操作です。（画面はイメージです）
@@ -53,8 +50,7 @@ description: Hubの紹介ポスターを保存し、Unityでワールドに掲�
 
 マテリアルは、物体の見た目を決める素材です。
 
-<img src="images/promotion/poster-04.webp" alt="UnityのProjectでCreateからMaterialを作るメニューを赤枠①で示した図" class="d-none d-md-block">
-<img src="images/promotion/poster-04-sp.webp" alt="UnityのProjectでCreateからMaterialを作るメニューを赤枠①で示した図（スマホ幅）" class="d-md-none">
+![UnityのProjectでCreateからMaterialを作るメニューを赤枠①で示した図](images/promotion/poster-04.webp)
 
 「Project」の空いている所を右クリックします。
 「Create」から、① の「Material」を選びます。
@@ -65,8 +61,7 @@ description: Hubの紹介ポスターを保存し、Unityでワールドに掲�
 作った「HubPoster」を押します。
 「Inspector」は、選んだ物の設定を変える欄です。
 
-<img src="images/promotion/poster-05.webp" alt="UnityのInspectorでShader欄を赤枠①、Base (RGB)の画像欄を②で示した図" class="d-none d-md-block">
-<img src="images/promotion/poster-05-sp.webp" alt="UnityのInspectorでShader欄を赤枠①、Base (RGB)の画像欄を②で示した図（スマホ幅）" class="d-md-none">
+![UnityのInspectorでShader欄を赤枠①、Base (RGB)の画像欄を②で示した図](images/promotion/poster-05.webp)
 
 ① の「Shader」で「Unlit/Texture」を選びます。
 ② の「Base (RGB)」へ、取り込んだ画像をドラッグします。（画面はイメージです）
@@ -78,8 +73,7 @@ description: Hubの紹介ポスターを保存し、Unityでワールドに掲�
 
 「Quad」は、画像を貼るために使える平らな板です。
 
-<img src="images/promotion/poster-06.webp" alt="UnityのQuad作成メニューを赤枠①、作った掲示面を②で示した図" class="d-none d-md-block">
-<img src="images/promotion/poster-06-sp.webp" alt="UnityのQuad作成メニューを赤枠①、作った掲示面を②で示した図（スマホ幅）" class="d-md-none">
+![UnityのQuad作成メニューを赤枠①、作った掲示面を②で示した図](images/promotion/poster-06.webp)
 
 「GameObject」→「3D Object」→ ① の「Quad」を選びます。
 「Project」の「HubPoster」を、② の板へドラッグします。（画面はイメージです）
@@ -88,8 +82,7 @@ description: Hubの紹介ポスターを保存し、Unityでワールドに掲�
 
 「Quad」を選び、「Inspector」の「Transform」を開きます。
 
-<img src="images/promotion/poster-07.webp" alt="UnityのQuadのTransformでScaleのXを0.75、Yを1にする欄を赤枠①で示した図" class="d-none d-md-block">
-<img src="images/promotion/poster-07-sp.webp" alt="UnityのQuadのTransformでScaleのXを0.75、Yを1にする欄を赤枠①で示した図（スマホ幅）" class="d-md-none">
+![UnityのQuadのTransformでScaleのXを0.75、Yを1にする欄を赤枠①で示した図](images/promotion/poster-07.webp)
 
 ① の「Scale」を、Xは「0.75」、Yは「1」にします。
 「Position」で位置、「Rotation」で向きを調整します。（画面はイメージです）
@@ -102,8 +95,7 @@ description: Hubの紹介ポスターを保存し、Unityでワールドに掲�
 Unity上部の「VRChat SDK」→「Show Control Panel」を開きます。
 「Builder」を選びます。
 
-<img src="images/promotion/poster-08.webp" alt="VRChat SDKのBuild &amp; Testを赤枠①、ワールドに置いたポスターを②で示した図" class="d-none d-md-block">
-<img src="images/promotion/poster-08-sp.webp" alt="VRChat SDKのBuild &amp; Testを赤枠①、ワールドに置いたポスターを②で示した図（スマホ幅）" class="d-md-none">
+![VRChat SDKのBuild &amp; Testを赤枠①、ワールドに置いたポスターを②で示した図](images/promotion/poster-08.webp)
 
 ① の「Build & Test」で手元のVRChatから試します。
 ② の文字やQRコードを、近づいて確認します。（画面はイメージです）
@@ -115,8 +107,7 @@ Unity上部の「VRChat SDK」→「Show Control Panel」を開きます。
 
 Hub全体の紹介ポスターとは別に、各集会の紹介ページにもポスターがあります。
 
-<img src="images/promotion/poster-09.webp" alt="集会の紹介ページで「集会を紹介するためのポスターの転載可」の表示を赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/promotion/poster-09-sp.webp" alt="集会の紹介ページで「集会を紹介するためのポスターの転載可」の表示を赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![集会の紹介ページで「集会を紹介するためのポスターの転載可」の表示を赤枠①で示した画面](images/promotion/poster-09.webp)
 
 ① の「集会を紹介するためのポスターの転載可」がある時は、押して画像を保存します。
 「ポスターの転載はお問い合わせください」と出る場合は、主催者に確認してください。

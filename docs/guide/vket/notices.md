@@ -21,9 +21,8 @@ description: コラボから届いたお知らせを読み、「確認しまし�
 
 イベント管理のコラボ案内から、参加状況を開きます。
 
-<div class="d-none d-md-block"><img src="images/vket/notices-01.webp" alt="参加状況の未確認のお知らせの案内で「確認する」を赤枠①で示した画面"></div>
+![参加状況の未確認のお知らせの案内で「確認する」を赤枠①で示した画面](images/vket/notices-01.webp)
 
-<div class="d-md-none"><img src="images/vket/notices-01-sp.webp" alt="スマートフォン表示で、参加状況の未確認のお知らせの案内で「確認する」を赤枠①で示した画面"></div>
 
 ① の「確認する」を押します。
 案内が出ない場合は、「最新お知らせ」の「すべて見る」を押します。
@@ -33,9 +32,8 @@ description: コラボから届いたお知らせを読み、「確認しまし�
 「未確認」の下にある、お知らせの題名を押します。
 本文が開いている場合は、そのまま読みます。
 
-<div class="d-none d-md-block"><img src="images/vket/notices-02.webp" alt="未確認のお知らせの本文の下にある「確認しました」を赤枠①で示した画面"></div>
+![未確認のお知らせの本文の下にある「確認しました」を赤枠①で示した画面](images/vket/notices-02.webp)
 
-<div class="d-md-none"><img src="images/vket/notices-02-sp.webp" alt="スマートフォン表示で、未確認のお知らせの本文の下にある「確認しました」を赤枠①で示した画面"></div>
 
 本文を読み、内容を確かめてから、① の「確認しました」を押します。
 画面を開いただけでは確認済みになりません。
@@ -43,9 +41,8 @@ description: コラボから届いたお知らせを読み、「確認しまし�
 
 ### 3. 確認済みのお知らせを読み直す
 
-<div class="d-none d-md-block"><img src="images/vket/notices-03.webp" alt="お知らせ一覧の「確認済み・確認不要」の下にある確認済みのお知らせの題名を赤枠①で示した画面"></div>
+![お知らせ一覧の「確認済み・確認不要」の下にある確認済みのお知らせの題名を赤枠①で示した画面](images/vket/notices-03.webp)
 
-<div class="d-md-none"><img src="images/vket/notices-03-sp.webp" alt="スマートフォン表示で、お知らせ一覧の「確認済み・確認不要」の下にある確認済みのお知らせの題名を赤枠①で示した画面"></div>
 
 ① のように題名を押すと、本文を読み直せます。
 「確認済み」には、確認した日時が表示されます。
@@ -55,9 +52,8 @@ description: コラボから届いたお知らせを読み、「確認しまし�
 
 連絡文の確認用リンクを開いた場合は、次の画面が出ます。
 
-<div class="d-none d-md-block"><img src="images/vket/notices-04.webp" alt="共有された確認用リンクの画面で、本文の下の「確認しました」を赤枠①で示した画面"></div>
+![共有された確認用リンクの画面で、本文の下の「確認しました」を赤枠①で示した画面](images/vket/notices-04.webp)
 
-<div class="d-md-none"><img src="images/vket/notices-04-sp.webp" alt="スマートフォン表示で、共有された確認用リンクの画面で、本文の下の「確認しました」を赤枠①で示した画面"></div>
 
 本文を読んで、① の「確認しました」を押します。
 「確認しました」と完了の画面が出れば、記録できています。

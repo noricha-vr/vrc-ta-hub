@@ -71,6 +71,23 @@ class GuideContentContractTest(SimpleTestCase):
                         self.assertTrue(image.is_relative_to(IMAGE_ROOT.resolve()))
                         self.assertTrue(image.is_file(), f'画像がありません: {src}')
 
+    def test_screenshots_are_all_referenced_from_pages(self):
+        """撮り直しで番号が減った時などの置き忘れを防ぐ。-sp 版は本文に書かず、PC 版と対で置く。"""
+        referenced = set()
+        for page, file in public_pages().items():
+            soup = BeautifulSoup(markdown.markdown(file.read_text(), extensions=['fenced_code']), 'html.parser')
+            for img in soup.find_all('img'):
+                src = unquote(urlsplit(str(img.get('src', ''))).path)
+                if src.startswith('images/'):
+                    with self.subTest(page=page, src=src):
+                        self.assertFalse(src.endswith('-sp.webp'), '-sp 版は本文に書きません（スマホ幅で自動で差し替わります）')
+                    referenced.add(src[len('images/'):])
+        for image in IMAGE_ROOT.rglob('*.webp'):
+            name = image.relative_to(IMAGE_ROOT).as_posix()
+            pc_name = name.removesuffix('-sp.webp') + '.webp' if name.endswith('-sp.webp') else name
+            with self.subTest(image=name):
+                self.assertIn(pc_name, referenced, 'どのページからも使われていない画像です')
+
 
 class GuideRenderingTest(SimpleTestCase):
     def render(self, body):

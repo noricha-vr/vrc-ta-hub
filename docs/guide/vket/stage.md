@@ -22,24 +22,21 @@ Hub にある集会の情報を、Vket 側の告知フォームへ転記しま�
 
 イベント管理のコラボ案内から、参加状況を開きます。
 
-<div class="d-none d-md-block"><img src="images/vket/stage-01.webp" alt="参加状況の「Vketステージ登録」欄で入力値とサムネイルの準備ボタンを赤枠①で示した画面"></div>
+![参加状況の「Vketステージ登録」欄で入力値とサムネイルの準備ボタンを赤枠①で示した画面](images/vket/stage-01.webp)
 
-<div class="d-md-none"><img src="images/vket/stage-01-sp.webp" alt="スマートフォン表示で、参加状況の「Vketステージ登録」欄で入力値とサムネイルの準備ボタンを赤枠①で示した画面"></div>
 
 ① の「登録用の入力値・サムネイルを用意する」を押します。
 
 ### 2. タイトルと本文をコピーする
 
-<div class="d-none d-md-block"><img src="images/vket/stage-02.webp" alt="ステージ登録用のタイトル欄で「コピー」を赤枠①で示した画面"></div>
+![ステージ登録用のタイトル欄で「コピー」を赤枠①で示した画面](images/vket/stage-02.webp)
 
-<div class="d-md-none"><img src="images/vket/stage-02-sp.webp" alt="スマートフォン表示で、ステージ登録用のタイトル欄で「コピー」を赤枠①で示した画面"></div>
 
 ① の「コピー」を押し、外部フォームの対応する欄へ貼り付けます。
 URLも、その欄の「コピー」を使います。
 
-<div class="d-none d-md-block"><img src="images/vket/stage-03.webp" alt="ステージ登録用の本文欄を赤枠①、本文の「コピー」を赤枠②で示した画面"></div>
+![ステージ登録用の本文欄を赤枠①、本文の「コピー」を赤枠②で示した画面](images/vket/stage-03.webp)
 
-<div class="d-md-none"><img src="images/vket/stage-03-sp.webp" alt="スマートフォン表示で、ステージ登録用の本文欄を赤枠①、本文の「コピー」を赤枠②で示した画面"></div>
 
 本文を確認します。直したい箇所は、① の欄で書き換えます。
 ② の「コピー」を押します。
@@ -47,9 +44,8 @@ URLも、その欄の「コピー」を使います。
 
 ### 3. 日時・言語・会場・タグを用意する
 
-<div class="d-none d-md-block"><img src="images/vket/stage-04.webp" alt="ステージ登録用の開始日時欄で「コピー」を赤枠①で示した画面"></div>
+![ステージ登録用の開始日時欄で「コピー」を赤枠①で示した画面](images/vket/stage-04.webp)
 
-<div class="d-md-none"><img src="images/vket/stage-04-sp.webp" alt="スマートフォン表示で、ステージ登録用の開始日時欄で「コピー」を赤枠①で示した画面"></div>
 
 ① の「コピー」で開始日時をコピーします。終了日時も同じようにコピーします。
 言語・開催会場・タグは、下へ進んで表示値を確認します。
@@ -65,9 +61,8 @@ URLも、その欄の「コピー」を使います。
 
 ### 4. サムネイルを生成する
 
-<div class="d-none d-md-block"><img src="images/vket/stage-05.webp" alt="未生成のサムネイル欄で「サムネイルを1回生成する」を赤枠①で示した画面"></div>
+![未生成のサムネイル欄で「サムネイルを1回生成する」を赤枠①で示した画面](images/vket/stage-05.webp)
 
-<div class="d-md-none"><img src="images/vket/stage-05-sp.webp" alt="スマートフォン表示で、未生成のサムネイル欄で「サムネイルを1回生成する」を赤枠①で示した画面"></div>
 
 未生成なら、① の「サムネイルを1回生成する」を押します。
 1〜2分ほど待ちます。「生成中」のままなら「再読み込み」を押します。
@@ -76,9 +71,8 @@ URLも、その欄の「コピー」を使います。
 
 ### 5. サムネイルを保存する
 
-<div class="d-none d-md-block"><img src="images/vket/stage-06.webp" alt="生成済みの横長サムネイルの下で「JPEGをダウンロード」を赤枠①で示した画面"></div>
+![生成済みの横長サムネイルの下で「JPEGをダウンロード」を赤枠①で示した画面](images/vket/stage-06.webp)
 
-<div class="d-md-none"><img src="images/vket/stage-06-sp.webp" alt="スマートフォン表示で、生成済みの横長サムネイルの下で「JPEGをダウンロード」を赤枠①で示した画面"></div>
 
 集会名・日付・時刻に誤字がないか確認します。
 ① の「JPEGをダウンロード」を押して保存します。
@@ -91,9 +85,8 @@ URLも、その欄の「コピー」を使います。
 画面上部の「Vketの登録フォームを開く」を押します。
 別のタブで開いた外部サイトで、案内に従って登録します。
 
-<div class="d-none d-md-block"><img src="images/vket/stage-07.webp" alt="外部での登録の簡略図で入力値を赤枠①、サムネイルのアップロードを赤枠②、登録の完了操作を赤枠③で示した図"></div>
+![外部での登録の簡略図で入力値を赤枠①、サムネイルのアップロードを赤枠②、登録の完了操作を赤枠③で示した図](images/vket/stage-07.webp)
 
-<div class="d-md-none"><img src="images/vket/stage-07-sp.webp" alt="スマートフォン表示で、外部での登録の簡略図で入力値を赤枠①、サムネイルのアップロードを赤枠②、登録の完了操作を赤枠③で示した図"></div>
 
 ① にコピーした値を貼り付けます。
 ② で保存したJPEG画像をアップロードします。
@@ -108,9 +101,8 @@ URLを貼るだけではサムネイルは入りません。
 
 Hub のタブに戻り、「参加状況に戻る」を押します。
 
-<div class="d-none d-md-block"><img src="images/vket/stage-08.webp" alt="参加状況のステージ登録欄で「Vketで登録したことを記録する」を赤枠①で示した画面"></div>
+![参加状況のステージ登録欄で「Vketで登録したことを記録する」を赤枠①で示した画面](images/vket/stage-08.webp)
 
-<div class="d-md-none"><img src="images/vket/stage-08-sp.webp" alt="スマートフォン表示で、参加状況のステージ登録欄で「Vketで登録したことを記録する」を赤枠①で示した画面"></div>
 
 ① の「Vketで登録したことを記録する」を押します。
 確認のダイアログでも、登録が終わっていることを確認して進めます。

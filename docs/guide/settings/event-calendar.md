@@ -23,8 +23,7 @@ Hubに案内文を保存し、開催回ごとの投稿に使います。
 
 [集会設定](../community/settings.md)の「外部連携」を開きます。
 
-<img src="images/settings/event-calendar-01.webp" alt="外部連携の「VRCイベントカレンダー連携」で「カレンダー設定」を赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/event-calendar-01-sp.webp" alt="外部連携の「VRCイベントカレンダー連携」で「カレンダー設定」を赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![外部連携の「VRCイベントカレンダー連携」で「カレンダー設定」を赤枠①で示した画面](images/settings/event-calendar-01.webp)
 
 ① の「カレンダー設定」を押します。
 
@@ -32,8 +31,7 @@ Hubに案内文を保存し、開催回ごとの投稿に使います。
 
 集会で何をするかを短く書きます。
 
-<img src="images/settings/event-calendar-02.webp" alt="VRCイベントカレンダー情報の「イベント詳細」入力欄を赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/event-calendar-02-sp.webp" alt="VRCイベントカレンダー情報の「イベント詳細」入力欄を赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![VRCイベントカレンダー情報の「イベント詳細」入力欄を赤枠①で示した画面](images/settings/event-calendar-02.webp)
 
 ① の「イベント詳細」を入力します。
 初めて来る人にも分かる内容にします。
@@ -42,8 +40,7 @@ Hubに案内文を保存し、開催回ごとの投稿に使います。
 
 当てはまる分類を選びます。
 
-<img src="images/settings/event-calendar-03.webp" alt="「イベントジャンル」のチェック項目のまとまりを赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/event-calendar-03-sp.webp" alt="「イベントジャンル」のチェック項目のまとまりを赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![「イベントジャンル」のチェック項目のまとまりを赤枠①で示した画面](images/settings/event-calendar-03.webp)
 
 ① の中で、当てはまる項目にチェックを入れます。
 複数選べます。
@@ -52,13 +49,11 @@ Hubに案内文を保存し、開催回ごとの投稿に使います。
 
 参加できる人の条件と、会場へ入る道順を書きます。
 
-<img src="images/settings/event-calendar-04.webp" alt="「参加条件」入力欄を赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/event-calendar-04-sp.webp" alt="「参加条件」入力欄を赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![「参加条件」入力欄を赤枠①で示した画面](images/settings/event-calendar-04.webp)
 
 ① の「参加条件」に、初心者歓迎などの条件を書きます。
 
-<img src="images/settings/event-calendar-05.webp" alt="「参加方法」入力欄を赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/event-calendar-05-sp.webp" alt="「参加方法」入力欄を赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![「参加方法」入力欄を赤枠①で示した画面](images/settings/event-calendar-05.webp)
 
 ① の「参加方法」に、どのグループや人から入るかを書きます。
 「Join」だけで済ませず、初めての人がたどれる案内にします。
@@ -68,8 +63,7 @@ Hubに案内文を保存し、開催回ごとの投稿に使います。
 
 撮影や会話で守ってほしいことを書きます。
 
-<img src="images/settings/event-calendar-06.webp" alt="「備考」入力欄を赤枠①、「海外ユーザー向け」を②で示した画面" class="d-none d-md-block">
-<img src="images/settings/event-calendar-06-sp.webp" alt="「備考」入力欄を赤枠①、「海外ユーザー向け」を②で示した画面（スマホ幅）" class="d-md-none">
+![「備考」入力欄を赤枠①、「海外ユーザー向け」を②で示した画面](images/settings/event-calendar-06.webp)
 
 ① の「備考」に注意点を書きます。なければ空欄で構いません。
 ② の「海外ユーザー向け」は、海外の人向けの開催であればチェックします。
@@ -78,8 +72,7 @@ Hubに案内文を保存し、開催回ごとの投稿に使います。
 
 カレンダー投稿に渡す案内文を入力します。
 
-<img src="images/settings/event-calendar-07.webp" alt="「X告知文」入力欄を赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/event-calendar-07-sp.webp" alt="「X告知文」入力欄を赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![「X告知文」入力欄を赤枠①で示した画面](images/settings/event-calendar-07.webp)
 
 ① の「X告知文」を入力します。未使用なら空欄で構いません。
 この欄に書くだけでXに投稿されることはありません。
@@ -88,8 +81,7 @@ Hubに案内文を保存し、開催回ごとの投稿に使います。
 
 入力が終わったら画面の一番下へ進みます。
 
-<img src="images/settings/event-calendar-08.webp" alt="カレンダー情報フォームの「更新」ボタンを赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/event-calendar-08-sp.webp" alt="カレンダー情報フォームの「更新」ボタンを赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![カレンダー情報フォームの「更新」ボタンを赤枠①で示した画面](images/settings/event-calendar-08.webp)
 
 ① の「更新」を押します。
 「VRCイベントカレンダー情報が更新されました。」と出れば保存完了です。
@@ -98,8 +90,7 @@ Hubに案内文を保存し、開催回ごとの投稿に使います。
 
 イベント管理を開き、投稿したい開催日を探します。
 
-<img src="images/settings/event-calendar-09.webp" alt="イベント管理の開催回で「VRCイベントカレンダーに投稿」を赤枠①で示した画面" class="d-none d-md-block">
-<img src="images/settings/event-calendar-09-sp.webp" alt="イベント管理の開催回で「VRCイベントカレンダーに投稿」を赤枠①で示した画面（スマホ幅）" class="d-md-none">
+![イベント管理の開催回で「VRCイベントカレンダーに投稿」を赤枠①で示した画面](images/settings/event-calendar-09.webp)
 
 ① の「VRCイベントカレンダーに投稿」を押します。
 外部の登録フォームで、開催日・時刻・案内文を確認します。
