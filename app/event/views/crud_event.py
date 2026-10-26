@@ -70,6 +70,9 @@ class EventDateUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
             self.object.recurring_master_id is not None
         )
         context['is_recurring_master'] = self.object.is_recurring_master
+        context['save_actions'] = [
+            {'form_id': 'schedule-form', 'scope': '開催日', 'label': '変更する'},
+        ]
         return context
 
     def form_valid(self, form):
@@ -186,6 +189,9 @@ class EventUpdateView(LoginRequiredMixin, UpdateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['event'] = self.object
+        context['save_actions'] = [
+            {'form_id': 'schedule-form', 'scope': '開始時刻', 'label': '保存'},
+        ]
         return context
 
     def form_valid(self, form):
