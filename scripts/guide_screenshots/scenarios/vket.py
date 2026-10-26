@@ -15,7 +15,7 @@ def apply(c):
     shot(c, '#id_requested_date >> xpath=ancestor::div[contains(@class,"mb-3")][1]', '#id_requested_date')
     shot(c, '.row:has(#id_requested_start_time)', '#id_requested_start_time', '#id_requested_duration')
     shot(c, '#lt-formset-container', '#id_lt-0-speaker', '#id_lt-0-theme', '#id_lt-0-lt_start_time')
-    shot(c, '#id_organizer_note >> xpath=..', '#id_organizer_note')
+    shot(c, '#organizer-note', '#id_organizer_note')
     shot(c, '.admin-action-bar', 'button[form="vket-apply-form"]')
     c.goto('/vket/1/status/')
     shot(c, '.admin-card:has(h2:has-text("日程情報"))', '.admin-card:has(h2:has-text("日程情報")) a:has-text("編集")')
@@ -41,7 +41,10 @@ def stage(c):
     shot(c, 'main', '#fields', '#thumbnail', '#complete')
     c.login('owner')
     c.goto('/vket/1/status/')
-    shot(c, '.admin-card:has(h2:has-text("Vketステージ登録"))', 'button:has-text("Vketで登録したことを記録する")')
+    c.page.locator('[data-confirm-panel="stage-register-confirm"]').click()
+    c.page.locator('#stage-register-confirm').wait_for(state='visible')
+    shot(c, '#stage-registration', '[data-confirm-panel="stage-register-confirm"]',
+         '#stage-register-confirm button[type="submit"]')
     verify_guide(c)
 
 
@@ -49,12 +52,12 @@ def stage(c):
 def notices(c):
     c.login('owner')
     c.goto('/vket/1/status/')
-    shot(c, '#member-attention', '#member-attention a:has-text("確認する")')
+    shot(c, '#member-attention', '#member-attention a[href^="/vket/1/notices/?open="]')
     c.goto('/vket/1/notices/?open=1')
-    shot(c, '#unackedAccordion', 'button:has-text("確認しました")')
+    shot(c, '#unackedAccordion', '#unackedAccordion button[type="submit"]')
     c.goto('/vket/1/notices/?open=2')
-    shot(c, '.notice-done', '.notice-done button:has-text("資料の準備ができました")')
+    shot(c, '.notice-done', '.notice-done .accordion-button:has-text("資料の準備ができました")')
     c.page.context.clear_cookies()
     c.goto('/vket/ack/00000000-0000-4000-8000-000000000001/')
-    shot(c, 'main .container', 'button:has-text("確認しました")')
+    shot(c, 'main .container', 'main button[type="submit"]')
     verify_guide(c)

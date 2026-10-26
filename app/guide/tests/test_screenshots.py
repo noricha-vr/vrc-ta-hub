@@ -183,6 +183,100 @@ class GuideDemoDataTest(TestCase):
         self.assertEqual(soup.select_one('main button[type="submit"]').get_text(strip=True), 'この発表を削除する')
         self.assertIsNotNone(soup.select_one('main form a[href="/event/detail/1/"]'))
 
+    @override_settings(DEBUG=True, GUIDE_CAPTURE_EXTENDED_DEMO=True)
+    @mock.patch.dict(os.environ, {'GUIDE_DEMO_PASSWORD': 'guide-demo-test-only'})
+    @mock.patch('django.utils.timezone.now', return_value=datetime(2030, 4, 1, 3, tzinfo=timezone.utc))
+    def test_community_capture_targets_match_rendered_pages(self, _now):
+        """集会ガイドが撮る共通フォーム・確認欄・共有表示をブラウザなしで照合する。"""
+        demo_root = str(Path(settings.DATABASES['default']['NAME']).resolve().parent)
+        with (
+            override_settings(GUIDE_DEMO_ROOT=demo_root),
+            mock.patch('event.notifications.post_discord_webhook'),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            call_command('seed_guide_demo', stdout=StringIO())
+
+        def page(path):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200, path)
+            return BeautifulSoup(response.content, 'html.parser')
+
+        def unique(soup, *selectors):
+            for selector in selectors:
+                with self.subTest(selector=selector):
+                    self.assertEqual(len(soup.select(selector)), 1)
+
+        self.client.force_login(CustomUser.objects.get(email=DEMO_USERS['owner'][1]))
+        for path in ('/community/settings/', '/community/update/'):
+            soup = page(path)
+            unique(soup, '#basic-information #id_name', '#applications #lt-form',
+                   '#integrations #notification-form', '#members a', '#danger > details > summary',
+                   '#integrations a[href="/community/calendar_update/"]',
+                   '#integrations a[href="/twitter/template/list/"]',
+                   '#integrations a[href="/account/api-keys/"]',
+                   '#notification-form [data-admin-secret-edit] > summary')
+            for form_id, label in (('community-form', '集会情報を保存'),
+                                   ('lt-form', '発表受付を保存'), ('notification-form', '通知を保存')):
+                button = soup.select_one(f'[data-admin-action-bar] button[form="{form_id}"]')
+                self.assertIsNotNone(button)
+                self.assertEqual(button.get_text(strip=True), label)
+                self.assertIsNone(soup.select_one(f'#{form_id} button[type="submit"]'))
+            for panel_id in ('close-community', 'create-transfer'):
+                unique(soup, f'[data-confirm-panel="{panel_id}"]', f'#{panel_id} button[type="submit"]')
+                self.assertIn('hidden', soup.select_one(f'#{panel_id}').attrs)
+            for title in ('基本情報', '主催と連絡先', '掲載内容', '発表の受付', '通知と連携', 'メンバー管理'):
+                headings = soup.select('.admin-card > .admin-section-heading > h2')
+                self.assertEqual(sum(h.get_text(strip=True) == title for h in headings), 1)
+            # タグはフォーム部品の div ではなく fieldset 自体を切り出す。
+            unique(soup, 'fieldset#id_tags', 'fieldset#id_weekdays > legend')
+
+        soup = page('/community/1/members/')
+        unique(soup, 'form[action$="/invite/create/"] button', '[data-reveal-invitation]')
+        reveal = soup.select_one('[data-reveal-invitation]')['href']
+        soup = page('/community/1/members/' + reveal)
+        unique(soup, 'input[id^="shared-link-"]', '[data-copy-invitation]', '[data-hide-invitation]')
+        for trigger in soup.select('[data-confirm-panel]'):
+            panel_id = trigger['data-confirm-panel']
+            unique(soup, f'#{panel_id} button[type="submit"]', f'#{panel_id} [data-cancel-panel]')
+            self.assertIn('hidden', soup.select_one('#' + panel_id).attrs)
+
+        invitation = CommunityInvitation.objects.get(token='guide-demo-ownership-transfer')
+        session = self.client.session
+        session['active_community_id'] = invitation.community_id
+        session.save()
+        soup = page('/community/settings/')
+        unique(soup, '#danger [data-reveal-invitation]')
+        reveal = soup.select_one('#danger [data-reveal-invitation]')['href']
+        soup = page('/community/settings/' + reveal)
+        unique(soup, '#danger [data-copy-invitation]', '#danger [data-hide-invitation]',
+               '[data-confirm-panel="revoke-transfer"]', '#revoke-transfer button[type="submit"]')
+
+        ended = Community.objects.get(name='ひだまり学習会')
+        soup = page(f'/community/reopen/{ended.pk}/')
+        unique(soup, '#id_name', '#id_duration', '#id_poster_image', '#id_tags',
+               '[data-admin-action-bar] button[form="community-form"]')
+        self.assertIsNone(soup.select_one('#id_weekdays'))
+        soup = page('/community/reopen/1/complete/')
+        unique(soup, '.admin-card form:has(input[value="/event/calendar/create/"]) button')
+
+        self.client.force_login(CustomUser.objects.get(email=DEMO_USERS['general'][1]))
+        soup = page('/community/create/')
+        unique(soup, '.admin-card:has(#id_guidelines_agreed)', 'label[for="id_guidelines_agreed"]',
+               '[data-admin-action-bar] button[form="community-form"]')
+        for authenticated in (True, False):
+            if not authenticated:
+                self.client.logout()
+            for route, token, panel in (
+                ('invite', 'guide-demo-staff-invitation', 'accept-invitation'),
+                ('transfer', 'guide-demo-ownership-transfer', 'accept-transfer'),
+            ):
+                soup = page(f'/community/{route}/{token}/')
+                if authenticated:
+                    unique(soup, f'.admin-card #{panel} button[type="submit"]')
+                    self.assertNotIn('hidden', soup.select_one('#' + panel).attrs)
+                else:
+                    unique(soup, '.admin-card a[href^="/account/login/"]')
+
     def test_command_rejects_normal_environment(self):
         with self.assertRaises(CommandError):
             call_command('seed_guide_demo', stdout=StringIO())
