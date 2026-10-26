@@ -7,6 +7,7 @@ from django.urls import reverse
 from event.models import _strip_markdown
 from website.constants import build_site_url
 
+from .application_link import inactive_detail
 from .models import VketPresentation
 
 SCHEDULE_PENDING = '日程の確定後に表示します'
@@ -33,6 +34,14 @@ def _plain_paragraphs(text: str) -> str:
     while '\n\n\n' in paragraphs:
         paragraphs = paragraphs.replace('\n\n\n', '\n\n')
     return paragraphs.strip()
+
+
+def _active_presentations(participation):
+    """確定済みのうち、公開した発表が削除・承認取消されていないものだけを順に返す。"""
+    presentations = participation.presentations.filter(
+        status=VketPresentation.Status.CONFIRMED,
+    ).select_related('published_event_detail').order_by('order', 'id')
+    return [p for p in presentations if not inactive_detail(p)]
 
 
 def stage_schedule(participation) -> tuple[datetime | None, datetime | None]:
@@ -63,9 +72,7 @@ def thumbnail_prompt(participation, *, for_edit=False) -> str:
         f'画像内の文字は「{participation.community.name}」と「{date_text}」だけにしてください。'
         '文字の誤字を確かめてください。'
     )
-    themes = list(participation.presentations.filter(
-        status=VketPresentation.Status.CONFIRMED,
-    ).exclude(theme='').order_by('order', 'id').values_list('theme', flat=True))
+    themes = [p.theme for p in _active_presentations(participation) if p.theme]
     if themes:
         prompt += '当日の発表テーマ（雰囲気づけだけに使い、画像内の文字にはしない）：' + '、'.join(themes)
     return prompt
@@ -93,9 +100,7 @@ def build_stage_copy(participation, guidance: dict) -> dict:
         end_text = f'{end:%H:%M}' if start.date() == end.date() else f'{end.month}月{end.day}日 {end:%H:%M}'
         date_text = f'{start.month}月{start.day}日（{WEEKDAYS[start.weekday()]}）{start:%H:%M}〜{end_text}'
 
-    presentations = participation.presentations.filter(
-        status=VketPresentation.Status.CONFIRMED,
-    ).exclude(speaker='', theme='').order_by('order', 'id')
+    presentations = [p for p in _active_presentations(participation) if p.speaker or p.theme]
     content = '\n'.join(
         f'{_strip_markdown(p.speaker)} - {_strip_markdown(p.theme)}' for p in presentations
     ) or '発表者とテーマは決まりしだいお知らせします。'

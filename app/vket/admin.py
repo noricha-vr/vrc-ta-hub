@@ -52,18 +52,21 @@ class VketParticipationAdmin(admin.ModelAdmin):
     inlines = [VketPresentationInline]
     readonly_fields = (
         "applied_at", "stage_registered_at", "schedule_confirmed_at", "last_acknowledged_at",
-        "stage_thumbnail", "stage_thumbnail_requested_at", "stage_thumbnail_generated_at",
+        "stage_thumbnail", "stage_thumbnail_requested_at", "stage_thumbnail_generated_at", "stage_thumbnail_attempts",
     )
     actions = ['reset_stage_thumbnail']
 
-    @admin.action(description='選択した参加のサムネイルをクリアし、再生成を許可する', permissions=['change'])
+    @admin.action(description='選択した参加のサムネイルと試行回数をクリアし、再生成を許可する', permissions=['change'])
     def reset_stage_thumbnail(self, request, queryset):
         # 処理中の予約は解除しない。応答が途絶えた予約は5分後から手動で解除できる。
         count = queryset.filter(
             Q(stage_thumbnail_generated_at__isnull=False)
             | Q(stage_thumbnail_requested_at__isnull=True)
             | Q(stage_thumbnail_requested_at__lt=timezone.now() - timedelta(minutes=5))
-        ).update(stage_thumbnail='', stage_thumbnail_requested_at=None, stage_thumbnail_generated_at=None)
+        ).update(
+            stage_thumbnail='', stage_thumbnail_requested_at=None, stage_thumbnail_generated_at=None,
+            stage_thumbnail_attempts=0,
+        )
         self.message_user(request, f'{count}件のサムネイルをクリアしました。直近5分以内の生成中の参加は変更しません。')
 
 

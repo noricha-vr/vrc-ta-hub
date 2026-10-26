@@ -12,6 +12,11 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='vketparticipation',
+            name='stage_thumbnail_attempts',
+            field=models.PositiveSmallIntegerField(default=0, verbose_name='サムネイル生成の試行回数'),
+        ),
+        migrations.AddField(
+            model_name='vketparticipation',
             name='stage_thumbnail',
             field=models.ImageField(blank=True, upload_to='vket/stage_thumbnails/', verbose_name='ステージサムネイル'),
         ),

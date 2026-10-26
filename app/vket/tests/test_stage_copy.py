@@ -16,7 +16,7 @@ from PIL import Image
 import requests
 
 from community.models import Community, CommunityMember
-from tests.factories import make_community, make_user
+from tests.factories import make_community, make_event, make_event_detail, make_user
 from vket.admin import VketParticipationAdmin
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
 from vket.stage_copy import build_stage_copy, thumbnail_prompt
@@ -406,3 +406,60 @@ class StageCopyTests(TestCase):
             model_admin.reset_stage_thumbnail(request, VketParticipation.objects.filter(pk=self.participation.pk))
         self.participation.refresh_from_db()
         self.assertIsNone(self.participation.stage_thumbnail_requested_at)
+        self.assertEqual(self.participation.stage_thumbnail_attempts, 0)
+
+    def test_attempts_are_capped_even_when_generation_fails(self):
+        self.api.side_effect = requests.Timeout('timeout')
+        for _ in range(3):
+            self.client.post(self.generate_url)
+        self.api.side_effect = None
+        with patch('vket.stage_thumbnail.logger') as logger:
+            response = self.client.post(self.generate_url, follow=True)
+        self.assertEqual(self.api.call_count, 3)
+        self.assertTrue(any(call.kwargs.get('result') == 'attempts_exhausted' for call in logger.info.call_args_list))
+        self.assertContains(response, '生成に3回失敗したため')
+        self.assertNotContains(response, 'id="stage-thumbnail-form"')
+
+    def test_stale_full_save_does_not_roll_back_reservation(self):
+        stale = VketParticipation.objects.get(pk=self.participation.pk)
+        response = self.api.return_value
+
+        def during_generation(*args, **kwargs):
+            # 申請画面と同じ全列保存を、予約前に読み込んだ行で行う
+            stale.organizer_note = '更新'
+            stale.save()
+            nested_client = Client()
+            nested_client.force_login(self.staff)
+            nested_client.post(self.generate_url)
+            return response
+
+        self.api.side_effect = during_generation
+        self.client.post(self.generate_url)
+        self.api.assert_called_once()
+        self.participation.refresh_from_db()
+        self.assertEqual(self.participation.organizer_note, '更新')
+        self.assertIsNotNone(self.participation.stage_thumbnail_generated_at)
+        self.assertEqual(self.participation.stage_thumbnail_attempts, 1)
+
+    def test_withdrawn_presentation_is_excluded_from_body_and_prompt(self):
+        event = make_event(self.community)
+        for speaker, theme, status, deleted in [
+            ('残る人', '残るテーマ', 'approved', False),
+            ('削除された人', '削除されたテーマ', 'approved', True),
+            ('取消された人', '取消されたテーマ', 'rejected', False),
+        ]:
+            detail = make_event_detail(event, speaker=speaker, theme=theme, status=status)
+            if deleted:
+                detail.deleted_at = timezone.now()
+                detail.save(update_fields=['deleted_at'])
+            VketPresentation.objects.create(
+                participation=self.participation, speaker=speaker, theme=theme,
+                status=VketPresentation.Status.CONFIRMED, published_event_detail=detail,
+            )
+        values = self.copy_values(self.client.get(self.url))
+        prompt = thumbnail_prompt(self.participation)
+        self.assertIn('残る人 - 残るテーマ', values['body'])
+        self.assertIn('残るテーマ', prompt)
+        for text in ('削除された', '取消された'):
+            self.assertNotIn(text, values['body'])
+            self.assertNotIn(text, prompt)

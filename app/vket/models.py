@@ -66,6 +66,11 @@ class VketCollaboration(models.Model):
             raise ValidationError(errors)
 
 
+STAGE_THUMBNAIL_FIELDS = frozenset({
+    "stage_thumbnail", "stage_thumbnail_requested_at", "stage_thumbnail_generated_at", "stage_thumbnail_attempts",
+})
+
+
 class VketParticipation(models.Model):
     class Lifecycle(models.TextChoices):
         ACTIVE = "active", "参加中"
@@ -146,6 +151,7 @@ class VketParticipation(models.Model):
     )
     stage_thumbnail_requested_at = models.DateTimeField("サムネイル生成予約日時", null=True, blank=True)
     stage_thumbnail_generated_at = models.DateTimeField("サムネイル生成日時", null=True, blank=True)
+    stage_thumbnail_attempts = models.PositiveSmallIntegerField("サムネイル生成の試行回数", default=0)
     lt_submitted_at = models.DateTimeField("発表提出日時", null=True, blank=True)
     last_acknowledged_at = models.DateTimeField("最終確認日時", null=True, blank=True)
     last_acknowledged_by = models.ForeignKey(
@@ -183,6 +189,15 @@ class VketParticipation(models.Model):
 
     def __str__(self) -> str:
         return f"{self.collaboration.name} - {self.community.name}"
+
+    def save(self, *args, **kwargs):
+        # サムネイル生成の列は条件付き UPDATE だけで書く。読み込み後の全列保存で予約や回数を巻き戻さない。
+        if not self._state.adding and kwargs.get("update_fields") is None and not kwargs.get("force_insert"):
+            kwargs["update_fields"] = [
+                field.name for field in self._meta.concrete_fields
+                if not field.primary_key and field.name not in STAGE_THUMBNAIL_FIELDS
+            ]
+        super().save(*args, **kwargs)
 
     @property
     def effective_date(self):

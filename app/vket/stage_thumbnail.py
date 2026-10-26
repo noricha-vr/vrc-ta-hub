@@ -7,6 +7,7 @@ from time import monotonic
 import uuid
 
 from django.core.files.base import ContentFile
+from django.db.models import F
 from django.utils import timezone
 from PIL import Image
 import requests
@@ -19,6 +20,8 @@ from .stage_copy import thumbnail_prompt
 
 logger = structlog.get_logger(__name__)
 THUMBNAIL_TIMEOUT = 110
+# 失敗でも課金され得るため、成功・失敗を問わず API を呼べる回数を絞る。
+MAX_THUMBNAIL_ATTEMPTS = 3
 
 
 def log_thumbnail(participation, result, elapsed=0):
@@ -74,8 +77,15 @@ def generate_stage_thumbnail(participation) -> str:
     rows = VketParticipation.objects.filter(
         pk=participation.pk, stage_thumbnail_requested_at__isnull=True,
         stage_thumbnail_generated_at__isnull=True, stage_thumbnail='',
-    ).update(stage_thumbnail_requested_at=requested_at)
+        stage_thumbnail_attempts__lt=MAX_THUMBNAIL_ATTEMPTS,
+    ).update(stage_thumbnail_requested_at=requested_at, stage_thumbnail_attempts=F('stage_thumbnail_attempts') + 1)
     if not rows:
+        if VketParticipation.objects.filter(
+            pk=participation.pk, stage_thumbnail_generated_at__isnull=True,
+            stage_thumbnail_requested_at__isnull=True, stage_thumbnail_attempts__gte=MAX_THUMBNAIL_ATTEMPTS,
+        ).exists():
+            log_thumbnail(participation, 'attempts_exhausted')
+            return 'attempts_exhausted'
         return 'already_requested'
 
     reservation = VketParticipation.objects.filter(

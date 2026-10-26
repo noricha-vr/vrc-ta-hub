@@ -43,6 +43,8 @@
             {% elif participation.stage_thumbnail_requested_at %}
                 <p role="status">サムネイルを生成中です。しばらくしてから再読み込みしてください。</p>
                 <a href="{% url 'vket:stage_copy' collaboration.pk participation.pk %}" class="btn btn-outline-secondary">再読み込み</a>
+            {% elif participation.stage_thumbnail_attempts >= max_thumbnail_attempts %}
+                <p>生成に3回失敗したため、これ以上は生成できません。運営にお問い合わせください。</p>
             {% elif stage_registration_enabled %}
                 <p>集会のポスターから16:9の画像を1参加につき1回だけ生成します。生成には1〜2分ほどかかります。</p>
                 <form id="stage-thumbnail-form" method="post" action="{% url 'vket:stage_thumbnail_generate' collaboration.pk participation.pk %}">
