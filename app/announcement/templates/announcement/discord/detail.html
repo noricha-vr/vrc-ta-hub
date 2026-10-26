@@ -1,76 +1,76 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 {% load tz discord_markdown %}
 
 {% block meta %}
     <title>予約 #{{ message.pk }} - Discord 告知の予約送信 - {% site_name_seo %}</title>
     <meta name="robots" content="noindex">
 {% endblock %}
-
-{% block main %}
+{% block extra_css %}
+    {{ block.super }}
 <style>
-    .discord-preview { overflow-wrap: anywhere; line-height: 1.5; }
-    .discord-preview .discord-line, .discord-preview li,
-    .discord-preview .discord-subtext, .discord-preview [class^="discord-heading-"] { white-space: pre-wrap; }
-    .discord-preview [class^="discord-heading-"] { margin: 0; font-weight: 700; line-height: 1.5; }
-    .discord-preview .discord-heading-1 { font-size: 1.5rem; }
-    .discord-preview .discord-heading-2 { font-size: 1.25rem; }
-    .discord-preview .discord-heading-3 { font-size: 1rem; }
-    .discord-preview .discord-subtext { color: #6c757d; font-size: .8em; }
-    .discord-preview blockquote { margin: 0; padding-left: .75rem; border-left: 4px solid #ced4da; }
-    .discord-preview ul, .discord-preview ol { margin: 0; padding-left: 1.5rem; }
-    .discord-preview code { color: #343a40; background: #f1f3f5; padding: .1em .25em; border-radius: .2rem; white-space: pre-wrap; }
-    .discord-preview pre { margin: 0; overflow-x: auto; padding: .6rem; background: #f1f3f5; border: 1px solid #dee2e6; border-radius: .3rem; }
-    .discord-preview pre code { padding: 0; white-space: pre; }
-    .discord-preview .discord-mention { color: #3954a5; background: #e8edff; border-radius: .2rem; padding: 0 .2em; }
-    .discord-preview .discord-spoiler { color: transparent; background: #6c757d; border-radius: .2rem; cursor: pointer; }
-    .discord-preview .discord-spoiler * { color: inherit; background: transparent; }
-    .discord-preview .discord-spoiler:hover, .discord-preview .discord-spoiler:focus { color: inherit; background: #e9ecef; }
+    .hub-admin .confirm-panel, .hub-admin .action-required, .hub-admin .announcement-record { overflow-wrap: anywhere; }
+    .hub-admin .discord-preview { overflow-wrap: anywhere; line-height: 1.5; }
+    .hub-admin .discord-preview .discord-line, .hub-admin .discord-preview li,
+    .hub-admin .discord-preview .discord-subtext, .hub-admin .discord-preview [class^="discord-heading-"] { white-space: pre-wrap; }
+    .hub-admin .discord-preview [class^="discord-heading-"] { margin: 0; font-weight: 700; line-height: 1.5; }
+    .hub-admin .discord-preview .discord-heading-1 { font-size: 1.5rem; }
+    .hub-admin .discord-preview .discord-heading-2 { font-size: 1.25rem; }
+    .hub-admin .discord-preview .discord-heading-3 { font-size: 1rem; }
+    .hub-admin .discord-preview .discord-subtext { color: #6c757d; font-size: .8em; }
+    .hub-admin .discord-preview blockquote { margin: 0; padding-left: .75rem; border-left: 4px solid #ced4da; }
+    .hub-admin .discord-preview ul, .hub-admin .discord-preview ol { margin: 0; padding-left: 1.5rem; }
+    .hub-admin .discord-preview code { color: #343a40; background: #f1f3f5; padding: .1em .25em; border-radius: .2rem; white-space: pre-wrap; }
+    .hub-admin .discord-preview pre { margin: 0; overflow-x: auto; padding: .6rem; background: #f1f3f5; border: 1px solid #dee2e6; border-radius: .3rem; }
+    .hub-admin .discord-preview pre code { padding: 0; white-space: pre; }
+    .hub-admin .discord-preview .discord-mention { color: #3954a5; background: #e8edff; border-radius: .2rem; padding: 0 .2em; }
+    .hub-admin .discord-preview .discord-spoiler { color: transparent; background: #6c757d; border-radius: .2rem; cursor: pointer; }
+    .hub-admin .discord-preview .discord-spoiler * { color: inherit; background: transparent; }
+    .hub-admin .discord-preview .discord-spoiler:hover, .hub-admin .discord-preview .discord-spoiler:focus { color: inherit; background: #e9ecef; }
 </style>
+{% endblock %}
+{% block admin_breadcrumbs %}{% include 'announcement/discord/_breadcrumbs.html' %}{% endblock %}
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with label='運営管理' links_template='announcement/discord/_admin_nav.html' admin_section='announcement' %}
+{% endblock %}
+{% block admin_header %}
 {% timezone "Asia/Tokyo" %}
-<div class="container my-4 my-md-5" style="max-width: 760px;">
-    <a href="{% url 'announcement:discord_list' %}" class="small text-decoration-none">
-        <i class="fas fa-arrow-left me-1"></i>予約の一覧
-    </a>
-    <div class="d-flex flex-wrap align-items-center gap-2 mt-2 {% if form %}mb-2{% else %}mb-3{% endif %}">
-        <h1 class="h3 fw-bold mb-0">{{ message.scheduled_at|date:"Y/m/d（D）H:i" }} の告知</h1>
-        <span class="badge {{ message.status_badge_class }}" data-testid="announce-status">{{ message.status_label }}</span>
-    </div>
-
-    {% include 'ta_hub/messages.html' %}
-
+    {% with target=message.scheduled_at|date:"Y/m/d（D）H:i" %}
+        {% include 'ta_hub/admin/includes/page_header.html' with title='Discord 告知の予約詳細' target=target subtitle='運営用・告知チャンネル' only %}
+    {% endwith %}
+    <div class="mb-3" data-testid="announce-status">{% include 'announcement/discord/_status.html' with message=message only %}</div>
+{% endtimezone %}
+{% endblock %}
+{% block admin_attention %}
+{% timezone "Asia/Tokyo" %}
     {% if message.can_resend %}
-        <div class="alert alert-danger" role="alert" data-testid="announce-failed">
-            <p class="fw-bold mb-1"><i class="fas fa-triangle-exclamation me-1"></i>送信に失敗しました</p>
-            <p class="small mb-3">{{ message.last_error|default:"エラーの内容は記録されていません。" }}</p>
-            <form method="post" action="{% url 'announcement:discord_resend' message.pk %}"
-                  onsubmit="return confirm('予約中に戻し、1 分ほどで告知チャンネルへ送ります。チャンネルに届いていないことを確かめましたか？');">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-danger btn-sm">
-                    <i class="fas fa-rotate-right me-1"></i>再送する
-                </button>
-            </form>
-        </div>
+        <section class="action-required" role="alert" data-testid="announce-failed" aria-labelledby="announce-failed-heading">
+            <h2 class="h6 fw-bold" id="announce-failed-heading">送信に失敗しました</h2>
+            <p class="small">{{ message.last_error|default:"エラーの内容は記録されていません。" }}</p>
+            <button type="button" class="btn btn-outline-danger btn-sm" data-confirm-panel="resend-announcement" aria-controls="resend-announcement" aria-expanded="false">再送する</button>
+            {% url 'announcement:discord_resend' message.pk as resend_url %}
+            {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='resend-announcement' label='告知の再送確認' message='次の告知がチャンネルに届いていないことを確かめてください。' action_url=resend_url submit_label='この告知を再送する' fields_template='announcement/discord/_resend_warning.html' reservation=message %}
+        </section>
     {% elif message.is_sending %}
-        <div class="alert alert-info" role="status">
-            <i class="fas fa-spinner me-1"></i>送信処理中です。終わるまで編集と取り消しはできません。
-        </div>
+        <div class="action-required" role="status">送信処理中です。終わるまで編集と取り消しはできません。</div>
     {% elif message.is_waiting_retry %}
-        <div class="alert alert-warning" role="status" data-testid="announce-retry">
-            <p class="fw-bold mb-1">
-                <i class="fas fa-rotate-right me-1"></i>前回の送信に失敗したため、{{ message.next_attempt_at|date:"H:i" }} ごろにもう一度送ります
-            </p>
+        <div class="action-required" role="status" data-testid="announce-retry">
+            <p class="fw-bold mb-1">前回の送信に失敗したため、{{ message.next_attempt_at|date:"H:i" }} ごろにもう一度送ります</p>
             <p class="small mb-0">{{ message.last_error }}</p>
         </div>
     {% endif %}
-
+{% endtimezone %}
+{% endblock %}
+{% block admin_content %}
+{% timezone "Asia/Tokyo" %}
     {# 予約中は「編集する」で、表示（案内・情報・本文・操作）と編集フォームを入れ替える（同じ本文や案内を 2 か所に出さない） #}
     <div id="announce-view" {% if form %}class="collapse announce-edit-toggle{% if not form.is_bound %} show{% endif %}"{% endif %}>
         {% if form %}
             <p class="text-muted small mb-3">日本時間で送ります。指定した時刻から最大 1 分ほど遅れて届くことがあります。</p>
         {% endif %}
         {% if message.sent_at or message.discord_message_id or message.attempt_count %}
-        <div class="card shadow-sm mb-3">
-            <div class="card-body">
+        <section class="admin-card announcement-record">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='送信の記録' only %}
+            <div>
                 <dl class="row mb-0 small">
                     {% if message.sent_at %}
                         <dt class="col-sm-4 col-md-3 text-muted fw-normal">送った日時</dt>
@@ -86,14 +86,12 @@
                     {% endif %}
                 </dl>
             </div>
-        </div>
+        </section>
         {% endif %}
 
-        <div class="card shadow-sm mb-3">
-            <div class="card-header bg-transparent d-flex justify-content-between small">
-                <span class="fw-bold">本文（Discord での表示）</span>
-                <span class="text-muted">{{ message.body|length }} 文字</span>
-            </div>
+        <section class="admin-card">
+            {% include 'ta_hub/admin/includes/section_heading.html' with title='本文（Discord での表示）' only %}
+            <p class="admin-muted small">{{ message.body|length }} 文字</p>
             {# 全員への通知は本文と別に持ち、送信時に先頭行へ付く。送られる順（先頭行→本文）に並べて見せる #}
             <div class="card-body border-bottom py-2 small d-flex flex-wrap align-items-center column-gap-2 row-gap-1" data-testid="announce-mention">
                 <span class="text-muted">メンション</span>
@@ -105,7 +103,7 @@
             <div class="card-body">
                 <div class="discord-preview" data-testid="announce-body">{{ message.body|discord_markdown }}</div>
             </div>
-        </div>
+        </section>
 
         {% if form %}
             <div class="d-flex flex-wrap gap-2 mb-3">
@@ -113,42 +111,28 @@
                         aria-controls="announce-view announce-edit" aria-expanded="false">
                     <i class="fas fa-pen me-1"></i>編集する
                 </button>
-                <form method="post" action="{% url 'announcement:discord_cancel' message.pk %}" class="ms-auto"
-                      onsubmit="return confirm('この予約を取り消します。取り消した予約は送られません。よろしいですか？');">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-outline-danger">
-                        <i class="fas fa-ban me-1"></i>予約を取り消す
-                    </button>
-                </form>
+                <button type="button" class="btn btn-outline-danger ms-auto" data-confirm-panel="cancel-announcement" aria-controls="cancel-announcement" aria-expanded="false">予約を取り消す</button>
             </div>
+            {% url 'announcement:discord_cancel' message.pk as cancel_url %}
+            {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='cancel-announcement' label='予約の取り消し確認' message='次の予約を取り消します。取り消した予約は送られません。' action_url=cancel_url submit_label='この予約を取り消す' fields_template='announcement/discord/_confirmation_target.html' reservation=message %}
         {% endif %}
     </div>
 
     {% if form %}
         <div class="collapse announce-edit-toggle{% if form.is_bound %} show{% endif %}" id="announce-edit">
-            <form method="post" class="card shadow-sm mt-2" data-testid="announce-edit-form">
+            <form id="announce-edit-form" method="post" data-admin-dirty data-testid="announce-edit-form">
                 {% csrf_token %}
-                <div class="card-body p-3 p-md-4">
-                    {% include 'announcement/discord/_form_fields.html' %}
-                </div>
-                <div class="card-footer bg-transparent d-flex flex-column-reverse flex-sm-row justify-content-sm-end gap-2 py-3">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target=".announce-edit-toggle"
-                            aria-controls="announce-view announce-edit">
-                        編集をやめる
-                    </button>
-                    <button type="submit" class="btn btn-primary px-4">
-                        <i class="fas fa-floppy-disk me-1"></i>変更を保存
-                    </button>
-                </div>
+                {% include 'announcement/discord/_form_fields.html' %}
             </form>
+            <div class="admin-card">
+                <button type="button" class="btn btn-outline-secondary mb-2" data-bs-toggle="collapse" data-bs-target=".announce-edit-toggle" aria-controls="announce-view announce-edit">編集をやめる</button>
+                {% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions inline=True only %}
+            </div>
         </div>
     {% endif %}
-</div>
 {% endtimezone %}
 {% endblock %}
-
 {% block extra_js %}
-    {% if form %}
-        {% include 'announcement/discord/_form_script.html' %}
-    {% endif %}
+    {{ block.super }}
+    {% if form %}{% include 'announcement/discord/_form_script.html' %}{% endif %}
 {% endblock %}

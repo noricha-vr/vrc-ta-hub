@@ -253,6 +253,17 @@ class PostCreateView(StaffRequiredMixin, CreateView):
     form_class = PostForm
     template_name = "news/post_form.html"
     
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['save_actions'] = [{
+            'form_id': 'news-form', 'scope': 'ニュース全体', 'label': 'ニュースを作成',
+        }]
+        context['cancel_url'] = (
+            reverse('news:detail', kwargs={'slug': self.object.slug})
+            if self.object else reverse('news:list')
+        )
+        return context
+
     def get_success_url(self):
         return reverse('news:detail', kwargs={'slug': self.object.slug})
     
@@ -271,6 +282,17 @@ class PostUpdateView(StaffRequiredMixin, UpdateView):
     slug_field = "slug"
     slug_url_kwarg = "slug"
     
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['save_actions'] = [{
+            'form_id': 'news-form', 'scope': 'ニュース全体', 'label': 'ニュースを更新',
+        }]
+        context['cancel_url'] = (
+            reverse('news:detail', kwargs={'slug': self.object.slug})
+            if self.object else reverse('news:list')
+        )
+        return context
+
     def get_success_url(self):
         return reverse('news:detail', kwargs={'slug': self.object.slug})
     

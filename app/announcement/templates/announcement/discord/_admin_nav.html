@@ -1,0 +1,7 @@
+<a href="{% url 'event:my_list' %}">イベント管理</a>
+{% if request.user.is_staff %}
+    <a href="{% url 'news:list' %}"{% if admin_section == 'news' %} aria-current="page"{% endif %}>ニュース <span class="badge bg-secondary">運営</span></a>
+{% endif %}
+{% if request.user.is_staff or request.user.is_superuser %}
+    <a href="{% url 'announcement:discord_list' %}"{% if admin_section == 'announcement' %} aria-current="page"{% endif %}>Discord 告知の予約 <span class="badge bg-secondary">運営</span></a>
+{% endif %}
