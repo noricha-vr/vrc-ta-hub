@@ -10,7 +10,7 @@ def apply(c):
     c.goto('/event/my_list/')
     shot(c, '.vket-banner', '.vket-banner-actions a')
     c.goto('/vket/1/')
-    shot(c, 'main .container > .d-flex', 'a[href="/vket/1/apply/"]')
+    shot(c, 'main .container > .d-flex:has(h1)', 'a[href="/vket/1/apply/"]')
     c.goto('/vket/1/apply/')
     shot(c, '#id_requested_date >> xpath=ancestor::div[contains(@class,"mb-3")][1]', '#id_requested_date')
     shot(c, '.row:has(#id_requested_start_time)', '#id_requested_start_time', '#id_requested_duration')
