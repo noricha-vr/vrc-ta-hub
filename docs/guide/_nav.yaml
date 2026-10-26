@@ -90,6 +90,29 @@
     - title: APIキーを作成・無効化する
       path: settings/api-key
 
+- title: アクセスを確認する
+  children:
+    - title: アクセス解析を見る
+      path: analytics/dashboard
+    - title: 配布用のリンクとQRコードを作る
+      path: analytics/distribution-link
+
+- title: Vketコラボに参加する
+  children:
+    - title: Vketコラボに参加登録する
+      path: vket/apply
+    - title: Vketステージへの登録を進める
+      path: vket/stage
+    - title: コラボのお知らせを確認する
+      path: vket/notices
+
+- title: サイトを使う
+  children:
+    - title: 集会と発表を探す
+      path: browse/find
+    - title: 予定を自分のカレンダーに追加する
+      path: browse/calendar
+
 - title: Hubを広める
   children:
     - title: ポスターを掲示する

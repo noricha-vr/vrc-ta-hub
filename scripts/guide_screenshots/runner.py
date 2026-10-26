@@ -19,11 +19,17 @@ from cryptography.fernet import Fernet
 ROOT = Path(__file__).resolve().parents[2]
 SETTINGS = '''from website.settings import *  # noqa: F401,F403
 from pathlib import Path
+from datetime import datetime, timezone
+from unittest.mock import patch
+# 集計期間・受付・自動更新日時も共通デモの基準日に固定する。一時設定内だけで有効。
+_guide_clock = patch('django.utils.timezone.now', return_value=datetime(2030, 4, 1, 3, tzinfo=timezone.utc))
+_guide_clock.start()
+GUIDE_CAPTURE_EXTENDED_DEMO = True
+ROOT_URLCONF = 'guide_demo_urls'
 GUIDE_DEMO_ROOT = Path(__file__).resolve().parent
 DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': str(GUIDE_DEMO_ROOT / 'demo.sqlite3')}}
 CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 MEDIA_ROOT = GUIDE_DEMO_ROOT / 'media'
-ROOT_URLCONF = 'guide_demo_urls'
 EMAIL_BACKEND = 'django.core.mail.backends.locmem.EmailBackend'
 ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'http'
 SESSION_COOKIE_SECURE = False
@@ -63,16 +69,18 @@ def main():
     if version('playwright') != locked:
         raise RuntimeError(f'Playwright は requirements-e2e.txt と同じ {locked} を使ってください')
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
-    port = free_port()
-    base_url = f'http://127.0.0.1:{port}'
     with tempfile.TemporaryDirectory(prefix='guide-demo-') as tmp:
         (Path(tmp) / 'guide_demo_settings.py').write_text(SETTINGS)
-        # 撮影専用のローカル画像を配信する。本体の URL 設定は変更しない。
         (Path(tmp) / 'guide_demo_urls.py').write_text(
+            'from website.urls import urlpatterns\n'
             'from django.conf import settings\n'
             'from django.conf.urls.static import static\n'
-            'from website.urls import urlpatterns as website_patterns\n'
-            'urlpatterns = [*website_patterns, *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)]\n'
+            'from django.http import HttpResponse\n'
+            'from django.urls import path\n'
+            'def ready(request):\n'
+            '    return HttpResponse(settings.GUIDE_DEMO_ROOT.name)\n'
+            'urlpatterns = [path("__guide_capture_ready__/", ready), *urlpatterns,\n'
+            '    *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)]\n'
         )
         # デモユーザーのパスワードは 1 回の撮影でだけ使う使い捨て（DB も撮影後に消える）。
         env = dict(os.environ, DJANGO_SETTINGS_MODULE='guide_demo_settings', FERNET_KEY=Fernet.generate_key().decode(),
@@ -81,6 +89,9 @@ def main():
         command = [sys.executable, '-m', 'tests.offline_manage']
         for args in (['migrate', '--noinput'], ['seed_guide_demo']):
             subprocess.run([*command, *args], cwd=ROOT / 'app', env=env, check=True, stdout=subprocess.DEVNULL)
+        # migration 中に別の撮影が起動することがあるため、待受ポートは起動直前に選ぶ。
+        port = free_port()
+        base_url = f'http://127.0.0.1:{port}'
         with (Path(tmp) / 'server.log').open('w+') as log:
             server = subprocess.Popen([*command, 'runserver', f'127.0.0.1:{port}', '--noreload'],
                                       cwd=ROOT / 'app', env=env, stdout=log, stderr=log)
@@ -89,8 +100,8 @@ def main():
                     if server.poll() is not None:
                         raise RuntimeError('撮影用サーバーが起動前に終了しました')
                     try:
-                        with urlopen(f'{base_url}/account/login/', timeout=1) as response:
-                            if response.status == 200:
+                        with urlopen(f'{base_url}/__guide_capture_ready__/', timeout=1) as response:
+                            if response.status == 200 and response.read().decode() == Path(tmp).name:
                                 break
                     except (URLError, TimeoutError):
                         time.sleep(0.25)
