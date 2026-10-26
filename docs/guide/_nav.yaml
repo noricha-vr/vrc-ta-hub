@@ -1,6 +1,9 @@
 - title: はじめに
   path: index
 
+- title: 用語集
+  path: glossary
+
 - title: Hubを広める
   children:
     - title: ポスターを掲示する
