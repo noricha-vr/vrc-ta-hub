@@ -179,7 +179,7 @@ class GuideDemoDataTest(TestCase):
         soup = BeautifulSoup(response.content, 'html.parser')
         self.assertIn('発表の削除: さくら技術交流会', soup.h1.get_text())
         for label in ('開催日:', 'テーマ: はじめてのワールド制作', '発表者: アオイ'):
-            self.assertIn(label, soup.select_one('main .card').get_text())
+            self.assertIn(label, soup.select_one('main .admin-card').get_text())
         self.assertEqual(soup.select_one('main button[type="submit"]').get_text(strip=True), 'この発表を削除する')
         self.assertIsNotNone(soup.select_one('main form a[href="/event/detail/1/"]'))
 
