@@ -1,0 +1,31 @@
+<script>
+document.querySelectorAll('[data-template-delete] .confirm-panel form').forEach(form => {
+    form.addEventListener('submit', event => {
+        event.preventDefault();
+        const button = event.submitter;
+        if (button) button.disabled = true;
+        fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const returnUrl = form.closest('[data-template-delete]').dataset.successUrl;
+                    if (returnUrl) location.href = returnUrl;
+                    else location.reload();
+                } else {
+                    alert('削除に失敗しました。');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('エラーが発生しました。');
+            })
+            .finally(() => { if (button) button.disabled = false; });
+    });
+});
+</script>

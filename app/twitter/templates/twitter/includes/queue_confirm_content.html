@@ -1,0 +1,3 @@
+<p class="small text-break">キュー #{{ queue.pk }} · {{ queue.community.name }} · {{ queue.get_tweet_type_display }} · 予約 {{ queue.scheduled_at|date:'Y/m/d H:i' }}</p>
+<p class="text-break" style="white-space: pre-wrap">{{ queue.generated_text|default:'（投稿文は空です）' }}</p>
+{% if queue.image_url %}<p class="admin-muted">添付画像: {{ queue.image_url }}</p>{% endif %}
