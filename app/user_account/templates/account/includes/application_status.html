@@ -1,0 +1,3 @@
+{% if app.status == 'pending' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='承認待ち' tone='warning' %}
+{% elif app.status == 'approved' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='承認済み' tone='success' %}
+{% elif app.status == 'rejected' %}{% include 'ta_hub/admin/includes/status_chip.html' with label='却下' tone='danger' %}{% endif %}

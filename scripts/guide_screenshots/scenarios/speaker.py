@@ -18,13 +18,17 @@ def region(capture, selectors, *, marks=None):
     capture.shot(clip={'x': left, 'y': top, 'width': right - left, 'height': bottom - top})
 
 
+APPLICATION_CARD = 'main article.admin-card'
+APPROVED_CARD = f'{APPLICATION_CARD}:has(.bg-success-subtle)'
+
+
 def field(name):
     return f'.field-wrapper[data-field="{name}"]'
 
 
 def edit_url(capture):
     capture.goto('/account/lt-applications/')
-    return capture.page.locator('tbody tr:has(.bg-success) a:has-text("編集")').first.get_attribute('href')
+    return capture.page.locator(f'{APPROVED_CARD} a:has-text("編集")').first.get_attribute('href')
 
 
 @scenario('speaker/apply', mobile=True)
@@ -59,11 +63,9 @@ def manage(capture):
     region(capture, ['a[href="/account/lt-applications/"]'],
            marks=['a[href="/account/lt-applications/"]'])
     capture.goto('/account/lt-applications/')
-    if capture.mobile:
-        # 折り返しで縦長になる表の、右端の操作列を最後まで見せる。
-        capture.page.locator('.table-responsive').evaluate('e => e.scrollLeft = e.scrollWidth')
-    region(capture, ['.table-responsive'],
-           marks=['tbody .bg-success >> nth=0', 'tbody .bg-warning >> nth=0', 'tbody tr:has(.bg-success) a:has-text("編集") >> nth=0'])
+    region(capture, [f'{APPLICATION_CARD} >> nth=0', f'{APPLICATION_CARD} >> nth=-1'],
+           marks=[f'{APPLICATION_CARD} .bg-success-subtle >> nth=0', f'{APPLICATION_CARD} .bg-warning-subtle >> nth=0',
+                  f'{APPROVED_CARD} a:has-text("編集") >> nth=0'])
     url = edit_url(capture)
     capture.goto(url)
     region(capture, [field('theme'), field('speaker')], marks=['#id_theme', '#id_speaker'])

@@ -1,59 +1,27 @@
-{% extends 'ta_hub/base.html' %}
-{% load i18n socialaccount %}
-
+{% extends 'ta_hub/admin_base.html' %}
+{% load socialaccount account_tags %}
 {% block meta %}
-    <title>アカウント連携 - {% site_name_seo %}</title>
-    <meta name="description" content="ソーシャルアカウントの連携状態を確認できます。">
+<title>{% block title %}アカウント連携 - {% site_name_seo %}{% endblock %}</title>
+<meta name="description" content="ソーシャルアカウントの連携状態を確認できます。">
+{% block og_image_meta %}{{ block.super }}{% endblock %}
 {% endblock %}
-
-{% block main %}
-    <div class="container my-4">
-        <div class="row">
-            <div class="col-md-6 offset-md-3">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0">アカウント連携</h4>
-                    </div>
-                    <div class="card-body">
-                        {% include 'ta_hub/messages.html' %}
-
-                        {% get_social_accounts user as accounts %}
-                        {% if accounts.discord %}
-                            <p class="mb-3">以下のソーシャルアカウントが連携されています:</p>
-                            <ul class="list-group mb-4">
-                                {% for account in accounts.discord %}
-                                    <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
-                                        <span>
-                                            <i class="fab fa-discord me-2" style="color: #5865F2;"></i>
-                                            Discord
-                                        </span>
-                                        <span class="d-flex align-items-center gap-2">
-                                            <span class="badge bg-success">
-                                                <i class="bi bi-check-circle me-1"></i>連携済み
-                                            </span>
-                                            <a href="{% url 'account:social_disconnect' account.id %}"
-                                               class="btn btn-outline-danger btn-sm">
-                                                <i class="bi bi-x-circle me-1"></i>解除
-                                            </a>
-                                        </span>
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        {% else %}
-                            <div class="alert alert-info mb-4">
-                                <i class="bi bi-info-circle me-2"></i>
-                                連携されているソーシャルアカウントはありません。
-                            </div>
-                        {% endif %}
-
-                        <div class="d-grid">
-                            <a href="{% url 'account:settings' %}" class="btn btn-secondary">
-                                <i class="bi bi-arrow-left me-2"></i>設定ページに戻る
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+{% block admin_breadcrumbs %}{% include 'account/includes/breadcrumbs.html' with current='アカウント連携' %}{% endblock %}
+{% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='アカウント連携' target=user.display_label %}{% endblock %}
+{% block extra_css %}{{ block.super }}<style>.hub-admin .admin-layout { max-width: 42rem; margin-inline: auto; }</style>{% endblock %}
+{% block admin_content %}
+<section class="admin-card" aria-labelledby="connections-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='連携しているアカウント' heading_id='connections-heading' %}
+{% get_social_accounts user as accounts %}
+{% if accounts.discord %}
+<ul class="list-group list-group-flush">
+{% for account in accounts.discord %}
+<li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+<span><i class="fab fa-discord me-2" aria-hidden="true"></i>Discord</span>
+<div class="d-flex align-items-center flex-wrap gap-2">
+{% include 'ta_hub/admin/includes/status_chip.html' with label='連携済み' tone='success' %}
+<a href="{% url 'account:social_disconnect' account.id %}" class="btn btn-outline-danger btn-sm">解除</a>
+</div></li>
+{% endfor %}</ul>
+{% else %}{% include 'ta_hub/admin/includes/empty_state.html' with title='連携されているソーシャルアカウントはありません。' %}{% endif %}
+</section>
 {% endblock %}
