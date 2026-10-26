@@ -255,27 +255,24 @@ class EventMyListDashboardTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # クイックアクションボタンのテキストが含まれる
         self.assertContains(response, 'イベント登録')
-        self.assertContains(response, '発表申請一覧')
+        self.assertContains(response, '自分の発表申請')
         self.assertContains(response, '発表履歴')
         self.assertContains(response, '集会設定')
         self.assertContains(response, '公開ページ')
 
-    def test_lt_application_link_is_next_to_calendar_create(self):
-        """LT申請一覧リンクがイベント登録ボタンの直後に表示される"""
+    def test_lt_application_link_is_separate_from_community_navigation(self):
+        """本人の申請一覧は集会管理のナビとは分けて表示する。"""
         self.client.force_login(self.user)
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
-        content = response.content.decode()
-
-        create_button_pos = content.find('イベント登録')
-        lt_application_pos = content.find('発表申請一覧')
-        lt_history_pos = content.find('fa-history')
-
-        self.assertGreater(create_button_pos, -1)
-        self.assertGreater(lt_application_pos, create_button_pos)
-        self.assertGreater(lt_history_pos, lt_application_pos)
-        self.assertContains(response, reverse('account:lt_application_list'))
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(response.content, 'html.parser')
+        href = reverse('account:lt_application_list')
+        self.assertIsNone(soup.select_one(f'.mylist-nav a[href="{href}"]'))
+        link = soup.select_one(f'nav[aria-label="個人用"] a[href="{href}"]')
+        self.assertIsNotNone(link)
+        self.assertEqual(link.get_text(strip=True), '自分の発表申請')
 
     def test_lt_application_link_displayed_without_community(self):
         """集会未所属ユーザーでもLT申請一覧リンクに到達できる"""
@@ -289,7 +286,7 @@ class EventMyListDashboardTest(TestCase):
         response = self.client.get(reverse('event:my_list'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '発表申請一覧')
+        self.assertContains(response, '自分の発表申請')
         self.assertContains(response, reverse('account:lt_application_list'))
         # イベント登録ボタン（calendar_createへのリンク）が表示されないこと
         self.assertNotContains(response, reverse('event:calendar_create'))
