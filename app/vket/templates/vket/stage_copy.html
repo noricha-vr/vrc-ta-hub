@@ -1,10 +1,17 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 {% load static %}
-{% block main %}
-<div class="container my-4" style="max-width: 860px;">
-    <a href="{% url 'vket:status' collaboration.pk %}" class="btn btn-outline-secondary btn-sm mb-3">参加状況に戻る</a>
-    <h1 class="h3 fw-bold">Vketステージ登録の入力値</h1>
-    <p class="text-muted">{{ community.name }} ｜ {{ collaboration.name }}</p>
+{% block title %}ステージ登録用コピー: {{ community.name }} - {% site_name_seo %}{% endblock %}
+{% block admin_classes %}vket-member{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
+    {% include 'vket/includes/member_styles.html' %}
+{% endblock %}
+{% block admin_breadcrumbs %}{% include 'vket/includes/member_breadcrumbs.html' with page_label='ステージ登録用コピー' %}{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='ステージ登録用コピー' target=community.name|default:collaboration.name subtitle=collaboration.name %}
+{% endblock %}
+{% block admin_subnav %}{% include 'ta_hub/admin/includes/subnav.html' with links_template='vket/includes/member_nav_links.html' member_page='stage' %}{% endblock %}
+{% block admin_content %}
     <p>各欄をコピーして、Vketの告知フォームに貼り付けてください。本文はこの画面で直せます（変更は保存されません）。</p>
     {% if stage_registration_enabled and stage_url %}
         <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary mb-3">Vketの登録フォームを開く</a>
@@ -13,59 +20,57 @@
     {% endif %}
     <div id="stage-copy-message" class="small mb-2" role="status" aria-live="polite"></div>
     {% for field in copy_fields %}
-    <div class="card shadow-sm mb-3">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
-                <label for="stage-{{ field.id }}" class="fw-bold">{{ field.label }}</label>
-                <button type="button" class="btn btn-outline-primary btn-sm flex-shrink-0" data-copy-target="stage-{{ field.id }}" aria-label="{{ field.label }}をコピー">コピー</button>
-            </div>
-            {% if field.editable %}
-                <textarea id="stage-{{ field.id }}" class="form-control" rows="18">{{ field.value }}</textarea>
-                <div id="stage-body-count" class="small mt-1" aria-live="polite"></div>
-            {% else %}
-                <input type="text" id="stage-{{ field.id }}" class="form-control" value="{{ field.value }}" readonly>
-            {% endif %}
+    <div class="admin-card">
+        <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+            <label for="stage-{{ field.id }}" class="fw-bold">{{ field.label }}</label>
+            <button type="button" class="btn btn-outline-primary btn-sm flex-shrink-0" data-copy-target="stage-{{ field.id }}" aria-label="{{ field.label }}をコピー">コピー</button>
         </div>
+        {% if field.editable %}
+            <p class="admin-muted">この欄の変更は保存されません。</p>
+            <textarea id="stage-{{ field.id }}" class="form-control" rows="18">{{ field.value }}</textarea>
+            <div id="stage-body-count" class="small mt-1" aria-live="polite"></div>
+        {% else %}
+            <input type="text" id="stage-{{ field.id }}" class="form-control" value="{{ field.value }}" readonly>
+        {% endif %}
     </div>
     {% endfor %}
-    <div id="stage-thumbnail" class="card shadow-sm mb-4">
-        {% include 'ta_hub/messages.html' %}
-        <div class="card-body">
-            <h2 class="h5 fw-bold">サムネイル</h2>
-            <p>VketのURL欄ではOGPの取得が動かないため、サムネイルはダウンロードして手でアップロードしてください。</p>
-            {% if participation.stage_thumbnail and participation.stage_thumbnail_generated_at %}
-                <img src="{{ participation.stage_thumbnail.url }}" class="img-fluid rounded mb-3" alt="{{ community.name }}のステージ告知サムネイル" width="1280" height="720">
-                <div><a href="{% url 'vket:stage_thumbnail_download' collaboration.pk participation.pk %}" class="btn btn-primary">JPEGをダウンロード</a></div>
-                <p class="small text-muted mt-2">生成済みです（{{ participation.stage_thumbnail_generated_at|date:"Y/m/d H:i" }}）。この参加の生成は1回までです。</p>
-            {% elif not community.poster_image %}
-                <p>先に集会のポスターを登録してください。</p>
-                <a href="{% url 'community:update' %}" class="btn btn-outline-primary">集会のポスターを登録する</a>
-            {% elif participation.stage_thumbnail_requested_at %}
-                <p role="status">サムネイルを生成中です。しばらくしてから再読み込みしてください。</p>
-                <a href="{% url 'vket:stage_copy' collaboration.pk participation.pk %}" class="btn btn-outline-secondary">再読み込み</a>
-            {% elif participation.stage_thumbnail_attempts >= max_thumbnail_attempts %}
-                <p>生成に3回失敗したため、これ以上は生成できません。運営にお問い合わせください。</p>
-            {% elif stage_registration_enabled %}
-                <p>集会のポスターから16:9の画像を1参加につき1回だけ生成します。生成には1〜2分ほどかかります。</p>
-                <form id="stage-thumbnail-form" method="post" action="{% url 'vket:stage_thumbnail_generate' collaboration.pk participation.pk %}">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-primary">サムネイルを1回生成する</button>
-                    <p id="stage-thumbnail-progress" class="small mt-2 mb-0" role="status" hidden>生成中です。画面が切れた場合も、再読み込みすると保存済みの画像を確認できます。</p>
-                </form>
-            {% else %}
-                <p class="text-muted">ステージ登録の受付開始後に生成できます。</p>
-            {% endif %}
-        </div>
+    <div id="stage-thumbnail" class="admin-card">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='サムネイル' only %}
+        <p>VketのURL欄ではOGPの取得が動かないため、サムネイルはダウンロードして手でアップロードしてください。</p>
+        {% if participation.stage_thumbnail and participation.stage_thumbnail_generated_at %}
+            <img src="{{ participation.stage_thumbnail.url }}" class="img-fluid rounded mb-3" alt="{{ community.name }}のステージ告知サムネイル" width="1280" height="720">
+            <div><a href="{% url 'vket:stage_thumbnail_download' collaboration.pk participation.pk %}" class="btn btn-primary">JPEGをダウンロード</a></div>
+            <p class="small text-muted mt-2">生成済みです（{{ participation.stage_thumbnail_generated_at|date:"Y/m/d H:i" }}）。この参加の生成は1回までです。</p>
+        {% elif not community.poster_image %}
+            <p>先に集会のポスターを登録してください。</p>
+            {% url 'community:update' as poster_url %}
+            {% include 'ta_hub/admin/includes/setup_link.html' with url=poster_url label='集会のポスターを登録する' only %}
+        {% elif participation.stage_thumbnail_requested_at %}
+            <p role="status">サムネイルを生成中です。しばらくしてから再読み込みしてください。</p>
+            <a href="{% url 'vket:stage_copy' collaboration.pk participation.pk %}" class="btn btn-outline-secondary">再読み込み</a>
+        {% elif participation.stage_thumbnail_attempts >= max_thumbnail_attempts %}
+            <p>生成に3回失敗したため、これ以上は生成できません。運営にお問い合わせください。</p>
+        {% elif stage_registration_enabled %}
+            <p>集会のポスターから16:9の画像を1参加につき1回だけ生成します。生成には1〜2分ほどかかります。</p>
+            <form id="stage-thumbnail-form" method="post" action="{% url 'vket:stage_thumbnail_generate' collaboration.pk participation.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-primary">サムネイルを1回生成する</button>
+                <p id="stage-thumbnail-progress" class="small mt-2 mb-0" role="status" hidden>生成中です。画面が切れた場合も、再読み込みすると保存済みの画像を確認できます。</p>
+            </form>
+        {% else %}
+            <p class="text-muted">ステージ登録の受付開始後に生成できます。</p>
+        {% endif %}
     </div>
-    <div class="card shadow-sm mb-4">
-        <div class="card-body">
-            <h2 class="h5 fw-bold">画像を調整したいとき</h2>
-            <p>ChatGPT / Gemini に、生成した画像とポスターを添付して投げるときの雛形です。16:9（1536×864 など）で、キャラクターのデザインは変えないように依頼してください。完成後は文字の誤字を確かめてください。</p>
-            <label for="stage-edit-prompt" class="form-label">プロンプトの雛形</label>
-            <textarea id="stage-edit-prompt" class="form-control mb-2" rows="8">{{ edit_prompt }}</textarea>
-            <button type="button" class="btn btn-outline-primary" data-copy-target="stage-edit-prompt">プロンプトをコピー</button>
-        </div>
+    <div class="admin-card">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='画像を調整したいとき' only %}
+        <p>ChatGPT / Gemini に、生成した画像とポスターを添付して投げるときの雛形です。16:9（1536×864 など）で、キャラクターのデザインは変えないように依頼してください。完成後は文字の誤字を確かめてください。</p>
+        <label for="stage-edit-prompt" class="form-label">プロンプトの雛形</label>
+        <p class="admin-muted">この欄の変更は保存されません。</p>
+        <textarea id="stage-edit-prompt" class="form-control mb-2" rows="8">{{ edit_prompt }}</textarea>
+        <button type="button" class="btn btn-outline-primary" data-copy-target="stage-edit-prompt">プロンプトをコピー</button>
     </div>
-</div>
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
 <script src="{% static 'vket/js/stage_copy.js' %}" defer></script>
 {% endblock %}

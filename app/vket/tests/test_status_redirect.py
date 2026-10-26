@@ -140,7 +140,7 @@ class VketStatusRedirectViewTests(TestCase):
         session['active_community_id'] = self.community.id
         session.save()
 
-        # participationを作成（管理者リンクはアクションボタンエリアに表示）
+        # participationを作成（管理者リンクは運営バッジ付きのサブナビに表示）
         VketParticipation.objects.create(
             collaboration=self.collaboration,
             community=self.community,
@@ -151,7 +151,7 @@ class VketStatusRedirectViewTests(TestCase):
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'fa-gear')
+        self.assertContains(response, '<span class="badge bg-secondary">運営</span>', html=True)
 
     def test_status_page_hides_admin_link_for_normal_user(self):
         """一般ユーザーには管理者リンクが表示されない"""
@@ -170,4 +170,4 @@ class VketStatusRedirectViewTests(TestCase):
             reverse('vket:status', kwargs={'pk': self.collaboration.pk})
         )
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, 'fa-gear')
+        self.assertNotContains(response, reverse('vket:manage', kwargs={'pk': self.collaboration.pk}))

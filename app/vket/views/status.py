@@ -246,6 +246,8 @@ class ParticipationStatusView(PublicParticipationShellMixin, LoginRequiredMixin,
                 'progress_steps': progress_steps,
                 'latest_notices': latest_notices,
                 'unacked_count': unacked_count,
+                'attention_count': unacked_count + int(participation is None)
+                + int(_is_stage_register_open(participation, collaboration)),
                 'first_unacked_notice_id': first_unacked_notice_id,
                 'collaborations': collaborations,
                 'is_admin': _is_vket_admin(request.user),
