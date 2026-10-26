@@ -126,6 +126,12 @@ class CollaborationTimetableTests(TestCase):
         self.add_slot(day=self.collaboration.period_end + timedelta(days=1))
         self.assertEqual(self.build()['scheduled_count'], 0)
 
+    def test_unapproved_community_is_excluded(self):
+        participation, _ = self.add_slot()
+        participation.community.status = 'pending'
+        participation.community.save(update_fields=['status'])
+        self.assertEqual(self.build()['scheduled_count'], 0)
+
     def test_query_count_is_constant_for_many_published_participations(self):
         self.add_slot(theme='発表', detail_type='LT', status='approved')
         with self.assertNumQueries(2):

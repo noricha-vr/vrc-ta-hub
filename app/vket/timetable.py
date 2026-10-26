@@ -39,7 +39,8 @@ def build_collaboration_timetable(collaboration, today=None):
     """公開枠を月曜始まりの週と時間グリッドにする（参加件数によらず2クエリ）。"""
     today = today if today is not None else get_vrchat_today()
     participations = (
-        collaboration.participations.filter(published_event__isnull=False)
+        # トップの他の一覧と同じく、承認済みの集会だけを出す
+        collaboration.participations.filter(published_event__isnull=False, community__status='approved')
         .select_related('community', 'published_event')
         .prefetch_related(Prefetch(
             'published_event__details',
