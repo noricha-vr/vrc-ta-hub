@@ -353,7 +353,7 @@ class SearchQueriesDisplayTests(TestCase):
         self.assertContains(response, '表示 30・クリック 8')
         soup = BeautifulSoup(response.content, 'html.parser')
         self.assertEqual(len(soup.select('.analytics-search-queries > li')), 10)
-        html = response.content.decode()
+        html = str(soup.select_one('.admin-content'))
         self.assertLess(html.index('analytics-source-legend'), html.index('検索キーワード'))
         self.assertLess(html.index('検索キーワード'), html.index('参照元 / メディアの詳細'))
         self.assertLess(html.index('</ul>', html.index('analytics-search-queries')), html.index('クリック順。'))
