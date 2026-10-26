@@ -39,6 +39,9 @@ class SiteNameConsistencyTests(SimpleTestCase):
                 self.assertIn(SITE_NAME, rendered)
                 self.assertNotIn('{% site_name', rendered)
                 self.assertNotIn(SITE_NAME_SEO, rendered)
+                # タグの前に文字を直書きすると描画後に旧名が復活するので、描画結果でも確かめる
+                self.assertNotIn(f'VRC{SITE_NAME}', rendered)
+                self.assertNotIn(f'VRChat{SITE_NAME}', rendered)
 
     def test_manifest_uses_formal_name(self):
         app_root = Path(__file__).resolve().parents[2]
@@ -57,6 +60,9 @@ class SiteNameConsistencyTests(SimpleTestCase):
             'VRChat技術学術系イベントHub',
             '技術学術系Hub',
             'VRC技術学術集会',
+            # タグの前に接頭辞を直書きすると描画後に旧名になる
+            'VRC{% site_name',
+            'VRChat{% site_name',
         )
         violations = []
         for path in sorted(app_root.rglob('*')):

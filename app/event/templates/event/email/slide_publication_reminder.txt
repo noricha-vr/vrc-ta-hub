@@ -1,6 +1,6 @@
 {{ applicant.display_label }} 様
 
-VRC{% site_name %}です。
+{% site_name %}です。
 先日は「{{ event_detail.theme }}」でご発表いただきありがとうございました。
 
 発表資料がまだ公開されていないようでしたので、確認のご連絡です。
@@ -13,4 +13,4 @@ VRC{% site_name %}です。
 
 今後ともよろしくお願いいたします。
 
-VRC{% site_name %}運営
+{% site_name %}運営
