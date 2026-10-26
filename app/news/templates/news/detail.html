@@ -2,9 +2,9 @@
 {% load markdown_extras %}
 
 {% block meta %}
-    <title>{{ object.title|escape }} - VRChat技術・学術系イベントHub</title>
-    <meta name="twitter:title" content="{{ object.title|escape }} - VRChat技術・学術系イベントHub">
-    <meta property="og:title" content="{{ object.title|escape }} - VRChat技術・学術系イベントHub">
+    <title>{{ object.title|escape }} - {% site_name_seo %}</title>
+    <meta name="twitter:title" content="{{ object.title|escape }} - {% site_name_seo %}">
+    <meta property="og:title" content="{{ object.title|escape }} - {% site_name_seo %}">
 
     <meta name="description" content="{{ object.get_meta_description|escape }}">
     <meta name="twitter:description" content="{{ object.get_meta_description|escape }}">

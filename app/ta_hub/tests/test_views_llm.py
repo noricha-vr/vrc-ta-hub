@@ -88,7 +88,7 @@ class LlmMarkdownViewTest(TestCase):
     def test_llms_txt_body_contains_landmark_sections(self):
         response = self.client.get(reverse('ta_hub:llms_txt'))
 
-        self.assertContains(response, '# VRC技術学術ハブ')
+        self.assertContains(response, '# VRChat 技術・学術系イベントHub')
         self.assertContains(response, '## 主要ページ')
         self.assertContains(response, '## 構造化データAPI')
         self.assertContains(response, '## Optional')

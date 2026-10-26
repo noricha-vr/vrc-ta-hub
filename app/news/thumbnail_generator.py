@@ -13,6 +13,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from website.constants import SITE_NAME_SEO
+
 from .thumbnail_specs import (
     CATEGORY_THUMBNAIL_SPECS,
     POST_THUMBNAIL_SPECS,
@@ -67,7 +69,6 @@ DIVIDER_Y = 500
 DIVIDER_WIDTH = 2
 FOOTER_TOP = 516
 LOGO_SIZE = 64
-SITE_NAME = "VRChat技術・学術系イベントHub"
 SITE_NAME_FONT_SIZE = 34
 SITE_NAME_GAP = 24
 
@@ -295,7 +296,7 @@ def _draw_footer(image: Image.Image, draw: ImageDraw.ImageDraw) -> None:
     image.paste(logo, (MARGIN_X, FOOTER_TOP), logo)
     draw.text(
         (MARGIN_X + LOGO_SIZE + SITE_NAME_GAP, FOOTER_TOP + LOGO_SIZE // 2),
-        SITE_NAME,
+        SITE_NAME_SEO,
         font=load_font(SITE_NAME_FONT_SIZE),
         fill=SITE_NAME_COLOR,
         anchor="lm",

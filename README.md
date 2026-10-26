@@ -1,10 +1,10 @@
-# VRC 技術学術ハブ（VRChat Technology and Academic Hub）
+# 技術・学術系イベントHub（VRChat Technology and Academic Hub）
 
 [![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/noricha-vr/vrc-ta-hub)
 
 このプロジェクトはVRChatで開催されている技術学術系イベントを知って、参加してもらい、盛り上げていくためのWeb制作プロジェクトです。
 
-![VRC 技術学術ハブ 概要](app/ta_hub/static/ta_hub/image/readme-overview.png)
+![技術・学術系イベントHub 概要](app/ta_hub/static/ta_hub/image/readme-overview.png)
 
 https://vrc-ta-hub.com
 
@@ -12,7 +12,7 @@ https://vrc-ta-hub.com
 
 このプロジェクトのドキュメントは **DeepWiki** で閲覧できます。
 
-**[DeepWiki - VRC技術学術ハブ](https://deepwiki.com/noricha-vr/vrc-ta-hub)**
+**[DeepWiki - 技術・学術系イベントHub](https://deepwiki.com/noricha-vr/vrc-ta-hub)**
 
 ### DeepWikiとは
 
@@ -32,7 +32,7 @@ DeepWikiは、GitHubリポジトリのコードを自動解析し、AIが生成�
 
 ## 概要
 
-VRChat技術学術ハブは、VRChat内で開催される技術・学術系イベントの情報を集約し、利用者が簡単にイベントの情報にアクセスできるようにするためのWebサイトです。
+技術・学術系イベントHubは、VRChat内で開催される技術・学術系イベントの情報を集約し、利用者が簡単にイベントの情報にアクセスできるようにするためのWebサイトです。
 
 ## 主な機能
 

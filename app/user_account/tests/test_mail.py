@@ -67,7 +67,7 @@ class EmailTest(SimpleTestCase):
         print("\nStarting welcome email test")
         logger.debug('Starting welcome email test')
 
-        subject = 'VRC技術学術系Hub へようこそ！'
+        subject = '技術・学術系イベントHub へようこそ！'
         message = 'これはプレーンテキストバージョンです。'
         from_email = settings.DEFAULT_FROM_EMAIL
         recipient_list = ['test@example.com']

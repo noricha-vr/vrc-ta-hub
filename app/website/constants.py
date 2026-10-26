@@ -1,8 +1,11 @@
-"""アプリ全体で共有する公開URL・サイズ・TTL設定."""
+"""アプリ全体で共有するサイト名・公開URL・サイズ・TTL設定."""
 
 import os
 
 from website.hosts import normalize_host
+
+SITE_NAME = "技術・学術系イベントHub"
+SITE_NAME_SEO = f"VRChat {SITE_NAME}"
 
 DEFAULT_SITE_DOMAIN = "vrc-ta-hub.com"
 DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"

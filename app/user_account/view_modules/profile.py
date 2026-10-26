@@ -17,6 +17,7 @@ from user_account.forms import (
     UserNameChangeForm,
     consume_email_change_rate_limit,
 )
+from website.constants import SITE_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,7 @@ class SettingsView(LoginRequiredMixin, TemplateView):
         if context['community'] and not context['community'].is_accepted:
             message = mark_safe(
                 'この集会は現在承認待ちです。Hub運営スタッフに承認されると公開されるようになります。'
-                'Discord <a href="https://discord.gg/6jCkUUb9VN" target="_blank" rel="noopener noreferrer" class="alert-link">技術・学術系Hub</a>にご参加ください。'
+                f'Discord <a href="https://discord.gg/6jCkUUb9VN" target="_blank" rel="noopener noreferrer" class="alert-link">{SITE_NAME}</a>にご参加ください。'
             )
             messages.warning(self.request, message)
         return context

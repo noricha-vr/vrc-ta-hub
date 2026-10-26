@@ -2,9 +2,9 @@
 {% load image_tags %}
 {% block meta %}
     {# 記事化 NG の発表は、タイトルがテーマになり（EventDetail.title）、記事の要約（meta_description）も出さない #}
-    <title>{{ event_detail.title }} - VRChat 技術・学術系イベントHub</title>
-    <meta name="twitter:title" content="{{ event_detail.title }} - VRChat 技術・学術系イベントHub">
-    <meta property="og:title" content="{{ event_detail.title }} - VRChat 技術・学術系イベントHub">
+    <title>{{ event_detail.title }} - {% site_name_seo %}</title>
+    <meta name="twitter:title" content="{{ event_detail.title }} - {% site_name_seo %}">
+    <meta property="og:title" content="{{ event_detail.title }} - {% site_name_seo %}">
     <meta name="description"
           content="{{ event_detail }}{% if article_visible %} {{ event_detail.meta_description }}{% endif %}">
     <meta name="twitter:description"

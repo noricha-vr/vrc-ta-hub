@@ -10,6 +10,8 @@ import os
 import sys
 from pathlib import Path
 
+from website.constants import SITE_NAME
+
 _settings_logger = logging.getLogger('django.settings')
 
 
@@ -103,7 +105,7 @@ REST_FRAMEWORK = {
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'VRC技術学術系Hub API',
+    'TITLE': f'{SITE_NAME} API',
     'DESCRIPTION': 'VRChat内で開催される技術・学術系イベントの情報を管理するAPI',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
@@ -143,6 +145,7 @@ TEMPLATES = [
         'DIRS': [BASE_DIR / 'ta_hub' / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
+            'builtins': ['website.templatetags.site_name'],
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',

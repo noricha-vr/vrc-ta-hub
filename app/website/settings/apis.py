@@ -5,6 +5,8 @@ Google Calendar / YouTube / Gemini / GA4 / OpenRouter / Amazon SES / Discord Web
 """
 import os
 
+from website.constants import SITE_NAME
+
 from .base import DEBUG, _mask, _settings_logger
 
 # Google Calendar APIの設定
@@ -53,7 +55,7 @@ AWS_SES_REGION_NAME = os.environ.get('AWS_SES_REGION_NAME', 'ap-northeast-1')
 AWS_SES_REGION_ENDPOINT = os.environ.get('AWS_SES_REGION_ENDPOINT', 'email.ap-northeast-1.amazonaws.com')
 AWS_SES_ACCESS_KEY_ID = os.environ.get('AWS_SES_ACCESS_KEY_ID')  # SES専用のアクセスキー
 AWS_SES_SECRET_ACCESS_KEY = os.environ.get('AWS_SES_SECRET_ACCESS_KEY')  # SES専用のシークレットキー
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'VRC技術学術系Hub <info@vrc-ta-hub.com>')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', f'{SITE_NAME} <info@vrc-ta-hub.com>')
 
 # Admin email for notifications
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', DEFAULT_FROM_EMAIL)

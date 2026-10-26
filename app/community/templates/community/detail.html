@@ -2,9 +2,9 @@
 {% load custom_filters image_tags %}
 
 {% block meta %}
-    <title>{{ community.name }} - VRChat 技術・学術系イベントHub</title>
-    <meta name="twitter:title" content="{{ community.name }} - VRChat 技術・学術系イベントHub">
-    <meta property="og:title" content="{{ community.name }} - VRChat 技術・学術系イベントHub">
+    <title>{{ community.name }} - {% site_name_seo %}</title>
+    <meta name="twitter:title" content="{{ community.name }} - {% site_name_seo %}">
+    <meta property="og:title" content="{{ community.name }} - {% site_name_seo %}">
     <meta name="description" content="{{ community.description|truncatechars:170 }}">
     <meta name="twitter:description" content="{{ community.description|truncatechars:170 }}">
     <meta property="og:description" content="{{ community.description|truncatechars:170 }}">

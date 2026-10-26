@@ -9,7 +9,7 @@ from ta_hub.access_mixins import AuthenticatedForbiddenMixin
 
 from .models import Post, Category
 from .forms import PostForm
-from website.constants import CACHE_TTL_HOUR, DEFAULT_NEWS_IMAGE_URL
+from website.constants import CACHE_TTL_HOUR, DEFAULT_NEWS_IMAGE_URL, SITE_NAME_SEO
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class PostDetailView(DetailView):
 
             publisher_obj = {
                 "@type": "Organization",
-                "name": "VRChat 技術・学術系イベントHub",
+                "name": SITE_NAME_SEO,
                 "logo": {
                     "@type": "ImageObject",
                     "url": DEFAULT_NEWS_IMAGE_URL,

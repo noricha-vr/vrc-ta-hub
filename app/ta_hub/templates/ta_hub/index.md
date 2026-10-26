@@ -1,4 +1,4 @@
-# VRC技術学術ハブ - {{ current_date|date:"Y年n月j日" }}
+# {% site_name_seo %} - {{ current_date|date:"Y年n月j日" }}
 {% if database_degraded %}
 > データベース障害のため一時的に一覧を表示できません。{{ site_base }}api/v1/ を参照してください。
 {% endif %}
