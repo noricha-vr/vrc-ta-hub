@@ -182,6 +182,13 @@ class CustomPasswordChangeView(LoginRequiredMixin, PasswordChangeView):
     template_name = 'account/password_change.html'
     form_class = BootstrapPasswordChangeForm
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['save_actions'] = [
+            {'form_id': 'account-edit-form', 'scope': 'パスワード', 'label': 'パスワードを変更'},
+        ]
+        return context
+
     def form_valid(self, form):
         messages.success(self.request, 'パスワードが変更されました。')
         return super().form_valid(form)

@@ -1,31 +1,58 @@
-{% extends 'ta_hub/base.html' %}
-
-{% block main %}
-    <div class="container my-4">
-        <div class="row">
-            <div class="col-md-10 offset-md-1">
-                <div class="card">
-                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0"><i class="bi bi-code-square me-2"></i>API管理</h4>
-                        <a href="{% url 'account:settings' %}" class="btn btn-sm btn-light">
-                            <i class="bi bi-arrow-left"></i> 設定に戻る
-                        </a>
-                    </div>
-                    <div class="card-body">
-                        {% include 'ta_hub/messages.html' %}
-
-                        {% if new_api_key %}
-                            <div class="alert alert-warning">
-                                <i class="bi bi-exclamation-triangle"></i>
-                                <strong>重要：</strong>{{ new_api_key_name|default:"APIキー" }}はこの画面で一度だけ表示されます。必ず安全な場所に保管してください。
-                                <div class="mt-2">
-                                    <code style="word-break: break-all;">{{ new_api_key }}</code>
-                                </div>
-                            </div>
-                        {% endif %}
-                        
-                        <!-- API使用方法 -->
-                        <div class="accordion mb-4" id="apiDocAccordion">
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}API管理 - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}{% include 'account/includes/breadcrumbs.html' with current='API管理' %}{% endblock %}
+{% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='API管理' target=user.display_label %}{% endblock %}
+{% block extra_css %}{{ block.super }}
+<style>.hub-admin .api-key-value { overflow-wrap: anywhere; } .hub-admin pre { white-space: pre-wrap; overflow-wrap: anywhere; } .hub-admin .accordion-body { overflow-wrap: anywhere; } .hub-admin .api-key-summary > div { min-width: 0; overflow-wrap: anywhere; }</style>
+{% endblock %}
+{% block admin_attention %}
+{% if new_api_key %}
+<section class="action-required" aria-labelledby="new-key-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='新しい API キーを保管してください' heading_id='new-key-heading' %}
+<p>{{ new_api_key_name|default:"APIキー" }}はこの画面で一度だけ受け取れます。再読み込みすると受け取れません。必ず安全な場所に保管してください。</p>
+<div class="admin-secret-field">
+<p id="new-key-value" class="admin-secret-status api-key-value" aria-label="新しい API キー">••••••••</p>
+<div class="d-flex gap-2 flex-wrap">
+<button type="button" id="reveal-new-key" class="btn btn-sm btn-outline-secondary" aria-controls="new-key-value" aria-expanded="false">表示</button>
+<button type="button" id="copy-new-key" class="btn btn-sm btn-outline-secondary">コピー</button>
+</div>
+<p id="key-copy-status" class="admin-muted mt-2 mb-0" role="status"></p>
+</div>
+{{ new_api_key|json_script:'new-api-key-data' }}
+</section>
+{% endif %}
+{% endblock %}
+{% block admin_content %}
+<section class="admin-card" aria-labelledby="keys-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='APIキー一覧' heading_id='keys-heading' %}
+<p><a href="/api/docs/" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary">API仕様書（Swagger）</a></p>
+{% for key in api_keys %}
+<article class="presentation-row" aria-labelledby="key-heading-{{ key.pk }}">
+<div class="presentation-heading api-key-summary">
+<div><h3 class="presentation-theme" id="key-heading-{{ key.pk }}">{{ key.name|default:"名前なし" }}</h3>
+<p class="admin-secret-status mb-1">キーID（ハッシュ）: <code>••••{{ key.key|slice:"-4:" }}</code></p>
+<p class="admin-muted mb-0">作成日時: {{ key.created_at|date:"Y/m/d H:i" }} / 最終使用: {{ key.last_used|date:"Y/m/d H:i"|default:"未使用" }}</p></div>
+<button type="button" class="btn btn-sm btn-outline-danger" data-confirm-panel="revoke-key-{{ key.pk }}" aria-controls="revoke-key-{{ key.pk }}" aria-expanded="false">無効化…</button>
+</div>
+{% url 'account:api_key_delete' key.pk as delete_url %}
+{% with panel_id=key.pk|stringformat:'s' %}
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='revoke-key-'|add:panel_id label='API キーの無効化確認' message='この API キーを無効化しますか？この操作は取り消せません。' action_url=delete_url submit_label='このAPIキーを無効化する' %}
+{% endwith %}
+</article>
+{% empty %}{% include 'ta_hub/admin/includes/empty_state.html' with title='APIキーはまだ作成されていません。' description='下のフォームから API キーを作成できます。' %}{% endfor %}
+</section>
+<section class="admin-card" aria-labelledby="create-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='新規APIキー作成' heading_id='create-heading' %}
+<form method="post" action="{% url 'account:api_key_create' %}">
+{% csrf_token %}
+<div class="mb-3"><label for="keyName" class="form-label">キー名（オプション）</label>
+<input type="text" class="form-control" id="keyName" name="name" placeholder="例: ブログ自動投稿用" maxlength="100">
+<div class="form-text">わかりやすい名前を付けておくと管理しやすくなります</div></div>
+<button type="submit" class="btn btn-primary">APIキーを作成</button>
+</form>
+<p class="admin-muted mt-3 mb-0">APIキーは作成時に一度だけ受け取れます。必ず安全な場所に保管してください。</p>
+</section>
+<div class="accordion mb-4" id="apiDocAccordion">
                             <div class="accordion-item">
                                 <h2 class="accordion-header" id="headingApiDoc">
                                     <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
@@ -77,79 +104,30 @@ curl -H "X-API-Key: YOUR_API_KEY" https://vrc-ta-hub.com/api/v1/event-details/</
                             </div>
                         </div>
                         
-                        <!-- APIキー一覧 -->
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="mb-0">APIキー一覧</h5>
-                            <a href="/api/docs/" target="_blank" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-book"></i> API仕様書（Swagger）
-                            </a>
-                        </div>
-                        {% if api_keys %}
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>名前</th>
-                                            <th>キーID（ハッシュ）</th>
-                                            <th>作成日時</th>
-                                            <th>最終使用</th>
-                                            <th>操作</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for key in api_keys %}
-                                            <tr>
-                                                <td>{{ key.name|default:"名前なし" }}</td>
-                                                <td>
-                                                    <code>{{ key.key|slice:":8" }}...{{ key.key|slice:"-4:" }}</code>
-                                                </td>
-                                                <td>{{ key.created_at|date:"Y/m/d H:i" }}</td>
-                                                <td>{{ key.last_used|date:"Y/m/d H:i"|default:"未使用" }}</td>
-                                                <td>
-                                                    <form method="post" action="{% url 'account:api_key_delete' key.pk %}" style="display: inline;">
-                                                        {% csrf_token %}
-                                                        <button type="submit" class="btn btn-sm btn-danger" 
-                                                                onclick="return confirm('このAPIキーを無効化しますか？この操作は取り消せません。');">
-                                                            <i class="bi bi-trash"></i> 無効化
-                                                        </button>
-                                                    </form>
-                                                </td>
-                                            </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        {% else %}
-                            <div class="alert alert-info">
-                                <i class="bi bi-info-circle"></i> APIキーはまだ作成されていません。
-                            </div>
-                        {% endif %}
-                        
-                        <hr>
-                        
-                        <!-- 新規APIキー作成 -->
-                        <h5 class="mb-3">新規APIキー作成</h5>
-                        <form method="post" action="{% url 'account:api_key_create' %}" class="mb-3">
-                            {% csrf_token %}
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="keyName" class="form-label">キー名（オプション）</label>
-                                    <input type="text" class="form-control" id="keyName" name="name" 
-                                           placeholder="例: ブログ自動投稿用" maxlength="100">
-                                    <div class="form-text">わかりやすい名前を付けておくと管理しやすくなります</div>
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="bi bi-plus-circle"></i> APIキーを作成
-                            </button>
-                        </form>
-                        
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> <strong>重要：</strong>APIキーは作成時に一度だけ表示されます。必ず安全な場所に保管してください。
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+                        {% endblock %}
+{% block extra_js %}{{ block.super }}
+{% if new_api_key %}<script>
+(function () {
+    const data = document.getElementById('new-api-key-data');
+    const value = document.getElementById('new-key-value');
+    const reveal = document.getElementById('reveal-new-key');
+    const status = document.getElementById('key-copy-status');
+    const rawKey = JSON.parse(data.textContent);
+    data.remove();
+    reveal.addEventListener('click', function () {
+        const visible = reveal.getAttribute('aria-expanded') !== 'true';
+        value.textContent = visible ? rawKey : '••••••••';
+        reveal.textContent = visible ? '隠す' : '表示';
+        reveal.setAttribute('aria-expanded', String(visible));
+    });
+    document.getElementById('copy-new-key').addEventListener('click', async function () {
+        try {
+            await navigator.clipboard.writeText(rawKey);
+            status.textContent = 'コピーしました。安全な場所に保管してください。';
+        } catch (_) {
+            status.textContent = 'コピーできませんでした。「表示」を押して手動でコピーしてください。';
+        }
+    });
+})();
+</script>{% endif %}
 {% endblock %}

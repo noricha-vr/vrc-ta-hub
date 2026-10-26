@@ -27,6 +27,13 @@ class UserNameChangeView(LoginRequiredMixin, UpdateView):
     success_url = reverse_lazy('account:settings')
     template_name = 'account/user_name_change.html'
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['save_actions'] = [
+            {'form_id': 'account-edit-form', 'scope': 'ユーザー名', 'label': 'ユーザー名を変更'},
+        ]
+        return context
+
     def get_object(self, queryset=None):
         return self.request.user
 
@@ -45,6 +52,13 @@ class UserUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_object(self, queryset=None):
         return self.request.user
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['save_actions'] = [
+            {'form_id': 'profile-form', 'scope': 'ユーザー情報', 'label': 'ユーザー情報を保存'},
+        ]
+        return context
 
     def form_valid(self, form):
         new_email = form.cleaned_data['email']

@@ -329,7 +329,7 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
         """ログイン状態が設定画面へ反映され、ログアウト後は保護される."""
         self.login(self.applicant.email, self.password)
         self.page.goto(f'{self.live_server_url}{reverse("account:settings")}')
-        expect(self.page.get_by_role('heading', name='アカウント設定', exact=True)).to_be_visible()
+        expect(self.page.get_by_role('heading', name=re.compile(r'^アカウント設定'))).to_be_visible()
 
         self.logout()
         expect(self.page.get_by_role('heading', name='ログイン', exact=True)).to_be_visible()
