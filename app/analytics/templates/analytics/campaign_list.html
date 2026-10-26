@@ -1,110 +1,83 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 
 {% block title %}配布リンクの管理 - {% site_name_seo %}{% endblock %}
-
-{% block main %}
-    <div class="container my-4">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-            <h1 class="h3 mb-0">
-                <i class="fa-solid fa-bullhorn me-2"></i>配布リンクの管理
-            </h1>
-            <div class="ms-auto d-flex gap-2">
-                <a href="{% url 'analytics:dashboard' %}" class="btn btn-sm btn-outline-secondary">
-                    <i class="fa-solid fa-chart-line me-1"></i>ダッシュボードへ
-                </a>
-                <a href="{% url 'analytics:campaign_create' %}" class="btn btn-sm btn-primary">
-                    <i class="fa-solid fa-plus me-1"></i>新規作成
-                </a>
-            </div>
-        </div>
-
-        <p class="text-muted small">
-            チラシや SNS に載せる、アクセスを数えるためのリンクと QR コードを発行します。
-            配布した翌日から、アクセス解析のダッシュボードでリンクごとのアクセス数が見られます。
-        </p>
-
-        {% if campaigns %}
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>QR</th>
-                            <th>名称</th>
-                            <th>集会</th>
-                            <th>UTM</th>
-                            <th>配布予定日</th>
-                            <th>URL</th>
-                            <th class="text-end">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for c in campaigns %}
-                            <tr>
-                                <td>
-                                    {% if c.qr_image %}
-                                        <a href="{{ c.qr_image.url }}" target="_blank" rel="noopener">
-                                            <img src="{{ c.qr_image.url }}" alt="QR for {{ c.name }}" width="64" height="64" loading="lazy">
-                                        </a>
-                                    {% else %}
-                                        <span class="text-muted small">未生成</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <div class="fw-bold">{{ c.name }}</div>
-                                    <div class="text-muted small">{{ c.utm_campaign }}</div>
-                                </td>
-                                <td class="text-muted small">{{ c.community.name }}</td>
-                                <td>
-                                    <div>source: <code>{{ c.utm_source }}</code></div>
-                                    <div>medium: <code>{{ c.utm_medium }}</code></div>
-                                </td>
-                                <td class="text-muted">
-                                    {% if c.distributed_at %}{{ c.distributed_at|date:"Y-m-d" }}{% else %}-{% endif %}
-                                </td>
-                                <td>
-                                    <div class="d-flex align-items-center gap-1">
-                                        <input type="text" class="form-control form-control-sm campaign-url-input"
-                                               value="{{ c.url }}" readonly
-                                               style="min-width: 240px;">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary copy-url-btn"
-                                                data-url="{{ c.url }}" title="URL をコピー">
-                                            <i class="fa-regular fa-copy"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                                <td class="text-end">
-                                    <a href="{% url 'analytics:campaign_update' c.pk %}" class="btn btn-sm btn-outline-primary">編集</a>
-                                    <a href="{% url 'analytics:campaign_delete' c.pk %}" class="btn btn-sm btn-outline-danger">削除</a>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            {% if is_paginated %}
-                {% include 'ta_hub/pagination.html' %}
-            {% endif %}
-        {% else %}
-            <div class="alert alert-info">
-                まだ配布リンクがありません。<a href="{% url 'analytics:campaign_create' %}">新規作成</a> から QR 用 URL を発行してください。
-            </div>
-        {% endif %}
-    </div>
+{% block admin_breadcrumbs %}
+    {% include 'analytics/includes/breadcrumbs.html' with current='配布リンクの管理' %}
 {% endblock %}
-
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='配布リンクの管理' target='すべての所属集会' actions_template='analytics/includes/campaign_header_actions.html' %}
+{% endblock %}
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with links_template='analytics/includes/nav_links.html' active='campaigns' %}
+{% endblock %}
+{% block admin_content %}
+    <p class="admin-muted">チラシや SNS に載せる、アクセスを数えるためのリンクと QR コードを発行します。配布した翌日から、アクセス解析でリンクごとのアクセス数が見られます。</p>
+    {% if campaigns %}
+        <p class="admin-muted">{{ page_obj.start_index }}〜{{ page_obj.end_index }} / {{ page_obj.paginator.count }} 件</p>
+        {% for c in campaigns %}
+            <article class="admin-card analytics-campaign" aria-labelledby="campaign-{{ c.pk }}-heading">
+                <div class="event-summary">
+                    <div class="d-flex align-items-center gap-3 analytics-campaign-heading">
+                        {% if c.qr_image %}
+                            <a href="{{ c.qr_image.url }}" target="_blank" rel="noopener">
+                                <img src="{{ c.qr_image.url }}" alt="{{ c.name }}の QR コード" width="48" height="48" loading="lazy">
+                            </a>
+                        {% else %}
+                            {% include 'ta_hub/admin/includes/status_chip.html' with label='QR 未生成' only %}
+                        {% endif %}
+                        <div>
+                            <h2 id="campaign-{{ c.pk }}-heading" class="h6 fw-bold mb-1">{{ c.name }}</h2>
+                            <p class="admin-muted mb-0">
+                                {{ c.community.name }} · <code>{{ c.utm_campaign }}</code> · {{ c.utm_source }} / {{ c.utm_medium }} · {% if c.distributed_at %}{{ c.distributed_at|date:'Y-m-d' }} 配布{% else %}配布日未設定{% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="event-actions">
+                        <button type="button" class="btn btn-sm btn-outline-secondary copy-url-btn" data-url="{{ c.url }}" aria-label="{{ c.name }}の URL をコピー" title="{{ c.url }}">URL をコピー</button>
+                        <a href="{% url 'analytics:campaign_update' c.pk %}" class="btn btn-sm btn-outline-secondary">編集</a>
+                        <div class="dropdown">
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{{ c.name }}のその他の操作">…</button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><button type="button" class="dropdown-item text-danger" data-confirm-panel="campaign-delete-{{ c.pk }}" aria-controls="campaign-delete-{{ c.pk }}" aria-expanded="false">削除…</button></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                {% url 'analytics:campaign_delete' c.pk as delete_url %}
+                {% with campaign_id=c.pk|stringformat:'s' %}
+                    {% with panel_id='campaign-delete-'|add:campaign_id %}
+                        {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label='配布リンクの削除確認' message='着地先が集会や発表のページなら、削除後もそのページの閲覧として数えられます（名前の代わりに識別子で表示）。トップページなどに着地させたリンクは、削除するとこの集会の解析に出なくなります。' action_url=delete_url submit_label='配布リンクを削除する' fields_template='analytics/includes/campaign_delete_fields.html' campaign=c csrf_token=csrf_token only %}
+                    {% endwith %}
+                {% endwith %}
+            </article>
+        {% endfor %}
+        {% if is_paginated %}{% include 'ta_hub/pagination.html' %}{% endif %}
+    {% else %}
+        {% url 'analytics:campaign_create' as create_url %}
+        {% include 'ta_hub/admin/includes/empty_state.html' with title='まだ配布リンクがありません' description='配布リンクを作成して、QR コードや配布用 URL を発行できます。' action_url=create_url action_label='配布リンクを作成' only %}
+    {% endif %}
+{% endblock %}
+{% block extra_css %}
+    {{ block.super }}
+    <style>
+        .hub-admin .analytics-campaign { overflow-wrap: anywhere; }
+        .hub-admin .analytics-campaign-heading, .hub-admin .analytics-campaign-heading > div { min-width: 0; }
+        .hub-admin .analytics-campaign-heading > a { flex-shrink: 0; }
+        .hub-admin .analytics-campaign .event-actions .btn { white-space: nowrap; }
+        .hub-admin .analytics-campaign .dropdown-menu { min-width: 12rem; }
+        .hub-admin .analytics-campaign.admin-card { padding: .75rem 1rem; margin-bottom: .5rem; }
+        .hub-admin .pagination { flex-wrap: wrap; gap: .25rem; }
+    </style>
+{% endblock %}
 {% block extra_js %}
     {{ block.super }}
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            document.querySelectorAll('.copy-url-btn').forEach(function (btn) {
+            document.querySelectorAll('.hub-admin .copy-url-btn').forEach(function (btn) {
                 btn.addEventListener('click', function () {
-                    const url = this.dataset.url;
-                    navigator.clipboard.writeText(url).then(function () {
-                        btn.innerHTML = '<i class="fa-solid fa-check"></i>';
-                        setTimeout(function () {
-                            btn.innerHTML = '<i class="fa-regular fa-copy"></i>';
-                        }, 1500);
+                    navigator.clipboard.writeText(this.dataset.url).then(function () {
+                        btn.textContent = 'コピーしました';
+                        setTimeout(function () { btn.textContent = 'URL をコピー'; }, 1500);
                     });
                 });
             });
