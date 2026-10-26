@@ -1,6 +1,6 @@
 ---
 title: ポスターを掲示する
-description: VRChat技術・学術系イベントHubの紹介ポスターをワールドやDiscordでご紹介ください。
+description: VRChat 技術・学術系イベントHubの紹介ポスターをワールドやDiscordでご紹介ください。
 ---
 
 # ワールドにポスターを掲示する

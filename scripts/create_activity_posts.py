@@ -32,7 +32,7 @@ def create_activity_posts() -> int:
             'slug': 'website-management',
             'body_markdown': '''# Webサイトの制作・運営
 
-[VRChat技術学術系イベントHub](https://vrc-ta-hub.com/)の制作や運営をしています。
+[VRChat 技術・学術系イベントHub](https://vrc-ta-hub.com/)の制作や運営をしています。
 
 ## 主な機能
 
@@ -54,7 +54,7 @@ Google Calendarと連携し、最新のイベント情報を自動的に取得�
 Webサイトは[オープンソース](https://github.com/noricha-vr/vrc-ta-hub)として公開しており、コミュニティメンバーからの貢献も受け付けています。''',
             # thumbnailはImageFieldなので、URLではなくNoneまたは画像ファイルを設定
             # 'thumbnail': None,  # 今回はサムネイルは設定しない
-            'meta_description': 'VRChat技術学術系イベントHubのWebサイト制作・運営について。イベントカレンダー機能や自動更新システムなどを提供しています。',
+            'meta_description': 'VRChat 技術・学術系イベントHubのWebサイト制作・運営について。イベントカレンダー機能や自動更新システムなどを提供しています。',
             'is_published': True,
             'published_at': datetime.now(timezone.utc),
         },

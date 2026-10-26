@@ -42,7 +42,7 @@ name = "トップページ"
 url = "https://vrc-ta-hub.com/"
 method = "GET"
 expect_status = 200
-expect_body = "VRChat技術・学術系イベントHub"
+expect_body = "VRChat 技術・学術系イベントHub"
 
 # /health は cache 失敗でも status=ok を返す設計（app/ta_hub/health.py）。
 [[checks.critical]]

@@ -8,6 +8,7 @@ from django.template import Context, Template
 from django.template.loader import render_to_string
 from django.test import SimpleTestCase, TestCase
 
+from guide.views import GUIDE_ROOT
 from website.constants import SITE_NAME, SITE_NAME_SEO
 
 
@@ -65,19 +66,24 @@ class SiteNameConsistencyTests(SimpleTestCase):
             'VRChat{% site_name',
         )
         violations = []
-        for path in sorted(app_root.rglob('*')):
-            relative = path.relative_to(app_root)
+        # 使い方ガイドは docs/guide/ の Markdown をそのまま画面に出すので、app/ と同じく検査する
+        self.assertTrue(GUIDE_ROOT.is_dir(), f'ガイドのディレクトリが見つからない: {GUIDE_ROOT}')
+        paths = [(app_root, path) for path in sorted(app_root.rglob('*'))]
+        paths += [(GUIDE_ROOT, path) for path in sorted(GUIDE_ROOT.rglob('*.md'))]
+        for root, path in paths:
+            relative = path.relative_to(root)
             if (
                 not path.is_file()
                 or path.suffix not in {'.html', '.txt', '.md', '.py', '.webmanifest'}
-                or {'fixtures', 'migrations', 'tests'} & set(relative.parts[:-1])
+                # test-emails はローカルのメール出力先（git 管理外）
+                or {'fixtures', 'migrations', 'tests', 'test-emails'} & set(relative.parts[:-1])
                 or path.match('test_*.py')
             ):
                 continue
             for line_number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
                 for name in old_names:
                     if name in line:
-                        violations.append(f'{relative}:{line_number}: {name}')
+                        violations.append(f'{root.name}/{relative}:{line_number}: {name}')
         self.assertEqual(violations, [], '\n'.join(violations))
 
 

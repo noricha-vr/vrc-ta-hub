@@ -1,6 +1,6 @@
 # デプロイ
 
-VRC技術学術ハブのデプロイ運用メモ。Cloud Run / Cloud Build を前提とする。
+技術・学術系イベントHubのデプロイ運用メモ。Cloud Run / Cloud Build を前提とする。
 
 ## Cloud Build Trigger のbranch filter
 
