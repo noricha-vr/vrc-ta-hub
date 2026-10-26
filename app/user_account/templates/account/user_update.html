@@ -1,82 +1,32 @@
-{% extends 'ta_hub/base.html' %}
-
-{% block main %}
-    <div class="container my-4">
-        <div class="row">
-            <div class="col-md-6 offset-md-3">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h4 class="mb-0">ユーザー情報の更新</h4>
-                    </div>
-                    <div class="card-body">
-                        <div class="alert alert-info small" role="alert">
-                            <div><strong>表示名:</strong> VRChat内の名前や発表者名として表示されます。同じ名前を複数ユーザーが使えます。</div>
-                            <div><strong>表示用ユーザー名:</strong> 表示用と内部識別に使用します。一意のため、通常は変更不要です。</div>
-                        </div>
-                        <form method="post" enctype="multipart/form-data">
-                            {% csrf_token %}
-                            <div class="mb-3">
-                                <label for="{{ form.display_name.id_for_label }}" class="form-label">{{ form.display_name.label }}:</label>
-                                {{ form.display_name }}
-                                {% if form.display_name.help_text %}
-                                    <div class="form-text">{{ form.display_name.help_text }}</div>
-                                {% endif %}
-                                {% if form.display_name.errors %}
-                                    <div class="text-danger small">{{ form.display_name.errors }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="mb-3">
-                                <label for="{{ form.user_name.id_for_label }}" class="form-label">{{ form.user_name.label }}:</label>
-                                {{ form.user_name }}
-                                {% if form.user_name.help_text %}
-                                    <div class="form-text">{{ form.user_name.help_text }}</div>
-                                {% endif %}
-                                {% if form.user_name.errors %}
-                                    <div class="text-danger small">{{ form.user_name.errors }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="mb-3">
-                                <label for="{{ form.email.id_for_label }}" class="form-label">{{ form.email.label }}:</label>
-                                {{ form.email }}
-                                <div class="form-text">
-                                    <i class="fas fa-lock me-1"></i>メールアドレスは公開されません。変更時は新しいアドレスの確認が完了するまで現在のアドレスを使用します。
-                                </div>
-                                {% if form.email.errors %}
-                                    <div class="text-danger small">{{ form.email.errors }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="mb-3">
-                                <label for="{{ form.x_account.id_for_label }}" class="form-label">
-                                    <i class="bi bi-twitter-x me-1"></i>{{ form.x_account.label }}:
-                                </label>
-                                <div class="input-group">
-                                    <span class="input-group-text">@</span>
-                                    {{ form.x_account }}
-                                </div>
-                                {% if form.x_account.help_text %}
-                                    <div class="form-text">{{ form.x_account.help_text }}</div>
-                                {% endif %}
-                                {% if form.x_account.errors %}
-                                    <div class="text-danger small">{{ form.x_account.errors }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="mb-3">
-                                <label for="{{ form.vrchat_user_id.id_for_label }}" class="form-label">
-                                    <i class="bi bi-person-vcard me-1"></i>{{ form.vrchat_user_id.label }}:
-                                </label>
-                                {{ form.vrchat_user_id }}
-                                {% if form.vrchat_user_id.help_text %}
-                                    <div class="form-text">{{ form.vrchat_user_id.help_text }}</div>
-                                {% endif %}
-                                {% if form.vrchat_user_id.errors %}
-                                    <div class="text-danger small">{{ form.vrchat_user_id.errors }}</div>
-                                {% endif %}
-                            </div>
-                            <button type="submit" class="btn btn-primary">更新</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+{% extends 'ta_hub/admin_base.html' %}
+{% load socialaccount account_tags %}
+{% block title %}ユーザー情報の編集 - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}{% include 'account/includes/breadcrumbs.html' with current='ユーザー情報の編集' %}{% endblock %}
+{% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='ユーザー情報の編集' target=user.display_label %}{% endblock %}
+{% block admin_content %}
+<form id="profile-form" method="post" enctype="multipart/form-data" data-admin-dirty>
+{% csrf_token %}
+{% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+{% include 'ta_hub/admin/includes/form_errors.html' with form=form %}
+<section class="admin-card" aria-labelledby="display-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='表示情報' heading_id='display-heading' %}
+<p class="admin-muted">表示名は発表者名として表示されます。表示用ユーザー名は一意の内部識別にも使用します。</p>
+{% include 'ta_hub/admin/includes/form_field.html' with field=form.display_name %}
+{% include 'ta_hub/admin/includes/form_field.html' with field=form.user_name %}
+</section>
+<section class="admin-card" aria-labelledby="contact-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='連絡先' heading_id='contact-heading' %}
+{% include 'ta_hub/admin/includes/form_field.html' with field=form.email %}
+<p class="admin-muted">メールアドレスは公開されません。変更時は新しいアドレスの確認が完了するまで現在のアドレスを使用します。</p>
+{% include 'ta_hub/admin/includes/form_field.html' with field=form.x_account %}
+</section>
+<section class="admin-card" aria-labelledby="vrchat-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='VRChat 情報' heading_id='vrchat-heading' %}
+{% include 'ta_hub/admin/includes/form_field.html' with field=form.vrchat_user_id %}
+</section>
+</form>
+{% endblock %}
+{% block admin_action_bar %}
+{% url 'account:settings' as cancel_url %}
+{% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions cancel_url=cancel_url %}
 {% endblock %}

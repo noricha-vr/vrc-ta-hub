@@ -1,45 +1,21 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 {% load socialaccount account_tags %}
 {% block meta %}
-    <title>Discord連携が必要です - {% site_name_seo %}</title>
-    <meta name="description" content="このサービスを利用するにはDiscordアカウントとの連携が必要です。">
+<title>{% block title %}Discord 連携の案内 - {% site_name_seo %}{% endblock %}</title>
+<meta name="description" content="このサービスを利用するにはDiscordアカウントとの連携が必要です。">
+{% block og_image_meta %}{{ block.super }}{% endblock %}
 {% endblock %}
-
-{% block main %}
-    <div class="container my-4">
-        <div class="row">
-            <div class="col-md-6 offset-md-3">
-                <div class="card">
-                    <div class="card-header bg-warning text-dark">
-                        <h4 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Discord連携が必要です</h4>
-                    </div>
-                    <div class="card-body">
-                        {% include 'ta_hub/messages.html' %}
-                        <p class="text-center my-4">
-                            このサービスを利用するにはDiscordアカウントとの連携が必要です。
-                        </p>
-                        <div class="text-center my-4">
-                            {% discord_oauth_available as discord_oauth_enabled %}
-                            {% if discord_oauth_enabled %}
-                            <a href="{% provider_login_url 'discord' process='connect' %}" class="btn btn-lg" style="background-color: #5865F2; color: white;">
-                                <i class="fab fa-discord me-2"></i>Discordで連携する
-                            </a>
-                            {% else %}
-                            <p class="text-muted">Discord連携が設定されていません。</p>
-                            {% endif %}
-                        </div>
-                        <hr>
-                        <div class="text-center mt-4">
-                            <form method="post" action="{% url 'account:logout' %}" class="d-inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-link text-muted p-0 border-0 align-baseline">
-                                    <i class="fas fa-sign-out-alt me-1"></i>ログアウト
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+{% block admin_breadcrumbs %}{% include 'account/includes/breadcrumbs.html' with current='Discord 連携の案内' %}{% endblock %}
+{% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='Discord 連携の案内' target=user.display_label %}{% endblock %}
+{% block extra_css %}{{ block.super }}<style>.hub-admin .admin-layout { max-width: 42rem; margin-inline: auto; }</style>{% endblock %}
+{% block admin_content %}
+<section class="admin-card" aria-labelledby="discord-heading">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='Discord連携が必要です' heading_id='discord-heading' %}
+<p>このサービスを利用するにはDiscordアカウントとの連携が必要です。</p>
+{% discord_oauth_available as discord_oauth_enabled %}
+{% if discord_oauth_enabled %}
+<a href="{% provider_login_url 'discord' process='connect' %}" class="btn btn-primary"><i class="fab fa-discord me-2" aria-hidden="true"></i>Discordで連携する</a>
+{% else %}<p class="admin-muted">Discord連携が設定されていません。</p>{% endif %}
+</section>
+<form method="post" action="{% url 'account:logout' %}">{% csrf_token %}<button type="submit" class="btn btn-outline-secondary">ログアウト</button></form>
 {% endblock %}

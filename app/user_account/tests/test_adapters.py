@@ -529,7 +529,7 @@ class DiscordLoginIntegrationTests(TestCase):
         # 解除ボタンのラベルが表示されること
         self.assertContains(response, '解除')
         # 設定ページへのリンクがあること
-        self.assertContains(response, '設定ページに戻る')
+        self.assertContains(response, 'アカウント設定')
         self.assertContains(response, '/account/settings/')
 
     def test_disconnect_get_renders_password_form(self):
