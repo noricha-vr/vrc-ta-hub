@@ -56,6 +56,10 @@
 
 - title: 発表する（発表者向け）
   children:
+    - title: 発表を申し込む
+      path: speaker/apply
+    - title: 申し込んだ発表を確認・更新する
+      path: speaker/manage
     - title: スライドをVRChatで映す
       path: speaker/slide-video
 
