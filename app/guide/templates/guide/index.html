@@ -37,18 +37,33 @@
 </section>
 
 <h2 class="h4 fw-bold mt-5">すべてのページ</h2>
+{# 子ページの無い項目（はじめに・用語集など）は、見出しだけの大きなカードにせず 1 行のリンクにまとめる #}
+<ul class="guide-single-pages list-inline ps-0 mt-3 mb-0">
+    {% for item in nav_items %}
+        {% if not item.has_children %}
+            <li class="list-inline-item mb-2">
+                <a href="{{ item.url }}" class="btn btn-outline-primary btn-sm">
+                    {{ item.title }}
+                    {% if item.owner_only %}
+                        <span class="badge bg-warning text-dark badge-owner-only">主催者のみ</span>
+                    {% endif %}
+                </a>
+            </li>
+        {% endif %}
+    {% endfor %}
+</ul>
 <div class="row mt-3">
     {% for item in nav_items %}
         {% if item.has_children %}
             <div class="col-md-6 mb-4">
                 <div class="card h-100 shadow-hover">
                     <div class="card-body">
-                        <h2 class="h5 card-title fw-bold">
+                        <h3 class="h5 card-title fw-bold">
                             {{ item.title }}
                             {% if item.owner_only %}
                                 <span class="badge bg-warning text-dark badge-owner-only">主催者のみ</span>
                             {% endif %}
-                        </h2>
+                        </h3>
                         <ul class="list-unstyled mb-0">
                             {% for child in item.children %}
                                 <li class="mb-2">
@@ -61,21 +76,6 @@
                                 </li>
                             {% endfor %}
                         </ul>
-                    </div>
-                </div>
-            </div>
-        {% else %}
-            <div class="col-md-6 mb-4">
-                <div class="card h-100 shadow-hover">
-                    <div class="card-body">
-                        <h2 class="h5 card-title fw-bold">
-                            <a href="{{ item.url }}" class="text-decoration-none text-dark">
-                                {{ item.title }}
-                                {% if item.owner_only %}
-                                    <span class="badge bg-warning text-dark badge-owner-only">主催者のみ</span>
-                                {% endif %}
-                            </a>
-                        </h2>
                     </div>
                 </div>
             </div>

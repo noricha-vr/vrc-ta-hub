@@ -258,6 +258,19 @@ class GuideViewsTest(TestCase):
         self.assertContains(response, "使い方ガイド")
         self.assertIn("nav_items", response.context)
 
+    def test_guide_index_lists_single_pages_as_links_and_sections_as_cards(self):
+        """子ページの無い項目は 1 行のリンク、節はカード（見出しは h3）で出ること"""
+        response = self.client.get(reverse("guide:index"))
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        single = soup.select_one(".guide-single-pages")
+        self.assertIsNotNone(single)
+        self.assertIn("/guide/glossary/", [a["href"] for a in single.select("a")])
+        card_titles = [h.get_text(strip=True) for h in soup.select(".card-title")]
+        self.assertNotIn("用語集", card_titles)
+        self.assertTrue(card_titles)
+        self.assertFalse(soup.select("h2.card-title"))
+
     def test_guide_index_start_links_point_to_listed_pages(self):
         """「やりたいことから選ぶ」は目次にあるページだけを、目次と同じタイトルで出すこと"""
         response = self.client.get(reverse("guide:index"))
