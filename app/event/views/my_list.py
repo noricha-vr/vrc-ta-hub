@@ -101,7 +101,7 @@ class EventMyList(LoginRequiredMixin, ListView):
         # 今後のイベントなし警告
         future_events = Event.objects.filter(
             community=community,
-            date__gte=timezone.now().date()
+            date__gte=get_vrchat_today()
         ).exists()
         if not future_events:
             warnings.append({
@@ -347,7 +347,10 @@ class EventMyList(LoginRequiredMixin, ListView):
             detail for event in events for detail in event.detail_list
             if detail.status == 'pending'
         ]
-        context['action_required_count'] = len(context['pending_details']) + len(context['warnings'])
+        # 「今後のイベントなし」(info) は案内なので、要対応の件数には数えない
+        context['action_required_count'] = len(context['pending_details']) + sum(
+            warning['type'] != 'info' for warning in context['warnings']
+        )
         context['future_events_count'] = len(future_events)
         remaining = future_events[self.VISIBLE_FUTURE_EVENTS:]
         context['remaining_future_events_count'] = len(remaining)

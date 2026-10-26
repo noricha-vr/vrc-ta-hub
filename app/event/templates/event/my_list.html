@@ -2,7 +2,7 @@
 {% load django_bootstrap5 %}
 
 {% block meta %}
-<title>イベント管理</title>
+<title>イベント管理 - {% site_name_seo %}</title>
 <style>
 .mylist { max-width: 1120px; }
 .mylist .dropdown-menu { min-width: 12rem; max-width: min(26rem, calc(100vw - 3rem)); }
@@ -194,9 +194,9 @@
         </div>
         {% endif %}
 
-        {% if action_required_count %}
+        {% if pending_details or warnings %}
         <section id="action-required" class="action-required" aria-labelledby="action-required-heading">
-            <h2 id="action-required-heading" class="h5 fw-bold mb-3">要対応 {{ action_required_count }}</h2>
+            <h2 id="action-required-heading" class="h5 fw-bold mb-3">{% if action_required_count %}要対応 {{ action_required_count }}{% else %}お知らせ{% endif %}</h2>
             {% for detail in pending_details %}
             <div class="action-required-row">
                 <div class="action-required-text">
@@ -237,7 +237,13 @@
                                         {% if event.calendar_configured %}
                                         <a href="{{ event.calendar_url }}" class="btn btn-sm btn-outline-secondary">VRCイベントカレンダーに投稿</a>
                                         {% else %}
-                                        <a href="{% url 'community:calendar_update' %}" class="btn btn-sm setup-placeholder" data-mylist-setup="calendar" data-community-id="{{ event.community_id }}">VRCイベントカレンダーの設定をする</a>
+                                        {# カレンダー設定はセッションの集会を対象にするため、切り替えてから設定画面へ移る #}
+                                        <form method="post" action="{% url 'community:switch' %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="community_id" value="{{ event.community_id }}">
+                                            <input type="hidden" name="redirect_to" value="{% url 'community:calendar_update' %}">
+                                            <button type="submit" class="btn btn-sm setup-placeholder" data-mylist-setup="calendar" data-community-id="{{ event.community_id }}">VRCイベントカレンダーの設定をする</button>
+                                        </form>
                                         {% endif %}
                                     {% endif %}
                                     {% if event.twitter_button_active %}
@@ -320,7 +326,7 @@
                                                 {% if detail.status == 'pending' %}
                                                 <li><a href="{% url 'event:detail_update' detail.pk %}" class="dropdown-item">編集</a></li>
                                                 <li><a href="{% url 'event:detail' detail.pk %}" class="dropdown-item">記事</a></li>
-                                                {% else %}
+                                                {% elif detail.applicant or detail.source == 'discord_bot' %}
                                                 <li><a href="{% url 'event:lt_application_review' detail.pk %}" class="dropdown-item">申請内容</a></li>
                                                 {% endif %}
                                                 <li><button type="button" class="dropdown-item text-danger" data-confirm-panel="detail-delete-{{ detail.pk }}" aria-controls="detail-delete-{{ detail.pk }}" aria-expanded="false">この発表を削除…</button></li>
@@ -363,7 +369,7 @@
             </button>
             {% endif %}
         {% empty %}
-            <div class="alert alert-secondary" role="alert">イベントがありません。「イベント登録」を行ってください。</div>
+            <div class="alert alert-secondary" role="alert">イベントがありません。{% if community %}「イベント登録」を行ってください。{% endif %}</div>
         {% endfor %}
 
         {% include "ta_hub/pagination.html" %}

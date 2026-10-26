@@ -1166,11 +1166,46 @@ class EventMyListActionFirstTest(TestCase):
         from event_calendar.models import CalendarEntry
         CalendarEntry.objects.filter(community=self.community).delete()
         response = self._get()
-        link = self._soup(response).find('a', string='VRCイベントカレンダーの設定をする')
-        self.assertIsNotNone(link)
-        self.assertEqual(link['href'], reverse('community:calendar_update'))
-        self.assertEqual(link['data-mylist-setup'], 'calendar')
+        button = self._soup(response).find('button', string='VRCイベントカレンダーの設定をする')
+        self.assertIsNotNone(button)
+        self.assertEqual(button['data-mylist-setup'], 'calendar')
+        form = button.find_parent('form')
+        self.assertEqual(form['action'], reverse('community:switch'))
+        self.assertEqual(form.find('input', attrs={'name': 'community_id'})['value'], str(self.community.pk))
+        redirect_to = form.find('input', attrs={'name': 'redirect_to'})['value']
+        self.assertEqual(redirect_to, reverse('community:calendar_update'))
         self.assertNotContains(response, '>VRCイベントカレンダーに投稿</a>')
+
+        # 集会を切り替えていないセッションからでも、設定画面まで 404 にならずに届く
+        session = self.client.session
+        session.pop('active_community_id', None)
+        session.save()
+        self.assertEqual(self.client.get(redirect_to).status_code, 404)
+        followed = self.client.post(
+            form['action'], {'community_id': self.community.pk, 'redirect_to': redirect_to}, follow=True,
+        )
+        self.assertEqual(followed.redirect_chain[-1][0], redirect_to)
+        self.assertEqual(followed.status_code, 200)
+
+    def test_review_link_only_for_applications(self):
+        manual = EventDetail.objects.create(event=self.event, theme='手入力の発表', status='approved')
+        from_bot = EventDetail.objects.create(
+            event=self.event, theme='Discord の発表', status='approved', source='discord_bot',
+        )
+        response = self._get()
+        self.assertNotContains(response, reverse('event:lt_application_review', args=[manual.pk]))
+        self.assertContains(response, reverse('event:lt_application_review', args=[from_bot.pk]))
+
+    def test_no_future_events_notice_is_not_counted_as_action(self):
+        self.event.delete()
+        response = self._get()
+        warnings = response.context['warnings']
+        self.assertIn('info', [warning['type'] for warning in warnings])
+        self.assertEqual(
+            response.context['action_required_count'],
+            sum(warning['type'] != 'info' for warning in warnings),
+        )
+        self.assertContains(response, '今後のイベントが登録されていません。')
 
     def test_calendar_configuration_switches_setup_and_posting(self):
         from event_calendar.models import CalendarEntry
