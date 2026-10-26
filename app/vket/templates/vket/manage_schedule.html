@@ -1,43 +1,34 @@
-{% extends 'ta_hub/base.html' %}
-{% block meta %}
-    <title>{{ collaboration.name }} 管理（日程表） - {% site_name_seo %}</title>
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}日程表: {{ collaboration.name }} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}{% include 'vket/includes/manage_breadcrumbs.html' with current='日程表' %}{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='日程表' target=collaboration.name only %}
+    <p class="admin-muted">期間: {{ collaboration.period_start|date:"Y/m/d" }}〜{{ collaboration.period_end|date:"Y/m/d" }}</p>
 {% endblock %}
-{% block main %}
-    <div class="container my-4">
-        {% include 'ta_hub/messages.html' %}
-
-        <div class="mb-4">
-            <h1 class="fw-bold mb-1">{{ collaboration.name }} 管理</h1>
-            <div class="text-muted">
-                期間: {{ collaboration.period_start|date:"Y/m/d" }}〜{{ collaboration.period_end|date:"Y/m/d" }}
-            </div>
-        </div>
-
-        {% include 'vket/includes/manage_tabs.html' with active_tab='schedule' %}
-
-        <form method="post" action="{% url 'vket:manage_schedule_settings' collaboration.id %}"
-              class="card card-body shadow-sm my-3" data-testid="schedule-settings-form">
+{% block admin_subnav %}{% include 'vket/includes/manage_tabs.html' with active_tab='schedule' %}{% endblock %}
+{% block admin_attention %}
+    {% if warnings or overlap_warnings %}
+        <section class="action-required" aria-labelledby="schedule-attention-heading">
+            <h2 id="schedule-attention-heading" class="h5 fw-bold">要対応 {{ schedule_attention_count }}</h2>
+            {% if overlap_warnings %}<h3 class="h6">重複（発表時間）</h3>{% endif %}
+            {% for warning in overlap_warnings %}<p class="action-required-row">{{ warning }}</p>{% endfor %}
+            {% for warning in warnings %}<p class="action-required-row">{{ warning }}</p>{% endfor %}
+        </section>
+    {% endif %}
+{% endblock %}
+{% block admin_content %}
+    <section class="admin-card">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='日程の設定' save_scope='入れ替えの間隔' form_id='schedule-settings-form' only %}
+        <form id="schedule-settings-form" method="post" action="{% url 'vket:manage_schedule_settings' collaboration.id %}" data-admin-dirty data-testid="schedule-settings-form">
             {% csrf_token %}
-            <div class="row g-2 align-items-end">
-                <div class="col-12 col-sm-auto">
-                    <label for="{{ settings_form.schedule_buffer_minutes.id_for_label }}" class="form-label fw-bold small mb-1">
-                        {{ settings_form.schedule_buffer_minutes.label }}
-                    </label>
-                    <div class="input-group input-group-sm" style="max-width: 10rem;">
-                        {{ settings_form.schedule_buffer_minutes }}
-                        <span class="input-group-text">分</span>
-                    </div>
-                </div>
-                <div class="col-12 col-sm-auto">
-                    <button class="btn btn-outline-primary btn-sm" type="submit">保存</button>
-                </div>
-            </div>
-            <div class="form-text mb-0">
-                {{ settings_form.schedule_buffer_minutes.help_text }}
-                主催者の申込みと、日程の確定・公開同期の重なりの判定に使います。
-            </div>
+            {% include 'ta_hub/admin/includes/form_errors.html' with form=settings_form only %}
+            {% include 'ta_hub/admin/includes/form_field.html' with field=settings_form.schedule_buffer_minutes only %}
+            <p class="admin-muted">この設定は、主催者の申込みと、日程の確定・公開同期の重なりの判定に使います。</p>
+            <button class="btn btn-primary" type="submit">この設定を保存</button>
         </form>
-
-        {% include 'vket/includes/schedule_table.html' with show_warnings=True show_legend=True %}
-    </div>
+    </section>
+    <section class="admin-card">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='参加集会の日程' description='時間軸は日程表の中を横にスクロールして確認できます。' only %}
+        {% include 'vket/includes/schedule_table.html' with show_warnings=False show_legend=True hide_overlap_warnings=True %}
+    </section>
 {% endblock %}

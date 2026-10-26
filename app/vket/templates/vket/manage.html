@@ -1,13 +1,9 @@
-{% extends 'ta_hub/base.html' %}
-{% block meta %}
-    <title>{{ collaboration.name }} 管理 - {% site_name_seo %}</title>
-{% endblock %}
-{% block main %}
-    <div class="container my-4">
-        {% include 'ta_hub/messages.html' %}
-
-        <div class="mb-4">
-            <h1 class="fw-bold mb-1">{{ collaboration.name }} 管理</h1>
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}運営管理: {{ collaboration.name }} - {% site_name_seo %}{% endblock %}
+{% block extra_css %}{{ block.super }}{% include 'vket/includes/manage_styles.html' %}{% endblock %}
+{% block admin_breadcrumbs %}{% include 'vket/includes/manage_breadcrumbs.html' with current='運営管理' %}{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='運営管理' target=collaboration.name only %}
             <div class="text-muted">
                 期間: {{ collaboration.period_start|date:"Y/m/d" }}〜{{ collaboration.period_end|date:"Y/m/d" }}
                 / 締切1: {{ collaboration.registration_deadline|date:"Y/m/d" }}
@@ -24,13 +20,15 @@
                     </a>
                 {% endif %}
             </div>
-        </div>
-
-        {% include 'vket/includes/manage_tabs.html' with active_tab='speakers' %}
-
+{% endblock %}
+{% block admin_subnav %}{% include 'vket/includes/manage_tabs.html' with active_tab='speakers' %}{% endblock %}
+{% block admin_attention %}
+{% if publication_drift_participations or publication_missing_event_participations or publish_overlap_pairs %}
+<section class="action-required" aria-labelledby="manage-attention-heading">
+    <h2 id="manage-attention-heading" class="h5 fw-bold">要対応 {{ management_attention_count }}</h2>
         {% if publication_drift_participations or publication_missing_event_participations %}
-            <div class="alert alert-warning mt-3" role="alert" data-testid="publication-drift-warning">
-                <h2 class="h6 alert-heading">公開イベントの日程・開催時間・同期状態に問題があります</h2>
+            <div class="action-required-row" role="alert" data-testid="publication-drift-warning">
+                <h3 class="h6">公開イベントの日程・開催時間・同期状態に問題があります</h3>
                 <p class="mb-2">
                     公開イベントを直接変更した可能性があります。自動では修正しないため、意図する日程・開催時間を確認して、
                     確定内容を合わせるか、「確定」フェーズで公開同期を再実行して公開イベントを確定内容へ戻してください。
@@ -47,7 +45,7 @@
                         <tbody>
                         {% for p in publication_drift_participations %}
                             <tr data-participation-id="{{ p.id }}">
-                                <td>{{ p.community.name }}</td>
+                                <td><a href="#participation-row-{{ p.pk }}">{{ p.community.name }}の日程を確認</a></td>
                                 <td>
                                     確定: {% if p.confirmed_date %}{{ p.confirmed_date|date:"Y/m/d" }}{% else %}未設定{% endif %}{% if p.confirmed_start_time %} {{ p.confirmed_start_time|date:"H:i" }}{% else %} 未設定{% endif %}{% if p.confirmed_duration %}（{{ p.confirmed_duration }}分）{% else %}（未設定）{% endif %}
                                 </td>
@@ -56,7 +54,7 @@
                         {% endfor %}
                         {% for p in publication_missing_event_participations %}
                             <tr data-participation-id="{{ p.id }}">
-                                <td>{{ p.community.name }}</td>
+                                <td><a href="#participation-row-{{ p.pk }}">{{ p.community.name }}の日程を確認</a></td>
                                 <td>{{ p.confirmed_date|date:"Y/m/d" }} {{ p.confirmed_start_time|date:"H:i" }}</td>
                                 <td>確定日時に一致するイベントが見つかりません（ロックが機能していません）。イベントの日時を確認するか、公開同期を実行してください。</td>
                             </tr>
@@ -67,29 +65,46 @@
             </div>
         {% endif %}
 
-        <div class="table-responsive">
-            <table class="table table-sm table-hover align-middle">
+                    {% if publish_overlap_pairs %}
+                        <div class="action-required-row" role="alert" data-testid="publish-overlap-warning">
+                            <div class="fw-bold mb-1">発表時間が重なっている集会があります</div>
+                            <ul class="mb-2 small">
+                                {% for pair in publish_overlap_pairs %}
+                                    <li>{{ pair }}</li>
+                                {% endfor %}
+                            </ul>
+                            <p class="small mb-0">発表時間が重なっています。公開同期はそのまま実行できます。</p>
+                        </div>
+                    {% endif %}
+</section>
+{% endif %}
+{% endblock %}
+{% block admin_content %}
+<section class="admin-card">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='参加集会' description='表示内容を確認し、各集会の編集欄を開いて保存してください。' only %}
+<div class="vket-management-table">
+            <table class="table table-sm table-hover align-middle vket-stack-table">
                 <thead>
                 <tr class="table-light">
-                    <th style="min-width: 160px;">集会名</th>
-                    <th style="min-width: 90px;">進捗</th>
-                    <th style="min-width: 120px;">希望日程</th>
-                    <th style="min-width: 120px;">確定日程</th>
-                    <th style="min-width: 180px;">登壇者 / テーマ</th>
-                    <th style="min-width: 160px;">備考</th>
-                    <th style="min-width: 220px;">日程確定（運営）</th>
+                    <th scope="col">集会名</th>
+                    <th scope="col">進捗</th>
+                    <th scope="col">希望日程</th>
+                    <th scope="col">確定日程</th>
+                    <th scope="col">登壇者 / テーマ</th>
+                    <th scope="col">備考</th>
+                    <th scope="col" class="vket-edit-column">参加状態・日程の編集</th>
                 </tr>
                 </thead>
                 <tbody>
                 {% for p in participations %}
-                    <tr>
-                        <td class="fw-bold">
+                    <tr id="participation-row-{{ p.pk }}">
+                        <td data-label="集会名" class="fw-bold">
                             {{ p.community.name }}
                             {% if p.lifecycle != 'active' %}
                                 <span class="badge bg-danger ms-1">{{ p.get_lifecycle_display }}</span>
                             {% endif %}
                         </td>
-                        <td>
+                        <td data-label="進捗">
                             <span class="badge
                                 {% if p.progress == 'done' %}bg-success
                                 {% elif p.progress == 'event_week' %}bg-primary
@@ -100,7 +115,7 @@
                                 {{ p.get_progress_display }}
                             </span>
                         </td>
-                        <td class="small">
+                        <td data-label="希望日程" class="small">
                             {% if p.requested_date %}
                                 {{ p.requested_date|date:"n/j（D）" }}<br>
                                 {{ p.requested_start_time|date:"H:i" }}
@@ -109,7 +124,7 @@
                                 <span class="text-muted">—</span>
                             {% endif %}
                         </td>
-                        <td class="small">
+                        <td data-label="確定日程" class="small">
                             {% if p.confirmed_date %}
                                 <span class="text-success fw-bold">{{ p.confirmed_date|date:"n/j（D）" }}</span><br>
                                 {{ p.confirmed_start_time|date:"H:i" }}
@@ -121,7 +136,7 @@
                                 <span class="text-muted">—</span>
                             {% endif %}
                         </td>
-                        <td class="small">
+                        <td data-label="登壇者 / テーマ" class="small">
                             {% with pres_list=p.all_presentations %}
                                 {% if pres_list %}
                                     {% for pres in pres_list %}
@@ -143,7 +158,7 @@
                                 {% endif %}
                             {% endwith %}
                         </td>
-                        <td class="small">
+                        <td data-label="備考" class="small">
                             {% if p.organizer_note %}
                                 <div><span class="text-muted">主催者:</span> {{ p.organizer_note|linebreaksbr }}</div>
                             {% endif %}
@@ -154,104 +169,55 @@
                                 <span class="text-muted">—</span>
                             {% endif %}
                         </td>
-                        <td>
-                            <form method="post"
-                                  action="{% url 'vket:manage_participation_update' collaboration.id p.id %}"
-                                  class="d-flex flex-column gap-1"
-                                  onsubmit="return confirm('参加状態と日程を保存します。よろしいですか？')">
-                                {% csrf_token %}
-                                <select class="form-select form-select-sm" name="lifecycle">
-                                    {% for val, label in lifecycle_choices.items %}
-                                        <option value="{{ val }}"
-                                                {% if p.lifecycle == val %}selected{% endif %}>
-                                            {{ label }}
-                                        </option>
+                        <td data-label="参加状態・日程の編集">
+                            <button type="button" class="btn btn-sm btn-outline-primary" data-confirm-panel="participation-{{ p.pk }}" aria-controls="participation-{{ p.pk }}" aria-expanded="false">参加状態・日程を編集…</button>
+                            {% url 'vket:manage_participation_update' collaboration.id p.id as update_url %}
+                            {% with participation_id=p.pk|stringformat:'s' %}
+                                {% with panel_id='participation-'|add:participation_id %}
+                                    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label='参加状態・日程の確認' message='この集会の参加状態・日程だけを保存します。公開済みのイベントにも反映されます。「不参加」「辞退」で保存すると、紐づく公開済みの発表を削除し、公開イベントとの連携を外します。' action_url=update_url submit_label='参加状態・日程を保存' fields_template='vket/includes/manage_participation_fields.html' %}
+                                {% endwith %}
+                            {% endwith %}
+                            {% if p.all_presentations %}
+                            <div class="dropdown d-inline-block">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown" aria-expanded="false" aria-label="{{ p.community.name }}のその他の操作">…</button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    {% for pres in p.all_presentations %}
+                                    <li><button type="button" class="dropdown-item text-danger" data-confirm-panel="delete-pres-{{ pres.pk }}" aria-controls="delete-pres-{{ pres.pk }}" aria-expanded="false">{{ pres.speaker|default:"発表"|truncatechars:12 }} の発表を削除…</button></li>
                                     {% endfor %}
-                                </select>
-                                <div class="d-flex gap-1">
-                                    <input class="form-control form-control-sm" type="date" name="confirmed_date"
-                                           value="{% if p.confirmed_date %}{{ p.confirmed_date|date:"Y-m-d" }}{% elif p.requested_date %}{{ p.requested_date|date:"Y-m-d" }}{% endif %}">
-                                    <input class="form-control form-control-sm" type="time" name="confirmed_start_time"
-                                           value="{% if p.confirmed_start_time %}{{ p.confirmed_start_time|date:"H:i" }}{% elif p.requested_start_time %}{{ p.requested_start_time|date:"H:i" }}{% endif %}">
-                                </div>
-                                <select class="form-select form-select-sm" name="confirmed_duration">
-                                    {% for val, label in duration_choices %}
-                                        <option value="{{ val }}"
-                                                {% if p.confirmed_duration == val %}selected
-                                                {% elif not p.confirmed_duration and p.requested_duration == val %}selected
-                                                {% endif %}>
-                                            {{ label }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                                {% for pres in p.all_presentations %}
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <span class="small text-muted text-nowrap" title="{{ pres.speaker|default:'（未入力）' }}">
-                                            {{ pres.speaker|default:"発表"|truncatechars:8 }}
-                                        </span>
-                                        <span class="d-flex gap-1 align-items-center">
-                                            {% if pres.status == 'confirmed' or pres.published_event_detail %}
-                                                <input class="form-control form-control-sm" type="time"
-                                                       name="pres_{{ pres.pk }}_start_time"
-                                                       value="{% if pres.published_event_detail %}{{ pres.published_event_detail.start_time|date:'H:i' }}{% elif pres.confirmed_start_time %}{{ pres.confirmed_start_time|date:'H:i' }}{% elif pres.requested_start_time %}{{ pres.requested_start_time|date:'H:i' }}{% endif %}"
-                                                       step="300"
-                                                       style="width: 5.5rem; padding: 0.1rem 0.2rem;">
-                                            {% else %}
-                                                <span class="small text-muted">&mdash;</span>
-                                            {% endif %}
-                                            <button class="btn btn-outline-danger btn-sm py-0 px-1"
-                                                    type="button"
-                                                    onclick="if(confirm('{{ pres.speaker|default:"この発表"|escapejs }} を削除しますか？')) document.getElementById('delete-pres-{{ pres.pk }}').submit()">
-                                                <i class="fas fa-times"></i>
-                                            </button>
-                                        </span>
-                                    </div>
-                                {% endfor %}
-                                <textarea class="form-control form-control-sm" name="admin_note" rows="2"
-                                          placeholder="備考（運営）">{{ p.admin_note }}</textarea>
-                                <button class="btn btn-outline-primary btn-sm" type="submit">
-                                    <i class="fas fa-check me-1"></i>確定
-                                </button>
-                            </form>
+                                </ul>
+                            </div>
+                            {% endif %}
                             {% for pres in p.all_presentations %}
-                                <form id="delete-pres-{{ pres.pk }}" method="post"
-                                      action="{% url 'vket:manage_presentation_delete' collaboration.id pres.pk %}"
-                                      class="d-none">
-                                    {% csrf_token %}
-                                </form>
+                                <div class="mt-2">
+                                    {% url 'vket:manage_presentation_delete' collaboration.id pres.pk as delete_url %}
+                                    {% with presentation_id=pres.pk|stringformat:'s' %}
+                                        {% with panel_id='delete-pres-'|add:presentation_id %}
+                                            {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label='発表の削除確認' message='この発表と紐づく公開済みの発表を削除します。' action_url=delete_url submit_label='この発表を削除する' %}
+                                        {% endwith %}
+                                    {% endwith %}
+                                </div>
                             {% endfor %}
                         </td>
                     </tr>
+                {% empty %}
+                    <tr><td colspan="7">{% include 'ta_hub/admin/includes/empty_state.html' with title='参加集会はまだありません' description='参加登録が届くと、ここで日程を確認できます。' only %}</td></tr>
                 {% endfor %}
                 </tbody>
             </table>
         </div>
+</section>
 
         {% if collaboration.phase == 'locked' %}
-            <div class="mt-3">
-                <form method="post" action="{% url 'vket:manage_publish' collaboration.id %}"
-                      onsubmit="return confirm('確定済み日程をすべてイベントとして公開します。よろしいですか？')">
-                    {% csrf_token %}
-                    {% if publish_overlap_pairs %}
-                        <div class="alert alert-warning" role="alert" data-testid="publish-overlap-warning">
-                            <div class="fw-bold mb-1">発表時間が重なっている集会があります</div>
-                            <ul class="mb-2 small">
-                                {% for pair in publish_overlap_pairs %}
-                                    <li>{{ pair }}</li>
-                                {% endfor %}
-                            </ul>
-                            <p class="small mb-0">発表時間が重なっています。公開同期はそのまま実行できます。</p>
-                        </div>
-                    {% endif %}
-                    <button class="btn btn-success" type="submit">
-                        <i class="fas fa-upload me-1"></i>公開同期（Event作成）
-                    </button>
-                </form>
-            </div>
+            <section class="admin-card" id="publication">
+                {% include 'ta_hub/admin/includes/section_heading.html' with title='全体公開' description='確定済み日程をまとめて公開イベントに同期します。行ごとの保存とは別の操作です。' only %}
+                <button class="btn btn-outline-primary" type="button" data-confirm-panel="publish-confirm" aria-controls="publish-confirm" aria-expanded="false">公開同期（Event作成）…</button>
+                {% url 'vket:manage_publish' collaboration.id as publish_url %}
+                {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='publish-confirm' label='全体公開の確認' message='確定済み日程をすべてイベントとして公開します。発表時間に重なりがある場合も同期されます。' action_url=publish_url submit_label='公開同期（Event作成）' %}
+            </section>
         {% endif %}
 
         {% if discord_mentions.all %}
-            <div class="mt-4">
+            <section class="admin-card">
                 <h2 class="h5 fw-bold">
                     <i class="fab fa-discord me-2"></i>Discordメンションリスト
                 </h2>
@@ -312,11 +278,11 @@
                     });
                 });
                 </script>
-            </div>
+            </section>
         {% endif %}
 
         {% if unregistered_communities %}
-            <div class="mt-4">
+            <section class="admin-card">
                 <h2 class="h5 fw-bold">未参加集会 <span class="text-muted fw-normal small">({{ unregistered_communities|length }}件)</span></h2>
                 <div class="list-group" id="unregisteredList">
                     {% for c in unregistered_communities %}
@@ -334,7 +300,23 @@
                         <i class="fas fa-chevron-down me-1"></i>すべて表示（{{ unregistered_communities|length }}件）
                     </button>
                 {% endif %}
-            </div>
+            </section>
         {% endif %}
-    </div>
+
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
+<script>
+// 共通確認部品が生成するフォームに、行ごとの変更検知を設定する。
+document.querySelectorAll('.hub-admin [id^="participation-"] > form').forEach(function(form) {
+    form.id = form.parentElement.id + '-form';
+    form.setAttribute('data-admin-dirty', '');
+    var status = document.createElement('p');
+    status.className = 'admin-dirty-status';
+    status.setAttribute('data-admin-form-status', form.id);
+    status.setAttribute('aria-live', 'polite');
+    status.textContent = '変更はありません';
+    form.prepend(status);
+});
+</script>
 {% endblock %}

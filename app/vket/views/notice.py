@@ -300,6 +300,12 @@ class ManageNoticeListView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Temp
                 ],
             }
         )
+        context['notice_create_actions'] = [
+            {'form_id': 'noticeCreateForm', 'scope': '新しいお知らせ', 'label': '作成する'},
+        ]
+        context['notice_edit_actions'] = [
+            {'form_id': 'noticeEditForm', 'scope': 'このお知らせのタイトル・本文', 'label': '更新する'},
+        ]
         return context
 
     def _build_notice_stat(self, notice, unacked_communities, discord_ids) -> dict:

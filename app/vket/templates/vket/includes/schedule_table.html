@@ -1,22 +1,22 @@
 <style>
-    .vket-slot {
+    .hub-admin .vket-schedule .vket-slot {
         width: 64px;
         text-align: center;
         white-space: nowrap;
     }
-    .vket-cell {
+    .hub-admin .vket-schedule .vket-cell {
         width: 64px;
         min-width: 64px;
         height: 28px;
         padding: 0 !important;
         position: relative;
     }
-    .vket-bar {
+    .hub-admin .vket-schedule .vket-bar {
         width: 100%;
         height: 100%;
         background: rgba(13, 110, 253, 0.35);
     }
-    .vket-bar.requested {
+    .hub-admin .vket-schedule .vket-bar.requested {
         background: rgba(13, 110, 253, 0.15);
         background-image: repeating-linear-gradient(
             45deg,
@@ -26,11 +26,11 @@
             rgba(13, 110, 253, 0.15) 8px
         );
     }
-    .vket-bar.overlap {
+    .hub-admin .vket-schedule .vket-bar.overlap {
         background: rgba(220, 53, 69, 0.35);
         outline: 1px solid rgba(220, 53, 69, 0.55);
     }
-    .vket-lt-dots {
+    .hub-admin .vket-schedule .vket-lt-dots {
         position: absolute;
         top: 50%;
         left: 50%;
@@ -41,30 +41,32 @@
         justify-content: center;
         pointer-events: none;
     }
-    .vket-lt-dot {
+    .hub-admin .vket-schedule .vket-lt-dot {
         width: 10px;
         height: 10px;
         border-radius: 50%;
         background: #212529;
         box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
     }
-    .vket-lt-dot.overlap {
+    .hub-admin .vket-schedule .vket-lt-dot.overlap {
         box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 0 0 4px rgba(220, 53, 69, 0.85);
     }
-    .vket-community-requested {
+    .hub-admin .vket-schedule .vket-community-requested {
         opacity: 0.65;
     }
 </style>
 
+<div class="vket-schedule">
 {% if rows and slots %}
-    <div class="table-responsive">
+    <div class="table-responsive" role="region" aria-label="参加集会の日程表（横スクロール）" tabindex="0">
         <table class="table table-sm table-bordered align-middle">
+            <caption class="visually-hidden">参加集会の開催時間と発表開始時刻</caption>
             <thead class="table-light">
             <tr>
-                <th style="min-width: 140px;">日付</th>
-                <th style="min-width: 220px;">集会名</th>
+                <th scope="col" style="min-width: 140px;">日付</th>
+                <th scope="col" style="min-width: 220px;">集会名</th>
                 {% for slot in slots %}
-                    <th class="vket-slot">{{ slot.start|date:"H:i" }}</th>
+                    <th scope="col" class="vket-slot">{{ slot.start|date:"H:i" }}</th>
                 {% endfor %}
             </tr>
             </thead>
@@ -115,7 +117,7 @@
         </div>
     {% endif %}
 
-    {% if overlap_warnings %}
+    {% if overlap_warnings and not hide_overlap_warnings %}
         <div class="alert alert-warning mt-3">
             <div class="fw-bold mb-2"><i class="fas fa-exclamation-triangle me-1"></i>重複（発表時間）</div>
             <ul class="mb-0">
@@ -137,5 +139,7 @@
         </div>
     {% endif %}
 {% else %}
-    <p class="text-muted">日程がまだ登録されていません。</p>
+    {% include 'ta_hub/admin/includes/empty_state.html' with title='日程がまだ登録されていません。' only %}
 {% endif %}
+
+</div>

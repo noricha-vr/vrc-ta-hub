@@ -1,0 +1,5 @@
+<nav aria-label="パンくず"><ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'vket:status' collaboration.id %}">{{ collaboration.name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">{{ current|default:"運営" }}</li>
+</ol></nav>
