@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from event.models import EventDetail
 from news.models import Category, Post
-from tests.factories import make_community, make_discord_linked_user, make_event
+from tests.factories import make_community, make_discord_linked_user, make_event, make_event_detail
 from vket.models import VketCollaboration, VketParticipation
 
 
@@ -47,8 +47,8 @@ class CollaborationCanonicalPageTests(TestCase):
         return event
 
     def _detail(self, event, index=0, status='approved'):
-        return EventDetail.objects.create(
-            event=event, detail_type='LT', status=status,
+        return make_event_detail(
+            event, status=status,
             speaker=f'発表者{index}', theme=f'発表テーマ{index}', start_time='21:15',
             slide_url=f'https://example.com/slides/{index}',
             youtube_url=f'https://www.youtube.com/watch?v=video{index}',
