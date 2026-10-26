@@ -12,6 +12,8 @@ from ta_hub.index_cache import (
     get_index_view_cache_key,
 )
 from utils.vrchat_time import get_vrchat_today
+from vket.timetable import build_collaboration_timetable
+from vket.top_banner import get_active_top_banner
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +49,13 @@ class IndexView(TemplateView):
         today = get_vrchat_today()
         cache_key = get_index_view_cache_key(today)
 
-        # Vketコラボ告知の表示判定
-        current_datetime = timezone.now()
-        vket_start_datetime = timezone.datetime(2026, 7, 11, 0, 0, tzinfo=timezone.get_current_timezone())
-        vket_end_datetime = timezone.datetime(2026, 7, 26, 0, 0, tzinfo=timezone.get_current_timezone())
-        context['show_vket_notice'] = current_datetime < vket_end_datetime
-        context['vket_start_date'] = vket_start_datetime.date()
-        context['vket_end_date'] = vket_end_datetime.date()
+        context['show_vket_notice'] = False
+        context['vket_banner'] = None
+        context['vket_timetable'] = None
+        context['vket_start_date'] = None
+        context['vket_end_date'] = None
         context['current_date'] = timezone.localdate()
         context['google_calendar_id'] = settings.GOOGLE_CALENDAR_ID
-        logger.info(f"Vket notice visibility: {context['show_vket_notice']} (current: {current_datetime})")
 
         context['database_degraded'] = False
         # vket_achievements はDB障害時に備えて画像なしで初期化する
@@ -69,6 +68,18 @@ class IndexView(TemplateView):
             context.update(build_index_database_context(self.request, today, cache_key))
             # vket_achievements は request.build_absolute_uri() に依存するためキャッシュ外で毎回生成する。
             context['vket_achievements'] = self._build_vket_achievements(with_images=True)
+            # 告知時刻と公開枠の更新を日付キャッシュに閉じ込めない。
+            banner = get_active_top_banner(timezone.now())
+            if banner:
+                collaboration = banner['collaboration']
+                timetable = build_collaboration_timetable(collaboration, today)
+                context.update({
+                    'show_vket_notice': True,
+                    'vket_banner': banner,
+                    'vket_timetable': timetable,
+                    'vket_start_date': collaboration.period_start,
+                    'vket_end_date': collaboration.period_end,
+                })
         except OperationalError as exc:
             # トップページはRDS瞬断でも静的導線を返し続ける（公開導線だけは維持する判断）。
             # 既知の縮退経路なので error_reporting の例外通知対象にしない。
@@ -78,6 +89,13 @@ class IndexView(TemplateView):
             )
             context['database_degraded'] = True
 
+        logger.info('Vket top banner visibility', extra={
+            'event': 'vket_top_banner',
+            'visible': context['show_vket_notice'],
+            'collaboration_id': context['vket_banner']['collaboration'].pk if context['vket_banner'] else None,
+            'scheduled_count': context['vket_timetable']['scheduled_count'] if context['vket_timetable'] else 0,
+            'database_degraded': context['database_degraded'],
+        })
         return context
 
     def _build_vket_achievements(self, with_images):
