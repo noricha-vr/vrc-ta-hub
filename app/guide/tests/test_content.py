@@ -93,6 +93,21 @@ class GuideRenderingTest(SimpleTestCase):
         self.assertEqual(img.parent['target'], '_blank')
         self.assertEqual(img.parent['rel'], ['noopener'])
 
+    def test_mobile_variant_is_used_on_small_screens(self):
+        # community/create-01 には撮影済みの -sp 版がある。settings/discord-02 はモックで -sp 版を撮らない前提ではなく、
+        # 実在するかどうかでだけ切り替わることを確かめる。
+        soup = self.render('![入口](images/community/create-01.webp)')
+        picture = soup.img.parent
+        self.assertEqual(picture.name, 'picture')
+        self.assertEqual(picture.source['srcset'], static('guide/images/community/create-01-sp.webp'))
+        self.assertEqual(picture.source['media'], '(max-width: 575.98px)')
+        self.assertEqual(picture.parent.name, 'a')
+        self.assertEqual(picture.parent['href'], static('guide/images/community/create-01.webp'))
+
+    def test_image_without_mobile_variant_is_not_wrapped_in_picture(self):
+        soup = self.render('![入力欄](images/section/page-01.webp)')
+        self.assertIsNone(soup.find('picture'))
+
     def test_raw_html_image_gets_display_attributes(self):
         soup = self.render('<img src="images/section/page-01.webp" alt="① の入力欄" class="existing">')
         self.assertEqual(soup.img['src'], static('guide/images/section/page-01.webp'))
