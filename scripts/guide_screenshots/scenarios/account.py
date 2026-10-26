@@ -176,7 +176,7 @@ def discord(capture):
     with account_context(capture) as s:
         s.login()
         s.show('/account/discord-required/')
-        s.shot('.card-body a[href*="/accounts/discord/login/"]')  # 01 案内
+        s.shot('.hub-admin a[href*="/accounts/discord/login/"]')  # 01 案内
         s.show('/account/settings/')
         s.shot('a[href="/accounts/3rdparty/"]', area='a[href="/accounts/3rdparty/"]')  # 02 設定
         capture.mock('discord-oauth.html')
@@ -185,7 +185,7 @@ def discord(capture):
         s.shot('a[href*="/disconnect/"]')  # 04 解除入口
         account = s.user().socialaccount_set.get(provider='discord')
         s.show(f'/account/social/{account.pk}/disconnect/')
-        s.shot('#id_password', '.card button[type=submit]')  # 05 解除確認
+        s.shot('#id_password', '.confirm-panel button[type=submit]')  # 05 解除確認
         # 未連携の場合は「連携を管理」でなく連携開始リンクになる。
         account.delete()
         s.show('/account/settings/')
@@ -203,7 +203,7 @@ def password(capture):
         s.show('/account/settings/')
         s.shot('a[href="/account/password_change/"]', area='a[href="/account/password_change/"]')  # 01
         s.show('/account/password_change/')
-        s.shot('#id_old_password', '#id_new_password1', '.card button[type=submit]')  # 02
+        s.shot('#id_old_password', '#id_new_password1', '#account-edit-form button[type=submit]')  # 02
         user = s.user()
         user.set_unusable_password()
         user.save(update_fields=['password'])
@@ -245,7 +245,7 @@ def profile(capture):
         capture.page.locator('#id_x_account').evaluate("e => e.placeholder = 'hina_demo'")
         s.shot('#id_display_name', '#id_user_name')  # 02
         capture.page.locator('#id_email').fill('hina-new@example.com')
-        s.shot('#id_email', '.card button[type=submit]')  # 03
+        s.shot('#id_email', 'button[form=profile-form]')  # 03
         s.show(s.confirmation('hina-new@example.com'))
         s.shot('button[type=submit]', area='body')  # 04
         s.verify_guide()

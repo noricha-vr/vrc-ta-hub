@@ -1,0 +1,5 @@
+<nav aria-label="パンくず"><ol class="breadcrumb small">
+    <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+    {% if current != 'アカウント設定' %}<li class="breadcrumb-item"><a href="{% url 'account:settings' %}">アカウント設定</a></li>{% endif %}
+    <li class="breadcrumb-item active" aria-current="page">{{ current }}</li>
+</ol></nav>

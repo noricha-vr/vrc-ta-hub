@@ -306,7 +306,7 @@ class SettingsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
         # 集会一覧セクションが表示されていること
-        self.assertContains(response, '集会一覧')
+        self.assertContains(response, '管理中の集会')
         self.assertContains(response, '所属している集会はありません')
         self.assertContains(response, '新しい技術・学術系集会を始める')
 
@@ -356,7 +356,7 @@ class SettingsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
 
         # 集会一覧セクションが表示されていること
-        self.assertContains(response, '集会一覧')
+        self.assertContains(response, '管理中の集会')
         # 集会名が表示されていること
         self.assertContains(response, 'テスト集会')
         # 設定ボタンが表示されていること
@@ -425,9 +425,9 @@ class SettingsViewTests(TestCase):
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
 
-        # 承認待集会一覧リンクが表示されていること
-        self.assertContains(response, '承認待集会一覧')
-        self.assertContains(response, reverse('community:waiting_list'))
+        # 承認待集会一覧は遷移先に合わせ superuser だけに表示する
+        self.assertNotContains(response, reverse('community:waiting_list'))
+        self.assertContains(response, reverse('twitter:tweet_queue_list'))
 
     def test_settings_view_non_staff_does_not_see_admin_section(self):
         """非スタッフユーザーには管理セクションが表示されないこと."""
@@ -473,7 +473,6 @@ class UserUpdateViewTests(TestCase):
         response = self.client.get(self.update_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'メールアドレスは公開されません')
-        self.assertContains(response, 'fa-lock')
         self.assertContains(response, 'form-text')
 
     def test_user_update_view_explains_display_name_and_user_name(self):
@@ -482,8 +481,8 @@ class UserUpdateViewTests(TestCase):
         response = self.client.get(self.update_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'name="display_name"')
-        self.assertContains(response, 'VRChat内の名前や発表者名として表示されます')
-        self.assertContains(response, '表示用と内部識別に使用します')
+        self.assertContains(response, '表示名は発表者名として表示されます')
+        self.assertContains(response, '表示用ユーザー名は一意の内部識別にも使用します')
 
 
 @override_settings(SOCIALACCOUNT_PROVIDERS=TEST_SOCIALACCOUNT_PROVIDERS_WITH_APPS)
