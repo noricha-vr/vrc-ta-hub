@@ -1,0 +1,24 @@
+<style>
+.hub-admin .vket-management-table { min-width: 0; }
+.hub-admin .vket-stack-table { table-layout: fixed; width: 100%; }
+.hub-admin .vket-stack-table th, .hub-admin .vket-stack-table td { overflow-wrap: anywhere; }
+.hub-admin .vket-stack-table .btn { white-space: nowrap; }
+.hub-admin .vket-stack-table .vket-edit-column { width: 30%; }
+.hub-admin .vket-stack-table td[data-label="操作"] .btn-group { display: flex; flex-wrap: wrap; }
+.hub-admin .vket-stack-table .btn-copy-remind { white-space: normal; }
+.hub-admin .vket-stack-table .confirm-panel { min-width: 0; }
+.hub-admin .vket-stack-table [id^="participation-"].confirm-panel { background: var(--admin-surface); border-color: var(--admin-border); }
+.hub-admin .vket-stack-table label { display: block; width: 100%; }
+.hub-admin .vket-stack-table input, .hub-admin .vket-stack-table select, .hub-admin .vket-stack-table textarea { min-width: 0; max-width: 100%; }
+.hub-admin .vket-stack-table .confirm-panel:has(form[data-admin-dirty]) button[type="submit"] { background: var(--admin-primary); border-color: var(--admin-primary); }
+.hub-admin .notice-body { overflow-wrap: anywhere; }
+.hub-admin .notice-body img { max-width: 100%; height: auto; }
+.hub-admin .notice-body pre { overflow-x: auto; }
+@media (max-width: 1199.98px) {
+    .hub-admin .vket-stack-table, .hub-admin .vket-stack-table tbody, .hub-admin .vket-stack-table tr, .hub-admin .vket-stack-table td { display: block; width: 100%; }
+    .hub-admin .vket-stack-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .hub-admin .vket-stack-table tbody > tr { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-card); padding: .75rem; margin-bottom: 1rem; }
+    .hub-admin .vket-stack-table td { border: 0; }
+    .hub-admin .vket-stack-table td[data-label]::before { content: attr(data-label); display: block; font-size: .75rem; color: var(--admin-muted); margin-bottom: .25rem; }
+}
+</style>

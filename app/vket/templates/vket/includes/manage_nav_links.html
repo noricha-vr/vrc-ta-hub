@@ -1,0 +1,4 @@
+<a href="{% url 'vket:manage' collaboration.id %}"{% if active_tab == 'speakers' %} aria-current="page"{% endif %}>一覧 <span class="badge bg-secondary">運営</span></a>
+<a href="{% url 'vket:manage_schedule' collaboration.id %}"{% if active_tab == 'schedule' %} aria-current="page"{% endif %}>日程表</a>
+<a href="{% url 'vket:manage_notice_list' collaboration.id %}"{% if active_tab == 'notices' %} aria-current="page"{% endif %}>お知らせ</a>
+<a href="{% url 'vket:status' collaboration.id %}">参加状況に戻る</a>

@@ -1,60 +1,48 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 {% load markdown_extras static %}
-{% block meta %}
-    <title>{{ collaboration.name }} お知らせ管理 - {% site_name_seo %}</title>
+{% block title %}お知らせ管理: {{ collaboration.name }} - {% site_name_seo %}{% endblock %}
+{% block extra_css %}{{ block.super }}{% include 'vket/includes/manage_styles.html' %}{% endblock %}
+{% block admin_breadcrumbs %}{% include 'vket/includes/manage_breadcrumbs.html' with current='お知らせ管理' %}{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='お知らせ管理' target=collaboration.name actions_template='vket/includes/manage_notice_header_actions.html' only %}
 {% endblock %}
-{% block main %}
-    <div class="container my-4">
-        {% include 'ta_hub/messages.html' %}
-
-        <div class="mb-4">
-            <h1 class="fw-bold mb-1">{{ collaboration.name }} お知らせ管理</h1>
-        </div>
-
-        {% include 'vket/includes/manage_tabs.html' with active_tab='notices' %}
-
-        <div class="d-flex justify-content-end mb-3">
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#noticeCreateModal">
-                <i class="fas fa-plus me-1"></i>お知らせ作成
-            </button>
-        </div>
-
+{% block admin_subnav %}{% include 'vket/includes/manage_tabs.html' with active_tab='notices' %}{% endblock %}
+{% block admin_content %}
         {% if not notice_stats %}
-            <div class="alert alert-secondary">
-                <i class="fas fa-info-circle me-2"></i>
-                お知らせはまだありません。
-            </div>
+            {% include 'ta_hub/admin/includes/empty_state.html' with title='お知らせはまだありません。' description='「お知らせ作成」から参加集会への案内を作成できます。' only %}
         {% else %}
-            <div class="table-responsive">
-                <table class="table table-sm table-hover align-middle">
+            <section class="admin-card">
+                {% include 'ta_hub/admin/includes/section_heading.html' with title='配信したお知らせ' only %}
+                <div class="vket-management-table">
+                <table class="table table-sm table-hover align-middle vket-stack-table">
                     <thead>
                     <tr class="table-light">
-                        <th style="min-width: 200px;">タイトル</th>
-                        <th style="min-width: 100px;">対象</th>
-                        <th style="min-width: 80px;">要確認</th>
-                        <th style="min-width: 240px;">確認状況</th>
-                        <th style="min-width: 130px;">作成日時</th>
-                        <th style="min-width: 110px;">操作</th>
+                        <th scope="col">タイトル</th>
+                        <th scope="col">対象</th>
+                        <th scope="col">要確認</th>
+                        <th scope="col">確認状況</th>
+                        <th scope="col">作成日時</th>
+                        <th scope="col">操作</th>
                     </tr>
                     </thead>
                     <tbody>
                     {% for stat in notice_stats %}
                         <tr>
-                            <td>
+                            <td data-label="タイトル">
                                 <div class="fw-bold">{{ stat.notice.title }}</div>
                                 <div class="text-muted small">{{ stat.notice.body|truncatechars:60 }}</div>
                             </td>
-                            <td class="small">{{ stat.scope_label }}</td>
-                            <td class="text-center">
+                            <td data-label="対象" class="small">{{ stat.scope_label }}</td>
+                            <td data-label="要確認" class="text-center">
                                 {% if stat.notice.requires_ack %}
-                                    <i class="fas fa-check-circle text-success"></i>
+                                    {% include 'ta_hub/admin/includes/status_chip.html' with label='確認必須' tone='success' only %}
                                 {% else %}
                                     <span class="text-muted">—</span>
                                 {% endif %}
                             </td>
-                            <td class="small">
+                            <td data-label="確認状況" class="small">
                                 {% if stat.notice.requires_ack and stat.total > 0 %}
-                                    <div class="d-flex align-items-baseline gap-2">
+                                    <div class="d-flex flex-wrap align-items-baseline gap-2">
                                         {% if stat.unacked %}
                                             <span class="fs-6 fw-bold text-danger-emphasis text-nowrap">未確認 {{ stat.unacked }}</span>
                                         {% else %}
@@ -80,16 +68,16 @@
                                     <span class="text-muted">--</span>
                                 {% endif %}
                             </td>
-                            <td class="small">
+                            <td data-label="作成日時" class="small">
                                 {{ stat.notice.created_at|date:"Y/m/d H:i" }}
                             </td>
-                            <td>
+                            <td data-label="操作">
                                 <div class="btn-group btn-group-sm" role="group" aria-label="お知らせ操作">
                                     <button class="btn btn-outline-primary"
                                             data-bs-toggle="modal"
                                             data-bs-target="#noticeDetailModal{{ stat.notice.id }}"
                                             title="詳細">
-                                        <i class="fas fa-eye"></i>
+                                        <i class="fas fa-eye" aria-hidden="true"></i> 詳細
                                     </button>
                                     <button class="btn btn-outline-secondary"
                                             data-bs-toggle="modal"
@@ -99,7 +87,7 @@
                                             data-notice-body="{{ stat.notice.body }}"
                                             data-edit-url="{% url 'vket:manage_notice_update' collaboration.id stat.notice.id %}"
                                             title="編集">
-                                        <i class="fas fa-edit"></i>
+                                        <i class="fas fa-edit" aria-hidden="true"></i> 編集
                                     </button>
                                 </div>
                             </td>
@@ -109,6 +97,7 @@
                 </table>
             </div>
 
+            </section>
             {% for stat in notice_stats %}
                 <div class="modal fade" id="noticeDetailModal{{ stat.notice.id }}" tabindex="-1"
                      aria-labelledby="noticeDetailModalLabel{{ stat.notice.id }}" aria-hidden="true">
@@ -161,7 +150,6 @@
                 </div>
             {% endfor %}
         {% endif %}
-    </div>
 
     {# お知らせ作成モーダル #}
     <div class="modal fade" id="noticeCreateModal" tabindex="-1" aria-labelledby="noticeCreateModalLabel" aria-hidden="true">
@@ -177,23 +165,23 @@
                     <p class="text-muted small">
                         主催者に「確認しました」を押してもらいたい時は「確認必須」にチェックを入れてください。
                     </p>
-                    <form method="post" action="{% url 'vket:manage_notice_create' collaboration.id %}" id="noticeCreateForm"
+                    <form method="post" action="{% url 'vket:manage_notice_create' collaboration.id %}" id="noticeCreateForm" data-admin-dirty
                           class="js-submit-once" data-loading-text="作成中…">
                         {% csrf_token %}
                         <div class="mb-3">
-                            <label class="form-label fw-bold">タイトル <span class="text-danger">*</span></label>
-                            <input type="text" name="title" class="form-control" required maxlength="200"
+                            <label class="form-label fw-bold" for="createNoticeTitle">タイトル <span class="text-danger">*</span></label>
+                            <input id="createNoticeTitle" type="text" name="title" class="form-control" required maxlength="200"
                                    placeholder="例: 【重要】発表情報の締切について">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label fw-bold">本文 <span class="text-danger">*</span></label>
-                            <textarea name="body" class="form-control" rows="6" required
+                            <label class="form-label fw-bold" for="createNoticeBody">本文 <span class="text-danger">*</span></label>
+                            <textarea id="createNoticeBody" name="body" class="form-control" rows="6" required
                                       placeholder="お知らせの内容を入力してください。"></textarea>
                         </div>
                         <div class="row g-3 mb-3">
                             <div class="col-12 col-md-6">
-                                <label class="form-label fw-bold">配信対象</label>
-                                <select name="target_scope" class="form-select">
+                                <label class="form-label fw-bold" for="createNoticeScope">配信対象</label>
+                                <select id="createNoticeScope" name="target_scope" class="form-select">
                                     {% for value, label in target_scope_options %}
                                         <option value="{{ value }}">{{ label }}</option>
                                     {% endfor %}
@@ -210,9 +198,7 @@
                         </div>
                         <div class="modal-footer px-0 pb-0">
                             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i>作成する
-                            </button>
+                            {% include 'ta_hub/admin/includes/action_bar.html' with actions=notice_create_actions inline=True only %}
                         </div>
                     </form>
                 </div>
@@ -231,21 +217,19 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <form method="post" id="noticeEditForm" class="js-submit-once" data-loading-text="更新中…">
+                    <form method="post" id="noticeEditForm" data-admin-dirty class="js-submit-once" data-loading-text="更新中…">
                         {% csrf_token %}
                         <div class="mb-3">
-                            <label class="form-label fw-bold">タイトル <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold" for="editNoticeTitle">タイトル <span class="text-danger">*</span></label>
                             <input type="text" name="title" class="form-control" required maxlength="200" id="editNoticeTitle">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label fw-bold">本文 <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold" for="editNoticeBody">本文 <span class="text-danger">*</span></label>
                             <textarea name="body" class="form-control" rows="6" required id="editNoticeBody"></textarea>
                         </div>
                         <div class="modal-footer px-0 pb-0">
                             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i>更新する
-                            </button>
+                            {% include 'ta_hub/admin/includes/action_bar.html' with actions=notice_edit_actions inline=True only %}
                         </div>
                     </form>
                 </div>
@@ -269,7 +253,9 @@
             const button = event.relatedTarget;
             document.getElementById('editNoticeTitle').value = button.getAttribute('data-notice-title');
             document.getElementById('editNoticeBody').value = button.getAttribute('data-notice-body');
-            document.getElementById('noticeEditForm').action = button.getAttribute('data-edit-url');
+            const form = document.getElementById('noticeEditForm');
+            form.action = button.getAttribute('data-edit-url');
+            form.dispatchEvent(new Event('admin:saved'));
         });
 
         var toastEl = document.getElementById('copyToast');
@@ -305,5 +291,6 @@
 {% endblock %}
 
 {% block extra_js %}
+    {{ block.super }}
     <script src="{% static 'vket/js/submit_once.js' %}"></script>
 {% endblock %}

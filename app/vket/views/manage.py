@@ -153,6 +153,11 @@ class ManageView(LoginRequiredMixin, AuthenticatedForbiddenMixin, TemplateView):
                 'duration_choices': [(30, '30分'), (60, '60分'), (90, '90分'), (120, '120分')],
             }
         )
+        context['management_attention_count'] = (
+            len(publication_drift_participations)
+            + len(publication_missing_event_participations)
+            + len(context['publish_overlap_pairs'])
+        )
         return context
 
     @staticmethod
@@ -312,6 +317,7 @@ class ManageScheduleView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Templa
         context.update({
             'collaboration': collaboration,
             'settings_form': settings_form,
+            'schedule_attention_count': len(schedule_ctx.get('warnings', [])) + len(schedule_ctx.get('overlap_warnings', [])),
             **schedule_ctx,
         })
         return context
