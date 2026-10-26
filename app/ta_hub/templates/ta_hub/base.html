@@ -526,7 +526,7 @@
         <div class="row">
             <!-- サイト情報 -->
             <div class="col-lg-4 col-md-6 mb-4 mb-lg-0">
-                <h5 class="text-uppercase mb-3 fw-bold">{% site_name_seo %}</h5>
+                <h5 class="mb-3 fw-bold">{% site_name_seo %}</h5>
                 <p class="small mb-3">
                     VRChatで開催される技術・学術系イベントの情報を集約し、<br>
                     コミュニティの発展を支援するプラットフォーム
@@ -545,7 +545,7 @@
 
             <!-- サイトマップ -->
             <div class="col-lg-2 col-md-6 mb-4 mb-lg-0">
-                <h6 class="text-uppercase mb-3 fw-bold">サイトマップ</h6>
+                <h6 class="mb-3 fw-bold">サイトマップ</h6>
                 <ul class="list-unstyled mb-0">
                     <li class="mb-2">
                         <a href="{% url 'ta_hub:index' %}" class="text-light text-decoration-none small">ホーム</a>
@@ -568,7 +568,7 @@
 
             <!-- お知らせカテゴリー -->
             <div class="col-lg-2 col-md-6 mb-4 mb-lg-0">
-                <h6 class="text-uppercase mb-3 fw-bold">お知らせ</h6>
+                <h6 class="mb-3 fw-bold">お知らせ</h6>
                 <ul class="list-unstyled mb-0">
                     <li class="mb-2">
                         <a href="{% url 'news:category_list' 'activity' %}"
@@ -582,7 +582,7 @@
 
             <!-- サポート -->
             <div class="col-lg-2 col-md-6 mb-4 mb-lg-0">
-                <h6 class="text-uppercase mb-3 fw-bold">サポート</h6>
+                <h6 class="mb-3 fw-bold">サポート</h6>
                 <ul class="list-unstyled mb-0">
                     {% if user.is_authenticated %}
                         <li class="mb-2">
@@ -606,7 +606,7 @@
 
             <!-- 法的情報 -->
             <div class="col-lg-2 col-md-6 mb-4 mb-lg-0">
-                <h6 class="text-uppercase mb-3 fw-bold">法的情報</h6>
+                <h6 class="mb-3 fw-bold">法的情報</h6>
                 <ul class="list-unstyled mb-0">
                     <li class="mb-2">
                         <a href="{% url 'ta_hub:privacy' %}"
