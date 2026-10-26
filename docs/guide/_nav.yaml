@@ -25,12 +25,17 @@
     - title: 活動停止を通報する
       path: community/report
 
-- title: イベントを管理する
+- title: イベント（開催日）を管理する
   children:
+    - title: イベント管理画面の見方
+      path: event/manage
     - title: イベントを登録する
       path: event/create
+    - title: 開催日と開始時刻を変更する
+      path: event/edit
     - title: イベントを削除する
       path: event/delete
+      owner_only: true
     - title: Hub公式Xアカウントでの自動告知
       path: event/auto-post
 
