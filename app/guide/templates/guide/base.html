@@ -163,6 +163,32 @@
         margin-bottom: 0;
     }
 
+    .guide-page-toc {
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+    }
+
+    .guide-page-toc summary {
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .guide-page-toc nav {
+        margin-top: 0.75rem;
+    }
+
+    .guide-content .guide-page-toc ul {
+        margin-bottom: 0;
+    }
+
+    .guide-table-wrap {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
     /* 前後ナビゲーション */
     .guide-page-nav {
         display: flex;
@@ -227,6 +253,13 @@
 
     /* モバイル対応 */
     @media (max-width: 991.98px) {
+        .guide-table-wrap th,
+        .guide-table-wrap td {
+            min-width: 6em;
+            overflow-wrap: normal;
+            word-break: normal;
+        }
+
         .guide-sidebar {
             position: relative;
             top: 0;
@@ -295,7 +328,8 @@
         {# サイドバー #}
         <div class="col-lg-3">
             <div class="guide-sidebar">
-                <button class="guide-sidebar-toggle" type="button" onclick="toggleSidebar()">
+                <button class="guide-sidebar-toggle" type="button" aria-expanded="false"
+                        aria-controls="guideSidebarNav" onclick="toggleSidebar()">
                     <i class="bi bi-list me-2"></i>メニュー
                 </button>
                 <nav class="guide-sidebar-nav" id="guideSidebarNav">
@@ -342,8 +376,29 @@
 <script>
     function toggleSidebar() {
         const nav = document.getElementById('guideSidebarNav');
-        nav.classList.toggle('show');
+        const expanded = nav.classList.toggle('show');
+        document.querySelector('.guide-sidebar-toggle').setAttribute('aria-expanded', String(expanded));
     }
+
+    const guideMobile = window.matchMedia('(max-width: 991.98px)');
+    const pageToc = document.querySelector('.guide-page-toc');
+    function updatePageToc() {
+        if (pageToc) {
+            pageToc.open = !guideMobile.matches;
+        }
+    }
+    updatePageToc();
+    guideMobile.addEventListener('change', updatePageToc);
+
+    function updateScreenshotLink(event) {
+        const link = event.target.closest('.guide-screenshot-link');
+        const img = link ? link.querySelector('img.guide-screenshot') : null;
+        if (img) {
+            link.href = img.currentSrc || img.src;
+        }
+    }
+    document.addEventListener('click', updateScreenshotLink);
+    document.addEventListener('auxclick', updateScreenshotLink);
 
     function copyTextToClipboard(text) {
         if (navigator.clipboard && window.isSecureContext) {

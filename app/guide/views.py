@@ -17,7 +17,7 @@ from django.views.generic import TemplateView
 from event.services.markdown_processor import convert_markdown
 from ta_hub.og import image_url
 
-from guide.rendering import is_public_path, render_guide_html
+from guide.rendering import is_public_path, page_table_of_contents, render_guide_html
 
 logger = logging.getLogger(__name__)
 
@@ -336,6 +336,7 @@ class GuidePageView(TemplateView):
         context.update({
             'og_image_url': image_url(self.request, 'ta_hub:og_guide', frontmatter.get('title', 'ガイド'), path=path),
             'content': content,
+            'page_toc': page_table_of_contents(content),
             'frontmatter': frontmatter,
             'page_title': frontmatter.get('title', 'ガイド'),
             'page_description': frontmatter.get('description', ''),

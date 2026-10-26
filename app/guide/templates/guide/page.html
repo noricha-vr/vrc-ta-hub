@@ -14,6 +14,27 @@
 <article>
     {# 共通の Markdown 処理が本文先頭の H1 を外すので、大見出しはフロントマターの title から出す #}
     <h1>{{ page_title }}</h1>
+    {% if page_toc %}
+    <details class="guide-page-toc" open>
+        <summary>このページの内容</summary>
+        <nav aria-label="このページの内容">
+            <ul>
+                {% for item in page_toc %}
+                <li>
+                    <a href="#{{ item.id }}">{{ item.title }}</a>
+                    {% if item.children %}
+                    <ul>
+                        {% for child in item.children %}
+                        <li><a href="#{{ child.id }}">{{ child.title }}</a></li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+    </details>
+    {% endif %}
     {{ content|safe }}
 </article>
 
@@ -24,7 +45,7 @@
         <a href="{{ prev_page.url }}" class="prev-link">
             <i class="bi bi-chevron-left me-2"></i>
             <div>
-                <span class="nav-direction">前へ</span>
+                <span class="nav-direction">目次の前のページ</span>
                 <span class="nav-title">{{ prev_page.title }}</span>
             </div>
         </a>
@@ -33,7 +54,7 @@
     {% if next_page %}
         <a href="{{ next_page.url }}" class="next-link">
             <div>
-                <span class="nav-direction">次へ</span>
+                <span class="nav-direction">目次の次のページ</span>
                 <span class="nav-title">{{ next_page.title }}</span>
             </div>
             <i class="bi bi-chevron-right ms-2"></i>

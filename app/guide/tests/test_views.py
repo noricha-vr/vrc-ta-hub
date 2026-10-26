@@ -1,4 +1,7 @@
 """ガイドビューのテスト"""
+from unittest.mock import patch
+
+from bs4 import BeautifulSoup
 from django.test import TestCase, Client
 from django.urls import reverse
 
@@ -215,6 +218,37 @@ class GuideViewsTest(TestCase):
 
     def setUp(self):
         self.client = Client()
+
+    def test_page_toc_is_immediately_after_h1_with_nested_links(self):
+        content = '<h2 id="手順">手順</h2><h3 id="開く">開く</h3>'
+        with patch('guide.views.load_markdown_content', return_value=(content, {'title': '操作案内'})):
+            response = self.client.get('/guide/index/')
+        soup = BeautifulSoup(response.content, 'html.parser')
+        toc = soup.article.h1.find_next_sibling()
+        self.assertEqual(toc.name, 'details')
+        self.assertIn('guide-page-toc', toc['class'])
+        self.assertTrue(toc.has_attr('open'))
+        self.assertEqual(toc.summary.get_text(), 'このページの内容')
+        self.assertEqual(toc.select_one('nav > ul > li > a')['href'], '#手順')
+        self.assertEqual(toc.select_one('nav > ul > li > ul > li > a')['href'], '#開く')
+
+    def test_page_does_not_render_toc_for_a_single_heading(self):
+        with patch('guide.views.load_markdown_content', return_value=('<h2 id="案内">案内</h2>', {})):
+            response = self.client.get('/guide/index/')
+        self.assertIsNone(BeautifulSoup(response.content, 'html.parser').select_one('details.guide-page-toc'))
+
+    def test_sidebar_button_exposes_collapsed_state_and_controlled_nav(self):
+        response = self.client.get('/guide/index/')
+        soup = BeautifulSoup(response.content, 'html.parser')
+        button = soup.select_one('.guide-sidebar-toggle')
+        self.assertEqual(button['aria-expanded'], 'false')
+        self.assertEqual(soup.find(id=button['aria-controls']).name, 'nav')
+
+    def test_page_navigation_labels_describe_table_of_contents_order(self):
+        response = self.client.get('/guide/community/create/')
+        soup = BeautifulSoup(response.content, 'html.parser')
+        self.assertEqual([label.get_text() for label in soup.select('.guide-page-nav .nav-direction')],
+                         ['目次の前のページ', '目次の次のページ'])
 
     def test_guide_index_view(self):
         """インデックスページが表示されること"""
