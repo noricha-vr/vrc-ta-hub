@@ -17,6 +17,8 @@ from django.views.generic import TemplateView
 from event.services.markdown_processor import convert_markdown
 from ta_hub.og import image_url
 
+from guide.rendering import is_public_path, render_guide_html
+
 logger = logging.getLogger(__name__)
 
 # ガイドのルートディレクトリ
@@ -201,6 +203,8 @@ def load_markdown_content(path: str, render_body: bool = True) -> tuple[str, dic
     if '..' in path or '\\' in path or '\x00' in path:
         raise Http404
     safe_path = path.strip('/')
+    if not is_public_path(safe_path):
+        raise Http404
     candidate_paths = [safe_path]
     alias_path = GUIDE_CONTENT_ALIASES.get(safe_path)
     if alias_path:
@@ -214,6 +218,9 @@ def load_markdown_content(path: str, render_body: bool = True) -> tuple[str, dic
         if not candidate_file.is_relative_to(GUIDE_ROOT.resolve()):
             logger.warning(f"パストラバーサル攻撃を検出: {path}")
             raise Http404(f"ガイドページが見つかりません: {path}")
+
+        if not is_public_path(candidate_file.relative_to(GUIDE_ROOT.resolve()).as_posix()):
+            raise Http404
 
         if candidate_file.is_file():
             md_file = candidate_file
@@ -229,7 +236,7 @@ def load_markdown_content(path: str, render_body: bool = True) -> tuple[str, dic
             content = f.read()
 
         # フロントマターの抽出
-        frontmatter = {}
+        frontmatter: dict = {}
         body = content
 
         if content.startswith('---'):
@@ -245,7 +252,7 @@ def load_markdown_content(path: str, render_body: bool = True) -> tuple[str, dic
             return '', frontmatter
 
         # マークダウンをHTMLに変換
-        html = convert_markdown(body)
+        html = render_guide_html(convert_markdown(body), safe_path)
 
         return html, frontmatter
 

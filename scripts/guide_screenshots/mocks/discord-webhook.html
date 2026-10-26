@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Discord のウェブフック設定（イメージ図）</title>
+<style>
+* {box-sizing:border-box} body {margin:0;background:#313338;color:#f2f3f5;font:16px/1.7 sans-serif}
+.diagram {display:flex;min-height:440px} aside {width:260px;padding:60px 24px;background:#2b2d31;flex-shrink:0}
+.server {font-size:18px;font-weight:bold;margin-bottom:28px} .menu {padding:10px 14px;border-radius:5px;margin:12px 0}
+.active {background:#404249;color:white} main {padding:70px 48px;flex:1;min-width:0}
+h1 {font-size:26px;margin:0 0 32px} h2 {font-size:20px;margin:0 0 12px} .card {border:1px solid #4e5058;border-radius:8px;padding:24px;margin-bottom:30px}
+p {color:#b5bac1} button {font:inherit;background:#5865f2;color:white;border:0;border-radius:5px;padding:10px 20px}
+.badge {position:absolute;top:16px;right:20px;font-size:13px;color:#b5bac1;border:1px solid #6d6f78;border-radius:4px;padding:3px 10px}
+@media(max-width:600px){.diagram {display:block} aside {width:100%;padding:60px 24px 18px} main {padding:35px 24px}.server {margin-bottom:12px}.menu{display:inline-block;margin:8px 12px 8px 0}h1{font-size:24px}.card {padding:20px}}
+</style>
+</head>
+<body><div class="diagram" style="position:relative"><span class="badge">イメージ図</span>
+<aside><div class="server">さくら技術交流会</div><div class="menu">サーバー設定</div><div id="integrations" class="menu active">連携サービス</div></aside>
+<main><h1>連携サービス</h1><section id="webhooks" class="card"><h2>ウェブフック</h2><p>チャンネルに自動でお知らせを送るための設定です。</p></section>
+<button id="new-webhook">新しいウェブフック</button><p>通知を届けたいチャンネルを選んで設定します。</p></main>
+</div></body></html>

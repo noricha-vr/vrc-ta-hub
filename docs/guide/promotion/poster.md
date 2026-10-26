@@ -21,17 +21,17 @@ Hubをより多くの方に知っていただくため、ワールドへのポ�
 <div style="display: flex; gap: 16px;">
   <div style="flex: 1; text-align: center;">
     <a href="https://data.vrc-ta-hub.com/guide/images/posters/vrc-ta-hub-poster-1.jpg" target="_blank" rel="noopener">
-      <img src="https://data.vrc-ta-hub.com/guide/images/posters/vrc-ta-hub-poster-1.jpg" alt="ポスター1" style="width: 100%; object-fit: contain; display: block;">
+      <img src="images/posters/vrc-ta-hub-poster-1.jpg" alt="ポスター1" style="width: 100%; object-fit: contain; display: block;">
     </a>
   </div>
   <div style="flex: 1; text-align: center;">
     <a href="https://data.vrc-ta-hub.com/guide/images/posters/vrc-ta-hub-poster-2.jpg" target="_blank" rel="noopener">
-      <img src="https://data.vrc-ta-hub.com/guide/images/posters/vrc-ta-hub-poster-2.jpg" alt="ポスター2" style="width: 100%; object-fit: contain; display: block;">
+      <img src="images/posters/vrc-ta-hub-poster-2.jpg" alt="ポスター2" style="width: 100%; object-fit: contain; display: block;">
     </a>
   </div>
   <div style="flex: 1; text-align: center;">
     <a href="https://data.vrc-ta-hub.com/guide/images/posters/vrc-ta-hub-poster-3.jpg" target="_blank" rel="noopener">
-      <img src="https://data.vrc-ta-hub.com/guide/images/posters/vrc-ta-hub-poster-3.jpg" alt="ポスター3" style="width: 100%; object-fit: contain; display: block;">
+      <img src="images/posters/vrc-ta-hub-poster-3.jpg" alt="ポスター3" style="width: 100%; object-fit: contain; display: block;">
     </a>
   </div>
 </div>
