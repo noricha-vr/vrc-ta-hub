@@ -1,0 +1,4 @@
+<dl class="small">
+    <dt>対象の予約</dt><dd>#{{ reservation.pk }}・{{ reservation.scheduled_at|date:"Y/m/d（D）H:i" }}（日本時間）</dd>
+    <dt>内容</dt><dd>{{ reservation.subject|default:'本文なし' }}</dd>
+</dl>
