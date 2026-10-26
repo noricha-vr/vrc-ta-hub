@@ -167,7 +167,7 @@ def generate_google_calendar_url(request, event):
     return url
 
 
-def build_google_calendar_url(request, event):
+def build_google_calendar_url(request, event, details=None):
     """
     Googleカレンダー追加用URLをキャッシュを通さずに組み立てる
 
@@ -192,7 +192,8 @@ def build_google_calendar_url(request, event):
     description = [f"参加方法: {community_url}"]
     
     # 発表情報を追加（存在する場合）
-    approved_details = _get_approved_detail_summaries(event)
+    # 呼び出し側で読み込み済みの (発表者, テーマ) があれば、追加のクエリを出さずに使う
+    approved_details = details if details is not None else _get_approved_detail_summaries(event)
     if approved_details:
         description.extend(
             [f"発表者: {speaker}\nテーマ: {theme}" for speaker, theme in approved_details]
