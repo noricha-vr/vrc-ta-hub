@@ -1,49 +1,28 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 
-{% block main %}
-    <div class="container my-5">
-        <h1 class="text-center mb-5 fw-bold">
-            <i class="bi bi-twitter-x me-2"></i>
-            {% if form.instance.pk %}X告知テンプレートを編集{% else %}新規X告知テンプレート{% endif %}
-        </h1>
-
-        <div class="row justify-content-center">
-            <div class="col-12 col-md-8 col-lg-6">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <form method="post">
-                            {% csrf_token %}
-                            {% for field in form %}
-                                <div class="mb-3">
-                                    {{ field.label_tag }}
-                                    {{ field }}
-                                    {% if field.help_text %}
-                                        <small class="form-text text-muted mt-2 d-block">{{ field.help_text }}</small>
-                                    {% endif %}
-                                    {% for error in field.errors %}
-                                        <div class="invalid-feedback d-block">{{ error }}</div>
-                                    {% endfor %}
-                                </div>
-                            {% endfor %}
-                            <div>
-                                ※ テンプレートは変数を使わなくても過去のイベント告知を貼り付けるだけでパターンを認識します
-                            </div>
-                            <div class="d-grid gap-2 mt-4">
-                                <button type="submit" class="btn btn-primary rounded-5">
-                                    <i class="bi bi-save me-2"></i>保存
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <style>
-
-        .form-text {
-            margin-top: 0.5rem !important;
-        }
-    </style>
+{% block title %}X 告知テンプレート: {{ target_community.name }} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li><li class="breadcrumb-item"><a href="{% url 'twitter:template_list' %}">X 告知テンプレート</a></li><li class="breadcrumb-item active" aria-current="page">{% if form.instance.pk %}編集{% else %}作成{% endif %}</li></ol></nav>
+{% endblock %}
+{% block admin_header %}
+{% if form.instance.pk %}
+{% include 'ta_hub/admin/includes/page_header.html' with title='X 告知テンプレートの編集' target=target_community.name only %}
+{% else %}
+{% include 'ta_hub/admin/includes/page_header.html' with title='X 告知テンプレートの作成' target=target_community.name only %}
+{% endif %}
+{% endblock %}
+{% block admin_content %}
+<form id="twitter-template-form" method="post" data-admin-dirty>
+    {% csrf_token %}
+    {% include 'ta_hub/admin/includes/form_errors.html' with form=form only %}
+    <section class="admin-card" aria-labelledby="template-heading">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='告知テンプレート' heading_id='template-heading' only %}
+        {% for field in form %}{% include 'ta_hub/admin/includes/form_field.html' with field=field only %}{% endfor %}
+        <p class="admin-muted mb-0">変数を使わず、過去のイベント告知を貼り付けてもパターンを認識します。</p>
+    </section>
+</form>
+{% endblock %}
+{% block admin_action_bar %}
+{% url 'twitter:template_list' as return_url %}
+{% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions cancel_url=return_url only %}
 {% endblock %}

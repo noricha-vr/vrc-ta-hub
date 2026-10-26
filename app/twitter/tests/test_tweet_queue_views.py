@@ -205,7 +205,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
         )
 
     def test_today_scheduled_queue_is_highlighted_by_jst_date(self):
-        """予約日時が JST の今日に含まれる行だけ薄い黄色で表示する"""
+        """予約日時が JST の今日に含まれるカードだけチップで示す"""
         self.client.force_login(self.superuser)
         yesterday = self._create_queue(
             generated_text='yesterday',
@@ -228,7 +228,7 @@ class TweetQueueListViewTest(TweetQueueViewTestBase):
         self.assertEqual(response.context['today_tweet_queue_ids'], {today.pk})
         self.assertNotIn(yesterday.pk, response.context['today_tweet_queue_ids'])
         self.assertNotIn(tomorrow.pk, response.context['today_tweet_queue_ids'])
-        self.assertContains(response, 'class="table-warning"', count=1)
+        self.assertContains(response, '本日予約', count=1)
 
     def test_list_shows_post_now_button_only_for_unposted_queue(self):
         """一覧では未投稿キューだけに今すぐポストボタンを表示する"""
