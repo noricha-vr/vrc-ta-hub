@@ -1,0 +1,10 @@
+<script>
+document.querySelectorAll('.hub-admin .confirm-panel form').forEach(form => {
+    form.addEventListener('submit', event => {
+        const button = event.submitter;
+        if (!button) return;
+        // action の値を送信した後に二重送信を防ぐ。
+        setTimeout(() => { button.disabled = true; button.textContent = '処理中...'; }, 0);
+    });
+});
+</script>

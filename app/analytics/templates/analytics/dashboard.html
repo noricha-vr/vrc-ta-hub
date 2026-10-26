@@ -1,19 +1,18 @@
-{% extends 'ta_hub/base.html' %}
+{% extends 'ta_hub/admin_base.html' %}
 {% load analytics_filters %}
 
 {% block title %}アクセス解析ダッシュボード - {% site_name_seo %}{% endblock %}
 
-{% block main %}
-    <div class="container my-4">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-            <h1 class="h3 mb-0">
-                <i class="fa-solid fa-chart-line me-2"></i>アクセス解析ダッシュボード
-            </h1>
-            <a href="{% url 'event:my_list' %}" class="btn btn-sm btn-outline-secondary ms-auto">
-                <i class="fa-solid fa-arrow-left me-1"></i>マイページに戻る
-            </a>
-        </div>
-
+{% block admin_breadcrumbs %}
+    {% include 'analytics/includes/breadcrumbs.html' with current='アクセス解析' %}
+{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='アクセス解析' target=selected_community.name|default:'すべての所属集会' %}
+{% endblock %}
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with links_template='analytics/includes/nav_links.html' active='dashboard' %}
+{% endblock %}
+{% block admin_content %}
         {% if not has_access %}
             <div class="alert alert-warning">
                 所属している集会がありません。集会の管理者になるとここでアクセス解析を確認できます。
@@ -21,11 +20,11 @@
         {% else %}
 
             {# 集会切替 + 期間切替 + CSV ダウンロード #}
-            <form method="get" class="card card-body mb-3 py-2">
+            <form method="get" class="admin-card" aria-label="集会と期間の絞り込み">
                 <input type="hidden" name="days" value="{{ days }}">
                 <input type="hidden" name="sort" value="{{ sort }}">
                 <div class="d-flex align-items-center gap-2 analytics-filters">
-                    <label for="community-select" class="visually-hidden">対象集会</label>
+                    <label for="community-select" class="form-label small mb-0">対象集会</label>
                     <select name="community" id="community-select" class="form-select form-select-sm analytics-community-select" onchange="this.form.submit()">
                         <option value="">すべての所属集会（合算）</option>
                         {% for community in accessible_communities %}
@@ -46,7 +45,7 @@
             </form>
 
             {# 小さな KPI 帯。注記はフォーカス可能なヘルプアイコンで確認する #}
-            <div class="card mb-3">
+            <div class="card admin-card p-0 mb-3">
                 <div class="card-body py-2 analytics-kpis">
                     <div class="analytics-kpi">
                         <div class="text-muted small">閲覧
@@ -83,7 +82,7 @@
             <div class="row g-3">
                 <div class="col-lg-8">
                     {# 集会ページと発表を同じランキングで比較 #}
-                    <div class="card mb-3">
+                    <div class="card admin-card p-0 mb-3">
                         <div class="card-body">
                             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                                 <h2 class="fs-5 fw-bold mb-0"><i class="fa-solid fa-ranking-star me-2"></i>ページ別ランキング</h2>
@@ -94,7 +93,7 @@
                             <p class="text-muted small mb-3">列名で並べ替え。動画再生の — は動画なし・未取得。</p>
                             {% if page_ranking %}
                                 <div class="table-responsive">
-                                    <table class="table table-sm table-hover align-middle mb-0">
+                                    <table class="analytics-dashboard-table table table-sm table-hover align-middle mb-0">
                                         <thead class="table-light">
                                             <tr>
                                                 <th>ページ</th>
@@ -136,7 +135,7 @@
                     </div>
                 </div>
                 <div class="col-lg-4">
-                    <div class="card mb-3">
+                    <div class="card admin-card p-0 mb-3">
                         <div class="card-body">
                             <h2 class="fs-5 fw-bold mb-1"><i class="fa-solid fa-chart-column me-2"></i>週次推移</h2>
                             <p class="text-muted small mb-3">月曜始まり・前日まで。端の週は期間内のみ。</p>
@@ -151,7 +150,7 @@
                         </div>
                     </div>
 
-                    <div class="card mb-3">
+                    <div class="card admin-card p-0 mb-3">
                         <div class="card-body">
                             <h2 class="fs-5 fw-bold mb-3"><i class="fa-solid fa-arrow-right-to-bracket me-2"></i>どこから</h2>
                             {% if summary.pv %}
@@ -186,7 +185,7 @@
                                 <details>
                                     <summary class="small">参照元 / メディアの詳細</summary>
                                     <div class="table-responsive mt-2">
-                                        <table class="table table-sm mb-0">
+                                        <table class="analytics-dashboard-table table table-sm mb-0">
                                             <thead class="table-light"><tr><th>参照元 / メディア</th><th class="text-end">閲覧</th></tr></thead>
                                             <tbody>{% for row in source_breakdown %}<tr><td class="small">{{ row.source_medium }}</td><td class="text-end">{{ row.pv|floatformat:"0g" }}</td></tr>{% endfor %}</tbody>
                                         </table>
@@ -197,31 +196,14 @@
                     </div>
                 </div>
             </div>
-            <style>
-                .analytics-filters, .analytics-community-select { min-width: 0; }
-                .analytics-community-select { flex: 1; }
-                .analytics-kpis { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
-                .analytics-kpi { flex: 1 1 130px; min-width: 0; }
-                .analytics-search-queries { overflow-wrap: anywhere; }
-                .analytics-help { cursor: pointer; color: var(--bs-secondary-color); }
-                .analytics-chart { position: relative; }
-                .analytics-source-band { height: 24px; }
-                .analytics-source-swatch { width: 10px; height: 10px; }
-                .analytics-source-search { background-color: #0d6efd; }
-                .analytics-source-sns { background-color: #198754; }
-                .analytics-source-direct { background-color: #fd7e14; }
-                .analytics-source-internal { background-color: #6f42c1; }
-                .analytics-source-ai { background-color: #0dcaf0; }
-                .analytics-source-other { background-color: #6c757d; }
-            </style>
 
             {% if show_poster_communities %}
-                <details id="poster-community-details" class="card mb-3">
+                <details id="poster-community-details" class="card admin-card p-0 mb-3">
                     <summary class="card-body py-2 small">集会一覧からの遷移数・集会別（上位10件）</summary>
                     <div class="card-body pt-0">
                         {% if poster_community_rows %}
                             <div class="table-responsive">
-                                <table class="table table-sm table-hover align-middle mb-0">
+                                <table class="analytics-dashboard-table table table-sm table-hover align-middle mb-0">
                                     <thead class="table-light">
                                         <tr>
                                             <th>集会</th>
@@ -253,7 +235,7 @@
 
             {# QR コード・配布リンクからのアクセス（UTM utm_campaign 別）#}
             {% if campaign_breakdown %}
-                <div class="card mb-3">
+                <div class="card admin-card p-0 mb-3">
                     <div class="card-body">
                         <div class="d-flex flex-wrap align-items-center mb-1 gap-2">
                             <h2 class="fs-5 fw-bold mb-0">
@@ -273,7 +255,7 @@
                             {{ campaign_daily|json_script:"campaign-daily-data" }}
                         {% endif %}
                         <div class="table-responsive">
-                            <table class="table table-sm table-hover align-middle mb-0">
+                            <table class="analytics-dashboard-table table table-sm table-hover align-middle mb-0">
                                 <thead class="table-light">
                                     <tr>
                                         <th>配布リンク</th>
@@ -313,8 +295,8 @@
                     </div>
                 </div>
             {% else %}
-                <div class="card mb-3">
-                    <div class="card-body py-2 d-flex align-items-center justify-content-between gap-2 small">
+                <div class="card admin-card p-0 mb-3">
+                    <div class="card-body py-2 d-flex align-items-center justify-content-between gap-2 small analytics-campaign-empty">
                         <span class="text-muted">配布リンク: この期間のアクセスはありません</span>
                         <a href="{% url 'analytics:campaign_list' %}" class="flex-shrink-0">配布リンクを管理</a>
                     </div>
@@ -323,7 +305,7 @@
 
             {# サイト全体トラフィック（GLOBAL）: superuser のみ。トップ・集会一覧等の community 未紐付け URL #}
             {% if global_traffic %}
-                <div class="card mb-3 border-warning">
+                <div class="card admin-card p-0 mb-3 border-warning">
                     <div class="card-body">
                         <h2 class="fs-5 fw-bold mb-1">
                             <i class="fa-solid fa-globe me-2"></i>サイト全体トラフィック（superuser 専用）
@@ -347,7 +329,7 @@
                             <details id="global-top-paths">
                                 <summary class="small">PV 上位 URL</summary>
                                 <div class="table-responsive">
-                                    <table class="table table-sm align-middle mb-0">
+                                    <table class="analytics-dashboard-table table table-sm align-middle mb-0">
                                         <thead class="table-light">
                                             <tr>
                                                 <th>ページパス</th>
@@ -373,7 +355,6 @@
             {% endif %}
 
         {% endif %}
-    </div>
 {% endblock %}
 
 {% block extra_js %}
@@ -462,4 +443,31 @@
             </script>
         {% endif %}
     {% endif %}
+{% endblock %}
+
+{% block extra_css %}
+    {{ block.super }}
+    <style>
+        .hub-admin .analytics-filters { flex-wrap: wrap; }
+        .hub-admin .analytics-filters, .hub-admin .analytics-community-select { min-width: 0; }
+        .hub-admin .analytics-community-select { flex: 1 1 14rem; width: auto; }
+        .hub-admin .analytics-kpis { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
+        .hub-admin .analytics-kpi { flex: 1 1 130px; min-width: 0; }
+        .hub-admin .analytics-search-queries { overflow-wrap: anywhere; }
+        .hub-admin .analytics-help { cursor: pointer; color: var(--bs-secondary-color); }
+        .hub-admin .analytics-chart { position: relative; }
+        .hub-admin .analytics-source-band { height: 24px; }
+        .hub-admin .analytics-source-swatch { width: 10px; height: 10px; }
+        .hub-admin .analytics-source-search { background-color: #0d6efd; }
+        .hub-admin .analytics-source-sns { background-color: #198754; }
+        .hub-admin .analytics-source-direct { background-color: #fd7e14; }
+        .hub-admin .analytics-source-internal { background-color: #6f42c1; }
+        .hub-admin .analytics-source-ai { background-color: #0dcaf0; }
+        .hub-admin .analytics-source-other { background-color: #6c757d; }
+        .hub-admin .analytics-dashboard-table { table-layout: fixed; width: 100%; font-size: .875rem; }
+        .hub-admin .analytics-dashboard-table th, .hub-admin .analytics-dashboard-table td { overflow-wrap: anywhere; }
+        .hub-admin .analytics-dashboard-table .text-nowrap { white-space: normal !important; }
+        .hub-admin .analytics-dashboard-table th:first-child { width: 40%; }
+        .hub-admin .analytics-campaign-empty { flex-wrap: wrap; }
+    </style>
 {% endblock %}

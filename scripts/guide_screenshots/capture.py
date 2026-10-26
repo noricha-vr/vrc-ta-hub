@@ -62,12 +62,37 @@ class Capture:
     def goto(self, path):
         self.annotations.clear()
         self.masks.clear()
+        if not self.mobile:
+            # イベント管理は左に日付、右に操作が離れて並ぶので、PC 版は幅を絞って文字を読める大きさで撮る（992px 未満はナビが折りたたまれる）。
+            width = 992 if path.startswith('/event/my_list/') else 1280
+            if self.page.viewport_size['width'] != width:
+                self.page.set_viewport_size({'width': width, 'height': self.page.viewport_size['height']})
         response = self.page.goto(self.base_url + path, wait_until='networkidle')
         if not response or response.status >= 400:
             raise RuntimeError('撮影先ページの表示に失敗しました')
         self.page.evaluate('document.fonts.ready')
         if not self.page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--bs-blue').trim()"):
             raise RuntimeError('画面の CSS を読み込めませんでした。CDN への接続を確認してください')
+
+    def verify_guide(self):
+        """撮った画像を載せたガイドを同じ幅で開き、全画像の読み込み・スマホ版への差し替え・横のはみ出しを確かめる。"""
+        self.goto(f'/guide/{self.path}/')
+        images = self.page.locator('.guide-content img.guide-screenshot')
+        if not images.count():
+            raise RuntimeError(f'{self.path}: ガイドに画像がありません')
+        images.evaluate_all("elements => elements.forEach(e => e.loading = 'eager')")
+        self.page.wait_for_function("""() => [...document.querySelectorAll('.guide-content img.guide-screenshot')]
+            .every(e => e.complete && e.naturalWidth > 0)""")
+        if self.mobile:
+            # -sp 版がある画像は、スマホ幅ではそちらが表示される
+            wrong = self.page.evaluate("""() => [...document.querySelectorAll('.guide-content picture')]
+                .filter(p => !p.querySelector('img').currentSrc.includes('-sp.webp')).length""")
+            if wrong:
+                raise RuntimeError(f'{self.path}: スマホ幅で -sp 版に差し替わらない画像があります')
+        if self.page.evaluate('document.documentElement.scrollWidth > innerWidth'):
+            raise RuntimeError(f'{self.path}: ガイドに横方向のはみ出しがあります')
+        print(json.dumps({'event': 'guide_page_verified', 'path': self.path, 'mobile': self.mobile,
+                          'images': images.count()}))
 
     def login(self, role='owner'):
         self.page.context.clear_cookies()
@@ -102,7 +127,13 @@ class Capture:
         for selector in self.masks:
             self.page.locator(selector).evaluate_all('''elements => elements.forEach(e => {
                 if ('value' in e) {e.value = ''; e.placeholder = '';} 
-                else e.textContent = '非表示';
+                else {
+                    // 伏せ字で要素が縮み、表や注釈の位置が変わらないようにする。
+                    const rect = e.getBoundingClientRect();
+                    if (getComputedStyle(e).display === 'inline') e.style.display = 'inline-block';
+                    e.style.minWidth = `${rect.width}px`; e.style.minHeight = `${rect.height}px`;
+                    e.textContent = '非表示';
+                }
                 e.style.backgroundColor = '#9ca3af'; e.style.color = 'transparent';
                 e.style.textShadow = 'none';
             })''')
@@ -116,7 +147,7 @@ class Capture:
         for selector, number in self.annotations:
             target = self.page.locator(selector)
             if target.count() != 1 or not target.is_visible():
-                raise ValueError('注釈対象は表示中の一要素にしてください')
+                raise ValueError(f'注釈対象は表示中の一要素にしてください: {selector}（{target.count()} 件）')
             target.evaluate('''(element, number) => {
                 const r = element.getBoundingClientRect();
                 const frame = document.createElement('div');

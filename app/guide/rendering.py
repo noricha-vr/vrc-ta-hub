@@ -1,5 +1,6 @@
 """サニタイズ後のガイド HTML に配信 URL と画像の表示属性を付ける。"""
 import posixpath
+import re
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit, urlunsplit
 
@@ -40,6 +41,18 @@ def mobile_variant(image_path: str) -> str | None:
 def render_guide_html(html: str, page_path: str) -> str:
     """bleach 後に実行する。入力 HTML 自体のサニタイズは呼び出し側の責務。"""
     soup = BeautifulSoup(html, 'html.parser')
+    used_ids = set()
+    for heading in soup.find_all(['h2', 'h3', 'h4']):
+        slug = re.sub(r'[^\w-]', '', re.sub(r'\s+', '-', heading.get_text().strip())) or 'section'
+        anchor = slug
+        suffix = 2
+        while anchor in used_ids:
+            anchor = f'{slug}-{suffix}'
+            suffix += 1
+        heading['id'] = anchor
+        used_ids.add(anchor)
+    for table in soup.find_all('table'):
+        table.wrap(soup.new_tag('div', attrs={'class': 'guide-table-wrap'}))
     for link in soup.find_all('a', href=True):
         link['href'] = guide_link(str(link['href']), page_path)
     for img in soup.find_all('img', src=True):
@@ -64,6 +77,25 @@ def render_guide_html(html: str, page_path: str) -> str:
             picture.append(img.extract())
             target = picture
         if not target.find_parent('a'):
-            link = soup.new_tag('a', href=image_url, target='_blank', rel='noopener')
+            link = soup.new_tag('a', href=image_url, target='_blank', rel='noopener',
+                                attrs={'class': 'guide-screenshot-link'})
             target.wrap(link)
     return str(soup)
+
+
+def page_table_of_contents(html: str) -> list[dict]:
+    """描画済みの h2/h3 から入れ子のページ内目次を作る。"""
+    headings = BeautifulSoup(html, 'html.parser').find_all(['h2', 'h3'], id=True)
+    if len(headings) < 2:
+        return []
+    items = []
+    current_section = None
+    for heading in headings:
+        item = {'title': heading.get_text(), 'id': heading['id'], 'children': []}
+        if heading.name == 'h3' and current_section is not None:
+            current_section['children'].append(item)
+        else:
+            items.append(item)
+        if heading.name == 'h2':
+            current_section = item
+    return items

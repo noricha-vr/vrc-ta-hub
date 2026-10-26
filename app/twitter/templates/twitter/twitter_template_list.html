@@ -1,155 +1,45 @@
-{% extends 'ta_hub/base.html' %}
-{% load static %}
+{% extends 'ta_hub/admin_base.html' %}
 
-{% block main %}
-    <div class="container my-5">
-        {% include 'ta_hub/messages.html' %}
-        {% if not templates %}
-            <div class="col-12">
-                <div class="alert alert-info" role="alert">
-                    <i class="bi bi-info-circle me-2"></i>
-                    テンプレートがありません。テンプレートを作成しましょう！
-                </div>
-            </div>
-        {% endif %}
-        <h1 class="text-center mb-5 fw-bold">X告知テンプレート</h1>
-        <div class="d-flex justify-content-end mb-4">
-            <a href="{% url 'event:my_list' %}" class="btn btn-outline-secondary me-2">
-                <i class="bi bi-calendar-event me-2"></i>イベント管理
-            </a>
-            {% if create_community %}
-                <a href="{% url 'twitter:template_create' %}?community={{ create_community.pk }}" class="btn btn-primary">
-                    <i class="bi bi-plus-circle me-2"></i>新規作成
-                </a>
-            {% endif %}
-        </div>
-        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-            {% for template in templates %}
-                <div class="col">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-body">
-                            <h5 class="card-title">
-                                <i class="bi bi-twitter-x me-2"></i>
-                                {{ template.name }}
-                            </h5>
-                            <p class="card-subtitle text-muted small mb-2">{{ template.community.name }}</p>
-                            <p class="card-text">{{ template.template|truncatechars:100 }}</p>
-                        </div>
-                        <div class="card-footer bg-transparent border-0 d-flex justify-content-between">
-                            <a href="{% url 'twitter:template_update' template.pk %}"
-                               class="btn btn-outline-primary btn-sm">
-                                <i class="bi bi-pencil-square me-2"></i>編集
-                            </a>
-                            <button class="btn btn-outline-danger btn-sm delete-template"
-                                    data-template-id="{{ template.pk }}"
-                                    data-template-name="{{ template.name }}">
-                                <i class="bi bi-trash me-2"></i>削除
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            {% endfor %}
-        </div>
-        <div class="mt-3">
-            ※ 投稿のタイミングを調整したい場合はXの予約投稿機能をご利用ください
-        </div>
-    </div>
-
-    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel"
-         aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="deleteConfirmModalLabel">テンプレートの削除</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    "<span id="templateName"></span>" を削除してもよろしいですか？
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                    <button type="button" class="btn btn-danger" id="confirmDelete">削除</button>
-                </div>
+{% block title %}X 告知テンプレート: {{ template_list_target }} - {% site_name_seo %}{% endblock %}
+{% block admin_breadcrumbs %}
+<nav aria-label="パンくず"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li><li class="breadcrumb-item active" aria-current="page">X 告知テンプレート</li></ol></nav>
+{% endblock %}
+{% block admin_header %}
+{% include 'ta_hub/admin/includes/page_header.html' with title='X 告知テンプレート' target=template_list_target actions=header_actions only %}
+{% endblock %}
+{% block admin_content %}
+{% regroup templates by community as community_templates %}
+{% for group in community_templates %}
+<section aria-label="{{ group.grouper.name }}のテンプレート">
+    {% if multiple_template_communities %}{% include 'ta_hub/admin/includes/section_heading.html' with title=group.grouper.name only %}{% endif %}
+    {% for template in group.list %}
+    <article class="admin-card" data-template-delete>
+        <div class="event-summary">
+            <h2 class="h6 fw-bold mb-0 text-break">{{ template.name }}</h2>
+            <div class="event-actions">
+                <a href="{% url 'twitter:template_update' template.pk %}" class="btn btn-sm btn-outline-secondary">編集</a>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-confirm-panel="delete-template-{{ template.pk }}" aria-controls="delete-template-{{ template.pk }}" aria-expanded="false">削除</button>
             </div>
         </div>
-    </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const deleteButtons = document.querySelectorAll('.delete-template');
-            const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
-            const templateNameSpan = document.getElementById('templateName');
-            const confirmDeleteButton = document.getElementById('confirmDelete');
-
-            deleteButtons.forEach(button => {
-                button.addEventListener('click', function () {
-                    const templateId = this.dataset.templateId;
-                    const templateName = this.dataset.templateName;
-                    templateNameSpan.textContent = templateName;
-                    confirmDeleteButton.dataset.templateId = templateId;
-                    modal.show();
-                });
-            });
-
-            confirmDeleteButton.addEventListener('click', function () {
-                const templateId = this.dataset.templateId;
-                fetch(`/twitter/template/${templateId}/delete/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCookie('csrftoken'),
-                        'Content-Type': 'application/json',
-                    },
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            location.reload();
-                        } else {
-                            alert('削除に失敗しました。');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('エラーが発生しました。');
-                    });
-                modal.hide();
-            });
-
-            function getCookie(name) {
-                let cookieValue = null;
-                if (document.cookie && document.cookie !== '') {
-                    const cookies = document.cookie.split(';');
-                    for (let i = 0; i < cookies.length; i++) {
-                        const cookie = cookies[i].trim();
-                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                            break;
-                        }
-                    }
-                }
-                return cookieValue;
-            }
-        });
-    </script>
-    <style>
-        .card {
-            transition: transform 0.3s ease-in-out;
-        }
-
-        .card:hover {
-            transform: translateY(-5px);
-        }
-
-        .card-title {
-            color: #1DA1F2;
-        }
-
-        .btn-primary, .btn-outline-primary {
-            border-radius: 20px;
-        }
-
-        .btn-primary, .btn-outline-primary, .btn-outline-secondary {
-            border-radius: 20px;
-        }
-    </style>
+        <p class="admin-muted mt-3 mb-0">{{ template.template|truncatechars:100 }}</p>
+        {% url 'twitter:template_delete' template.pk as delete_url %}
+        {% with panel_id=template.pk|stringformat:'s' %}
+        {% with panel_id='delete-template-'|add:panel_id message=template.name|add:' を削除しますか？' %}
+        {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label='テンプレート削除の確認' message=message action_url=delete_url csrf_token=csrf_token submit_label='テンプレートを削除する' only %}
+        {% endwith %}{% endwith %}
+    </article>
+    {% endfor %}
+</section>
+{% empty %}
+{% if create_community %}
+{% include 'ta_hub/admin/includes/empty_state.html' with title='テンプレートがありません' description='管理する集会を選ぶと、右上の「新規作成」から告知テンプレートを作成できます。' only %}
+{% else %}
+{% include 'ta_hub/admin/includes/empty_state.html' with title='テンプレートがありません' description='管理できる集会のテンプレートがここに表示されます。' only %}
+{% endif %}
+{% endfor %}
+<p class="admin-muted">投稿のタイミングを調整する場合は、X の予約投稿機能をご利用ください。</p>
+{% endblock %}
+{% block extra_js %}
+{{ block.super }}
+{% include 'twitter/includes/template_delete_script.html' %}
 {% endblock %}
