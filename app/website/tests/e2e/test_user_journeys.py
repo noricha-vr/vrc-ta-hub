@@ -430,6 +430,8 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
         self.page.locator('#recording_allowed_true').check()
         expect(self.page.locator('#default_recording_policy_public')).to_be_checked()
         self.page.locator('#default_recording_policy_forbidden').check()
+        # 未保存の変更があると離れる前に確認が出るので、離れる側を選ぶ
+        self.page.once('dialog', lambda dialog: dialog.accept())
         self.page.goto(self.live_server_url)
         self.page.go_back()
         expect(self.page.locator('#default_recording_policy_forbidden')).to_be_checked()
@@ -439,7 +441,7 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
         self.page.locator('#recording_allowed_false').check()
         self.page.locator('#recording_allowed_true').check()
         expect(self.page.locator('#default_recording_policy_forbidden')).to_be_checked()
-        self.page.locator('form:has(#recording_allowed_true) button[type=submit]').click()
+        self.page.locator('button[form="lt-form"]').click()
         self.page.wait_for_load_state('domcontentloaded')
 
         self.community.refresh_from_db()
@@ -457,8 +459,8 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
         self.page.locator('#recording_allowed_false').check()
         self.page.locator('#recording_allowed_true').check()
         expect(self.page.locator('#default_recording_policy_allowed')).to_be_checked()
-        self.page.locator('form:has(#recording_allowed_true) button[type=submit]').click()
-        self.page.wait_for_load_state('domcontentloaded')
+        # 往復で元の値に戻ると変更なしになり、保存バーに保存ボタンは出ない
+        expect(self.page.locator('button[form="lt-form"]')).to_be_hidden()
 
         self.community.refresh_from_db()
         self.assertEqual(self.community.default_recording_policy, 'allowed')
@@ -473,7 +475,7 @@ class UserJourneysE2ETests(PlaywrightLiveServerTestCase):
 
         self.page.locator('#recording_allowed_true').check()
         expect(self.page.locator('#default_recording_policy_public')).to_be_checked()
-        self.page.locator('form:has(#recording_allowed_true) button[type=submit]').click()
+        self.page.locator('button[form="lt-form"]').click()
         self.page.wait_for_load_state('domcontentloaded')
 
         self.community.refresh_from_db()

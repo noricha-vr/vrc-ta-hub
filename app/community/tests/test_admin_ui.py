@@ -127,6 +127,8 @@ class CommunityAdminUITest(TestCase):
         error = soup.select_one('#notification-form [data-webhook-blank-error]')
         self.assertIsNotNone(error)
         self.assertIn('hidden', error.attrs)
+        # d-block（display:block !important）は hidden 属性に勝ち、常に表示されてしまう
+        self.assertNotIn('d-block', error.get('class', []))
         self.assertIn('Webhook URL を入力してください。通知先を消す時は『通知先を削除…』から操作してください。',
                       error.get_text())
         script = ''.join(tag.get_text() for tag in soup.find_all('script'))
