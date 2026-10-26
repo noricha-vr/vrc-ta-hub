@@ -138,6 +138,11 @@
                             <span class="badge bg-secondary">未登録</span>
                         {% endif %}
                     </div>
+                    {% if stage_registration_enabled %}
+                        <a href="{% url 'vket:stage_copy' collaboration.pk participation.pk %}" class="btn btn-outline-primary my-2">
+                            登録用の入力値・サムネイルを用意する
+                        </a>
+                    {% endif %}
                     {% if not participation.stage_registered_at %}
                         {% if not stage_registration_enabled %}
                             <p class="fw-bold mb-2">Coming Soon</p>

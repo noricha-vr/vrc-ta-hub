@@ -141,6 +141,11 @@ class VketParticipation(models.Model):
     applied_at = models.DateTimeField("申請日時", null=True, blank=True)
     schedule_confirmed_at = models.DateTimeField("日程確定日時", null=True, blank=True)
     stage_registered_at = models.DateTimeField("ステージ登録日時", null=True, blank=True)
+    stage_thumbnail = models.ImageField(
+        "ステージサムネイル", upload_to="vket/stage_thumbnails/", blank=True,
+    )
+    stage_thumbnail_requested_at = models.DateTimeField("サムネイル生成予約日時", null=True, blank=True)
+    stage_thumbnail_generated_at = models.DateTimeField("サムネイル生成日時", null=True, blank=True)
     lt_submitted_at = models.DateTimeField("発表提出日時", null=True, blank=True)
     last_acknowledged_at = models.DateTimeField("最終確認日時", null=True, blank=True)
     last_acknowledged_by = models.ForeignKey(
