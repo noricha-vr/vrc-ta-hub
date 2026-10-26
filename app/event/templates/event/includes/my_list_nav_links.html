@@ -1,5 +1,4 @@
             <a href="{% url 'event:my_list' %}" aria-current="page">イベント</a>
-            <a href="{% url 'account:lt_application_list' %}">発表申請一覧</a>
             {% if community %}
             <a href="{% url 'event:detail_history' %}?community_name={{ community.name|urlencode }}"><i class="fas fa-history" aria-hidden="true"></i> 発表履歴</a>
             <a href="{% url 'analytics:dashboard' %}?community={{ community.id }}">アクセス</a>

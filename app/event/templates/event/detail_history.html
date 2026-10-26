@@ -1,4 +1,4 @@
-{% extends 'ta_hub/base.html' %}
+{% extends is_mine|yesno:'ta_hub/admin_base.html,ta_hub/base.html' %}
 {% block canonical_path %}{{ canonical_path }}{% endblock %}
 {% block og_url_path %}{{ canonical_path }}{% endblock %}
 {% load og_tags %}
@@ -12,11 +12,73 @@
     {% if structured_data_json %}
         <script type="application/ld+json">{{ structured_data_json|safe }}</script>
     {% endif %}
-    {% og_static 'ta_hub/og/history.jpg' as image_url %}
-    {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
+    {% block og_image_meta %}
+        {% og_static 'ta_hub/og/history.jpg' as image_url %}
+        {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
+    {% endblock %}
+{% endblock %}
+
+{% block extra_css %}
+    {{ block.super }}
+    {% if is_mine %}
+    <style>
+        .hub-admin.my-presentations .mine-presentation { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+        .hub-admin.my-presentations .presentation-thumb { flex: 0 1 13rem; max-width: 100%; align-self: flex-start; }
+        .hub-admin.my-presentations .mine-presentation-content { flex: 1 1 20rem; min-width: 0; overflow-wrap: anywhere; }
+        .hub-admin.my-presentations .presentation-actions .btn { white-space: nowrap; }
+        .hub-admin.my-presentations .presentation-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        @media (max-width: 575.98px) {
+            .hub-admin.my-presentations .presentation-thumb { flex-basis: 100%; }
+        }
+    </style>
+    {% endif %}
+{% endblock %}
+
+{% block admin_classes %}my-presentations{% endblock %}
+{% block admin_breadcrumbs %}
+    <nav aria-label="パンくず">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'event:my_list' %}">イベント管理</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'account:settings' %}">アカウント設定</a></li>
+            <li class="breadcrumb-item active" aria-current="page">自分の発表</li>
+        </ol>
+    </nav>
+{% endblock %}
+{% block admin_header %}
+    {% include 'ta_hub/admin/includes/page_header.html' with title='自分の発表' target=request.user.display_label subtitle='アカウントに紐づいた承認済みの発表を編集できます。' only %}
+{% endblock %}
+{% block admin_subnav %}
+    {% include 'ta_hub/admin/includes/subnav.html' with label='個人用' links_template='event/includes/my_presentations_nav_links.html' %}
+{% endblock %}
+{% block admin_content %}
+    <section class="admin-card" aria-labelledby="mine-filter-heading">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='発表を探す' heading_id='mine-filter-heading' only %}
+        {% include 'event/_history_filters.html' %}
+    </section>
+    <section aria-labelledby="mine-presentations-heading">
+        {% include 'ta_hub/admin/includes/section_heading.html' with title='発表の一覧' heading_id='mine-presentations-heading' only %}
+        <p class="admin-muted">全 {{ all_count }} 件</p>
+        {% for detail in event_details %}
+            {% include 'event/includes/my_presentation_card.html' with detail=detail %}
+        {% empty %}
+            {% if request.GET.q or request.GET.speaker or request.GET.theme or request.GET.community_name %}
+                {% include 'ta_hub/admin/includes/empty_state.html' with title='該当する発表はありません。' description='キーワードや絞り込みを変えて探してください。' action_url=clear_filters_url action_label='絞り込みを解除' only %}
+            {% else %}
+                {% url 'community:list' as community_list_url %}
+                {% include 'ta_hub/admin/includes/empty_state.html' with title='編集できる発表はまだありません。' description='発表を申し込み、承認されるとここに表示されます。' action_url=community_list_url action_label='集会を探して発表を申し込む' only %}
+                <a href="{{ clear_filters_url }}" class="btn btn-outline-secondary btn-sm mt-3">絞り込みを解除</a>
+            {% endif %}
+        {% endfor %}
+        {% if page_obj.paginator.num_pages > 1 %}
+            {% include 'ta_hub/pagination.html' %}
+        {% endif %}
+    </section>
 {% endblock %}
 
 {% block main %}
+    {% if is_mine %}
+        {{ block.super }}
+    {% else %}
     <style>
         /* 抜粋は2行でクランプする */
         .presentation-excerpt {
@@ -109,4 +171,5 @@
             </div>
         </div>
     </div>
+    {% endif %}
 {% endblock %}

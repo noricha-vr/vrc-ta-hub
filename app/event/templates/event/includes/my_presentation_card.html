@@ -1,0 +1,52 @@
+{# 本人モード専用。公開一覧のカードと管理用の表示を分ける。 #}
+<article class="admin-card mine-presentation" aria-labelledby="mine-presentation-{{ detail.pk }}">
+    <a href="{% url 'event:detail' detail.pk %}" class="presentation-thumb ratio ratio-16x9 bg-light overflow-hidden rounded"
+       aria-label="{{ detail.title|default:'発表' }}の詳細" tabindex="-1">
+        {% include 'event/_presentation_thumbnail.html' with detail=detail %}
+    </a>
+    <div class="mine-presentation-content">
+        <div class="presentation-heading">
+            <div class="presentation-text">
+                <h3 id="mine-presentation-{{ detail.pk }}" class="presentation-theme presentation-title">
+                    <a href="{% url 'event:detail' detail.pk %}" class="text-decoration-none text-body">{{ detail.title|default:'テーマ未設定' }}</a>
+                </h3>
+                <div class="admin-muted d-flex flex-wrap align-items-center gap-1 mb-2">
+                    <time datetime="{{ detail.event.date|date:'Y-m-d' }}">{{ detail.event.date|date:'Y年n月j日' }}</time>
+                    <span aria-hidden="true">·</span>
+                    <a href="{{ request.path }}?{% if community_link_base_query %}{{ community_link_base_query }}&{% endif %}community_name={{ detail.event.community.name|urlencode }}">{{ detail.event.community.name }}</a>
+                    {% if detail.speaker %}
+                        <span aria-hidden="true">·</span>
+                        <a href="{{ request.path }}?{% if speaker_link_base_query %}{{ speaker_link_base_query }}&{% endif %}speaker={{ detail.speaker|urlencode }}">{{ detail.speaker }}</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% if request.user.is_authenticated and detail.applicant_id == request.user.pk and detail.detail_type == 'LT' and detail.status == 'approved' %}
+                <div class="presentation-actions">
+                    <a href="{% url 'event:detail_update' detail.pk %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil me-1" aria-hidden="true"></i>編集</a>
+                </div>
+            {% endif %}
+        </div>
+        {% with excerpt=detail.get_excerpt %}
+            {% if excerpt %}<p class="admin-muted presentation-excerpt">{{ excerpt }}</p>{% endif %}
+        {% endwith %}
+        <div class="d-flex flex-wrap gap-1">
+            {% if detail.slide_file or detail.slide_url %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='スライド' tone='success' icon='bi bi-file-text' only %}
+            {% else %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='スライド未登録' tone='warning' only %}
+            {% endif %}
+            {% if detail.youtube_url %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='動画' tone='success' icon='bi bi-play-btn' only %}
+            {% else %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='動画未登録' only %}
+            {% endif %}
+            {% if detail.article_consent == 'ng' %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='記事化 NG' only %}
+            {% elif detail.has_article %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='記事' tone='success' icon='bi bi-pencil-square' only %}
+            {% else %}
+                {% include 'ta_hub/admin/includes/status_chip.html' with label='記事未生成' only %}
+            {% endif %}
+        </div>
+    </div>
+</article>
