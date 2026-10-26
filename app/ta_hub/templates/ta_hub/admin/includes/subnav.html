@@ -1,0 +1,7 @@
+<nav class="admin-subnav mylist-nav" aria-label="{{ label|default:'集会管理' }}">
+    {% if links_template %}{% include links_template %}{% else %}
+        {% for item in items %}
+        <a href="{{ item.url }}"{% if item.current %} aria-current="page"{% endif %}>{{ item.label }}{% if item.operator %} <span class="badge bg-secondary">運営</span>{% endif %}</a>
+        {% endfor %}
+    {% endif %}
+</nav>

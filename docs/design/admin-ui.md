@@ -105,3 +105,121 @@ Webhook URL・API キー・トークンは、保存済みなら全部を表示�
 - 状態（未保存・承認待ち・未設定・空）がそれぞれ画面に出るか
 - 件数・ページ送りが出ているか
 - PC とスマホで実画面を撮って見比べたか
+
+## 部品の使い方
+
+第 0 波の共通基盤。管理画面は `ta_hub/admin_base.html` を継承する。公開ページは引き続き `ta_hub/base.html` を使う。CSS・JS は管理画面だけで読む。`base.html` の `title` ブロックは既定の `<title>` の中にあり、未指定なら従来のタイトルになる。`meta` を上書きするページは自分の `<title>` を維持する。
+
+### ブロック
+
+| ブロック | 用途 |
+|---|---|
+| `title` | ページの HTML タイトル（タグ自体は含めない） |
+| `extra_css` / `extra_js` | CSS / JS の追加。必ず `{{ block.super }}` を先頭に残す |
+| `admin_classes` | `.hub-admin` に足すクラス。イベント管理は `mylist` |
+| `admin_breadcrumbs` | パンくず。先頭は `event:my_list` |
+| `admin_header` | 共通のページ見出し |
+| `admin_subnav` | 権限内のリンクだけを出すサブナビ |
+| `messages` | 既定で既存の `ta_hub/messages.html` を表示 |
+| `admin_attention` | 要対応・警告・案内 |
+| `admin_layout` | 既定は `.admin-layout`。通常は上書きせず、以下の 2 ブロックを使う |
+| `admin_toc` | 任意。`<aside class="admin-toc">…</aside>` を置く。未指定なら空 |
+| `admin_content` | `.admin-content` 内の本文。カード本体はここに直接 HTML で書く |
+| `admin_action_bar` | 保存バー。既存フォームを指すボタンを配置 |
+
+```django
+{% extends 'ta_hub/admin_base.html' %}
+{% block title %}通知設定 - {{ community.name }}{% endblock %}
+{% block admin_header %}
+  {% include 'ta_hub/admin/includes/page_header.html' with title='通知設定' target=community.name %}
+{% endblock %}
+{% block admin_content %}
+  <form id="notification-form" method="post" action="{{ notification_url }}" data-admin-dirty>
+    {% csrf_token %}
+    {% include 'ta_hub/admin/includes/form_errors.html' with form=form %}
+    <section class="admin-card" aria-labelledby="notification-heading">
+      {% include 'ta_hub/admin/includes/section_heading.html' with title='通知' heading_id='notification-heading' %}
+      {% include 'ta_hub/admin/includes/form_field.html' with field=form.enabled %}
+    </section>
+  </form>
+{% endblock %}
+{% block admin_action_bar %}
+  {% include 'ta_hub/admin/includes/action_bar.html' with actions=save_actions cancel_url=return_url %}
+{% endblock %}
+```
+
+### include の引数
+
+すべて `ta_hub/admin/includes/` 配下。引数は特記以外省略可。文字列は自動エスケープする。任意の本文 HTML を `safe` で出す仕組みはない。`*_template` は開発者がテンプレートに直書きするパスだけを渡し、リクエスト値・DB の文字列から選ばない。小部品は `only` を付けて必要な値だけ渡すことを推奨する。未定義の任意引数の評価で一覧全体の QuerySet を再評価することを避けられる。`*_template` で既存の分岐を引き継ぐ場合はコンテキストを共有するか、必要なオブジェクト・`csrf_token` を明示して渡す。
+
+| ファイル | 引数と仕様 |
+|---|---|
+| `page_header.html` | **`title`**、`target`（`画面名: 対象名`）、`subtitle`、`actions`（`url` / `label` / `primary` の配列）。`switcher_template` があれば切替を表示し h1 は別に視覚非表示。`actions_template` は固有の操作を置く場合に `actions` より優先 |
+| `community_switcher.html` | 既存コンテキストの `communities`、`active_community` を使用。既存の `community:switch` POST / CSRF / `community_id` / `redirect_to=event:my_list`、終了集会の無効表示を維持。イベント管理以外で異なる戻り先が必要なら専用の切替テンプレートを使う |
+| `subnav.html` | `label`（既定「集会管理」）、`items`（`url` / `label` / `current` / `operator` の配列）。`current=True` で `aria-current="page"`、`operator=True` で運営バッジ。`links_template` はページ固有のリンクを置く場合に `items` より優先。部品内で権限を増やさず、呼出側でリンクを絞る |
+| `section_heading.html` | **`title`**、`heading_id`、`description`、`save_scope`（「このカードだけ保存: 対象」）、`form_id`（フォームの変更状態）、`past=True`（過去の区切り） |
+| `form_field.html` | **`field`**（Django の BoundField）。`django_bootstrap5.bootstrap_field` でラベル・必須表示・入力・ヘルプ・エラーを表示。入力名・ID・ウィジェットの属性を保持 |
+| `form_errors.html` | **`form`**。全体と項目別のエラー、項目へのアンカー。hidden 項目のエラーはリンクなしで表示 |
+| `action_bar.html` | **`actions`**（`form_id` / `scope` / `label` / `name` / `value` / `disabled` / `danger` の配列）、`cancel_url`、`cancel_label`（既定「キャンセル」）、`inline=True`（モーダルフッター等。固定しない）。ボタンは `form` 属性で指定したフォームだけを送信 |
+| `empty_state.html` | **`title`**、`description`、`action_url` と `action_label`（両方ある時だけ導線を表示） |
+| `confirm_panel.html` | **`panel_id` / `label` / `message` / `action_url` / `submit_label`**、`fields_template`（既存 hidden・選択肢等）、`submit_name` / `submit_value`、`open=True`（独立確認ページ用）、`cancel_url`（リンク。省略時は枠を閉じるボタン）。部品が POST フォームと CSRF を出すのでフォームの中に入れない |
+| `status_chip.html` | **`label`**、`tone`（`success` / `warning` / `danger`、省略時は中立）、`icon`（装飾用のアイコンクラス）。文字を必ず出す |
+| `setup_link.html` | **`label`**、`url`（リンク）、または `form_id`（既存フォームへの送信ボタン。`url` より優先）。`setup_type` / `community_id` は既存の `data-mylist-setup` / `data-community-id` が必要な時だけ指定。部品自身は計測しない |
+| `secret_field.html` | **`field`**（BoundField）、**`label`**、`configured=True`（保存済み）、`suffix`（任意、最後の 4 文字だけ表示）、`help_text`。初期値・POST 値を `value` 属性に出さず、空の password 入力を使う。保存済みなら変更欄は閉じて無効。未設定・エラー時は開く。ウィジェットに特別な属性が必要な項目は専用に表示する |
+
+`actions` 等の配列はビューで組み立てる。例えば保存バーは次のデータを渡す。既存の `action` の送信が必要なら `name` と `value` を指定する。
+
+```python
+save_actions = [
+    {'form_id': 'community-form', 'scope': '集会情報', 'label': '集会情報を保存'},
+    {'form_id': 'notification-form', 'scope': '通知', 'label': '通知を保存',
+     'name': 'action', 'value': 'save_notifications'},
+]
+```
+
+```django
+{# ナビは権限判定済みのリンクの配列を渡す #}
+{% include 'ta_hub/admin/includes/subnav.html' with items=admin_links %}
+{% include 'ta_hub/admin/includes/empty_state.html' with title='登録はありません' action_url=create_url action_label='登録する' %}
+{% include 'ta_hub/admin/includes/status_chip.html' with label='承認待ち' tone='warning' %}
+{% include 'ta_hub/admin/includes/setup_link.html' with url=settings_url label='通知を設定する' %}
+{% include 'ta_hub/admin/includes/secret_field.html' with field=form.webhook_url label='通知先' configured=has_webhook suffix=webhook_suffix %}
+```
+
+秘密値を含むカード全体のフォームでは、閉じた欄は disabled となり送信されない。**送信されなかった項目をビューが空として保存する場合は、そのまま導入しない。** 既存の通知専用フォームを保ち、変更時だけそのフォームを送る、または呼出側で非変更を保持する。秘密値自体を hidden に移して解決しない。伏せ字表示は新規キーの一度だけの表示・コピー機能を代替するものではなく、そのような画面では明示操作を別に作る。
+
+### JS の契約
+
+- フォームに一意の `id` と `data-admin-dirty` を付けた場合だけ変更検知する。`data-admin-form-status="その id"` に「変更はありません」または「未保存の変更があります」を出す。`data-admin-scope="通知"` を付けると先頭に範囲を表示する。フォーム外の `form` 属性付き入力、チェック、複数選択、ファイル、reset も対象。
+- 値はフォームごとにメモリ内で比較するだけ。入力値を計測・ログ・ストレージ・追加の通信に出さない。保存ボタンは個別の標準送信だけで、一括連続 POST はしない。既存の Ajax 保存がある場合は、成功が確認できた時だけ `form.dispatchEvent(new Event('admin:saved'))` で基準を更新する。submit しただけでは保存済みにしない。
+- 開くボタンに `data-confirm-panel="確認枠の id"`、`aria-controls="同じ id"`、`aria-expanded="false"` を付ける。キャンセル・Escape で閉じ、起点へフォーカスを戻す。起点が閉じた dropdown 内なら、そのメニューを開くボタンへ戻す。独立 URL では `open=True` と `cancel_url` を指定する。
+- `secret_field` の変更欄は開いた時だけ入力を有効化する。保存済みの値を復元・再表示しない。
+- 固定バーは ResizeObserver で実高を測り、末尾の余白と入力・エラーへのスクロール余白に反映する。モーダルでは `inline=True` を使う。ページ全体の固定バーは 1 本だけ置く。
+
+```django
+<button type="button" data-confirm-panel="delete-item" aria-controls="delete-item" aria-expanded="false">削除…</button>
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='delete-item' label='削除の確認' message='この項目を削除しますか？' action_url=delete_url submit_label='この項目を削除する' %}
+```
+
+### CSS クラス
+
+すべて `.hub-admin` 内だけに適用する。色はこの文書の「見た目の値」を正本とする。`--admin-primary` / `--admin-primary-hover` / `--admin-primary-soft`、`--admin-text` / `--admin-muted` / `--admin-border`、`--admin-attention-*` / `--admin-danger-*` / `--admin-marker`、`--admin-radius-*`、`--admin-space-1`〜`6` を定義している。
+
+| クラス | 用途 |
+|---|---|
+| `hub-admin` | 管理画面のスコープ。`admin_base` が付与 |
+| `admin-layout` / `admin-content` / `admin-toc` | 本文と任意の左目次。狭幅では一列 |
+| `admin-page-header` / `admin-page-heading` / `admin-header-actions` / `admin-muted` | ページ見出し・操作・補助文 |
+| `admin-subnav` / `mylist-nav` | サブナビ。スマホではナビ内だけを横スクロール |
+| `admin-card` / `admin-section-heading` / `section-title` / `past-section` | カード・h2・一覧の区切り |
+| `admin-form-field` / `admin-form-errors` | 入力・エラー一覧 |
+| `action-required` / `action-required-row` / `action-required-text` | 要対応の箱・行・本文 |
+| `event-card` / `event-summary` / `event-date` / `event-time` / `event-meta` / `event-actions` / `event-footer` | 一覧カードの識別・操作・末尾導線 |
+| `presentation-row` / `presentation-heading` / `presentation-text` / `presentation-theme` / `presentation-speaker` / `presentation-actions` | 一覧内の発表と操作 |
+| `detail-chip` / `setup-placeholder` / `confirm-panel` | 状態・未設定・確認 |
+| `admin-action-bar` / `stickybar` / `admin-action-status` / `admin-action-buttons` | 操作バー・固定・状態・ボタン |
+| `admin-dirty-status` / `is-dirty` | 未保存表示（JS が切替） |
+| `admin-empty-state` / `admin-secret-field` / `admin-secret-status` / `admin-secret-edit` | 空状態・秘密値 |
+| `mylist` / `mylist-header` / `mylist-header-actions` / `community-selector` / `community-selector-button` / `community-label` / `community-name` | 手本の一覧幅・集会切替。既存の寸法を保持 |
+
+`vket-banner*` はイベント管理固有のバナーの見た目を保持するため同じ CSS に移している。共通の管理カードとして流用しない。公開ページの `body` / `.btn` / `.card` / `.form-text` は上書きしない。

@@ -1,0 +1,11 @@
+{% if form.errors %}
+<div class="alert alert-danger admin-form-errors" role="alert" tabindex="-1">
+    <p class="fw-bold mb-2">入力内容を確認してください。</p>
+    <ul class="mb-0">
+        {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+        {% for field in form %}{% for error in field.errors %}
+        <li>{% if field.id_for_label and not field.is_hidden %}<a href="#{{ field.id_for_label }}">{{ field.label }}: {{ error }}</a>{% else %}{{ field.label }}: {{ error }}{% endif %}</li>
+        {% endfor %}{% endfor %}
+    </ul>
+</div>
+{% endif %}
