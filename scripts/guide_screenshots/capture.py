@@ -9,7 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from guide.demo import DEMO_USERS, demo_password
 
@@ -202,6 +202,15 @@ class Capture:
                           'width': image.width, 'height': image.height}, ensure_ascii=False))
 
 
+def youtube_thumbnail():
+    """架空の YouTube URL の代わりに見せるサムネイル。撮影では外部の画像を読まない。"""
+    image = Image.new('RGB', (320, 180), '#1f2937')
+    ImageDraw.Draw(image).polygon(((140, 65), (140, 115), (185, 90)), fill='#ffffff')
+    buffer = io.BytesIO()
+    image.save(buffer, 'JPEG')
+    return buffer.getvalue()
+
+
 def main():
     from playwright.sync_api import sync_playwright
 
@@ -216,6 +225,7 @@ def main():
         raise ValueError(f'未登録のページ: {sorted(unknown)}')
     started = time.monotonic()
     count = 0
+    thumbnail = youtube_thumbnail()
     with sync_playwright() as playwright:
         # ファイル選択ボタンなどブラウザ自身の表記も日本語にする。
         browser = playwright.chromium.launch(args=['--lang=ja-JP'])
@@ -233,6 +243,8 @@ def main():
                                 route.continue_()
                             elif url.hostname in {'cdn.jsdelivr.net', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'} and route.request.resource_type in {'stylesheet', 'font', 'script'}:
                                 route.continue_()
+                            elif url.hostname == 'img.youtube.com':
+                                route.fulfill(body=thumbnail, content_type='image/jpeg')
                             else:
                                 route.abort()
                         context.route('**/*', route_request)
