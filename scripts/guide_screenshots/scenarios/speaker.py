@@ -44,8 +44,8 @@ def apply(capture):
            marks=['#id_event', '#id_theme', '#id_speaker'])
     region(capture, ['form .mb-4:has([aria-label="撮影"])', 'form .mb-4:has([aria-label="発表の記事化"])'])
     page.locator('#id_additional_info').fill('【発表概要】\nワールドを作る手順を紹介します。\n【希望する時間】\n質疑応答を含めて30分です。')
-    region(capture, ['form .mb-4:has(#id_additional_info)', 'main form button[type=submit]'],
-           marks=['#id_additional_info', 'main form button[type=submit]'])
+    region(capture, ['#application-form .admin-card:has(#id_additional_info)', '[data-admin-action-bar]'],
+           marks=['#id_additional_info', 'button[form="application-form"]'])
     # 保存・通知は実行せず、seed 済みの承認待ち状態と実際の完了テンプレートを撮る。
     capture.goto('/event/apply/1/complete/')
     region(capture, ['main h1', 'main .alert-success', 'a[href="/account/lt-applications/"]'],

@@ -4,7 +4,7 @@ from scenarios.analytics import table_row
 
 
 SETTINGS = '/community/settings/'
-WEBHOOK = 'div.border-top:has(input[name=notification_webhook_url])'
+WEBHOOK = '#integrations'
 
 
 def shot(capture, selector, *targets):
@@ -43,7 +43,7 @@ def entry(capture, href):
     capture.login('owner')
     capture.goto(SETTINGS)
     capture.mask('input[name=notification_webhook_url]')
-    shot(capture, f'div.col-md-4:has(a[href="{href}"])', f'a[href="{href}"]')
+    shot(capture, '#integrations > .d-flex', f'#integrations a[href="{href}"]')
 
 
 @scenario('settings/discord', mobile=True)
@@ -59,7 +59,13 @@ def discord(capture):
     capture.login('owner')
     capture.goto(SETTINGS)
     capture.mask('input[name=notification_webhook_url]')
-    shot(capture, WEBHOOK, 'input[name=notification_webhook_url]', 'form[action$="/webhook/update/"] button')
+    capture.page.locator('#notification-form [data-admin-secret-edit] > summary').click()
+    capture.page.locator('input[name=notification_webhook_url]:not([type=hidden])').fill('https://discord.com/api/webhooks/000000000000/DUMMY')
+    shot(capture, '#notification-form', 'input[name=notification_webhook_url]:not([type=hidden])', 'button[form=notification-form]')
+    # 保存はせず、未保存の変更を破棄して保存済みのデモ状態へ戻る。
+    capture.page.once('dialog', lambda dialog: dialog.accept())
+    capture.goto(SETTINGS)
+    capture.mask('input[name=notification_webhook_url]')
     shot(capture, WEBHOOK, 'form[action$="/webhook/test/"] button')
     capture.mock('discord-webhook-notification.html')
     shot(capture, '.diagram', '#notification')
@@ -70,20 +76,13 @@ def discord(capture):
 def event_calendar(capture):
     entry(capture, '/community/calendar_update/')
     capture.goto('/community/calendar_update/')
-    shot(capture, '.card-body > div:has(#id_event_detail)', '#id_event_detail')
-    shot(capture, '.card-body > div:has(#id_event_genres)', '#id_event_genres')
+    shot(capture, '.admin-form-field:has(#id_event_detail)', '#id_event_detail')
+    shot(capture, '.admin-form-field:has(#id_event_genres)', '#id_event_genres')
     for field in ['join_condition', 'how_to_join']:
-        shot(capture, f'.card-body > div:has(#id_{field})', f'#id_{field}')
-    capture.annotations.clear()
-    capture.annotate('#id_note', 1)
-    capture.annotate('label[for=id_is_overseas_user]', 2)
-    top = capture.page.locator('.card-body > div:has(#id_note)').bounding_box()
-    bottom = capture.page.locator('.card-body > div:has(#id_is_overseas_user)').bounding_box()
-    scroll_y = capture.page.evaluate('scrollY')
-    capture.shot(clip={'x': max(0, top['x'] - 16), 'y': top['y'] + scroll_y - 32,
-                       'width': top['width'] + 32, 'height': bottom['y'] + bottom['height'] - top['y'] + 48})
-    shot(capture, 'form[enctype] .card-body > div:has(#id_x_post_text)', '#id_x_post_text')
-    shot(capture, 'form[enctype] > .mt-4', 'form[enctype] button[type=submit]')
+        shot(capture, f'.admin-form-field:has(#id_{field})', f'#id_{field}')
+    shot(capture, '.admin-form-field:has(#id_note)', '#id_note', 'label[for=id_is_overseas_user]')
+    shot(capture, '.admin-form-field:has(#id_x_post_text)', '#id_x_post_text')
+    shot(capture, '[data-admin-action-bar]', 'button[form="calendar-entry-form"]')
     capture.goto('/event/my_list/')
     target = 'a:has-text("VRCイベントカレンダーに投稿")'
     shot(capture, f'{target} >> nth=0 >> xpath=..', f'{target} >> nth=0')
@@ -98,13 +97,15 @@ def x_template(capture):
     capture.page.locator('a:has-text("新規作成")').click()
     capture.page.locator('#id_name').fill('いつもの告知')
     capture.page.locator('#id_template').fill('{date} {time}から{event_name}を開催します。\n{theme}\n初めての方も歓迎します。\n{group_url}\n{hashtag}')
-    shot(capture, 'form:has(#id_template)', '#id_name', '#id_template', 'form:has(#id_template) button[type=submit]')
+    shot(capture, '#twitter-template-form', '#id_name', '#id_template', 'button[form="twitter-template-form"]')
+    capture.page.once('dialog', lambda dialog: dialog.accept())
     capture.goto('/twitter/template/list/')
     edit = capture.page.locator('a:has-text("編集")').first
     edit_href = edit.get_attribute('href')
-    shot(capture, '.card:has(.delete-template)', 'a:has-text("編集")', '.delete-template')
+    card = 'article[data-template-delete]:has(a[href="' + edit_href + '"])'
+    shot(capture, f'{card} >> xpath=..', f'{card} a:has-text("編集")', f'{card} [data-confirm-panel]')
     capture.goto(edit_href)
-    shot(capture, 'form:has(#id_template)', '#id_template', 'form:has(#id_template) button[type=submit]')
+    shot(capture, '#twitter-template-form', '#id_template', 'button[form="twitter-template-form"]')
     capture.goto('/event/my_list/')
     event = 'article.event-card:has(a[href="/event/1/detail/create/"])'
     capture.page.locator(f'{event} .event-actions .dropdown-toggle').click()
@@ -115,13 +116,38 @@ def x_template(capture):
          f'{event} .event-actions .dropdown-toggle',
          f'{event} .dropdown-menu.show a:text-is("いつもの告知")')
     capture.goto(preview_href)
-    # 生成APIは offline runner が遮断する。生成本文だけを架空の結果で置く。
-    capture.page.locator('#tweet-text').evaluate("e => e.innerText = '4月8日(月) 22:00からさくら技術交流会を開催します。\\nはじめてのワールド制作（アオイ）\\n初めての方も歓迎します。'")
-    shot(capture, '.container > .card', '#tweet-text', '#copy-button', 'a:has-text("Xを開く")')
+    # 生成APIは offline runner が遮断する。成功時だけ出る本文と投稿リンクを、
+    # tweet_preview.html の成功時の構造に合わせ、架空の生成結果で補う。
+    capture.page.locator('.admin-content').evaluate('''(content, text) => {
+        const section = content.querySelector('section[aria-labelledby="tweet-heading"]');
+        let body = section.querySelector('#tweet-text');
+        if (!body) {
+            body = document.createElement('p');
+            body.id = 'tweet-text';
+            body.className = 'text-break mb-0';
+            section.querySelector('.admin-empty-state').replaceWith(body);
+        }
+        body.innerText = text;
+        content.querySelector('#copy-button').disabled = false;
+        const post = content.querySelector('section[aria-labelledby="post-heading"]');
+        let link = post.querySelector('a');
+        if (!link) {
+            link = document.createElement('a');
+            link.className = 'btn btn-primary';
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.innerHTML = '<i class="fa-brands fa-x-twitter me-2" aria-hidden="true"></i>X の投稿画面を開く ↗';
+            post.append(link);
+        }
+        link.href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
+    }''', '4月8日(月) 22:00からさくら技術交流会を開催します。\nはじめてのワールド制作（アオイ）\n初めての方も歓迎します。')
+    shot(capture, '.admin-content', '#tweet-text', '#copy-button', 'a[href="https://x.com"]')
     capture.goto('/twitter/template/list/')
-    capture.page.locator('.delete-template').first.click()
-    capture.page.locator('#deleteConfirmModal').wait_for(state='visible')
-    shot(capture, '#deleteConfirmModal .modal-content', '#confirmDelete')
+    trigger = capture.page.locator(f'{card} [data-confirm-panel]')
+    panel = '#' + trigger.get_attribute('data-confirm-panel')
+    trigger.click()
+    capture.page.locator(panel).wait_for(state='visible')
+    shot(capture, panel, f'{panel} button[type=submit]')
     verify_guide(capture)
 
 

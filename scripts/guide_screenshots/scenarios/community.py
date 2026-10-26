@@ -4,6 +4,7 @@ from io import BytesIO
 from PIL import Image
 
 from capture import scenario
+from scenarios.settings import shot
 
 
 MAIN = 'さくら技術交流会'
@@ -24,8 +25,8 @@ def fields(capture, first, last, *marks):
     capture.annotations.clear()
     for number, mark in enumerate(marks, 1):
         capture.annotate(mark, number)
-    a = capture.page.locator(first).locator('xpath=ancestor::div[contains(@class,"mb-3")][1]')
-    b = capture.page.locator(last).locator('xpath=ancestor::div[contains(@class,"mb-3")][1]')
+    a = capture.page.locator(first).locator('xpath=ancestor-or-self::*[contains(@class,"admin-form-field") or self::fieldset][1]')
+    b = capture.page.locator(last).locator('xpath=ancestor-or-self::*[contains(@class,"admin-form-field") or self::fieldset][1]')
     a.scroll_into_view_if_needed()
     boxes = [element.bounding_box() for element in (a, b)]
     scroll = capture.page.evaluate('({x: scrollX, y: scrollY})')
@@ -67,7 +68,7 @@ def settings_entry(capture, name=MAIN):
 
 
 def card(capture, title):
-    return f'.card:has(> .card-header:text-is("{title}"))'
+    return f'.admin-card:has(> .admin-section-heading > h2:text-is("{title}"))'
 
 
 @scenario('community/create', mobile=True)
@@ -80,29 +81,18 @@ def create(capture):
     capture.page.locator('#id_name').fill('ヒナの科学交流会')
     capture.page.locator('#id_frequency').fill('毎週月曜日')
     capture.page.locator('#id_organizers').fill('ヒナ')
-    fields(capture, '#id_name', '#id_organizers', '#id_name', '#id_frequency', '#id_organizers')
-    fields(capture, '#id_group_url', '#id_discord', '#id_group_url', '#id_discord')
+    fields(capture, '#id_name', '#id_frequency', '#id_name', '#id_frequency')
+    fields(capture, '#id_organizers', '#id_discord', '#id_organizers', '#id_group_url', '#id_discord')
     poster = BytesIO()
     Image.new('RGB', (420, 594), '#e9f5f0').save(poster, 'PNG')
     capture.page.locator('#id_poster_image').set_input_files(
         {'name': 'demo-poster.png', 'mimeType': 'image/png', 'buffer': poster.getvalue()})
     capture.page.locator('#id_tags_1').check()
     fields(capture, '#id_poster_image', '#id_tags', '#id_poster_image', '#id_tags')
-    # 同意欄と送信ボタンの間だけを撮る。送信はせず固定の承認待ち状態を使う。
+    # 申請は送信せず、同意欄と画面下の保存バーを撮る。
     capture.page.locator('#id_guidelines_agreed').check()
-    capture.page.locator('form[enctype] > .card').nth(1).evaluate("e => e.dataset.guideConfirm = '1'")
-    capture.page.locator('form[enctype] > .mt-4').evaluate("e => e.dataset.guideSubmit = '1'")
-    capture.annotations.clear()
-    capture.annotate('.form-check:has(#id_guidelines_agreed)', 1)
-    capture.annotate('form[enctype] button[type=submit]', 2)
-    a = capture.page.locator('[data-guide-confirm]')
-    a.scroll_into_view_if_needed()
-    box = a.bounding_box()
-    end = capture.page.locator('[data-guide-submit]').bounding_box()
-    scroll = capture.page.evaluate('scrollY')
-    capture.shot(clip={'x': max(0, box['x'] - 16), 'y': box['y'] + scroll - 25,
-                       'width': min(box['width'] + 32, capture.page.viewport_size['width']),
-                       'height': end['y'] + end['height'] - box['y'] + 40})
+    shot(capture, card(capture, '登録前の確認'), 'label[for=id_guidelines_agreed]',
+         'button[form=community-form]')
     capture.goto('/account/settings/')
     snap(capture, '.alert-warning:has-text("この集会は現在承認待ち")', '.alert-warning:has-text("この集会は現在承認待ち")')
     capture.login('owner')
@@ -115,11 +105,11 @@ def edit(capture):
     capture.login('owner')
     settings_entry(capture)
     select(capture)
-    snap(capture, card(capture, '基本情報'), 'a[href="/community/update/"]')
-    capture.goto('/community/update/')
-    fields(capture, '#id_name', '#id_organizers', '#id_name', '#id_frequency')
-    fields(capture, '#id_group_url', '#id_tags', '#id_poster_image', '#id_description', '#id_tags')
-    snap(capture, 'form[enctype] > .mt-4', 'form[enctype] button[type=submit]')
+    snap(capture, card(capture, '基本情報'), '#id_name')
+    capture.page.locator('#id_name').fill('さくら技術交流会（紹介を更新）')
+    fields(capture, '#id_name', '#id_frequency', '#id_name', '#id_frequency')
+    snap(capture, card(capture, '掲載内容'), '#id_poster_image', '#id_description', '#id_tags')
+    snap(capture, '[data-admin-action-bar]', 'button[form=community-form]')
 
 
 @scenario('community/settings', mobile=True)
@@ -127,14 +117,24 @@ def settings(capture):
     capture.login('owner')
     settings_entry(capture)
     select(capture)
-    snap(capture, card(capture, '基本情報'), 'a[href="/community/update/"]')
-    snap(capture, card(capture, '外部連携'), 'a:has-text("カレンダー設定")',
-         'a:has-text("テンプレート管理")', 'a:has-text("API管理")')
-    snap(capture, card(capture, '発表申請設定'), 'label[for=accepts_lt_application]', 'label[for=recording_allowed_true]',
+    snap(capture, card(capture, '基本情報'), '#id_name')
+    snap(capture, '#applications', 'label[for=accepts_lt_application]', 'label[for=recording_allowed_true]',
          '#lt_application_template')
-    snap(capture, card(capture, 'メンバー管理'), 'a:has-text("メンバーを管理")')
-    snap(capture, card(capture, '危険な操作'), '[data-bs-target="#closeCommunityModal"]',
-         '[data-bs-target="#createTransferModal"]')
+    snap(capture, '#integrations', 'a[href="/community/calendar_update/"]',
+         'a[href="/twitter/template/list/"]', 'a[href="/account/api-keys/"]')
+    snap(capture, '#members', '#members a')
+    open_danger(capture)
+    snap(capture, '#danger', '[data-confirm-panel="close-community"]',
+         '[data-confirm-panel="create-transfer"]')
+
+
+def open_danger(capture):
+    capture.page.locator('#danger > details > summary').click()
+
+
+def confirm(capture, panel_id):
+    capture.page.locator(f'[data-confirm-panel="{panel_id}"]').click()
+    capture.page.locator(f'#{panel_id}').wait_for(state='visible')
 
 
 @scenario('community/switch', mobile=True)
@@ -167,25 +167,24 @@ def switch(capture):
 def close(capture):
     capture.login('owner')
     select(capture)
-    snap(capture, card(capture, '危険な操作'), '[data-bs-target="#closeCommunityModal"]')
-    capture.page.locator('[data-bs-target="#closeCommunityModal"]').click()
-    capture.page.locator('#closeCommunityModal.show').wait_for()
-    capture.page.wait_for_timeout(300)
-    snap(capture, '#closeCommunityModal .modal-content', '#closeCommunityModal button[type=submit]')
+    open_danger(capture)
+    snap(capture, '#danger', '[data-confirm-panel="close-community"]')
+    confirm(capture, 'close-community')
+    snap(capture, '#close-community', '#close-community button[type=submit]')
     capture.goto('/account/settings/')
     target = capture.page.locator('.list-group-item').filter(has_text='ひだまり学習会')
     target.evaluate("e => e.dataset.guideEnded = '1'")
     snap(capture, '[data-guide-ended]', '[data-guide-ended] a')
     target.locator('a').click()
     capture.page.wait_for_load_state('networkidle')
-    fields(capture, '#id_name', '#id_organizers', '#id_name', '#id_start_time')
-    fields(capture, '#id_poster_image', '#id_tags', '#id_poster_image', '#id_description')
-    snap(capture, 'form[enctype] > .mt-4', 'form[enctype] button[type=submit]')
+    fields(capture, '#id_name', '#id_duration', '#id_name', '#id_start_time')
+    snap(capture, card(capture, '掲載内容'), '#id_poster_image', '#id_description')
+    snap(capture, '[data-admin-action-bar]', 'button[form=community-form]')
     # 再開後と同じ、終了日のない固定集会の完了画面を表示する。
     select(capture)
     community_id = capture.page.locator('form[action*="/close/"]').get_attribute('action').split('/')[-2]
     capture.goto(f'/community/reopen/{community_id}/complete/')
-    snap(capture, '.card', 'button:has-text("開催予定・開催周期を登録する")')
+    snap(capture, '.admin-card', 'button:has-text("開催予定・開催周期を登録する")')
 
 
 @scenario('community/report', mobile=True)

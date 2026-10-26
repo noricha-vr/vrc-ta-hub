@@ -21,10 +21,10 @@ APIキーは、外部ツールからHubを使う時の秘密の文字列です�
 
 ### 1. API管理を開く
 
-[集会設定](../community/settings.md)の「外部連携」を開きます。
+[集会設定](../community/settings.md)の「通知と連携」へ進みます。
 集会に所属していない人は [API管理](https://vrc-ta-hub.com/account/api-keys/) を直接開きます。
 
-![集会設定の外部連携で「API管理」ボタンを赤枠①で示した画面](images/settings/api-key-01.webp)
+![集会設定の通知と連携で「API管理」ボタンを赤枠①で示した画面](images/settings/api-key-01.webp)
 
 ① の「API管理」を押します。
 
