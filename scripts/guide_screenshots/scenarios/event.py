@@ -4,7 +4,9 @@ from capture import scenario
 
 
 CARD = '[data-guide-event-card=first]'
-QUICK = '.container.my-4 > .d-flex.flex-wrap'
+HEADER = '.mylist-header'
+NAV = 'nav.mylist-nav'
+EVENT_MENU = '.event-actions button[aria-label$="の開催のその他の操作"]'
 
 
 def region(capture, *selectors, top=28, bottom=12):
@@ -38,7 +40,7 @@ def menu(capture):
 def management(capture):
     capture.goto('/event/my_list/')
     # Vket のお知らせなど開催回以外のカードを除き、最初の開催回のカードを使う。
-    card = capture.page.locator('.card.shadow-sm:has(a[href*="/date/update/"])').first
+    card = capture.page.locator('article.event-card:has(a[href*="/date/update/"])').first
     card.wait_for()
     card.evaluate(
         "e => e.dataset.guideEventCard = 'first'")
@@ -53,47 +55,37 @@ def verify_guide(capture, images=None):
     capture.verify_guide()
 
 
+def open_event_menu(capture, card=CARD):
+    """開催回のメニューを開き、表示された項目を撮れる状態にする。"""
+    capture.page.locator(f'{card} {EVENT_MENU}').click()
+    capture.page.locator(f'{card} .event-actions .dropdown-menu.show').wait_for()
+
+
 @scenario('event/manage', mobile=True)
 def manage(capture):
     menu(capture)
     management(capture)
-    for number, href in enumerate((
-        '/event/calendar/create/', '/account/lt-applications/', '/analytics/dashboard/',
-        '/event/detail/history/', '/community/settings/', '/community/',
+    for number, selector in enumerate((
+        '.community-selector', '.mylist-header-actions', NAV, '#action-required',
+        f'{CARD} .event-date', f'{CARD} .event-actions > a',
+        f'{CARD} .event-actions .dropdown-toggle', f'{CARD} {EVENT_MENU}',
+        '#presentation-1 .presentation-actions', '#presentation-2 .presentation-actions',
+        f'{CARD} .event-footer',
     ), 1):
-        # 公開ページのリンクは ID を固定しない。
-        selector = f'{QUICK} a[href^="{href}"]'
-        if href == '/community/':
-            selector += ':not([href="/community/settings/"])'
         capture.annotate(selector, number)
-    capture.annotate(f'{CARD} a[title="開始時刻を編集"]', 7)
-    capture.annotate(f'{CARD} a[href*="/date/update/"]', 8)
-    capture.annotate(f'{CARD} a[href^="/twitter/"] >> nth=0', 9)
-    capture.annotate(f'{CARD} form[action^="/event/delete/"]', 10)
-    # 並び順ではなく、承認済み・未紐づけと承認待ちの操作で行を特定する。
-    capture.annotate(
-        f'{CARD} .col-md-7 > .mb-2:has(> a[href$="#speaker-account-heading"])', 11,
-    )
-    capture.annotate(
-        f'{CARD} .col-md-7 > .mb-2:has(> button[data-bs-target^="#approveModal"])', 12,
-    )
-    capture.annotate(f'{CARD} a[href$="/detail/create/"]', 13)
-    region(capture, f'{QUICK} a >> nth=0', f'{QUICK} a >> nth=5', CARD)
+    region(capture, HEADER, NAV, '#action-required', CARD)
     capture.annotations.clear()
     capture.annotate('#more-future-events-toggle', 1)
     capture.shot(selector='#more-future-events-toggle')
-    verify_guide(capture, 6)
+    verify_guide(capture)
 
 
 @scenario('event/create', mobile=True)
 def create(capture):
     menu(capture)
     management(capture)
-    capture.annotate(f'{QUICK} a[href="/event/calendar/create/"]', 1)
-    if capture.mobile:
-        capture.shot(selector=QUICK)
-    else:
-        region(capture, f'{QUICK} a >> nth=0', f'{QUICK} a >> nth=5')
+    capture.annotate('.mylist-header-actions a[href="/event/calendar/create/"]', 1)
+    capture.shot(selector=HEADER)
     capture.goto('/event/calendar/create/')
     capture.page.locator('#id_start_date').fill('2030-04-15')
     capture.page.locator('#id_start_time').fill('22:00')
@@ -118,19 +110,21 @@ def edit(capture):
     capture.login('owner')
     management(capture)
     date_url = event_link(capture, '/date/update/')
-    time_url = capture.page.locator(f'{CARD} a[title="開始時刻を編集"]').get_attribute('href')
-    capture.annotate(f'{CARD} a[href*="/date/update/"]', 1)
-    region(capture, f'{CARD} .col-md-5 > .card-text >> nth=0',
-           f'{CARD} a[href*="/date/update/"]', top=18, bottom=2)
+    time_url = event_link(capture, '/event/update/')
+    open_event_menu(capture)
+    capture.annotate(f'{CARD} {EVENT_MENU}', 1)
+    capture.annotate(f'{CARD} .dropdown-menu.show a[href*="/date/update/"]', 2)
+    region(capture, f'{CARD} .event-summary', f'{CARD} .event-actions .dropdown-menu.show')
     capture.goto(date_url)
     capture.page.locator('#id_date').fill('2030-04-09')
     capture.annotate('#id_date', 1)
     capture.annotate('.card form button[type=submit]', 2)
     capture.shot(selector='.col-12.col-md-7.col-lg-5')
     management(capture)
-    capture.annotate(f'{CARD} a[title="開始時刻を編集"]', 1)
-    region(capture, f'{CARD} .col-md-5 > .card-text >> nth=0',
-           f'{CARD} a[title="開始時刻を編集"]', top=18)
+    open_event_menu(capture)
+    capture.annotate(f'{CARD} {EVENT_MENU}', 1)
+    capture.annotate(f'{CARD} .dropdown-menu.show a[href^="/event/update/"]', 2)
+    region(capture, f'{CARD} .event-summary', f'{CARD} .event-actions .dropdown-menu.show')
     capture.goto(time_url)
     capture.page.locator('#id_start_time').fill('22:30')
     capture.annotate('#id_start_time', 1)
@@ -143,37 +137,25 @@ def edit(capture):
 def delete(capture):
     capture.login('owner')
     management(capture)
-    # 親の削除による連鎖と区別できるよう、子開催回のカードを使う。
-    # 先頭の .card.shadow-sm は Vket の案内や親（4月8日）なので、開催日で子開催回のカードに絞る。
-    capture.page.locator('.card.shadow-sm:has(form[action^="/event/delete/"])',
-                         has_text='2030年4月15日').first.evaluate(
-        "e => e.dataset.guideDeleteCard = 'selected'")
-    card = '[data-guide-delete-card=selected]'
-    capture.annotate(f'{card} .card-text >> nth=0', 1)
-    region(capture, f'{card} .col-md-5 > .card-text >> nth=0',
-           f'{card} a[title="開始時刻を編集"]', top=18)
+    # 親の削除による連鎖と区別するため、子開催回を使う。
+    card = 'article.event-card[aria-label="4月15日の開催"]'
+    capture.annotate(f'{card} .event-date', 1)
+    capture.shot(selector=f'{card} .event-summary')
     capture.annotations.clear()
-    capture.annotate(f'{card} .form-check', 1)
-    capture.annotate(f'{card} form[action^="/event/delete/"] button', 2)
-    region(capture, f'{card} .col-md-5 > .card-text >> nth=0',
-           f'{card} form[action^="/event/delete/"]', top=18)
-    # ブラウザの確認文を実装から取得し、キャンセルして外部処理を起動しない。
-    messages = []
-
-    def dismiss(dialog):
-        messages.append(dialog.message)
-        dialog.dismiss()
-
-    capture.page.once('dialog', dismiss)
-    capture.page.locator(f'{card} form[action^="/event/delete/"] button').click()
-    if len(messages) != 1:
-        raise AssertionError('削除確認が表示されませんでした')
-    capture.mock('event-delete-confirm.html')
-    capture.page.locator('#message').evaluate('(e, message) => e.textContent = message', messages[0])
-    capture.annotate('#confirm', 1)
-    capture.annotate('#cancel', 2)
-    capture.shot(selector='main')
-    verify_guide(capture, 6)
+    open_event_menu(capture, card)
+    capture.annotate(f'{card} {EVENT_MENU}', 1)
+    capture.annotate(f'{card} .dropdown-menu.show [data-confirm-panel^="event-delete-"]', 2)
+    region(capture, f'{card} .event-summary', f'{card} .event-actions .dropdown-menu.show')
+    capture.page.locator(f'{card} [data-confirm-panel^="event-delete-"]').click()
+    panel = f'{card} .confirm-panel[id^="event-delete-"]'
+    capture.page.locator(panel).wait_for(state='visible')
+    capture.annotations.clear()
+    capture.annotate(f'{panel} .form-check', 1)
+    capture.annotate(f'{panel} button[type=submit]', 2)
+    capture.annotate(f'{panel} [data-cancel-panel]', 3)
+    capture.shot(selector=panel)
+    # 確定ボタンは押さず、削除や外部処理を起動しない。
+    verify_guide(capture)
 
 
 @scenario('event/auto-post', mobile=True)

@@ -62,6 +62,11 @@ class Capture:
     def goto(self, path):
         self.annotations.clear()
         self.masks.clear()
+        if not self.mobile:
+            # イベント管理は左に日付、右に操作が離れて並ぶので、PC 版は幅を絞って文字を読める大きさで撮る（992px 未満はナビが折りたたまれる）。
+            width = 992 if path.startswith('/event/my_list/') else 1280
+            if self.page.viewport_size['width'] != width:
+                self.page.set_viewport_size({'width': width, 'height': self.page.viewport_size['height']})
         response = self.page.goto(self.base_url + path, wait_until='networkidle')
         if not response or response.status >= 400:
             raise RuntimeError('撮影先ページの表示に失敗しました')

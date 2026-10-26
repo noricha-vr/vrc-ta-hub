@@ -106,9 +106,14 @@ def x_template(capture):
     capture.goto(edit_href)
     shot(capture, 'form:has(#id_template)', '#id_template', 'form:has(#id_template) button[type=submit]')
     capture.goto('/event/my_list/')
-    preview = capture.page.locator('a:has-text("いつもの告知")').first
+    event = 'article.event-card:has(a[href="/event/1/detail/create/"])'
+    capture.page.locator(f'{event} .event-actions .dropdown-toggle').click()
+    capture.page.locator(f'{event} .event-actions .dropdown-menu.show').wait_for()
+    preview = capture.page.locator(f'{event} .dropdown-menu.show a:text-is("いつもの告知")')
     preview_href = preview.get_attribute('href')
-    shot(capture, 'a:has-text("いつもの告知") >> nth=0', 'a:has-text("いつもの告知") >> nth=0')
+    shot(capture, f'{event} .event-actions',
+         f'{event} .event-actions .dropdown-toggle',
+         f'{event} .dropdown-menu.show a:text-is("いつもの告知")')
     capture.goto(preview_href)
     # 生成APIは offline runner が遮断する。生成本文だけを架空の結果で置く。
     capture.page.locator('#tweet-text').evaluate("e => e.innerText = '4月8日(月) 22:00からさくら技術交流会を開催します。\\nはじめてのワールド制作（アオイ）\\n初めての方も歓迎します。'")

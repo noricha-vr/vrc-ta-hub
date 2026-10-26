@@ -55,7 +55,8 @@ def verify_guide(capture):
 def dashboard(c):
     c.login('owner')
     c.goto('/event/my_list/')
-    shot(c, 'a:has-text("アクセス") >> xpath=..', 'a[href^="/analytics/dashboard/"]')
+    c.page.locator('nav.mylist-nav a[href^="/analytics/dashboard/"]').scroll_into_view_if_needed()
+    shot(c, ('header.mylist-header', 'nav.mylist-nav'), 'nav.mylist-nav a[href^="/analytics/dashboard/"]')
     c.goto('/account/settings/')
     shot(c, '.list-group:has(a[href="/analytics/dashboard/"])', 'a[href="/analytics/dashboard/"]')
     c.goto('/analytics/dashboard/')

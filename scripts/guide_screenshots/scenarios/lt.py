@@ -35,10 +35,18 @@ def region(capture, *selectors):
     capture.annotations.clear()
 
 
-def entry(capture, pk):
-    action = f'a[href="/event/detail/{pk}/update/"]'
-    region(capture, action + ' >> xpath=../preceding-sibling::div[starts-with(normalize-space(.),"テーマ:")][1]',
-           action + ' >> xpath=..')
+def entry(capture, pk, *, with_menu=False):
+    row = f'#presentation-{pk}'
+    selectors = [row]
+    if with_menu:
+        selectors.append(f'{row} .dropdown-menu.show')
+    region(capture, *selectors)
+
+
+def open_menu(capture, pk):
+    row = f'#presentation-{pk}'
+    capture.page.locator(f'{row} button[data-bs-toggle="dropdown"]').click()
+    capture.page.locator(f'{row} .dropdown-menu.show').wait_for()
 
 
 def field(name):
@@ -110,8 +118,11 @@ def create(capture):
 @scenario('lt/edit-delete', mobile=True)
 def edit_delete(capture):
     manage(capture)
-    capture.annotate('a[href="/event/detail/1/update/"]', 1)
-    entry(capture, 1)
+    open_menu(capture, 1)
+    capture.annotate('#presentation-1 .presentation-actions > a[href="/event/detail/1/update/"]', 1)
+    capture.annotate('#presentation-1 button[data-bs-toggle="dropdown"]', 2)
+    capture.annotate('#presentation-1 .dropdown-menu.show [data-confirm-panel="detail-delete-1"]', 3)
+    entry(capture, 1, with_menu=True)
     capture.goto('/event/detail/1/update/')
     expand(capture)
     capture.annotate('#id_slide_file', 1)
@@ -122,8 +133,13 @@ def edit_delete(capture):
     capture.annotate(f'{FORM} button[type=submit]', 3)
     region(capture, field('h1'), field('contents'), f'{FORM} button[type=submit]')
     capture.goto('/event/my_list/?community=1')
-    capture.annotate('form[action="/event/detail/1/delete/"] button', 1)
-    entry(capture, 1)
+    open_menu(capture, 1)
+    capture.page.locator('#presentation-1 [data-confirm-panel="detail-delete-1"]').click()
+    panel = '#detail-delete-1'
+    capture.page.locator(panel).wait_for(state='visible')
+    capture.annotate(f'{panel} button[type=submit]', 1)
+    capture.annotate(f'{panel} [data-cancel-panel]', 2)
+    capture.shot(selector=panel)
 
 
 @scenario('lt/approve', mobile=True)
@@ -183,8 +199,10 @@ def auto_generate(capture):
 def link_speaker(capture):
     unlinked, linked = link_state_pk(False), link_state_pk(True)
     manage(capture)
-    capture.annotate(f'a[href="/event/detail/{unlinked}/#speaker-account-heading"]', 1)
-    entry(capture, unlinked)
+    open_menu(capture, unlinked)
+    capture.annotate(f'#presentation-{unlinked} button[data-bs-toggle="dropdown"]', 1)
+    capture.annotate(f'#presentation-{unlinked} .dropdown-menu.show a[href$="#speaker-account-heading"]', 2)
+    entry(capture, unlinked, with_menu=True)
     capture.goto(f'/event/detail/{unlinked}/')
     capture.annotate('#speaker-invite-issue-button', 1)
     capture.shot(selector='.speaker-account-card')

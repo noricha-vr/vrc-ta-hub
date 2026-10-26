@@ -4,7 +4,7 @@
 
 # 画面とガイドの対応表
 
-確認日: 2026-10-26。URL の `<id>`・`<token>` などは可変部分です。
+確認日: 2026-10-27。URL の `<id>`・`<token>` などは可変部分です。
 主催者・スタッフは対象集会のメンバーを指し、Hub 運営とは異なります。
 ボタンで行う POST 操作も含めます。「記載あり」はガイドの説明との対応を示し、実操作の検証結果ではありません。
 
@@ -48,13 +48,13 @@
 | 内部処理 | Discord 認証の戻り先 | `/accounts/discord/login/callback/` | 認証処理 | Discord 認証から自動遷移 | — | 対象外（認証コールバック） |
 | 内部処理 | ログインコード確認 | `/accounts/login/code/confirm/` | 対応する認証段階にいる人のみ | 通常メニューなし | — | 対象外（コード認証用の補助処理） |
 | 集会 | 集会一覧 | `/community/list/` | 未ログインを含む閲覧者 | ヘッダー／フッター「集会一覧」 | [集会と発表を探す](browse/find.md) | 記載あり |
-| 集会 | 集会詳細 | `/community/<id>/` | 承認済み集会は誰でも。未承認は `is_superuser` | 集会一覧の集会名・ポスター／イベント管理「公開ページ」 | [集会と発表を探す](browse/find.md) | 記載あり |
+| 集会 | 集会詳細 | `/community/<id>/` | 承認済み集会は誰でも。未承認は `is_superuser` | 集会一覧の集会名・ポスター／イベント管理「公開ページを見る ↗」 | [集会と発表を探す](browse/find.md) | 記載あり |
 | 集会 | 掲載・審査基準 | `/community/criteria/` | 誰でも | フッター「掲載・審査基準」／集会登録フォーム | [集会と発表を探す](browse/find.md) | 記載あり |
 | 集会 | 終了した集会のアーカイブ | `/community/archive/` | 誰でも | 集会一覧「アーカイブ」 | [集会と発表を探す](browse/find.md) | 記載あり |
 | 集会 | 集会の登録 | `/community/create/` | ログインユーザー | アカウント設定「新しい技術・学術系集会を始める」 | [集会を登録する](community/create.md) | 記載あり |
 | 集会 | 集会設定 | `/community/settings/` | 所属集会の主催者・スタッフ | アカウント設定の集会「設定」／イベント管理「集会設定」 | [集会設定を開く](community/settings.md) | 記載あり |
 | 集会 | 集会情報の編集 | `/community/update/` | 選択中の集会を編集できるメンバー | 集会設定「集会情報を編集」 | [集会情報を編集する](community/edit.md) | 記載あり |
-| 集会 | 管理する集会の切り替え | `/community/switch/`（POST） | 切り替え先の集会メンバー | イベント管理の集会名選択／アカウント設定の集会名・「設定」 | [管理する集会を切り替える](community/switch.md) | 記載あり |
+| 集会 | 管理する集会の切り替え | `/community/switch/`（POST） | 切り替え先の集会メンバー | イベント管理「管理中の集会」の集会名選択／アカウント設定の集会名・「設定」 | [管理する集会を切り替える](community/switch.md) | 記載あり |
 | 集会 | 集会の閉鎖確認・実行 | `/community/close/<id>/`（POST） | 主催者、または `is_superuser` | 集会設定「危険な操作」→「集会を閉鎖する」→「閉鎖する」 | [集会を閉鎖・再開する](community/close.md) | 記載あり |
 | 集会 | 集会情報を確認して再開 | `/community/reopen/<id>/` | 主催者、または `is_superuser` | アカウント設定の終了した集会「集会を再開」 | [集会を閉鎖・再開する](community/close.md) | 記載あり |
 | 集会 | 集会の再開完了 | `/community/reopen/<id>/complete/` | 主催者、または `is_superuser` | 再開後。「開催予定・開催周期を登録する」 | [集会を閉鎖・再開する](community/close.md) | 記載あり |
@@ -74,15 +74,15 @@
 | メンバー | 主催者引き継ぎリンクの削除 | `/community/<id>/transfer/<招待ID>/revoke/`（POST） | 現在の主催者のみ | 集会設定「リンクを削除」 | [主催者を引き継ぐ](member/transfer.md) | 記載あり |
 | イベント | イベント管理 | `/event/my_list/` | ログインユーザー。表示する管理対象は所属集会 | アカウントメニューの集会名 | [イベント管理画面の見方](event/manage.md) | 記載あり |
 | イベント | イベントの登録・開催周期の設定 | `/event/calendar/create/` | 承認済みで閉鎖されていない集会の主催者・スタッフ | イベント管理「イベント登録」 | [イベントを登録する](event/create.md) | 記載あり |
-| イベント | 開始時刻の変更 | `/event/update/<id>/` | 対象集会の主催者・スタッフ、または `is_superuser`。過去回・Vket ロックに制限 | イベント管理の鉛筆アイコン。補足表記「開始時刻を編集」 | [開催日と開始時刻を変更する](event/edit.md) | 記載あり |
-| イベント | 開催日の変更 | `/event/<id>/date/update/` | 対象集会の主催者・スタッフ、または `is_superuser`。過去回・Vket ロックに制限 | イベント管理「開催日を変更」 | [開催日と開始時刻を変更する](event/edit.md) | 記載あり |
-| イベント | イベントの削除 | `/event/delete/<id>/`（通常は POST） | 対象集会の主催者のみ。Vket ロックに制限 | イベント管理「カレンダーから削除」。任意で「以降のイベントも削除する」 | [イベントを削除する](event/delete.md) | 記載あり |
+| イベント | 開始時刻の変更 | `/event/update/<id>/` | 対象集会の主催者・スタッフ、または `is_superuser`。過去回・Vket ロックに制限 | 開催回の「…」→「開始時刻を変更」 | [開催日と開始時刻を変更する](event/edit.md) | 記載あり |
+| イベント | 開催日の変更 | `/event/<id>/date/update/` | 対象集会の主催者・スタッフ、または `is_superuser`。過去回・Vket ロックに制限 | 開催回の「…」→「開催日を変更」 | [開催日と開始時刻を変更する](event/edit.md) | 記載あり |
+| イベント | イベントの削除 | `/event/delete/<id>/`（通常は POST） | 対象集会の主催者のみ。Vket ロックに制限 | 開催回の「…」→「カレンダーから削除…」→カード内の確認欄。任意で「以降のイベントもまとめて削除する」→「カレンダーから削除する」 | [イベントを削除する](event/delete.md) | 記載あり |
 | 発表 | 発表・特別企画・ブログの追加 | `/event/<イベントID>/detail/create/` | 対象集会の主催者・スタッフ、または `is_superuser` | イベント管理「発表を追加」 | [発表情報を登録する](lt/create.md) | 記載あり |
 | 発表 | 発表・特別企画・ブログの詳細 | `/event/detail/<id>/` | 承認済みは誰でも。未承認は対象集会の管理者・申請者本人・`is_superuser` | 発表一覧のカード／イベント管理「記事」 | [集会と発表を探す](browse/find.md)、[発表情報を登録する](lt/create.md) | 記載あり |
 | 発表 | 発表情報の編集 | `/event/detail/<id>/update/` | 対象集会の主催者・スタッフ、`is_superuser`、本人の承認済み発表の申請者 | 発表詳細「編集」／自分の発表「編集」／イベント管理「編集」 | [発表情報を編集・削除する](lt/edit-delete.md)、[申し込んだ発表を確認・更新する](speaker/manage.md) | 記載あり |
-| 発表 | 発表情報の削除 | `/event/detail/<id>/delete/` | 対象集会の主催者・スタッフ、または `is_superuser`。Vket ロックに制限 | イベント管理「削除」 | [発表情報を編集・削除する](lt/edit-delete.md) | 記載あり |
-| 発表 | 記事の生成 | `/event/generate_blog/<id>/`（POST） | 発表を編集できる人。発表タイプ・記事化 NG に制限 | 発表詳細／イベント管理「記事生成」 | [ブログ記事を自動生成する](lt/auto-generate.md) | 記載あり |
-| 発表 | 発表者との紐づけ用リンク作成 | `/event/detail/<id>/speaker-invite/`（POST） | 対象集会の主催者・スタッフ。承認済み発表で未紐づけ | イベント管理「紐づけ用リンクを作成」→発表詳細の操作 | [発表とアカウントを紐づける](lt/link-speaker.md) | 記載あり |
+| 発表 | 発表情報の削除 | `/event/detail/<id>/delete/` | 対象集会の主催者・スタッフ、または `is_superuser`。Vket ロックに制限 | 発表の「…」→「この発表を削除…」→確認欄の「この発表を削除する」。専用の確認画面では開催日・テーマ・発表者を表示し、「キャンセル」で発表詳細へ戻る | [発表情報を編集・削除する](lt/edit-delete.md) | 記載あり |
+| 発表 | 記事の生成 | `/event/generate_blog/<id>/`（POST） | 発表を編集できる人。発表タイプ・記事化 NG に制限 | 発表詳細「記事生成」／イベント管理「記事を生成」 | [ブログ記事を自動生成する](lt/auto-generate.md) | 記載あり |
+| 発表 | 発表者との紐づけ用リンク作成 | `/event/detail/<id>/speaker-invite/`（POST） | 対象集会の主催者・スタッフ。承認済み発表で未紐づけ | 発表の「…」→「紐づけ用リンクを作成」→発表詳細の操作 | [発表とアカウントを紐づける](lt/link-speaker.md) | 記載あり |
 | 発表 | 発表者アカウントの紐づけ確認 | `/event/speaker-link/` | 有効な招待リンクの所持者。確定時はログインが必要 | 主催者・スタッフから共有されたリンク | [発表とアカウントを紐づける](lt/link-speaker.md) | 記載あり |
 | 発表 | 発表者アカウントの紐づけ解除 | `/event/detail/<id>/speaker-unlink/`（POST） | 対象集会の主催者・スタッフ | 発表詳細の紐づけ管理 | [発表とアカウントを紐づける](lt/link-speaker.md) | 記載あり |
 | 発表 | 自分の発表 | `/event/detail/history/?mine=1` | ログインした発表者本人。承認済み発表 | アカウント設定「自分の発表」 | [発表とアカウントを紐づける](lt/link-speaker.md) | 記載あり |
@@ -94,8 +94,8 @@
 | 発表申請 | 本人の発表申請一覧 | `/account/lt-applications/` | 申請者本人。対象となる Vket 由来発表の申込者も含む | イベント管理「発表申請一覧」／申請完了「申請一覧を見る」 | [申し込んだ発表を確認・更新する](speaker/manage.md) | 記載あり |
 | 発表申請 | 本人の発表申請・資料の編集 | `/account/lt-applications/<id>/edit/` | 本人の発表。却下済みを除く。対象となる Vket 由来発表も含む | 本人の発表申請一覧「編集」／結果・資料依頼メールのリンク | [申し込んだ発表を確認・更新する](speaker/manage.md) | 記載あり |
 | 発表申請 | 主催側の申請内容確認・日時調整 | `/event/application/<id>/review/` | 対象集会の主催者・スタッフ | イベント管理「申請内容」／新規申請の通知リンク | [発表申請を承認・却下する](lt/approve.md) | 記載あり |
-| 発表申請 | 発表申請の承認 | `/event/application/<id>/approve/`（POST） | 対象集会の主催者・スタッフ | イベント管理「承認」→「承認する」 | [発表申請を承認・却下する](lt/approve.md) | 記載あり |
-| 発表申請 | 発表申請の却下 | `/event/application/<id>/reject/`（POST） | 対象集会の主催者・スタッフ。却下理由必須 | イベント管理「却下」→理由入力→「却下する」 | [発表申請を承認・却下する](lt/approve.md) | 記載あり |
+| 発表申請 | 発表申請の承認 | `/event/application/<id>/approve/`（POST） | 対象集会の主催者・スタッフ | イベント管理の「要対応」または承認待ち発表の「承認」→「承認する」 | [発表申請を承認・却下する](lt/approve.md) | 記載あり |
+| 発表申請 | 発表申請の却下 | `/event/application/<id>/reject/`（POST） | 対象集会の主催者・スタッフ。却下理由必須 | イベント管理の「要対応」または承認待ち発表の「却下」→理由入力→「却下する」 | [発表申請を承認・却下する](lt/approve.md) | 記載あり |
 | 発表申請 | 集会別申請一覧の旧入口 | `/community/<id>/applications/` | ログインユーザー | イベント管理へ転送。URL の集会 ID による画面表示はない | — | 対象外（旧 URL の転送のみ） |
 | 外部連携 | VRCイベントカレンダー設定 | `/community/calendar_update/` | 選択中の集会の主催者・スタッフ | 集会設定「外部連携」→「カレンダー設定」 | [VRCイベントカレンダーへの投稿を準備する](settings/event-calendar.md) | 記載あり |
 | 外部連携 | Discord 通知の保存 | `/community/<id>/webhook/update/`（POST） | 対象集会の主催者・スタッフ | 集会設定「外部連携」→「Discord通知」→「保存」 | [Discord Webhookを設定する](settings/discord.md) | 記載あり |
@@ -105,10 +105,10 @@
 | 外部連携 | APIキーの作成 | `/account/api-key/create/`（POST） | ログインユーザー本人 | API管理「新規APIキー作成」 | [APIキーを作成・無効化する](settings/api-key.md) | 記載あり |
 | 外部連携 | APIキーの無効化 | `/account/api-key/<id>/delete/`（POST） | キーの所有者本人 | API管理のキー一覧「無効化」→確認 | [APIキーを作成・無効化する](settings/api-key.md) | 記載あり |
 | 告知・X | X告知テンプレート一覧 | `/twitter/template/list/` | 主催者・スタッフは所属集会分。`is_superuser` は全件 | 集会設定「X投稿テンプレート」→「テンプレート管理」 | [Xの告知文テンプレートを作る](settings/x-template.md) | 記載あり |
-| 告知・X | X告知テンプレートの作成 | `/twitter/template/create/` | 対象集会の主催者・スタッフ、または `is_superuser` | テンプレート一覧の新規作成／イベント管理「告知テンプレートを作成」 | [Xの告知文テンプレートを作る](settings/x-template.md) | 記載あり |
+| 告知・X | X告知テンプレートの作成 | `/twitter/template/create/` | 対象集会の主催者・スタッフ、または `is_superuser` | テンプレート一覧の新規作成／開催回の「X の告知文を作成」 | [Xの告知文テンプレートを作る](settings/x-template.md) | 記載あり |
 | 告知・X | X告知テンプレートの編集 | `/twitter/template/<id>/update/` | 対象集会の主催者・スタッフ、または `is_superuser` | X告知テンプレートの編集操作 | [Xの告知文テンプレートを作る](settings/x-template.md) | 記載あり |
 | 告知・X | X告知テンプレートの削除 | `/twitter/template/<id>/delete/` | 対象集会の主催者・スタッフ、または `is_superuser` | X告知テンプレートの削除操作→「削除」 | [Xの告知文テンプレートを作る](settings/x-template.md) | 記載あり |
-| 告知・X | ポストプレビュー | `/twitter/tweet/<イベントID>/<テンプレートID>/` | 対象集会の主催者・スタッフ、または `is_superuser` | イベント管理／発表詳細にあるテンプレート名のボタン | [Xの告知文テンプレートを作る](settings/x-template.md) | 記載あり |
+| 告知・X | ポストプレビュー | `/twitter/tweet/<イベントID>/<テンプレートID>/` | 対象集会の主催者・スタッフ、または `is_superuser` | 開催回の「X で告知」→テンプレート名／発表詳細のテンプレート名のボタン | [Xの告知文テンプレートを作る](settings/x-template.md) | 記載あり |
 | 告知・X | ポストキュー一覧 | `/twitter/queue/` | 主催者・スタッフは所属集会分。`is_superuser` は全件 | ガイドの「ポストキュー一覧」。運営用アカウント設定には「ポスト一覧」 | [Hub公式Xアカウントでの自動告知](event/auto-post.md) | 記載あり |
 | 告知・X | ポストキュー詳細 | `/twitter/queue/<id>/` | 閲覧は対象集会の主催者・スタッフ、または `is_superuser` | ポストキューの行を選択 | [Hub公式Xアカウントでの自動告知](event/auto-post.md) | 記載あり |
 | 告知・X | ポストキューの編集・再試行・即時投稿・削除 | `/twitter/queue/<id>/`（POST） | `is_superuser` のみ | ポストキュー詳細の操作 | — | 対象外（運営専用操作） |
