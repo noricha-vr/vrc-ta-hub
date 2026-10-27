@@ -57,9 +57,17 @@ def mobile_variant(image_path: str) -> str | None:
     return candidate.as_posix() if (STATIC_GUIDE_ROOT / candidate).is_file() else None
 
 
-@lru_cache(maxsize=256)
 def image_dimensions(image_path: str) -> tuple[int, int] | None:
-    """画像を開けない場合は寸法の指定を省く。"""
+    """画像を開けない場合は寸法の指定を省く。撮り直しで寸法が変わっても追従するよう更新時刻とサイズを鍵に含める。"""
+    try:
+        stat = (STATIC_GUIDE_ROOT / image_path).stat()
+    except OSError:
+        return None
+    return _image_dimensions(image_path, (stat.st_mtime_ns, stat.st_size))
+
+
+@lru_cache(maxsize=2048)
+def _image_dimensions(image_path: str, signature: tuple[int, int]) -> tuple[int, int] | None:
     try:
         with Image.open(STATIC_GUIDE_ROOT / image_path) as image:
             return image.size

@@ -1,5 +1,6 @@
 """ガイド本文・目次・画像を実ファイルと照合する契約テスト。"""
 import hashlib
+import os
 import posixpath
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -15,7 +16,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from PIL import Image
 
 from event.services.markdown_processor import convert_markdown
-from guide.rendering import image_dimensions, is_public_path, page_table_of_contents
+from guide.rendering import _image_dimensions, image_dimensions, is_public_path, page_table_of_contents
 from guide.views import GUIDE_REDIRECTS, GUIDE_ROOT, load_markdown_content
 
 IMAGE_ROOT = Path(__file__).resolve().parents[1] / 'static' / 'guide' / 'images'
@@ -141,8 +142,8 @@ class GuideContentContractTest(SimpleTestCase):
 
 class GuideRenderingTest(SimpleTestCase):
     def setUp(self):
-        image_dimensions.cache_clear()
-        self.addCleanup(image_dimensions.cache_clear)
+        _image_dimensions.cache_clear()
+        self.addCleanup(_image_dimensions.cache_clear)
 
     def render(self, body):
         with TemporaryDirectory() as tmp:
@@ -273,6 +274,19 @@ class GuideRenderingTest(SimpleTestCase):
             first = image_dimensions('images/community/create-01.webp')
             self.assertEqual(first, image_dimensions('images/community/create-01.webp'))
             open_image.assert_called_once()
+
+    def test_reshot_image_updates_dimensions(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'images').mkdir()
+            path = root / 'images' / 'shot.webp'
+            Image.new('RGB', (40, 20)).save(path)
+            with patch('guide.rendering.STATIC_GUIDE_ROOT', root):
+                self.assertEqual(image_dimensions('images/shot.webp'), (40, 20))
+                stat = path.stat()
+                Image.new('RGB', (30, 60)).save(path)
+                os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
+                self.assertEqual(image_dimensions('images/shot.webp'), (30, 60))
 
     def test_missing_and_unreadable_images_have_no_dimensions(self):
         with TemporaryDirectory() as tmp:

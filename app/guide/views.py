@@ -250,9 +250,9 @@ def load_markdown_content(path: str, render_body: bool = True) -> tuple[str, dic
 
     try:
         stat = md_file.stat()
-        html, frontmatter = _load_markdown_content_cached(
-            md_file, (stat.st_mtime_ns, stat.st_size), render_body, safe_path,
-        )
+        # 開発中は画像だけの撮り直しも反映させたいので、変換結果をキャッシュしない
+        load = _load_markdown_content_cached.__wrapped__ if settings.DEBUG else _load_markdown_content_cached
+        html, frontmatter = load(md_file, (stat.st_mtime_ns, stat.st_size), render_body, safe_path)
         return html, deepcopy(frontmatter)
     except Exception as e:
         # Http404 を返すクライアント起因のエラー (4xx 相当) なので

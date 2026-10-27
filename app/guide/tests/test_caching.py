@@ -48,6 +48,12 @@ class GuideCachingTest(TestCase):
                 self.assertContains(response, '最初の本文')
             convert.assert_called_once()
 
+    def test_debug_renders_without_cache(self):
+        with self.settings(DEBUG=True), patch('guide.views.convert_markdown', wraps=convert_markdown) as convert:
+            load_markdown_content('page')
+            load_markdown_content('page')
+            self.assertEqual(convert.call_count, 2)
+
     def test_markdown_mtime_invalidates_cache_without_size_change(self):
         original, _ = load_markdown_content('page')
         stat = self.page.stat()
