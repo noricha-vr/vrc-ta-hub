@@ -208,7 +208,7 @@ class SitemapCollaborationTests(TestCase):
         self.assertIn(reverse('vket:list'), paths)
         for collaboration in collaborations:
             with self.subTest(phase=collaboration.phase):
-                path = reverse('vket:detail', args=[collaboration.pk])
+                path = reverse('vket:detail', kwargs={'slug': collaboration.slug})
                 if collaboration.phase == VketCollaboration.Phase.DRAFT:
                     self.assertNotIn(path, paths)
                 else:

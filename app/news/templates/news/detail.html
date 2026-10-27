@@ -256,7 +256,7 @@
                         <h2 id="vket-collaboration-heading" class="h5 fw-bold">このコラボの日程とタイムテーブル</h2>
                         <ul class="mb-0">
                             {% for collaboration in vket_collaborations %}
-                                <li><a href="{% url 'vket:detail' collaboration.pk %}">{{ collaboration.name }}</a></li>
+                                <li><a href="{{ collaboration.get_absolute_url }}">{{ collaboration.name }}</a></li>
                             {% endfor %}
                         </ul>
                     </section>

@@ -17,6 +17,25 @@ from ._vket_test_bases import VketApplyFlowBase
 
 
 class VketApplyFlowTests(VketApplyFlowBase):
+    def test_status_guidance_supports_old_and_new_summer_slugs(self):
+        self.collaboration.settings_json = {'stage_registration_open': True}
+        VketParticipation.objects.create(
+            collaboration=self.collaboration, community=self.community,
+            applied_by=self.owner, applied_at=timezone.now(),
+            progress=VketParticipation.Progress.APPLIED,
+        )
+        self.client.force_login(self.owner)
+        self._set_active_community()
+        for slug in ('vket-2026-summer', '2026-summer'):
+            with self.subTest(slug=slug):
+                self.collaboration.slug = slug
+                self.collaboration.save(update_fields=['slug', 'settings_json'])
+                response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'https://vket.com/hub/2026Summer/notification')
+                self.assertContains(response, '開催会場は「Parareal Central Ignition Point - 着火点 - - エントランス」に設定してください。')
+                self.assertContains(response, 'タグは「Vketステージ」を選択してください。')
+
     def test_status_page_shows_register_complete_guidance(self):
         """参加状況画面で登録後の次アクションが明示される"""
         self.collaboration.slug = 'vket-2026-summer'
