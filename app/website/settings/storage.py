@@ -56,7 +56,7 @@ if DEBUG:
 else:
     # 本番は静的ファイルもR2
     staticfiles_storage = {
-        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+        'BACKEND': 'website.storage.GuideStaticFilesStorage',
         'OPTIONS': {
             'access_key': AWS_ACCESS_KEY_ID,
             'secret_key': AWS_SECRET_ACCESS_KEY,
