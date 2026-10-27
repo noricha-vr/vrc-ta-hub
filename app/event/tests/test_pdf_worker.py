@@ -23,6 +23,7 @@ from event.pdf_processing import (
 )
 from event.services import pdf_worker
 from event.services.pdf_worker import PdfWorkerError, run_pdf_worker
+import event_pdf_worker
 from event_pdf_worker import extract_pdf_text as worker_extract_pdf_text
 
 PDF_FIXTURE = Path(__file__).with_name("input_data") / "perplexity.pdf"
@@ -278,3 +279,33 @@ class PdfWorkerTests(SimpleTestCase):
 
         scale = get_pdf_thumbnail_render_scale(Page())
         self.assertAlmostEqual(4000 * scale, PDF_THUMBNAIL_MAX_LONG_EDGE_PX)
+
+
+class WorkerResourceLimitTests(SimpleTestCase):
+    def _applied_limits(self, platform):
+        with patch.object(event_pdf_worker.sys, "platform", platform), \
+                patch.object(event_pdf_worker.resource, "setrlimit") as mock_setrlimit:
+            event_pdf_worker._apply_resource_limits()
+        return [call.args for call in mock_setrlimit.call_args_list]
+
+    def test_linux_applies_memory_cpu_and_file_limits(self):
+        resource = event_pdf_worker.resource
+        self.assertEqual(
+            self._applied_limits("linux"),
+            [
+                (resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024)),
+                (resource.RLIMIT_DATA, (256 * 1024 * 1024, 256 * 1024 * 1024)),
+                (resource.RLIMIT_FSIZE, (8 * 1024 * 1024, 8 * 1024 * 1024)),
+                (resource.RLIMIT_CPU, (20, 21)),
+            ],
+        )
+
+    def test_macos_skips_memory_limits_it_cannot_lower(self):
+        resource = event_pdf_worker.resource
+        self.assertEqual(
+            self._applied_limits("darwin"),
+            [
+                (resource.RLIMIT_FSIZE, (8 * 1024 * 1024, 8 * 1024 * 1024)),
+                (resource.RLIMIT_CPU, (20, 21)),
+            ],
+        )
