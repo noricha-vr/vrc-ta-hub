@@ -34,7 +34,7 @@
 
     {% for collaboration in vket_collaborations %}
         <url>
-            <loc>{{ base_url|slice:":-1" }}{% url 'vket:detail' collaboration.pk %}</loc>
+            <loc>{{ base_url|slice:":-1" }}{{ collaboration.get_absolute_url }}</loc>
             <lastmod>{{ collaboration.updated_at|date:"Y-m-d" }}</lastmod>
         </url>
     {% endfor %}

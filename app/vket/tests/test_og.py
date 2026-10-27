@@ -56,6 +56,8 @@ class VketOgTests(TestCase):
         cls.receipt = VketNoticeReceipt.objects.create(notice=cls.notice, participation=cls.participation)
 
     def url(self, page):
+        if page == 'detail':
+            return self.collaboration.get_absolute_url()
         return reverse(f'vket:{page}', kwargs={'pk': self.collaboration.pk})
 
     def set_settings(self, value):

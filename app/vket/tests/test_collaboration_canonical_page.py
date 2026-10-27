@@ -33,7 +33,7 @@ class CollaborationCanonicalPageTests(TestCase):
 
     def setUp(self):
         cache.clear()
-        self.url = reverse('vket:detail', args=[self.collaboration.pk])
+        self.url = reverse('vket:detail', kwargs={'slug': self.collaboration.slug})
 
     def _participation(self, index=0, status='approved', owner=None):
         community = make_community(name=f'公開集会{index}', status=status, owner=owner)

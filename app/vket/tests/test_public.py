@@ -51,7 +51,7 @@ class CollaborationDetailQueryCountTests(TestCase):
             phase=VketCollaboration.Phase.ENTRY_OPEN,
         )
         self.detail_url = reverse(
-            "vket:detail", kwargs={"pk": self.collaboration.pk}
+            "vket:detail", kwargs={"slug": self.collaboration.slug}
         )
 
     def _make_participation(self, idx: int) -> VketParticipation:

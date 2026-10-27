@@ -31,6 +31,7 @@ from .presentation import (
     _delete_presentation,
 )
 from .public import (
+    CollaborationDetailLegacyView,
     CollaborationDetailView,
     CollaborationListView,
 )
@@ -52,6 +53,7 @@ __all__ = [
     '_is_vket_admin',
     '_shift_time',
     # public
+    'CollaborationDetailLegacyView',
     'CollaborationDetailView',
     'CollaborationListView',
     # apply
