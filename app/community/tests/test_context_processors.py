@@ -165,3 +165,25 @@ class ActiveCommunityContextProcessorTest(TestCase):
         result = active_community(request)
 
         self.assertEqual(result['active_community'], self.community2)
+
+    def test_membership_list_is_fetched_with_one_query(self):
+        """ログイン中の全ページで走るため、所属一覧の取得は 1 回だけにする"""
+        request = self.factory.get('/')
+        request.user = self.user1
+        self._add_session_to_request(request)
+        request.session['active_community_id'] = self.community2.id
+
+        with self.assertNumQueries(1):
+            result = active_community(request)
+            names = [m.community.name for m in result['user_communities']]
+
+        self.assertCountEqual(names, ['集会1', '集会2'])
+        self.assertEqual(result['active_community'], self.community2)
+
+    def test_logged_in_page_queries_stay_small(self):
+        """ログイン中のページはセッション・ユーザー・所属一覧の 3 本で描画できる"""
+        self.client.force_login(self.user1)
+        self.client.get('/about/')
+        with self.assertNumQueries(3):
+            response = self.client.get('/about/')
+        self.assertEqual(response.status_code, 200)

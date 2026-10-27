@@ -25,8 +25,9 @@ def active_community(request):
     if not request.user.is_authenticated:
         return {'active_membership': None}
 
-    memberships = request.user.community_memberships.select_related('community')
-    if not memberships.exists():
+    # 一覧はテンプレートでも回すので 1 回だけ取得し、以降は Python で選ぶ（ログイン中の全ページで走るため）
+    memberships = list(request.user.community_memberships.select_related('community'))
+    if not memberships:
         return {'user_communities': [], 'active_community': None, 'active_membership': None}
 
     empty = {'user_communities': memberships, 'active_community': None, 'active_membership': None}
@@ -34,7 +35,7 @@ def active_community(request):
     # セッションからactive_community_idを取得
     community_id = request.session.get('active_community_id')
     if community_id:
-        active = memberships.filter(community_id=community_id).first()
+        active = next((m for m in memberships if str(m.community_id) == str(community_id)), None)
         if active and not active.community.is_ended:
             return {
                 'user_communities': memberships,
