@@ -184,9 +184,12 @@ class SitemapUrlsResolveTestCase(TestCase):
         body = response.content.decode("utf-8")
         # 過去に本番 404 を出した実在しないパス
         self.assertNotIn("event/detail/list", body)
-        # 認証ページは sitemap に載せない方針
-        self.assertNotIn("account/login", body)
-        self.assertNotIn("account/register", body)
+        # 認証ページは sitemap に載せない方針（ガイドの /guide/account/login/ は説明ページなので載せる）
+        root = ET.fromstring(response.content)
+        paths = [urlparse(loc.text).path for loc in root.findall("sm:url/sm:loc", SITEMAP_NS)]
+        self.assertNotIn("/account/login/", paths)
+        self.assertNotIn("/account/register/", paths)
+        self.assertFalse([path for path in paths if path.startswith(("/account/login", "/account/register"))])
 
 
 class SitemapCollaborationTests(TestCase):
@@ -211,3 +214,19 @@ class SitemapCollaborationTests(TestCase):
                 else:
                     self.assertIn(path, paths)
                     self.assertEqual(self.client.get(path).status_code, 200)
+
+
+class SitemapGuideTests(TestCase):
+    def test_sitemap_includes_every_guide_page_once(self):
+        from guide.views import get_flat_nav_items, load_navigation
+
+        response = self.client.get(reverse('sitemap:sitemap'))
+        root = ET.fromstring(response.content)
+        paths = [urlparse(loc.text).path for loc in root.findall('sm:url/sm:loc', SITEMAP_NS)]
+        guide_paths = [path for path in paths if path.startswith('/guide/')]
+        expected = ['/guide/'] + [
+            f'/guide/{item.path}/' for item in get_flat_nav_items(load_navigation()) if item.path != 'index'
+        ]
+        self.assertGreater(len(expected), 40)
+        self.assertEqual(guide_paths, expected)
+        self.assertNotIn('/guide/index/', paths)

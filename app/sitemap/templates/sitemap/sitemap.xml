@@ -23,6 +23,15 @@
     <url>
         <loc>{{ base_url|slice:":-1" }}{% url 'vket:list' %}</loc>
     </url>
+    <url>
+        <loc>{{ base_url }}guide/</loc>
+    </url>
+    {% for path in guide_paths %}
+        <url>
+            <loc>{{ base_url }}guide/{{ path }}/</loc>
+        </url>
+    {% endfor %}
+
     {% for collaboration in vket_collaborations %}
         <url>
             <loc>{{ base_url|slice:":-1" }}{% url 'vket:detail' collaboration.pk %}</loc>
