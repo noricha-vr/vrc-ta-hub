@@ -187,3 +187,19 @@ class ActiveCommunityContextProcessorTest(TestCase):
         with self.assertNumQueries(3):
             response = self.client.get('/about/')
         self.assertEqual(response.status_code, 200)
+
+    def test_session_community_id_accepts_string_and_ignores_garbage(self):
+        """セッションの ID が文字列でも選ばれ、数値にならない値は無視して先頭にフォールバックする"""
+        for value, expected in ((str(self.community2.id), self.community2), ('abc', None)):
+            with self.subTest(value=value):
+                request = self.factory.get('/')
+                request.user = self.user1
+                self._add_session_to_request(request)
+                request.session['active_community_id'] = value
+
+                result = active_community(request)
+
+                if expected:
+                    self.assertEqual(result['active_community'], expected)
+                else:
+                    self.assertIn(result['active_community'], [self.community1, self.community2])

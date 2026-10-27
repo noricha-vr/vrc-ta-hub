@@ -18,7 +18,7 @@ def active_community(request):
 
     Returns:
         dict: 以下のキーを含む辞書
-            - user_communities: ユーザーのCommunityMembershipのクエリセット
+            - user_communities: ユーザーのCommunityMemberのリスト
             - active_community: 現在アクティブなCommunityオブジェクト
             - active_membership: 現在アクティブなCommunityMemberオブジェクト
     """
@@ -33,9 +33,12 @@ def active_community(request):
     empty = {'user_communities': memberships, 'active_community': None, 'active_membership': None}
 
     # セッションからactive_community_idを取得
-    community_id = request.session.get('active_community_id')
+    try:
+        community_id = int(request.session.get('active_community_id') or 0)
+    except (TypeError, ValueError):
+        community_id = 0
     if community_id:
-        active = next((m for m in memberships if str(m.community_id) == str(community_id)), None)
+        active = next((m for m in memberships if m.community_id == community_id), None)
         if active and not active.community.is_ended:
             return {
                 'user_communities': memberships,
