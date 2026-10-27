@@ -127,6 +127,8 @@ class ManageAdminUiTests(VketManageViewsBase):
         _, soup = self.page('manage')
         form = soup.select_one('#publication #publish-confirm[hidden] form')
         self.assertEqual(form['action'], self.url('manage_publish'))
+        self.assertIn('btn-primary', form.select_one('button[type=submit]')['class'])
+        self.assertIsNotNone(soup.select_one('#publish-confirm.confirm-panel--primary'))
         self.assertEqual({field['name'] for field in form.select('[name]')}, {'csrfmiddlewaretoken'})
         self.assertIsNone(form.find_parent('form'))
 

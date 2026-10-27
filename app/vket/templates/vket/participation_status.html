@@ -112,43 +112,75 @@
                         <span class="badge bg-secondary">未登録</span>
                     {% endif %}
                 </div>
-                {% if stage_registration_enabled %}
-                    <a href="{% url 'vket:stage_copy' collaboration.pk participation.pk %}" class="btn btn-outline-primary my-2">
-                        登録用の入力値・サムネイルを用意する
-                    </a>
-                {% endif %}
-                {% if not participation.stage_registered_at %}
+                {% if participation.stage_registered_at %}
+                    <div class="bg-success bg-opacity-10 border border-success border-opacity-25 rounded p-3 mt-3">
+                        <p>Vket のステージページに登録済みです。登録した告知はあとからも編集できます。日程や発表内容が変わったら直してください。</p>
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            {% if stage_edit_url %}
+                                <a href="{{ stage_edit_url }}" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm">
+                                    Vket で告知を編集する <i class="fas fa-external-link-alt ms-1" aria-hidden="true"></i>
+                                </a>
+                            {% endif %}
+                            {% if stage_registration_enabled %}
+                                <a href="{% url 'vket:stage_copy' collaboration.pk participation.pk %}" class="btn btn-link btn-sm">コピー用の文面を開く</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if stage_list_url %}
+                        <a href="{{ stage_list_url }}" target="_blank" rel="noopener" class="stage-registration-list-link">ほかの集会の告知を見る（Vket のユーザーイベント一覧） <i class="fas fa-external-link-alt ms-1" aria-hidden="true"></i></a>
+                    {% endif %}
+                {% elif stage_register_open %}
+                    <p class="text-muted mb-3">日程や発表内容が未確定でも、暫定の内容で登録できます。あとからも編集できます。</p>
+                    <ol class="stage-registration-steps">
+                        <li class="stage-registration-step{% if participation.stage_thumbnail_generated_at %} is-complete{% endif %}"{% if not participation.stage_thumbnail_generated_at %} aria-current="step"{% endif %}>
+                            <span class="stage-registration-number" aria-hidden="true">{% if participation.stage_thumbnail_generated_at %}<i class="fas fa-check"></i>{% else %}1{% endif %}</span>
+                            <div class="stage-registration-body">
+                                <h3>文面とサムネイルを用意する{% if participation.stage_thumbnail_generated_at %} <small class="text-success fw-normal d-inline-block">サムネイル作成済み</small>{% endif %}</h3>
+                                {% if not participation.stage_thumbnail_generated_at %}
+                                    <p>告知文の各欄をコピーし、サムネイルをダウンロードします。</p>
+                                {% endif %}
+                                <a href="{% url 'vket:stage_copy' collaboration.pk participation.pk %}" class="btn btn-outline-primary{% if participation.stage_thumbnail_generated_at %} btn-sm{% endif %}">{% if participation.stage_thumbnail_generated_at %}コピー用ページをもう一度開く{% else %}コピー用ページを開く{% endif %}</a>
+                            </div>
+                        </li>
+                        <li class="stage-registration-step"{% if participation.stage_thumbnail_generated_at %} aria-current="step"{% endif %}>
+                            <span class="stage-registration-number" aria-hidden="true">2</span>
+                            <div class="stage-registration-body">
+                                <h3>Vket のステージページで登録する</h3>
+                                <p>コピーした文面を貼り付け、サムネイルをアップロードします。{% if stage_registration_guidance %}次の 2 つはフォームで選んでください。{% endif %}</p>
+                                {% if stage_registration_guidance %}
+                                    <dl class="stage-registration-settings">
+                                        <div><dt>開催会場</dt><dd>{{ stage_registration_guidance.venue }}</dd></div>
+                                        <div><dt>タグ</dt><dd>{{ stage_registration_guidance.tag }}</dd></div>
+                                    </dl>
+                                {% endif %}
+                                {% if stage_url %}
+                                    <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary">Vket の登録ページを開く <i class="fas fa-external-link-alt ms-1" aria-hidden="true"></i></a>
+                                {% else %}
+                                    <span class="small text-muted">登録先URLは運営からのお知らせをご確認ください。</span>
+                                {% endif %}
+                                {% if stage_list_url %}
+                                    <a href="{{ stage_list_url }}" target="_blank" rel="noopener" class="stage-registration-list-link">ほかの集会の告知を見る（Vket のユーザーイベント一覧） <i class="fas fa-external-link-alt ms-1" aria-hidden="true"></i></a>
+                                {% endif %}
+                            </div>
+                        </li>
+                        <li class="stage-registration-step">
+                            <span class="stage-registration-number" aria-hidden="true">3</span>
+                            <div class="stage-registration-body">
+                                <h3>Hub に登録したことを記録する</h3>
+                                <p>Vket で登録しただけでは、Hub の進捗は進みません。登録が終わったらこのボタンを押してください。</p>
+                                <button type="button" class="btn btn-primary" data-confirm-panel="stage-register-confirm" aria-controls="stage-register-confirm" aria-expanded="false">登録したことを記録する</button>
+                                {% url 'vket:stage_register' collaboration.pk as register_url %}
+                                {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='stage-register-confirm' label='ステージ登録完了の確認' message='Vket のステージページへの登録は終わりましたか？' action_url=register_url submit_label='登録完了を記録する' tone='primary' %}
+                            </div>
+                        </li>
+                    </ol>
+                {% else %}
+                    {% if stage_registration_enabled %}
+                        <a href="{% url 'vket:stage_copy' collaboration.pk participation.pk %}" class="btn btn-outline-primary my-2">コピー用ページを開く</a>
+                    {% endif %}
                     {% if not stage_registration_enabled %}
                         <p class="fw-bold mb-2">Coming Soon</p>
                         <p class="text-muted mb-0">Vket ステージの登録ができるようになりましたら、Discord でお知らせします。</p>
-                    {% elif stage_register_open %}
-                        <p class="mb-3">
-                            Vket公式サイトのステージページに、イベント情報を暫定内容で登録してください。
-                            日程や発表内容が未確定でも、後から更新できます。
-                            登録が終わったら、この画面に戻って「Vketで登録したことを記録する」を押してください。
-                        </p>
-                        {% if stage_registration_guidance %}
-                            <div class="alert alert-info py-2 mb-3">
-                                <div class="fw-bold mb-1">Vketステージ登録画面での設定</div>
-                                <div>開催会場は「{{ stage_registration_guidance.venue }}」に設定してください。</div>
-                                <div>タグは「{{ stage_registration_guidance.tag }}」を選択してください。</div>
-                            </div>
-                        {% endif %}
-                        <div class="d-flex flex-wrap gap-2 align-items-center">
-                            {% if stage_url %}
-                                <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-primary">
-                                    <i class="fas fa-external-link-alt me-1"></i>Vketステージに登録する
-                                </a>
-                            {% else %}
-                                <span class="small text-muted">登録先URLは運営からのお知らせをご確認ください。</span>
-                            {% endif %}
-                            <button type="button" class="btn btn-outline-secondary" data-confirm-panel="stage-register-confirm" aria-controls="stage-register-confirm" aria-expanded="false">Vketで登録したことを記録する</button>
-                        </div>
-                        {% url 'vket:stage_register' collaboration.pk as register_url %}
-                        {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='stage-register-confirm' label='ステージ登録完了の確認' message='Vketステージページへの登録は完了しましたか？' action_url=register_url submit_label='登録完了を記録する' %}
-                        <div class="small text-muted mt-2">
-                            Vket側で登録しただけでは Hub の進捗は更新されません。登録後は Hub 側でも「Vketで登録したことを記録する」を押してください。
-                        </div>
                     {% elif stage_url %}
                         <a href="{{ stage_url }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
                             <i class="fas fa-external-link-alt me-1"></i>ステージページ

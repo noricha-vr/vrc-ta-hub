@@ -65,6 +65,12 @@ class ParticipantScenarioTargetsTest(TestCase):
                '#stage-registration', '[data-confirm-panel="stage-register-confirm"]',
                '#stage-register-confirm button[type="submit"]',
                '#stage-register-confirm [data-cancel-panel]', 'nav a[href="/vket/1/notices/"]')
+        self.assertEqual(len(soup.select('#stage-registration ol > li')), 3)
+        self.assertEqual(soup.select_one('[data-confirm-panel=stage-register-confirm]').text, '登録したことを記録する')
+        copy = soup.select_one('#stage-registration a[href="/vket/1/stage-copy/1/"]')
+        self.assertIsNotNone(copy)
+        self.assertEqual(copy.text, 'コピー用ページをもう一度開く')
+        self.assertIn('btn-primary', soup.select_one('#stage-register-confirm button[type=submit]')['class'])
         self.assertIn('hidden', soup.select_one('#stage-register-confirm').attrs)
         self.assertEqual(soup.select_one('#stage-register-confirm button[type="submit"]').get_text(strip=True),
                          '登録完了を記録する')

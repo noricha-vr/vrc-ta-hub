@@ -33,8 +33,8 @@ class VketApplyFlowTests(VketApplyFlowBase):
                 response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, 'https://vket.com/hub/2026Summer/notification')
-                self.assertContains(response, '開催会場は「Parareal Central Ignition Point - 着火点 - - エントランス」に設定してください。')
-                self.assertContains(response, 'タグは「Vketステージ」を選択してください。')
+                self.assertContains(response, '<dt>開催会場</dt><dd>Parareal Central Ignition Point - 着火点 - - エントランス</dd>')
+                self.assertContains(response, '<dt>タグ</dt><dd>Vketステージ</dd>')
 
     def test_status_page_shows_register_complete_guidance(self):
         """参加状況画面で登録後の次アクションが明示される"""
@@ -57,36 +57,33 @@ class VketApplyFlowTests(VketApplyFlowBase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            'Vket公式サイトのステージページに、イベント情報を暫定内容で登録してください。',
+            '日程や発表内容が未確定でも、暫定の内容で登録できます。あとからも編集できます。',
         )
         self.assertContains(
             response,
-            '日程や発表内容が未確定でも、後から更新できます。',
+            'コピーした文面を貼り付け、サムネイルをアップロードします。次の 2 つはフォームで選んでください。',
         )
         self.assertContains(
             response,
-            '登録が終わったら、この画面に戻って「Vketで登録したことを記録する」を押してください。',
+            'Vket で登録しただけでは、Hub の進捗は進みません。登録が終わったらこのボタンを押してください。',
         )
         self.assertContains(
             response,
-            '開催会場は「Parareal Central Ignition Point - 着火点 - - エントランス」に設定してください。',
+            '<dt>開催会場</dt><dd>Parareal Central Ignition Point - 着火点 - - エントランス</dd>',
         )
-        self.assertContains(response, 'タグは「Vketステージ」を選択してください。')
-        self.assertContains(
-            response,
-            'Vket側で登録しただけでは Hub の進捗は更新されません。',
-        )
+        self.assertContains(response, '<dt>タグ</dt><dd>Vketステージ</dd>')
+        self.assertNotContains(response, 'Vket側で登録しただけでは Hub の進捗は更新されません。')
         self.assertContains(
             response,
             'https://vket.com/hub/2026Summer/notification',
         )
-        self.assertContains(response, 'Vketステージに登録する')
+        self.assertContains(response, 'Vket の登録ページを開く')
         self.assertNotContains(response, '参加申込みが完了しました。')
 
         body = response.content.decode()
         self.assertLess(
-            body.index('Vketステージに登録する'),
-            body.index('class="btn btn-outline-secondary"'),
+            body.index('Vket の登録ページを開く'),
+            body.index('data-confirm-panel="stage-register-confirm"'),
         )
 
     def test_status_page_uses_collaboration_stage_url_when_configured(self):
@@ -134,8 +131,8 @@ class VketApplyFlowTests(VketApplyFlowBase):
         response = self.client.get(reverse('vket:status', kwargs={'pk': self.collaboration.pk}))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '開催会場は「Winter Entrance」に設定してください。')
-        self.assertContains(response, 'タグは「Vketステージ」を選択してください。')
+        self.assertContains(response, '<dt>開催会場</dt><dd>Winter Entrance</dd>')
+        self.assertContains(response, '<dt>タグ</dt><dd>Vketステージ</dd>')
         self.assertNotContains(response, 'Parareal Central Ignition Point - 着火点 - - エントランス')
 
     def test_apply_page_shows_stage_register_link_when_open(self):

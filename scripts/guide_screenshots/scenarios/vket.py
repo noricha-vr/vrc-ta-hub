@@ -26,7 +26,7 @@ def apply(c):
 def stage(c):
     c.login('owner')
     c.goto('/vket/1/status/')
-    shot(c, '.admin-card:has(h2:has-text("Vketステージ登録"))', 'a:has-text("登録用の入力値・サムネイルを用意する")')
+    shot(c, '#stage-registration', '#stage-registration a:has-text("コピー用ページをもう一度開く")')
     c.goto('/vket/1/stage-copy/1/')
     shot(c, '.admin-card:has(#stage-title)', 'button[data-copy-target="stage-title"]')
     shot(c, '.admin-card:has(#stage-body)', '#stage-body', 'button[data-copy-target="stage-body"]')

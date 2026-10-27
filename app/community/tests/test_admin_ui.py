@@ -242,6 +242,7 @@ class CommunityAdminUITest(TestCase):
             self.client.force_login(self.personal)
             soup = self.assert_page(self.page(route, invitation.token), f'{title}: {self.community.name}')
             self.assertIsNotNone(soup.select_one('.confirm-panel:not([hidden]) form[method="post"][action=""]'))
+            self.assertIsNotNone(soup.select_one('.confirm-panel--primary button[type=submit].btn-primary'))
             self.client.force_login(self.owner)
             response = self.page(route, invitation.token)
             self.assertContains(response, 'あなたは既にこの集会の')

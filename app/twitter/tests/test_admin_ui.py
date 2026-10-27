@@ -141,6 +141,7 @@ class TwitterAdminUITest(TwitterAccessControlTestBase):
                     form = soup.select_one('.confirm-panel form')
                     self.assertEqual(form['action'], self.url('tweet_queue_detail', pk=self.queue.pk))
                     self.assertEqual(form.select_one('button[name=action]')['value'], 'post_now')
+                    self.assertIn('btn-primary', form.select_one('button[name=action]')['class'])
                     self.assertIn(self.queue.generated_text, form.get_text())
 
     def test_queue_detail_is_readonly_except_for_superuser(self):
@@ -162,6 +163,8 @@ class TwitterAdminUITest(TwitterAccessControlTestBase):
                 if is_superuser:
                     self.assertEqual(soup.select_one('#tweet-queue-form [name=action]')['value'], 'update')
                     self.assertEqual(soup.select_one('#post-queue button[name=action]')['value'], 'post_now')
+                    self.assertIn('btn-primary', soup.select_one('#post-queue button[name=action]')['class'])
+                    self.assertIn('btn-danger', soup.select_one('#delete-queue button[name=action]')['class'])
                     self.assertEqual(soup.select_one('#delete-queue button[name=action]')['value'], 'delete')
                     self.assertIn(self.queue.generated_text, soup.select_one('#post-queue').get_text())
                 else:
