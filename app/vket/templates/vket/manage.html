@@ -190,9 +190,9 @@
                             {% for pres in p.all_presentations %}
                                 <div class="mt-2">
                                     {% url 'vket:manage_presentation_delete' collaboration.id pres.pk as delete_url %}
-                                    {% with presentation_id=pres.pk|stringformat:'s' %}
+                                    {% with presentation_id=pres.pk|stringformat:'s' speaker=pres.speaker|default:'この発表' %}
                                         {% with panel_id='delete-pres-'|add:presentation_id %}
-                                            {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label='発表の削除確認' message='この発表と紐づく公開済みの発表を削除します。' action_url=delete_url submit_label='この発表を削除する' %}
+                                            {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label=speaker|add:' の発表の削除確認' message=speaker|add:' の発表と、紐づく公開済みの発表を削除します。' action_url=delete_url submit_label='この発表を削除する' %}
                                         {% endwith %}
                                     {% endwith %}
                                 </div>

@@ -43,3 +43,10 @@
 {% endfor %}
 <label class="form-label">備考（運営）<textarea class="form-control form-control-sm" name="admin_note" rows="2"
           placeholder="備考（運営）">{{ p.admin_note }}</textarea></label>
+{% if p.lifecycle == 'active' %}
+    <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" name="confirm_withdraw" value="1" id="confirm-withdraw-{{ p.pk }}">
+        <label class="form-check-label" for="confirm-withdraw-{{ p.pk }}">公開済みの発表を削除し、公開イベントとの連携を外すことを確認しました</label>
+        <div class="form-text">「不参加」「辞退」に変更する場合だけチェックしてください。</div>
+    </div>
+{% endif %}

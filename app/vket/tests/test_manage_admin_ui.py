@@ -6,7 +6,7 @@ from django.urls import reverse
 
 from community.models import CommunityMember
 from tests.factories import make_event_detail, make_user
-from vket.models import VketCollaboration, VketNotice, VketNoticeReceipt, VketPresentation
+from vket.models import VketCollaboration, VketNotice, VketNoticeReceipt, VketParticipation, VketPresentation
 from vket.tests._vket_test_bases import VketManageViewsBase
 
 
@@ -62,7 +62,7 @@ class ManageAdminUiTests(VketManageViewsBase):
             self.assertEqual(
                 {field['name'] for field in form.select('[name]')},
                 {'csrfmiddlewaretoken', 'lifecycle', 'confirmed_date', 'confirmed_start_time',
-                 'confirmed_duration', 'admin_note'}
+                 'confirmed_duration', 'admin_note', 'confirm_withdraw'}
                 | ({f'pres_{self.presentation.pk}_start_time'} if participation == self.participation1 else set()),
             )
             self.assertEqual(form.select_one('button[type="submit"]').get_text(strip=True), '参加状態・日程を保存')
@@ -73,6 +73,44 @@ class ManageAdminUiTests(VketManageViewsBase):
         trigger = soup.select_one(f'[data-confirm-panel="delete-pres-{self.presentation.pk}"]')
         self.assertIsNotNone(trigger.find_parent(class_='dropdown-menu'))
         self.assertIn('不参加', soup.select_one(f'#participation-{self.participation1.pk}').get_text())
+
+    def test_withdrawal_confirmation_is_only_shown_for_active_participations(self):
+        for lifecycle in (VketParticipation.Lifecycle.DECLINED, VketParticipation.Lifecycle.WITHDRAWN):
+            with self.subTest(lifecycle=lifecycle):
+                self.participation2.lifecycle = lifecycle
+                self.participation2.save(update_fields=['lifecycle'])
+                _, soup = self.page('manage')
+                checkbox = soup.select_one(
+                    f'#participation-{self.participation1.pk} input[name="confirm_withdraw"]'
+                )
+                self.assertEqual(checkbox['type'], 'checkbox')
+                self.assertEqual(checkbox['value'], '1')
+                self.assertFalse(checkbox.has_attr('checked'))
+                self.assertFalse(checkbox.has_attr('required'))
+                label = soup.find('label', attrs={'for': checkbox['id']})
+                self.assertEqual(
+                    label.get_text(strip=True),
+                    '公開済みの発表を削除し、公開イベントとの連携を外すことを確認しました',
+                )
+                self.assertIsNone(soup.select_one(
+                    f'#participation-{self.participation2.pk} input[name="confirm_withdraw"]'
+                ))
+                self.assertEqual(len(soup.select('input[name="confirm_withdraw"]')), 1)
+
+    def test_presentation_delete_confirmation_identifies_and_escapes_speaker(self):
+        for speaker in ('ダミー登壇者', '', '<script>登壇者</script> & "名前"'):
+            with self.subTest(speaker=speaker):
+                self.presentation.speaker = speaker
+                self.presentation.save(update_fields=['speaker'])
+                _, soup = self.page('manage')
+                panel = soup.select_one(f'#delete-pres-{self.presentation.pk}')
+                name = speaker or 'この発表'
+                self.assertEqual(panel['aria-label'], f'{name} の発表の削除確認')
+                self.assertEqual(
+                    panel.select_one('p').get_text(),
+                    f'{name} の発表と、紐づく公開済みの発表を削除します。',
+                )
+                self.assertIsNone(panel.select_one('script'))
 
     def test_publication_is_separate_and_only_in_locked_phase(self):
         _, soup = self.page('manage')
