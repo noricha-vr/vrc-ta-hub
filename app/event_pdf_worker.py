@@ -24,15 +24,20 @@ def _add_application_root_to_path() -> None:
 
 
 def _apply_resource_limits() -> None:
-    """PDFライブラリを読み込む前にworker自身のOS資源上限を設定する."""
-    resource.setrlimit(
-        resource.RLIMIT_AS,
-        (WORKER_ADDRESS_SPACE_BYTES, WORKER_ADDRESS_SPACE_BYTES),
-    )
-    resource.setrlimit(
-        resource.RLIMIT_DATA,
-        (WORKER_DATA_BYTES, WORKER_DATA_BYTES),
-    )
+    """PDFライブラリを読み込む前にworker自身のOS資源上限を設定する.
+
+    macOS はメモリ系の上限（RLIMIT_AS / RLIMIT_DATA）を下げられず ValueError になるため、
+    ローカル開発の Mac では CPU とファイルサイズの上限だけを掛ける。本番（Linux）は全部掛ける。
+    """
+    if sys.platform != "darwin":
+        resource.setrlimit(
+            resource.RLIMIT_AS,
+            (WORKER_ADDRESS_SPACE_BYTES, WORKER_ADDRESS_SPACE_BYTES),
+        )
+        resource.setrlimit(
+            resource.RLIMIT_DATA,
+            (WORKER_DATA_BYTES, WORKER_DATA_BYTES),
+        )
     resource.setrlimit(
         resource.RLIMIT_FSIZE,
         (WORKER_FILE_BYTES, WORKER_FILE_BYTES),
