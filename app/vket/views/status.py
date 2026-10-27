@@ -58,8 +58,13 @@ def _is_plain_https_url(value: str) -> bool:
     """ホストがあり、ユーザー情報・空白・制御文字を含まない https の URL なら True を返す"""
     if any(ch.isspace() or ord(ch) < 0x20 or ord(ch) == 0x7f for ch in value):
         return False
-    parsed = urlsplit(value)
-    return parsed.scheme == 'https' and bool(parsed.hostname) and '@' not in parsed.netloc
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+    except ValueError:
+        # 角括弧の閉じ忘れなど、解析できない URL は使わない
+        return False
+    return parsed.scheme == 'https' and bool(hostname) and '@' not in parsed.netloc
 
 
 def _resolve_stage_related_url(collaboration: VketCollaboration, key: str) -> str:

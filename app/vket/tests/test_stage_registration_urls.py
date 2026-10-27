@@ -59,7 +59,7 @@ class StageRegistrationURLTests(SimpleTestCase):
     def test_non_https_explicit_settings_are_suppressed_without_fallback(self):
         for value in ('javascript:alert(1)', 'data:text/html,test', '//example.com/path',
                       'http://example.com/path', '/relative/path', 'https://', 'https://vket.com@evil.invalid/',
-                      'https://vket.com/a\nb', 'https://vket.com/a b'):
+                      'https://vket.com/a\nb', 'https://vket.com/a b', 'https://[example.com/edit'):
             with self.subTest(value=value):
                 self.assertEqual(self.resolve({
                     'stage_url': 'https://vket.com/mypage/event/2026Winter/my_notification/new',
