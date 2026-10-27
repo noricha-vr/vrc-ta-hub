@@ -5,6 +5,8 @@ docs/guide/ 配下のマークダウンファイルを読み込んで表示す�
 """
 import logging
 import re
+from copy import deepcopy
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -76,20 +78,24 @@ def load_navigation() -> list[NavItem]:
     Returns:
         NavItemのリスト
     """
-    nav_file = GUIDE_ROOT / '_nav.yaml'
+    nav_file = (GUIDE_ROOT / '_nav.yaml').resolve()
 
     if not nav_file.exists():
         logger.warning(f"ナビゲーションファイルが見つかりません: {nav_file}")
         return []
 
     try:
-        with open(nav_file, 'r', encoding='utf-8') as f:
-            nav_data = yaml.safe_load(f)
-
-        return _parse_nav_items(nav_data)
+        stat = nav_file.stat()
+        return deepcopy(_load_navigation_cached(nav_file, (stat.st_mtime_ns, stat.st_size)))
     except Exception as e:
         logger.error(f"ナビゲーションファイルの読み込みに失敗: {e}")
         return []
+
+
+@lru_cache(maxsize=256)
+def _load_navigation_cached(nav_file: Path, signature: tuple[int, int]) -> list[NavItem]:
+    with open(nav_file, 'r', encoding='utf-8') as f:
+        return _parse_nav_items(yaml.safe_load(f))
 
 
 def _parse_nav_items(items: list) -> list[NavItem]:
@@ -243,35 +249,42 @@ def load_markdown_content(path: str, render_body: bool = True) -> tuple[str, dic
         raise Http404(f"ガイドページが見つかりません: {path}")
 
     try:
-        with open(md_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        # フロントマターの抽出
-        frontmatter: dict = {}
-        body = content
-
-        if content.startswith('---'):
-            match = re.match(r'^---\s*\n(.*?)\n---\s*\n(.*)$', content, re.DOTALL)
-            if match:
-                frontmatter_str, body = match.groups()
-                try:
-                    frontmatter = yaml.safe_load(frontmatter_str) or {}
-                except yaml.YAMLError as e:
-                    logger.warning(f"フロントマターの解析に失敗: {e}")
-
-        if not render_body:
-            return '', frontmatter
-
-        # マークダウンをHTMLに変換
-        html = render_guide_html(convert_markdown(body), safe_path)
-
-        return html, frontmatter
-
+        stat = md_file.stat()
+        # 開発中は画像だけの撮り直しも反映させたいので、変換結果をキャッシュしない
+        load = _load_markdown_content_cached.__wrapped__ if settings.DEBUG else _load_markdown_content_cached
+        html, frontmatter = load(md_file, (stat.st_mtime_ns, stat.st_size), render_body, safe_path)
+        return html, deepcopy(frontmatter)
     except Exception as e:
         # Http404 を返すクライアント起因のエラー (4xx 相当) なので
         # WARNING に降格 (docs/logging.md 規約)
         logger.warning(f"マークダウンファイルの読み込みに失敗: {e}")
         raise Http404(f"ガイドページの読み込みに失敗しました: {path}")
+
+
+@lru_cache(maxsize=256)
+def _load_markdown_content_cached(
+    md_file: Path, signature: tuple[int, int], render_body: bool, page_path: str,
+) -> tuple[str, dict]:
+    with open(md_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    # フロントマターの抽出
+    frontmatter: dict = {}
+    body = content
+    if content.startswith('---'):
+        match = re.match(r'^---\s*\n(.*?)\n---\s*\n(.*)$', content, re.DOTALL)
+        if match:
+            frontmatter_str, body = match.groups()
+            try:
+                frontmatter = yaml.safe_load(frontmatter_str) or {}
+            except yaml.YAMLError as e:
+                logger.warning(f"フロントマターの解析に失敗: {e}")
+
+    if not render_body:
+        return '', frontmatter
+
+    # 相対リンクの基準は解決前の公開パスを使う。
+    return render_guide_html(convert_markdown(body), page_path), frontmatter
 
 
 def _start_links(nav_items: list[NavItem]) -> list[dict]:

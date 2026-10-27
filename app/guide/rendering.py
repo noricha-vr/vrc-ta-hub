@@ -8,6 +8,7 @@ from urllib.parse import unquote, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 from django.templatetags.static import static
+from PIL import Image
 
 STATIC_GUIDE_ROOT = Path(__file__).resolve().parent / 'static' / 'guide'
 # Bootstrap の sm 未満（スマホ幅）。この幅では -sp 版の画像に差し替える。
@@ -56,6 +57,24 @@ def mobile_variant(image_path: str) -> str | None:
     return candidate.as_posix() if (STATIC_GUIDE_ROOT / candidate).is_file() else None
 
 
+def image_dimensions(image_path: str) -> tuple[int, int] | None:
+    """画像を開けない場合は寸法の指定を省く。撮り直しで寸法が変わっても追従するよう更新時刻とサイズを鍵に含める。"""
+    try:
+        stat = (STATIC_GUIDE_ROOT / image_path).stat()
+    except OSError:
+        return None
+    return _image_dimensions(image_path, (stat.st_mtime_ns, stat.st_size))
+
+
+@lru_cache(maxsize=2048)
+def _image_dimensions(image_path: str, signature: tuple[int, int]) -> tuple[int, int] | None:
+    try:
+        with Image.open(STATIC_GUIDE_ROOT / image_path) as image:
+            return image.size
+    except (OSError, ValueError):
+        return None
+
+
 def render_guide_html(html: str, page_path: str) -> str:
     """bleach 後に実行する。入力 HTML 自体のサニタイズは呼び出し側の責務。"""
     soup = BeautifulSoup(html, 'html.parser')
@@ -73,6 +92,7 @@ def render_guide_html(html: str, page_path: str) -> str:
         table.wrap(soup.new_tag('div', attrs={'class': 'guide-table-wrap'}))
     for link in soup.find_all('a', href=True):
         link['href'] = guide_link(str(link['href']), page_path)
+    first_image = True
     for img in soup.find_all('img', src=True):
         src = str(img['src'])
         url = urlsplit(src)
@@ -83,14 +103,24 @@ def render_guide_html(html: str, page_path: str) -> str:
             continue
         image_url = guide_static(image_path)
         img['src'] = image_url
-        img['loading'] = 'lazy'
+        img['loading'] = 'eager' if first_image else 'lazy'
+        if first_image:
+            img['fetchpriority'] = 'high'
+            first_image = False
+        dimensions = image_dimensions(image_path)
+        if dimensions:
+            img['width'], img['height'] = dimensions
         img['class'] = ' '.join(dict.fromkeys([*img.get_attribute_list('class'), 'guide-screenshot']))
         target = img
         mobile_path = mobile_variant(image_path)
         if mobile_path:
             # 本文には PC 版だけを書き、スマホ幅では同じ手順の -sp 版を出す（同じ画面を 2 枚並べない）。
             picture = soup.new_tag('picture')
-            picture.append(soup.new_tag('source', media=MOBILE_MEDIA, srcset=guide_static(mobile_path)))
+            source = soup.new_tag('source', media=MOBILE_MEDIA, srcset=guide_static(mobile_path))
+            mobile_dimensions = image_dimensions(mobile_path)
+            if mobile_dimensions:
+                source['width'], source['height'] = mobile_dimensions
+            picture.append(source)
             img.wrap(picture)
             picture.append(img.extract())
             target = picture
@@ -101,6 +131,7 @@ def render_guide_html(html: str, page_path: str) -> str:
     return str(soup)
 
 
+@lru_cache(maxsize=256)
 def page_table_of_contents(html: str) -> list[dict]:
     """描画済みの h2/h3 から入れ子のページ内目次を作る。"""
     headings = BeautifulSoup(html, 'html.parser').find_all(['h2', 'h3'], id=True)
