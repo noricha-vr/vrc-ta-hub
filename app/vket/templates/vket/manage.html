@@ -190,7 +190,7 @@
                             {% for pres in p.all_presentations %}
                                 <div class="mt-2">
                                     {% url 'vket:manage_presentation_delete' collaboration.id pres.pk as delete_url %}
-                                    {% with presentation_id=pres.pk|stringformat:'s' speaker=pres.speaker|default:'この発表' %}
+                                    {% with presentation_id=pres.pk|stringformat:'s' speaker=pres.confirm_label %}
                                         {% with panel_id='delete-pres-'|add:presentation_id %}
                                             {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label=speaker|add:' の発表の削除確認' message=speaker|add:' の発表と、紐づく公開済みの発表を削除します。' action_url=delete_url submit_label='この発表を削除する' %}
                                         {% endwith %}
@@ -317,6 +317,14 @@ document.querySelectorAll('.hub-admin [id^="participation-"] > form').forEach(fu
     status.setAttribute('aria-live', 'polite');
     status.textContent = '変更はありません';
     form.prepend(status);
+});
+// 「不参加」「辞退」を選んだ時は確認チェックを必須にし、送信前に止めて入力を失わないようにする（最終判定はサーバー側）。
+document.querySelectorAll('.hub-admin [id^="participation-"] select[name="lifecycle"]').forEach(function(select) {
+    var confirmBox = select.form ? select.form.querySelector('input[name="confirm_withdraw"]') : null;
+    if (!confirmBox) return;
+    var sync = function() { confirmBox.required = select.value !== 'active'; };
+    select.addEventListener('change', sync);
+    sync();
 });
 </script>
 {% endblock %}

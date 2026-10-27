@@ -98,13 +98,20 @@ class ManageAdminUiTests(VketManageViewsBase):
                 self.assertEqual(len(soup.select('input[name="confirm_withdraw"]')), 1)
 
     def test_presentation_delete_confirmation_identifies_and_escapes_speaker(self):
-        for speaker in ('ダミー登壇者', '', '<script>登壇者</script> & "名前"'):
-            with self.subTest(speaker=speaker):
+        cases = (
+            ('ダミー登壇者', '', 'ダミー登壇者'),
+            ('', '', '発表者未入力'),
+            ('  ', 'ダミーテーマ', '発表者未入力「ダミーテーマ」'),
+            ('ダミー登壇者', 'ダミーテーマ', 'ダミー登壇者「ダミーテーマ」'),
+            ('<script>登壇者</script> & "名前"', '', '<script>登壇者</script> & "名前"'),
+        )
+        for speaker, theme, name in cases:
+            with self.subTest(speaker=speaker, theme=theme):
                 self.presentation.speaker = speaker
-                self.presentation.save(update_fields=['speaker'])
+                self.presentation.theme = theme
+                self.presentation.save(update_fields=['speaker', 'theme'])
                 _, soup = self.page('manage')
                 panel = soup.select_one(f'#delete-pres-{self.presentation.pk}')
-                name = speaker or 'この発表'
                 self.assertEqual(panel['aria-label'], f'{name} の発表の削除確認')
                 self.assertEqual(
                     panel.select_one('p').get_text(),
