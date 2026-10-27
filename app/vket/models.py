@@ -283,6 +283,13 @@ class VketPresentation(models.Model):
         return f"{self.participation} - {self.speaker or '（未入力）'}"
 
     @property
+    def confirm_label(self) -> str:
+        """削除確認で発表を見分けるための名前。同じ登壇者の発表が並んでもテーマで区別できるようにする。"""
+        speaker = self.speaker.strip() or '発表者未入力'
+        theme = self.theme.strip()
+        return f'{speaker}「{theme}」' if theme else speaker
+
+    @property
     def is_organizer_delete_locked(self) -> bool:
         """申込み画面で主催者が発表を編集できない時は削除もロックする。"""
         return not self.participation.collaboration.is_organizer_edit_open

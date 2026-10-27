@@ -237,6 +237,17 @@ class ManageParticipationUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMi
             messages.error(request, '保存に失敗しました: ' + ' / '.join(error_messages))
             return redirect('vket:manage', pk=collaboration.pk)
 
+        if (
+            participation.lifecycle == VketParticipation.Lifecycle.ACTIVE
+            and form.cleaned_data['lifecycle'] != VketParticipation.Lifecycle.ACTIVE
+            and request.POST.get('confirm_withdraw') != '1'
+        ):
+            messages.error(
+                request,
+                '「不参加」「辞退」に変更するには、公開済みの発表の削除と公開イベントとの連携解除の確認にチェックしてください。',
+            )
+            return redirect('vket:manage', pk=collaboration.pk)
+
         participation.lifecycle = form.cleaned_data['lifecycle']
         participation.admin_note = form.cleaned_data.get('admin_note', '')
 
