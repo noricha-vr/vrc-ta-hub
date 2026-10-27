@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.db.models import Count, Q
 from django.db.utils import OperationalError
 from django.utils import timezone
 from django.views.generic import TemplateView
@@ -12,13 +13,14 @@ from ta_hub.index_cache import (
     get_index_view_cache_key,
 )
 from utils.vrchat_time import get_vrchat_today
+from vket.models import VketCollaboration, VketParticipation
 from vket.timetable import build_collaboration_timetable
 from vket.og import top_page_og_image_url
 from vket.top_banner import get_active_top_banner
 
 logger = logging.getLogger(__name__)
 
-# VKETコラボデータ（画像はニュース記事のサムネイルから取得）
+# コラボデータがない2025年の実績（画像はニュース記事のサムネイルから取得）
 VKET_ACHIEVEMENTS = [
     {
         'id': 'winter-2025',
@@ -104,19 +106,69 @@ class IndexView(TemplateView):
     def _build_vket_achievements(self, with_images):
         """vket_achievements リストを生成する。
 
-        with_images=True のとき Post.objects.filter でサムネイルを取得して付加する。
-        with_images=False のとき image=None でフォールバックリストを返す（DB障害時用）。
+        with_images=True のとき会期後の公開アーカイブと2025年の実績を返す。
+        with_images=False のときDBを参照せず2025年の実績だけを返す（DB障害時用）。
         request.build_absolute_uri() に依存するためキャッシュ外で毎回生成すること。
         """
-        if with_images:
-            news_slugs = [a['news_slug'] for a in VKET_ACHIEVEMENTS]
-            news_posts = Post.objects.filter(slug__in=news_slugs).select_related('category').only('slug', 'thumbnail', 'category')
-            thumbnail_map = {post.slug: post.get_absolute_thumbnail_url(self.request) for post in news_posts}
-        else:
-            thumbnail_map = {}
+        if not with_images:
+            return [dict(achievement, image=None) for achievement in VKET_ACHIEVEMENTS]
+
+        collaborations = VketCollaboration.objects.exclude(
+            phase=VketCollaboration.Phase.DRAFT,
+        ).filter(period_end__lt=get_vrchat_today()).annotate(
+            # 公開ページのタイムテーブルと同じく、開催イベントが公開された承認済みの集会だけを数える。
+            community_count=Count('participations__community', distinct=True, filter=Q(
+                participations__lifecycle=VketParticipation.Lifecycle.ACTIVE,
+                participations__community__status='approved',
+                participations__published_event__isnull=False,
+            )),
+        ).order_by('-period_start', '-pk')
+        archived_collaborations = []
+        for collaboration in collaborations:
+            collaboration_settings = collaboration.settings_json
+            archive_slug = (
+                collaboration_settings.get('archive_news_slug') if isinstance(collaboration_settings, dict) else None
+            )
+            if isinstance(archive_slug, str) and archive_slug:
+                archived_collaborations.append((collaboration, archive_slug))
+
+        news_slugs = {slug for _, slug in archived_collaborations}
+        news_slugs.update(a['news_slug'] for a in VKET_ACHIEVEMENTS)
+        news_posts = Post.objects.filter(slug__in=news_slugs).select_related('category').only(
+            'slug', 'thumbnail', 'category', 'is_published',
+        )
+        post_map = {post.slug: post for post in news_posts}
+        thumbnail_map = {
+            slug: post.get_absolute_thumbnail_url(self.request)
+            for slug, post in post_map.items() if post.is_published
+        }
 
         result = []
+        for collaboration, archive_slug in archived_collaborations:
+            post = post_map.get(archive_slug)
+            if post is None or not post.is_published:
+                continue
+            banner = collaboration.settings_json.get('top_banner')
+            theme = banner.get('theme') if isinstance(banner, dict) else None
+            if theme not in ('winter', 'summer'):
+                theme = 'winter' if collaboration.period_start.month in {11, 12, 1, 2, 3} else 'summer'
+            emoji = '❄️' if theme == 'winter' else '🌻'
+            start, end = collaboration.period_start, collaboration.period_end
+            end_year = f'{end.year}年' if end.year != start.year else ''
+            result.append({
+                'id': collaboration.slug,
+                'title': f'{emoji} {collaboration.name}',
+                'period': f'{start.year}年{start.month}月{start.day}日〜{end_year}{end.month}月{end.day}日',
+                'stats': {'days': (end - start).days + 1, 'communities': collaboration.community_count},
+                'hashtags': collaboration.hashtags,
+                'news_slug': archive_slug,
+                'image': thumbnail_map[archive_slug],
+            })
+
+        archive_slugs = {achievement['news_slug'] for achievement in result}
         for achievement in VKET_ACHIEVEMENTS:
+            if achievement['news_slug'] in archive_slugs:
+                continue
             achievement_copy = achievement.copy()
             achievement_copy['image'] = thumbnail_map.get(achievement['news_slug'])
             result.append(achievement_copy)

@@ -1,12 +1,18 @@
 """VKETコラボ実績セクションのテスト"""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import patch
 
-from django.test import TestCase, Client
+from bs4 import BeautifulSoup
+from django.core.cache import cache
+from django.db.utils import OperationalError
+from django.test import TestCase, Client, RequestFactory
 from django.urls import reverse
 
-from ta_hub.views import VKET_ACHIEVEMENTS
+from news.models import Category, Post
+from ta_hub.views import IndexView, VKET_ACHIEVEMENTS
+from tests.factories import make_community, make_event
+from vket.models import VketCollaboration, VketParticipation
 
 
 class VketAchievementsConstantTest(TestCase):
@@ -93,6 +99,215 @@ class VketAchievementsSectionTest(TestCase):
         self.assertContains(response, '活動履歴をもっと見る')
         activity_url = reverse('news:category_list', args=['activity'])
         self.assertContains(response, activity_url)
+
+
+class VketAchievementsDatabaseTest(TestCase):
+    """会期後のアーカイブから作る実績とDB障害時のフォールバック。"""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.category, _ = Category.objects.get_or_create(slug='activity', defaults={'name': '活動履歴'})
+
+    def setUp(self):
+        cache.clear()
+        self.addCleanup(cache.clear)
+        today_patch = patch('ta_hub.views.get_vrchat_today', return_value=date(2026, 10, 27))
+        today_patch.start()
+        self.addCleanup(today_patch.stop)
+        self.view = IndexView()
+        self.view.setup(RequestFactory().get('/'))
+
+    def _post(self, slug='vket-2026-summer', **extra):
+        defaults = {
+            'title': 'コラボのアーカイブ', 'category': self.category,
+            'body_markdown': '発表動画まとめ', 'is_published': True,
+            'thumbnail': 'news/vket-archive.jpg',
+        }
+        defaults.update(extra)
+        return Post.objects.create(slug=slug, **defaults)
+
+    def _collaboration(self, slug='2026-summer', **extra):
+        defaults = {
+            'name': 'Vket 2026 Summer 技術学術WEEK',
+            'phase': VketCollaboration.Phase.ARCHIVED,
+            'period_start': date(2026, 7, 11), 'period_end': date(2026, 7, 26),
+            'registration_deadline': date(2026, 6, 1), 'lt_deadline': date(2026, 6, 20),
+            'hashtags': ['#Vketステージ', '#技術学術WEEK2026'],
+            'settings_json': {'archive_news_slug': 'vket-2026-summer'},
+        }
+        defaults.update(extra)
+        return VketCollaboration.objects.create(slug=slug, **defaults)
+
+    def _participation(
+        self, collaboration, status='approved', lifecycle=VketParticipation.Lifecycle.ACTIVE, published=True,
+    ):
+        community = make_community(status=status)
+        event = make_event(community, event_date=collaboration.period_start) if published else None
+        return VketParticipation.objects.create(
+            collaboration=collaboration, community=community, lifecycle=lifecycle, published_event=event,
+        )
+
+    def test_completed_collaboration_card_precedes_legacy_and_renders_archive(self):
+        post = self._post()
+        collaboration = self._collaboration()
+        self._participation(collaboration)
+        self._participation(collaboration)
+
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        achievements = response.context['vket_achievements']
+        image = post.get_absolute_thumbnail_url(response.wsgi_request)
+        self.assertEqual(achievements[0], {
+            'id': collaboration.slug,
+            'title': '🌻 Vket 2026 Summer 技術学術WEEK',
+            'period': '2026年7月11日〜7月26日',
+            'stats': {'days': 16, 'communities': 2},
+            'hashtags': collaboration.hashtags,
+            'news_slug': post.slug,
+            'image': image,
+        })
+        self.assertEqual([a['id'] for a in achievements[1:]], [a['id'] for a in VKET_ACHIEVEMENTS])
+        soup = BeautifulSoup(response.content, 'html.parser')
+        card = soup.select_one('.vket-achievement-card')
+        self.assertEqual(card.parent['href'], reverse('news:detail', args=[post.slug]))
+        self.assertEqual(card.select_one('img')['src'], image)
+        for text in [achievements[0]['title'], achievements[0]['period'], '16日間', '2団体参加', *collaboration.hashtags]:
+            self.assertIn(text, card.get_text())
+
+    def test_ineligible_collaborations_are_hidden(self):
+        self._post()
+        self._post('private-archive', is_published=False)
+        cases = [
+            {'phase': VketCollaboration.Phase.DRAFT},
+            {'period_start': date(2026, 10, 20), 'period_end': date(2026, 11, 1)},
+            {'period_start': date(2026, 11, 1), 'period_end': date(2026, 11, 15)},
+            {'period_end': date(2026, 10, 27)},
+            {'settings_json': {'archive_news_slug': 'private-archive'}},
+            {'settings_json': {'archive_news_slug': 'missing-archive'}},
+        ]
+        for index, extra in enumerate(cases):
+            self._collaboration(slug=f'excluded-{index}', **extra)
+
+        achievements = self.view._build_vket_achievements(with_images=True)
+
+        self.assertEqual([a['id'] for a in achievements], [a['id'] for a in VKET_ACHIEVEMENTS])
+
+    def test_missing_or_invalid_archive_settings_are_hidden(self):
+        self._post()
+        settings_values = [None, [], 'invalid', {}, *[
+            {'archive_news_slug': value} for value in ['', None, 42, True, [], {}]
+        ]]
+        for index, value in enumerate(settings_values):
+            self._collaboration(slug=f'invalid-{index}', settings_json=value)
+
+        achievements = self.view._build_vket_achievements(with_images=True)
+
+        self.assertEqual(len(achievements), len(VKET_ACHIEVEMENTS))
+
+    def test_only_active_approved_communities_are_counted(self):
+        self._post()
+        collaboration = self._collaboration()
+        self._participation(collaboration)
+        for status in ['pending', 'rejected', 'closed']:
+            self._participation(collaboration, status=status)
+        for lifecycle in [VketParticipation.Lifecycle.DECLINED, VketParticipation.Lifecycle.WITHDRAWN]:
+            self._participation(collaboration, lifecycle=lifecycle)
+        # 参加登録だけで開催イベントが公開されていない集会は数えない。
+        self._participation(collaboration, published=False)
+
+        achievements = self.view._build_vket_achievements(with_images=True)
+
+        self.assertEqual(achievements[0]['stats']['communities'], 1)
+
+    def test_newer_collaborations_come_first_and_cross_year_period_includes_year(self):
+        self._post()
+        self._collaboration()
+        self._post('vket-winter')
+        winter = self._collaboration(
+            slug='2025-winter', name='冬のコラボ',
+            period_start=date(2025, 12, 27), period_end=date(2026, 1, 4),
+            settings_json={'archive_news_slug': 'vket-winter'},
+        )
+
+        achievements = self.view._build_vket_achievements(with_images=True)
+
+        self.assertEqual([a['id'] for a in achievements[:2]], ['2026-summer', winter.slug])
+        self.assertEqual(achievements[1]['title'], '❄️ 冬のコラボ')
+        self.assertEqual(achievements[1]['period'], '2025年12月27日〜2026年1月4日')
+        self.assertEqual(achievements[1]['stats'], {'days': 9, 'communities': 0})
+
+    def test_theme_matches_top_banner_with_month_fallback(self):
+        self._post()
+        collaboration = self._collaboration()
+        for banner, emoji in [
+            ({'theme': 'winter'}, '❄️'), ({'theme': 'summer'}, '🌻'),
+            ({'theme': 'invalid'}, '🌻'), (None, '🌻'), ('invalid', '🌻'),
+        ]:
+            with self.subTest(banner=banner):
+                collaboration.settings_json = {'archive_news_slug': 'vket-2026-summer', 'top_banner': banner}
+                collaboration.save(update_fields=['settings_json'])
+                achievement = self.view._build_vket_achievements(with_images=True)[0]
+                self.assertEqual(achievement['title'], f'{emoji} {collaboration.name}')
+
+    def test_automatic_card_replaces_legacy_card_with_same_archive(self):
+        legacy_slug = VKET_ACHIEVEMENTS[0]['news_slug']
+        self._post(legacy_slug)
+        collaboration = self._collaboration(settings_json={'archive_news_slug': legacy_slug})
+
+        achievements = self.view._build_vket_achievements(with_images=True)
+
+        self.assertEqual(len(achievements), 2)
+        self.assertEqual(achievements[0]['id'], collaboration.slug)
+        self.assertEqual([a['news_slug'] for a in achievements], [a['news_slug'] for a in VKET_ACHIEVEMENTS])
+
+    def test_query_count_stays_two_as_collaborations_and_participations_grow(self):
+        with self.assertNumQueries(2):
+            self.view._build_vket_achievements(with_images=True)
+        self._post(thumbnail='')
+        collaboration = self._collaboration()
+        self._participation(collaboration)
+        with self.assertNumQueries(2):
+            achievements = self.view._build_vket_achievements(with_images=True)
+        self.assertEqual(achievements[0]['stats']['communities'], 1)
+        for index in range(5):
+            slug = f'archive-{index}'
+            self._post(slug, thumbnail='')
+            collaboration = self._collaboration(slug=slug, settings_json={'archive_news_slug': slug})
+            for _ in range(4):
+                self._participation(collaboration)
+        with self.assertNumQueries(2):
+            achievements = self.view._build_vket_achievements(with_images=True)
+        self.assertEqual(len(achievements), 8)
+        self.assertEqual([a['stats']['communities'] for a in achievements[:6]], [4] * 5 + [1])
+
+    def test_legacy_card_hides_thumbnail_of_unpublished_article(self):
+        legacy_slug = VKET_ACHIEVEMENTS[0]['news_slug']
+        self._post(legacy_slug, is_published=False)
+
+        achievements = self.view._build_vket_achievements(with_images=True)
+
+        legacy = next(a for a in achievements if a['news_slug'] == legacy_slug)
+        self.assertIsNone(legacy['image'])
+
+    def test_without_images_returns_only_legacy_cards_without_queries(self):
+        self._post()
+        self._collaboration()
+
+        with self.assertNumQueries(0):
+            achievements = self.view._build_vket_achievements(with_images=False)
+
+        self.assertEqual(achievements, [dict(a, image=None) for a in VKET_ACHIEVEMENTS])
+        self.assertTrue(all('image' not in a for a in VKET_ACHIEVEMENTS))
+
+    @patch('ta_hub.views.build_index_database_context', return_value={})
+    @patch('ta_hub.views.VketCollaboration.objects.exclude', side_effect=OperationalError('db unavailable'))
+    def test_database_failure_keeps_legacy_fallback(self, _mock_collaborations, _mock_context):
+        response = self.client.get(reverse('ta_hub:index'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context['database_degraded'])
+        self.assertEqual(response.context['vket_achievements'], [dict(a, image=None) for a in VKET_ACHIEVEMENTS])
 
 
 class VketNoticeLayoutTest(TestCase):
