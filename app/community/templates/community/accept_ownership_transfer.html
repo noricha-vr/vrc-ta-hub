@@ -12,7 +12,7 @@
 {% if user.is_authenticated %}
 {% url 'community:detail' community.pk as return_url %}
 {% with message=community.name|add:'の主催者を引き継ぎます。現在の主催者はスタッフに降格されます。あなたは集会の編集、メンバー管理、閉鎖などの全権限を持ちます。元の主催者の同意のもとで確定してください。' %}
-{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='accept-transfer' label='主催者引き継ぎの確認' message=message action_url='' submit_label='主催者を引き継ぐ' open=True cancel_url=return_url tone='primary' %}
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='accept-transfer' label='主催者引き継ぎの確認' message=message action_url='' submit_label='主催者を引き継ぐ' open=True cancel_url=return_url %}
 {% endwith %}
 {% else %}
 <p>主催者を引き継ぐと、現在の主催者はスタッフに降格されます。集会の編集・メンバー管理・閉鎖の権限を引き継ぎます。</p>

@@ -232,9 +232,11 @@ class CommunityAdminUITest(TestCase):
         self.assertIsNotNone(soup.select_one('[name="redirect_to"][value="' + reverse('event:calendar_create') + '"]'))
 
     def test_invitation_and_transfer_acceptance_states(self):
-        for invitation_type, route, title in [
-            (CommunityInvitation.InvitationType.STAFF, 'accept_invitation', 'スタッフ招待の受諾'),
-            (CommunityInvitation.InvitationType.OWNERSHIP_TRANSFER, 'accept_ownership_transfer', '主催者引継ぎの受諾'),
+        # スタッフ招待の受諾は青、権限が動く主催者の引き継ぎは赤のまま
+        for invitation_type, route, title, submit_class in [
+            (CommunityInvitation.InvitationType.STAFF, 'accept_invitation', 'スタッフ招待の受諾', 'btn-primary'),
+            (CommunityInvitation.InvitationType.OWNERSHIP_TRANSFER, 'accept_ownership_transfer', '主催者引継ぎの受諾',
+             'btn-danger'),
         ]:
             invitation = CommunityInvitation.objects.create(
                 community=self.community, created_by=self.owner, invitation_type=invitation_type,
@@ -242,7 +244,7 @@ class CommunityAdminUITest(TestCase):
             self.client.force_login(self.personal)
             soup = self.assert_page(self.page(route, invitation.token), f'{title}: {self.community.name}')
             self.assertIsNotNone(soup.select_one('.confirm-panel:not([hidden]) form[method="post"][action=""]'))
-            self.assertIsNotNone(soup.select_one('.confirm-panel--primary button[type=submit].btn-primary'))
+            self.assertIsNotNone(soup.select_one(f'.confirm-panel button[type=submit].{submit_class}'))
             self.client.force_login(self.owner)
             response = self.page(route, invitation.token)
             self.assertContains(response, 'あなたは既にこの集会の')

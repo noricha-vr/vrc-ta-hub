@@ -212,7 +212,7 @@
                 {% include 'ta_hub/admin/includes/section_heading.html' with title='全体公開' description='確定済み日程をまとめて公開イベントに同期します。行ごとの保存とは別の操作です。' only %}
                 <button class="btn btn-outline-primary" type="button" data-confirm-panel="publish-confirm" aria-controls="publish-confirm" aria-expanded="false">公開同期（Event作成）…</button>
                 {% url 'vket:manage_publish' collaboration.id as publish_url %}
-                {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='publish-confirm' label='全体公開の確認' message='確定済み日程をすべてイベントとして公開します。発表時間に重なりがある場合も同期されます。' action_url=publish_url submit_label='公開同期（Event作成）' tone='primary' %}
+                {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='publish-confirm' label='全体公開の確認' message='確定済み日程をすべてイベントとして公開します。発表時間に重なりがある場合も同期されます。' action_url=publish_url submit_label='公開同期（Event作成）' %}
             </section>
         {% endif %}
 

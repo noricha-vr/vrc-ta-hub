@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 import re
+from urllib.parse import urlsplit
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -53,14 +54,22 @@ def _resolve_stage_url(collaboration: VketCollaboration) -> str:
     return ''
 
 
+def _is_plain_https_url(value: str) -> bool:
+    """ホストがあり、ユーザー情報・空白・制御文字を含まない https の URL なら True を返す"""
+    if any(ch.isspace() or ord(ch) < 0x20 or ord(ch) == 0x7f for ch in value):
+        return False
+    parsed = urlsplit(value)
+    return parsed.scheme == 'https' and bool(parsed.hostname) and '@' not in parsed.netloc
+
+
 def _resolve_stage_related_url(collaboration: VketCollaboration, key: str) -> str:
     settings_json = collaboration.settings_json or {}
     if isinstance(settings_json, dict):
         value = settings_json.get(key)
         if isinstance(value, str) and value.strip():
-            # 登録 URL の既存の扱いは維持し、追加のリンクだけ HTTPS に限定する。
+            # 登録 URL の既存の扱いは維持し、追加のリンクだけ HTTPS の普通の URL に限定する。
             value = value.strip()
-            return value if value.startswith('https://') else ''
+            return value if _is_plain_https_url(value) else ''
 
     match = re.fullmatch(
         r'https://vket\.com/mypage/event/([A-Za-z0-9]+)/my_notification/new/?',
