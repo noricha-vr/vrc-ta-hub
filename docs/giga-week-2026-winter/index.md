@@ -1,7 +1,7 @@
 # 技術学術WEEK 2026 Winter
 
 - 会期: 2026-12-05（土）〜 2026-12-20（日）（Vket 2026 Winter と同じ）
-- Hub のコラボ: https://vrc-ta-hub.com/vket/2/ （slug `vket-2026-winter`、2026-10-09 に参加受付中で作成）
+- Hub のコラボ: https://vrc-ta-hub.com/vket/2026-winter/ （slug `2026-winter`、2026-10-09 に参加受付中で作成。旧 URL `/vket/2/` は転送される）
 - 参加表明締切: 2026-11-01（日）
 - 発表者・テーマの確定締切: 2026-11-15（日）
 - ハッシュタグ: `#Vketステージ` `#Vket技術学術WEEK`

@@ -91,7 +91,7 @@
 - `lt_deadline` までは LT 情報と備考を編集可能
 
 ### 運営側
-- `app/vket/views.py` の `_is_vket_admin()` を満たすユーザーが運営画面へ入れる
+- `app/vket/views/helpers.py` の `_is_vket_admin()` を満たすユーザーが運営画面へ入れる
 - 現行実装では `is_superuser` または `is_staff`
 
 ## 画面仕様メモ
