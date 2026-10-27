@@ -374,25 +374,203 @@
                 font-size: 1.25rem;
             }
         }
+        /* トップのヒーロー（めいゆん） */
+        .top-hero {
+            position: relative;
+            overflow: hidden;
+            background-color: #151B36;
+        }
+
+        .top-hero-stars {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .top-hero-inner {
+            position: relative;
+            min-height: 560px;
+            padding-top: 36px;
+            padding-bottom: 200px;
+        }
+
+        .top-hero-copy {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .top-hero-title {
+            margin: 0;
+            font-size: 28px;
+            line-height: 1.4;
+            font-weight: 900;
+            color: #FFFFFF;
+            word-break: keep-all;
+            overflow-wrap: anywhere;
+        }
+
+        .top-hero-lead {
+            margin: 0;
+            font-size: 15px;
+            line-height: 1.8;
+            color: #D9DDEB;
+        }
+
+        .top-hero-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 52px;
+            padding: 0 22px;
+            border-radius: 12px;
+            background-color: #FFD43B;
+            color: #16181D;
+            font-size: 16px;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .top-hero-cta:hover,
+        .top-hero-cta:focus {
+            background-color: #F5C400;
+            color: #16181D;
+        }
+
+        .top-hero-disc {
+            position: absolute;
+            right: -27px;
+            bottom: -40px;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background-color: var(--custom-primary);
+        }
+
+        .top-hero-mascot {
+            position: absolute;
+            right: -4px;
+            bottom: 0;
+            width: auto;
+            height: 180px;
+            transform: scaleX(-1);
+        }
+
+        .top-hero-stars {
+            display: none;
+        }
+
+        @media (min-width: 768px) {
+            .top-hero-inner {
+                display: flex;
+                align-items: center;
+                min-height: 360px;
+                padding-top: 40px;
+                padding-bottom: 40px;
+            }
+
+            .top-hero-copy {
+                max-width: calc(100% - 330px);
+            }
+
+            .top-hero-title {
+                font-size: 30px;
+            }
+
+            .top-hero-disc {
+                top: 40px;
+                right: 10px;
+                bottom: auto;
+                width: 280px;
+                height: 280px;
+            }
+
+            /* 文字の拡大でヒーローが伸びても画像は拡大せず、下端に揃える */
+            .top-hero-mascot {
+                right: 0;
+                bottom: 0;
+                height: 100%;
+                max-height: 360px;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .top-hero-stars {
+                display: block;
+            }
+
+            .top-hero-inner {
+                min-height: 465px;
+                padding-top: 0;
+                padding-bottom: 0;
+            }
+
+            .top-hero-copy {
+                max-width: 640px;
+                gap: 22px;
+            }
+
+            .top-hero-title {
+                font-size: 38px;
+                line-height: 1.35;
+            }
+
+            .top-hero-lead {
+                font-size: 17px;
+                line-height: 1.85;
+            }
+
+            .top-hero-cta {
+                min-height: 54px;
+                margin-top: 6px;
+                padding: 0 28px;
+                font-size: 17px;
+            }
+
+            .top-hero-disc {
+                right: 80px;
+                width: 380px;
+                height: 380px;
+            }
+
+            .top-hero-mascot {
+                right: 60px;
+                max-height: 465px;
+            }
+        }
     </style>
     <link rel="stylesheet" href="https://petipeti-object-storage.work/dist/style.css">
 
 
-    <div class="bg-dark text-secondary px-4 py-5 text-center">
-        <div class="py-2">
-            <h1 class="display-5 fw-bold text-white">
-                ようこそ！<br>
-                VRChat技術学術系集会の世界へ！</h1>
-            <div class="col-lg-6 mx-auto text-white">
-                <p class="fs-5 my-4 text-white">VRChatで開催される多彩な技術学術系集会をお届けします</br>
+    <section class="top-hero" aria-labelledby="top-hero-title">
+        <svg class="top-hero-stars" aria-hidden="true" viewBox="0 0 1280 465" preserveAspectRatio="xMidYMid slice">
+            <g fill="#FFD43B">
+                <path d="M640 70l5 15 15 5-15 5-5 15-5-15-15-5 15-5z"></path>
+                <path d="M720 360l3 9 9 3-9 3-3 9-3-9-9-3 9-3z"></path>
+                <path d="M1210 90l4 12 12 4-12 4-4 12-4-12-12-4 12-4z"></path>
+            </g>
+            <g fill="#FFFFFF" opacity="0.55">
+                <circle cx="90" cy="60" r="1.6"></circle><circle cx="300" cy="400" r="1.4"></circle>
+                <circle cx="560" cy="200" r="1.2"></circle><circle cx="800" cy="40" r="1.6"></circle>
+                <circle cx="1180" cy="300" r="1.4"></circle><circle cx="480" cy="40" r="1.2"></circle>
+            </g>
+        </svg>
+        <div class="container top-hero-inner">
+            <div class="top-hero-copy">
+                <h1 id="top-hero-title" class="top-hero-title">ようこそ！<br>VRChat技術学術系<wbr>集会の世界へ！</h1>
+                <p class="top-hero-lead">VRChatで開催される多彩な技術学術系集会をお届けします<br class="d-none d-xl-inline">
                     入門者から経験豊富な方まで、みんなが楽しめるイベントが満載です！</p>
-                <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                    <a href="{% url 'community:list' %}"
-                       class="btn btn-primary btn-lg px-4 fw-bold text-white">技術・学術系 集会一覧</a>
-                </div>
+                <a href="{% url 'community:list' %}" class="top-hero-cta">技術・学術系 集会一覧<i class="bi bi-arrow-right" aria-hidden="true"></i></a>
             </div>
+            <div class="top-hero-disc" aria-hidden="true"></div>
+            <img class="top-hero-mascot" src="{% static 'ta_hub/images/meiyun-wave.webp' %}"
+                 alt="手を差し出すマスコットのめいゆん" width="418" height="465">
         </div>
-    </div>
+    </section>
     <!-- hero end -->
 
     <!-- X(Twitter) follow banner -->
