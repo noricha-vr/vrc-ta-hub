@@ -38,7 +38,7 @@
                                 {% endif %}
 
                                 <div class="d-flex gap-2 flex-wrap">
-                                    <a class="btn btn-primary btn-sm" href="{% url 'vket:detail' c.id %}">詳細を見る</a>
+                                    <a class="btn btn-primary btn-sm" href="{{ c.get_absolute_url }}">詳細を見る</a>
                                     {% if is_admin %}
                                         <a class="btn btn-outline-primary btn-sm"
                                            href="{% url 'vket:manage' c.id %}">管理</a>

@@ -3,6 +3,7 @@ from __future__ import annotations
 from itertools import groupby
 
 from django.db.models import Case, IntegerField, Prefetch, When
+from django.http import HttpResponsePermanentRedirect
 from django.views.generic import DetailView, ListView
 
 from event.models import EventDetail
@@ -58,6 +59,7 @@ class CollaborationListView(ListView):
 
 class CollaborationDetailView(DetailView):
     model = VketCollaboration
+    slug_field = 'slug'
     template_name = 'vket/collaboration_detail.html'
     context_object_name = 'collaboration'
 
@@ -146,3 +148,13 @@ class CollaborationDetailView(DetailView):
         context['participation_exists'] = participation_exists
         context['participation_has_event'] = participation_has_event
         return context
+
+
+class CollaborationDetailLegacyView(CollaborationDetailView):
+    def get(self, request, *args, **kwargs):
+        collaboration = self.get_object()
+        url = collaboration.get_absolute_url()
+        query = request.META.get('QUERY_STRING', '')
+        if query:
+            url += f'?{query}'
+        return HttpResponsePermanentRedirect(url)

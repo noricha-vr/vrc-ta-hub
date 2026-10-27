@@ -145,7 +145,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
         self.client.force_login(self.owner)
         self._set_active_community()
-        response = self.client.get(reverse('vket:detail', kwargs={'pk': self.collaboration.pk}))
+        response = self.client.get(reverse('vket:detail', kwargs={'slug': self.collaboration.slug}))
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context['can_apply'])
 
@@ -173,7 +173,7 @@ class VketApplyFlowTests(VketApplyFlowBase):
 
         self.client.force_login(self.owner)
         self._set_active_community()
-        response = self.client.get(reverse('vket:detail', kwargs={'pk': self.collaboration.pk}))
+        response = self.client.get(reverse('vket:detail', kwargs={'slug': self.collaboration.slug}))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['can_apply'])
 
