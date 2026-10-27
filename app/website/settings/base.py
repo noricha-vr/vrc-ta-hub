@@ -170,13 +170,14 @@ DATABASES = {
         'PASSWORD': os.environ.get('DB_PASSWORD'),
         'HOST': os.environ.get('DB_HOST'),
         # ログイン中のページは毎回 DB を引くので、接続をリクエストごとに張り直さず使い回す。
-        # DB_CONN_MAX_AGE=0 で従来どおり毎回閉じる動きに戻せる
+        # 接続は uwsgi のスレッドごとに 1 本で、ワーカーの作り直し（uwsgi.ini の max-requests 等）で閉じる。
+        # DB_CONN_MAX_AGE=0 で従来どおり毎回閉じる動きに戻せる。
+        # wait_timeout は短くしない（外部 API を長く待つバッチが同じ接続を使い続けるため）
         'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', '60')),
         'CONN_HEALTH_CHECKS': True,
         'OPTIONS': {
             'charset': 'utf8mb4',
-            # 使われなくなったスレッドの接続を DB 側で閉じ、待機中の接続が溜まらないようにする
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES', SESSION wait_timeout=120",
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         },
     },
 }
