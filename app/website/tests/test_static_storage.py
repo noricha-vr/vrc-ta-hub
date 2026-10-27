@@ -18,7 +18,7 @@ class GuideStaticFilesStorageTest(SimpleTestCase):
                 })
 
     def test_other_static_files_keep_existing_parameters(self):
-        for name in ('css/x.css', 'guide/x.webp', 'guide/images-other/x.webp'):
+        for name in ('css/x.css', 'guide/x.webp', 'guide/images-other/x.webp', 'guide/images/posters/vrc-ta-hub-poster-1.jpg'):
             with self.subTest(name=name):
                 self.assertEqual(self.storage.get_object_parameters(name), {})
 
