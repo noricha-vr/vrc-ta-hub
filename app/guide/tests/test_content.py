@@ -12,9 +12,10 @@ from bs4 import BeautifulSoup
 from django.http import Http404
 from django.templatetags.static import static
 from django.test import SimpleTestCase, TestCase, override_settings
+from PIL import Image
 
 from event.services.markdown_processor import convert_markdown
-from guide.rendering import is_public_path, page_table_of_contents
+from guide.rendering import image_dimensions, is_public_path, page_table_of_contents
 from guide.views import GUIDE_REDIRECTS, GUIDE_ROOT, load_markdown_content
 
 IMAGE_ROOT = Path(__file__).resolve().parents[1] / 'static' / 'guide' / 'images'
@@ -139,6 +140,10 @@ class GuideContentContractTest(SimpleTestCase):
 
 
 class GuideRenderingTest(SimpleTestCase):
+    def setUp(self):
+        image_dimensions.cache_clear()
+        self.addCleanup(image_dimensions.cache_clear)
+
     def render(self, body):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -194,7 +199,8 @@ class GuideRenderingTest(SimpleTestCase):
         soup = self.render('![赤枠の入力欄](images/section/page-01.webp)')
         img = soup.img
         self.assertEqual(img['src'], static('guide/images/section/page-01.webp'))
-        self.assertEqual(img['loading'], 'lazy')
+        self.assertEqual(img['loading'], 'eager')
+        self.assertEqual(img['fetchpriority'], 'high')
         self.assertIn('guide-screenshot', img['class'])
         self.assertEqual(img.parent['href'], img['src'])
         self.assertEqual(img.parent['target'], '_blank')
@@ -209,6 +215,9 @@ class GuideRenderingTest(SimpleTestCase):
         self.assertEqual(picture.name, 'picture')
         self.assertEqual(picture.source['srcset'], versioned('images/community/create-01-sp.webp'))
         self.assertEqual(picture.source['media'], '(max-width: 575.98px)')
+        for tag, name in ((soup.img, 'create-01.webp'), (picture.source, 'create-01-sp.webp')):
+            with Image.open(IMAGE_ROOT / 'community' / name) as image:
+                self.assertEqual((int(tag['width']), int(tag['height'])), image.size)
         self.assertEqual(picture.parent.name, 'a')
         self.assertEqual(picture.parent['href'], versioned('images/community/create-01.webp'))
 
@@ -225,7 +234,8 @@ class GuideRenderingTest(SimpleTestCase):
     def test_raw_html_image_gets_display_attributes(self):
         soup = self.render('<img src="images/section/page-01.webp" alt="① の入力欄" class="existing">')
         self.assertEqual(soup.img['src'], static('guide/images/section/page-01.webp'))
-        self.assertEqual(soup.img['loading'], 'lazy')
+        self.assertEqual(soup.img['loading'], 'eager')
+        self.assertEqual(soup.img['fetchpriority'], 'high')
         self.assertEqual(soup.img['class'], ['existing', 'guide-screenshot'])
         self.assertEqual(soup.img.parent.name, 'a')
 
@@ -236,11 +246,44 @@ class GuideRenderingTest(SimpleTestCase):
         self.assertNotIn('guide-screenshot-link', soup.img.parent.get('class', []))
 
     def test_external_and_absolute_images_are_unchanged(self):
-        for src in ('https://example.com/image.webp', 'http://example.com/image.webp', '/images/a.webp', '//example.com/a.webp'):
+        for src in ('https://example.com/image.webp', 'http://example.com/image.webp', '/images/a.webp', '//example.com/a.webp', 'other/a.webp'):
             with self.subTest(src=src):
                 img = self.render(f'<img src="{src}" alt="参考図">').img
                 self.assertEqual(img['src'], src)
                 self.assertNotIn('loading', img.attrs)
+                self.assertNotIn('fetchpriority', img.attrs)
+                self.assertNotIn('width', img.attrs)
+                self.assertNotIn('height', img.attrs)
+
+    def test_only_first_guide_image_is_prioritized(self):
+        soup = self.render('![外部](https://example.com/image.webp)\n\n'
+                           '![入口](images/community/create-01.webp)\n\n'
+                           '![入力](images/community/create-02.webp)')
+        first, second = soup.select('img.guide-screenshot')
+        self.assertEqual(first['loading'], 'eager')
+        self.assertEqual(first['fetchpriority'], 'high')
+        self.assertEqual(second['loading'], 'lazy')
+        self.assertNotIn('fetchpriority', second.attrs)
+        for tag, name in ((first, 'create-01.webp'), (second, 'create-02.webp')):
+            with Image.open(IMAGE_ROOT / 'community' / name) as image:
+                self.assertEqual((int(tag['width']), int(tag['height'])), image.size)
+
+    def test_dimensions_are_read_once_per_image_path(self):
+        with patch('guide.rendering.Image.open', wraps=Image.open) as open_image:
+            first = image_dimensions('images/community/create-01.webp')
+            self.assertEqual(first, image_dimensions('images/community/create-01.webp'))
+            open_image.assert_called_once()
+
+    def test_missing_and_unreadable_images_have_no_dimensions(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'images').mkdir()
+            (root / 'images' / 'unreadable.webp').write_text('画像ではありません', encoding='utf-8')
+            with patch('guide.rendering.STATIC_GUIDE_ROOT', root):
+                soup = self.render('![欠落](images/missing.webp)\n\n![不正](images/unreadable.webp)')
+        for img in soup.find_all('img'):
+            self.assertNotIn('width', img.attrs)
+            self.assertNotIn('height', img.attrs)
 
     def test_relative_markdown_links_keep_query_and_fragment(self):
         self.assertIn('href="../index.md"', convert_markdown('[はじめに](../index.md)'))
