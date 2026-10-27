@@ -3,7 +3,12 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.urls import reverse
 from django.utils import timezone
+
+
+# /vket/ 直下の固定パス。公開ページの URL（/vket/<slug>/）とぶつかるので slug に使えない。
+RESERVED_COLLABORATION_SLUGS = frozenset({"auto-confirm", "status", "ack"})
 
 
 class VketCollaboration(models.Model):
@@ -44,6 +49,9 @@ class VketCollaboration(models.Model):
     def __str__(self) -> str:
         return self.name
 
+    def get_absolute_url(self) -> str:
+        return reverse('vket:detail', kwargs={'slug': self.slug})
+
     @property
     def is_organizer_edit_open(self) -> bool:
         """主催者の希望の編集・発表の取り下げを受け付ける期間か。"""
@@ -62,6 +70,9 @@ class VketCollaboration(models.Model):
             and self.registration_deadline > self.lt_deadline
         ):
             errors["lt_deadline"] = "発表情報締切は参加表明締切以降にしてください。"
+        if self.slug and (self.slug.isdigit() or self.slug in RESERVED_COLLABORATION_SLUGS):
+            # 数字だけの slug は旧 URL /vket/<pk>/ に、予約語は固定パスに解決されて公開ページが開けない。
+            errors["slug"] = "スラッグには数字だけの値や「status」などの予約語は使えません（例: 2026-winter）。"
         if errors:
             raise ValidationError(errors)
 

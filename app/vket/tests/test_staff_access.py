@@ -233,7 +233,7 @@ class StaffCollaborationDetailViewTests(StaffAccessTestBase):
         self.client.force_login(self.staff_user)
         self._set_active_community()
         response = self.client.get(
-            reverse('vket:detail', kwargs={'pk': self.collaboration.pk})
+            reverse('vket:detail', kwargs={'slug': self.collaboration.slug})
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.context['can_apply'])

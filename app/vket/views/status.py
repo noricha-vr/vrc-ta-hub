@@ -30,12 +30,13 @@ from .helpers import (
 )
 
 VKET_STAGE_CREATE_URL = 'https://vket.com/hub/2026Summer/notification'
-VKET_STAGE_CREATE_URL_FALLBACK_SLUGS = {'vket-2026-summer'}
+VKET_STAGE_CREATE_URL_FALLBACK_SLUGS = {'vket-2026-summer', '2026-summer'}
 VKET_STAGE_REGISTRATION_GUIDANCE_BY_SLUG = {
-    'vket-2026-summer': {
+    slug: {
         'venue': 'Parareal Central Ignition Point - 着火点 - - エントランス',
         'tag': 'Vketステージ',
-    },
+    }
+    for slug in VKET_STAGE_CREATE_URL_FALLBACK_SLUGS
 }
 
 

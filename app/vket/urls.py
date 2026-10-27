@@ -11,7 +11,7 @@ urlpatterns = [
     path('auto-confirm/run/', run_auto_confirm, name='auto_confirm_run'),
     path('', views.CollaborationListView.as_view(), name='list'),
     path('status/', views.VketStatusRedirectView.as_view(), name='status_redirect'),
-    path('<int:pk>/', views.CollaborationDetailView.as_view(), name='detail'),
+    path('<int:pk>/', views.CollaborationDetailLegacyView.as_view(), name='detail_legacy'),
     path('<int:pk>/apply/', views.ApplyView.as_view(), name='apply'),
     path('<int:pk>/status/', views.ParticipationStatusView.as_view(), name='status'),
     path('<int:pk>/stage-register/', views.StageRegisterView.as_view(), name='stage_register'),
@@ -55,4 +55,6 @@ urlpatterns = [
         name='manage_presentation_delete',
     ),
     path('ack/<uuid:ack_token>/', views.AckNoticeView.as_view(), name='ack_notice'),
+    # 数字だけの slug は旧数値 URL と衝突するため、運用では使用しない。
+    path('<slug:slug>/', views.CollaborationDetailView.as_view(), name='detail'),
 ]

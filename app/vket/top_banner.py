@@ -3,7 +3,6 @@ from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from django.templatetags.static import static
-from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -68,7 +67,7 @@ def get_active_top_banner(now=None):
             'theme': theme,
             'emoji': '❄️' if theme == 'winter' else '🌻',
             'image': image,
-            'link': link or reverse('vket:detail', args=[collaboration.pk]),
+            'link': link or collaboration.get_absolute_url(),
             'has_official_link': bool(link),
         }
     return None

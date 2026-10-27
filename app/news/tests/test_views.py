@@ -253,7 +253,7 @@ class PostDetailViewTestCase(TestCase):
         response = self.client.get(reverse('news:detail', args=[self.published_post.slug]))
         self.assertContains(response, 'このコラボの日程とタイムテーブル')
         for collaboration in collaborations:
-            link = f'href="{reverse("vket:detail", args=[collaboration.pk])}"'
+            link = f'href="{reverse("vket:detail", kwargs={"slug": collaboration.slug})}"'
             if collaboration.phase == VketCollaboration.Phase.DRAFT:
                 self.assertNotContains(response, link)
             else:

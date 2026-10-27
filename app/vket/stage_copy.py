@@ -92,7 +92,7 @@ def build_stage_copy(participation, guidance: dict) -> dict:
 
     short_name = setting_text('title_suffix') or _strip_markdown(collaboration.name)
     community_url = build_site_url(reverse('community:detail', kwargs={'pk': community.pk}))
-    schedule_url = build_site_url(reverse('vket:detail', kwargs={'pk': collaboration.pk}))
+    schedule_url = build_site_url(collaboration.get_absolute_url())
     venue = guidance.get('venue', '')
     start, end = stage_schedule(participation)
     date_text = SCHEDULE_PENDING

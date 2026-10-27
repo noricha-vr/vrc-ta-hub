@@ -20,6 +20,7 @@ from tests.factories import make_community, make_event, make_event_detail, make_
 from vket.admin import VketParticipationAdmin
 from vket.models import VketCollaboration, VketParticipation, VketPresentation
 from vket.stage_copy import build_stage_copy, thumbnail_prompt
+from website.constants import build_site_url
 
 
 def image_bytes(size=(1280, 720)):
@@ -103,6 +104,8 @@ class StageCopyTests(TestCase):
         self.assertIn('発表者 - 技術テーマ', values['body'])
         self.assertNotIn('下書き', values['body'])
         self.assertIn('■ 技術学術WEEKとは', values['body'])
+        schedule_url = build_site_url('/vket/stage-copy-test/')
+        self.assertIn(f'スケジュール：{schedule_url}', values['body'])
         self.assertIn('#技術集会 #学術', values['body'])
         self.assertIn('X：https://example.com/group', values['body'])
         self.assertIn('Discord：https://discord.example.com/group', values['body'])
