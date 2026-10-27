@@ -37,7 +37,7 @@
     {% url 'twitter:tweet_queue_detail' item.pk as detail_url %}
     {% with queue=item panel_id=item.pk|stringformat:'s' %}
     {% with panel_id='post-queue-'|add:panel_id %}
-    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label='即時投稿の確認' message='保存済みの次の内容を今すぐ X に投稿しますか？' action_url=detail_url submit_label='この内容で投稿する' submit_name='action' submit_value='post_now' fields_template='twitter/includes/queue_confirm_content.html' %}
+    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=panel_id label='即時投稿の確認' message='保存済みの次の内容を今すぐ X に投稿しますか？' action_url=detail_url submit_label='この内容で投稿する' submit_name='action' submit_value='post_now' fields_template='twitter/includes/queue_confirm_content.html' tone='primary' %}
     {% endwith %}{% endwith %}
     {% endif %}
 </article>

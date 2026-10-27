@@ -46,9 +46,9 @@
         <section class="action-required" role="alert" data-testid="announce-failed" aria-labelledby="announce-failed-heading">
             <h2 class="h6 fw-bold" id="announce-failed-heading">送信に失敗しました</h2>
             <p class="small">{{ message.last_error|default:"エラーの内容は記録されていません。" }}</p>
-            <button type="button" class="btn btn-outline-danger btn-sm" data-confirm-panel="resend-announcement" aria-controls="resend-announcement" aria-expanded="false">再送する</button>
+            <button type="button" class="btn btn-outline-primary btn-sm" data-confirm-panel="resend-announcement" aria-controls="resend-announcement" aria-expanded="false">再送する</button>
             {% url 'announcement:discord_resend' message.pk as resend_url %}
-            {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='resend-announcement' label='告知の再送確認' message='次の告知がチャンネルに届いていないことを確かめてください。' action_url=resend_url submit_label='この告知を再送する' fields_template='announcement/discord/_resend_warning.html' reservation=message %}
+            {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='resend-announcement' label='告知の再送確認' message='次の告知がチャンネルに届いていないことを確かめてください。' action_url=resend_url submit_label='この告知を再送する' fields_template='announcement/discord/_resend_warning.html' reservation=message tone='primary' %}
         </section>
     {% elif message.is_sending %}
         <div class="action-required" role="status">送信処理中です。終わるまで編集と取り消しはできません。</div>

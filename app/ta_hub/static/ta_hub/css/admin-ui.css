@@ -95,6 +95,29 @@
 .hub-admin .presentation-speaker { color: var(--admin-muted); font-size: .875rem; margin-bottom: .5rem; }
 .hub-admin .detail-chip { display: inline-flex; align-items: center; gap: .3rem; border-radius: .35rem; background: #f0f3f7; color: #45556a; font-size: .75rem; padding: .25rem .45rem; }
 .hub-admin .confirm-panel { background: var(--admin-danger-bg); border: 1px solid var(--admin-danger-border); border-radius: .5rem; padding: 1rem; margin-top: 1rem; }
+.hub-admin .confirm-panel--primary { background: var(--admin-primary-soft); border-color: var(--admin-primary); }
+
+/* Vket ステージ登録。番号と接続線は本文の長さに合わせて伸びる。 */
+.hub-admin .stage-registration-steps { list-style: none; padding: 0; margin: var(--admin-space-5) 0 0; }
+.hub-admin .stage-registration-step { position: relative; display: flex; gap: var(--admin-space-3); padding-bottom: var(--admin-space-5); }
+.hub-admin .stage-registration-step:last-child { padding-bottom: 0; }
+.hub-admin .stage-registration-step:not(:last-child)::before { content: ""; position: absolute; top: 2rem; bottom: 0; left: calc(1rem - 1px); border-left: 2px solid var(--admin-border); }
+.hub-admin .stage-registration-number { position: relative; display: flex; align-items: center; justify-content: center; flex: 0 0 2rem; height: 2rem; border: 1px solid var(--admin-border); border-radius: 50%; background: var(--admin-surface-muted); color: var(--admin-muted); font-weight: 700; }
+.hub-admin .stage-registration-step[aria-current="step"] .stage-registration-number { color: #fff; border-color: var(--admin-primary); background: var(--admin-primary); }
+.hub-admin .stage-registration-step.is-complete .stage-registration-number { color: #fff; border-color: var(--bs-success); background: var(--bs-success); }
+.hub-admin .stage-registration-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.hub-admin .stage-registration-body h3 { font-size: 1rem; font-weight: 700; margin: .3rem 0 var(--admin-space-2); }
+.hub-admin .stage-registration-body p { color: var(--admin-muted); font-size: .875rem; margin-bottom: var(--admin-space-3); }
+.hub-admin .stage-registration-settings { border: 1px solid var(--admin-border); border-radius: var(--admin-radius-control); padding: var(--admin-space-3); font-size: .875rem; }
+.hub-admin .stage-registration-settings > div { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); gap: var(--admin-space-2); }
+.hub-admin .stage-registration-settings > div + div { margin-top: var(--admin-space-2); }
+.hub-admin .stage-registration-settings dt { color: var(--admin-muted); font-weight: 400; }
+.hub-admin .stage-registration-settings dd { margin: 0; }
+.hub-admin .stage-registration-list-link { display: block; font-size: .875rem; margin-top: var(--admin-space-3); overflow-wrap: anywhere; }
+@media (max-width: 575.98px) {
+    .hub-admin #stage-registration { padding: var(--admin-space-4); }
+    .hub-admin #stage-registration .btn { max-width: 100%; white-space: normal; }
+}
 .hub-admin .event-footer { border-top: 1px solid #e5e9ee; padding-top: 1rem; margin-top: 1rem; }
 .hub-admin .section-title { font-size: 1.2rem; font-weight: 700; margin: 1.75rem 0 1rem; }
 .hub-admin .past-section { border-top: 2px solid var(--admin-border); padding-top: 1.5rem; }
