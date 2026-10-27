@@ -9,7 +9,7 @@
             <a href="{% url 'event:detail' detail.pk %}"
                class="presentation-thumb d-block w-100 ratio ratio-16x9 bg-light overflow-hidden"
                aria-label="{{ detail.title|default:'発表' }}の詳細" tabindex="-1">
-                {% include 'event/_presentation_thumbnail.html' with detail=detail %}
+                {% include 'event/_presentation_thumbnail.html' with detail=detail eager=eager %}
             </a>
         </div>
         <div class="col-12 col-sm-7 col-md-8">

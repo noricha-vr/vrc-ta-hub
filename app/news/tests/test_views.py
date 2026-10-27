@@ -2,6 +2,7 @@
 import json
 from datetime import timedelta
 
+from bs4 import BeautifulSoup
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -11,6 +12,103 @@ from news.models import Category, Post
 from vket.models import VketCollaboration
 
 CustomUser = get_user_model()
+
+
+@override_settings(
+    AWS_S3_CUSTOM_DOMAIN="data.vrc-ta-hub.com",
+    MEDIA_URL="https://data.vrc-ta-hub.com/",
+    STATIC_URL="/static/",
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    },
+)
+class PostImageLoadingTestCase(TestCase):
+    """お知らせの先頭画像と描画を妨げる CSS の回帰テスト。"""
+
+    @classmethod
+    def setUpTestData(cls):
+        Post.objects.all().delete()
+        cls.category = Category.objects.create(name="お知らせ", slug="announcement")
+        for index in range(2):
+            Post.objects.create(
+                title=f"画像付き記事{index}", slug=f"image-post-{index}",
+                body_markdown="本文", category=cls.category,
+                thumbnail=f"news/post-{index}.png", is_published=True,
+                published_at=timezone.now() - timedelta(days=index),
+            )
+
+    def test_lists_prioritize_only_first_thumbnail_and_offer_resized_images(self):
+        """全件・カテゴリ別のどちらも先頭だけ優先し、カード幅に応じて配信する。"""
+        urls = (
+            reverse("news:list"),
+            reverse("news:category_list", args=[self.category.slug]),
+        )
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                images = BeautifulSoup(response.content, "html.parser").select(".news-thumbnail-container img")
+                self.assertEqual(len(images), 2)
+                self.assertEqual(images[0]["loading"], "eager")
+                self.assertEqual(images[0]["fetchpriority"], "high")
+                self.assertEqual(images[1]["loading"], "lazy")
+                self.assertNotIn("fetchpriority", images[1].attrs)
+                for index, image in enumerate(images):
+                    with self.subTest(index=index):
+                        base = "https://data.vrc-ta-hub.com/cdn-cgi/image/"
+                        small = f"{base}width=400,quality=80,format=auto/news/post-{index}.png"
+                        large = f"{base}width=800,quality=80,format=auto/news/post-{index}.png"
+                        self.assertEqual(image["src"], small)
+                        self.assertEqual(image["srcset"], f"{small} 400w, {large} 800w")
+                        self.assertIn("(min-width: 992px)", image["sizes"])
+                        self.assertEqual((image["width"], image["height"]), ("1200", "630"))
+                self.assertNotContains(response, "font-awesome/")
+
+    def test_detail_prioritizes_thumbnail_with_responsive_sources_and_dimensions(self):
+        """記事の LCP 画像を遅延させず、表示枠と配信サイズを指定する。"""
+        response = self.client.get(reverse("news:detail", args=["image-post-0"]))
+        self.assertEqual(response.status_code, 200)
+        image = BeautifulSoup(response.content, "html.parser").select_one(".detail-thumbnail-container img")
+        self.assertEqual(image["loading"], "eager")
+        self.assertEqual(image["fetchpriority"], "high")
+        self.assertEqual((image["width"], image["height"]), ("1200", "630"))
+        base = "https://data.vrc-ta-hub.com/cdn-cgi/image/"
+        small = f"{base}width=800,quality=80,format=auto/news/post-0.png"
+        large = f"{base}width=1200,quality=80,format=auto/news/post-0.png"
+        self.assertEqual(image["src"], small)
+        self.assertEqual(image["srcset"], f"{small} 800w, {large} 1200w")
+        self.assertIn("800px", image["sizes"])
+        self.assertNotContains(response, "font-awesome/")
+
+    def test_static_thumbnail_keeps_original_url_and_layout(self):
+        """リサイズ対象外の専用 static 画像でも読み込み属性と表示枠を保つ。"""
+        post = Post.objects.create(
+            title="アーカイブ", slug="vket-2026-summer", category=self.category,
+            body_markdown="本文", is_published=True, published_at=timezone.now(),
+        )
+        response = self.client.get(reverse("news:detail", args=[post.slug]))
+        image = BeautifulSoup(response.content, "html.parser").select_one(".detail-thumbnail-container--static img")
+        self.assertEqual(image["src"], post.get_thumbnail_url())
+        self.assertEqual(image["srcset"], f'{image["src"]} 800w, {image["src"]} 1200w')
+        self.assertEqual(image["loading"], "eager")
+        self.assertEqual(image["fetchpriority"], "high")
+        self.assertEqual((image["width"], image["height"]), ("1200", "630"))
+
+    def test_google_fonts_load_without_blocking_and_have_noscript_fallback(self):
+        response = self.client.get(reverse("news:list"))
+        soup = BeautifulSoup(response.content, "html.parser")
+        preload = soup.select_one('link[rel="preload"][as="style"]')
+        self.assertIn("fonts.googleapis.com", preload["href"])
+        self.assertEqual(preload["onload"], "this.onload=null;this.rel='stylesheet'")
+        fallback = soup.select_one('noscript link[rel="stylesheet"]')
+        self.assertEqual(fallback["href"], preload["href"])
+
+    def test_other_pages_keep_font_awesome(self):
+        """利用ページのアイコン用 CSS を残す。"""
+        response = self.client.get(reverse("community:list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "font-awesome/6.5.1/css/all.min.css")
 
 
 class PostListViewTestCase(TestCase):

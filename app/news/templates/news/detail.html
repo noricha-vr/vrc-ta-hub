@@ -1,5 +1,6 @@
 {% extends 'ta_hub/base.html' %}
-{% load markdown_extras %}
+{% block fontawesome_css %}{% endblock %}
+{% load markdown_extras image_tags %}
 
 {% block meta %}
     <title>{{ object.title|escape }} - {% site_name_seo %}</title>
@@ -240,9 +241,13 @@
                 {% if object.has_detail_thumbnail %}
                     <div class="mb-4 detail-thumbnail-wrapper">
                         <div class="detail-thumbnail-container{% if object.uses_static_thumbnail %} detail-thumbnail-container--static{% endif %}">
-                            <img src="{{ object.get_thumbnail_url }}"
+                            <img src="{{ object.get_thumbnail_url|cf_resize:'800' }}"
+                                 srcset="{{ object.get_thumbnail_url|cf_resize:'800' }} 800w, {{ object.get_thumbnail_url|cf_resize:'1200' }} 1200w"
+                                 sizes="(max-width: 576px) 100vw, (min-width: 992px) 800px, (min-width: 768px) 696px, 516px"
+                                 width="1200"
+                                 height="630"
                                  alt="{{ object.title|escape }}のサムネイル画像"
-                                 loading="lazy">
+                                 loading="eager" fetchpriority="high">
                         </div>
                     </div>
                 {% endif %}

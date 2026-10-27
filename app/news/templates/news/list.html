@@ -1,4 +1,5 @@
 {% extends 'ta_hub/base.html' %}
+{% block fontawesome_css %}{% endblock %}
 {% load og_tags %}
 {% block meta %}
     <title>お知らせ - {% site_name_seo %}</title>
@@ -33,7 +34,7 @@
   
   <div class="row g-3">
     {% for post in object_list %}
-      {% include 'news/_post_card.html' with post=post show_category=True %}
+      {% include 'news/_post_card.html' with post=post eager=forloop.first show_category=True %}
     {% empty %}
       <div class="col-12">
         <div class="text-muted">お知らせはまだありません。</div>

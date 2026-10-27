@@ -4,21 +4,22 @@
 引数:
   detail … EventDetail
   size   … cf_resize に渡す幅（省略時 400）
+  eager  … 真なら優先読み込み（省略時は遅延読み込み）
 外側の <a> / ratio ボックスは呼び出し側に置く。
 {% endcomment %}
 {% load image_tags %}
 {% firstof size '400' as thumbnail_width %}
 {% if detail.thumbnail_image %}
     <img src="{{ detail.thumbnail_image.url|cf_resize:thumbnail_width }}"
-         class="w-100 h-100 object-fit-cover" loading="lazy"
+         class="w-100 h-100 object-fit-cover" {% if eager %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
          alt="{{ detail.theme|default:'発表' }}のサムネイル">
 {% elif detail.video_id %}
     <img src="https://img.youtube.com/vi/{{ detail.video_id }}/mqdefault.jpg"
-         class="w-100 h-100 object-fit-cover" loading="lazy"
+         class="w-100 h-100 object-fit-cover" {% if eager %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
          alt="{{ detail.theme|default:'発表' }}のサムネイル">
 {% elif detail.event.community.poster_image %}
     <img src="{{ detail.event.community.poster_image.url|cf_resize:thumbnail_width }}"
-         class="w-100 h-100 object-fit-cover" loading="lazy"
+         class="w-100 h-100 object-fit-cover" {% if eager %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
          alt="{{ detail.event.community.name }}のポスター">
 {% else %}
     <span class="d-flex align-items-center justify-content-center text-secondary w-100 h-100">

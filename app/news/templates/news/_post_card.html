@@ -1,4 +1,4 @@
-{% load markdown_extras %}
+{% load markdown_extras image_tags %}
 <style>
   .news-thumbnail-container {
     position: relative;
@@ -30,11 +30,13 @@
       <div class="row align-items-center">
         <div class="col-md-4 col-lg-3 mb-3 mb-md-0">
           <div class="news-thumbnail-container">
-            <img src="{{ post.get_thumbnail_url }}"
+            <img src="{{ post.get_thumbnail_url|cf_resize:'400' }}"
+                 srcset="{{ post.get_thumbnail_url|cf_resize:'400' }} 400w, {{ post.get_thumbnail_url|cf_resize:'800' }} 800w"
+                 sizes="(min-width: 1400px) 293px, (min-width: 1200px) 248px, (min-width: 992px) 208px, (min-width: 768px) 205px, (min-width: 576px) 482px, calc(100vw - 58px)"
                  alt="{{ post.title|escape }}のサムネイル画像"
                  width="1200"
                  height="630"
-                 loading="lazy">
+                 {% if eager %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}>
           </div>
         </div>
         <div class="col-md-8 col-lg-9">

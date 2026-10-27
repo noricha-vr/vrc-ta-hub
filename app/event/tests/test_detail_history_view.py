@@ -3,12 +3,86 @@
 import json
 from datetime import date
 
+from bs4 import BeautifulSoup
 from django.core.cache import cache
+from django.template.loader import render_to_string
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from event.models import EventDetail
 from tests.factories import make_community, make_event, make_event_detail
+
+
+@override_settings(
+    ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'],
+    MEDIA_URL='https://data.vrc-ta-hub.com/',
+    AWS_S3_CUSTOM_DOMAIN='data.vrc-ta-hub.com',
+)
+class PresentationListImageLoadingTests(TestCase):
+    """公開一覧だけ先頭画像を優先し、共有部品の既定動作を保つ。"""
+
+    def setUp(self):
+        cache.clear()
+        self.url = reverse('event:detail_history')
+        self.community = make_community(name='画像テスト集会')
+        self.event = make_event(self.community, event_date=date(2026, 5, 10))
+        self.details = [
+            make_event_detail(
+                self.event, status='approved', theme=f'画像付き発表{index}',
+                contents='本文あり', thumbnail_image=f'thumbnails/detail-{index}.png',
+            )
+            for index in range(2)
+        ]
+
+    def test_only_first_thumbnail_is_eager_in_both_list_modes(self):
+        for query in ({}, {'view': 'all'}):
+            with self.subTest(query=query):
+                response = self.client.get(self.url, query)
+                self.assertEqual(response.status_code, 200)
+                images = BeautifulSoup(response.content, 'html.parser').select('.presentation-thumb img')
+                self.assertEqual(len(images), 2)
+                self.assertEqual(images[0]['loading'], 'eager')
+                self.assertEqual(images[0]['fetchpriority'], 'high')
+                self.assertEqual(images[1]['loading'], 'lazy')
+                self.assertNotIn('fetchpriority', images[1].attrs)
+                self.assertIn('/cdn-cgi/image/width=400,', images[0]['src'])
+                self.assertNotContains(response, 'font-awesome/')
+
+    def test_first_row_without_thumbnail_does_not_prioritize_later_cards(self):
+        """資料なしの先頭行に画像を追加せず、2件目以降は遅延読み込みのまま。"""
+        make_event_detail(
+            make_event(self.community, event_date=date(2026, 5, 11)),
+            status='approved', theme='先頭の資料なし発表',
+        )
+        response = self.client.get(self.url, {'view': 'all'})
+        soup = BeautifulSoup(response.content, 'html.parser')
+        self.assertIsNotNone(soup.select_one('.presentation-row'))
+        images = soup.select('.presentation-thumb img')
+        self.assertEqual(len(images), 2)
+        for image in images:
+            self.assertEqual(image['loading'], 'lazy')
+            self.assertNotIn('fetchpriority', image.attrs)
+
+    def test_thumbnail_fallbacks_respect_eager_and_remain_lazy_by_default(self):
+        """アップロード画像・動画・ポスターとも、引数を省く既存利用は lazy のまま。"""
+        detail = self.details[0]
+        for source in ('thumbnail', 'youtube', 'poster'):
+            detail.thumbnail_image = 'thumbnails/test.png' if source == 'thumbnail' else ''
+            detail.youtube_url = 'https://www.youtube.com/watch?v=abcdefghijk' if source == 'youtube' else ''
+            detail.event.community.poster_image = 'posters/test.png' if source == 'poster' else ''
+            for eager in (None, True, False):
+                with self.subTest(source=source, eager=eager):
+                    context = {'detail': detail}
+                    if eager is not None:
+                        context['eager'] = eager
+                    html = render_to_string('event/_presentation_thumbnail.html', context)
+                    image = BeautifulSoup(html, 'html.parser').find('img')
+                    self.assertIsNotNone(image)
+                    self.assertEqual(image['loading'], 'eager' if eager else 'lazy')
+                    if eager:
+                        self.assertEqual(image['fetchpriority'], 'high')
+                    else:
+                        self.assertNotIn('fetchpriority', image.attrs)
 
 
 @override_settings(ALLOWED_HOSTS=['testserver', 'localhost', '127.0.0.1'])

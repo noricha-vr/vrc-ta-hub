@@ -1,4 +1,5 @@
 {% extends is_mine|yesno:'ta_hub/admin_base.html,ta_hub/base.html' %}
+{% block fontawesome_css %}{% endblock %}
 {% block canonical_path %}{{ canonical_path }}{% endblock %}
 {% block og_url_path %}{{ canonical_path }}{% endblock %}
 {% load og_tags %}
@@ -142,9 +143,9 @@
                     <div class="d-flex flex-column gap-3">
                         {% for detail in event_details %}
                             {% if is_mine or detail.has_materials %}
-                                {% include 'event/_presentation_card.html' with detail=detail %}
+                                {% include 'event/_presentation_card.html' with detail=detail eager=forloop.first %}
                             {% else %}
-                                {% include 'event/_presentation_row.html' with detail=detail %}
+                                {% include 'event/_presentation_row.html' with detail=detail eager=forloop.first %}
                             {% endif %}
                         {% endfor %}
                     </div>

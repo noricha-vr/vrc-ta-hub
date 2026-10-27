@@ -1,4 +1,5 @@
 {% extends 'ta_hub/base.html' %}
+{% block fontawesome_css %}{% endblock %}
 
 {% load og_tags %}
 {% block meta %}
@@ -26,7 +27,7 @@
 
   <div class="row g-3">
     {% for post in object_list %}
-      {% include 'news/_post_card.html' with post=post show_category=False %}
+      {% include 'news/_post_card.html' with post=post eager=forloop.first show_category=False %}
     {% empty %}
       <div class="col-12">
         <div class="text-muted">{{ category.name }}の記事はまだありません。</div>
