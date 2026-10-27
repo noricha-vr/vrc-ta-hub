@@ -1,11 +1,12 @@
 {% extends 'ta_hub/base.html' %}
-{% load static custom_filters image_tags %}
+{% load static custom_filters image_tags og_tags %}
 {% block og_image_meta %}
     {% if top_og_image_url %}
         <meta property="og:image" content="{{ top_og_image_url }}">
         <meta name="twitter:image" content="{{ top_og_image_url }}">
     {% else %}
-        {{ block.super }}
+        {% og_static 'ta_hub/og/top.jpg' as image_url %}
+        {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
     {% endif %}
 {% endblock %}
 {% block main %}

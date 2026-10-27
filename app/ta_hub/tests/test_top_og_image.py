@@ -11,7 +11,8 @@ from django.urls import reverse
 from vket.models import VketCollaboration
 
 TOKYO = ZoneInfo('Asia/Tokyo')
-DEFAULT_IMAGE = 'https://data.vrc-ta-hub.com/images/twitter-negipan-1600.jpeg'
+# 会期外はヒーローに合わせた固定画像（作り替え前は R2 の写真）
+DEFAULT_IMAGE = 'http://testserver/static/ta_hub/og/top.jpg'
 TOP_IMAGE = 'vket/og/vket-2026-winter/top.jpg'
 
 
