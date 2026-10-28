@@ -1,4 +1,6 @@
 """Discord Bot の追加と、集会への紐づけ。"""
+import base64
+import hashlib
 import logging
 import re
 import secrets
@@ -39,6 +41,9 @@ class BotInstallStartView(LoginRequiredMixin, View):
             return redirect('community:settings')
 
         state = secrets.token_urlsafe(32)
+        # PKCE: 他のフローの code を持ち込まれても、このセッションの verifier が無いと交換できない。
+        verifier = secrets.token_urlsafe(64)
+        challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
         redirect_uri = request.build_absolute_uri(reverse('community:bot_install_callback'))
         request.session['active_community_id'] = community.pk
         request.session[STATE_SESSION_KEY] = {
@@ -47,6 +52,7 @@ class BotInstallStartView(LoginRequiredMixin, View):
             'user_id': request.user.pk,
             'expires_at': timezone.now().timestamp() + STATE_TTL_SECONDS,
             'redirect_uri': redirect_uri,
+            'code_verifier': verifier,
         }
         query = urlencode({
             'client_id': settings.DISCORD_BOT_CLIENT_ID,
@@ -56,6 +62,8 @@ class BotInstallStartView(LoginRequiredMixin, View):
             'response_type': 'code',
             'integration_type': 0,
             'state': state,
+            'code_challenge': challenge,
+            'code_challenge_method': 'S256',
         })
         return redirect(f'https://discord.com/oauth2/authorize?{query}')
 
@@ -63,14 +71,16 @@ class BotInstallStartView(LoginRequiredMixin, View):
 class BotInstallCallbackView(LoginRequiredMixin, View):
     @sensitive_variables()
     def get(self, request):
-        saved = request.session.pop(STATE_SESSION_KEY, None)
-        # API 交換の失敗やキャンセルでも再利用させない。
-        request.session.save()
+        saved = request.session.get(STATE_SESSION_KEY)
         state = request.GET.get('state', '')
+        # 一致しない state では進行中のフローを消さない。他サイトからの遷移で中断させないため。
+        if not saved or not state or not secrets.compare_digest(state.encode(), saved['state'].encode()):
+            raise PermissionDenied('Bot の追加を最初からやり直してください。')
+        # 一致した state は、API 交換の失敗やキャンセルでも再利用させない。
+        request.session.pop(STATE_SESSION_KEY)
+        request.session.save()
         if (
-            not saved or not state
-            or not secrets.compare_digest(state.encode(), saved['state'].encode())
-            or saved['user_id'] != request.user.pk
+            saved['user_id'] != request.user.pk
             or saved['expires_at'] <= timezone.now().timestamp()
             or saved['community_id'] != request.session.get('active_community_id')
         ):
@@ -95,6 +105,7 @@ class BotInstallCallbackView(LoginRequiredMixin, View):
                     'grant_type': 'authorization_code',
                     'code': request.GET['code'],
                     'redirect_uri': saved['redirect_uri'],
+                    'code_verifier': saved['code_verifier'],
                 },
                 timeout=10,
                 allow_redirects=False,

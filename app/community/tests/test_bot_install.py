@@ -1,4 +1,6 @@
 """Bot 導入の認可・権限・履歴と管理画面。外部通信は全てモックする。"""
+import base64
+import hashlib
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
@@ -64,6 +66,11 @@ class BotInstallTests(TestCase):
         self.assertEqual(query['response_type'], ['code'])
         self.assertEqual(query['redirect_uri'], ['http://testserver/community/bot-install/callback/'])
         self.assertNotEqual(query['state'], [state])
+        verifier = self.client.session[STATE_SESSION_KEY]['code_verifier']
+        self.assertGreaterEqual(len(verifier), 43)
+        self.assertEqual(query['code_challenge_method'], ['S256'])
+        expected = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
+        self.assertEqual(query['code_challenge'], [expected])
 
     def test_staff_can_start_and_button_is_visible(self):
         self.client.force_login(self.staff)
@@ -114,9 +121,21 @@ class BotInstallTests(TestCase):
                 session.save()
                 returned_state = {'missing': '', 'mismatch': 'wrong', 'unicode': '不正'}.get(variant, state)
                 self.assertEqual(self.callback(returned_state).status_code, 403)
-                self.assertNotIn(STATE_SESSION_KEY, self.client.session)
+                if variant in ('missing', 'mismatch', 'unicode'):
+                    # 一致しない state では、進行中の正規フローを消さない。
+                    self.assertIn(STATE_SESSION_KEY, self.client.session)
+                else:
+                    self.assertNotIn(STATE_SESSION_KEY, self.client.session)
         post.assert_not_called()
         self.assertFalse(BotInstallation.objects.exists())
+
+    @patch('community.views.bot_install.requests.post')
+    def test_wrong_state_keeps_pending_flow(self, post):
+        self.configure_exchange(post)
+        state = self.begin()
+        self.assertEqual(self.callback('forged-state').status_code, 403)
+        self.assertRedirects(self.callback(state), self.settings_url)
+        self.assertEqual(BotInstallation.objects.get().guild_id, '123456789012345678')
 
     @patch('community.views.bot_install.requests.post')
     def test_state_from_another_session_is_rejected(self, post):
@@ -151,6 +170,7 @@ class BotInstallTests(TestCase):
     def test_exchange_guild_is_authoritative_and_state_is_single_use(self, post):
         self.configure_exchange(post)
         state = self.begin()
+        verifier = self.client.session[STATE_SESSION_KEY]['code_verifier']
         response = self.callback(state, guild_id='987654321098765432', permissions='8')
         self.assertRedirects(response, self.settings_url)
         record = BotInstallation.objects.get()
@@ -168,6 +188,7 @@ class BotInstallTests(TestCase):
             'client_id': 'synthetic-bot-client', 'client_secret': 'synthetic-secret',
             'grant_type': 'authorization_code', 'code': 'synthetic-code',
             'redirect_uri': 'http://testserver/community/bot-install/callback/',
+            'code_verifier': verifier,
         })
         self.assertEqual(kwargs['timeout'], 10)
         self.assertFalse(kwargs['allow_redirects'])
