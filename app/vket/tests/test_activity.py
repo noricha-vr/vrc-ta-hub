@@ -48,6 +48,32 @@ class VketActivityTests(VketOverlapApplyBase):
             self.assertIn(value, text)
         self.assertIn(self.today.strftime('%Y/%m/%d'), text)
 
+    @mock.patch('website.constants.SITE_URL', 'https://hub.example.com')
+    def test_manage_schedule_link_is_last_without_overlap(self):
+        """重なりがなくても、対象コラボの日程表への絶対URLを最後に表示する"""
+        response = self._save_and_notify('22:00')
+        self.assertEqual(response.status_code, 302)
+        self.send.assert_called_once()
+        embeds = self.send.call_args.args[1]['embeds']
+        self.assertEqual(len(embeds), 2)
+        self.assertEqual(embeds[0]['title'], '現在の発表一覧')
+        self.assertEqual(embeds[-1], {'description': (
+            f'[管理画面を開く](https://hub.example.com/vket/{self.collaboration.pk}/manage/schedule/)'
+        )})
+
+    @mock.patch('website.constants.SITE_URL', 'https://hub.example.com')
+    def test_manage_schedule_link_is_last_with_overlap(self):
+        """重なり警告があっても、その後に日程表へのリンクを表示する"""
+        response = self._save_and_notify()
+        self.assertEqual(response.status_code, 302)
+        self.send.assert_called_once()
+        embeds = self.send.call_args.args[1]['embeds']
+        self.assertEqual(len(embeds), 3)
+        self.assertEqual(embeds[-2]['title'], '発表時間の重なり')
+        self.assertEqual(embeds[-1], {'description': (
+            f'[管理画面を開く](https://hub.example.com/vket/{self.collaboration.pk}/manage/schedule/)'
+        )})
+
     def test_precreated_participation_first_application_is_notified_as_new(self):
         """運営が参加行を用意していても、初回の申込みは新規として通知する"""
         VketParticipation.objects.create(
@@ -160,6 +186,7 @@ class VketActivityTests(VketOverlapApplyBase):
         self.assertEqual(response.status_code, 302)
         self.send.assert_not_called()
 
+    @mock.patch('website.constants.SITE_URL', 'https://hub.example.com/' + 'preview/' * 40)
     def test_twenty_presentations_fit_in_one_discord_payload(self):
         """最大長・最大件数でも、書式記号のエスケープ後に通知上限を超えない"""
         max_num = VketPresentationFormSet.max_num
@@ -182,8 +209,8 @@ class VketActivityTests(VketOverlapApplyBase):
                 self.send.assert_called_once()
                 payload = self.send.call_args.args[1]
                 self.assertLessEqual(len(payload['content']), 2000)
-                self.assertEqual(len(payload['embeds']), 2)
-                self.assertLessEqual(sum(len(e['title']) + len(e['description']) for e in payload['embeds']), 6000)
+                self.assertEqual(len(payload['embeds']), 3)
+                self.assertLessEqual(sum(len(e.get('title', '')) + len(e['description']) for e in payload['embeds']), 6000)
                 for embed in payload['embeds']:
                     self.assertLessEqual(len(embed['description']), 4096)
                 description = payload['embeds'][0]['description']

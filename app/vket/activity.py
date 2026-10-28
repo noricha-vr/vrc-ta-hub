@@ -6,7 +6,9 @@ import re
 from functools import partial
 
 from django.db import transaction
+from django.urls import reverse
 
+from website.constants import build_site_url
 from website.discord_webhook import post_discord_webhook
 
 from .models import VketCollaboration, VketParticipation
@@ -109,11 +111,19 @@ def notify_activity(
         + (f'{start:%H:%M}' if start else '時刻未定') + f'（{duration}分）'
         for speaker, theme, start, duration, status in after['presentations'].values()
     ]
-    # 各欄と埋め込み全体（6000文字）の上限に収め、収まらない行は件数だけ示す。
+    manage_url = build_site_url(reverse('vket:manage_schedule', kwargs={'pk': collaboration.pk}))
+    manage_link = f'[管理画面を開く]({manage_url})'
+    # リンクを含む埋め込み全体（6000文字）と各欄の上限に収める。
     embeds = [{'title': '現在の発表一覧', 'description': _bounded_lines(lines, 4096) or '発表なし'}]
     if pair_lines:
-        warning = _bounded_lines([f'- {_escape_markdown(line)}' for line in pair_lines], 1800)
+        warning_limit = min(
+            1800,
+            6000 - len(embeds[0]['title']) - len(embeds[0]['description'])
+            - len('発表時間の重なり') - len(manage_link),
+        )
+        warning = _bounded_lines([f'- {_escape_markdown(line)}' for line in pair_lines], warning_limit)
         embeds.append({'title': '発表時間の重なり', 'description': warning})
+    embeds.append({'description': manage_link})
     payload = {'content': content, 'embeds': embeds, 'allowed_mentions': {'parse': []}}
     transaction.on_commit(partial(_send_activity, url, payload, collaboration.pk))
 
