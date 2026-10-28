@@ -1,0 +1,21 @@
+<section class="admin-card" id="bot-install">
+{% include 'ta_hub/admin/includes/section_heading.html' with title='Discord Bot' description='追加・解除は操作ごとに保存されます。' only %}
+{% for installation in bot_installations %}
+<div class="border rounded p-3 mb-2">
+<p class="mb-1"><span class="badge text-bg-light">{{ installation.get_status_display }}</span></p>
+<p class="small mb-2">サーバー ID: {{ installation.guild_id }}</p>
+{% if installation.status == 'installed' %}<p class="small">次は Discord で <code>/hub setup</code> を実行してください。</p>{% endif %}
+{% if installation.status != 'removed' and can_manage_bot %}
+<button type="button" class="btn btn-sm btn-outline-danger" data-confirm-panel="remove-bot-{{ installation.pk }}" aria-controls="remove-bot-{{ installation.pk }}" aria-expanded="false">紐づけを外す…</button>
+{% url 'community:bot_install_remove' community.pk installation.pk as remove_bot_url %}
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=installation.confirm_panel_id label='Bot の紐づけを外す確認' message='この集会と Discord サーバーの紐づけを外します。導入記録は残ります。Discord からの Bot の削除は行いません。' action_url=remove_bot_url submit_label='紐づけを外す' %}
+{% endif %}
+</div>
+{% empty %}<p class="text-muted small">未追加</p>{% endfor %}
+{% if can_manage_bot and bot_install_enabled %}
+<form method="post" action="{% url 'community:bot_install_start' community.pk %}">
+{% csrf_token %}<button type="submit" class="btn btn-outline-primary" data-bot-install>Bot を追加</button>
+</form>
+<p class="form-text mb-0">Discord で追加先のサーバーを選びます。</p>
+{% endif %}
+</section>

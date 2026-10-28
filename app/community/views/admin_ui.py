@@ -6,6 +6,7 @@ from django.utils import timezone
 from ..constants import DEFAULT_LT_APPLICATION_TEMPLATE, RECORDING_POLICY_FORM_CHOICES
 from ..forms import CommunityUpdateForm
 from ..models import CommunityInvitation
+from .bot_install import bot_install_enabled
 
 
 def invitation_display(invitation, request, route='community:accept_invitation'):
@@ -25,6 +26,11 @@ def settings_display(context, community, request):
     if 'form' not in context:
         context['form'] = CommunityUpdateForm(instance=community)
     context['is_owner'] = community.is_owner(request.user)
+    context['can_manage_bot'] = community.is_manager(request.user)
+    context['bot_install_enabled'] = bot_install_enabled()
+    context['bot_installations'] = list(community.bot_installations.all())
+    for installation in context['bot_installations']:
+        installation.confirm_panel_id = f'remove-bot-{installation.pk}'
     context['lt_application_template_display'] = community.lt_application_template or DEFAULT_LT_APPLICATION_TEMPLATE
     context['recording_policy_choices'] = RECORDING_POLICY_FORM_CHOICES
     webhook_form = forms.Form()

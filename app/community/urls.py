@@ -2,6 +2,7 @@ from django.urls import path
 from django.views.generic import TemplateView
 
 from event_calendar.views import CalendarEntryUpdateView
+from .views.bot_install import BotInstallStartView, BotInstallCallbackView, BotInstallRemoveView
 from .views import (
     CommunityListView,
     CommunityDetailView,
@@ -35,6 +36,9 @@ from .views import (
 
 app_name = 'community'
 urlpatterns = [
+    path('bot-install/callback/', BotInstallCallbackView.as_view(), name='bot_install_callback'),
+    path('<int:pk>/bot-install/', BotInstallStartView.as_view(), name='bot_install_start'),
+    path('<int:pk>/bot-install/<int:installation_id>/remove/', BotInstallRemoveView.as_view(), name='bot_install_remove'),
     path('list/', CommunityListView.as_view(), name='list'),
     path(
         'criteria/',

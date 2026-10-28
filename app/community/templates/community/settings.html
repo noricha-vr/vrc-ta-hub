@@ -11,6 +11,7 @@
 <aside class="admin-toc" aria-label="設定の目次"><nav class="d-flex flex-column gap-2">
 <a href="#basic-information">基本情報</a>
 <a href="#applications">発表の受付</a>
+<a href="#bot-install">Discord Bot</a>
 <a href="#integrations">通知と連携</a>
 {% if is_owner %}<a href="#members">メンバー</a>{% endif %}
 {% if is_owner %}<a href="#danger">危険な操作</a>{% endif %}
@@ -24,6 +25,7 @@
 {% include 'ta_hub/admin/includes/section_heading.html' with title='発表の受付' save_scope='発表受付' form_id='lt-form' only %}
 {% include 'community/includes/lt_settings.html' %}
 </section>
+{% include 'community/includes/bot_install.html' %}
 <section class="admin-card" id="integrations">
 {% include 'ta_hub/admin/includes/section_heading.html' with title='通知と連携' save_scope='通知' form_id='notification-form' only %}
 <h3 class="h6">Discord通知</h3>
