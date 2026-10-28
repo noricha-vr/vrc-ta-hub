@@ -4,7 +4,7 @@ import re
 
 from allauth.socialaccount.models import SocialAccount
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
-from django.db import OperationalError
+from django.db import OperationalError, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters import rest_framework as filters
@@ -21,7 +21,7 @@ from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer, OpenApiParameter, OpenApiExample
 from drf_spectacular.types import OpenApiTypes
 
-from community.models import Community, CommunityMember
+from community.models import BotInstallation, Community, CommunityMember
 from event.datetime_lock import (
     EVENT_DETAIL_DATETIME_LOCK_MESSAGE,
     has_event_detail_duration_changed,
@@ -35,7 +35,7 @@ from .base import DatabaseReconnectListMixin
 from .serializers import (
     CommunitySerializer, EventSerializer, EventDetailSerializer, EventDetailWriteSerializer,
     RecurrenceRuleSerializer, RecurrenceRuleDeleteSerializer, GatheringListSerializer,
-    GatheringListSchemaSerializer, CommunityByDiscordSerializer,
+    GatheringListSchemaSerializer, CommunityByDiscordSerializer, BotInstallationSerializer,
 )
 
 
@@ -86,6 +86,88 @@ class CommunityByDiscordAPIView(APIView):
         ).select_related('community').order_by('community_id')
         serializer = CommunityByDiscordSerializer({'discord_id': discord_id, 'communities': memberships})
         return Response(serializer.data)
+
+
+def _validate_bot_guild_id(guild_id):
+    if not isinstance(guild_id, str) or re.fullmatch(r'[0-9]{17,20}', guild_id) is None:
+        raise ValidationError({'guild_id': 'guild_id は17〜20桁の数字の文字列で指定してください。'})
+    return guild_id
+
+
+class BotInstallationAPIView(APIView):
+    """Discord サーバーの有効な Bot 導入記録を返す。"""
+
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated, IsSuperuser]
+
+    @extend_schema(
+        summary='Bot の導入記録取得',
+        description=(
+            'スーパーユーザーの API キー（X-API-Key）限定。'
+            '指定サーバーの外れていない導入記録（installed / configured）を返します。'
+            '該当記録がない場合は 404、不正な guild_id は 400。'
+            'エラーは共通の detail / code 形式です。'
+        ),
+        tags=['Community'],
+        parameters=[OpenApiParameter(
+            name='guild_id', required=True, location=OpenApiParameter.QUERY,
+            description='17〜20 桁の数字で表した Discord サーバー ID',
+            type={'type': 'string', 'pattern': '^[0-9]{17,20}$', 'minLength': 17, 'maxLength': 20},
+        )],
+        responses={200: BotInstallationSerializer, 400: OpenApiTypes.OBJECT,
+                   403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+    )
+    def get(self, request):
+        guild_id = _validate_bot_guild_id(request.query_params.get('guild_id'))
+        installation = get_object_or_404(
+            BotInstallation.objects.exclude(status=BotInstallation.Status.REMOVED), guild_id=guild_id,
+        )
+        return Response(BotInstallationSerializer(installation).data)
+
+
+class BotInstallationStatusAPIView(APIView):
+    """Bot からの設定完了・取り外し通知を反映する。"""
+
+    authentication_classes = [APIKeyAuthentication]
+    permission_classes = [IsAuthenticated, IsSuperuser]
+    parser_classes = [JSONParser]
+
+    @extend_schema(
+        summary='Bot の導入状態更新',
+        description=(
+            'スーパーユーザーの書き込み API キー（X-API-Key）限定。'
+            'JSON の guild_id と status（configured / removed）を受け取り、状態と時刻を記録します。'
+            'configured の再送は時刻を変えず 200 を返します。installed への変更は 400。'
+            '外れた記録は更新せず、有効な記録がない場合は 404。'
+            'エラーは共通の detail / code 形式です。'
+        ),
+        tags=['Community'],
+        request=inline_serializer(name='BotInstallationStatus', fields={
+            'guild_id': serializers.RegexField(r'^[0-9]{17,20}$', trim_whitespace=False),
+            'status': serializers.ChoiceField(choices=['configured', 'removed']),
+        }),
+        responses={200: BotInstallationSerializer, 400: OpenApiTypes.OBJECT,
+                   403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+    )
+    def post(self, request):
+        if not isinstance(request.data, dict):
+            raise ValidationError({'detail': 'JSON オブジェクトを指定してください。'})
+        guild_id = _validate_bot_guild_id(request.data.get('guild_id'))
+        new_status = request.data.get('status')
+        if new_status not in (BotInstallation.Status.CONFIGURED, BotInstallation.Status.REMOVED):
+            raise ValidationError({'status': 'configured または removed を指定してください。'})
+
+        with transaction.atomic():
+            installation = get_object_or_404(
+                BotInstallation.objects.select_for_update().exclude(status=BotInstallation.Status.REMOVED),
+                guild_id=guild_id,
+            )
+            if installation.status != new_status:
+                timestamp_field = 'configured_at' if new_status == BotInstallation.Status.CONFIGURED else 'removed_at'
+                installation.status = new_status
+                setattr(installation, timestamp_field, timezone.now())
+                installation.save(update_fields=['status', timestamp_field])
+        return Response(BotInstallationSerializer(installation).data)
 
 
 class EventDetailReviewAPIView(APIView):

@@ -8,6 +8,34 @@ from api_v1.serializers import GatheringListSchemaSerializer
 
 
 class SchemaAPITest(TestCase):
+    def test_bot_installation_schema_exposes_lookup_status_and_key_authentication(self):
+        response = self.client.get(f"{reverse('schema')}?format=json")
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content)
+        lookup = payload['paths']['/api/v1/bot-installation/']['get']
+        update = payload['paths']['/api/v1/bot-installation/status/']['post']
+        parameter = next(item for item in lookup['parameters'] if item['name'] == 'guild_id')
+        self.assertTrue(parameter['required'])
+        self.assertEqual(parameter['in'], 'query')
+        self.assertEqual(parameter['schema']['pattern'], '^[0-9]{17,20}$')
+        schemas = payload['components']['schemas']
+        self.assertEqual(set(schemas['BotInstallation']['properties']), {'community_id', 'status', 'guild_id'})
+        request_schema = schemas['BotInstallationStatusRequest']
+        self.assertEqual(set(request_schema['required']), {'guild_id', 'status'})
+        status_schema = request_schema['properties']['status']
+        if '$ref' in status_schema:
+            status_schema = schemas[status_schema['$ref'].rsplit('/', 1)[1]]
+        self.assertEqual(set(status_schema['enum']), {'configured', 'removed'})
+        self.assertEqual(
+            update['requestBody']['content']['application/json']['schema']['$ref'],
+            '#/components/schemas/BotInstallationStatusRequest',
+        )
+        for operation in (lookup, update):
+            self.assertEqual(operation['security'], [{'APIKeyAuth': []}])
+            self.assertEqual(operation['responses']['200']['content']['application/json']['schema']['$ref'],
+                             '#/components/schemas/BotInstallation')
+            self.assertTrue({'400', '403', '404'}.issubset(operation['responses']))
+
     def test_community_by_discord_schema_exposes_query_and_response(self):
         response = self.client.get(f"{reverse('schema')}?format=json")
         self.assertEqual(response.status_code, 200)
