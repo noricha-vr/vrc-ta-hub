@@ -19,9 +19,9 @@ class SchemaAPITest(TestCase):
         self.assertEqual(parameter['in'], 'query')
         self.assertEqual(parameter['schema']['pattern'], '^[0-9]{17,20}$')
         schemas = payload['components']['schemas']
-        self.assertEqual(set(schemas['BotInstallation']['properties']), {'community_id', 'status', 'guild_id'})
+        self.assertEqual(set(schemas['BotInstallation']['properties']), {'id', 'community_id', 'status', 'guild_id'})
         request_schema = schemas['BotInstallationStatusRequest']
-        self.assertEqual(set(request_schema['required']), {'guild_id', 'status'})
+        self.assertEqual(set(request_schema['required']), {'installation_id', 'guild_id', 'status'})
         status_schema = request_schema['properties']['status']
         if '$ref' in status_schema:
             status_schema = schemas[status_schema['$ref'].rsplit('/', 1)[1]]

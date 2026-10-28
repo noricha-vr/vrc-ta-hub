@@ -39,11 +39,14 @@ class BotInstallationAPITest(TestCase):
         )
 
     def payload(self, status='installed'):
-        return {'community_id': self.community.pk, 'status': status, 'guild_id': self.guild_id}
+        return {'id': self.installation.pk, 'community_id': self.community.pk, 'status': status,
+                'guild_id': self.guild_id}
 
     def post_status(self, status='configured', **overrides):
         return self.client.post(
-            self.status_url, {'guild_id': self.guild_id, 'status': status, **overrides}, format='json',
+            self.status_url,
+            {'installation_id': self.installation.pk, 'guild_id': self.guild_id, 'status': status, **overrides},
+            format='json',
         )
 
     def assert_error(self, response, status, code):
@@ -105,11 +108,11 @@ class BotInstallationAPITest(TestCase):
                 record = BotInstallation.objects.create(
                     community=self.community, guild_id=guild_id, added_by=self.admin,
                 )
-                expected = {**self.payload(), 'guild_id': guild_id}
+                expected = {**self.payload(), 'id': record.pk, 'guild_id': guild_id}
                 response = self.client.get(self.url, {'guild_id': guild_id})
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.json(), expected)
-                response = self.post_status(guild_id=guild_id)
+                response = self.post_status(guild_id=guild_id, installation_id=record.pk)
                 self.assertEqual(response.status_code, 200)
                 record.refresh_from_db()
                 self.assertEqual(record.status, 'configured')
@@ -133,6 +136,38 @@ class BotInstallationAPITest(TestCase):
         for guild_id in (None, int(self.guild_id), True, [], {}):
             with self.subTest(guild_id=guild_id):
                 self.assert_error(self.post_status(guild_id=guild_id), 400, 'validation_error')
+        self.assert_installed()
+
+    def test_invalid_or_missing_installation_id_is_400(self):
+        for installation_id in (None, 0, -1, True, str(self.installation.pk), 1.5, [], {}):
+            with self.subTest(installation_id=installation_id):
+                self.assert_error(self.post_status(installation_id=installation_id), 400, 'validation_error')
+        self.assert_error(self.client.post(
+            self.status_url, {'guild_id': self.guild_id, 'status': 'configured'}, format='json',
+        ), 400, 'validation_error')
+        self.assert_installed()
+
+    def test_stale_notice_for_old_installation_does_not_touch_reinstalled_record(self):
+        old_id = self.installation.pk
+        BotInstallation.objects.filter(pk=old_id).update(status='removed', removed_at=timezone.now())
+        new = BotInstallation.objects.create(
+            community=make_community(name='別の集会'), guild_id=self.guild_id, added_by=self.admin,
+        )
+        for target in ('configured', 'removed'):
+            with self.subTest(target=target):
+                self.assert_error(self.post_status(target, installation_id=old_id), 404, 'error')
+                new.refresh_from_db()
+                self.assertEqual(new.status, 'installed')
+                self.assertIsNone(new.configured_at)
+                self.assertIsNone(new.removed_at)
+
+    def test_installation_id_of_other_guild_is_404(self):
+        other = BotInstallation.objects.create(
+            community=make_community(name='別サーバーの集会'), guild_id='223456789012345678', added_by=self.admin,
+        )
+        self.assert_error(self.post_status(installation_id=other.pk), 404, 'error')
+        other.refresh_from_db()
+        self.assertEqual(other.status, 'installed')
         self.assert_installed()
 
     def test_configure_records_timestamp_and_is_idempotent(self):
@@ -188,8 +223,9 @@ class BotInstallationAPITest(TestCase):
                     self.assert_error(self.post_status(target), 400, 'validation_error')
                     self.installation.refresh_from_db()
                     self.assertEqual(self.installation.status, initial)
-            self.assert_error(self.client.post(self.status_url, {'guild_id': self.guild_id}, format='json'),
-                              400, 'validation_error')
+            self.assert_error(self.client.post(
+                self.status_url, {'installation_id': self.installation.pk, 'guild_id': self.guild_id}, format='json',
+            ), 400, 'validation_error')
 
     def test_non_object_or_malformed_json_is_400(self):
         for body in ([], 'configured', 123, None):
@@ -277,7 +313,8 @@ class BotInstallationLockTest(TransactionTestCase):
 
                 with connection.execute_wrapper(inspect_sql):
                     response = client.post(reverse('bot-installation-status'),
-                                           {'guild_id': record.guild_id, 'status': target}, format='json')
+                                           {'installation_id': record.pk, 'guild_id': record.guild_id,
+                                            'status': target}, format='json')
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(locking_reads, [True])
                 self.assertEqual(writes, [True])

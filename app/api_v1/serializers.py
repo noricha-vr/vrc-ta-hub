@@ -48,7 +48,7 @@ class BotInstallationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BotInstallation
-        fields = ['community_id', 'status', 'guild_id']
+        fields = ['id', 'community_id', 'status', 'guild_id']
         read_only_fields = fields
 
 

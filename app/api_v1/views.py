@@ -119,9 +119,8 @@ class BotInstallationAPIView(APIView):
     )
     def get(self, request):
         guild_id = _validate_bot_guild_id(request.query_params.get('guild_id'))
-        installation = get_object_or_404(
-            BotInstallation.objects.exclude(status=BotInstallation.Status.REMOVED), guild_id=guild_id,
-        )
+        # 外れていない記録は active_guild_id の UNIQUE で一意に引ける。
+        installation = get_object_or_404(BotInstallation, active_guild_id=guild_id)
         return Response(BotInstallationSerializer(installation).data)
 
 
@@ -136,13 +135,15 @@ class BotInstallationStatusAPIView(APIView):
         summary='Bot の導入状態更新',
         description=(
             'スーパーユーザーの書き込み API キー（X-API-Key）限定。'
-            'JSON の guild_id と status（configured / removed）を受け取り、状態と時刻を記録します。'
+            'JSON の installation_id（取得 API の id）・guild_id・status（configured / removed）を受け取り、状態と時刻を記録します。'
+            '同じサーバーに後から別の導入記録ができていても、古い記録宛ての通知は新しい記録を変えず 404 になります。'
             'configured の再送は時刻を変えず 200 を返します。installed への変更は 400。'
             '外れた記録は更新せず、有効な記録がない場合は 404。'
             'エラーは共通の detail / code 形式です。'
         ),
         tags=['Community'],
         request=inline_serializer(name='BotInstallationStatus', fields={
+            'installation_id': serializers.IntegerField(min_value=1),
             'guild_id': serializers.RegexField(r'^[0-9]{17,20}$', trim_whitespace=False),
             'status': serializers.ChoiceField(choices=['configured', 'removed']),
         }),
@@ -153,14 +154,18 @@ class BotInstallationStatusAPIView(APIView):
         if not isinstance(request.data, dict):
             raise ValidationError({'detail': 'JSON オブジェクトを指定してください。'})
         guild_id = _validate_bot_guild_id(request.data.get('guild_id'))
+        installation_id = request.data.get('installation_id')
+        if type(installation_id) is not int or installation_id < 1:
+            raise ValidationError({'installation_id': 'installation_id は正の整数で指定してください。'})
         new_status = request.data.get('status')
         if new_status not in (BotInstallation.Status.CONFIGURED, BotInstallation.Status.REMOVED):
             raise ValidationError({'status': 'configured または removed を指定してください。'})
 
         with transaction.atomic():
+            # 主キーでロックし、再導入後に遅れて届いた古い通知が新しい記録を変えないよう guild_id も照合する。
             installation = get_object_or_404(
                 BotInstallation.objects.select_for_update().exclude(status=BotInstallation.Status.REMOVED),
-                guild_id=guild_id,
+                pk=installation_id, guild_id=guild_id,
             )
             if installation.status != new_status:
                 timestamp_field = 'configured_at' if new_status == BotInstallation.Status.CONFIGURED else 'removed_at'
