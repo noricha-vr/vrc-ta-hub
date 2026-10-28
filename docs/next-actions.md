@@ -38,7 +38,7 @@
 ### P1: 高
 - [ ] Vketの現行仕様を docs に再定義する
   - 理由: 旧仕様書が現行モデルとズレていて、ここ数日のUI改善判断もコード読解頼みになっている
-  - ファイル: `docs/tmp/vket-collab-form-spec.md`, `app/vket/models.py`, `app/vket/views.py`
+  - ファイル: `docs/tmp/vket-collab-form-spec.md`, `app/vket/models.py`, `app/vket/views/`
   - 見積もり: 0.5日
 
 - [ ] CI とローカル回帰導線に `vket.tests` を追加する
@@ -72,9 +72,9 @@
   - ファイル: `app/vket/forms.py`, `app/vket/templates/vket/*.html`
   - 見積もり: 1-2日
 
-- [ ] `app/vket/views.py` をユースケース単位で分割する
+- [x] `app/vket/views.py` をユースケース単位で分割する（`app/vket/views/` パッケージへ分割済み）
   - 理由: 1,100行超で、権限・進捗更新・通知・公開同期が混在している
-  - ファイル: `app/vket/views.py`
+  - ファイル: `app/vket/views/`
   - 見積もり: 2-3日
 
 - [ ] Community詳細と Recurrence API のクエリ効率を改善する
@@ -127,7 +127,7 @@
 ### Quality & Test
 - テストファイル自体は多いが、CI の実行範囲が狭い
 - `scripts/run_tests.sh` でも `vket.tests` が漏れている
-- `app/event/views.py`, `app/community/views.py`, `app/vket/views.py` が巨大化
+- `app/event/views.py`, `app/community/views.py` が巨大化（`app/vket/views.py` は `app/vket/views/` へ分割済み）
 
 ### Security & Performance
 - 副作用エンドポイントが `GET + Request-Token` で保護されているだけ

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import date
+import re
+from urllib.parse import urlsplit
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -50,6 +52,48 @@ def _resolve_stage_url(collaboration: VketCollaboration) -> str:
     if collaboration.slug in VKET_STAGE_CREATE_URL_FALLBACK_SLUGS:
         return VKET_STAGE_CREATE_URL
     return ''
+
+
+def _is_plain_https_url(value: str) -> bool:
+    """ホストがあり、ユーザー情報・空白・制御文字を含まない https の URL なら True を返す"""
+    if any(ch.isspace() or ord(ch) < 0x20 or ord(ch) == 0x7f for ch in value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        hostname = parsed.hostname
+    except ValueError:
+        # 角括弧の閉じ忘れなど、解析できない URL は使わない
+        return False
+    return parsed.scheme == 'https' and bool(hostname) and '@' not in parsed.netloc
+
+
+def _resolve_stage_related_url(collaboration: VketCollaboration, key: str) -> str:
+    settings_json = collaboration.settings_json or {}
+    if isinstance(settings_json, dict):
+        value = settings_json.get(key)
+        if isinstance(value, str) and value.strip():
+            # 登録 URL の既存の扱いは維持し、追加のリンクだけ HTTPS の普通の URL に限定する。
+            value = value.strip()
+            return value if _is_plain_https_url(value) else ''
+
+    match = re.fullmatch(
+        r'https://vket\.com/mypage/event/([A-Za-z0-9]+)/my_notification/new/?',
+        _resolve_stage_url(collaboration),
+    )
+    if not match:
+        return ''
+    event_name = match.group(1)
+    if key == 'stage_edit_url':
+        return f'https://vket.com/mypage/event/{event_name}/my_notification'
+    return f'https://vket.com/hub/{event_name}/notification'
+
+
+def _resolve_stage_edit_url(collaboration: VketCollaboration) -> str:
+    return _resolve_stage_related_url(collaboration, 'stage_edit_url')
+
+
+def _resolve_stage_list_url(collaboration: VketCollaboration) -> str:
+    return _resolve_stage_related_url(collaboration, 'stage_list_url')
 
 
 def _resolve_stage_registration_guidance(collaboration: VketCollaboration) -> dict[str, str]:
@@ -256,6 +300,8 @@ class ParticipationStatusView(PublicParticipationShellMixin, LoginRequiredMixin,
                     request.user, collaboration,
                 ).can_edit_lt,
                 'stage_url': _resolve_stage_url(collaboration),
+                'stage_edit_url': _resolve_stage_edit_url(collaboration),
+                'stage_list_url': _resolve_stage_list_url(collaboration),
                 'stage_registration_guidance': _resolve_stage_registration_guidance(collaboration),
                 'stage_registration_enabled': _stage_registration_enabled(collaboration),
                 'stage_register_open': _is_stage_register_open(participation, collaboration),

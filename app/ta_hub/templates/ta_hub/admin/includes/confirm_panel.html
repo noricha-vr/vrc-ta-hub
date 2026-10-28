@@ -1,10 +1,10 @@
-<div class="confirm-panel" id="{{ panel_id }}"{% if not open %} hidden{% endif %} tabindex="-1" role="region" aria-label="{{ label }}">
+<div class="confirm-panel{% if tone == 'primary' %} confirm-panel--primary{% endif %}" id="{{ panel_id }}"{% if not open %} hidden{% endif %} tabindex="-1" role="region" aria-label="{{ label }}">
     <p>{{ message }}</p>
     <form method="post" action="{{ action_url }}">
         {% csrf_token %}
         {% if fields_template %}{% include fields_template %}{% endif %}
         <div class="d-flex gap-2 flex-wrap">
-            <button type="submit" class="btn btn-sm btn-danger"{% if submit_name %} name="{{ submit_name }}" value="{{ submit_value }}"{% endif %}>{{ submit_label }}</button>
+            <button type="submit" class="btn btn-sm {% if tone == 'primary' %}btn-primary{% else %}btn-danger{% endif %}"{% if submit_name %} name="{{ submit_name }}" value="{{ submit_value }}"{% endif %}>{{ submit_label }}</button>
             {% if cancel_url %}<a href="{{ cancel_url }}" class="btn btn-sm btn-outline-secondary">キャンセル</a>{% else %}<button type="button" class="btn btn-sm btn-outline-secondary" data-cancel-panel="{{ panel_id }}">キャンセル</button>{% endif %}
         </div>
     </form>

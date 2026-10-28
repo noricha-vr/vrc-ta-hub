@@ -127,6 +127,9 @@ class ManageAdminUiTests(VketManageViewsBase):
         _, soup = self.page('manage')
         form = soup.select_one('#publication #publish-confirm[hidden] form')
         self.assertEqual(form['action'], self.url('manage_publish'))
+        # 公開同期は保留中の発表の削除を伴うことがあるため、確認は赤のまま
+        self.assertIn('btn-danger', form.select_one('button[type=submit]')['class'])
+        self.assertIsNone(soup.select_one('#publish-confirm.confirm-panel--primary'))
         self.assertEqual({field['name'] for field in form.select('[name]')}, {'csrfmiddlewaretoken'})
         self.assertIsNone(form.find_parent('form'))
 

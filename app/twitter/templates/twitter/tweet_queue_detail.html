@@ -73,7 +73,7 @@
     {% url 'twitter:tweet_queue_detail' object.pk as detail_url %}
     {% with queue=object %}
     {% if object.status != 'posted' %}
-    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='post-queue' label='即時投稿の確認' message='保存済みの次の内容を今すぐ X に投稿しますか？' action_url=detail_url submit_label='この内容で投稿する' submit_name='action' submit_value='post_now' fields_template='twitter/includes/queue_confirm_content.html' %}
+    {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='post-queue' label='即時投稿の確認' message='保存済みの次の内容を今すぐ X に投稿しますか？' action_url=detail_url submit_label='この内容で投稿する' submit_name='action' submit_value='post_now' fields_template='twitter/includes/queue_confirm_content.html' tone='primary' %}
     {% endif %}
     {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='delete-queue' label='キュー削除の確認' message='次のキューを削除しますか？' action_url=detail_url submit_label='このキューを削除する' submit_name='action' submit_value='delete' fields_template='twitter/includes/queue_confirm_content.html' %}
     {% endwith %}

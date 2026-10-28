@@ -109,6 +109,111 @@ class MemberAdminUiTests(VketApplyFlowBase):
             self.assertIsNotNone(panel.select_one('[name="csrfmiddlewaretoken"]'))
             self.assertIsNotNone(soup.select_one(f'button[data-confirm-panel="{panel_id}"]'))
             self.assertIsNone(panel.find_parent('form'))
+            tone = 'btn-primary' if panel_id == 'stage-register-confirm' else 'btn-danger'
+            self.assertIn(tone, panel.select_one('button[type=submit]')['class'])
+
+    def test_stage_registration_has_three_ordered_steps_and_single_guidance(self):
+        self.collaboration.settings_json.update({
+            'stage_url': 'https://vket.com/mypage/event/2026Winter/my_notification/new',
+            'stage_registration_guidance': {'venue': '会場', 'tag': 'Vketステージ'},
+        })
+        self.collaboration.save(update_fields=['settings_json'])
+        response, soup = self.page('status')
+        card = soup.select_one('#stage-registration')
+        steps = card.select('ol > li')
+        self.assertEqual(len(steps), 3)
+        self.assertEqual([step.h3.get_text(strip=True) for step in steps], [
+            '文面とサムネイルを用意する', 'Vket のステージページで登録する',
+            'Hub に登録したことを記録する',
+        ])
+        self.assertEqual(steps[0]['aria-current'], 'step')
+        self.assertFalse(steps[1].has_attr('aria-current'))
+        self.assertContains(response, '日程や発表内容が未確定でも、暫定の内容で登録できます。あとからも編集できます。', count=1)
+        for text in ('Vketステージ登録画面での設定', '登録が終わったら、この画面に戻って',
+                     'Vket側で登録しただけでは Hub の進捗は更新されません。'):
+            self.assertNotContains(response, text)
+        self.assertIsNone(card.select_one('.alert-info'))
+        self.assertEqual([dt.text for dt in steps[1].select('dl dt')], ['開催会場', 'タグ'])
+        self.assertEqual([dd.text for dd in steps[1].select('dl dd')], ['会場', 'Vketステージ'])
+        copy = steps[0].select_one('a.btn-outline-primary')
+        self.assertEqual(copy['href'], self.url('stage_copy'))
+        self.assertEqual(copy.text, 'コピー用ページを開く')
+        self.assertIsNotNone(steps[1].select_one('a.btn-primary[target=_blank][rel=noopener]'))
+        self.assertIsNotNone(steps[1].select_one('a[href="https://vket.com/hub/2026Winter/notification"]'))
+        self.assertEqual(steps[2].select_one('button[data-confirm-panel]').text, '登録したことを記録する')
+        self.assertIn('btn-primary', steps[2].select_one('button[data-confirm-panel]')['class'])
+        panel = steps[2].select_one('#stage-register-confirm.confirm-panel--primary')
+        self.assertEqual(panel.p.text, 'Vket のステージページへの登録は終わりましたか？')
+
+    def test_stage_thumbnail_completion_keeps_copy_link_and_advances_current_step(self):
+        self.participation.stage_thumbnail_generated_at = timezone.now()
+        self.participation.save(update_fields=['stage_thumbnail_generated_at'])
+        _, soup = self.page('status')
+        steps = soup.select('#stage-registration ol > li')
+        self.assertIn('is-complete', steps[0]['class'])
+        self.assertIsNotNone(steps[0].select_one('.stage-registration-number .fa-check'))
+        self.assertIn('サムネイル作成済み', steps[0].h3.text)
+        self.assertIsNone(steps[0].p)
+        self.assertFalse(steps[0].has_attr('aria-current'))
+        self.assertEqual(steps[1]['aria-current'], 'step')
+        link = steps[0].select_one('a.btn-sm.btn-outline-primary')
+        self.assertEqual(link['href'], self.url('stage_copy'))
+        self.assertEqual(link.text, 'コピー用ページをもう一度開く')
+
+    def test_registered_stage_links_use_derived_or_explicit_urls(self):
+        self.participation.stage_registered_at = timezone.now()
+        self.participation.save(update_fields=['stage_registered_at'])
+        base = 'https://vket.com/mypage/event/2026Winter/my_notification'
+        for settings, edit_url, list_url in (
+            ({'stage_url': base + '/new'}, base, 'https://vket.com/hub/2026Winter/notification'),
+            ({'stage_url': base + '/new/'}, base, 'https://vket.com/hub/2026Winter/notification'),
+            ({'stage_url': base + '/new', 'stage_edit_url': ' https://example.com/edit ',
+              'stage_list_url': ' https://example.com/list '}, 'https://example.com/edit', 'https://example.com/list'),
+            ({'stage_url': 'https://example.com/unexpected'}, '', ''),
+            ({'stage_url': base + '/new', 'stage_edit_url': 'javascript:alert(1)',
+              'stage_list_url': 'data:text/html,unsafe'}, '', ''),
+        ):
+            for enabled in (True, False):
+                with self.subTest(settings=settings, enabled=enabled):
+                    self.collaboration.settings_json = {**settings, 'stage_registration_open': enabled}
+                    self.collaboration.save(update_fields=['settings_json'])
+                    response, soup = self.page('status')
+                    card = soup.select_one('#stage-registration')
+                    self.assertIsNone(card.ol)
+                    self.assertIsNone(card.select_one('#stage-register-confirm'))
+                    self.assertIsNotNone(card.select_one('.bg-success.bg-opacity-10'))
+                    self.assertContains(response, 'Vket のステージページに登録済みです。登録した告知はあとからも編集できます。日程や発表内容が変わったら直してください。')
+                    links = {a.get_text(strip=True): a for a in card.select('a')}
+                    for label, url in (('Vket で告知を編集する', edit_url),
+                                       ('ほかの集会の告知を見る（Vket のユーザーイベント一覧）', list_url)):
+                        if url:
+                            self.assertEqual(links[label]['href'], url)
+                            self.assertEqual(links[label]['target'], '_blank')
+                            self.assertIn('noopener', links[label]['rel'])
+                        else:
+                            self.assertNotIn(label, links)
+                    self.assertEqual('コピー用の文面を開く' in links, enabled)
+                    if enabled:
+                        self.assertEqual(links['コピー用の文面を開く']['href'], self.url('stage_copy'))
+                    self.assertNotContains(response, 'javascript:')
+                    self.assertNotContains(response, 'data:text/html,unsafe')
+
+    def test_stage_registration_without_url_keeps_fallback_message(self):
+        response, soup = self.page('status')
+        self.assertContains(response, '登録先URLは運営からのお知らせをご確認ください。')
+        self.assertEqual(len(soup.select('#stage-registration ol > li')), 3)
+        self.assertIsNone(soup.select_one('#stage-registration .stage-registration-list-link'))
+
+    def test_closed_stage_registration_keeps_copy_and_stage_links_without_steps(self):
+        self.collaboration.period_end = timezone.localdate() - timedelta(days=1)
+        self.collaboration.settings_json['stage_url'] = 'https://example.com/stage'
+        self.collaboration.save(update_fields=['period_end', 'settings_json'])
+        _, soup = self.page('status')
+        card = soup.select_one('#stage-registration')
+        self.assertIsNone(card.ol)
+        self.assertIsNone(card.select_one('#stage-register-confirm'))
+        self.assertEqual(card.select_one(f'a[href="{self.url("stage_copy")}"]').text, 'コピー用ページを開く')
+        self.assertIn('ステージページ', card.select_one('a[href="https://example.com/stage"]').text)
 
     def test_status_attention_disappears_after_completion(self):
         self.receipt.acknowledged_at = timezone.now()

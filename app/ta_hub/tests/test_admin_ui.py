@@ -82,12 +82,25 @@ class AdminUITemplateTest(SimpleTestCase):
         }, request=request)
         soup = BeautifulSoup(html, 'html.parser')
         self.assertTrue(soup.select_one('#delete-1').has_attr('hidden'))
+        self.assertIn('btn-danger', soup.select_one('[type=submit]')['class'])
+        self.assertNotIn('confirm-panel--primary', soup.select_one('#delete-1')['class'])
         self.assertIsNone(soup.b)
         self.assertEqual(soup.form['method'], 'post')
         self.assertEqual(soup.form['action'], '/delete/1/')
         self.assertTrue(soup.select_one('[name="csrfmiddlewaretoken"]')['value'])
         self.assertEqual(soup.select_one('[type="submit"]')['name'], 'action')
         self.assertEqual(soup.select_one('[data-cancel-panel]')['data-cancel-panel'], 'delete-1')
+
+    def test_confirm_panel_primary_tone_changes_panel_and_submit_only(self):
+        soup = self.soup('ta_hub/admin/includes/confirm_panel.html', panel_id='register',
+                         label='記録の確認', message='記録しますか？', action_url='/register/',
+                         submit_label='記録する', tone='primary')
+        panel = soup.select_one('#register.confirm-panel--primary[hidden]')
+        self.assertIsNotNone(panel)
+        self.assertIn('btn-primary', panel.select_one('[type=submit]')['class'])
+        self.assertNotIn('btn-danger', panel.select_one('[type=submit]')['class'])
+        self.assertIn('btn-outline-secondary', panel.select_one('[data-cancel-panel]')['class'])
+        self.assertEqual(panel.form['action'], '/register/')
 
     def test_confirm_panel_direct_page_is_visible_and_has_cancel_link(self):
         soup = self.soup('ta_hub/admin/includes/confirm_panel.html', panel_id='delete-1', open=True,

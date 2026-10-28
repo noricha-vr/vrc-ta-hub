@@ -11,7 +11,7 @@
 <a href="{% url 'community:detail' community.pk %}" class="btn btn-outline-secondary">集会ページへ</a>
 {% elif user.is_authenticated %}
 {% url 'community:detail' community.pk as return_url %}
-{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='accept-invitation' label='スタッフ参加の確認' message='この集会のスタッフとして参加します。' action_url='' submit_label='招待を受ける' open=True cancel_url=return_url %}
+{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='accept-invitation' label='スタッフ参加の確認' message='この集会のスタッフとして参加します。' action_url='' submit_label='招待を受ける' open=True cancel_url=return_url tone='primary' %}
 {% else %}
 <p>招待を受けるにはログインが必要です。</p>
 <a href="{% url 'account:login' %}?next={{ request.path }}" class="btn btn-primary">ログイン</a>
