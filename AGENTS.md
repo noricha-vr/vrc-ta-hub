@@ -109,6 +109,7 @@ docker compose run --rm --service-ports -e DEBUG_LOGIN_SKIP=true vrc-ta-hub \
 - `REQUEST_TOKEN`: バッチ処理認証用トークン
 - `DISCORD_CLIENT_ID`: Discord OAuth 用クライアント ID
 - `DISCORD_CLIENT_SECRET`: Discord OAuth 用シークレット
+- `DISCORD_BOT_CLIENT_ID` / `DISCORD_BOT_CLIENT_SECRET`: Bot 導入用の別アプリのクライアント ID とシークレット。両方の設定時だけ「Bot を追加」を表示する。Redirects に `/community/bot-install/callback/` を登録し、Requires OAuth2 Code Grant を有効にする
 - `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`: ログイン画面の Cloudflare Turnstile（ボット対策）のサイトキーとシークレットキー。2 つとも設定した時だけ有効。ローカル開発（`DEBUG=True`）は未設定のままでよく、Cloudflare のテスト用キー（自動操作のブラウザでも必ず通る）が自動で使われる。鍵が空のまま Turnstile ごと無効にする時は `TURNSTILE_DEBUG_TEST_KEYS=false`。Cloud Run 上ではテスト用キーに切り替えない。テストは常に無効
 
 ### 外部サービスの初期設定

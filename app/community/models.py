@@ -3,6 +3,7 @@ import uuid
 from datetime import timedelta
 
 from django.db import models
+from django.core.validators import RegexValidator
 from django.utils import timezone
 
 from ta_hub.libs import DEFAULT_MAX_SIZE, resize_and_convert_image
@@ -236,6 +237,46 @@ class Community(models.Model):
     def can_delete(self, user):
         """指定ユーザーが削除可能かどうかを判定する"""
         return self.is_owner(user)
+
+
+class BotInstallation(models.Model):
+    """Bot の導入記録。外れた後も履歴を保持する。"""
+
+    class Status(models.TextChoices):
+        INSTALLED = 'installed', '追加済み・セットアップ待ち'
+        CONFIGURED = 'configured', '稼働中'
+        REMOVED = 'removed', '外れた'
+
+    community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='bot_installations')
+    guild_id = models.CharField(
+        'Discord サーバー ID', max_length=20,
+        validators=[RegexValidator(r'\A[0-9]{17,20}\Z', 'サーバー ID は17〜20桁の数字で入力してください。')],
+    )
+    status = models.CharField('状態', max_length=10, choices=Status.choices, default=Status.INSTALLED)
+    added_by = models.ForeignKey('user_account.CustomUser', on_delete=models.SET_NULL, null=True)
+    installed_at = models.DateTimeField('追加した時刻', default=timezone.now)
+    configured_at = models.DateTimeField('設定した時刻', null=True, blank=True)
+    removed_at = models.DateTimeField('外れた時刻', null=True, blank=True)
+    # MySQL は条件付き UNIQUE に非対応。生成列の UNIQUE で同じ制約を保証する。
+    active_guild_id = models.GeneratedField(
+        expression=models.Case(
+            models.When(status='removed', then=models.Value(None)),
+            default=models.F('guild_id'),
+        ),
+        output_field=models.CharField(max_length=20), db_persist=True, null=True,
+    )
+
+    class Meta:
+        ordering = ['-installed_at', '-pk']
+        verbose_name = 'Bot の導入記録'
+        verbose_name_plural = 'Bot の導入記録'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['guild_id'], condition=~models.Q(status='removed'),
+                name='bot_installation_unique_active_guild',
+            ),
+            models.UniqueConstraint(fields=['active_guild_id'], name='bot_installation_unique_active_key'),
+        ]
 
 
 class CommunityMember(models.Model):
