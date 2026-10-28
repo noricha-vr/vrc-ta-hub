@@ -173,7 +173,8 @@ DATABASES = {
         # 接続は uwsgi のスレッドごとに 1 本で、ワーカーの作り直し（uwsgi.ini の max-requests 等）で閉じる。
         # DB_CONN_MAX_AGE=0 で従来どおり毎回閉じる動きに戻せる。
         # wait_timeout は短くしない（外部 API を長く待つバッチが同じ接続を使い続けるため）
-        'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', '60')),
+        # 接続を張り直すコストが大きいので長めに使い回す。ただし外向き接続のアイドル切断より短くしておく。
+        'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', '540')),
         'CONN_HEALTH_CHECKS': True,
         'OPTIONS': {
             'charset': 'utf8mb4',
