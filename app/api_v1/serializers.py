@@ -6,7 +6,7 @@ from django.db import transaction
 from rest_framework import serializers
 
 from community.constants import WEEKDAY_JP, WEEKDAY_ORDER as WEEKDAY_SORT_ORDER
-from community.models import Community, CommunityMember
+from community.models import BotInstallation, Community, CommunityMember
 from event.models import Event, EventDetail, RecurrenceRule, article_generation_request_values
 from event.youtube_urls import youtube_video_id
 
@@ -41,6 +41,15 @@ class DiscordCommunityMembershipSerializer(serializers.Serializer):
 class CommunityByDiscordSerializer(serializers.Serializer):
     discord_id = serializers.CharField()
     communities = DiscordCommunityMembershipSerializer(many=True)
+
+
+class BotInstallationSerializer(serializers.ModelSerializer):
+    community_id = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = BotInstallation
+        fields = ['id', 'community_id', 'status', 'guild_id']
+        read_only_fields = fields
 
 
 class CommunitySerializer(serializers.ModelSerializer):
