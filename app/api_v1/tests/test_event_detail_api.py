@@ -249,6 +249,17 @@ class EventDetailAPITest(TestCase):
         ids = {item['id'] for item in self._response_items(response)}
         self.assertEqual(ids, {community2_detail.id})
 
+    def test_public_event_detail_returns_slide_file(self):
+        """公開 EventDetail API は資料の PDF の有無を返す（無ければ null）."""
+        response = self.client.get(self.public_url, {'community': self.community1.id})
+        items = {item['id']: item for item in self._response_items(response)}
+        self.assertIsNone(items[self.event_detail1.id]['slide_file'])
+
+        EventDetail.objects.filter(pk=self.event_detail1.pk).update(slide_file='slide/sample.pdf')
+        response = self.client.get(self.public_url, {'community': self.community1.id})
+        items = {item['id']: item for item in self._response_items(response)}
+        self.assertTrue(items[self.event_detail1.id]['slide_file'].endswith('slide/sample.pdf'))
+
     def test_public_event_detail_filter_by_unknown_community_returns_empty(self):
         """存在しない community ID は空の一覧を返す."""
         response = self.client.get(self.public_url, {'community': 999999})

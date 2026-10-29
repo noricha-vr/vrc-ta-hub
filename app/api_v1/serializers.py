@@ -204,7 +204,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
         model = EventDetail
         fields = [
             'id', 'event', 'detail_type', 'start_time', 'duration', 'youtube_url', 'slide_url',
-            'thumbnail_image', 'speaker', 'theme', 'additional_info', 'recording_policy'
+            'slide_file', 'thumbnail_image', 'speaker', 'theme', 'additional_info', 'recording_policy'
         ]
 
 
