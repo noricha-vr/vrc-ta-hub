@@ -9,6 +9,8 @@
 
 ## [Unreleased]
 
+- 公開の発表一覧 API（`/api/v1/event_detail/`）が、発表ページで公開している資料の PDF（`slide_file`）の URL を返すようにしました。資料が無い発表は `null` です。外部のツールが、資料がもう登録済みかを確かめられます。
+
 - スーパーユーザーの API キーで Discord サーバーの有効な Bot 導入記録を取得し、設定完了・取り外しを通知できるようにしました。通知には取得した導入記録の `id` を `installation_id` として渡します。状態更新には書き込み権限のキーが必要です (#866)。
 
 - 集会設定から Discord Bot を追加し、サーバーとの紐づけ・導入状態の確認・紐づけ解除ができるようにしました。Bot 用の `DISCORD_BOT_CLIENT_ID` / `DISCORD_BOT_CLIENT_SECRET` を設定すると利用できます (#865)。
