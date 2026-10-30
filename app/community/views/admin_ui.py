@@ -1,7 +1,9 @@
 """集会管理画面の表示データ。保存処理・権限判定は既存ビューに置く。"""
 from django import forms
+from django.contrib.messages import get_messages
 from django.urls import reverse
 from django.utils import timezone
+from website.discord_delivery import select_community_discord_delivery
 
 from ..constants import DEFAULT_LT_APPLICATION_TEMPLATE, RECORDING_POLICY_FORM_CHOICES
 from ..forms import CommunityUpdateForm
@@ -47,10 +49,16 @@ def settings_display(context, community, request):
     context['bot_installations'].sort(key=lambda item: item.status != BotInstallation.Status.INSTALLED)
     context['lt_application_template_display'] = community.lt_application_template or DEFAULT_LT_APPLICATION_TEMPLATE
     context['recording_policy_choices'] = RECORDING_POLICY_FORM_CHOICES
-    webhook_form = forms.Form()
+    context['webhook_has_error'] = any(
+        'webhook-error' in message.tags.split() for message in get_messages(request)
+    )
+    webhook_form = forms.Form(data={} if context['webhook_has_error'] else None)
     webhook_form.fields['notification_webhook_url'] = forms.URLField(required=False)
     context['webhook_field'] = webhook_form['notification_webhook_url']
     context['webhook_suffix'] = community.notification_webhook_url[-4:]
+    context['discord_delivery_kind'] = select_community_discord_delivery(community).kind
+    if context['webhook_has_error']:
+        webhook_form.add_error('notification_webhook_url', 'Discord Webhook URLの形式が正しくありません。')
     context['save_actions'] = [
         {'form_id': 'community-form', 'scope': '集会情報', 'label': '集会情報を保存'},
         {'form_id': 'notification-form', 'scope': '通知', 'label': '通知を保存', 'disabled': True},

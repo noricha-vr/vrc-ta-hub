@@ -1,11 +1,22 @@
-<section class="admin-card" id="bot-install">
-    {% include 'ta_hub/admin/includes/section_heading.html' with title='Discord Bot' description='集会のお知らせを Discord で受け取るための Bot です。' only %}
+<div class="settings-integration" id="bot-install">
+    <div class="settings-integration-row"><span class="settings-item-icon settings-discord"><i class="bi bi-discord" aria-hidden="true"></i></span><div><h3>Discord Bot</h3><p>集会のお知らせを Discord で受け取るための Bot です。</p></div><div class="settings-side">{% if can_manage_bot and bot_install_enabled %}
+        <form method="post" action="{% url 'community:bot_install_start' community.pk %}" class="mb-0" id="bot-install-form">
+            {% csrf_token %}
+            {% if bot_installations %}
+                <button type="submit" class="btn btn-sm btn-outline-primary" data-bot-install>別のサーバーに Bot を追加する</button>
+            {% else %}
+                {% include 'ta_hub/admin/includes/setup_link.html' with form_id='bot-install-form' label='Discord に Bot を追加する' only %}
+            {% endif %}
+        </form>
+        <p class="form-text mb-0">Discord が開きます。追加先のサーバーを選んでください。</p>
+    {% endif %}</div></div>
+    <div class="settings-integration-body">
     {% if can_manage_bot %}
         <p class="small text-muted">追加・連携解除はその場で反映されます。画面下の保存操作は不要です。</p>
     {% endif %}
 
     {% for installation in bot_installations %}
-        <div class="border rounded p-3 mb-2">
+        <div class="settings-bot-server border rounded p-3 mb-2">
             <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-2">
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <strong class="text-break">{{ installation.display_name }}</strong>
@@ -50,18 +61,6 @@
         <p class="small">追加後に、Discord でセットアップを行います。</p>
     {% endfor %}
 
-    {% if can_manage_bot and bot_install_enabled %}
-        <form method="post" action="{% url 'community:bot_install_start' community.pk %}" class="mt-3" id="bot-install-form">
-            {% csrf_token %}
-            {% if bot_installations %}
-                <button type="submit" class="btn btn-sm btn-outline-primary" data-bot-install>別のサーバーに Bot を追加する</button>
-            {% else %}
-                {% include 'ta_hub/admin/includes/setup_link.html' with form_id='bot-install-form' label='Discord に Bot を追加する' only %}
-            {% endif %}
-        </form>
-        <p class="form-text mb-0">Discord が開きます。追加先のサーバーを選んでください。</p>
-    {% endif %}
-
     {% if bot_installation_history %}
         <details class="mt-3">
             <summary>過去の連携記録（{{ bot_installation_history|length }}件）</summary>
@@ -86,4 +85,4 @@
             </ul>
         </details>
     {% endif %}
-</section>
+</div></div>

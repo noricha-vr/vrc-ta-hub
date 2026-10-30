@@ -470,7 +470,7 @@ class BotInstallTests(TestCase):
         )
         section = self.bot_section()
         self.assertEqual(
-            [item.get_text() for item in section.select(':scope > div strong')],
+            [item.get_text() for item in section.select('.settings-bot-server strong')],
             [waiting.guild_name, configured.guild_name],
         )
         history = section.select_one('details:has(> summary:-soup-contains("過去の連携記録"))')

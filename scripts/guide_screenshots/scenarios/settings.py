@@ -3,7 +3,7 @@ from capture import scenario
 
 
 SETTINGS = '/community/settings/'
-WEBHOOK = '#integrations'
+WEBHOOK = '#webhook'
 
 
 def shot(capture, selector, *targets):
@@ -42,7 +42,8 @@ def entry(capture, href):
     capture.login('owner')
     capture.goto(SETTINGS)
     capture.mask('input[name=notification_webhook_url]')
-    shot(capture, '#integrations > .d-flex', f'#integrations a[href="{href}"]')
+    shot(capture, f'#integrations > .settings-integration:has(a[href="{href}"])',
+         f'#integrations a[href="{href}"]')
 
 
 @scenario('settings/discord', mobile=True)
@@ -58,6 +59,7 @@ def discord(capture):
     capture.login('owner')
     capture.goto(SETTINGS)
     capture.mask('input[name=notification_webhook_url]')
+    capture.page.locator('#webhook > summary').click()
     capture.page.locator('#notification-form [data-admin-secret-edit] > summary').click()
     capture.page.locator('input[name=notification_webhook_url]:not([type=hidden])').fill('https://discord.com/api/webhooks/000000000000/DUMMY')
     shot(capture, '#notification-form', 'input[name=notification_webhook_url]:not([type=hidden])', 'button[form=notification-form]')
@@ -65,6 +67,7 @@ def discord(capture):
     capture.page.once('dialog', lambda dialog: dialog.accept())
     capture.goto(SETTINGS)
     capture.mask('input[name=notification_webhook_url]')
+    capture.page.locator('#webhook > summary').click()
     shot(capture, WEBHOOK, 'form[action$="/webhook/test/"] button')
     capture.mock('discord-webhook-notification.html')
     shot(capture, '.diagram', '#notification')

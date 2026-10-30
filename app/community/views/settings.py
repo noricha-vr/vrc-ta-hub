@@ -227,7 +227,7 @@ class UpdateWebhookView(LoginRequiredMixin, AuthenticatedForbiddenMixin, View):
         if webhook_url:
             # Discord Webhook URLの形式を検証
             if not webhook_url.startswith('https://discord.com/api/webhooks/'):
-                messages.error(request, 'Discord Webhook URLの形式が正しくありません。')
+                messages.error(request, 'Discord Webhook URLの形式が正しくありません。', extra_tags='webhook-error')
                 return redirect('community:settings')
 
         community.notification_webhook_url = webhook_url if webhook_url else ''

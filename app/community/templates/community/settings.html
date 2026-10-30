@@ -1,6 +1,7 @@
 {% extends 'ta_hub/admin_base.html' %}
+{% block admin_classes %}{% if not is_reopening %}community-settings{% endif %}{% endblock %}
 {% block title %}集会設定 - {{ community.name }} - {% site_name_seo %}{% endblock %}
-{% block extra_css %}{{ block.super }}{% include 'community/includes/admin_styles.html' %}{% endblock %}
+{% block extra_css %}{{ block.super }}{% include 'community/includes/admin_styles.html' %}{% include 'community/includes/settings_styles.html' %}{% endblock %}
 {% block admin_breadcrumbs %}{% include 'community/includes/admin_breadcrumbs.html' %}{% endblock %}
 {% block admin_header %}{% include 'ta_hub/admin/includes/page_header.html' with title='集会設定' target=community.name only %}{% endblock %}
 {% block admin_subnav %}{% include 'ta_hub/admin/includes/subnav.html' with links_template='community/includes/admin_nav.html' current='settings' %}{% endblock %}
@@ -9,26 +10,36 @@
 {% endblock %}
 {% block admin_toc %}
 <aside class="admin-toc" aria-label="設定の目次"><nav class="d-flex flex-column gap-2">
-<a href="#basic-information">基本情報</a>
-<a href="#applications">発表の受付</a>
-<a href="#bot-install">Discord Bot</a>
-<a href="#integrations">通知と連携</a>
-{% if is_owner %}<a href="#members">メンバー</a>{% endif %}
-{% if is_owner %}<a href="#danger">危険な操作</a>{% endif %}
+<a href="#basic-information"><i class="bi bi-info-circle" aria-hidden="true"></i>基本情報</a>
+<a href="#contact-information"><i class="bi bi-person-badge" aria-hidden="true"></i>主催と連絡先</a>
+<a href="#listing-information"><i class="bi bi-image" aria-hidden="true"></i>掲載内容</a>
+<a href="#applications"><i class="bi bi-mic" aria-hidden="true"></i>発表の受付</a>
+<a href="#integrations"><i class="bi bi-plug" aria-hidden="true"></i>通知と連携</a>
+{% if is_owner %}<a href="#members"><i class="bi bi-people" aria-hidden="true"></i>メンバー</a>
+<a href="#danger" class="text-danger"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i>危険な操作</a>{% endif %}
 </nav></aside>
 {% endblock %}
 {% block admin_content %}
 <form id="community-form" data-admin-dirty method="post" action="{% url 'community:update' %}" enctype="multipart/form-data">
-{% csrf_token %}{% include 'community/includes/community_fields.html' %}
+{% csrf_token %}{% include 'community/includes/settings_community_fields.html' %}
 </form>
 <section class="admin-card" id="applications">
-{% include 'ta_hub/admin/includes/section_heading.html' with title='発表の受付' save_scope='発表受付' form_id='lt-form' only %}
+{% include 'community/includes/settings_heading.html' with title='発表の受付' icon='mic' description='発表申請フォームと、撮影・持ち時間の初期値です。' scope='発表受付' form_id='lt-form' only %}
 {% include 'community/includes/lt_settings.html' %}
 </section>
-{% include 'community/includes/bot_install.html' %}
 <section class="admin-card" id="integrations">
-{% include 'ta_hub/admin/includes/section_heading.html' with title='通知と連携' save_scope='通知' form_id='notification-form' only %}
-<h3 class="h6">Discord通知</h3>
+{% include 'community/includes/settings_heading.html' with title='通知と連携' icon='plug' description='集会の知らせを送る先と、Hub と連携するサービスです。' scope='通知' form_id='notification-form' only %}
+{% include 'community/includes/bot_install.html' %}
+{% url 'community:calendar_update' as calendar_url %}
+{% include 'community/includes/settings_link.html' with title='イベントカレンダー' icon='calendar-event' description='VRChat イベントカレンダーへの掲載内容（ジャンル・Android 対応など）を設定します。' url=calendar_url label='カレンダー設定' only %}
+{% url 'twitter:template_list' as twitter_url %}
+{% include 'community/includes/settings_link.html' with title='X 告知テンプレート' icon='twitter-x' icon_class='settings-x' description='X に投稿する告知文のひな形を管理します。' url=twitter_url label='テンプレート管理' only %}
+{% url 'account:api_key_list' as api_url %}
+{% include 'community/includes/settings_link.html' with title='API キー' icon='key' description='外部のツールから Hub の情報を読み書きするためのキーです。' url=api_url label='API管理' only %}
+<details class="settings-integration" id="webhook"{% if webhook_has_error or webhook_field.errors %} open{% endif %}>
+<summary class="settings-integration-row"><span class="settings-item-icon settings-muted"><i class="bi bi-link-45deg" aria-hidden="true"></i></span><div><h3>Discord Webhook {% if community.notification_webhook_url %}<span class="detail-chip">設定済み ••••{{ webhook_suffix }}</span>{% endif %}</h3>
+<p>{% if discord_delivery_kind == 'bot' %}今は Discord Bot から知らせを送っているため、Webhook は使われていません。{% elif discord_delivery_kind == 'webhook' %}この Webhook に知らせを送っています。{% else %}Bot を使わずに Webhook で知らせを送る方法です。{% endif %}</p></div><span class="settings-side small"><i class="bi bi-chevron-right settings-caret" aria-hidden="true"></i>設定を開く</span></summary>
+<div class="settings-integration-body">
 <form id="notification-form" data-admin-dirty method="post" action="{% url 'community:update_webhook' community.pk %}">
 {% csrf_token %}
 {% include 'ta_hub/admin/includes/secret_field.html' with field=webhook_field label='Discord Webhook URL' configured=community.notification_webhook_url suffix=webhook_suffix only %}
@@ -42,20 +53,17 @@
 {% url 'community:update_webhook' community.pk as webhook_url %}
 {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='clear-webhook' label='通知先の削除の確認' message='保存済みのDiscord通知先を削除します。' action_url=webhook_url submit_label='通知先を削除する' fields_template='community/includes/clear_webhook_fields.html' %}
 {% endif %}
-<div class="d-flex flex-wrap gap-2 mt-4">
-<a href="{% url 'community:calendar_update' %}" class="btn btn-outline-secondary">カレンダー設定</a>
-<a href="{% url 'twitter:template_list' %}" class="btn btn-outline-secondary">テンプレート管理</a>
-<a href="{% url 'account:api_key_list' %}" class="btn btn-outline-secondary">API管理</a>
-</div>
+</div></details>
 </section>
 {% if is_owner %}<section class="admin-card" id="members">
-{% include 'ta_hub/admin/includes/section_heading.html' with title='メンバー管理' only %}
-<p>スタッフの追加・削除や招待リンクを管理します。</p>
-<a href="{% url 'community:member_manage' community.pk %}" class="btn btn-outline-secondary">メンバーを管理</a>
+{% include 'community/includes/settings_heading.html' with title='メンバー' icon='people' description='この集会を管理できる人です。' status='主催者のみ' only %}
+{% url 'community:member_manage' community.pk as members_url %}
+{% include 'community/includes/settings_link.html' with title='メンバー管理' icon='people' description='スタッフの追加・削除や招待リンクを管理します。' url=members_url label='メンバーを管理' only %}
 </section>{% endif %}
 {% if is_owner %}
-<section class="admin-card" id="danger"><details><summary class="text-danger fw-bold">危険な操作</summary>
-<div class="mt-3">
+<section class="admin-card settings-danger" id="danger"><details><summary class="settings-heading"><span class="settings-heading-icon"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span><div><h2>危険な操作</h2><p>集会の閉鎖と、主催者の引き継ぎです。主催者のみ。</p></div><span class="settings-status"><i class="bi bi-chevron-right settings-caret" aria-hidden="true"></i> 開く</span></summary>
+<div class="settings-danger-body">
+<div class="settings-field"><div class="settings-label">{% if community.end_at %}集会を再開する{% else %}集会を閉鎖する{% endif %}<small>閉鎖日以降のイベントは削除されます。閉鎖後に再開もできます。</small></div><div class="settings-control">
 {% if community.end_at %}
 <p>この集会は {{ community.end_at|date:'Y年n月j日' }} に閉鎖されています。</p>
 <a href="{% url 'community:reopen' community.pk %}" class="btn btn-outline-success">集会を再開する</a>
@@ -66,7 +74,8 @@
 {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='close-community' label='集会の閉鎖確認' message=message action_url=close_url submit_label='集会を閉鎖する' %}
 {% endwith %}
 {% endif %}
-<hr><h2 class="h6">主催者の引き継ぎ</h2>
+</div></div>
+<div class="settings-field"><div class="settings-label">主催者の引き継ぎ<small>リンクを受け取った人が主催者になり、あなたはスタッフになります。リンクは7日間有効です。</small></div><div class="settings-control">
 {% if ownership_transfer_invitation %}
 <div id="invitation-{{ ownership_transfer_invitation.pk }}">
 <p>有効な引き継ぎリンクがあります。有効期限: {{ ownership_transfer_invitation.expires_at|date:'Y/m/d H:i' }}</p>
@@ -80,7 +89,7 @@
 {% url 'community:create_ownership_transfer' community.pk as transfer_url %}
 {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id='create-transfer' label='主催者引き継ぎの確認' message='リンクを受け取った人が主催者になると、あなたはスタッフに降格され、メンバー管理・閉鎖の権限を失います。リンクは7日間有効です。' action_url=transfer_url submit_label='引き継ぎリンクを作成' %}
 {% endif %}
-</div></details></section>
+</div></div></div></details></section>
 {% endif %}
 {% endblock %}
 {% block admin_action_bar %}
@@ -94,6 +103,43 @@
 document.addEventListener('DOMContentLoaded', function () {
     const root = document.querySelector('.hub-admin');
     if (!root) return;
+    const poster = document.getElementById('id_poster_image');
+    const posterFilename = root.querySelector('[data-poster-filename]');
+    if (poster && posterFilename) {
+        function syncPoster() {
+            posterFilename.textContent = poster.files.length ? poster.files[0].name : '選択されていません';
+        }
+        poster.addEventListener('change', syncPoster);
+        poster.form.addEventListener('reset', function () { setTimeout(syncPoster, 0); });
+        window.addEventListener('pageshow', syncPoster);
+        syncPoster();
+    }
+    const platform = document.getElementById('id_platform');
+    const segment = root.querySelector('[data-platform-segment]');
+    if (platform && segment) {
+        Array.from(platform.options).forEach(function (option) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = { PC: 'PC', All: 'PC / モバイル', Android: 'モバイル' }[option.value] || option.textContent;
+            button.setAttribute('aria-controls', platform.id);
+            button.addEventListener('click', function () {
+                platform.value = option.value;
+                platform.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            segment.appendChild(button);
+        });
+        function syncPlatform() {
+            Array.from(segment.children).forEach(function (button, index) {
+                button.setAttribute('aria-pressed', String(platform.options[index].selected));
+            });
+        }
+        platform.addEventListener('change', syncPlatform);
+        platform.form.addEventListener('reset', function () { setTimeout(syncPlatform, 0); });
+        window.addEventListener('pageshow', syncPlatform);
+        syncPlatform();
+        platform.hidden = true;
+        segment.hidden = false;
+    }
     const bar = root.querySelector('[data-admin-action-bar]');
     if (!bar) return;
     {% if is_reopening %}return;{% endif %}
@@ -119,6 +165,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (field.value.trim() === '') {
             event.preventDefault();
             event.stopImmediatePropagation();
+            document.getElementById('webhook').open = true;
             if (blankError) blankError.hidden = false;
             field.focus();
         }
@@ -129,7 +176,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (notice && statusArea) statusArea.appendChild(notice);
     const saveButtons = Array.from(bar.querySelectorAll('button[form]'));
     let armedButton = null;
-    root.addEventListener('input', function () { armedButton = null; if (notice) notice.hidden = true; });
+    // セグメントの切り替えなど change だけを出す操作でも、確認済みの状態を解く。
+    ['input', 'change'].forEach(function (type) {
+        root.addEventListener(type, function () { armedButton = null; if (notice) notice.hidden = true; });
+    });
     saveButtons.forEach(function (button) {
         button.addEventListener('click', function (event) {
             if (notice) notice.hidden = true;
