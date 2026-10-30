@@ -176,7 +176,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (notice && statusArea) statusArea.appendChild(notice);
     const saveButtons = Array.from(bar.querySelectorAll('button[form]'));
     let armedButton = null;
-    root.addEventListener('input', function () { armedButton = null; if (notice) notice.hidden = true; });
+    // セグメントの切り替えなど change だけを出す操作でも、確認済みの状態を解く。
+    ['input', 'change'].forEach(function (type) {
+        root.addEventListener(type, function () { armedButton = null; if (notice) notice.hidden = true; });
+    });
     saveButtons.forEach(function (button) {
         button.addEventListener('click', function (event) {
             if (notice) notice.hidden = true;
