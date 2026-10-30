@@ -238,7 +238,11 @@ def process_material_upload_reminder_target(
         matched_intent=decision.matched_intent,
         sent_at=timezone.now(),
     )
-    _send_material_upload_reminder_discord_dm(reminder_log, event_detail, applicant)
+    try:
+        _send_material_upload_reminder_discord_dm(reminder_log, event_detail, applicant)
+    except Exception:
+        # DM は追加の知らせなので、失敗してもメールの結果と後続の発表の処理を止めない。
+        logger.warning("発表資料アップロード依頼DM: 処理に失敗しました。EventDetail=%s", event_detail.pk)
     return ReminderResult(
         event_detail.pk,
         applicant.email,

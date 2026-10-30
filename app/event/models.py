@@ -927,7 +927,8 @@ class MaterialUploadReminderLog(models.Model):
     confidence = models.CharField("信頼度", max_length=20, blank=True, default="")
     sent_at = models.DateTimeField("送信日時", null=True, blank=True)
     discord_dm_status = models.CharField(
-        "Discord DM の状態", max_length=20, choices=DiscordDMStatus.choices, blank=True, default=""
+        # 旧リビジョンが列を知らずに INSERT しても通るよう、DB 側にも既定値を持たせる。
+        "Discord DM の状態", max_length=20, choices=DiscordDMStatus.choices, blank=True, default="", db_default=""
     )
     discord_dm_sent_at = models.DateTimeField("Discord DM 送信日時", null=True, blank=True)
     follow_up_sent_at = models.DateTimeField("1週間後リマインド送信日時", null=True, blank=True, db_index=True)

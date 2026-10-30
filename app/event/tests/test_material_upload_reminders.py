@@ -9,6 +9,7 @@ from django.core import mail
 from django.core.management import call_command
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from community.models import BotInstallation, Community
 from event.material_upload_reminders import (
@@ -335,6 +336,27 @@ class MaterialUploadReminderTest(TestCase):
         self.assertEqual(self.discord_post.call_count, 2)
         for value in (self.uid, self.channel_id, 'synthetic-bot-secret', upload_url):
             self.assertNotIn(value, '\n'.join(captured.output))
+
+    def test_discord_dm_error_does_not_stop_mail_result(self):
+        detail = self.prepare_discord_dm()
+        with patch('event.material_upload_reminders.select_community_discord_delivery', side_effect=RuntimeError('synthetic')):
+            results = self.send_reminders()
+        self.assertEqual(results[0].action, 'sent')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(MaterialUploadReminderLog.objects.get(event_detail=detail).status, 'sent')
+
+    def test_old_revision_insert_without_dm_columns_uses_db_default(self):
+        # カナリア中・ロールバック後の旧リビジョンは新しい列を知らずに INSERT する。
+        detail = self.prepare_discord_dm()
+        from django.db import connection
+        table = MaterialUploadReminderLog._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f'INSERT INTO {table} (event_detail_id, status, reason, matched_intent, confidence, created_at, updated_at) '
+                'VALUES (%s, %s, %s, %s, %s, %s, %s)',
+                [detail.pk, 'sent', '', '', '', timezone.now(), timezone.now()],
+            )
+        self.assertEqual(MaterialUploadReminderLog.objects.get(event_detail=detail).discord_dm_status, '')
 
     def test_discord_dm_requires_linked_discord_account(self):
         detail = self.prepare_discord_dm()

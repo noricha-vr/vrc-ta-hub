@@ -18,6 +18,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='materialuploadreminderlog',
             name='discord_dm_status',
-            field=models.CharField(blank=True, choices=[('sending', '送信中'), ('sent', '送信済み'), ('forbidden', '受信不可'), ('failed', '送信失敗')], default='', max_length=20, verbose_name='Discord DM の状態'),
+            field=models.CharField(blank=True, choices=[('sending', '送信中'), ('sent', '送信済み'), ('forbidden', '受信不可'), ('failed', '送信失敗')], db_default='', default='', max_length=20, verbose_name='Discord DM の状態'),
         ),
     ]
