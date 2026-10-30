@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def _post_discord_notification(
     delivery: DiscordDelivery, payload: dict, community_id: int,
-) -> requests.Response | None:
+) -> requests.Response:
     """選択済みの送り先へ送る。Bot の 403/404 だけ、この通知を Webhook に退避する。"""
     if delivery.kind == 'bot':
         try:
@@ -38,7 +38,8 @@ def _post_discord_notification(
                        'status_code': status_code, 'count': 1},
             )
             if not delivery.webhook_url:
-                return None
+                # 退避先が無い時は送れていないので、呼び出し元の失敗として扱わせる。
+                raise
         else:
             logger.info(
                 'discord_bot_delivery_sent community_id=%s status_code=%s count=1',
@@ -358,8 +359,7 @@ def send_discord_notification_for_article(
     }
 
     try:
-        if _post_discord_notification(delivery, message, community.pk) is None:
-            return True
+        _post_discord_notification(delivery, message, community.pk)
         logger.info(
             "Discord通知成功（記事公開）: community_id=%s event_detail_id=%s",
             community.pk,
@@ -417,8 +417,7 @@ def notify_video_article_published(event_detail: EventDetail) -> bool:
         "allowed_mentions": {"parse": []},
     }
     try:
-        if _post_discord_notification(delivery, message, community.pk) is None:
-            return True
+        _post_discord_notification(delivery, message, community.pk)
         logger.info(
             "Discord通知成功（動画と記事公開）: community_id=%s event_detail_id=%s",
             community.pk, event_detail.pk,
@@ -553,8 +552,6 @@ def _send_discord_notification_for_new_application(
 
     try:
         response = _post_discord_notification(delivery, message, community.pk)
-        if response is None:
-            return
         logger.info(
             "Discord通知成功（新規申請）: community_id=%s event_detail_id=%s status_code=%s",
             community.pk, event_detail.pk, response.status_code,
@@ -643,8 +640,7 @@ def _send_discord_notification_for_result(
     }
 
     try:
-        if _post_discord_notification(delivery, message, community.pk) is None:
-            return
+        _post_discord_notification(delivery, message, community.pk)
         logger.info(
             "Discord通知成功（申請結果）: community_id=%s event_detail_id=%s",
             community.pk, event_detail.pk,
@@ -761,8 +757,7 @@ def notify_slide_material_published(event_detail: EventDetail) -> None:
     }
 
     try:
-        if _post_discord_notification(delivery, message, community.pk) is None:
-            return
+        _post_discord_notification(delivery, message, community.pk)
         logger.info(
             "Discord通知成功（資料公開）: community_id=%s event_detail_id=%s",
             community.pk,

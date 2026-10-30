@@ -29,7 +29,8 @@ def select_community_discord_delivery(community) -> DiscordDelivery:
         value.strip() for value in settings.DISCORD_BOT_DELIVERY_COMMUNITY_IDS.split(',') if value.strip()
     }
     if str(community.pk) in allowed_ids and settings.DISCORD_BOT_TOKEN:
-        installation = community.bot_installations.filter(status='configured').first()
+        # 同じ集会に記録が複数ある時は、最後に作られた configured の記録の通知先だけを使う。
+        installation = community.bot_installations.filter(status='configured').order_by('-pk').first()
         if installation and _valid_channel_id(installation.notification_channel_id):
             return DiscordDelivery('bot', webhook_url, installation.notification_channel_id)
     return DiscordDelivery('webhook' if webhook_url else 'none', webhook_url)

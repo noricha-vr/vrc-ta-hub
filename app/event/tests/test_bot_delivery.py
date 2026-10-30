@@ -92,6 +92,14 @@ class CommunityBotDeliveryTest(TestCase):
         self.installation.delete()
         self.assert_webhook()
 
+    def test_latest_configured_record_decides_route(self):
+        # 同じ集会に複数の記録があれば、最後に作られた configured の記録だけを見る。
+        BotInstallation.objects.create(community=self.community, guild_id='9' * 18, status='configured', notification_channel_id=None)
+        self.assertEqual(select_community_discord_delivery(self.community).kind, 'webhook')
+        BotInstallation.objects.create(community=self.community, guild_id='6' * 18, status='configured', notification_channel_id='5' * 18)
+        delivery = select_community_discord_delivery(self.community)
+        self.assertEqual((delivery.kind, delivery.channel_id), ('bot', '5' * 18))
+
     def test_missing_or_invalid_channel_uses_webhook(self):
         invalid_ids = (None, '', '7' * 16, '7' * 21, 'x' * 18, '７' * 18, '٧' * 18,
                        ' ' + self.channel_id, self.channel_id + ' ', self.channel_id + '\n', '../messages')
@@ -130,14 +138,15 @@ class CommunityBotDeliveryTest(TestCase):
             self.assertEqual(self.installation.status, 'configured')
             self.assertEqual(select_community_discord_delivery(self.community).kind, 'bot')
 
-    def test_403_and_404_without_webhook_do_not_send_elsewhere(self):
+    def test_403_and_404_without_webhook_fail_without_sending_elsewhere(self):
+        # 退避先が無い時は届いていないので、失敗として返し、再送の余地を残す。
         self.community.notification_webhook_url = ''
         for status in (403, 404):
             self.post.return_value = Mock(status_code=status)
             for name, send, expected in self.senders:
                 with self.subTest(status=status, notification=name):
                     self.reset_posts()
-                    self.assertIs(send(), expected)
+                    self.assertIs(send(), False if expected is True else None)
                     self.post.assert_called_once()
                     self.webhook.assert_not_called()
 
