@@ -140,3 +140,51 @@ class MisskeyTextTest(SimpleTestCase):
                 self.assertNotIn('\r', result)
                 self.assertIn('foo \u200bSearch\n', result)
                 self.assertIn('次の行 \u200b検索\n', result)
+
+    def test_url_range_matches_mfm_parser_including_balanced_brackets(self):
+        cases = [
+            ('https://example.com/a_(b)[c] 続き', 'https://example.com/a_(b)[c] 続き'),
+            ('詳細 (https://example.com/event)をご覧ください。', '詳細 (https://example.com/event)をご覧ください。'),
+            ('https://example.com/a(b', 'https://example.com/a(b'),
+            ('https://[2001:db8::1]/a', 'https://[2001:db8::1]/a'),
+            ('https://example.com/a(b$[x2 hi]', 'https://example.com/a(b＄［x2 hi］'),
+            ('https://example.com/[$[x2 hi]]', 'https://example.com/［＄［x2 hi］］'),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(to_misskey_text(source), expected)
+
+    def test_backslash_ends_url_so_host_is_unchanged(self):
+        result = to_misskey_text('https://trusted.example\\@evil.example/')
+        self.assertTrue(result.startswith('https://trusted.example＼＠'))
+
+    def test_deep_brackets_beyond_mfm_nest_limit_are_neutralized(self):
+        for opening, closing in (('(', ')'), ('[', ']')):
+            with self.subTest(bracket=opening):
+                source = 'https://example.com/' + opening * 21 + '@alice' + closing * 21
+                self.assertNotIn('@', to_misskey_text(source))
+        source = 'https://example.com/' + '(' * 21 + '[trusted.example](https://evil.example)' + ')' * 21
+        self.assertNotIn('[trusted', to_misskey_text(source))
+
+    def test_very_deep_brackets_do_not_raise(self):
+        for opening, closing in (('(', ')'), ('[', ']'), ('(', '')):
+            with self.subTest(bracket=opening + closing):
+                to_misskey_text('https://example.com/' + opening * 1000 + 'x' + closing * 1000)
+
+    def test_url_after_other_characters_is_not_protected(self):
+        """ハッシュタグなどが URL の先頭を取り込む形では、URL として保護しない。"""
+        prefixes = ['#tag[', '#tag$', '#tag\\', '#tag\u200b', 'abc', '名前', '#tag：', '#tag:',
+                    '#tag(a)', '#tag()', '#tag（a）', '#tag「a」', '#tag(a(b))']
+        prefixes += [f'#tag{space}' for space in '\u000b\u000c\u0085\u00a0\u1680\u2000\u200a\u2028\u202f\u205f']
+        for prefix in prefixes:
+            with self.subTest(prefix=prefix):
+                result = to_misskey_text(prefix + 'https://example.com/(@alice)[x](https://evil.example)')
+                self.assertNotIn('@', result)
+                self.assertNotIn('[x]', result)
+
+    def test_url_after_line_start_space_or_brackets_is_preserved(self):
+        for source in ('https://example.com/a', '詳細\nhttps://example.com/a', '詳細 https://example.com/a',
+                       '（https://x.com/foo）', '「https://example.com/a」', '(https://example.com/a)',
+                       '詳細\u3000https://example.com/a', '【詳細】https://example.com/a'):
+            with self.subTest(source=source):
+                self.assertIn('https://', to_misskey_text(source))
