@@ -116,6 +116,8 @@ class BotInstallCallbackView(LoginRequiredMixin, View):
             guild_id = guild.get('id') if isinstance(guild, dict) else None
             if response.status_code != 200 or not isinstance(guild_id, str) or not GUILD_ID_PATTERN.fullmatch(guild_id):
                 raise ValueError('invalid guild response')
+            guild_name = guild.get('name')
+            guild_name = guild_name[:100] if isinstance(guild_name, str) else ''
         except (requests.RequestException, ValueError):
             # 例外本文・レスポンスには code やトークンが含まれ得るため記録しない。
             logger.warning('bot_install result=exchange_failed')
@@ -132,9 +134,12 @@ class BotInstallCallbackView(LoginRequiredMixin, View):
                 ).first()
                 if existing and existing.community_id != community.pk:
                     raise IntegrityError('guild already linked')
+                if guild_name:
+                    # 同じサーバーの過去の記録も、今の名前で見分けられるようにする。
+                    BotInstallation.objects.filter(community=community, guild_id=guild_id).update(guild_name=guild_name)
                 if not existing:
                     BotInstallation.objects.create(
-                        community=community, guild_id=guild_id, added_by=request.user,
+                        community=community, guild_id=guild_id, guild_name=guild_name, added_by=request.user,
                     )
         except IntegrityError:
             logger.info('bot_install result=already_linked')
