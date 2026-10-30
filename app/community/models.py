@@ -252,6 +252,7 @@ class BotInstallation(models.Model):
         'Discord サーバー ID', max_length=20,
         validators=[RegexValidator(r'\A[0-9]{17,20}\Z', 'サーバー ID は17〜20桁の数字で入力してください。')],
     )
+    guild_name = models.CharField('Discord サーバー名', max_length=100, blank=True, default='', db_default='')
     notification_channel_id = models.CharField(
         'Discord 通知先チャンネル ID', max_length=20, null=True, blank=True, default=None, db_default=None,
         validators=[RegexValidator(r'\A[0-9]{17,20}\Z', 'チャンネル ID は17〜20桁の数字で入力してください。')],

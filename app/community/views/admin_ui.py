@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from ..constants import DEFAULT_LT_APPLICATION_TEMPLATE, RECORDING_POLICY_FORM_CHOICES
 from ..forms import CommunityUpdateForm
-from ..models import CommunityInvitation
+from ..models import BotInstallation, CommunityInvitation
 from .bot_install import bot_install_enabled
 
 
@@ -28,9 +28,24 @@ def settings_display(context, community, request):
     context['is_owner'] = community.is_owner(request.user)
     context['can_manage_bot'] = community.is_manager(request.user)
     context['bot_install_enabled'] = bot_install_enabled()
-    context['bot_installations'] = list(community.bot_installations.all())
-    for installation in context['bot_installations']:
+    context['bot_installations'] = []
+    context['bot_installation_history'] = []
+    for installation in community.bot_installations.all():
+        installation.display_name = installation.guild_name or 'Discord サーバー（名前未登録）'
         installation.confirm_panel_id = f'remove-bot-{installation.pk}'
+        target = installation.display_name
+        if not installation.guild_name:
+            target += f'（サーバー ID: {installation.guild_id}）'
+        installation.remove_confirmation = (
+            f'『{target}』との連携を解除しますか？'
+            'この集会と Discord サーバーの連携を解除します。'
+            'Discord サーバー内の Bot は削除されません。連携の記録は残ります。'
+        )
+        if installation.status == BotInstallation.Status.REMOVED:
+            context['bot_installation_history'].append(installation)
+        else:
+            context['bot_installations'].append(installation)
+    context['bot_installations'].sort(key=lambda item: item.status != BotInstallation.Status.INSTALLED)
     context['lt_application_template_display'] = community.lt_application_template or DEFAULT_LT_APPLICATION_TEMPLATE
     context['recording_policy_choices'] = RECORDING_POLICY_FORM_CHOICES
     webhook_form = forms.Form()

@@ -5,9 +5,11 @@ from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 import requests
+from bs4 import BeautifulSoup
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection, transaction
 from django.test import Client, TestCase, override_settings
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 
@@ -47,9 +49,16 @@ class BotInstallTests(TestCase):
             community=self.community, guild_id='123456789012345678', added_by=self.owner, **extra,
         )
 
-    def configure_exchange(self, post, guild_id='123456789012345678'):
+    def configure_exchange(self, post, guild_id='123456789012345678', **guild_data):
         post.return_value.status_code = 200
-        post.return_value.json.return_value = {'guild': {'id': guild_id}, 'access_token': 'synthetic-token'}
+        post.return_value.json.return_value = {
+            'guild': {'id': guild_id, **guild_data}, 'access_token': 'synthetic-token',
+        }
+
+    def bot_section(self):
+        response = self.client.get(self.settings_url)
+        self.assertEqual(response.status_code, 200)
+        return BeautifulSoup(response.content, 'html.parser').select_one('#bot-install')
 
     def test_authorize_url_uses_separate_app_and_fixed_callback(self):
         state = self.begin()
@@ -203,6 +212,23 @@ class BotInstallTests(TestCase):
         self.assertEqual(BotInstallation.objects.get().added_by, self.staff)
 
     @patch('community.views.bot_install.requests.post')
+    def test_callback_saves_normalized_guild_name_without_logging_it(self, post):
+        for guild_data, expected in (
+            ({'name': 'テスト用サーバー'}, 'テスト用サーバー'),
+            ({'name': '長' * 101}, '長' * 100),
+            ({}, ''), ({'name': None}, ''), ({'name': 123}, ''),
+            ({'name': ['サーバー']}, ''), ({'name': {'name': 'サーバー'}}, ''),
+        ):
+            with self.subTest(guild_data=guild_data):
+                self.configure_exchange(post, **guild_data)
+                with self.assertLogs('community.views.bot_install', level='INFO') as logs:
+                    self.assertRedirects(self.callback(self.begin()), self.settings_url)
+                self.assertEqual(BotInstallation.objects.get().guild_name, expected)
+                self.assertEqual(len(logs.output), 1)
+                self.assertTrue(logs.output[0].endswith('bot_install result=installed'))
+                BotInstallation.objects.all().delete()
+
+    @patch('community.views.bot_install.requests.post')
     def test_cancel_and_missing_code_consume_state(self, post):
         for query in ({'error': 'access_denied'}, {}):
             with self.subTest(query=query):
@@ -239,27 +265,62 @@ class BotInstallTests(TestCase):
 
     @patch('community.views.bot_install.requests.post')
     def test_duplicate_other_community_rejected_then_removed_can_be_relinked(self, post):
-        original = self.installation()
-        self.configure_exchange(post)
+        original = self.installation(guild_name='以前のサーバー名')
+        self.configure_exchange(post, name='新しいサーバー名')
         response = self.callback(self.begin(self.second))
         self.assertContains(self.client.get(response.url), '既に別の集会に紐づいています')
         self.assertEqual(BotInstallation.objects.count(), 1)
+        original.refresh_from_db()
+        self.assertEqual(original.guild_name, '以前のサーバー名')
         self.client.post(reverse('community:bot_install_remove', args=[self.community.pk, original.pk]))
         original.refresh_from_db()
         self.assertEqual(original.status, BotInstallation.Status.REMOVED)
         self.assertIsNotNone(original.removed_at)
         self.assertRedirects(self.callback(self.begin(self.second)), self.settings_url)
         self.assertEqual(BotInstallation.objects.count(), 2)
-        self.assertTrue(BotInstallation.objects.filter(community=self.second, status='installed').exists())
+        self.assertEqual(
+            BotInstallation.objects.get(community=self.second, status='installed').guild_name, '新しいサーバー名',
+        )
 
     @patch('community.views.bot_install.requests.post')
     def test_reauthorize_same_community_preserves_configured_status(self, post):
-        original = self.installation(status='configured', configured_at=timezone.now())
-        self.configure_exchange(post)
+        original = self.installation(
+            status='configured', configured_at=timezone.now(), guild_name='以前のサーバー名',
+            notification_channel_id='223456789012345678',
+        )
+        configured_at = original.configured_at
+        installed_at = original.installed_at
+        self.configure_exchange(post, name='更新後のサーバー名')
         self.assertRedirects(self.callback(self.begin()), self.settings_url)
         original.refresh_from_db()
         self.assertEqual(original.status, 'configured')
+        self.assertEqual(original.guild_name, '更新後のサーバー名')
+        self.assertEqual(original.configured_at, configured_at)
+        self.assertEqual(original.installed_at, installed_at)
+        self.assertEqual(original.notification_channel_id, '223456789012345678')
         self.assertEqual(BotInstallation.objects.count(), 1)
+
+    @patch('community.views.bot_install.requests.post')
+    def test_reauthorize_waiting_installation_updates_and_normalizes_name(self, post):
+        original = self.installation(guild_name='以前のサーバー名')
+        # 名前が取れない再認証では、保存済みの名前を消さない。
+        for guild_data, expected in (({'name': '新' * 101}, '新' * 100), ({'name': False}, '新' * 100), ({}, '新' * 100)):
+            with self.subTest(guild_data=guild_data):
+                self.configure_exchange(post, **guild_data)
+                self.assertRedirects(self.callback(self.begin()), self.settings_url)
+                original.refresh_from_db()
+                self.assertEqual(original.guild_name, expected)
+                self.assertEqual(original.status, 'installed')
+                self.assertEqual(BotInstallation.objects.count(), 1)
+
+    @patch('community.views.bot_install.requests.post')
+    def test_readding_names_past_records_of_the_same_server(self, post):
+        past = self.installation(status='removed', removed_at=timezone.now())
+        self.configure_exchange(post, name='新しいサーバー名')
+        self.assertRedirects(self.callback(self.begin()), self.settings_url)
+        past.refresh_from_db()
+        self.assertEqual(past.guild_name, '新しいサーバー名')
+        self.assertEqual(BotInstallation.objects.get(status='installed').guild_name, '新しいサーバー名')
 
     @patch('community.views.bot_install.requests.post')
     def test_database_race_is_handled_as_duplicate(self, post):
@@ -312,21 +373,162 @@ class BotInstallTests(TestCase):
         record.refresh_from_db()
         self.assertEqual(record.removed_at, removed_at)
 
-    def test_management_shows_all_states_and_confirmation(self):
-        self.assertContains(self.client.get(self.settings_url), '未追加')
+    def test_uninstalled_shows_purpose_and_primary_setup_action(self):
+        section = self.bot_section()
+        text = section.get_text(' ', strip=True)
+        for expected in (
+            'Discord Bot', '集会のお知らせを Discord で受け取るための Bot です。',
+            'Bot はまだ追加されていません。',
+            '追加後に、Discord でセットアップを行います。',
+            '追加・連携解除はその場で反映されます。画面下の保存操作は不要です。',
+            'Discord が開きます。追加先のサーバーを選んでください。',
+        ):
+            self.assertIn(expected, text)
+        self.assertNotIn('現在、連携している Discord サーバーはありません。', text)
+        form = section.select_one('form')
+        self.assertEqual(form['action'], self.start_url)
+        self.assertEqual(form['method'], 'post')
+        self.assertIsNotNone(form.select_one('[name="csrfmiddlewaretoken"]'))
+        self.assertEqual(form.button.get_text(strip=True), 'Discord に Bot を追加する')
+        self.assertIn('setup-placeholder', form.button['class'])
+        self.assertIsNone(section.select_one('details'))
+        self.assertIsNone(section.select_one('[data-confirm-panel]'))
+
+    def test_waiting_shows_name_steps_and_targeted_confirmation(self):
+        record = self.installation(guild_name='準備中のサーバー')
+        section = self.bot_section()
+        self.assertEqual(section.strong.get_text(), record.guild_name)
+        self.assertIn('セットアップ待ち', section.select_one('.detail-chip').get_text())
+        self.assertIn('bg-warning-subtle', section.select_one('.detail-chip')['class'])
+        self.assertIn('Bot の追加は完了しました。続いて Discord で設定してください。', section.get_text())
+        self.assertEqual(section.select('ol li')[0].get_text(), 'Discord で『準備中のサーバー』サーバーを開く')
+        self.assertEqual(
+            section.select('ol li')[1].get_text(),
+            'Bot が使えるテキストチャンネルのメッセージ入力欄に /hub setup を入力し、表示される案内に従う',
+        )
+        panel = section.select_one(f'#remove-bot-{record.pk}')
+        self.assertTrue(panel.has_attr('hidden'))
+        self.assertIn('『準備中のサーバー』との連携を解除しますか？', panel.get_text())
+        self.assertIn(
+            'この集会と Discord サーバーの連携を解除します。'
+            'Discord サーバー内の Bot は削除されません。連携の記録は残ります。', panel.get_text(),
+        )
+        self.assertEqual(panel.form['action'], reverse(
+            'community:bot_install_remove', args=[self.community.pk, record.pk],
+        ))
+        self.assertEqual(panel.select_one('.btn-danger').get_text(), '連携を解除する')
+        self.assertNotIn(record.guild_id, str(section))
+
+    def test_configured_shows_completion_and_secondary_add_button(self):
+        record = self.installation(guild_name='稼働中のサーバー', status='configured')
+        section = self.bot_section()
+        self.assertEqual(section.strong.get_text(), record.guild_name)
+        self.assertIn('稼働中', section.select_one('.detail-chip').get_text())
+        self.assertIn('bg-success-subtle', section.select_one('.detail-chip')['class'])
+        self.assertIn('このサーバーでのセットアップは完了しています。', section.get_text())
+        self.assertNotIn('/hub setup', section.get_text())
+        self.assertNotIn('通知は正常に届いています', section.get_text())
+        self.assertNotIn(record.guild_id, str(section))
+        button = section.select_one('[data-bot-install]')
+        self.assertEqual(button.get_text(), '別のサーバーに Bot を追加する')
+        self.assertIn('btn-outline-primary', button['class'])
+        self.assertIn('btn-sm', button['class'])
+
+    def test_history_only_shows_empty_current_state_and_closed_history(self):
+        record = self.installation(guild_name='以前のサーバー', status='removed', removed_at=timezone.now())
+        section = self.bot_section()
+        history = section.select_one('details')
+        self.assertFalse(history.has_attr('open'))
+        self.assertEqual(history.summary.get_text(), '過去の連携記録（1件）')
+        self.assertIn(record.guild_name, history.get_text())
+        self.assertIn('連携終了日:', history.get_text())
+        self.assertIn(timezone.localtime(record.removed_at).strftime('%Y年%-m月%-d日'), history.get_text())
+        self.assertEqual(history.select_one('.detail-chip').get_text(), '連携終了')
+        self.assertEqual(history.select_one('.detail-chip')['class'], ['detail-chip'])
+        self.assertNotIn(record.guild_id, str(section))
+        self.assertIsNone(section.select_one('[data-confirm-panel]'))
+        history.decompose()
+        self.assertNotIn(record.guild_name, section.get_text())
+        self.assertIn('現在、連携している Discord サーバーはありません。', section.get_text())
+        self.assertEqual(section.select_one('button[type="submit"]').get_text(), 'Discord に Bot を追加する')
+
+    def test_current_and_history_are_separated_and_waiting_is_first(self):
+        waiting = self.installation(guild_name='準備中のサーバー')
+        configured = BotInstallation.objects.create(
+            community=self.community, guild_id='223456789012345678', guild_name='稼働中のサーバー', status='configured',
+        )
+        # 同じサーバーの古い記録も、現在のカードと並べず履歴に入れる。
+        self.installation(guild_name='前の連携記録', status='removed')
+        BotInstallation.objects.create(
+            community=self.community, guild_id='323456789012345678', guild_name='別の過去の記録', status='removed',
+        )
+        section = self.bot_section()
+        self.assertEqual(
+            [item.get_text() for item in section.select(':scope > div strong')],
+            [waiting.guild_name, configured.guild_name],
+        )
+        history = section.select_one('details')
+        self.assertFalse(history.has_attr('open'))
+        self.assertEqual(history.summary.get_text(), '過去の連携記録（2件）')
+        self.assertIn('前の連携記録', history.get_text())
+        self.assertIn('別の過去の記録', history.get_text())
+        self.assertNotIn('連携終了日:', history.get_text())
+        self.assertIsNone(history.select_one('button'))
+        history.decompose()
+        self.assertNotIn('前の連携記録', section.get_text())
+        self.assertNotIn('現在、連携している Discord サーバーはありません。', section.get_text())
+        for guild_id in (waiting.guild_id, configured.guild_id, '323456789012345678'):
+            self.assertNotIn(guild_id, str(section))
+
+    def test_legacy_name_is_explained_and_id_is_only_in_details_or_confirmation(self):
         record = self.installation()
-        for status, label in BotInstallation.Status.choices:
+        section = self.bot_section()
+        self.assertEqual(section.strong.get_text(), 'Discord サーバー（名前未登録）')
+        self.assertIn('以前に追加されたため、サーバー名が保存されていません。', section.get_text())
+        details = section.select_one('details')
+        self.assertFalse(details.has_attr('open'))
+        self.assertEqual(details.summary.get_text(), 'サーバーの詳細')
+        self.assertIn(f'サーバー ID: {record.guild_id}', details.get_text())
+        self.assertIn('追加日:', details.get_text())
+        panel = section.select_one('.confirm-panel')
+        self.assertIn(record.guild_id, panel.get_text())
+        self.assertIn('Discord サーバー（名前未登録）', panel.get_text())
+        details.decompose()
+        panel.decompose()
+        self.assertNotIn(record.guild_id, str(section))
+
+    def test_legacy_history_has_name_fallback_and_closed_server_details(self):
+        record = self.installation(status='removed')
+        history = self.bot_section().select_one('details')
+        self.assertEqual(history.strong.get_text(), 'Discord サーバー（名前未登録）')
+        details = history.select_one('details')
+        self.assertFalse(details.has_attr('open'))
+        self.assertIn(record.guild_id, details.get_text())
+        details.decompose()
+        self.assertNotIn(record.guild_id, str(history))
+
+    def test_guild_names_are_escaped_in_cards_steps_confirmation_and_history(self):
+        unsafe = '<img src=x onerror=alert(1)>'
+        for status in ('installed', 'configured', 'removed'):
             with self.subTest(status=status):
-                record.status = status
-                record.save()
-                response = self.client.get(self.settings_url)
-                self.assertContains(response, label)
-                self.assertContains(response, record.guild_id)
-                if status != 'removed':
-                    self.assertContains(response, f'id="remove-bot-{record.pk}"')
-                    self.assertContains(response, '紐づけを外す…')
-                else:
-                    self.assertNotContains(response, '紐づけを外す…')
+                record = self.installation(guild_name=unsafe, status=status)
+                section = self.bot_section()
+                self.assertEqual(section.strong.get_text(), unsafe)
+                self.assertIsNone(section.select_one('img'))
+                self.assertIsNone(section.select_one('[onerror]'))
+                self.assertIn('&lt;img src=x onerror=alert(1)&gt;', str(section))
+                record.delete()
+
+    def test_read_only_section_never_renders_buttons_or_confirmation(self):
+        self.installation(guild_name='表示用サーバー')
+        self.installation(guild_name='過去のサーバー', status='removed')
+        response = self.client.get(self.settings_url)
+        context = response.context_data.copy()
+        context['can_manage_bot'] = False
+        section = BeautifulSoup(render_to_string('community/includes/bot_install.html', context), 'html.parser')
+        self.assertIn('表示用サーバー', section.get_text())
+        self.assertIn('過去のサーバー', section.get_text())
+        self.assertIsNone(section.select_one('button, form, .confirm-panel, [data-confirm-panel]'))
 
     def test_unconfigured_bot_app_hides_button_and_blocks_start(self):
         for values in ({'DISCORD_BOT_CLIENT_ID': ''}, {'DISCORD_BOT_CLIENT_SECRET': ''}):

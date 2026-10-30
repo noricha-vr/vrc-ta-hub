@@ -1,21 +1,89 @@
 <section class="admin-card" id="bot-install">
-{% include 'ta_hub/admin/includes/section_heading.html' with title='Discord Bot' description='追加・解除は操作ごとに保存されます。' only %}
-{% for installation in bot_installations %}
-<div class="border rounded p-3 mb-2">
-<p class="mb-1"><span class="badge text-bg-light">{{ installation.get_status_display }}</span></p>
-<p class="small mb-2">サーバー ID: {{ installation.guild_id }}</p>
-{% if installation.status == 'installed' %}<p class="small">次は Discord で <code>/hub setup</code> を実行してください。</p>{% endif %}
-{% if installation.status != 'removed' and can_manage_bot %}
-<button type="button" class="btn btn-sm btn-outline-danger" data-confirm-panel="remove-bot-{{ installation.pk }}" aria-controls="remove-bot-{{ installation.pk }}" aria-expanded="false">紐づけを外す…</button>
-{% url 'community:bot_install_remove' community.pk installation.pk as remove_bot_url %}
-{% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=installation.confirm_panel_id label='Bot の紐づけを外す確認' message='この集会と Discord サーバーの紐づけを外します。導入記録は残ります。Discord からの Bot の削除は行いません。' action_url=remove_bot_url submit_label='紐づけを外す' %}
-{% endif %}
-</div>
-{% empty %}<p class="text-muted small">未追加</p>{% endfor %}
-{% if can_manage_bot and bot_install_enabled %}
-<form method="post" action="{% url 'community:bot_install_start' community.pk %}">
-{% csrf_token %}<button type="submit" class="btn btn-outline-primary" data-bot-install>Bot を追加</button>
-</form>
-<p class="form-text mb-0">Discord で追加先のサーバーを選びます。</p>
-{% endif %}
+    {% include 'ta_hub/admin/includes/section_heading.html' with title='Discord Bot' description='集会のお知らせを Discord で受け取るための Bot です。' only %}
+    {% if can_manage_bot %}
+        <p class="small text-muted">追加・連携解除はその場で反映されます。画面下の保存操作は不要です。</p>
+    {% endif %}
+
+    {% for installation in bot_installations %}
+        <div class="border rounded p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-2">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <strong class="text-break">{{ installation.display_name }}</strong>
+                    {% if installation.status == 'installed' %}
+                        {% include 'ta_hub/admin/includes/status_chip.html' with label='セットアップ待ち' tone='warning' only %}
+                    {% else %}
+                        {% include 'ta_hub/admin/includes/status_chip.html' with label='稼働中' tone='success' only %}
+                    {% endif %}
+                </div>
+                {% if can_manage_bot %}
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-confirm-panel="{{ installation.confirm_panel_id }}" aria-controls="{{ installation.confirm_panel_id }}" aria-expanded="false">連携を解除…</button>
+                {% endif %}
+            </div>
+            {% if not installation.guild_name %}
+                <p class="small text-muted mb-2">以前に追加されたため、サーバー名が保存されていません。</p>
+                <details class="small mb-2">
+                    <summary>サーバーの詳細</summary>
+                    <p class="mb-1">サーバー ID: {{ installation.guild_id }}</p>
+                    <p class="mb-0">追加日: {{ installation.installed_at|date:'Y年n月j日' }}</p>
+                </details>
+            {% endif %}
+            {% if installation.status == 'installed' %}
+                <p class="small">Bot の追加は完了しました。続いて Discord で設定してください。</p>
+                <ol class="small mb-0">
+                    <li>Discord で『{{ installation.display_name }}』サーバーを開く</li>
+                    <li>Bot が使えるテキストチャンネルのメッセージ入力欄に <code>/hub setup</code> を入力し、表示される案内に従う</li>
+                </ol>
+            {% else %}
+                <p class="small mb-0">このサーバーでのセットアップは完了しています。</p>
+            {% endif %}
+            {% if can_manage_bot %}
+                {% url 'community:bot_install_remove' community.pk installation.pk as remove_bot_url %}
+                {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=installation.confirm_panel_id label='連携解除の確認' message=installation.remove_confirmation action_url=remove_bot_url submit_label='連携を解除する' %}
+            {% endif %}
+        </div>
+    {% empty %}
+        {% if bot_installation_history %}
+            <p class="mb-1">現在、連携している Discord サーバーはありません。</p>
+        {% else %}
+            <p class="mb-1">Bot はまだ追加されていません。</p>
+        {% endif %}
+        <p class="small">追加後に、Discord でセットアップを行います。</p>
+    {% endfor %}
+
+    {% if can_manage_bot and bot_install_enabled %}
+        <form method="post" action="{% url 'community:bot_install_start' community.pk %}" class="mt-3" id="bot-install-form">
+            {% csrf_token %}
+            {% if bot_installations %}
+                <button type="submit" class="btn btn-sm btn-outline-primary" data-bot-install>別のサーバーに Bot を追加する</button>
+            {% else %}
+                {% include 'ta_hub/admin/includes/setup_link.html' with form_id='bot-install-form' label='Discord に Bot を追加する' only %}
+            {% endif %}
+        </form>
+        <p class="form-text mb-0">Discord が開きます。追加先のサーバーを選んでください。</p>
+    {% endif %}
+
+    {% if bot_installation_history %}
+        <details class="mt-3">
+            <summary>過去の連携記録（{{ bot_installation_history|length }}件）</summary>
+            <ul class="list-unstyled mb-0">
+                {% for installation in bot_installation_history %}
+                    <li class="border-bottom py-2 small">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <strong class="text-break">{{ installation.display_name }}</strong>
+                            {% include 'ta_hub/admin/includes/status_chip.html' with label='連携終了' only %}
+                            {% if installation.removed_at %}<span class="text-muted">連携終了日: {{ installation.removed_at|date:'Y年n月j日' }}</span>{% endif %}
+                        </div>
+                        {% if not installation.guild_name %}
+                            <p class="text-muted mb-1">以前に追加されたため、サーバー名が保存されていません。</p>
+                            <details>
+                                <summary>サーバーの詳細</summary>
+                                <p class="mb-1">サーバー ID: {{ installation.guild_id }}</p>
+                                <p class="mb-0">追加日: {{ installation.installed_at|date:'Y年n月j日' }}</p>
+                            </details>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </details>
+    {% endif %}
 </section>
