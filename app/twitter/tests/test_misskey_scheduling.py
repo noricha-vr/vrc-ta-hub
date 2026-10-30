@@ -236,6 +236,21 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         self.assertEqual(self.notify.call_count, 3)
         self.assertIn('429', note.error_message)
 
+    def test_regenerating_text_waits_until_generation_finishes(self):
+        queue = self.queue(status='generating', generated_text='')
+        note = MisskeyNote.objects.create(tweet_queue=queue)
+        process_pending_notes(now=self.current)
+        note.refresh_from_db()
+        self.assertEqual(note.status, 'pending')
+        self.assertEqual(note.attempts, 0)
+        self.note_post.assert_not_called()
+
+        TweetQueue.objects.filter(pk=queue.pk).update(status='ready', generated_text='再生成した本文')
+        process_pending_notes(now=self.current)
+        note.refresh_from_db()
+        self.assertEqual(note.status, 'posted')
+        self.note_post.assert_called_once_with('再生成した本文', image_url=None)
+
     def test_save_failure_after_send_is_not_resent(self):
         """送信後に結果の保存が失敗しても、送信中のまま残り再送されない。"""
         note = MisskeyNote.objects.create(tweet_queue=self.queue(status='posted'))

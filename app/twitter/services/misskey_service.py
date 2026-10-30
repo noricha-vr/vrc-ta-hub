@@ -81,6 +81,9 @@ def _claim_next_note(current):
                 continue
             if queue_item.scheduled_at > current:
                 continue
+            # 本文の再生成中は空本文になるため、生成が終わるまで待つ（期限切れは上で判定済み）。
+            if queue_item.status in ('generating', 'generation_failed') or not queue_item.generated_text:
+                continue
 
             skip_reason = event_date_skip_reason(queue_item, today=timezone.localdate(current))
             if skip_reason:
