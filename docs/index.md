@@ -26,6 +26,7 @@
 - [静的ファイルのCloudflare R2同期手順](static_files_sync.md)
 - [マイグレーション Rollback 手順](migration-rollback.md)
 - [Vketコラボ現行仕様・公開同期運用](vket-collaboration-spec.md)
+- [お知らせのサムネイルの使い分け](design/news-thumbnails.md)
 - [Discord Bot仕様書](discord-bot-specification.md)
 - [Discord Bot実装ガイド](discord-bot-implementation-guide.md)
 
