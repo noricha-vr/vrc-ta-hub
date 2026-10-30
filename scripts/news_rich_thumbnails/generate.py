@@ -163,10 +163,14 @@ def main():
         checks[sp['slug']] = dict(headline_px=hs, headline_ok=hs >= 56, no_overlap=not overlap, panel_inside=inside,
                                   panel_ratio=round(area / (PANEL_W * PANEL_H), 2), panel_ok=area / (PANEL_W * PANEL_H) >= .3, focus=sp['focus'])
     json.dump(checks, open(f'{OUT}/check.json', 'w'), ensure_ascii=False, indent=1)
+    failed = 0
     for k, v in checks.items():
-        flag = 'OK ' if all(v[x] for x in ('headline_ok', 'no_overlap', 'panel_inside', 'panel_ok')) else 'NG '
-        print(flag, k, v['headline_px'], v['panel_ratio'])
+        ok = all(v[x] for x in ('headline_ok', 'no_overlap', 'panel_inside', 'panel_ok'))
+        failed += not ok
+        print('OK ' if ok else 'NG ', k, v['headline_px'], v['panel_ratio'])
+    # 点検に落ちた画像があれば失敗として返す（自動実行で見落とさないため）
+    return 1 if failed else 0
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())
