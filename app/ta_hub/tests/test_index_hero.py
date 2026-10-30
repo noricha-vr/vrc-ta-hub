@@ -16,10 +16,10 @@ class IndexHeroTest(SimpleTestCase):
         self.hero = html[start:html.index('<!-- hero end -->')]
 
     def test_copy_and_cta_are_kept(self):
-        # キャッチコピーと集会一覧への導線は作り替え前のまま
-        self.assertIn('ようこそ！<br>VRChat技術学術系<wbr>集会の世界へ！', self.hero)
+        # キャッチコピー（サイト名に揃えた「技術・学術系イベント」）と集会一覧への導線
+        self.assertIn('ようこそ！<br>VRChat技術・学術系<wbr>イベントの世界へ！', self.hero)
         self.assertIn("{% url 'community:list' %}", self.hero)
-        self.assertIn('VRChatで開催される多彩な技術学術系集会をお届けします', self.hero)
+        self.assertIn('VRChatで開催される多彩な技術・学術系イベントをお届けします', self.hero)
         self.assertIn('入門者から経験豊富な方まで、みんなが楽しめるイベントが満載です！', self.hero)
         self.assertIn('技術・学術系 集会一覧', self.hero)
 

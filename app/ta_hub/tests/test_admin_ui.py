@@ -29,7 +29,7 @@ class AdminUITemplateTest(SimpleTestCase):
     def test_default_title_and_public_css_are_unchanged(self):
         html = self.render('ta_hub/base.html')
         soup = BeautifulSoup(html, 'html.parser')
-        self.assertEqual(soup.title.text, f'{SITE_NAME_SEO} - VRChat技術学術系集会の世界へ！ようこそ！')
+        self.assertEqual(soup.title.text, f'{SITE_NAME_SEO} - VRChat技術・学術系イベントの世界へ！ようこそ！')
         self.assertNotIn('admin-ui.css', html)
         self.assertNotIn('admin-ui.js', html)
 

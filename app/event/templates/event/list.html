@@ -3,15 +3,15 @@
 {% load custom_filters %}
 {% load og_tags %}
 {% block meta %}
-    <title>VRChatイベント開催日程 - {% site_name_seo %}</title>
-    <meta name="twitter:title" content="VRChatイベント開催日程 - {% site_name_seo %}">
-    <meta property="og:title" content="VRChatイベント開催日程 - {% site_name_seo %}">
+    <title>VRChat 技術・学術系イベントカレンダー - {% site_name_seo %}</title>
+    <meta name="twitter:title" content="VRChat 技術・学術系イベントカレンダー - {% site_name_seo %}">
+    <meta property="og:title" content="VRChat 技術・学術系イベントカレンダー - {% site_name_seo %}">
     <meta name="description"
-          content="VRChat技術学術系のイベント開催日程を確認できます。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
+          content="VRChatで開催される技術・学術系イベントのカレンダーです。今週・今月の開催日程を一覧で確認でき、Googleカレンダーにも追加できます。ジャンル別・曜日別の検索や過去のアーカイブから、自分にあったイベントを見つけられます。">
     <meta name="twitter:description"
-          content="VRChat技術学術系のイベント開催日程を確認できます。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
+          content="VRChatで開催される技術・学術系イベントのカレンダーです。今週・今月の開催日程を一覧で確認でき、Googleカレンダーにも追加できます。ジャンル別・曜日別の検索や過去のアーカイブから、自分にあったイベントを見つけられます。">
     <meta property="og:description"
-          content="VRChat技術学術系のイベント開催日程を確認できます。最新イベント情報、過去のアーカイブ、ジャンル別や曜日別の検索機能を搭載し、技術や学術に興味のある方が自分にあったイベントを見つけられます。">
+          content="VRChatで開催される技術・学術系イベントのカレンダーです。今週・今月の開催日程を一覧で確認でき、Googleカレンダーにも追加できます。ジャンル別・曜日別の検索や過去のアーカイブから、自分にあったイベントを見つけられます。">
     {% og_static 'ta_hub/og/event-list.jpg' as image_url %}
     {% include 'ta_hub/includes/og_image.html' with image_url=image_url only %}
 {% endblock %}
@@ -21,7 +21,7 @@
         <div class="row text-center">
             <div class="col-lg-12">
                 <a href="{% url 'event:list' %}" class="text-decoration-none text-black">
-                    <h1 class="fw-bold keiko_yellow">VRChat 技術学術系 イベント開催日程</h1>
+                    <h1 class="fw-bold keiko_yellow">VRChat 技術・学術系イベントカレンダー</h1>
                 </a>
             </div>
         </div>
