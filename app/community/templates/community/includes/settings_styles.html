@@ -34,7 +34,7 @@
 .community-settings .settings-segment {display:flex; width:max-content; max-width:100%; border:1px solid #ced4da; border-radius:.5rem; overflow:hidden;}
 .community-settings .settings-segment[hidden] {display:none;}
 .community-settings .settings-segment label {position:relative; cursor:pointer; margin:0;}
-.community-settings .settings-segment input {position:absolute; opacity:0; width:1px; height:1px;}
+.community-settings .settings-segment input {position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer;}
 .community-settings .settings-segment span, .community-settings .settings-segment button {display:block; padding:.4rem .65rem; font-size:.8125rem; background:#fff; color:var(--admin-text); border:0; border-right:1px solid #ced4da;}
 .community-settings .settings-segment label:last-child span, .community-settings .settings-segment button:last-child {border-right:0;}
 .community-settings .settings-segment input:checked + span, .community-settings .settings-segment button[aria-pressed=true] {background:var(--admin-primary); color:#fff;}
