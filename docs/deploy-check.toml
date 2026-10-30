@@ -94,7 +94,7 @@ name = "集会一覧"
 url = "https://vrc-ta-hub.com/community/list/"
 method = "GET"
 expect_status = 200
-expect_body = "技術学術系集会一覧"
+expect_body = "技術・学術系集会一覧"
 
 [[checks.important]]
 id = "I2"
