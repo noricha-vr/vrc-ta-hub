@@ -14,7 +14,7 @@ import requests
 from tenacity import (
     RetryCallState,
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -57,23 +57,27 @@ def _log_retry_attempt(retry_state: RetryCallState) -> None:
     )
 
 
-def retry_webhook_post(func):
+def retry_webhook_post(func=None, *, excluded_status_codes=()):
     """Discord Webhook 等の POST を最大3回試行するデコレータ.
 
     - 対象例外: すべての requests.RequestException（非2xxのHTTPErrorを含む）
-    - 4xx・429も意図的にリトライ対象とする
+    - 4xx・429も意図的にリトライ対象とする（excluded_status_codes を除く）
     - 試行回数: 初回を含めて最大3回
     - リトライ間隔: 1秒、2秒
     - 最終失敗時は元の例外を再送出する（reraise=True）
     """
-    return retry(
+    decorator = retry(
         stop=stop_after_attempt(WEBHOOK_RETRY_MAX_ATTEMPTS),
         wait=wait_exponential(
             multiplier=WEBHOOK_RETRY_WAIT_MULTIPLIER,
             min=WEBHOOK_RETRY_WAIT_MIN_SECONDS,
             max=WEBHOOK_RETRY_WAIT_MAX_SECONDS,
         ),
-        retry=retry_if_exception_type((requests.RequestException, requests.Timeout)),
+        retry=retry_if_exception(
+            lambda error: isinstance(error, requests.RequestException)
+            and get_webhook_error_context(error)[1] not in excluded_status_codes
+        ),
         reraise=True,
         before_sleep=_log_retry_attempt,
-    )(func)
+    )
+    return decorator(func) if func is not None else decorator

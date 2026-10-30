@@ -83,7 +83,7 @@
 
 **通知先:**
 - Owner権限を持つユーザーのメールアドレス
-- 設定されていればDiscord Webhook URL
+- [Discord Bot の送信条件](../../setup.md#discord-bot-による集会通知任意)を満たす集会は Bot の通知先チャンネル、それ以外は設定済みの Discord Webhook URL
 - 両方設定されていれば両方に送信
 
 **通知内容:**
@@ -96,7 +96,7 @@
 
 **通知先:**
 - 申請者のメールアドレス
-- 設定されていればDiscord Webhook URL
+- [Discord Bot の送信条件](../../setup.md#discord-bot-による集会通知任意)を満たす集会は Bot の通知先チャンネル、それ以外は設定済みの Discord Webhook URL
 
 **通知内容:**
 - 結果（承認/却下）

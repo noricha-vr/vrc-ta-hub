@@ -23,6 +23,11 @@ class SchemaAPITest(TestCase):
             'id', 'community_id', 'status', 'guild_id', 'notification_channel_id',
             'webhook_configured', 'hub_delivery',
         })
+        delivery_schema = schemas['BotInstallation']['properties']['hub_delivery']
+        delivery_schema = delivery_schema.get('allOf', [delivery_schema])[0]
+        if '$ref' in delivery_schema:
+            delivery_schema = schemas[delivery_schema['$ref'].rsplit('/', 1)[1]]
+        self.assertEqual(set(delivery_schema['enum']), {'bot', 'webhook', 'none'})
         request_schema = schemas['BotInstallationStatusRequest']
         self.assertEqual(set(request_schema['required']), {'installation_id', 'guild_id', 'status'})
         channel_schema = request_schema['properties']['notification_channel_id']

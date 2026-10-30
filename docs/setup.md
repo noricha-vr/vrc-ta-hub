@@ -65,6 +65,23 @@ ACCOUNT_DEFAULT_HTTP_PROTOCOL=http
 
 - `ACCOUNT_DEFAULT_HTTP_PROTOCOL=http` は開発環境のみ（本番はデフォルト `https`）
 
+## Discord Bot による集会通知（任意）
+
+集会への発表申請・申請結果・記事公開・動画と記事公開・アカウント紐づけ・資料公開の 6 種類の通知を、Hub から Discord の REST API へ直接送ります。通知の内容と送る条件は Webhook と同じです。
+
+| 環境変数 | 内容 |
+|----------|------|
+| `DISCORD_BOT_TOKEN` | Discord Bot のトークン。ログやソースに値を残さず、実行環境のシークレットとして渡します |
+| `DISCORD_BOT_DELIVERY_COMMUNITY_IDS` | Bot で送る集会 ID のカンマ区切り。未設定・空なら全て従来の Webhook を使用します |
+
+許可リスト内・トークンあり・Bot の導入状態が `configured`・通知先チャンネル ID が 17〜20 桁の数字、の全条件を満たす時だけ Bot を使います。DM を選んで通知先チャンネル ID が無い場合も Webhook を使います。Webhook URL が無ければ送信しません。ただし Bot の全条件を満たす場合は Webhook URL が無くても Bot で送信します。
+
+Bot の送信が成功した時は Webhook へは送りません。403/404 の時だけ、その通知を保存済みの Webhook に退避します（Webhook が無ければ送信しません）。その他の HTTP エラー・通信エラーは従来と同じく最大 3 回、1 秒・2 秒間隔で試行し、Webhook には退避しません。Bot の 403/404 は再試行しません。Webhook URL や Bot の導入状態は書き換えません。許可リストから外すと次の通知から Webhook に戻せます。
+
+`/api/v1/bot-installation/` の `hub_delivery` は同じ選択に従い、`bot` / `webhook` / `none` を返します。`webhook_configured` は保存済み Webhook の有無を示し、Bot が選ばれた場合にも保持されます。Webhook のテスト送信や、運営管理用の通知はこの切り替えの対象外です。
+
+送信成功は `discord_bot_delivery_sent`、403/404 の退避判定は `discord_bot_delivery_fallback` の構造化ログで確認できます。`community_id`・`status_code`・`count=1` を記録し、トークン・Webhook URL・チャンネル ID は記録しません。退避判定の件数には Webhook 未設定による未送信も含みます。確認には Cloud Logging で `jsonPayload.event_type="discord_bot_delivery_fallback"` または `jsonPayload.event_type="discord_bot_delivery_sent"` を検索し、導入後 7 日で件数とエラーを見直します。
+
 ## Discord Webhook（任意）
 
 管理者通知に使用。開発時は未設定でも動作する。
@@ -174,6 +191,8 @@ FERNET_KEY=生成した鍵
 | `GOOGLE_CALENDAR_ID` | 推奨 | 同期先カレンダー |
 | `GEMINI_API_KEY` | 推奨 | AI コンテンツ生成 |
 | `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET` | 推奨 | Discord ログイン |
+| `DISCORD_BOT_TOKEN` | 任意 | Discord Bot による集会通知の送信 |
+| `DISCORD_BOT_DELIVERY_COMMUNITY_IDS` | 任意 | Bot 送信を許可する集会 ID のカンマ区切り。空なら従来の Webhook |
 | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | 任意 | ログイン画面のボット対策（2 つとも設定した時だけ有効）。ローカル開発（`DEBUG=True`）では空のままでよく、Cloudflare のテスト用キー（必ず通る）が自動で使われる |
 | `TURNSTILE_DEBUG_TEST_KEYS` | 任意 | 開発（`DEBUG=True`）で鍵が 2 つとも空の時に、テスト用キーを使うか（既定 `true`）。`false` なら Turnstile は無効になる。鍵を明示した時と Cloud Run 上では効かない |
 | `OPENROUTER_API_KEY` | 任意 | AI バックアップ |

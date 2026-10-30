@@ -56,6 +56,9 @@ DISCORD_CLIENT_ID = os.environ.get('DISCORD_CLIENT_ID', '')
 DISCORD_CLIENT_SECRET = os.environ.get('DISCORD_CLIENT_SECRET', '')
 DISCORD_BOT_CLIENT_ID = os.environ.get('DISCORD_BOT_CLIENT_ID', '')
 DISCORD_BOT_CLIENT_SECRET = os.environ.get('DISCORD_BOT_CLIENT_SECRET', '')
+# 両方が設定された集会だけが Bot 送信の候補。未設定時は従来の Webhook を使う。
+DISCORD_BOT_TOKEN = os.environ.get('DISCORD_BOT_TOKEN', '')
+DISCORD_BOT_DELIVERY_COMMUNITY_IDS = os.environ.get('DISCORD_BOT_DELIVERY_COMMUNITY_IDS', '')
 
 SOCIALACCOUNT_PROVIDERS = {
     'discord': {

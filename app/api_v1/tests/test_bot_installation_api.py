@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from django.core.cache import cache
 from django.db import connection
-from django.test import TestCase, TransactionTestCase, skipUnlessDBFeature
+from django.test import TestCase, TransactionTestCase, override_settings, skipUnlessDBFeature
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -136,6 +136,29 @@ class BotInstallationAPITest(TestCase):
                     self.assertEqual(set(payload), set(self.payload()))
                     self.assertNotIn(webhook, response.content.decode())
                     self.assertNotIn('synthetic-webhook-token', response.content.decode())
+
+    @override_settings(DISCORD_BOT_TOKEN='synthetic-bot-secret')
+    def test_hub_delivery_matches_bot_route_and_falls_back_when_not_eligible(self):
+        with override_settings(DISCORD_BOT_DELIVERY_COMMUNITY_IDS=str(self.community.pk)):
+            self.assertEqual(self.client.get(self.url, {'guild_id': self.guild_id}).json()['hub_delivery'], 'none')
+            configured = self.post_status(notification_channel_id='7' * 18)
+            self.assertEqual(configured.status_code, 200)
+            self.assertEqual(configured.json()['hub_delivery'], 'bot')
+            self.assertFalse(configured.json()['webhook_configured'])
+            self.community.notification_webhook_url = 'https://discord.com/api/webhooks/synthetic/webhook-secret'
+            self.community.save(update_fields=['notification_webhook_url'])
+            response = self.client.get(self.url, {'guild_id': self.guild_id})
+            self.assertEqual(response.json()['hub_delivery'], 'bot')
+            self.assertTrue(response.json()['webhook_configured'])
+            self.assertNotIn(self.community.notification_webhook_url, response.content.decode())
+            for settings in ({'DISCORD_BOT_DELIVERY_COMMUNITY_IDS': ''}, {'DISCORD_BOT_TOKEN': ''}):
+                with self.subTest(settings=list(settings)), override_settings(**settings):
+                    self.assertEqual(self.client.get(self.url, {'guild_id': self.guild_id}).json()['hub_delivery'], 'webhook')
+            # DM 設定、未設定、壊れた ID は共通の選択で Webhook に戻る。
+            for index, channel_id in enumerate((None, '', 'invalid')):
+                with self.subTest(case=index):
+                    BotInstallation.objects.filter(pk=self.installation.pk).update(notification_channel_id=channel_id)
+                    self.assertEqual(self.client.get(self.url, {'guild_id': self.guild_id}).json()['hub_delivery'], 'webhook')
 
     def test_missing_or_removed_installation_is_404(self):
         for guild_id in ('987654321098765432', self.guild_id):
