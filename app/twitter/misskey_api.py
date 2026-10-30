@@ -155,14 +155,17 @@ def _post_api(endpoint: str, *, payload=None, files=None) -> PostTweetResult:
         status_code = response.status_code if response is not None else None
         code = _safe_error_code(response)
         has_http_failure = status_code is not None and 400 <= status_code < 600
+        # 5xx はプロキシの 502/504 などで、上流ではノートが作成済みのことがある。
+        has_server_failure = status_code is not None and status_code >= 500
         unknown_note_result = (
             endpoint == 'notes/create'
             and (
                 (response is not None and status_code is not None and 200 <= status_code < 300)
+                or has_server_failure
                 or (response is None and not _is_pre_send_connection_failure(error))
             )
         )
-        retryable = has_http_failure or (
+        retryable = (has_http_failure and not unknown_note_result) or (
             response is None and _is_pre_send_connection_failure(error)
         )
         if endpoint == 'drive/files/create' and not has_http_failure:

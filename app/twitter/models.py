@@ -96,6 +96,7 @@ class MisskeyNote(models.Model):
 
     STATUS_CHOICES = [
         ('pending', '投稿待ち'),
+        ('sending', '送信中'),
         ('posted', '投稿済み'),
         ('unknown', '結果不明'),
         ('failed', '投稿失敗'),
@@ -111,6 +112,7 @@ class MisskeyNote(models.Model):
     error_message = models.TextField('エラーメッセージ', blank=True)
     attempts = models.PositiveSmallIntegerField('試行回数', default=0)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
 
     class Meta:
         db_table = 'misskey_note'

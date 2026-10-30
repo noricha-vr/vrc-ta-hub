@@ -17,7 +17,7 @@ from twitter.tests._auto_tweet_test_base import AutoTweetTestBase
 from twitter.tests.test_misskey_api import api_response
 
 SUCCESS = {'ok': True, 'data': {'id': 'note-123'}, 'status_code': 200, 'error_body': None}
-FAILURE = {'ok': False, 'data': None, 'status_code': 503, 'error_body': 'unavailable'}
+FAILURE = {'ok': False, 'data': None, 'status_code': 429, 'error_body': 'RATE_LIMIT_EXCEEDED'}
 UNKNOWN = {
     'ok': False, 'data': None, 'status_code': None,
     'error_body': 'UNKNOWN_ERROR', 'retryable': False, 'outcome_unknown': True,
@@ -234,7 +234,48 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         self.process()
         self.assertEqual(self.note_post.call_count, 3)
         self.assertEqual(self.notify.call_count, 3)
-        self.assertIn('503', note.error_message)
+        self.assertIn('429', note.error_message)
+
+    def test_save_failure_after_send_is_not_resent(self):
+        """送信後に結果の保存が失敗しても、送信中のまま残り再送されない。"""
+        note = MisskeyNote.objects.create(tweet_queue=self.queue(status='posted'))
+        original_save = MisskeyNote.save
+
+        def fail_result_save(instance, *args, **kwargs):
+            if instance.status == 'posted':
+                raise OperationalError('db down')
+            return original_save(instance, *args, **kwargs)
+
+        with patch.object(MisskeyNote, 'save', fail_result_save):
+            with self.assertRaises(OperationalError):
+                process_pending_notes(now=self.current)
+        note.refresh_from_db()
+        self.assertEqual(note.status, 'sending')
+
+        process_pending_notes(now=self.current)
+        self.note_post.assert_called_once()
+
+        MisskeyNote.objects.filter(pk=note.pk).update(
+            updated_at=self.current - timedelta(minutes=11),
+        )
+        process_pending_notes(now=self.current)
+        note.refresh_from_db()
+        self.assertEqual(note.status, 'unknown')
+        self.assertIn('自動再送しません', note.error_message)
+        self.note_post.assert_called_once()
+        self.notify.assert_called_once()
+
+    def test_server_error_from_proxy_is_unknown_and_not_retried(self):
+        note = MisskeyNote.objects.create(tweet_queue=self.queue(status='posted'))
+        self.note_patch.stop()
+        response = api_response({}, status=504)
+        response.raise_for_status.side_effect = __import__('requests').HTTPError(response=response)
+        with patch('twitter.misskey_api.requests.post', return_value=response) as http_post:
+            process_pending_notes(now=self.current)
+            process_pending_notes(now=self.current)
+        note.refresh_from_db()
+        self.assertEqual(note.status, 'unknown')
+        self.assertEqual(http_post.call_count, 1)
 
     def test_unexpected_client_exception_is_unknown_and_not_retried(self):
         note = MisskeyNote.objects.create(tweet_queue=self.queue(status='posted'))
@@ -385,7 +426,7 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         webhook.assert_called_once()
         self.assertEqual(webhook.call_args.args[0], 'https://discord.invalid/offline-test')
         self.assertIn('Misskey 投稿に失敗', webhook.call_args.args[1]['content'])
-        self.assertIn('503', str(webhook.call_args.args[1]))
+        self.assertIn('429', str(webhook.call_args.args[1]))
 
     @override_settings(DISCORD_WEBHOOK_URL='https://discord.invalid/offline-test')
     @patch('twitter.notifications.post_discord_webhook')

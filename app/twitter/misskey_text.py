@@ -58,6 +58,8 @@ def _neutralize_search_syntax(text: str) -> str:
 
 def to_misskey_text(text: str) -> str:
     """X アカウントはリンクにし、許可した URL / ハッシュタグ以外の MFM を無害化する。"""
+    # mfm.js は CR も行末として扱うため、検索構文の判定前に LF へそろえる。
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = _neutralize_search_syntax(text)
     text = re.sub(r"（@([A-Za-z0-9_]+)）", r"（https://x.com/\1）", text)
     parts = []

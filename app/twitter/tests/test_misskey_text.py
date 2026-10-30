@@ -132,3 +132,11 @@ class MisskeyTextTest(SimpleTestCase):
             ''.join(character for character in result if character in string.punctuation),
             ''.join(character for character in string.punctuation if character in allowed),
         )
+
+    def test_carriage_return_line_end_does_not_keep_search_syntax(self):
+        for newline in ('\r', '\r\n'):
+            with self.subTest(newline=repr(newline)):
+                result = to_misskey_text(f'foo Search{newline}次の行 検索{newline}')
+                self.assertNotIn('\r', result)
+                self.assertIn('foo \u200bSearch\n', result)
+                self.assertIn('次の行 \u200b検索\n', result)
