@@ -11,12 +11,44 @@ from django.utils.timezone import localtime
 from event.models import EventDetail
 from event.youtube_urls import youtube_video_id
 from website.constants import build_site_url
+from website.discord_delivery import DiscordDelivery, post_discord_bot, select_community_discord_delivery
 from website.discord_webhook import (
     get_webhook_error_context,
     post_discord_webhook,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _post_discord_notification(
+    delivery: DiscordDelivery, payload: dict, community_id: int,
+) -> requests.Response:
+    """選択済みの送り先へ送る。Bot の 403/404 だけ、この通知を Webhook に退避する。"""
+    if delivery.kind == 'bot':
+        try:
+            response = post_discord_bot(delivery.channel_id, payload)
+        except requests.HTTPError as error:
+            _, status_code = get_webhook_error_context(error)
+            if status_code not in (403, 404):
+                raise
+            logger.warning(
+                'discord_bot_delivery_fallback community_id=%s status_code=%s count=1',
+                community_id, status_code,
+                extra={'event_type': 'discord_bot_delivery_fallback', 'community_id': community_id,
+                       'status_code': status_code, 'count': 1},
+            )
+            if not delivery.webhook_url:
+                # 退避先が無い時は送れていないので、呼び出し元の失敗として扱わせる。
+                raise
+        else:
+            logger.info(
+                'discord_bot_delivery_sent community_id=%s status_code=%s count=1',
+                community_id, response.status_code,
+                extra={'event_type': 'discord_bot_delivery_sent', 'community_id': community_id,
+                       'status_code': response.status_code, 'count': 1},
+            )
+            return response
+    return post_discord_webhook(delivery.webhook_url, payload)
 
 
 def _build_absolute_url(url: str) -> str:
@@ -300,14 +332,14 @@ def _send_article_published_email(
 def send_discord_notification_for_article(
     event_detail: EventDetail, edit_url: str, article_url: str
 ) -> bool:
-    """記事の公開を集会の Discord Webhook に知らせる.
+    """記事の公開を集会の Discord に知らせる.
 
     Returns:
         送れなかった時だけ False（送信先が無い時は送る必要が無いので True）。
     """
     community = event_detail.event.community
-    webhook_url = community.notification_webhook_url
-    if not webhook_url:
+    delivery = select_community_discord_delivery(community)
+    if delivery.kind == 'none':
         return True
 
     message = {
@@ -327,9 +359,9 @@ def send_discord_notification_for_article(
     }
 
     try:
-        post_discord_webhook(webhook_url, message)
+        _post_discord_notification(delivery, message, community.pk)
         logger.info(
-            "Discord Webhook通知成功（記事公開）: community_id=%s event_detail_id=%s",
+            "Discord通知成功（記事公開）: community_id=%s event_detail_id=%s",
             community.pk,
             event_detail.pk,
         )
@@ -337,7 +369,7 @@ def send_discord_notification_for_article(
     except Exception as error:
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
-            "Discord Webhook通知エラー（記事公開）: "
+            "Discord通知エラー（記事公開）: "
             "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
             community.pk,
             event_detail.pk,
@@ -353,8 +385,8 @@ def notify_video_article_published(event_detail: EventDetail) -> bool:
     重複を防ぐ担当の取得は ``announce_video_article_if_ready`` が行う（ここは送るだけ）。
     """
     community = event_detail.event.community
-    webhook_url = community.notification_webhook_url
-    if not webhook_url:
+    delivery = select_community_discord_delivery(community)
+    if delivery.kind == 'none':
         return True
 
     article_url = build_site_url(reverse('event:detail', kwargs={'pk': event_detail.pk}))
@@ -385,16 +417,16 @@ def notify_video_article_published(event_detail: EventDetail) -> bool:
         "allowed_mentions": {"parse": []},
     }
     try:
-        post_discord_webhook(webhook_url, message)
+        _post_discord_notification(delivery, message, community.pk)
         logger.info(
-            "Discord Webhook通知成功（動画と記事公開）: community_id=%s event_detail_id=%s",
+            "Discord通知成功（動画と記事公開）: community_id=%s event_detail_id=%s",
             community.pk, event_detail.pk,
         )
         return True
     except Exception as error:
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
-            "Discord Webhook通知エラー（動画と記事公開）: "
+            "Discord通知エラー（動画と記事公開）: "
             "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
             community.pk, event_detail.pk, error_type, status_code,
         )
@@ -473,11 +505,11 @@ def _send_video_article_notice(detail: EventDetail) -> bool:
 def _send_discord_notification_for_new_application(
     event_detail: EventDetail, review_url: str
 ) -> None:
-    """新しい申請のDiscord Webhook通知を送信"""
+    """新しい申請のDiscord通知を送信"""
     community = event_detail.event.community
-    webhook_url = community.notification_webhook_url
+    delivery = select_community_discord_delivery(community)
 
-    if not webhook_url:
+    if delivery.kind == 'none':
         return
 
     # 申請者名を取得
@@ -519,17 +551,16 @@ def _send_discord_notification_for_new_application(
     }
 
     try:
-        response = post_discord_webhook(webhook_url, message)
-        # raise_for_status を通っているので response.ok は常に True
+        response = _post_discord_notification(delivery, message, community.pk)
         logger.info(
-            f"Discord Webhook通知成功（新規申請）: Community={community.name}, "
-            f"status={response.status_code}"
+            "Discord通知成功（新規申請）: community_id=%s event_detail_id=%s status_code=%s",
+            community.pk, event_detail.pk, response.status_code,
         )
     except requests.RequestException as error:
         # gateway で回復できなかった最終失敗のみここに到達する
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
-            "Discord Webhook通知エラー（新規申請、リトライ後）: "
+            "Discord通知エラー（新規申請、リトライ後）: "
             "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
             community.pk,
             event_detail.pk,
@@ -539,7 +570,7 @@ def _send_discord_notification_for_new_application(
     except Exception as error:
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
-            "Discord Webhook通知エラー（新規申請）: "
+            "Discord通知エラー（新規申請）: "
             "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
             community.pk,
             event_detail.pk,
@@ -552,11 +583,11 @@ def _send_discord_notification_for_result(
     event_detail: EventDetail,
     schedule_changes: list[dict[str, str]] | None = None,
 ) -> None:
-    """申請結果のDiscord Webhook通知を送信"""
+    """申請結果のDiscord通知を送信"""
     community = event_detail.event.community
-    webhook_url = community.notification_webhook_url
+    delivery = select_community_discord_delivery(community)
 
-    if not webhook_url:
+    if delivery.kind == 'none':
         return
 
     is_approved = event_detail.status == 'approved'
@@ -609,16 +640,16 @@ def _send_discord_notification_for_result(
     }
 
     try:
-        post_discord_webhook(webhook_url, message)
+        _post_discord_notification(delivery, message, community.pk)
         logger.info(
-            f"Discord Webhook通知成功（申請結果）: Community={community.name}, "
-            f"status={event_detail.status}"
+            "Discord通知成功（申請結果）: community_id=%s event_detail_id=%s",
+            community.pk, event_detail.pk,
         )
     except requests.RequestException as error:
         # gateway で回復できなかった最終失敗のみここに到達する
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
-            "Discord Webhook通知エラー（申請結果、リトライ後）: "
+            "Discord通知エラー（申請結果、リトライ後）: "
             "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
             community.pk,
             event_detail.pk,
@@ -628,7 +659,7 @@ def _send_discord_notification_for_result(
     except Exception as error:
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
-            "Discord Webhook通知エラー（申請結果）: "
+            "Discord通知エラー（申請結果）: "
             "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
             community.pk,
             event_detail.pk,
@@ -640,8 +671,8 @@ def _send_discord_notification_for_result(
 def notify_speaker_account_linked(event_detail: EventDetail, user) -> None:
     """発表へのアカウント紐づけを集会のDiscordへ通知する。"""
     community = event_detail.event.community
-    webhook_url = community.notification_webhook_url
-    if not webhook_url:
+    delivery = select_community_discord_delivery(community)
+    if delivery.kind == 'none':
         return
 
     # user_name の unique 制約解除で同名ユーザーが存在し得るため、登録日を添えて誤認を防ぐ。
@@ -655,11 +686,11 @@ def notify_speaker_account_linked(event_detail: EventDetail, user) -> None:
         "allowed_mentions": {"parse": []},
     }
     try:
-        post_discord_webhook(webhook_url, payload)
+        _post_discord_notification(delivery, payload, community.pk)
     except Exception as error:
         error_type, status_code = get_webhook_error_context(error)
         logger.warning(
-            "Discord Webhook通知エラー（発表者紐づけ）: "
+            "Discord通知エラー（発表者紐づけ）: "
             "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
             community.pk,
             event_detail.pk,
@@ -669,11 +700,11 @@ def notify_speaker_account_linked(event_detail: EventDetail, user) -> None:
 
 
 def notify_slide_material_published(event_detail: EventDetail) -> None:
-    """資料公開時のDiscord Webhook通知を送信する."""
+    """資料公開時のDiscord通知を送信する."""
     community = event_detail.event.community
-    webhook_url = community.notification_webhook_url
+    delivery = select_community_discord_delivery(community)
 
-    if not webhook_url:
+    if delivery.kind == 'none':
         return
 
     detail_url = build_site_url(reverse('event:detail', kwargs={'pk': event_detail.pk}))
@@ -726,17 +757,17 @@ def notify_slide_material_published(event_detail: EventDetail) -> None:
     }
 
     try:
-        post_discord_webhook(webhook_url, message)
+        _post_discord_notification(delivery, message, community.pk)
         logger.info(
-            "Discord Webhook通知成功（資料公開）: Community=%s, EventDetail=%s",
-            community.name,
+            "Discord通知成功（資料公開）: community_id=%s event_detail_id=%s",
+            community.pk,
             event_detail.pk,
         )
     except requests.RequestException as error:
         # gateway で回復できなかった最終失敗のみここに到達する
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
-            "Discord Webhook通知エラー（資料公開、リトライ後）: "
+            "Discord通知エラー（資料公開、リトライ後）: "
             "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
             community.pk,
             event_detail.pk,
@@ -746,7 +777,7 @@ def notify_slide_material_published(event_detail: EventDetail) -> None:
     except Exception as error:
         error_type, status_code = get_webhook_error_context(error)
         logger.error(
-            "Discord Webhook通知エラー（資料公開）: "
+            "Discord通知エラー（資料公開）: "
             "community_id=%s event_detail_id=%s error_type=%s status_code=%s",
             community.pk,
             event_detail.pk,

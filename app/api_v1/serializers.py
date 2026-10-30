@@ -9,6 +9,7 @@ from community.constants import WEEKDAY_JP, WEEKDAY_ORDER as WEEKDAY_SORT_ORDER
 from community.models import BotInstallation, Community, CommunityMember
 from event.models import Event, EventDetail, RecurrenceRule, article_generation_request_values
 from event.youtube_urls import youtube_video_id
+from website.discord_delivery import select_community_discord_delivery
 
 
 def _extract_group_id(group_url):
@@ -51,9 +52,9 @@ class BotInstallationSerializer(serializers.ModelSerializer):
     def get_webhook_configured(self, obj) -> bool:
         return bool(obj.community.notification_webhook_url)
 
-    @extend_schema_field(serializers.ChoiceField(choices=['webhook', 'none']))
+    @extend_schema_field(serializers.ChoiceField(choices=['bot', 'webhook', 'none']))
     def get_hub_delivery(self, obj):
-        return 'webhook' if self.get_webhook_configured(obj) else 'none'
+        return select_community_discord_delivery(obj.community).kind
 
     class Meta:
         model = BotInstallation

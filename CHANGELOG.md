@@ -9,6 +9,8 @@
 
 ## [Unreleased]
 
+- 許可した集会の発表申請・申請結果・記事公開・動画と記事公開・アカウント紐づけ・資料公開の通知を、Discord Bot から送れるようにしました。`DISCORD_BOT_TOKEN` と `DISCORD_BOT_DELIVERY_COMMUNITY_IDS` を設定し、Bot の通知先チャンネルの設定が完了すると切り替わります。未設定なら従来どおり Webhook を使い、Bot の 403/404 の時だけその通知を Webhook に退避します。導入記録 API の `hub_delivery` に `bot` を追加しました (#872)。
+
 - Discord Bot の導入状態更新 API で通知先チャンネル ID を保存できるようにしました。設定完了時は省略すると現在の値を保持し、取り外し時は消去します。導入記録 API は通知先チャンネル ID と Webhook の設定有無（`webhook_configured`）、Hub の送信経路（`hub_delivery`: `webhook` / `none`）も返します。Webhook URL は返しません (#871)。
 
 - 公開の発表一覧 API（`/api/v1/event_detail/`）が、発表ページで公開している資料の PDF（`slide_file`）の URL を返すようにしました。資料が無い発表は `null` です。外部のツールが、資料がもう登録済みかを確かめられます。
