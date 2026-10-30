@@ -22,7 +22,9 @@ SCHEDULE_EXPIRY_HOURS = 24
 def _log_post(note: MisskeyNote, http_status=None) -> None:
     """本文や認証値を含めず投稿結果を集計可能にする。"""
     log = logger.error if note.status == 'failed' else (
-        logger.warning if note.error_message and note.status == 'pending' else logger.info
+        logger.warning if note.status == 'unknown' or (
+            note.error_message and note.status == 'pending'
+        ) else logger.info
     )
     log(
         'misskey_post', queue_id=note.tweet_queue_id,
@@ -67,17 +69,30 @@ def process_pending_notes(*, now=None) -> None:
                     to_misskey_text(queue_item.generated_text), image_url=queue_item.image_url or None,
                 )
             except Exception as error:
-                # 予期しないクライアント例外も試行上限に含め、X の結果には影響させない。
+                # 送信前か送信後か判定できない例外は、重複防止のため結果不明にする。
                 logger.error('Misskey client raised exception', error_type=type(error).__name__)
-                result = _failure_result(error_body='Misskey クライアントで例外が発生')
+                result = {
+                    **_failure_result(error_body='Misskey クライアントで例外が発生'),
+                    'retryable': False,
+                    'outcome_unknown': True,
+                }
             note.attempts += 1
             if result['ok']:
                 note.status = 'posted'
                 note.note_id = result['data']['id']
                 note.posted_at = current
                 note.error_message = ''
+            elif result.get('outcome_unknown'):
+                note.status = 'unknown'
+                note.error_message = 'Misskey 投稿の結果が不明です。重複防止のため自動再送しません。'
             else:
-                note.status = 'failed' if note.attempts >= MAX_ATTEMPTS else 'pending'
+                retryable = result.get('retryable')
+                if retryable is None:
+                    status_code = result.get('status_code')
+                    retryable = status_code is not None and 400 <= status_code < 600
+                note.status = (
+                    'pending' if retryable and note.attempts < MAX_ATTEMPTS else 'failed'
+                )
                 note.error_message = (
                     f"Misskey 投稿に失敗 (status={result.get('status_code')}): "
                     f"{(result.get('error_body') or '')[:300]}"

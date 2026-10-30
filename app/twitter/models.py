@@ -97,6 +97,7 @@ class MisskeyNote(models.Model):
     STATUS_CHOICES = [
         ('pending', '投稿待ち'),
         ('posted', '投稿済み'),
+        ('unknown', '結果不明'),
         ('failed', '投稿失敗'),
         ('skipped', 'スキップ'),
     ]

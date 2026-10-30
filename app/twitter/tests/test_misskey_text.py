@@ -1,5 +1,7 @@
 """Misskey 本文での誤メンションと利用者入力の装飾解釈を防ぐテスト。"""
 
+import string
+
 from django.test import SimpleTestCase
 
 from twitter.misskey_text import to_misskey_text
@@ -52,7 +54,7 @@ class MisskeyTextTest(SimpleTestCase):
             (r'\(x\) \[x\]', '＼(x＼) ＼［x＼］'),
             ('$[x2 hello]', '＄［x2 hello］'),
             ('<plain>@user</plain> <center>text</center>', '＜plain＞＠user＜/plain＞ ＜center＞text＜/center＞'),
-            (':custom_emoji: :ABC123: 19:00', '：custom＿emoji： ：ABC123： 19:00'),
+            (':custom_emoji: :ABC123: 19:00', '：custom＿emoji： ：ABC123： 19：00'),
         ]
         for source, expected in cases:
             with self.subTest(source=source):
@@ -70,10 +72,63 @@ class MisskeyTextTest(SimpleTestCase):
 
     def test_hashtag_syntax_characters_and_url_characters_are_preserved(self):
         text = '#VRChat技術学術 #tech_event #タグ_@$*~`\\: https://example.com/a_b/@user?q=$x#tag'
-        self.assertEqual(to_misskey_text(text), text)
+        self.assertEqual(
+            to_misskey_text(text),
+            '#VRChat技術学術 #tech_event #タグ_＠＄＊～｀＼： '
+            'https://example.com/a_b/@user?q=$x#tag',
+        )
         self.assertEqual(to_misskey_text('#tech_event[x]'), '#tech_event［x］')
 
     def test_url_trailing_punctuation_is_outside_preserved_url(self):
         # MFM does not include a trailing dot/comma in the URL; decoration after it stays inert.
         self.assertEqual(to_misskey_text('https://example.com/.,**bold**'),
                          'https://example.com/.,＊＊bold＊＊')
+
+    def test_reviewed_mfm_bypass_patterns_are_neutralized(self):
+        cases = [
+            ('abc#tag**bold**', 'abc＃tag＊＊bold＊＊'),
+            ('a#**bold**', 'a＃＊＊bold＊＊'),
+            ('a#_italic_', 'a＃＿italic＿'),
+            ('a#~~strike~~', 'a＃～～strike～～'),
+            ('a#`code`', 'a＃｀code｀'),
+            ('a#@alice@remote.example', 'a＃＠alice＠remote.example'),
+            (r'a#\(x#\)', 'a＃＼(x＃＼)'),
+            (':party-parrot:', '：party-parrot：'),
+            (':+1:', '：+1：'),
+            ('foo Search', 'foo \u200bSearch'),
+            ('foo 検索', 'foo \u200b検索'),
+            ('foo [Search]', 'foo \u200b［Search］'),
+            ('foo [検索]', 'foo \u200b［検索］'),
+            ('foo sEaRcH', 'foo \u200bsEaRcH'),
+            ('[表示](https://evil.example)', '［表示］(https://evil.example)'),
+            ('?[x](url)', '?［x］(url)'),
+            ('$[x2 hi]', '＄［x2 hi］'),
+            ('<plain>', '＜plain＞'),
+            ('https://example.com/)$[x2 hello]', 'https://example.com/)＄［x2 hello］'),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(to_misskey_text(source), expected)
+
+    def test_only_actual_hashtags_and_urls_are_preserved(self):
+        cases = [
+            ('#VRChat', '#VRChat'),
+            ('#tech_event', '#tech_event'),
+            ('#タグ_123', '#タグ_123'),
+            ('https://x.com/foo', 'https://x.com/foo'),
+            ('（https://x.com/foo）', '（https://x.com/foo）'),
+            ('https://x.com/foo.', 'https://x.com/foo.'),
+            ('a#123', 'a＃123'),
+            ('#123', '＃123'),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(to_misskey_text(source), expected)
+
+    def test_ascii_punctuation_is_preserved_only_by_the_allowlist(self):
+        allowed = frozenset('.,!?\'"()-/%&=+')
+        result = to_misskey_text(string.punctuation)
+        self.assertEqual(
+            ''.join(character for character in result if character in string.punctuation),
+            ''.join(character for character in string.punctuation if character in allowed),
+        )

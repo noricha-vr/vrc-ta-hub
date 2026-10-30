@@ -7,7 +7,7 @@ OAuth 1.0a User Context で @vrc_ta_hub 公式アカウントにツイートを�
 import json
 import logging
 import os
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 import requests
 from requests_oauthlib import OAuth1
@@ -29,6 +29,8 @@ class PostTweetResult(TypedDict):
     data: dict | None
     status_code: int | None
     error_body: str | None
+    retryable: NotRequired[bool]
+    outcome_unknown: NotRequired[bool]
 
 
 def _failure_result(status_code: int | None = None, error_body: str | None = None) -> PostTweetResult:

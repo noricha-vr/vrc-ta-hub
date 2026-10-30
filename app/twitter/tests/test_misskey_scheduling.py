@@ -18,6 +18,10 @@ from twitter.tests.test_misskey_api import api_response
 
 SUCCESS = {'ok': True, 'data': {'id': 'note-123'}, 'status_code': 200, 'error_body': None}
 FAILURE = {'ok': False, 'data': None, 'status_code': 503, 'error_body': 'unavailable'}
+UNKNOWN = {
+    'ok': False, 'data': None, 'status_code': None,
+    'error_body': 'UNKNOWN_ERROR', 'retryable': False, 'outcome_unknown': True,
+}
 ENV = {
     'MISSKEY_TOKEN': 'test-misskey-token', 'MISSKEY_HOST': 'misskey.io',
     'MISSKEY_VISIBILITY': 'public', 'MISSKEY_API_ALLOW_TEST_CALLS': '1',
@@ -189,6 +193,24 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         )
         self.notify.assert_called_once_with(queue, FAILURE)
 
+    def test_unknown_result_is_saved_not_retried_and_notified_for_manual_check(self):
+        queue = self.queue()
+        self.note_post.return_value = UNKNOWN
+
+        self.process()
+        self.process()
+
+        note = queue.misskey_note
+        note.refresh_from_db()
+        queue.refresh_from_db()
+        self.assertEqual(note.status, 'unknown')
+        self.assertEqual(note.get_status_display(), '結果不明')
+        self.assertEqual(note.attempts, 1)
+        self.assertIn('自動再送しません', note.error_message)
+        self.assertEqual(queue.status, 'posted')
+        self.note_post.assert_called_once()
+        self.notify.assert_called_once_with(queue, UNKNOWN)
+
     def test_misskey_retry_continues_without_x_ready_queue(self):
         queue = self.queue(status='failed')
         note = MisskeyNote.objects.create(tweet_queue=queue, attempts=1, error_message='old error')
@@ -214,14 +236,15 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         self.assertEqual(self.notify.call_count, 3)
         self.assertIn('503', note.error_message)
 
-    def test_client_exception_also_counts_towards_limit(self):
+    def test_unexpected_client_exception_is_unknown_and_not_retried(self):
         note = MisskeyNote.objects.create(tweet_queue=self.queue(status='posted'))
         self.note_post.side_effect = RuntimeError('unexpected')
         for _ in range(3):
             self.process()
         note.refresh_from_db()
-        self.assertEqual(note.status, 'failed')
-        self.assertEqual(note.attempts, 3)
+        self.assertEqual(note.status, 'unknown')
+        self.assertEqual(note.attempts, 1)
+        self.note_post.assert_called_once()
 
     def test_pending_expires_after_24_hours_even_when_x_failed(self):
         note = MisskeyNote.objects.create(tweet_queue=self.queue(
@@ -363,6 +386,15 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         self.assertEqual(webhook.call_args.args[0], 'https://discord.invalid/offline-test')
         self.assertIn('Misskey 投稿に失敗', webhook.call_args.args[1]['content'])
         self.assertIn('503', str(webhook.call_args.args[1]))
+
+    @override_settings(DISCORD_WEBHOOK_URL='https://discord.invalid/offline-test')
+    @patch('twitter.notifications.post_discord_webhook')
+    def test_unknown_result_notification_requires_manual_check(self, webhook):
+        notify_misskey_post_failure(self.queue(), UNKNOWN)
+        message = webhook.call_args.args[1]
+        self.assertIn('投稿結果が不明', message['content'])
+        self.assertIn('投稿されたか手動で確認してください', message['content'])
+        self.assertIn('投稿結果不明', message['embeds'][0]['title'])
 
     @override_settings(DISCORD_WEBHOOK_URL='')
     @patch('twitter.notifications.post_discord_webhook')

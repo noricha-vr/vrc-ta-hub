@@ -31,10 +31,26 @@ def notify_tweet_post_failure(queue_item, result: PostTweetResult) -> None:
 
 def notify_misskey_post_failure(queue_item, result: PostTweetResult) -> None:
     """Misskey 投稿失敗を既存の Admin Discord Webhook へ通知する。"""
-    _notify_post_failure(queue_item, result, failure_message='Misskey 投稿に失敗しました')
+    if result.get('outcome_unknown'):
+        _notify_post_failure(
+            queue_item,
+            result,
+            failure_message='Misskey の投稿結果が不明です。投稿されたか手動で確認してください',
+            status_title='投稿結果不明',
+            icon='⚠️',
+        )
+    else:
+        _notify_post_failure(queue_item, result, failure_message='Misskey 投稿に失敗しました')
 
 
-def _notify_post_failure(queue_item, result: PostTweetResult, *, failure_message: str) -> None:
+def _notify_post_failure(
+    queue_item,
+    result: PostTweetResult,
+    *,
+    failure_message: str,
+    status_title: str = '投稿失敗',
+    icon: str = '❌',
+) -> None:
     """投稿先ごとの失敗通知に共通の本文とエラー項目を組み立てる。"""
     webhook_url = getattr(settings, "DISCORD_WEBHOOK_URL", "")
     if not webhook_url:
@@ -62,9 +78,9 @@ def _notify_post_failure(queue_item, result: PostTweetResult, *, failure_message
     ]
 
     message = {
-        "content": f"❌ **{failure_message}** (queue #{queue_item.pk})",
+        "content": f"{icon} **{failure_message}** (queue #{queue_item.pk})",
         "embeds": [{
-            "title": f"投稿失敗: {queue_item.get_tweet_type_display()}",
+            "title": f"{status_title}: {queue_item.get_tweet_type_display()}",
             "description": f"```\n{tweet_text}\n```",
             "color": COLOR_RED,
             "fields": fields,

@@ -109,6 +109,19 @@ class MisskeyApiTest(SimpleTestCase):
         self.post.assert_not_called()
 
     @override_settings(TESTING=False)
+    @patch.dict('os.environ', {'MISSKEY_API_ALLOW_TEST_CALLS': ''})
+    def test_loaded_pytest_or_unittest_runner_blocks_calls(self):
+        for module_name in ('pytest', 'unittest.main', 'unittest.runner'):
+            with self.subTest(module_name=module_name), patch.dict(
+                'sys.modules', {module_name: object()},
+            ):
+                self.assertFalse(post_note('告知')['ok'])
+                self.assertFalse(upload_file(IMAGE_URL)['ok'])
+                self.assertFalse(_post_api('notes/create', payload={'text': '告知'})['ok'])
+        self.get.assert_not_called()
+        self.post.assert_not_called()
+
+    @override_settings(TESTING=False)
     @patch('sys.argv', ['manage.py', 'test', 'twitter'])
     def test_explicit_test_allowance_still_permits_mocked_calls(self):
         self.post.side_effect = [api_response({'id': 'file-1'}),
@@ -146,6 +159,8 @@ class MisskeyApiTest(SimpleTestCase):
         self.assertFalse(result['ok'])
         self.assertEqual(result['status_code'], 429)
         self.assertEqual(result['error_body'], 'RATE_LIMIT_EXCEEDED')
+        self.assertTrue(result['retryable'])
+        self.assertFalse(result['outcome_unknown'])
         self.assertIn('RATE_LIMIT_EXCEEDED', ''.join(logs.output))
         self.assertNotIn('先頭', str(result) + ''.join(logs.output))
         self.assertNotIn('LOG_TAIL', ''.join(logs.output))
@@ -192,20 +207,54 @@ class MisskeyApiTest(SimpleTestCase):
 
     def test_timeout_is_a_failure_result(self):
         self.post.side_effect = requests.Timeout('timeout')
-        self.assertFalse(post_note('告知')['ok'])
+        result = post_note('告知')
+        self.assertFalse(result['ok'])
+        self.assertFalse(result['retryable'])
+        self.assertTrue(result['outcome_unknown'])
+
+    def test_connect_timeout_and_name_resolution_failure_are_retryable(self):
+        self.post.side_effect = requests.ConnectTimeout('connection timed out')
+        connect_timeout = post_note('告知')
+        self.assertFalse(connect_timeout['ok'])
+        self.assertTrue(connect_timeout['retryable'])
+        self.assertFalse(connect_timeout['outcome_unknown'])
+
+        class NameResolutionError(Exception):
+            pass
+
+        self.post.side_effect = requests.ConnectionError(NameResolutionError('name lookup failed'))
+        name_resolution = post_note('告知')
+        self.assertFalse(name_resolution['ok'])
+        self.assertTrue(name_resolution['retryable'])
+        self.assertFalse(name_resolution['outcome_unknown'])
+
+    def test_connection_loss_after_request_is_unknown_and_not_retryable(self):
+        self.post.side_effect = requests.ConnectionError('remote disconnected')
+        result = post_note('告知')
+        self.assertFalse(result['ok'])
+        self.assertFalse(result['retryable'])
+        self.assertTrue(result['outcome_unknown'])
 
     def test_malformed_success_response_is_a_failure(self):
         for data in ({}, {'createdNote': {}}, {'createdNote': []}, [], None):
             with self.subTest(data=data):
                 self.post.return_value = api_response(data)
-                self.assertFalse(post_note('告知')['ok'])
+                result = post_note('告知')
+                self.assertFalse(result['ok'])
+                self.assertFalse(result['retryable'])
+                self.assertTrue(result['outcome_unknown'])
         self.post.return_value = api_response({})
         self.post.return_value.json.side_effect = ValueError('bad json')
-        self.assertFalse(post_note('告知')['ok'])
+        result = post_note('告知')
+        self.assertFalse(result['ok'])
+        self.assertTrue(result['outcome_unknown'])
 
     def test_redirect_response_is_not_treated_as_success(self):
         self.post.return_value = api_response({'createdNote': {'id': 'wrong'}}, status=302)
-        self.assertFalse(post_note('告知')['ok'])
+        result = post_note('告知')
+        self.assertFalse(result['ok'])
+        self.assertFalse(result['retryable'])
+        self.assertFalse(result['outcome_unknown'])
 
     def test_upload_failure_does_not_create_text_only_note(self):
         response = api_response({}, status=500)
@@ -213,6 +262,15 @@ class MisskeyApiTest(SimpleTestCase):
         self.post.return_value = response
         self.assertFalse(post_note('告知', IMAGE_URL)['ok'])
         self.post.assert_called_once()
+        self.assertIn('drive/files/create', self.post.call_args.args[0])
+
+    def test_upload_response_loss_is_retryable_without_creating_text_only_note(self):
+        self.post.side_effect = requests.Timeout('upload response lost')
+        result = post_note('告知', IMAGE_URL)
+        self.assertFalse(result['ok'])
+        self.assertTrue(result['retryable'])
+        self.assertFalse(result['outcome_unknown'])
+        self.assertEqual(self.post.call_count, 1)
         self.assertIn('drive/files/create', self.post.call_args.args[0])
 
     def test_untrusted_image_domain_is_rejected(self):
