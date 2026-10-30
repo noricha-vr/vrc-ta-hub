@@ -7,6 +7,7 @@ from django.test import SimpleTestCase
 from PIL import Image
 
 from news import thumbnail_generator as generator
+from news.thumbnail_specs import CATEGORY_THUMBNAIL_SPECS, RICH_POST_THUMBNAIL_SPECS
 
 WRAP_WIDTH = generator.CONTENT_WIDTH
 SAMPLE_ACCENT = "#1B7DE6"
@@ -178,3 +179,18 @@ class KatakanaTokenizeTest(SimpleTestCase):
         self.assertIn("リニューアル", tokens)
         self.assertIn("Hub", tokens)
         self.assertNotIn("リ", tokens)
+
+
+class BuildJobsTestCase(SimpleTestCase):
+    def test_rich_images_are_never_text_generation_targets(self):
+        """--force でもリッチ版を文字だけの生成器で上書きしない"""
+        jobs = generator.build_jobs()
+        rich_filenames = {spec.filename for spec in RICH_POST_THUMBNAIL_SPECS}
+        rich_slugs = {spec.slug for spec in RICH_POST_THUMBNAIL_SPECS}
+        self.assertTrue(rich_filenames.isdisjoint(job.filename for job in jobs))
+        self.assertTrue(rich_slugs.isdisjoint(job.name for job in jobs))
+        self.assertEqual(
+            {job.filename for job in jobs},
+            {spec.filename for spec in CATEGORY_THUMBNAIL_SPECS},
+        )
+        self.assertEqual(len(jobs), 2)

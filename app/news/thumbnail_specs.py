@@ -1,4 +1,4 @@
-"""お知らせ記事の生成サムネイル定義。
+"""お知らせ記事のサムネイル定義。
 
 `scripts/generate_news_thumbnails.py`（生成）と `news.models`（配信）が共有する
 唯一の定義元。Django に依存しないので、Django セットアップ無しで import できる。
@@ -6,8 +6,8 @@
 運用ルール:
 - 画像は `app/news/static/news/images/og/` に置き、static は manifest ハッシュ無しで
   CDN にキャッシュされる。作り直す時は必ず filename の `-vN` を上げる。
-- DB で記事タイトルを改題しても画像は変わらない。ここの `title` を直し、
-  filename を `-v2` に上げて再生成する。
+- リッチ版と文字だけの生成定義を分離し、文字画像の再生成でリッチ版を上書きしない。
+- DB で記事タイトルを改題しても画像は変わらない。画像も直し、filename の版を上げる。
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ CATEGORY_LABELS: dict[str, str] = {
 
 @dataclass(frozen=True)
 class PostThumbnailSpec:
-    """1 記事ぶんの生成サムネイル定義。"""
+    """文字だけの生成器で描く 1 記事ぶんの定義。"""
 
     slug: str
     title: str
@@ -49,64 +49,34 @@ class CategoryThumbnailSpec:
     filename: str
 
 
-POST_THUMBNAIL_SPECS: tuple[PostThumbnailSpec, ...] = (
-    PostThumbnailSpec(
-        slug="2025-01-10-ui-improvements",
-        title="サイトのUI/UX改善とGoogleカレンダー連携機能を追加しました",
-        category_slug="update",
-        filename="2025-01-10-ui-improvements-v1.png",
-    ),
-    PostThumbnailSpec(
-        slug="fix-google-calendar-sync-bug",
-        title="Googleカレンダー同期の不具合を修正しました",
-        category_slug="update",
-        filename="fix-google-calendar-sync-bug-v1.png",
-    ),
-    PostThumbnailSpec(
-        slug="change-day-cutoff-to-4am",
-        title="開催日程とトップページの切替時刻を午前4時に変更",
-        category_slug="update",
-        filename="change-day-cutoff-to-4am-v1.png",
-    ),
-    PostThumbnailSpec(
-        slug="event-info-asset",
-        title="技術・学術系イベント情報アセット",
-        category_slug="activity",
-        filename="event-info-asset-v1.png",
-    ),
-    PostThumbnailSpec(
-        slug="event-guide-book",
-        title="VRC 技術・学術イベントガイド 本",
-        category_slug="activity",
-        filename="event-guide-book-v1.png",
-    ),
-    PostThumbnailSpec(
-        slug="website-management",
-        title="Webサイトの制作・運営",
-        category_slug="activity",
-        filename="website-management-v1.png",
-    ),
-    PostThumbnailSpec(
-        slug="2025-07-04-vket-week-announcement",
-        title=(
-            "VRC技術・学術系イベントHUB × Vketステージ コラボ"
-            "【Vket技術学術WEEK】開催決定！"
-        ),
-        category_slug="activity",
-        filename="2025-07-04-vket-week-announcement-v1.png",
-    ),
-    PostThumbnailSpec(
-        slug="2026-10-11-auto-recording-beta",
-        title="発表の撮影と公開を始めます（ベータ版）",
-        category_slug="update",
-        filename="2026-10-11-auto-recording-beta-v2.png",
-    ),
-    PostThumbnailSpec(
-        slug="2026-09-17-presentation-list-redesign",
-        title="発表一覧をブログ形式にリニューアルしました",
-        category_slug="update",
-        filename="2026-09-17-presentation-list-redesign-v2.png",
-    ),
+# 文字だけの生成器が描く記事。リッチ版はここへ追加しない。
+POST_THUMBNAIL_SPECS: tuple[PostThumbnailSpec, ...] = ()
+
+
+@dataclass(frozen=True)
+class RichPostThumbnailSpec:
+    """別工程で制作したリッチ版。文字だけの生成器では描画しない。"""
+
+    slug: str
+    filename: str
+    prefer_over_upload: bool = False
+
+
+RICH_POST_THUMBNAIL_SPECS: tuple[RichPostThumbnailSpec, ...] = (
+    RichPostThumbnailSpec("2025-01-10-ui-improvements", "2025-01-10-ui-improvements-v2.jpg"),
+    RichPostThumbnailSpec("fix-google-calendar-sync-bug", "fix-google-calendar-sync-bug-v2.jpg"),
+    RichPostThumbnailSpec("change-day-cutoff-to-4am", "change-day-cutoff-to-4am-v2.jpg"),
+    RichPostThumbnailSpec("event-info-asset", "event-info-asset-v2.jpg"),
+    RichPostThumbnailSpec("event-guide-book", "event-guide-book-v2.jpg"),
+    RichPostThumbnailSpec("website-management", "website-management-v2.jpg"),
+    RichPostThumbnailSpec("2025-07-04-vket-week-announcement", "2025-07-04-vket-week-announcement-v2.jpg"),
+    RichPostThumbnailSpec("2026-10-11-auto-recording-beta", "2026-10-11-auto-recording-beta-v3.jpg"),
+    RichPostThumbnailSpec("2026-09-17-presentation-list-redesign", "2026-09-17-presentation-list-redesign-v3.jpg"),
+    RichPostThumbnailSpec("vket-2026-summer", "vket-2026-summer-video-archive-v2.jpg"),
+    RichPostThumbnailSpec("2026-10-31-misskey-account", "2026-10-31-misskey-account-v1.jpg", prefer_over_upload=True),
+    RichPostThumbnailSpec("vket-2025-summer", "vket-2025-summer-v1.jpg", prefer_over_upload=True),
+    RichPostThumbnailSpec("vket-2025-winter", "vket-2025-winter-v1.jpg", prefer_over_upload=True),
+    RichPostThumbnailSpec("vrchat-nyumon-2025", "vrchat-nyumon-2025-v1.jpg", prefer_over_upload=True),
 )
 
 
@@ -125,7 +95,7 @@ CATEGORY_THUMBNAIL_SPECS: tuple[CategoryThumbnailSpec, ...] = (
 
 
 def static_path(filename: str) -> str:
-    """static 相対パス（`news/images/og/xxx.png`）を返す。"""
+    """static 相対パス（`news/images/og/xxx.jpg` など）を返す。"""
     return f"{STATIC_SUBDIR}/{filename}"
 
 
@@ -141,7 +111,10 @@ def label_for(category_slug: str) -> str:
 
 def build_slug_map() -> dict[str, str]:
     """記事 slug -> static 相対パス のマップを返す。"""
-    return {spec.slug: static_path(spec.filename) for spec in POST_THUMBNAIL_SPECS}
+    return {
+        spec.slug: static_path(spec.filename)
+        for spec in (*POST_THUMBNAIL_SPECS, *RICH_POST_THUMBNAIL_SPECS)
+    }
 
 
 def build_category_map() -> dict[str, str]:

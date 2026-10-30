@@ -342,7 +342,7 @@ class ThumbnailJob:
 
 
 def build_jobs() -> list[ThumbnailJob]:
-    """記事 7 枚 + カテゴリ既定 2 枚の生成指示を返す。"""
+    """文字だけの記事定義とカテゴリ既定の生成指示を返す（リッチ版は対象外）。"""
     jobs = [
         ThumbnailJob(
             name=spec.slug,
