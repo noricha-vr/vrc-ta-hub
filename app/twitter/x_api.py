@@ -8,11 +8,15 @@ import json
 import logging
 import os
 from typing import TypedDict
-from urllib.parse import urlparse
 
 import requests
 from requests_oauthlib import OAuth1
 
+from twitter.image_download import (
+    MAX_IMAGE_SIZE,  # noqa: F401 - 既存の import との互換性
+    _is_valid_image_bytes,  # noqa: F401
+    download_image,
+)
 from twitter.tweet_generator import validate_tweet_text
 
 logger = logging.getLogger(__name__)
@@ -38,30 +42,6 @@ X_API_TWEET_URL = "https://api.x.com/2/tweets"
 X_MEDIA_UPLOAD_URL = "https://upload.twitter.com/1.1/media/upload.json"
 REQUEST_TIMEOUT_SECONDS = 30
 MEDIA_UPLOAD_TIMEOUT_SECONDS = 60
-MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5MB (X API の上限)
-ALLOWED_IMAGE_DOMAINS = frozenset({"data.vrc-ta-hub.com"})
-IMAGE_DOWNLOAD_CHUNK_SIZE = 8192
-
-# Content-Type ヘッダー偽装による任意バイナリ送信を防ぐため、
-# ダウンロード後にファイル先頭バイトで実画像形式を再検証する。
-IMAGE_MAGIC_BYTES = [
-    b"\x89PNG\r\n\x1a\n",  # PNG
-    b"\xff\xd8\xff",        # JPEG
-    b"GIF87a",
-    b"GIF89a",
-]
-
-
-def _is_valid_image_bytes(data: bytes) -> bool:
-    """ファイル先頭バイトで画像形式を検証 (SSRF/任意バイナリ防止)"""
-    if any(data.startswith(magic) for magic in IMAGE_MAGIC_BYTES):
-        return True
-    # WebP は RIFF....WEBP の特殊形式
-    if len(data) >= 12 and data[0:4] == b"RIFF" and data[8:12] == b"WEBP":
-        return True
-    return False
-
-
 # ログに出す X API エラー body の上限（UTF-8 バイト数）。全量（1000B）出力はトークン・
 # ユーザー入力を含みうるうえログを膨らませるため、原因特定に必要な先頭部分 + errorCode
 # だけに絞る。日本語・絵文字を含む body でも上限を超えないよう文字数ではなくバイト数で切る。
@@ -169,32 +149,11 @@ def upload_media(image_url: str) -> str | None:
     if not auth:
         return None
 
-    # SSRF防止: 許可ドメインチェック
-    parsed = urlparse(image_url)
-    if parsed.hostname not in ALLOWED_IMAGE_DOMAINS:
-        logger.warning("Blocked image download from untrusted domain: %s", parsed.hostname)
-        return None
-
     try:
-        # stream で読み込み、サイズ制限を強制
-        image_response = requests.get(image_url, timeout=REQUEST_TIMEOUT_SECONDS, stream=True)
-        image_response.raise_for_status()
-
-        chunks = []
-        downloaded = 0
-        for chunk in image_response.iter_content(chunk_size=IMAGE_DOWNLOAD_CHUNK_SIZE):
-            downloaded += len(chunk)
-            if downloaded > MAX_IMAGE_SIZE:
-                logger.warning("Image exceeded max size: %d bytes", downloaded)
-                return None
-            chunks.append(chunk)
-
-        image_data = b"".join(chunks)
-        # Content-Type ヘッダーは送信側で偽装可能なため、magic bytes で実体を再検証する
-        if not _is_valid_image_bytes(image_data):
-            logger.warning("Invalid image magic bytes")
+        image = download_image(image_url, log=logger)
+        if image is None:
             return None
-        content_type = image_response.headers.get('Content-Type', 'image/png')
+        image_data, content_type = image
 
         response = requests.post(
             X_MEDIA_UPLOAD_URL,

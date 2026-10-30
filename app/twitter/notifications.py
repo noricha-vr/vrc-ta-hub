@@ -26,6 +26,16 @@ def notify_tweet_post_failure(queue_item, result: PostTweetResult) -> None:
     ツイート本文を description に含めて送る。
     settings.DISCORD_WEBHOOK_URL が未設定の場合は何もしない。
     """
+    _notify_post_failure(queue_item, result, failure_message='X投稿に失敗しました')
+
+
+def notify_misskey_post_failure(queue_item, result: PostTweetResult) -> None:
+    """Misskey 投稿失敗を既存の Admin Discord Webhook へ通知する。"""
+    _notify_post_failure(queue_item, result, failure_message='Misskey 投稿に失敗しました')
+
+
+def _notify_post_failure(queue_item, result: PostTweetResult, *, failure_message: str) -> None:
+    """投稿先ごとの失敗通知に共通の本文とエラー項目を組み立てる。"""
     webhook_url = getattr(settings, "DISCORD_WEBHOOK_URL", "")
     if not webhook_url:
         return
@@ -52,7 +62,7 @@ def notify_tweet_post_failure(queue_item, result: PostTweetResult) -> None:
     ]
 
     message = {
-        "content": f"❌ **X投稿に失敗しました** (queue #{queue_item.pk})",
+        "content": f"❌ **{failure_message}** (queue #{queue_item.pk})",
         "embeds": [{
             "title": f"投稿失敗: {queue_item.get_tweet_type_display()}",
             "description": f"```\n{tweet_text}\n```",

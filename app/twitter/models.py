@@ -89,3 +89,29 @@ class TweetQueue(models.Model):
                 base_datetime=self.created_at or timezone.now(),
             )
         super().save(*args, **kwargs)
+
+
+class MisskeyNote(models.Model):
+    """X の成否とは独立して処理する Misskey 投稿の状態。"""
+
+    STATUS_CHOICES = [
+        ('pending', '投稿待ち'),
+        ('posted', '投稿済み'),
+        ('failed', '投稿失敗'),
+        ('skipped', 'スキップ'),
+    ]
+
+    tweet_queue = models.OneToOneField(
+        TweetQueue, on_delete=models.CASCADE, related_name='misskey_note',
+    )
+    status = models.CharField('状態', max_length=20, choices=STATUS_CHOICES, default='pending')
+    note_id = models.CharField('ノートID', max_length=100, blank=True)
+    posted_at = models.DateTimeField('投稿日時', null=True, blank=True)
+    error_message = models.TextField('エラーメッセージ', blank=True)
+    attempts = models.PositiveSmallIntegerField('試行回数', default=0)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+
+    class Meta:
+        db_table = 'misskey_note'
+        verbose_name = 'Misskey 投稿'
+        verbose_name_plural = 'Misskey 投稿'
