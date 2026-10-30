@@ -75,12 +75,12 @@
                         </div>
                         {% if not installation.guild_name %}
                             <p class="text-muted mb-1">以前に追加されたため、サーバー名が保存されていません。</p>
-                            <details>
-                                <summary>サーバーの詳細</summary>
-                                <p class="mb-1">サーバー ID: {{ installation.guild_id }}</p>
-                                <p class="mb-0">追加日: {{ installation.installed_at|date:'Y年n月j日' }}</p>
-                            </details>
                         {% endif %}
+                        <details>
+                            <summary>サーバーの詳細</summary>
+                            <p class="mb-1">サーバー ID: {{ installation.guild_id }}</p>
+                            <p class="mb-0">追加日: {{ installation.installed_at|date:'Y年n月j日' }}</p>
+                        </details>
                     </li>
                 {% endfor %}
             </ul>
