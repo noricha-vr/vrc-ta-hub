@@ -1,91 +1,18 @@
-            <form id="lt-form" data-admin-dirty method="post" action="{% url 'community:update_lt_settings' community.pk %}">
-                {% csrf_token %}
-                <div class="mb-3">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="accepts_lt_application" name="accepts_lt_application"
-                               {% if community.accepts_lt_application %}checked{% endif %}
-                               onchange="toggleLTSettings()">
-                        <label class="form-check-label fw-medium" for="accepts_lt_application">
-                            発表申請を受け付ける
-                        </label>
-                    </div>
-                    <small class="form-text text-muted">
-                        ONにすると、イベントページに発表申請ボタンが表示されます。
-                    </small>
-                </div>
-                <div class="mb-3">
-                    <p class="form-label fw-medium mb-1">撮影許可</p>
-                    <div class="d-flex flex-wrap gap-3" role="radiogroup" aria-label="撮影許可">
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" id="recording_allowed_true" name="recording_allowed" value="true"
-                                   {% if community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()">
-                            <label class="form-check-label" for="recording_allowed_true">許可する</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" id="recording_allowed_false" name="recording_allowed" value="false"
-                                   {% if not community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()">
-                            <label class="form-check-label" for="recording_allowed_false">許可しない</label>
-                        </div>
-                    </div>
-                    <small class="form-text text-muted">
-                        「許可しない」にすると、この集会の発表はハブの自動撮影の対象になりません。発表申請フォームにも撮影の選択肢を出さず、「禁止」で受け付けます。
-                    </small>
-                </div>
-                <div class="mb-3" id="default-recording-policy-section" style="{% if not community.recording_allowed %}display: none;{% endif %}">
-                    <p class="form-label fw-medium mb-1">撮影ステータスの初期値</p>
-                    <div class="d-flex flex-column gap-1" role="radiogroup" aria-label="撮影ステータスの初期値">
-                        {% for value, label in recording_policy_choices %}
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" id="default_recording_policy_{{ value }}" name="default_recording_policy" value="{{ value }}"
-                                       {% if community.default_recording_policy == value %}checked{% endif %} onchange="markRecordingPolicyTouched()">
-                                <label class="form-check-label" for="default_recording_policy_{{ value }}">{{ label }}</label>
-                            </div>
-                        {% endfor %}
-                    </div>
-                    {# JS が動いた送信で 1 になる。許可に切り替えた時の「禁止」が、画面で選ばれていた値か（1）、JS の無い送信で残っていた古い値かをサーバーが見分ける #}
-                    <input type="hidden" id="default_recording_policy_chosen" name="default_recording_policy_chosen" value="">
-                    <small class="form-text text-muted">
-                        発表申請フォームで、撮影の選択肢の初期値になります。登壇者は申請時に変えられます。
-                    </small>
-                </div>
-                <div id="lt-settings-detail" style="{% if not community.accepts_lt_application %}display: none;{% endif %}">
-                    <hr class="my-3">
-                    <div class="mb-3">
-                        <label for="lt_application_template" class="form-label fw-medium">追加情報テンプレート</label>
-                        <textarea name="lt_application_template" id="lt_application_template"
-                                  class="form-control" rows="7">{{ lt_application_template_display }}</textarea>
-                        <small class="form-text text-muted">
-                            入力すると、申請フォームの追加情報欄に初期値として表示されます。空の場合も自由記入欄として表示されます。
-                        </small>
-                    </div>
-                    <div class="mb-3">
-                        <label for="default_lt_duration" class="form-label fw-medium">発表の持ち時間（デフォルト）</label>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="number" name="default_lt_duration" id="default_lt_duration"
-                                   class="form-control" style="width: 100px;" min="1"
-                                   value="{{ community.default_lt_duration|default:30 }}">
-                            <span>分</span>
-                        </div>
-                        <small class="form-text text-muted">
-                            発表と質疑応答を含めた合計時間（分）。
-                        </small>
-                    </div>
-                    <div class="mb-3">
-                        <label for="lt_start_offset_minutes" class="form-label fw-medium">最初の発表を始めるタイミング</label>
-                        <div class="d-flex flex-wrap align-items-center gap-2">
-                            <span>集会開始から</span>
-                            <input type="number" name="lt_start_offset_minutes" id="lt_start_offset_minutes"
-                                   class="form-control" style="width: 100px;" min="0"
-                                   aria-describedby="lt_start_offset_help"
-                                   value="{{ community.lt_start_offset_minutes }}">
-                            <span>分後</span>
-                        </div>
-                        <small id="lt_start_offset_help" class="form-text text-muted">
-                            例：集会開始が22:00の場合、15分後なら発表開始は22:15です。
-                        </small>
-                    </div>
-                </div>
-            </form>
+<form id="lt-form" data-admin-dirty method="post" action="{% url 'community:update_lt_settings' community.pk %}">
+{% csrf_token %}
+<div class="settings-field"><div class="settings-label">発表申請を受け付ける<small>ONにすると、イベントページに発表申請ボタンが表示されます。</small></div><div class="settings-control"><label class="settings-switch" for="accepts_lt_application"><input type="checkbox" id="accepts_lt_application" name="accepts_lt_application" {% if community.accepts_lt_application %}checked{% endif %} onchange="toggleLTSettings()"><span>受け付ける</span></label></div></div>
+<div class="settings-field"><div class="settings-label">撮影許可<small>「許可しない」にすると、この集会の発表はハブの自動撮影の対象になりません。発表申請フォームにも撮影の選択肢を出さず、「禁止」で受け付けます。</small></div><div class="settings-control"><div class="settings-segment" role="radiogroup" aria-label="撮影許可">
+<label for="recording_allowed_true"><input type="radio" id="recording_allowed_true" name="recording_allowed" value="true" {% if community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()"><span>許可する</span></label>
+<label for="recording_allowed_false"><input type="radio" id="recording_allowed_false" name="recording_allowed" value="false" {% if not community.recording_allowed %}checked{% endif %} onchange="toggleRecordingSettings()"><span>許可しない</span></label></div></div></div>
+<div id="default-recording-policy-section" style="{% if not community.recording_allowed %}display: none;{% endif %}"><div class="settings-field"><div class="settings-label">撮影ステータスの初期値<small>発表申請フォームで、撮影の選択肢の初期値になります。登壇者は申請時に変えられます。</small></div><div class="settings-control" role="radiogroup" aria-label="撮影ステータスの初期値">
+{% for value, label in recording_policy_choices %}<label><input type="radio" id="default_recording_policy_{{ value }}" name="default_recording_policy" value="{{ value }}" {% if community.default_recording_policy == value %}checked{% endif %} onchange="markRecordingPolicyTouched()"> {{ label }}</label>{% endfor %}
+<input type="hidden" id="default_recording_policy_chosen" name="default_recording_policy_chosen" value="">
+</div></div></div>
+<div id="lt-settings-detail" style="{% if not community.accepts_lt_application %}display: none;{% endif %}">
+<div class="settings-field"><label for="lt_application_template" class="settings-label">追加情報テンプレート<small>入力すると、申請フォームの追加情報欄に初期値として表示されます。空の場合も自由記入欄として表示されます。</small></label><div class="settings-control"><textarea name="lt_application_template" id="lt_application_template" class="form-control" rows="4">{{ lt_application_template_display }}</textarea></div></div>
+<div class="settings-field"><label for="default_lt_duration" class="settings-label">発表の持ち時間（初期値）<small>発表と質疑応答を含めた合計時間（分）。</small></label><div class="settings-control"><span class="settings-unit"><input type="number" name="default_lt_duration" id="default_lt_duration" class="form-control" min="1" value="{{ community.default_lt_duration|default:30 }}"><span>分</span></span></div></div>
+<div class="settings-field"><label for="lt_start_offset_minutes" class="settings-label">最初の発表を始めるタイミング<small id="lt_start_offset_help">集会開始から何分後か。例：集会開始が22:00の場合、15分後なら発表開始は22:15です。</small></label><div class="settings-control"><span class="settings-unit"><input type="number" name="lt_start_offset_minutes" id="lt_start_offset_minutes" class="form-control" min="0" aria-describedby="lt_start_offset_help" value="{{ community.lt_start_offset_minutes }}"><span>分後</span></span></div></div>
+</div></form>
     <script>
     function toggleLTSettings() {
         var checkbox = document.getElementById('accepts_lt_application');

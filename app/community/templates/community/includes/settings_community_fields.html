@@ -1,0 +1,39 @@
+{% load image_tags %}
+{% include 'ta_hub/admin/includes/form_errors.html' with form=form only %}
+<section class="admin-card" id="basic-information">
+{% include 'community/includes/settings_heading.html' with title='基本情報' icon='info-circle' description='集会名と開催日時。イベントページと一覧に出ます。' scope='集会情報' form_id='community-form' only %}
+{% include 'community/includes/settings_field.html' with field=form.name only %}
+<div class="settings-field"><div class="settings-label">開催時刻<span class="text-danger"> *</span></div><div class="settings-control">
+<div class="settings-time"><label class="visually-hidden" for="{{ form.start_time.id_for_label }}">{{ form.start_time.label }}</label>{{ form.start_time }}<span class="small text-muted">から</span><label class="visually-hidden" for="{{ form.duration.id_for_label }}">{{ form.duration.label }}</label><span class="settings-unit">{{ form.duration }}<span id="id_duration_helptext">分間</span></span></div>
+{% for error in form.start_time.errors %}<p class="text-danger small">{{ error }}</p>{% endfor %}{% for error in form.duration.errors %}<p class="text-danger small">{{ error }}</p>{% endfor %}
+</div></div>
+{% if not is_reopening %}
+<fieldset id="id_weekdays" class="settings-choice-field"><legend class="visually-hidden">曜日</legend><div class="settings-field"><span class="settings-label" aria-hidden="true">曜日</span><div class="settings-control settings-chips settings-weekdays">
+{% for option in form.weekdays %}<label>{{ option.tag }} <span aria-hidden="true">{% if option.data.value == 'Other' %}{{ option.choice_label }}{% else %}{{ option.choice_label|slice:':1' }}{% endif %}</span><span class="visually-hidden">{{ option.choice_label }}</span></label>{% endfor %}
+{% for error in form.weekdays.errors %}<p class="text-danger small">{{ error }}</p>{% endfor %}
+</div></div></fieldset>
+{% include 'community/includes/settings_field.html' with field=form.frequency help_text='例: 毎週 / 隔週 / 毎月第2土曜 / 不定期' only %}
+{% endif %}
+</section>
+<section class="admin-card" id="contact-information">
+{% include 'community/includes/settings_heading.html' with title='主催と連絡先' icon='person-badge' description='参加者が主催者や集会の場所にたどり着くためのリンクです。' scope='集会情報' form_id='community-form' only %}
+{% include 'community/includes/settings_field.html' with field=form.organizers only %}
+{% include 'community/includes/settings_field.html' with field=form.group_url only %}
+{% include 'community/includes/settings_field.html' with field=form.organizer_url only %}
+{% include 'community/includes/settings_field.html' with field=form.sns_url only %}
+{% include 'community/includes/settings_field.html' with field=form.twitter_hashtag only %}
+{% include 'community/includes/settings_field.html' with field=form.discord only %}
+</section>
+<section class="admin-card" id="listing-information">
+{% include 'community/includes/settings_heading.html' with title='掲載内容' icon='image' description='集会一覧と集会ページに出るポスター・紹介文・タグです。' scope='集会情報' form_id='community-form' only %}
+<div class="settings-field"><label class="settings-label" for="{{ form.poster_image.id_for_label }}">ポスター<small id="id_poster_image_helptext">{{ form.poster_image.help_text }}</small></label><div class="settings-control settings-poster">
+{% if community.poster_image %}<img src="{{ community.poster_image.url|cf_resize:'400' }}" alt="{{ community.name }}の現在のポスター" class="settings-thumbnail">{% else %}<div class="settings-thumbnail settings-no-poster">ポスターは<br>未登録です</div>{% endif %}
+<div class="settings-control"><div class="settings-file-picker">{{ form.poster_image }}<label for="{{ form.poster_image.id_for_label }}" class="btn btn-sm btn-outline-secondary">画像を選ぶ</label><span class="small text-muted" data-poster-filename aria-live="polite">選択されていません</span></div>{% for error in form.poster_image.errors %}<p class="text-danger small">{{ error }}</p>{% endfor %}
+<label class="settings-switch">{{ form.allow_poster_repost }}<span>{{ form.allow_poster_repost.label }}</span></label>{% for error in form.allow_poster_repost.errors %}<p class="text-danger small">{{ error }}</p>{% endfor %}</div></div></div>
+{% include 'community/includes/settings_field.html' with field=form.description only %}
+<div class="settings-field"><label class="settings-label" for="{{ form.platform.id_for_label }}">対応プラットフォーム</label><div class="settings-control">{{ form.platform }}<div class="settings-segment" data-platform-segment hidden role="group" aria-label="対応プラットフォーム"></div><p class="form-text mb-0">モバイルは Meta Quest 単体です。</p>{% for error in form.platform.errors %}<p class="text-danger small">{{ error }}</p>{% endfor %}</div></div>
+<fieldset id="id_tags" class="settings-choice-field"><legend class="visually-hidden">タグ</legend><div class="settings-field"><span class="settings-label" aria-hidden="true">タグ</span><div class="settings-control settings-chips">
+{% for option in form.tags %}<label>{{ option.tag }} {{ option.choice_label }}</label>{% endfor %}
+{% for error in form.tags.errors %}<p class="text-danger small">{{ error }}</p>{% endfor %}
+</div></div></fieldset>
+</section>

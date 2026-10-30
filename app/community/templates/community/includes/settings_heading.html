@@ -1,0 +1,5 @@
+<div class="settings-heading">
+    <span class="settings-heading-icon"><i class="bi bi-{{ icon }}" aria-hidden="true"></i></span>
+    <div><h2{% if heading_id %} id="{{ heading_id }}"{% endif %}>{{ title }}</h2><p>{{ description }}</p></div>
+    <span class="settings-status"{% if form_id %} data-admin-form-status="{{ form_id }}" data-admin-scope="{{ scope }}" aria-live="polite"{% endif %}>{% if status %}{{ status }}{% else %}{{ scope }}: 変更はありません{% endif %}</span>
+</div>

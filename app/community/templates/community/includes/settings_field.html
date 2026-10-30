@@ -1,0 +1,4 @@
+<div class="settings-field">
+    <label class="settings-label" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="text-danger"> *</span>{% endif %}{% if help_text or field.help_text %}<small id="{{ field.auto_id }}_helptext">{{ help_text|default:field.help_text }}</small>{% endif %}</label>
+    <div class="settings-control">{{ field }}{% for error in field.errors %}<p class="text-danger small mb-0">{{ error }}</p>{% endfor %}</div>
+</div>

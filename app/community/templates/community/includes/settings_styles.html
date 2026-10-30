@@ -1,0 +1,87 @@
+<style>
+.community-settings .admin-card {padding:0; overflow:hidden;}
+.community-settings .admin-toc a {display:flex; align-items:center; gap:.65rem; text-decoration:none; color:var(--admin-text); border-radius:.5rem; font-size:.875rem;}
+.community-settings .admin-toc a:hover {background:var(--admin-primary-soft);}
+.community-settings .settings-heading {background:var(--admin-surface-muted); padding:1rem 1.5rem; display:grid; grid-template-columns:40px minmax(0,1fr) auto; align-items:center; gap:.875rem;}
+.community-settings .settings-heading h2 {font-size:1.0625rem; font-weight:700; margin:0;}
+.community-settings .settings-heading p, .community-settings .settings-integration-row p {font-size:.8125rem; color:var(--admin-muted); margin:0;}
+.community-settings .settings-heading-icon, .community-settings .settings-item-icon {width:40px; height:40px; border-radius:.65rem; display:grid; place-items:center; color:var(--admin-primary); background:var(--admin-primary-soft); font-size:1.15rem;}
+.community-settings .settings-heading-icon {background:#fff; border:1px solid var(--admin-border);}
+.community-settings .settings-status {font-size:.75rem; color:var(--admin-muted);}
+.community-settings .settings-status.is-dirty {color:#664d03; background:#fff3cd; border-radius:1rem; padding:.2rem .6rem;}
+.community-settings .settings-field {display:grid; grid-template-columns:minmax(0,220px) minmax(0,1fr); gap:.5rem 1.5rem; padding:1rem 1.5rem; border:0; border-top:1px solid var(--admin-border); margin:0; min-width:0;}
+.community-settings .settings-label {font-weight:700; font-size:.875rem; padding: .35rem 0 0; margin:0;}
+.community-settings .settings-choice-field {border:0; padding:0; margin:0; min-width:0;}
+.community-settings .settings-label small {display:block; font-size:.75rem; color:var(--admin-muted); font-weight:400; margin-top:.2rem;}
+.community-settings .settings-control {display:flex; flex-direction:column; gap:.4rem; min-width:0; font-size:.875rem;}
+.community-settings .form-control {font-size:.875rem; min-width:0;}
+.community-settings textarea.form-control {min-height:84px; height:100px;}
+.community-settings .settings-time {display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;}
+.community-settings .settings-time input[type=time] {width:125px;}
+.community-settings .settings-unit {display:inline-flex; align-items:stretch; width:max-content; max-width:100%;}
+.community-settings .settings-unit input {width:72px; text-align:right; border-radius:.5rem 0 0 .5rem;}
+.community-settings .settings-unit > span {display:flex; align-items:center; padding:0 .6rem; background:#f4f5f7; color:var(--admin-muted); border:1px solid #ced4da; border-left:0; border-radius:0 .5rem .5rem 0; white-space:nowrap;}
+.community-settings .settings-chips {flex-direction:row; flex-wrap:wrap; gap:.35rem;}
+.community-settings .settings-chips label {display:inline-flex; align-items:center; gap:.35rem; border:1px solid #ced4da; border-radius:2rem; padding:.2rem .7rem; cursor:pointer; white-space:nowrap; font-size:.8125rem;}
+.community-settings .settings-weekdays label {padding:.1rem .45rem; gap:.2rem;}
+.community-settings .settings-chips input {margin:0; accent-color:var(--admin-primary);}
+.community-settings .settings-chips label:has(:checked) {color:var(--admin-primary); background:var(--admin-primary-soft); border-color:var(--admin-primary);}
+.community-settings .settings-switch {display:inline-flex; align-items:center; gap:.65rem; cursor:pointer;}
+.community-settings .settings-switch input {appearance:none; flex:0 0 42px; width:42px; height:24px; border:0; border-radius:20px; margin:0; background:#c9ced6; position:relative; cursor:pointer;}
+.community-settings .settings-switch input::after {content:""; position:absolute; width:18px; height:18px; top:3px; left:3px; border-radius:50%; background:#fff;}
+.community-settings .settings-switch input:checked {background:var(--admin-primary);}
+.community-settings .settings-switch input:checked::after {transform:translateX(18px);}
+.community-settings .settings-segment {display:flex; width:max-content; max-width:100%; border:1px solid #ced4da; border-radius:.5rem; overflow:hidden;}
+.community-settings .settings-segment[hidden] {display:none;}
+.community-settings .settings-segment label {position:relative; cursor:pointer; margin:0;}
+.community-settings .settings-segment input {position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer;}
+.community-settings .settings-segment span, .community-settings .settings-segment button {display:block; padding:.4rem .65rem; font-size:.8125rem; background:#fff; color:var(--admin-text); border:0; border-right:1px solid #ced4da;}
+.community-settings .settings-segment label:last-child span, .community-settings .settings-segment button:last-child {border-right:0;}
+.community-settings .settings-segment input:checked + span, .community-settings .settings-segment button[aria-pressed=true] {background:var(--admin-primary); color:#fff;}
+.community-settings .settings-segment label:has(:focus-visible) {outline:3px solid #212529; outline-offset:-3px;}
+.community-settings .settings-switch input:focus-visible, .community-settings .settings-segment button:focus-visible {outline:3px solid #212529; outline-offset:-3px;}
+.community-settings .settings-poster {flex-direction:row; align-items:flex-start; gap:.875rem; flex-wrap:wrap;}
+.community-settings .settings-poster > .settings-control {flex:1 1 160px;}
+.community-settings .settings-file-picker {position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:.3rem;}
+.community-settings .settings-file-picker input[type=file] {position:absolute; width:1px; height:1px; padding:0; border:0; clip-path:inset(50%); overflow:hidden;}
+.community-settings .settings-file-picker:has(input:focus-visible) label {outline:3px solid #212529; outline-offset:2px;}
+.community-settings [data-poster-filename] {overflow-wrap:anywhere;}
+.community-settings .settings-thumbnail {width:96px; height:136px; object-fit:contain; border:1px solid var(--admin-border); border-radius:.5rem; background:#f1f3f6;}
+.community-settings .settings-no-poster {display:grid; place-items:center; text-align:center; color:var(--admin-muted); font-size:.75rem;}
+.community-settings .settings-integration {border-top:1px solid var(--admin-border); min-width:0;}
+.community-settings .settings-integration-row {display:grid; grid-template-columns:40px minmax(0,1fr) auto; align-items:center; gap:.875rem; padding:1rem 1.5rem;}
+.community-settings .settings-integration-row h3 {font-size:.9rem; font-weight:700; margin:0 0 .2rem; display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;}
+.community-settings .settings-side {display:flex; align-items:center; gap:.5rem; justify-content:flex-end;}
+.community-settings .settings-integration-body {padding:0 1.5rem 1.125rem 4.875rem; overflow-wrap:anywhere;}
+.community-settings .settings-discord {background:#eef0fe; color:#5865F2;}
+.community-settings .settings-x {background:#f1f1f1; color:#000;}
+.community-settings .settings-muted {background:#eef0f4; color:#6c757d;}
+.community-settings summary.settings-integration-row, .community-settings summary.settings-heading {list-style:none; cursor:pointer;}
+.community-settings summary.settings-integration-row::-webkit-details-marker, .community-settings summary.settings-heading::-webkit-details-marker {display:none;}
+.community-settings details[open] > summary .settings-caret {transform:rotate(90deg);}
+.community-settings .settings-danger {border-color:var(--admin-danger-border);}
+.community-settings .settings-danger .settings-heading {background:var(--admin-danger-bg);}
+.community-settings .settings-danger .settings-heading-icon {color:var(--bs-danger); border-color:var(--admin-danger-border);}
+.community-settings .settings-danger-body {padding:0;}
+.community-settings .settings-danger-body .settings-field {border-color:var(--admin-danger-border);}
+.community-settings .settings-control > .btn {align-self:flex-start;}
+.community-settings #bot-install .settings-side {flex-direction:column; align-items:flex-end; max-width:220px;}
+.community-settings #bot-install .settings-side .form-text {font-size:.75rem; margin:0;}
+@media (max-width:860px) {
+.community-settings .admin-layout:has(> .admin-toc) {flex-direction:column;}
+.community-settings .admin-content {width:100%;}
+.community-settings .admin-toc {position:static; flex-basis:auto; width:100%; min-width:0;}
+.community-settings .admin-toc nav {flex-direction:row !important; overflow-x:auto;}
+.community-settings .admin-toc a {flex-shrink:0; white-space:nowrap;}
+}
+@media (max-width:600px) {
+.community-settings .settings-field {grid-template-columns:minmax(0,1fr); padding:.875rem 1rem;}
+.community-settings .settings-heading {grid-template-columns:36px minmax(0,1fr); padding:.875rem 1rem;}
+.community-settings .settings-heading .settings-status {grid-column:1/-1;}
+.community-settings .settings-integration-row {grid-template-columns:36px minmax(0,1fr); padding:.875rem 1rem;}
+.community-settings .settings-side {grid-column:1/-1; justify-content:flex-start;}
+.community-settings .settings-integration-body {padding:0 1rem 1rem;}
+.community-settings #bot-install .settings-side {align-items:flex-start; max-width:100%;}
+.community-settings .settings-label {padding-top:0;}
+}
+</style>

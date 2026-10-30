@@ -360,7 +360,7 @@ class WebhookSettingsTest(TestCase):
         response = self.client.get(reverse('community:settings'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'Discord通知')
+        self.assertContains(response, 'Discord Webhook')
         self.assertContains(response, 'Discord Webhook設定ガイド')
         self.assertContains(response, '/guide/settings/discord/')
         self.assertContains(response, '以下のタイミングでDiscordに通知を送信します')
@@ -834,7 +834,7 @@ class LTSettingsTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '最初の発表を始めるタイミング')
-        self.assertContains(response, '<span>集会開始から</span>', html=True)
+        self.assertContains(response, '集会開始から何分後か。')
         self.assertContains(response, '<span>分後</span>', html=True)
         self.assertContains(response, '例：集会開始が22:00の場合、15分後なら発表開始は22:15です。')
         self.assertContains(response, 'aria-describedby="lt_start_offset_help"')
