@@ -40,7 +40,8 @@ class BotInstallationAPITest(TestCase):
 
     def payload(self, status='installed'):
         return {'id': self.installation.pk, 'community_id': self.community.pk, 'status': status,
-                'guild_id': self.guild_id}
+                'guild_id': self.guild_id, 'notification_channel_id': None,
+                'webhook_configured': False, 'hub_delivery': 'none'}
 
     def post_status(self, status='configured', **overrides):
         return self.client.post(
@@ -74,6 +75,67 @@ class BotInstallationAPITest(TestCase):
         response = self.client.get(self.url, {'guild_id': self.guild_id})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), self.payload('configured'))
+
+    def test_channel_is_saved_returned_updated_and_preserved_when_omitted(self):
+        configured_at = None
+        for length in range(17, 21):
+            with self.subTest(length=length):
+                channel_id = '8' * length
+                response = self.post_status(notification_channel_id=channel_id)
+                self.assertEqual(response.status_code, 200)
+                expected = {**self.payload('configured'), 'notification_channel_id': channel_id}
+                self.assertEqual(response.json(), expected)
+                self.installation.refresh_from_db()
+                self.assertEqual(self.installation.notification_channel_id, channel_id)
+                if configured_at is None:
+                    configured_at = self.installation.configured_at
+                self.assertEqual(self.installation.configured_at, configured_at)
+                self.assertEqual(self.post_status().json(), expected)
+                self.assertEqual(self.client.get(self.url, {'guild_id': self.guild_id}).json(), expected)
+                self.installation.refresh_from_db()
+                self.assertEqual(self.installation.notification_channel_id, channel_id)
+
+    def test_removed_clears_channel_with_or_without_supplied_channel(self):
+        for initial in ('installed', 'configured'):
+            for extra in ({}, {'notification_channel_id': '9' * 18}):
+                with self.subTest(initial=initial, extra=extra):
+                    BotInstallation.objects.filter(pk=self.installation.pk).update(
+                        status=initial, notification_channel_id='8' * 18,
+                    )
+                    response = self.post_status('removed', **extra)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.json(), self.payload('removed'))
+                    self.installation.refresh_from_db()
+                    self.assertIsNone(self.installation.notification_channel_id)
+
+    def test_invalid_channel_is_400_without_changing_installation(self):
+        invalid_ids = [
+            '', '1' * 16, '1' * 21, 'a' * 18, '12345678901234567a',
+            '１' * 18, '١' * 18, ' ' + '1' * 18, '1' * 18 + ' ',
+            '1' * 18 + '\n', '+' + '1' * 18, '-' + '1' * 18,
+            None, 123456789012345678, True, [], {},
+        ]
+        for target in ('configured', 'removed'):
+            for channel_id in invalid_ids:
+                with self.subTest(target=target, channel_id=channel_id):
+                    self.assert_error(self.post_status(target, notification_channel_id=channel_id),
+                                      400, 'validation_error')
+                    self.assert_installed()
+
+    def test_webhook_presence_changes_delivery_without_exposing_webhook(self):
+        webhook = 'https://discord.com/api/webhooks/123456789012345678/synthetic-webhook-token'
+        for value in (webhook, ''):
+            with self.subTest(configured=bool(value)):
+                self.community.notification_webhook_url = value
+                self.community.save(update_fields=['notification_webhook_url'])
+                for response in (self.client.get(self.url, {'guild_id': self.guild_id}), self.post_status()):
+                    self.assertEqual(response.status_code, 200)
+                    payload = response.json()
+                    self.assertIs(payload['webhook_configured'], bool(value))
+                    self.assertEqual(payload['hub_delivery'], 'webhook' if value else 'none')
+                    self.assertEqual(set(payload), set(self.payload()))
+                    self.assertNotIn(webhook, response.content.decode())
+                    self.assertNotIn('synthetic-webhook-token', response.content.decode())
 
     def test_missing_or_removed_installation_is_404(self):
         for guild_id in ('987654321098765432', self.guild_id):

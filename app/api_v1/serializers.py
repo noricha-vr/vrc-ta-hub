@@ -1,7 +1,7 @@
 # Create your models here.
 from urllib.parse import urlparse
 
-from drf_spectacular.utils import extend_schema_serializer
+from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from django.db import transaction
 from rest_framework import serializers
 
@@ -45,10 +45,20 @@ class CommunityByDiscordSerializer(serializers.Serializer):
 
 class BotInstallationSerializer(serializers.ModelSerializer):
     community_id = serializers.IntegerField(read_only=True)
+    webhook_configured = serializers.SerializerMethodField()
+    hub_delivery = serializers.SerializerMethodField()
+
+    def get_webhook_configured(self, obj) -> bool:
+        return bool(obj.community.notification_webhook_url)
+
+    @extend_schema_field(serializers.ChoiceField(choices=['webhook', 'none']))
+    def get_hub_delivery(self, obj):
+        return 'webhook' if self.get_webhook_configured(obj) else 'none'
 
     class Meta:
         model = BotInstallation
-        fields = ['id', 'community_id', 'status', 'guild_id']
+        fields = ['id', 'community_id', 'status', 'guild_id', 'notification_channel_id',
+                  'webhook_configured', 'hub_delivery']
         read_only_fields = fields
 
 
