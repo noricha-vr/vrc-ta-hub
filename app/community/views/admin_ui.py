@@ -33,9 +33,8 @@ def settings_display(context, community, request):
     for installation in community.bot_installations.all():
         installation.display_name = installation.guild_name or 'Discord サーバー（名前未登録）'
         installation.confirm_panel_id = f'remove-bot-{installation.pk}'
-        target = installation.display_name
-        if not installation.guild_name:
-            target += f'（サーバー ID: {installation.guild_id}）'
+        # 同じ名前のサーバーも区別できるよう、確認ではサーバー ID も示す。
+        target = f'{installation.display_name}（サーバー ID: {installation.guild_id}）'
         installation.remove_confirmation = (
             f'『{target}』との連携を解除しますか？'
             'この集会と Discord サーバーの連携を解除します。'

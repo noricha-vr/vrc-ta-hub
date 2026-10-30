@@ -55,6 +55,12 @@ class BotInstallTests(TestCase):
             'guild': {'id': guild_id, **guild_data}, 'access_token': 'synthetic-token',
         }
 
+    def without_details_and_panels(self, section):
+        # サーバー ID は畳んだ「サーバーの詳細」と解除の確認の中にだけ出す。
+        for node in section.select('details:has(> summary:-soup-contains("サーバーの詳細")), .confirm-panel'):
+            node.decompose()
+        return str(section)
+
     def bot_section(self):
         response = self.client.get(self.settings_url)
         self.assertEqual(response.status_code, 200)
@@ -408,7 +414,7 @@ class BotInstallTests(TestCase):
         )
         panel = section.select_one(f'#remove-bot-{record.pk}')
         self.assertTrue(panel.has_attr('hidden'))
-        self.assertIn('『準備中のサーバー』との連携を解除しますか？', panel.get_text())
+        self.assertIn('『準備中のサーバー（サーバー ID: 123456789012345678）』との連携を解除しますか？', panel.get_text())
         self.assertIn(
             'この集会と Discord サーバーの連携を解除します。'
             'Discord サーバー内の Bot は削除されません。連携の記録は残ります。', panel.get_text(),
@@ -417,7 +423,7 @@ class BotInstallTests(TestCase):
             'community:bot_install_remove', args=[self.community.pk, record.pk],
         ))
         self.assertEqual(panel.select_one('.btn-danger').get_text(), '連携を解除する')
-        self.assertNotIn(record.guild_id, str(section))
+        self.assertNotIn(record.guild_id, self.without_details_and_panels(section))
 
     def test_configured_shows_completion_and_secondary_add_button(self):
         record = self.installation(guild_name='稼働中のサーバー', status='configured')
@@ -428,7 +434,7 @@ class BotInstallTests(TestCase):
         self.assertIn('このサーバーでのセットアップは完了しています。', section.get_text())
         self.assertNotIn('/hub setup', section.get_text())
         self.assertNotIn('通知は正常に届いています', section.get_text())
-        self.assertNotIn(record.guild_id, str(section))
+        self.assertNotIn(record.guild_id, self.without_details_and_panels(section))
         button = section.select_one('[data-bot-install]')
         self.assertEqual(button.get_text(), '別のサーバーに Bot を追加する')
         self.assertIn('btn-outline-primary', button['class'])
@@ -437,7 +443,7 @@ class BotInstallTests(TestCase):
     def test_history_only_shows_empty_current_state_and_closed_history(self):
         record = self.installation(guild_name='以前のサーバー', status='removed', removed_at=timezone.now())
         section = self.bot_section()
-        history = section.select_one('details')
+        history = section.select_one('details:has(> summary:-soup-contains("過去の連携記録"))')
         self.assertFalse(history.has_attr('open'))
         self.assertEqual(history.summary.get_text(), '過去の連携記録（1件）')
         self.assertIn(record.guild_name, history.get_text())
@@ -445,7 +451,7 @@ class BotInstallTests(TestCase):
         self.assertIn(timezone.localtime(record.removed_at).strftime('%Y年%-m月%-d日'), history.get_text())
         self.assertEqual(history.select_one('.detail-chip').get_text(), '連携終了')
         self.assertEqual(history.select_one('.detail-chip')['class'], ['detail-chip'])
-        self.assertNotIn(record.guild_id, str(section))
+        self.assertNotIn(record.guild_id, self.without_details_and_panels(section))
         self.assertIsNone(section.select_one('[data-confirm-panel]'))
         history.decompose()
         self.assertNotIn(record.guild_name, section.get_text())
@@ -467,7 +473,7 @@ class BotInstallTests(TestCase):
             [item.get_text() for item in section.select(':scope > div strong')],
             [waiting.guild_name, configured.guild_name],
         )
-        history = section.select_one('details')
+        history = section.select_one('details:has(> summary:-soup-contains("過去の連携記録"))')
         self.assertFalse(history.has_attr('open'))
         self.assertEqual(history.summary.get_text(), '過去の連携記録（2件）')
         self.assertIn('前の連携記録', history.get_text())
@@ -477,8 +483,9 @@ class BotInstallTests(TestCase):
         history.decompose()
         self.assertNotIn('前の連携記録', section.get_text())
         self.assertNotIn('現在、連携している Discord サーバーはありません。', section.get_text())
+        visible = self.without_details_and_panels(section)
         for guild_id in (waiting.guild_id, configured.guild_id, '323456789012345678'):
-            self.assertNotIn(guild_id, str(section))
+            self.assertNotIn(guild_id, visible)
 
     def test_legacy_name_is_explained_and_id_is_only_in_details_or_confirmation(self):
         record = self.installation()
@@ -499,7 +506,7 @@ class BotInstallTests(TestCase):
 
     def test_legacy_history_has_name_fallback_and_closed_server_details(self):
         record = self.installation(status='removed')
-        history = self.bot_section().select_one('details')
+        history = self.bot_section().select_one('details:has(> summary:-soup-contains("過去の連携記録"))')
         self.assertEqual(history.strong.get_text(), 'Discord サーバー（名前未登録）')
         details = history.select_one('details')
         self.assertFalse(details.has_attr('open'))

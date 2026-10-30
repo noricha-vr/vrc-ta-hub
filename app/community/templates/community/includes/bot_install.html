@@ -21,11 +21,6 @@
             </div>
             {% if not installation.guild_name %}
                 <p class="small text-muted mb-2">以前に追加されたため、サーバー名が保存されていません。</p>
-                <details class="small mb-2">
-                    <summary>サーバーの詳細</summary>
-                    <p class="mb-1">サーバー ID: {{ installation.guild_id }}</p>
-                    <p class="mb-0">追加日: {{ installation.installed_at|date:'Y年n月j日' }}</p>
-                </details>
             {% endif %}
             {% if installation.status == 'installed' %}
                 <p class="small">Bot の追加は完了しました。続いて Discord で設定してください。</p>
@@ -36,6 +31,11 @@
             {% else %}
                 <p class="small mb-0">このサーバーでのセットアップは完了しています。</p>
             {% endif %}
+            <details class="small mt-2">
+                <summary>サーバーの詳細</summary>
+                <p class="mb-1">サーバー ID: {{ installation.guild_id }}</p>
+                <p class="mb-0">追加日: {{ installation.installed_at|date:'Y年n月j日' }}</p>
+            </details>
             {% if can_manage_bot %}
                 {% url 'community:bot_install_remove' community.pk installation.pk as remove_bot_url %}
                 {% include 'ta_hub/admin/includes/confirm_panel.html' with panel_id=installation.confirm_panel_id label='連携解除の確認' message=installation.remove_confirmation action_url=remove_bot_url submit_label='連携を解除する' %}
