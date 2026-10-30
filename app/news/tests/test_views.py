@@ -237,10 +237,10 @@ class PostDetailViewTestCase(TestCase):
         post = self._create_archive_post()
         expected_url = (
             "https://vrc-ta-hub.com/static/news/images/og/"
-            "vket-2026-summer-video-archive-v1.png"
+            "vket-2026-summer-video-archive-v2.jpg"
         )
         # 本文の img は相対URL（未デプロイでもローカルで確認できるようにするため）
-        expected_src = "/static/news/images/og/vket-2026-summer-video-archive-v1.png"
+        expected_src = "/static/news/images/og/vket-2026-summer-video-archive-v2.jpg"
         response = self.client.get(
             reverse("news:detail", kwargs={"slug": post.slug}),
             secure=True,
@@ -582,7 +582,7 @@ class PostCardThumbnailTestCase(TestCase):
 
         self.assertContains(
             response,
-            'src="/static/news/images/og/vket-2026-summer-video-archive-v1.png"',
+            'src="/static/news/images/og/vket-2026-summer-video-archive-v2.jpg"',
         )
 
     def test_list_shows_category_default_thumbnail(self):

@@ -165,7 +165,7 @@ class PostGetAbsoluteThumbnailUrlTestCase(TestCase):
         self.assertEqual(
             result,
             "https://vrc-ta-hub.com/static/news/images/og/"
-            "vket-2026-summer-video-archive-v1.png",
+            "vket-2026-summer-video-archive-v2.jpg",
         )
         self.assertTrue(post.uses_static_thumbnail)
 
@@ -180,7 +180,7 @@ class PostGetAbsoluteThumbnailUrlTestCase(TestCase):
         self.assertEqual(
             result,
             "http://localhost:8015/static/news/images/og/"
-            "vket-2026-summer-video-archive-v1.png",
+            "vket-2026-summer-video-archive-v2.jpg",
         )
 
     @override_settings(STATIC_URL="https://data.vrc-ta-hub.com/static/")
@@ -194,7 +194,7 @@ class PostGetAbsoluteThumbnailUrlTestCase(TestCase):
         self.assertEqual(
             result,
             "https://data.vrc-ta-hub.com/static/news/images/og/"
-            "vket-2026-summer-video-archive-v1.png",
+            "vket-2026-summer-video-archive-v2.jpg",
         )
 
     def test_uploaded_thumbnail_takes_priority_over_mapped_slug(self):
@@ -269,7 +269,7 @@ class PostStaticThumbnailTestCase(TestCase):
         post = self._make_post(slug="website-management", category=self.activity_category)
 
         self.assertEqual(
-            post.static_thumbnail_path, "news/images/og/website-management-v1.png"
+            post.static_thumbnail_path, "news/images/og/website-management-v2.jpg"
         )
 
     def test_uploaded_thumbnail_takes_priority_over_category(self):

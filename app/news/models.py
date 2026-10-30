@@ -4,14 +4,16 @@ from django.templatetags.static import static
 
 from website.constants import DEFAULT_NEWS_IMAGE_URL, build_site_url
 
-from .thumbnail_specs import build_category_map, build_slug_map
+from .thumbnail_specs import RICH_POST_THUMBNAIL_SPECS, build_category_map, build_slug_map
 
 
-# 記事 slug 個別のサムネイル（手作り画像 + 生成画像）
-STATIC_THUMBNAIL_BY_SLUG = {
-    "vket-2026-summer": "news/images/og/vket-2026-summer-video-archive-v1.png",
-    **build_slug_map(),
-}
+# 記事 slug 個別のサムネイル（リッチ版 + 文字だけの生成画像）
+STATIC_THUMBNAIL_BY_SLUG = build_slug_map()
+
+# 明示したリッチ版だけアップロード画像より優先する。DB の画像は変更しない。
+STATIC_THUMBNAIL_OVERRIDE_SLUGS = frozenset(
+    spec.slug for spec in RICH_POST_THUMBNAIL_SPECS if spec.prefer_over_upload
+)
 
 # slug 個別の指定が無い記事のフォールバック（カテゴリ既定画像）
 STATIC_THUMBNAIL_BY_CATEGORY_SLUG = build_category_map()
@@ -78,12 +80,14 @@ class Post(models.Model):
     def static_thumbnail_path(self) -> str | None:
         """staticサムネイルの相対パスを返す。無ければ None。
 
-        優先度は アップロード画像 > slug 個別 > カテゴリ既定。
+        優先度は 明示した static 優先 slug > アップロード画像 > slug 個別 > カテゴリ既定。
         """
+        slug_thumbnail = STATIC_THUMBNAIL_BY_SLUG.get(self.slug)
+        if slug_thumbnail and self.slug in STATIC_THUMBNAIL_OVERRIDE_SLUGS:
+            return slug_thumbnail
         if self.thumbnail:
             return None
 
-        slug_thumbnail = STATIC_THUMBNAIL_BY_SLUG.get(self.slug)
         if slug_thumbnail:
             return slug_thumbnail
 
@@ -106,12 +110,11 @@ class Post(models.Model):
 
         staticがローカル配信なら相対URLのままなので、未デプロイでもローカルで確認できる。
         """
-        if self.thumbnail:
-            return self.thumbnail.url
-
         static_thumbnail = self.static_thumbnail_path
         if static_thumbnail:
             return static(static_thumbnail)
+        if self.thumbnail:
+            return self.thumbnail.url
 
         return DEFAULT_NEWS_IMAGE_URL
 
