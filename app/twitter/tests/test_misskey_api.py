@@ -1,12 +1,15 @@
 """Misskey の API 契約・安全な画像取得・外部呼び出し遮断のテスト。"""
 
+import base64
+import json
+from urllib.parse import quote
 from unittest.mock import MagicMock, patch
 
 import requests
 from django.test import SimpleTestCase, override_settings
 
 from twitter.image_download import MAX_IMAGE_SIZE
-from twitter.misskey_api import post_note, upload_file
+from twitter.misskey_api import _post_api, post_note, upload_file
 
 ENV = {
     'MISSKEY_TOKEN': 'test-misskey-token',
@@ -89,6 +92,31 @@ class MisskeyApiTest(SimpleTestCase):
         self.get.assert_not_called()
         self.post.assert_not_called()
 
+    @override_settings(TESTING=False)
+    @patch.dict('os.environ', {'MISSKEY_API_ALLOW_TEST_CALLS': ''})
+    def test_runner_detection_blocks_images_and_both_post_endpoints(self):
+        for argv in (
+            ['manage.py', 'test', 'twitter'], ['pytest', 'twitter'],
+            ['/venv/bin/pytest', 'twitter'], ['python', '-m', 'pytest', 'twitter'],
+            ['/venv/bin/py.test', 'twitter'],
+        ):
+            with self.subTest(argv=argv), patch('sys.argv', argv):
+                self.assertFalse(post_note('告知', IMAGE_URL)['ok'])
+                self.assertFalse(upload_file(IMAGE_URL)['ok'])
+                self.assertFalse(_post_api('notes/create', payload={'text': '告知'})['ok'])
+                self.assertFalse(_post_api('drive/files/create', files={'file': b'image'})['ok'])
+        self.get.assert_not_called()
+        self.post.assert_not_called()
+
+    @override_settings(TESTING=False)
+    @patch('sys.argv', ['manage.py', 'test', 'twitter'])
+    def test_explicit_test_allowance_still_permits_mocked_calls(self):
+        self.post.side_effect = [api_response({'id': 'file-1'}),
+                                 api_response({'createdNote': {'id': 'note-1'}})]
+        self.assertTrue(post_note('告知', IMAGE_URL)['ok'])
+        self.get.assert_called_once()
+        self.assertEqual(self.post.call_count, 2)
+
     def test_text_limit_is_validated_before_upload(self):
         for text in ('', 'あ' * 3001):
             with self.subTest(length=len(text)):
@@ -107,18 +135,51 @@ class MisskeyApiTest(SimpleTestCase):
         self.assertFalse(post_note('告知')['ok'])
         self.post.assert_not_called()
 
-    def test_http_failure_keeps_status_and_limits_logged_body(self):
+    def test_http_failure_keeps_only_status_and_allowed_error_code(self):
         body = '先頭' + 'あ' * 500 + 'LOG_TAIL'
-        response = api_response({}, status=429, body=body)
+        response = api_response({'error': {'code': 'RATE_LIMIT_EXCEEDED', 'message': body}},
+                                status=429, body=body)
         response.raise_for_status.side_effect = requests.HTTPError(response=response)
         self.post.return_value = response
         with self.assertLogs('twitter.misskey_api', level='ERROR') as logs:
             result = post_note('告知')
         self.assertFalse(result['ok'])
         self.assertEqual(result['status_code'], 429)
-        self.assertIn('先頭', result['error_body'])
+        self.assertEqual(result['error_body'], 'RATE_LIMIT_EXCEEDED')
+        self.assertIn('RATE_LIMIT_EXCEEDED', ''.join(logs.output))
+        self.assertNotIn('先頭', str(result) + ''.join(logs.output))
         self.assertNotIn('LOG_TAIL', ''.join(logs.output))
         self.assertNotIn('あ' * 67, ''.join(logs.output))
+
+    def test_error_bodies_and_encoded_tokens_are_never_forwarded(self):
+        token = ENV['MISSKEY_TOKEN']
+        bodies = [
+            token, token.replace('-', r'\u002d'), quote(token, safe='').replace('-', '%2D'),
+            base64.b64encode(token.encode()).decode(), json.dumps(token.split('-')),
+        ]
+        for body in bodies:
+            for data in ({'error': {'code': 'ACCESS_DENIED', 'message': body}},
+                         {'error': {'code': body}}, {'error': {'code': ['ACCESS_DENIED']}}, {}):
+                with self.subTest(body=body, data=data):
+                    response = api_response(data, status=403, body=body)
+                    response.raise_for_status.side_effect = requests.HTTPError(response=response)
+                    self.post.return_value = response
+                    with self.assertLogs('twitter.misskey_api', level='ERROR') as logs:
+                        result = post_note('告知')
+                    expected = 'ACCESS_DENIED' if data.get('error', {}).get('code') == 'ACCESS_DENIED' else 'UNKNOWN_ERROR'
+                    self.assertEqual(result['error_body'], expected)
+                    self.assertEqual(result['status_code'], 403)
+                    self.assertNotIn(body, str(result) + ''.join(logs.output))
+
+    def test_non_json_error_response_does_not_forward_body_or_parser_exception(self):
+        response = api_response({}, status=502, body='secret response')
+        response.raise_for_status.side_effect = requests.HTTPError(response=response)
+        response.json.side_effect = ValueError('secret parser error')
+        self.post.return_value = response
+        with self.assertLogs('twitter.misskey_api', level='ERROR') as logs:
+            result = post_note('告知')
+        self.assertEqual(result['error_body'], 'UNKNOWN_ERROR')
+        self.assertNotIn('secret', str(result) + ''.join(logs.output))
 
     def test_error_response_does_not_expose_token(self):
         response = api_response({}, status=403, body=f"bad token {ENV['MISSKEY_TOKEN']}")

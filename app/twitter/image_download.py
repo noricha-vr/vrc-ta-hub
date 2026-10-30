@@ -37,13 +37,31 @@ def download_image(image_url: str, *, log=logger) -> tuple[bytes, str] | None:
     通信例外は投稿先クライアントで処理する。リダイレクト先への SSRF を防ぎ、
     ストリームはサイズ超過を含む全経路で閉じる。
     """
-    parsed = urlparse(image_url)
-    if parsed.scheme not in ('https', 'http') or parsed.hostname not in ALLOWED_IMAGE_DOMAINS:
-        log.warning("Blocked image download from untrusted domain: %s", parsed.hostname)
+    # requests が取り除く制御文字・解釈を変えるバックスラッシュは正規化前に拒否。
+    if '\\' in image_url or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in image_url):
+        log.warning("Blocked image download with unsafe URL characters")
+        return None
+    try:
+        original = urlparse(image_url)
+        if original.username is not None or original.password is not None:
+            log.warning("Blocked image download with URL credentials")
+            return None
+        prepared_url = requests.Request('GET', image_url).prepare().url
+        parsed = urlparse(prepared_url)
+        allowed = (
+            parsed.scheme == 'https'
+            and parsed.hostname in ALLOWED_IMAGE_DOMAINS
+            and parsed.port in (None, 443)
+            and parsed.username is None and parsed.password is None
+        )
+    except (ValueError, requests.RequestException):
+        allowed = False
+    if not allowed:
+        log.warning("Blocked image download with untrusted URL")
         return None
 
     response = requests.get(
-        image_url, timeout=REQUEST_TIMEOUT_SECONDS, stream=True, allow_redirects=False,
+        prepared_url, timeout=REQUEST_TIMEOUT_SECONDS, stream=True, allow_redirects=False,
     )
     try:
         response.raise_for_status()

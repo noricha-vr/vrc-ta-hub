@@ -3,18 +3,25 @@
 import logging
 import os
 import re
+import sys
 
 import requests
 from django.conf import settings
 
 from twitter.image_download import download_image
-from twitter.x_api import PostTweetResult, _failure_result, _summarize_error_body
+from twitter.x_api import PostTweetResult, _failure_result
 
 logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT_SECONDS = 30
 MEDIA_UPLOAD_TIMEOUT_SECONDS = 60
 MAX_TEXT_LENGTH = 3000
 VISIBILITIES = {'public', 'home', 'followers', 'specified'}
+# 任意文字列を error.code に含める応答も転送しない。既知のコードだけを許可する。
+SAFE_ERROR_CODES = frozenset({
+    'ACCESS_DENIED', 'AUTHENTICATION_FAILED', 'CREDENTIAL_REQUIRED',
+    'INTERNAL_ERROR', 'INVALID_PARAM', 'INVALID_TOKEN', 'NO_SUCH_FILE',
+    'PERMISSION_DENIED', 'RATE_LIMIT_EXCEEDED',
+})
 
 
 def is_misskey_enabled() -> bool:
@@ -23,11 +30,29 @@ def is_misskey_enabled() -> bool:
 
 
 def _should_block_misskey_api_in_tests() -> bool:
-    """X クライアント同様、テスト時の呼び出しには明示許可を必須にする。"""
+    """設定または実行ランナーでテストを判定し、明示許可を必須にする。"""
+    testing = getattr(settings, 'TESTING', False) or any(
+        arg == 'test' or re.fullmatch(r'(?:pytest|py\.test)(?:[-.].*)?', os.path.basename(arg))
+        for arg in sys.argv
+    )
     return (
-        getattr(settings, 'TESTING', False)
+        testing
         and os.environ.get('MISSKEY_API_ALLOW_TEST_CALLS') != '1'
     )
+
+
+def _safe_error_code(response) -> str:
+    """応答本文を保持せず、許可した JSON error.code だけを取り出す。"""
+    if response is not None:
+        try:
+            data = response.json()
+        except ValueError:
+            data = None
+        error = data.get('error') if isinstance(data, dict) else None
+        code = error.get('code') if isinstance(error, dict) else None
+        if isinstance(code, str) and code in SAFE_ERROR_CODES:
+            return code
+    return 'UNKNOWN_ERROR'
 
 
 def _api_url(endpoint: str) -> str:
@@ -79,14 +104,12 @@ def _post_api(endpoint: str, *, payload=None, files=None) -> PostTweetResult:
         if error_response is not None:
             response = error_response
         status_code = response.status_code if response is not None else None
-        # 認証値が外部サービスの応答に含まれても通知やログへ渡さない。
-        body = response.text if response is not None else type(error).__name__
-        body = body.replace(token, '[redacted]')
+        code = _safe_error_code(response)
         logger.error(
-            'Misskey API failed: endpoint=%s status=%s %s',
-            endpoint, status_code, _summarize_error_body(body),
+            'Misskey API failed: endpoint=%s status=%s code=%s',
+            endpoint, status_code, code,
         )
-        return _failure_result(status_code=status_code, error_body=body[:1000])
+        return _failure_result(status_code=status_code, error_body=code)
 
 
 def upload_file(image_url: str) -> PostTweetResult:

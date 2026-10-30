@@ -16,6 +16,7 @@ from twitter.notifications import notify_tweet_post_failure
 from twitter.tweet_generator import get_generator, get_tweet_image_url
 from twitter.x_api import PostTweetResult
 
+from .announcement_eligibility import event_date_skip_reason
 from .media_service import upload_media_to_x
 from .misskey_service import process_pending_notes
 from .x_api_service import post_tweet_to_x
@@ -248,8 +249,9 @@ def _process_scheduled_tweets_for_x(
     )
     posted_attempted = False
     for queue_item in ready_items:
-        if queue_item.tweet_type in ('lt', 'special') and queue_item.event:
-            if queue_item.event.date == timezone.localdate():
+        skip_reason = event_date_skip_reason(queue_item)
+        if queue_item.tweet_type in ('lt', 'special'):
+            if skip_reason == 'same_day_integrated':
                 queue_item.status = 'skipped'
                 queue_item.error_message = SAME_DAY_INDIVIDUAL_SKIP_REASON
                 queue_item.generated_text = ''
@@ -264,7 +266,7 @@ def _process_scheduled_tweets_for_x(
                 })
                 logger.info("Skipped same-day %s tweet for queue %d", queue_item.tweet_type, queue_item.pk)
                 continue
-            if queue_item.event.date < timezone.localdate():
+            if skip_reason == 'event_date_passed':
                 queue_item.status = 'failed'
                 queue_item.error_message = 'イベント日が過去のため投稿スキップ'
                 run_with_db_reconnect(
@@ -277,8 +279,8 @@ def _process_scheduled_tweets_for_x(
                 logger.info("Skipped expired %s tweet for queue %d", queue_item.tweet_type, queue_item.pk)
                 continue
 
-        if queue_item.tweet_type == 'daily_reminder' and queue_item.event:
-            if queue_item.event.date != timezone.localdate():
+        if queue_item.tweet_type == 'daily_reminder':
+            if skip_reason == 'not_event_day':
                 queue_item.status = 'failed'
                 queue_item.error_message = '当日イベントではないため投稿スキップ'
                 run_with_db_reconnect(
@@ -299,6 +301,8 @@ def _process_scheduled_tweets_for_x(
                 )
             except Exception:
                 logger.exception("Failed to prepare Misskey note for queue %d", queue_item.pk)
+                # ready を維持し、次回 Cron で配信行の作成から再試行する。
+                break
 
         result = post_tweet_queue_item(
             queue_item,

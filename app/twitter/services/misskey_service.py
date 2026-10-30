@@ -12,6 +12,8 @@ from twitter.models import MisskeyNote
 from twitter.notifications import notify_misskey_post_failure
 from twitter.x_api import _failure_result
 
+from .announcement_eligibility import event_date_skip_reason
+
 logger = structlog.get_logger(__name__)
 MAX_ATTEMPTS = 3
 SCHEDULE_EXPIRY_HOURS = 24
@@ -39,7 +41,7 @@ def process_pending_notes(*, now=None) -> None:
     # 行ロックで重複 Cron による同時投稿を防ぐ。X 側の状態は更新しない。
     with transaction.atomic():
         pending = MisskeyNote.objects.select_for_update().filter(status='pending').select_related(
-            'tweet_queue__community',
+            'tweet_queue__community', 'tweet_queue__event',
         ).order_by('tweet_queue__scheduled_at', 'pk')
         for note in pending:
             queue_item = note.tweet_queue
@@ -50,6 +52,14 @@ def process_pending_notes(*, now=None) -> None:
                 _log_post(note)
                 continue
             if queue_item.scheduled_at > current:
+                continue
+
+            skip_reason = event_date_skip_reason(queue_item, today=timezone.localdate(current))
+            if skip_reason:
+                note.status = 'skipped'
+                note.error_message = f'イベント日の投稿対象外のため投稿をスキップ ({skip_reason})'
+                note.save(update_fields=['status', 'error_message'])
+                _log_post(note)
                 continue
 
             try:

@@ -3,7 +3,7 @@
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, OperationalError, transaction
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -74,6 +74,22 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         self.assertTrue(http_post.call_args.kwargs['json']['noExtractMentions'])
         self.x_notify.assert_called_once()
 
+    @override_settings(TESTING=False)
+    @patch.dict('os.environ', {'MISSKEY_API_ALLOW_TEST_CALLS': ''})
+    @patch('sys.argv', ['manage.py', 'test', 'twitter'])
+    def test_finally_stage_cannot_send_when_only_x_is_mocked(self):
+        queue = self.queue(image_url='https://data.vrc-ta-hub.com/poster.png')
+        self.note_patch.stop()
+        with patch('twitter.misskey_api.requests.post') as post, \
+                patch('twitter.image_download.requests.get') as get:
+            self.process()
+        queue.refresh_from_db()
+        self.assertEqual(queue.status, 'posted')
+        self.assertEqual(queue.misskey_note.status, 'pending')
+        self.assertEqual(queue.misskey_note.attempts, 1)
+        post.assert_not_called()
+        get.assert_not_called()
+
     def test_pending_note_is_created_before_x_post(self):
         queue = self.queue()
         def observe_pending(*args, **kwargs):
@@ -82,6 +98,75 @@ class MisskeySchedulingTest(AutoTweetTestBase):
         self.x_post.side_effect = observe_pending
         self.process()
         self.assertEqual(queue.misskey_note.status, 'posted')
+
+    def test_note_creation_failure_leaves_x_ready_for_next_cron(self):
+        queue = self.queue()
+        later = self.queue(scheduled_at=self.current - timedelta(minutes=1))
+        with patch('twitter.models.MisskeyNote.objects.get_or_create',
+                   side_effect=OperationalError('temporary database failure')):
+            with self.assertLogs('twitter.services.tweet_scheduling_service', level='ERROR'):
+                result = self.process()
+        queue.refresh_from_db()
+        later.refresh_from_db()
+        self.assertEqual(queue.status, 'ready')
+        self.assertEqual(later.status, 'ready')
+        self.assertFalse(result['posted_attempted'])
+        self.assertFalse(MisskeyNote.objects.exists())
+        self.x_post.assert_not_called()
+        self.x_upload.assert_not_called()
+        self.note_post.assert_not_called()
+        self.process()
+        queue.refresh_from_db()
+        self.assertEqual(queue.status, 'posted')
+        self.assertEqual(queue.misskey_note.status, 'posted')
+        self.x_post.assert_called_once()
+        self.note_post.assert_called_once()
+
+    def test_retry_rechecks_event_date_even_when_x_already_finished(self):
+        # JST 00:01: a reminder from 23:59 is not expired, but is no longer current.
+        self.current = timezone.make_aware(timezone.datetime(2026, 10, 30, 0, 1))
+        today = timezone.localdate(self.current)
+        cases = [
+            ('lt', today), ('special', today),
+            ('lt', today - timedelta(days=1)),
+            ('special', today - timedelta(days=1)),
+            ('daily_reminder', today - timedelta(days=1)),
+            ('daily_reminder', today + timedelta(days=1)),
+        ]
+        for status in ('posted', 'failed'):
+            for tweet_type, event_date in cases:
+                with self.subTest(status=status, tweet_type=tweet_type, event_date=event_date):
+                    TweetQueue.objects.all().delete()
+                    self.event.date = event_date
+                    self.event.save(update_fields=['date'])
+                    queue = self.queue(status=status, tweet_type=tweet_type,
+                                       scheduled_at=self.current - timedelta(minutes=2))
+                    note = MisskeyNote.objects.create(tweet_queue=queue, attempts=1)
+                    process_pending_notes(now=self.current)
+                    note.refresh_from_db()
+                    queue.refresh_from_db()
+                    self.assertEqual(note.status, 'skipped')
+                    self.assertEqual(note.attempts, 1)
+                    self.assertEqual(queue.status, status)
+        self.note_post.assert_not_called()
+        self.notify.assert_not_called()
+
+    def test_retry_allows_current_reminder_and_future_individual_announcements(self):
+        today = timezone.localdate(self.current)
+        for tweet_type, event_date in [
+            ('daily_reminder', today),
+            ('lt', today + timedelta(days=1)),
+            ('special', today + timedelta(days=1)),
+        ]:
+            with self.subTest(tweet_type=tweet_type):
+                self.event.date = event_date
+                self.event.save(update_fields=['date'])
+                note = MisskeyNote.objects.create(tweet_queue=self.queue(
+                    status='failed', tweet_type=tweet_type,
+                ))
+                process_pending_notes(now=self.current)
+                note.refresh_from_db()
+                self.assertEqual(note.status, 'posted')
 
     def test_unexpected_x_exception_still_posts_to_misskey(self):
         queue = self.queue()
