@@ -252,6 +252,10 @@ class BotInstallation(models.Model):
         'Discord サーバー ID', max_length=20,
         validators=[RegexValidator(r'\A[0-9]{17,20}\Z', 'サーバー ID は17〜20桁の数字で入力してください。')],
     )
+    notification_channel_id = models.CharField(
+        'Discord 通知先チャンネル ID', max_length=20, null=True, blank=True, default=None, db_default=None,
+        validators=[RegexValidator(r'\A[0-9]{17,20}\Z', 'チャンネル ID は17〜20桁の数字で入力してください。')],
+    )
     status = models.CharField('状態', max_length=10, choices=Status.choices, default=Status.INSTALLED)
     added_by = models.ForeignKey('user_account.CustomUser', on_delete=models.SET_NULL, null=True)
     installed_at = models.DateTimeField('追加した時刻', default=timezone.now)

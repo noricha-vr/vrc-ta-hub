@@ -9,6 +9,8 @@
 
 ## [Unreleased]
 
+- Discord Bot の導入状態更新 API で通知先チャンネル ID を保存できるようにしました。設定完了時は省略すると現在の値を保持し、取り外し時は消去します。導入記録 API は通知先チャンネル ID と Webhook の設定有無（`webhook_configured`）、Hub の送信経路（`hub_delivery`: `webhook` / `none`）も返します。Webhook URL は返しません (#871)。
+
 - 公開の発表一覧 API（`/api/v1/event_detail/`）が、発表ページで公開している資料の PDF（`slide_file`）の URL を返すようにしました。資料が無い発表は `null` です。外部のツールが、資料がもう登録済みかを確かめられます。
 
 - スーパーユーザーの API キーで Discord サーバーの有効な Bot 導入記録を取得し、設定完了・取り外しを通知できるようにしました。通知には取得した導入記録の `id` を `installation_id` として渡します。状態更新には書き込み権限のキーが必要です (#866)。

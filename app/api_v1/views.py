@@ -105,6 +105,7 @@ class BotInstallationAPIView(APIView):
         description=(
             'スーパーユーザーの API キー（X-API-Key）限定。'
             '指定サーバーの外れていない導入記録（installed / configured）を返します。'
+            '通知先チャンネル ID と Webhook の設定有無、Hub の送信経路（webhook / none）も返します。Webhook URL は返しません。'
             '該当記録がない場合は 404、不正な guild_id は 400。'
             'エラーは共通の detail / code 形式です。'
         ),
@@ -120,7 +121,7 @@ class BotInstallationAPIView(APIView):
     def get(self, request):
         guild_id = _validate_bot_guild_id(request.query_params.get('guild_id'))
         # 外れていない記録は active_guild_id の UNIQUE で一意に引ける。
-        installation = get_object_or_404(BotInstallation, active_guild_id=guild_id)
+        installation = get_object_or_404(BotInstallation.objects.select_related('community'), active_guild_id=guild_id)
         return Response(BotInstallationSerializer(installation).data)
 
 
@@ -138,6 +139,8 @@ class BotInstallationStatusAPIView(APIView):
             'JSON の installation_id（取得 API の id）・guild_id・status（configured / removed）を受け取り、状態と時刻を記録します。'
             '同じサーバーに後から別の導入記録ができていても、古い記録宛ての通知は新しい記録を変えず 404 になります。'
             'configured の再送は時刻を変えず 200 を返します。installed への変更は 400。'
+            'configured では任意の notification_channel_id（17〜20 桁の数字の文字列）を保存し、省略時は保持します。'
+            'removed では通知先チャンネル ID を消します。'
             '外れた記録は更新せず、有効な記録がない場合は 404。'
             'エラーは共通の detail / code 形式です。'
         ),
@@ -146,6 +149,9 @@ class BotInstallationStatusAPIView(APIView):
             'installation_id': serializers.IntegerField(min_value=1),
             'guild_id': serializers.RegexField(r'^[0-9]{17,20}$', trim_whitespace=False),
             'status': serializers.ChoiceField(choices=['configured', 'removed']),
+            'notification_channel_id': serializers.RegexField(
+                r'^[0-9]{17,20}$', min_length=17, max_length=20, required=False, trim_whitespace=False,
+            ),
         }),
         responses={200: BotInstallationSerializer, 400: OpenApiTypes.OBJECT,
                    403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
@@ -160,6 +166,12 @@ class BotInstallationStatusAPIView(APIView):
         new_status = request.data.get('status')
         if new_status not in (BotInstallation.Status.CONFIGURED, BotInstallation.Status.REMOVED):
             raise ValidationError({'status': 'configured または removed を指定してください。'})
+        if 'notification_channel_id' in request.data:
+            channel_id = request.data['notification_channel_id']
+            if not isinstance(channel_id, str) or re.fullmatch(r'[0-9]{17,20}', channel_id) is None:
+                raise ValidationError({
+                    'notification_channel_id': 'notification_channel_id は17〜20桁の数字の文字列で指定してください。',
+                })
 
         with transaction.atomic():
             # 主キーでロックし、再導入後に遅れて届いた古い通知が新しい記録を変えないよう guild_id も照合する。
@@ -167,11 +179,20 @@ class BotInstallationStatusAPIView(APIView):
                 BotInstallation.objects.select_for_update().exclude(status=BotInstallation.Status.REMOVED),
                 pk=installation_id, guild_id=guild_id,
             )
+            update_fields = []
             if installation.status != new_status:
                 timestamp_field = 'configured_at' if new_status == BotInstallation.Status.CONFIGURED else 'removed_at'
                 installation.status = new_status
                 setattr(installation, timestamp_field, timezone.now())
-                installation.save(update_fields=['status', timestamp_field])
+                update_fields.extend(['status', timestamp_field])
+            if new_status == BotInstallation.Status.REMOVED:
+                installation.notification_channel_id = None
+                update_fields.append('notification_channel_id')
+            elif 'notification_channel_id' in request.data:
+                installation.notification_channel_id = request.data['notification_channel_id']
+                update_fields.append('notification_channel_id')
+            if update_fields:
+                installation.save(update_fields=update_fields)
         return Response(BotInstallationSerializer(installation).data)
 
 
