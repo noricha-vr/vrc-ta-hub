@@ -1,12 +1,13 @@
 """管理画面の表示契約。権限・送信先・秘密値・エラーの回帰を検証する。"""
 from datetime import timedelta
+from unittest.mock import patch
 
 from bs4 import BeautifulSoup
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from community.models import CommunityInvitation, CommunityMember
+from community.models import BotInstallation, CommunityInvitation, CommunityMember
 from tests.factories import make_community, make_community_member, make_user
 
 
@@ -72,6 +73,74 @@ class CommunityAdminUITest(TestCase):
             self.assertIn('disabled', soup.select_one('button[form="notification-form"]').attrs)
             self.assertIsNotNone(soup.select_one(f'form[action="{reverse("community:test_webhook", args=[self.community.pk])}"]'))
             self.assertIsNotNone(soup.select_one('#clear-webhook [name="notification_webhook_url"][value=""]'))
+
+    def test_integrations_start_with_bot_and_end_with_collapsed_webhook(self):
+        soup = BeautifulSoup(self.page('settings').content, 'html.parser')
+        card = soup.select_one('#integrations')
+        items = card.select(':scope > .settings-integration')
+        self.assertEqual(items[0]['id'], 'bot-install')
+        self.assertEqual(items[-1]['id'], 'webhook')
+        self.assertEqual(items[-1].name, 'details')
+        self.assertNotIn('open', items[-1].attrs)
+        self.assertIsNotNone(items[-1].select_one('#notification-form'))
+        self.assertEqual([item.h3.get_text(strip=True) for item in items[1:-1]],
+                         ['イベントカレンダー', 'X 告知テンプレート', 'API キー'])
+
+    def test_toc_has_icons_without_separate_bot_link(self):
+        soup = BeautifulSoup(self.page('settings').content, 'html.parser')
+        links = soup.select('.admin-toc a')
+        self.assertEqual([link['href'] for link in links], [
+            '#basic-information', '#contact-information', '#listing-information',
+            '#applications', '#integrations', '#members', '#danger',
+        ])
+        for link in links:
+            self.assertEqual(link.i['aria-hidden'], 'true')
+        self.assertIsNotNone(soup.select_one('#integrations #bot-install'))
+
+    def test_webhook_description_uses_actual_delivery_route(self):
+        BotInstallation.objects.create(
+            community=self.community, guild_id='123456789012345678',
+            added_by=self.owner, status='configured',
+            notification_channel_id='234567890123456789',
+        )
+        cases = [
+            ('bot', 'https://discord.com/api/webhooks/1/example', True,
+             '今は Discord Bot から知らせを送っているため、Webhook は使われていません。'),
+            ('webhook', 'https://discord.com/api/webhooks/1/example', False,
+             'この Webhook に知らせを送っています。'),
+            ('none', '', False, 'Bot を使わずに Webhook で知らせを送る方法です。'),
+        ]
+        for kind, webhook, allowed, description in cases:
+            with self.subTest(kind=kind), override_settings(
+                DISCORD_BOT_TOKEN='dummy',
+                DISCORD_BOT_DELIVERY_COMMUNITY_IDS=str(self.community.pk) if allowed else '',
+            ), patch('requests.sessions.Session.request') as network:
+                self.community.notification_webhook_url = webhook
+                self.community.save(update_fields=['notification_webhook_url'])
+                response = self.page('settings')
+                self.assertEqual(response.context['discord_delivery_kind'], kind)
+                summary = BeautifulSoup(response.content, 'html.parser').select_one('#webhook > summary')
+                self.assertIn(description, summary.get_text())
+                network.assert_not_called()
+
+    def test_webhook_save_error_opens_details_without_redisplaying_secret(self):
+        saved_url = 'https://discord.com/api/webhooks/1/saved-value'
+        self.community.notification_webhook_url = saved_url
+        self.community.save(update_fields=['notification_webhook_url'])
+        response = self.client.post(
+            reverse('community:update_webhook', args=[self.community.pk]),
+            {'notification_webhook_url': 'https://example.com/invalid-private-value'}, follow=True,
+        )
+        soup = BeautifulSoup(response.content, 'html.parser')
+        self.assertIn('open', soup.select_one('details#webhook').attrs)
+        self.assertIn('open', soup.select_one('#webhook [data-admin-secret-edit]').attrs)
+        self.assertContains(response, 'Discord Webhook URLの形式が正しくありません。')
+        self.assertNotContains(response, 'invalid-private-value')
+        self.assertNotContains(response, saved_url)
+        self.community.refresh_from_db()
+        self.assertEqual(self.community.notification_webhook_url, saved_url)
+        self.assertNotIn('open', BeautifulSoup(self.page('settings').content, 'html.parser')
+                         .select_one('details#webhook').attrs)
 
     def test_pending_keeps_editing_and_shows_locked_previews(self):
         self.community.status = 'pending'

@@ -219,7 +219,10 @@ class GuideDemoDataTest(TestCase):
                    '#integrations a[href="/community/calendar_update/"]',
                    '#integrations a[href="/twitter/template/list/"]',
                    '#integrations a[href="/account/api-keys/"]',
-                   '#notification-form [data-admin-secret-edit] > summary')
+                   '#notification-form [data-admin-secret-edit] > summary',
+                   '#webhook > summary',
+                   '#lt-form > .settings-field:has(#accepts_lt_application)',
+                   '#lt-settings-detail .settings-field:has(#lt_application_template)')
             for form_id, label in (('community-form', '集会情報を保存'),
                                    ('lt-form', '発表受付を保存'), ('notification-form', '通知を保存')):
                 button = soup.select_one(f'[data-admin-action-bar] button[form="{form_id}"]')
@@ -229,9 +232,9 @@ class GuideDemoDataTest(TestCase):
             for panel_id in ('close-community', 'create-transfer'):
                 unique(soup, f'[data-confirm-panel="{panel_id}"]', f'#{panel_id} button[type="submit"]')
                 self.assertIn('hidden', soup.select_one(f'#{panel_id}').attrs)
-            for title in ('基本情報', '主催と連絡先', '掲載内容', '発表の受付', '通知と連携', 'メンバー管理'):
-                headings = soup.select('.admin-card > .admin-section-heading > h2')
-                self.assertEqual(sum(h.get_text(strip=True) == title for h in headings), 1)
+            for title in ('基本情報', '主催と連絡先', '掲載内容', '発表の受付', '通知と連携', 'メンバー'):
+                headings = soup.select('.admin-card > .settings-heading h2')
+                self.assertEqual(sum(h.get_text(strip=True) == title for h in headings), 1, f'{path}: {title}')
             # タグはフォーム部品の div ではなく fieldset 自体を切り出す。
             unique(soup, 'fieldset#id_tags', 'fieldset#id_weekdays > legend')
 

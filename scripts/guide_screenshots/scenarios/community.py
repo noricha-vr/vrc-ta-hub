@@ -25,8 +25,8 @@ def fields(capture, first, last, *marks):
     capture.annotations.clear()
     for number, mark in enumerate(marks, 1):
         capture.annotate(mark, number)
-    a = capture.page.locator(first).locator('xpath=ancestor-or-self::*[contains(@class,"admin-form-field") or self::fieldset][1]')
-    b = capture.page.locator(last).locator('xpath=ancestor-or-self::*[contains(@class,"admin-form-field") or self::fieldset][1]')
+    a = capture.page.locator(first).locator('xpath=ancestor-or-self::*[contains(@class,"admin-form-field") or contains(@class,"settings-field") or self::fieldset][1]')
+    b = capture.page.locator(last).locator('xpath=ancestor-or-self::*[contains(@class,"admin-form-field") or contains(@class,"settings-field") or self::fieldset][1]')
     a.scroll_into_view_if_needed()
     boxes = [element.bounding_box() for element in (a, b)]
     scroll = capture.page.evaluate('({x: scrollX, y: scrollY})')
@@ -68,7 +68,7 @@ def settings_entry(capture, name=MAIN):
 
 
 def card(capture, title):
-    return f'.admin-card:has(> .admin-section-heading > h2:text-is("{title}"))'
+    return f'.admin-card:has(> :is(.admin-section-heading, .settings-heading) h2:text-is("{title}"))'
 
 
 @scenario('community/create', mobile=True)
