@@ -909,6 +909,12 @@ class MaterialUploadReminderLog(models.Model):
         SENT = "sent", "送信済み"
         SKIPPED_BY_NOTE = "skipped_by_note", "備考で除外"
 
+    class DiscordDMStatus(models.TextChoices):
+        SENDING = "sending", "送信中"
+        SENT = "sent", "送信済み"
+        FORBIDDEN = "forbidden", "受信不可"
+        FAILED = "failed", "送信失敗"
+
     event_detail = models.OneToOneField(
         EventDetail,
         on_delete=models.CASCADE,
@@ -920,6 +926,10 @@ class MaterialUploadReminderLog(models.Model):
     matched_intent = models.CharField("一致した意図", max_length=100, blank=True, default="")
     confidence = models.CharField("信頼度", max_length=20, blank=True, default="")
     sent_at = models.DateTimeField("送信日時", null=True, blank=True)
+    discord_dm_status = models.CharField(
+        "Discord DM の状態", max_length=20, choices=DiscordDMStatus.choices, blank=True, default=""
+    )
+    discord_dm_sent_at = models.DateTimeField("Discord DM 送信日時", null=True, blank=True)
     follow_up_sent_at = models.DateTimeField("1週間後リマインド送信日時", null=True, blank=True, db_index=True)
     created_at = models.DateTimeField("作成日時", auto_now_add=True)
     updated_at = models.DateTimeField("更新日時", auto_now=True)

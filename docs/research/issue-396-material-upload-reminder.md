@@ -32,3 +32,32 @@
 - LLM エラー時は送信しない。
 - 宛名、締切文言なし、参考ページ URL をメール本文で確認する。
 - dry-run はメール送信とログ記録を行わず、対象と判定結果を表示する。
+
+## 翌日の Discord DM 依頼（Issue #873）
+
+メールの送信と送信済みログの作成が成功した後、以下の条件をすべて満たす場合だけ、集会アシスタントの Discord Bot から DM でも資料登録を依頼する。
+
+- 備考の判定が「送る」で、スライドの URL と PDF がどちらも未登録。
+- メールの宛先となる発表者が Discord と連携済みで、連携 ID が 17〜20 桁の半角数字。
+- `select_community_discord_delivery()` が `bot` を選択する集会。`DISCORD_BOT_TOKEN` と `DISCORD_BOT_DELIVERY_COMMUNITY_IDS` に加え、設定完了した Bot 導入記録と有効な通知先チャンネルが必要。
+
+DM には開催日、書式記号をエスケープした発表の題名、メールと同じ発表編集ページへのリンクを載せる。メンションは無効にする。dry-run と備考で除外した発表には送らない。1 週間後のリマインドは従来どおり。
+
+`MaterialUploadReminderLog` の `discord_dm_status` と `discord_dm_sent_at` に結果を記録する。追加 migration はこの 2 列の追加だけで、既存行は空の状態・日時なしになる。
+
+| DM の状態 | 意味 | 再送 |
+|---|---|---|
+| 空 | DM 未実施（既存行・対象外も含む） | 既存のメールログがあれば対象抽出から除外 |
+| `sending` | 送信直前に保存済み。処理中断で残る場合もある | しない |
+| `sent` | 送信成功。送信日時も保存 | しない |
+| `forbidden` | チャンネル作成またはメッセージ送信が HTTP 403 | しない |
+| `failed` | その他の HTTP エラー・通信失敗など | しない |
+
+DM の HTTP 通信は自動再試行しない。DM に失敗してもメールの `status=sent` と送信日時を維持する。送信先 ID、URL、トークン、例外本文はログに出さず、発表 ID と DM の状態のみ記録する。
+
+### 計測
+
+- 指標: DM 状態ごとの件数。`forbidden` は受信不可、`failed` と残留する `sending` は要確認。
+- 置き場: `MaterialUploadReminderLog` と `event.material_upload_reminders` の結果ログ。
+- 確認方法: `python manage.py shell -c 'from django.db.models import Count; from event.models import MaterialUploadReminderLog; print(list(MaterialUploadReminderLog.objects.values("discord_dm_status").annotate(count=Count("pk"))))'`
+- 見直し日: 本番反映の 7 日後。`sending` が残っていても自動再送はしない。

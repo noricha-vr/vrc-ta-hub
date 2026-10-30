@@ -1,13 +1,16 @@
-"""発表資料アップロード依頼メールの対象抽出と送信を扱う。"""
+"""発表資料アップロード依頼の対象抽出とメール・Discord DM 送信を扱う。"""
 from __future__ import annotations
 
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass
 from datetime import date
 from typing import Literal, Protocol
 
+import requests
+from allauth.socialaccount.models import SocialAccount
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db.models import Q
@@ -20,6 +23,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from event.models import EventDetail, MaterialUploadReminderLog
 from website.constants import OPENROUTER_BASE_URL, build_openrouter_extra_headers, build_site_url
+from website.discord_delivery import post_discord_dm, select_community_discord_delivery
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +230,7 @@ def process_material_upload_reminder_target(
         )
         return ReminderResult(event_detail.pk, applicant.email, "mail_error", str(exc))
 
-    MaterialUploadReminderLog.objects.create(
+    reminder_log = MaterialUploadReminderLog.objects.create(
         event_detail=event_detail,
         status=MaterialUploadReminderLog.Status.SENT,
         reason=decision.reason,
@@ -234,6 +238,7 @@ def process_material_upload_reminder_target(
         matched_intent=decision.matched_intent,
         sent_at=timezone.now(),
     )
+    _send_material_upload_reminder_discord_dm(reminder_log, event_detail, applicant)
     return ReminderResult(
         event_detail.pk,
         applicant.email,
@@ -242,6 +247,49 @@ def process_material_upload_reminder_target(
         decision.confidence,
         decision.matched_intent,
     )
+
+
+def _send_material_upload_reminder_discord_dm(reminder_log, event_detail, applicant) -> None:
+    """メール送信済みの記録に対してだけ DM を試み、失敗してもメール結果を保つ。"""
+    if select_community_discord_delivery(event_detail.event.community).kind != "bot":
+        return
+    uid = SocialAccount.objects.filter(user=applicant, provider="discord").values_list("uid", flat=True).first()
+    if not isinstance(uid, str) or re.fullmatch(r"[0-9]{17,20}", uid) is None:
+        return
+
+    statuses = MaterialUploadReminderLog.DiscordDMStatus
+    # 条件付き UPDATE で送信権を確保する。中断で sending が残っても再送しない。
+    claimed = MaterialUploadReminderLog.objects.filter(
+        pk=reminder_log.pk, status=MaterialUploadReminderLog.Status.SENT, discord_dm_status=""
+    ).update(discord_dm_status=statuses.SENDING, updated_at=timezone.now())
+    if not claimed:
+        return
+
+    sent_at = None
+    try:
+        theme = re.sub(r'([\\*_~`|>\[\]()#-])', r'\\\1', ' '.join(event_detail.theme.split()))
+        upload_url = build_site_url(reverse("account:lt_application_edit", kwargs={"pk": event_detail.pk}))
+        post_discord_dm(uid, {
+            "content": (
+                "昨日は発表にご登壇いただき、ありがとうございました。\n\n"
+                f"開催日：{event_detail.event.date:%Y年%m月%d日}\n"
+                f"題名：{theme}\n\n"
+                "共有できる資料（スライドの URL か PDF）を登録してください。\n"
+                f"{upload_url}"
+            ),
+        })
+        status = statuses.SENT
+        sent_at = timezone.now()
+    except requests.HTTPError as exc:
+        status = statuses.FORBIDDEN if exc.response is not None and exc.response.status_code == 403 else statuses.FAILED
+    except Exception:
+        # 例外本文・traceback は送信先や資格情報を含み得るため記録しない。
+        status = statuses.FAILED
+
+    MaterialUploadReminderLog.objects.filter(pk=reminder_log.pk).update(
+        discord_dm_status=status, discord_dm_sent_at=sent_at, updated_at=timezone.now()
+    )
+    logger.info("発表資料アップロード依頼DM: EventDetail=%s status=%s", event_detail.pk, status)
 
 
 def get_material_reminder_note_text(event_detail: EventDetail) -> str:

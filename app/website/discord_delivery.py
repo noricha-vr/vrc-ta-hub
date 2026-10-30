@@ -59,3 +59,39 @@ def post_discord_bot(channel_id: str, payload: dict) -> requests.Response:
     if not 200 <= response.status_code < 300:
         raise requests.HTTPError(f'Discord Bot returned HTTP {response.status_code}', response=response)
     return response
+
+
+def post_discord_dm(recipient_id: str, payload: dict) -> requests.Response:
+    """DM チャンネルを開いて一度だけ送る。作成・送信とも再試行しない。"""
+    if not _valid_channel_id(recipient_id):
+        raise ValueError('Invalid Discord DM recipient')
+    if not settings.DISCORD_BOT_TOKEN:
+        raise ValueError('Discord Bot token is not configured')
+
+    response = _post_discord_dm_request('users/@me/channels', {'recipient_id': recipient_id})
+    try:
+        channel_id = response.json().get('id')
+    except (ValueError, AttributeError):
+        raise ValueError('Invalid Discord DM channel response') from None
+    if not _valid_channel_id(channel_id):
+        raise ValueError('Invalid Discord DM channel response')
+
+    message = {key: value for key, value in payload.items() if key in {'content', 'embeds'}}
+    message['allowed_mentions'] = {'parse': []}
+    return _post_discord_dm_request(f'channels/{channel_id}/messages', message)
+
+
+def _post_discord_dm_request(path: str, payload: dict) -> requests.Response:
+    try:
+        response = requests.post(
+            f'https://discord.com/api/v10/{path}',
+            headers={'Authorization': f'Bot {settings.DISCORD_BOT_TOKEN}'},
+            json=payload,
+            timeout=DISCORD_TIMEOUT_SECONDS,
+            allow_redirects=False,
+        )
+    except requests.RequestException:
+        raise requests.RequestException('Discord DM request failed') from None
+    if not 200 <= response.status_code < 300:
+        raise requests.HTTPError(f'Discord DM returned HTTP {response.status_code}', response=response)
+    return response

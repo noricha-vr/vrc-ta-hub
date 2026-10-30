@@ -9,6 +9,8 @@
 
 ## [Unreleased]
 
+- 発表翌日の資料登録依頼メールが送れた場合に、Discord と連携した発表者へ集会アシスタントの Discord Bot から DM でも依頼するようにしました。集会が Bot 通知の対象で、通知先の設定が完了している場合に限ります。DM の失敗はメールに影響せず、受信不可・送信失敗・送信中断の場合も再送しません。送信状態と送信日時を記録する列の追加が必要です (#873)。
+
 - 許可した集会の発表申請・申請結果・記事公開・動画と記事公開・アカウント紐づけ・資料公開の通知を、Discord Bot から送れるようにしました。`DISCORD_BOT_TOKEN` と `DISCORD_BOT_DELIVERY_COMMUNITY_IDS` を設定し、Bot の通知先チャンネルの設定が完了すると切り替わります。未設定なら従来どおり Webhook を使い、Bot の 403/404 の時だけその通知を Webhook に退避します。導入記録 API の `hub_delivery` に `bot` を追加しました (#872)。
 
 - Discord Bot の導入状態更新 API で通知先チャンネル ID を保存できるようにしました。設定完了時は省略すると現在の値を保持し、取り外し時は消去します。導入記録 API は通知先チャンネル ID と Webhook の設定有無（`webhook_configured`）、Hub の送信経路（`hub_delivery`: `webhook` / `none`）も返します。Webhook URL は返しません (#871)。
