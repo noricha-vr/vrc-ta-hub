@@ -121,10 +121,24 @@ class MisskeyApiTest(SimpleTestCase):
 
     @override_settings(TESTING=False)
     @patch.dict('os.environ', {'MISSKEY_API_ALLOW_TEST_CALLS': ''})
+    @patch('sys.argv', ['/usr/lib/python3/unittest/__main__.py', 'twitter'])
+    def test_python_m_unittest_blocks_calls(self):
+        main = MagicMock(__spec__=MagicMock())
+        main.__spec__.name = 'unittest.__main__'
+        with patch.dict('sys.modules', {'__main__': main}):
+            sys.modules.pop('pytest', None)  # patch.dict が抜ける時に元へ戻す
+            self.assertFalse(post_note('告知', IMAGE_URL)['ok'])
+            self.assertFalse(_post_api('notes/create', payload={'text': '告知'})['ok'])
+        self.get.assert_not_called()
+        self.post.assert_not_called()
+
+    @override_settings(TESTING=False)
+    @patch.dict('os.environ', {'MISSKEY_API_ALLOW_TEST_CALLS': ''})
     @patch('sys.argv', ['/usr/local/bin/gunicorn', 'website.wsgi:application'])
     def test_production_process_with_unittest_imported_is_not_blocked(self):
         """本番でも `import unittest` で読み込まれるモジュールでは遮断しない。"""
-        with patch.dict('sys.modules', {'unittest.main': object(), 'unittest.runner': object()}):
+        modules = {'unittest.main': object(), 'unittest.runner': object(), '__main__': MagicMock(__spec__=None)}
+        with patch.dict('sys.modules', modules):
             sys.modules.pop('pytest', None)  # patch.dict が抜ける時に元へ戻す
             result = post_note('告知')
         self.assertTrue(result['ok'])
