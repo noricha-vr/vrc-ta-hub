@@ -6,6 +6,7 @@ anyio==4.15.1
     # via
     #   google-genai
     #   httpx
+    #   httpx2
     #   openai
 asgiref==3.11.1
     # via
@@ -50,9 +51,7 @@ cryptography==50.0.2
 defusedxml==0.7.1
     # via youtube-transcript-api
 distro==1.9.0
-    # via
-    #   google-genai
-    #   openai
+    # via google-genai
 django==5.2.17
     # via
     #   -r requirements.in
@@ -142,29 +141,34 @@ grpcio==1.81.0
 grpcio-status==1.81.0
     # via google-api-core
 h11==0.16.0
-    # via httpcore
+    # via
+    #   httpcore
+    #   httpcore2
 httpcore==1.0.9
     # via httpx
+httpcore2==2.16.0
+    # via httpx2
 httplib2==0.32.0
     # via
     #   google-api-python-client
     #   google-auth-httplib2
 httpx==0.28.1
-    # via
-    #   google-genai
-    #   openai
+    # via google-genai
+httpx2==2.16.0
+    # via openai
 icalendar==7.3.0
     # via -r requirements.in
 idna==3.18
     # via
     #   anyio
     #   httpx
+    #   httpx2
     #   requests
 inflection==0.5.1
     # via drf-spectacular
 iniconfig==2.3.0
     # via pytest
-jiter==0.15.0
+jiter==0.18.0
     # via openai
 jmespath==1.1.0
     # via
@@ -188,7 +192,7 @@ oauthlib==4.0.0
     # via
     #   django-allauth
     #   requests-oauthlib
-openai==1.56.2
+openai==3.37.0
     # via -r requirements.in
 packaging==26.2
     # via
@@ -294,8 +298,10 @@ tenacity==9.1.4
     #   google-genai
 tinycss2==1.5.1
     # via -r requirements.in
-tqdm==4.68.2
-    # via openai
+truststore==0.10.5
+    # via
+    #   httpcore2
+    #   httpx2
 types-bleach==6.4.0.20260607
     # via -r requirements.in
 types-html5lib==1.1.11.20260518
@@ -319,6 +325,7 @@ typing-extensions==4.16.0
     #   djangorestframework-stubs
     #   google-genai
     #   grpcio
+    #   httpx2
     #   icalendar
     #   mypy
     #   openai
