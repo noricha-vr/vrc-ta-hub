@@ -2,6 +2,7 @@
 
 import base64
 import json
+import sys
 from urllib.parse import quote
 from unittest.mock import MagicMock, patch
 
@@ -110,16 +111,38 @@ class MisskeyApiTest(SimpleTestCase):
 
     @override_settings(TESTING=False)
     @patch.dict('os.environ', {'MISSKEY_API_ALLOW_TEST_CALLS': ''})
-    def test_loaded_pytest_or_unittest_runner_blocks_calls(self):
-        for module_name in ('pytest', 'unittest.main', 'unittest.runner'):
-            with self.subTest(module_name=module_name), patch.dict(
-                'sys.modules', {module_name: object()},
-            ):
-                self.assertFalse(post_note('告知')['ok'])
-                self.assertFalse(upload_file(IMAGE_URL)['ok'])
-                self.assertFalse(_post_api('notes/create', payload={'text': '告知'})['ok'])
+    def test_loaded_pytest_blocks_calls(self):
+        with patch.dict('sys.modules', {'pytest': object()}):
+            self.assertFalse(post_note('告知')['ok'])
+            self.assertFalse(upload_file(IMAGE_URL)['ok'])
+            self.assertFalse(_post_api('notes/create', payload={'text': '告知'})['ok'])
         self.get.assert_not_called()
         self.post.assert_not_called()
+
+    @override_settings(TESTING=False)
+    @patch.dict('os.environ', {'MISSKEY_API_ALLOW_TEST_CALLS': ''})
+    @patch('sys.argv', ['/usr/lib/python3/unittest/__main__.py', 'twitter'])
+    def test_python_m_unittest_blocks_calls(self):
+        main = MagicMock(__spec__=MagicMock())
+        main.__spec__.name = 'unittest.__main__'
+        with patch.dict('sys.modules', {'__main__': main}):
+            sys.modules.pop('pytest', None)  # patch.dict が抜ける時に元へ戻す
+            self.assertFalse(post_note('告知', IMAGE_URL)['ok'])
+            self.assertFalse(_post_api('notes/create', payload={'text': '告知'})['ok'])
+        self.get.assert_not_called()
+        self.post.assert_not_called()
+
+    @override_settings(TESTING=False)
+    @patch.dict('os.environ', {'MISSKEY_API_ALLOW_TEST_CALLS': ''})
+    @patch('sys.argv', ['/usr/local/bin/gunicorn', 'website.wsgi:application'])
+    def test_production_process_with_unittest_imported_is_not_blocked(self):
+        """本番でも `import unittest` で読み込まれるモジュールでは遮断しない。"""
+        modules = {'unittest.main': object(), 'unittest.runner': object(), '__main__': MagicMock(__spec__=None)}
+        with patch.dict('sys.modules', modules):
+            sys.modules.pop('pytest', None)  # patch.dict が抜ける時に元へ戻す
+            result = post_note('告知')
+        self.assertTrue(result['ok'])
+        self.post.assert_called_once()
 
     @override_settings(TESTING=False)
     @patch('sys.argv', ['manage.py', 'test', 'twitter'])

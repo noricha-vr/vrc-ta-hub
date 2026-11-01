@@ -34,17 +34,17 @@ def is_misskey_enabled() -> bool:
 
 
 def _should_block_misskey_api_in_tests() -> bool:
-    """設定または実行ランナーでテストを判定し、明示許可を必須にする。"""
+    """設定または実行ランナーでテストを判定し、明示許可を必須にする。
+
+    unittest.main / unittest.runner は `import unittest` だけで読み込まれ、本番の
+    Django プロセスにも載る。判定に使うと本番の投稿を全て止めるので、読み込みでなく
+    `python -m unittest` で起動されたか（__main__ の spec）を見る。
+    """
+    main_spec = getattr(sys.modules.get('__main__'), '__spec__', None)
     testing = getattr(settings, 'TESTING', False) or any(
         arg == 'test' or re.fullmatch(r'(?:pytest|py\.test)(?:[-.].*)?', os.path.basename(arg))
         for arg in sys.argv
-    ) or (
-        'pytest' in sys.modules
-        or any(
-            module_name in sys.modules
-            for module_name in ('unittest.__main__', 'unittest.main', 'unittest.runner')
-        )
-    )
+    ) or 'pytest' in sys.modules or getattr(main_spec, 'name', None) == 'unittest.__main__'
     return (
         testing
         and os.environ.get('MISSKEY_API_ALLOW_TEST_CALLS') != '1'
