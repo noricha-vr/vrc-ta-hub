@@ -140,18 +140,54 @@ class EventDetailRelatedTests(TestCase):
         self.view._fetch_related_event_details(self.current)
         storage = EventDetail._meta.get_field('thumbnail_image').storage
         with patch.object(storage, 'url', return_value='https://example.test/fresh.png') as url:
-            with self.assertNumQueries(0):
+            # 一覧は作り直さず、公開条件の確かめ直しの 1 本だけを引く
+            with self.assertNumQueries(1):
                 cards = self.view._fetch_related_event_details(self.current)
         url.assert_called_once_with('thumbnail/test.png')
         self.assertEqual(cards[0]['thumbnail_url'], 'https://example.test/fresh.png')
 
-    def test_speaker_and_recent_caches_reused_without_database_queries(self):
+    def test_speaker_and_recent_caches_reused_with_only_publication_recheck(self):
+        """キャッシュが効いている時は一覧を作り直さず、公開条件の確かめ直し（枠ごとに 1 本）だけを引く。"""
         self.article(self.other_event, speaker='発表者')
         self.view._fetch_speaker_event_details(self.current, [])
         self.view._fetch_other_community_event_details(self.current, [], [])
-        with self.assertNumQueries(0):
+        with self.assertNumQueries(2):
             self.view._fetch_speaker_event_details(self.current, [])
             self.view._fetch_other_community_event_details(self.current, [], [])
+
+    def test_cached_rows_withdrawn_by_bulk_update_are_not_shown(self):
+        """シグナルを通らない一括更新で取り下げた記事も、キャッシュの寿命を待たずに 3 つの枠から消える。"""
+        same = self.article(h1='同じ集会の記事')
+        by_speaker = self.article(self.other_event, speaker='発表者', h1='同じ発表者の記事')
+        recent = self.article(self.other_event, h1='別の集会の新着')
+        before = self.page().context
+        self.assertIn(same.pk, self.ids(before['related_event_details']))
+        self.assertIn(by_speaker.pk, self.ids(before['speaker_event_details']))
+        self.assertIn(recent.pk, self.ids(before['other_community_event_details']))
+
+        EventDetail.objects.filter(pk=same.pk).update(article_consent=EventDetail.ArticleConsent.NG)
+        EventDetail.objects.filter(pk=by_speaker.pk).update(status='rejected')
+        EventDetail.objects.filter(pk=recent.pk).update(deleted_at=timezone.now())
+
+        after = self.page().context
+        self.assertNotIn(same.pk, self.ids(after['related_event_details']))
+        self.assertNotIn(by_speaker.pk, self.ids(after['speaker_event_details']))
+        self.assertNotIn(recent.pk, self.ids(after['other_community_event_details']))
+
+    def test_pdf_thumbnail_written_by_update_clears_card_caches(self):
+        """PDF から作ったサムネイルは UPDATE で書くのでシグナルを通らない。書いた後に関連のキャッシュを消す。"""
+        from event.services.media_service import _store_thumbnail_if_empty
+
+        detail = self.article(slide_file='slide/source.pdf', speaker='発表者')
+        keys = [related_event_details_cache_key(self.community.pk), recent_event_details_cache_key(),
+                speaker_event_details_cache_key('発表者')]
+        for key in keys:
+            cache.set(key, ['cached'])
+        detail.thumbnail_image.name = 'thumbnail/generated.jpg'
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertTrue(_store_thumbnail_if_empty(detail, 'slide/source.pdf'))
+        for key in keys:
+            self.assertIsNone(cache.get(key))
 
     def test_all_caches_invalidated_on_title_consent_and_card_changes(self):
         detail = self.article(speaker='旧発表者')

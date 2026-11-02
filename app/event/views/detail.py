@@ -273,13 +273,24 @@ class EventDetailView(DetailView):
         }
 
     @staticmethod
-    def _cached_articles(cache_key, *, limit, **filters) -> List[Dict]:
-        """URL は保存せず、各枠で共通の公開条件に合う素のデータだけをキャッシュする。"""
+    def _published_articles():
+        """関連の枠に出してよい記事（承認済み・記事のタイトルあり・記事化 NG でない。論理削除は既定マネージャが除く）。"""
+        return (
+            EventDetail.objects.filter(status='approved', h1__isnull=False, h1__gt='')
+            .exclude(article_consent=EventDetail.ArticleConsent.NG)
+        )
+
+    @classmethod
+    def _cached_articles(cls, cache_key, *, limit, **filters) -> List[Dict]:
+        """URL は保存せず、各枠で共通の公開条件に合う素のデータだけをキャッシュする。
+
+        キャッシュは保存のシグナルでしか消えない。一括の更新・削除や、保存と同時に作り直したキャッシュで
+        取り下げた記事が残っても出さないよう、キャッシュから読んだ時は今の公開条件で主キーを確かめ直す。
+        """
         rows = cache.get(cache_key)
         if rows is None:
             rows = list(
-                EventDetail.objects.filter(status='approved', h1__isnull=False, h1__gt='', **filters)
-                .exclude(article_consent=EventDetail.ArticleConsent.NG)
+                cls._published_articles().filter(**filters)
                 .order_by('-created_at')
                 .values(
                     'id', 'h1', 'speaker', 'theme', 'thumbnail_image', 'youtube_url',
@@ -287,7 +298,13 @@ class EventDetailView(DetailView):
                 )[:limit]
             )
             cache.set(cache_key, rows, CACHE_TTL_HOUR)
-        return rows
+            return rows
+        if not rows:
+            return rows
+        published_ids = set(
+            cls._published_articles().filter(pk__in=[row['id'] for row in rows]).values_list('id', flat=True)
+        )
+        return [row for row in rows if row['id'] in published_ids]
 
     @staticmethod
     def _article_cards(rows) -> List[Dict]:
