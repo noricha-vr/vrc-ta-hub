@@ -113,7 +113,7 @@ class EventDetailTranscriptAPITest(TestCase):
 
     def _llm_registering_transcript(self):
         client = MagicMock()
-        tool_call = MagicMock()
+        tool_call = MagicMock(type="function")
         tool_call.function.arguments = json.dumps(
             {'title': '古い字幕の記事', 'meta_description': '古い要約', 'text': '古い本文'})
         completion = MagicMock()
