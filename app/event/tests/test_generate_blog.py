@@ -680,7 +680,7 @@ class TranscriptCacheTest(TestCase):
         """OpenRouter クライアントを差し替え、生成された prompt を返せるようにする."""
         mock_client = MagicMock()
         mock_completion = MagicMock()
-        tool_call = MagicMock()
+        tool_call = MagicMock(type="function")
         tool_call.function.arguments = json.dumps(
             {"title": "t", "meta_description": "m", "text": "本文"}
         )
@@ -836,7 +836,7 @@ class SlideLinkTest(TestCase):
 
     def _patch_openrouter(self, text):
         mock_client = MagicMock()
-        tool_call = MagicMock()
+        tool_call = MagicMock(type="function")
         tool_call.function.arguments = json.dumps({"title": "t", "meta_description": "m", "text": text})
         mock_client.chat.completions.create.return_value.choices = [
             MagicMock(message=MagicMock(tool_calls=[tool_call]))

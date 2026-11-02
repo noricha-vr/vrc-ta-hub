@@ -58,7 +58,7 @@ def _fake_transcript(video_id, language='ja'):
 
 def _openrouter_client(payload=None):
     """関数呼び出しで記事を返す OpenRouter クライアントのモック。"""
-    tool_call = MagicMock()
+    tool_call = MagicMock(type="function")
     tool_call.function.arguments = json.dumps(payload or GENERATED, ensure_ascii=False)
     completion = MagicMock()
     completion.choices = [MagicMock(message=MagicMock(tool_calls=[tool_call]))]

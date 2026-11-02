@@ -478,8 +478,8 @@ JSONオブジェクトだけを```json ... ```ブロックで出力してくだ�
             message = completion.choices[0].message
 
             # ツール呼び出しの結果がある場合
-            if hasattr(message, 'tool_calls') and message.tool_calls:
-                tool_call = message.tool_calls[0]
+            tool_call = message.tool_calls[0] if message.tool_calls else None
+            if tool_call is not None and tool_call.type == 'function':
                 # 関数レスポンスのJSONを取得
                 blog_output_json = tool_call.function.arguments
                 logger.info(f"Raw response from Function Call: {blog_output_json[:500]}...")
@@ -502,7 +502,7 @@ JSONオブジェクトだけを```json ... ```ブロックで出力してくだ�
                         # 失敗した場合は通常のJSONパース処理に続く
             else:
                 # Function Callingがサポートされていない場合、通常のコンテンツレスポンスになる
-                logger.warning("No tool_calls in response. Model might not support function calling.")
+                logger.warning("No function tool call in response. Falling back to message content.")
 
             # レスポンスからテキストを取得（Function Calling未対応の場合のフォールバック）
             response_text = message.content
