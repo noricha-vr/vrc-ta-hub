@@ -15,7 +15,11 @@ from analytics.video_stats import get_video_views, get_video_watch_times
 from community.constants import WEEKDAY_CHOICES
 from event.services.content_sanitizer import remove_invalid_slide_links
 from event.services.markdown_processor import convert_markdown
-from event.models import EventDetail, related_event_details_cache_key
+from event.models import (
+    Event, EventDetail, related_event_details_cache_key,
+    speaker_event_details_cache_key, recent_event_details_cache_key,
+)
+from event.youtube_urls import youtube_video_id
 from event.views.helpers import (
     can_manage_event_detail,
     extract_video_info,
@@ -26,7 +30,7 @@ from website.constants import CACHE_TTL_HOUR
 
 logger = logging.getLogger(__name__)
 
-# 「他の発表もチェック！」に出す件数
+# 同じ集会と、ほかの集会の新着を合わせたカードの件数
 RELATED_ITEMS = 6
 
 
@@ -69,7 +73,14 @@ class EventDetailView(DetailView):
         context['is_discord'] = event_detail.youtube_url.startswith(
             'https://discord.com/') if event_detail.youtube_url else False
         context.update(self._article_context(event_detail))
-        context['related_event_details'] = self._fetch_related_event_details(event_detail)
+        related = self._fetch_related_event_details(event_detail)
+        speaker_related = self._fetch_speaker_event_details(event_detail, related)
+        context['related_event_details'] = related
+        context['speaker_event_details'] = speaker_related
+        context['other_community_event_details'] = (
+            self._fetch_other_community_event_details(event_detail, related, speaker_related)
+            if len(related) < RELATED_ITEMS else []
+        )
 
         # コミュニティの開催情報を追加
         community = event_detail.event.community
@@ -79,6 +90,11 @@ class EventDetailView(DetailView):
             'end_time': community.end_time,
             'frequency': community.frequency
         }
+
+        context['next_event'] = (
+            Event.objects.filter(community=community, date__gte=get_vrchat_today())
+            .order_by('date', 'start_time').first()
+        )
 
         # Twitterボタン表示用のフラグとテンプレートを追加
         today = get_vrchat_today()
@@ -256,30 +272,54 @@ class EventDetailView(DetailView):
             ),
         }
 
-    def _fetch_related_event_details(self, event_detail: EventDetail) -> List[Dict]:
-        """同じ集会の、記事のある他の発表（新しい順に最大 RELATED_ITEMS 件）。
-
-        中身は集会ごとに決まるので集会単位で 1 時間キャッシュし、表示中の発表はキャッシュを読んだ後に除く
-        （除いた結果をキャッシュすると、最初に見た発表が同じ集会の他のページで出なくなる）。
-        h1 か記事化の同意が変わるとキャッシュは event.signals が消す。
-        """
-        cache_key = related_event_details_cache_key(event_detail.event.community_id)
-        related_event_details = cache.get(cache_key)
-        if related_event_details is None:
-            # 表示中の発表を後で除いても RELATED_ITEMS 件残るよう、1 件多く取る。
-            # 記事化 NG の発表は記事のタイトル（h1）を出さないので除く
-            related_event_details = list(
-                EventDetail.objects
-                .filter(
-                    event__community_id=event_detail.event.community_id,
-                    status='approved',
-                    h1__isnull=False,
-                    h1__gt=''  # より効率的な空文字列の除外
-                )
+    @staticmethod
+    def _cached_articles(cache_key, *, limit, **filters) -> List[Dict]:
+        """URL は保存せず、各枠で共通の公開条件に合う素のデータだけをキャッシュする。"""
+        rows = cache.get(cache_key)
+        if rows is None:
+            rows = list(
+                EventDetail.objects.filter(status='approved', h1__isnull=False, h1__gt='', **filters)
                 .exclude(article_consent=EventDetail.ArticleConsent.NG)
                 .order_by('-created_at')
-                .values('id', 'h1')[:RELATED_ITEMS + 1]
+                .values(
+                    'id', 'h1', 'speaker', 'theme', 'thumbnail_image', 'youtube_url',
+                    'event__date', 'event__community_id', 'event__community__name',
+                )[:limit]
             )
-            cache.set(cache_key, related_event_details, CACHE_TTL_HOUR)
+            cache.set(cache_key, rows, CACHE_TTL_HOUR)
+        return rows
 
-        return [item for item in related_event_details if item['id'] != event_detail.id][:RELATED_ITEMS]
+    @staticmethod
+    def _article_cards(rows) -> List[Dict]:
+        storage = EventDetail._meta.get_field('thumbnail_image').storage
+        return [dict(
+            row,
+            thumbnail_url=storage.url(row['thumbnail_image']) if row['thumbnail_image'] else '',
+            video_id=youtube_video_id(row['youtube_url']),
+        ) for row in rows]
+
+    def _fetch_related_event_details(self, event_detail: EventDetail) -> List[Dict]:
+        # 自分を除く前の一覧を共有し、最初に開いた記事でキャッシュの内容を変えない。
+        rows = self._cached_articles(
+            related_event_details_cache_key(event_detail.event.community_id),
+            event__community_id=event_detail.event.community_id, limit=RELATED_ITEMS + 1,
+        )
+        return self._article_cards([row for row in rows if row['id'] != event_detail.pk][:RELATED_ITEMS])
+
+    def _fetch_speaker_event_details(self, event_detail, related) -> List[Dict]:
+        if not event_detail.speaker:
+            return []
+        excluded = {event_detail.pk, *(row['id'] for row in related)}
+        rows = self._cached_articles(
+            speaker_event_details_cache_key(event_detail.speaker), speaker=event_detail.speaker,
+            limit=RELATED_ITEMS + 1 + 3,
+        )
+        return self._article_cards([row for row in rows if row['id'] not in excluded][:3])
+
+    def _fetch_other_community_event_details(self, event_detail, related, speaker_related) -> List[Dict]:
+        excluded = {event_detail.pk, *(row['id'] for row in related + speaker_related)}
+        rows = self._cached_articles(recent_event_details_cache_key(), limit=30)
+        return self._article_cards([
+            row for row in rows
+            if row['event__community_id'] != event_detail.event.community_id and row['id'] not in excluded
+        ][:RELATED_ITEMS - len(related)])

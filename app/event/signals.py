@@ -23,6 +23,8 @@ from event.models import (
     article_generation_request_values,
     article_is_empty,
     related_event_details_cache_key,
+    speaker_event_details_cache_key,
+    recent_event_details_cache_key,
 )
 from event.youtube_urls import youtube_video_id
 
@@ -31,7 +33,7 @@ from event.youtube_urls import youtube_video_id
 # h1 / contents は、記事を空にした時に作り直すため（h1 は関連一覧のキャッシュの判定にも使う）
 WATCHED_FIELDS = frozenset({
     'slide_file', 'youtube_url', 'article_consent', 'status', 'detail_type', 'deleted_at', 'h1', 'contents',
-    'article_source_video_id',
+    'article_source_video_id', 'speaker', 'theme', 'thumbnail_image', 'event',
 })
 # これらの列を含む保存の時に、動画と記事の告知を試みる
 VIDEO_ARTICLE_FIELDS = frozenset({
@@ -172,11 +174,16 @@ def _related_list_changed(instance: EventDetail, old: dict, created: bool) -> bo
         or old.get('article_consent') != instance.article_consent
         or old.get('status') != instance.status
         or instance.deleted_at is not None
+        or old.get('speaker') != instance.speaker
+        or old.get('theme') != instance.theme
+        or old.get('thumbnail_image', '') != instance.thumbnail_image.name
+        or old.get('youtube_url') != instance.youtube_url
+        or old.get('event_id') != instance.event_id
     )
 
 
 def _clear_related_cache_if_changed(instance: EventDetail, old: dict, created: bool) -> None:
-    """関連一覧に出る内容が変わったら、その集会の関連一覧のキャッシュを消す。
+    """関連一覧に出る内容が変わったら、集会・発表者・サイト全体のキャッシュを消す。
 
     NG に変えた発表の h1 や、却下・論理削除した発表を、キャッシュの寿命（1 時間）の間
     ほかの発表のページに出し続けないため。
@@ -191,8 +198,10 @@ def _clear_related_cache_if_changed(instance: EventDetail, old: dict, created: b
             Event.objects.filter(pk=instance.event_id).values_list('community_id', flat=True).first()
         )
     keys = [related_event_details_cache_key(community_id) for community_id in community_ids if community_id]
-    if keys:
-        transaction.on_commit(lambda: cache.delete_many(keys))
+    keys.append(recent_event_details_cache_key())
+    keys.extend(speaker_event_details_cache_key(speaker) for speaker in
+                {old.get('speaker'), instance.speaker} if speaker)
+    transaction.on_commit(lambda: cache.delete_many(keys))
 
 
 @receiver(post_save, sender=EventDetail)

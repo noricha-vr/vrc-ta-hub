@@ -23,9 +23,9 @@ class EventDetailImageLoadingTest(SimpleTestCase):
         tag = self._img_tag("event-detail-thumbnail img-fluid")
         for width in ("600", "800", "1200"):
             self.assertIn(f"cf_resize:'{width}' }}}} {width}w", tag)
-        # 表示幅は Bootstrap の container 幅から gutter（24px）を引いた値
+        # 表示幅は記事列（col-lg-8）の gutter を除いた幅。モバイルでは container の幅
         self.assertIn(
-            'sizes="(min-width: 1400px) 1296px, (min-width: 1200px) 1116px, (min-width: 992px) 936px, '
+            'sizes="(min-width: 1400px) 848px, (min-width: 1200px) 728px, (min-width: 992px) 608px, '
             '(min-width: 768px) 696px, (min-width: 576px) 516px, calc(100vw - 24px)"',
             tag,
         )

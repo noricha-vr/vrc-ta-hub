@@ -485,8 +485,8 @@ class ArticleNgOtherScreensTest(TestCase):
         related_ids = [item['id'] for item in second_page.context['related_event_details']]
         self.assertNotIn(second.pk, related_ids)
 
-    def test_related_cache_is_cleared_only_when_title_or_consent_changes(self):
-        """h1 か記事化の同意が変わった時だけ、集会の関連一覧のキャッシュを消す（読むたびに問い合わせない）。"""
+    def test_related_cache_is_cleared_when_card_content_changes(self):
+        """関連カードのテーマ・h1・記事化の同意の変更でキャッシュを消す。"""
         other = make_event_detail(self.event, status='approved', theme='別の発表', h1='別の発表の記事')
         key = related_event_details_cache_key(self.community.pk)
         self.client.get(reverse('event:detail', kwargs={'pk': other.pk}))
@@ -495,7 +495,8 @@ class ArticleNgOtherScreensTest(TestCase):
         other.theme = 'テーマだけ直した'
         with self.captureOnCommitCallbacks(execute=True):
             other.save()
-        self.assertIsNotNone(cache.get(key))
+        self.assertIsNone(cache.get(key))
+        self.client.get(reverse('event:detail', kwargs={'pk': other.pk}))
 
         other.h1 = '直した記事のタイトル'
         with self.captureOnCommitCallbacks(execute=True):
@@ -614,7 +615,7 @@ class EventDetailPageArticleConsentTest(TestCase):
         self.assertNotContains(response, self.H1)
         self.assertNotContains(response, self.BODY)
         self.assertNotContains(response, self.SUMMARY)
-        self.assertContains(response, '<h1 class="mb-3">発表のテーマ</h1>')
+        self.assertContains(response, '<h1>発表のテーマ</h1>')
         self.assertContains(response, '<title>発表のテーマ - VRChat 技術・学術系イベントHub</title>')
 
     def test_ng_keeps_article_data_and_ok_shows_it_again(self):

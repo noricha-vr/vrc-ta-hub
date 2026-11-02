@@ -24,152 +24,88 @@
 {% endblock %}
 {% block main %}
     <style>
-        .post h1 {
-            font-size: 2rem;
-            font-weight: 600;
-            color: #333;
-            padding: 10px;
-            border-bottom: 2px solid #3187de;
-            letter-spacing: 2px;
-        }
+.ed-header h1{font-size:2rem;font-weight:700;line-height:1.45;letter-spacing:0;color:#212529;margin:0 0 .75rem}
+.ed-theme{font-size:1rem;color:#495057;margin:0 0 .75rem}
+.ed-byline{font-size:.9375rem;color:#6c757d}
+.ed-byline a{text-decoration:none;font-weight:500}
+.ed-media{border-radius:.75rem;overflow:hidden;background:#111}
+.ed-media img{width:100%;height:100%;object-fit:cover;display:block}
+.ed-play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:.5rem;padding:.75rem 1.4rem;border:0;border-radius:999px;background:rgba(0,0,0,.75);color:#fff;font-weight:700;font-size:1rem;line-height:1}
+.ed-play-sub{font-weight:400;opacity:.85}
+.ed-body{font-size:1.0625rem;line-height:1.95;color:#212529;max-width:44em}
+.ed-body p{margin:0 0 1.5em}
+.ed-body h2{font-size:1.5rem;font-weight:700;line-height:1.5;margin:3rem 0 1.25rem;padding-bottom:.6rem;border-bottom:1px solid #dee2e6}
+.ed-aside{position:static}
+.ed-poster{background:#f8f9fa}
+.ed-poster img{display:block;width:100%;height:auto;max-height:560px;object-fit:contain;aspect-ratio:auto 707/1000}
+.ed-schedule{display:grid;grid-template-columns:auto 1fr;gap:.35rem .9rem;margin:0 0 1rem;font-size:.9375rem}
+.ed-schedule dt{font-weight:500;color:#6c757d}
+.ed-schedule dd{margin:0}
+.ed-desc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;color:#495057;line-height:1.8;font-size:.9375rem}
+.ed-related h2{font-size:1.375rem;font-weight:700}
+.ed-more{text-decoration:none;font-weight:500;white-space:nowrap}
+.ed-rel-card .ed-thumb img{transition:transform .3s ease}
+.ed-rel-card:hover .ed-thumb img{transform:scale(1.04)}
+.ed-rel-title{font-size:1rem;font-weight:700;line-height:1.6;margin:0 0 .5rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ed-rel-meta{font-size:.875rem;color:#6c757d;margin:0}
+@media (max-width:991.98px){.ed-aside{position:static}}
+@media (max-width:767.98px){
+.ed-header h1{font-size:1.5rem}
+.ed-body{font-size:1rem;line-height:1.9}
+.ed-body h2{font-size:1.25rem;margin-top:2.5rem}
+.ed-media{border-radius:.5rem}
+.ed-rel-card{flex-direction:row;align-items:flex-start;gap:.75rem;box-shadow:none!important;background:transparent}
+.ed-rel-card .ed-thumb{flex:0 0 128px;width:128px;border-radius:.5rem;overflow:hidden}
+.ed-rel-card .card-body{padding:0}
+.ed-rel-title{-webkit-line-clamp:3;font-size:.9375rem}
+}
+.ed-titlecard{display:flex;flex-direction:column;justify-content:center;gap:.5rem;padding:1.25rem 1.5rem;background:#e7f1ff;color:var(--custom-primary-dark)}
+.ed-titlecard-label{display:inline-flex;align-items:center;gap:.4rem;font-size:.8125rem;font-weight:500;color:#495057}
+.ed-titlecard-theme{margin:0;font-size:1.125rem;font-weight:700;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 
-
-        .post h2 {
-            background-color: #cee7ff;
-            margin-top: 2rem;
-            margin-bottom: 1.5rem;
-            padding: 5px;
-            padding-left: 10px;
-            border-left: 5px solid #3187de;
-            font-family: "Noto Sans JP", sans-serif;
-            font-optical-sizing: auto;
-            font-style: normal;
-            font-weight: 500;
-            font-size: 1.6rem;
-
-        }
-
-        .post h3 {
-            padding: 5px;
-            margin-top: 1.5rem;
-            margin-bottom: 1.2rem;
-            padding-left: 10px;
-            border-bottom: 2px solid #3187de;
-            font-family: "Noto Sans JP", sans-serif;
-            font-optical-sizing: auto;
-            font-style: normal;
-            font-weight: 400;
-            font-size: 1.4rem;
-        }
-
-        .post h4 {
-            padding: 5px;
-            margin-top: 1.2rem;
-            margin-bottom: 1.2rem;
-            padding-left: 10px;
-            border-left: 5px solid #a2d0ff;
-            font-family: "Noto Sans JP", sans-serif;
-            font-optical-sizing: auto;
-            font-style: normal;
-            font-weight: 400;
-            font-size: 1.2rem;
-        }
-
-        .post p,
-        .post ul,
-        .post ol {
-            line-height: 2rem;
-        }
-
-        .post li {
-            margin-bottom: 0.1em;
-        }
-
-        /* アクセス解析セクションは .post 配下にあるが、記事本文用の見出しスタイル
-           （青背景・青下線等）を当てない。Bootstrap の fs-4/fs-6 等を尊重するため初期化する。 */
-        .post .analytics-card :is(h1, h2, h3, h4) {
-            background: transparent;
-            border: none;
-            padding: 0;
-            margin-top: 0;
-            font-family: inherit;
-            letter-spacing: normal;
-            font-size: revert;
-            font-weight: revert;
-        }
-
-        blockquote {
-            background-color: #f9f9f9;
-            border-left: 5px solid #3187de;
-            padding: 0.5em;
-            margin: 1em 0;
-            font-family: "Noto Sans JP", sans-serif;
-            font-optical-sizing: auto;
-            font-style: normal;
-            font-weight: 400;
-        }
-
-        .shadow-hover {
-            transition: box-shadow 0.3s ease-in-out;
-        }
-
-        .shadow-hover:hover {
-            border: 1px solid #3187de;
-            border-color: #3187de;
-            box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15) !important;
-        }
-
-        .event-detail-thumbnail {
-            aspect-ratio: 16 / 9;
-            width: 100%;
-            object-fit: cover;
-        }
-
-        .speaker-account-card h2 {
-            background: transparent;
-            border: none;
-            padding: 0;
-            font-family: inherit;
-            font-size: 1.25rem;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-        }
-
-        /* 横一列に並べた時、.post h2 の margin-top: 2rem が見出しだけを下へずらすため打ち消す */
-        .speaker-account-card .speaker-account-linked h2 {
-            margin-top: 0;
-        }
-
-        .speaker-account-card .modal-title {
-            background: transparent;
-            border: none;
-            padding: 0;
-            margin: 0;
-            font-family: inherit;
-            letter-spacing: normal;
-        }
+.ed-body h3{font-size:1.25rem;font-weight:700;line-height:1.5;margin:2rem 0 1rem}
+.ed-body h4{font-size:1.125rem;font-weight:700;line-height:1.5;margin:1.5rem 0 1rem}
+.ed-body blockquote{padding:.5rem 1rem;border-left:1px solid #dee2e6;background:#f8f9fa}
+.ed-body img{max-width:100%;height:auto}
+.ed-body pre{overflow-x:auto}
+.ed-play{text-decoration:none;white-space:nowrap}
+.ed-play:hover,.ed-play:focus{color:#fff;background:rgba(0,0,0,.85)}
+.ed-media iframe{width:100%;height:100%;border:0}
+.ed-actions-no-media{padding-bottom:1.5rem;border-bottom:1px solid #dee2e6}
+.event-detail-thumbnail {aspect-ratio: 16 / 9;}
+@media (max-width:767.98px){
+.ed-titlecard{padding:.4rem .55rem;gap:0}
+.ed-titlecard-label{display:none}
+.ed-titlecard-theme{font-size:.75rem;line-height:1.45}
+}
     </style>
-    <div class="container mt-5">
-        <div class="row post mb-5">
-            <div class="col-lg-12">
+    <div class="container mt-4 mb-5">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb small mb-4">
+                <li class="breadcrumb-item"><a href="{% url 'ta_hub:index' %}">ホーム</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'event:detail_history' %}">発表一覧</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'community:detail' event_detail.event.community.pk %}">{{ event_detail.event.community.name }}</a></li>
+            </ol>
+        </nav>
+        <div class="row g-5">
+            <article class="col-lg-8">
                 {% include 'ta_hub/messages.html' %}
-                <h1 class="mb-3">{{ event_detail.title }}</h1>
-                {% if event_detail.thumbnail_image %}
-                    <div class="mb-4">
-                        {# ファーストビューの主要画像（LCP 候補）のため lazy にせず優先読み込みする #}
-                        {# srcset の幅は Bootstrap の container 幅（gutter 抜き）に合わせ、スマホに 1200px を読ませない #}
-                        <img src="{{ event_detail.thumbnail_image.url|cf_resize:'1200' }}"
-                             srcset="{{ event_detail.thumbnail_image.url|cf_resize:'600' }} 600w, {{ event_detail.thumbnail_image.url|cf_resize:'800' }} 800w, {{ event_detail.thumbnail_image.url|cf_resize:'1200' }} 1200w"
-                             sizes="(min-width: 1400px) 1296px, (min-width: 1200px) 1116px, (min-width: 992px) 936px, (min-width: 768px) 696px, (min-width: 576px) 516px, calc(100vw - 24px)"
-                             class="event-detail-thumbnail img-fluid rounded shadow-sm"
-                             alt="{{ event_detail.title }}のサムネイル"
-                             fetchpriority="high">
+                <header class="ed-header mb-4">
+                    <h1>{{ event_detail.title }}</h1>
+                    {% if event_detail.theme and event_detail.title != event_detail.theme %}
+                        <p class="ed-theme">発表「{{ event_detail.theme }}」</p>
+                    {% endif %}
+                    <div class="ed-byline d-flex flex-wrap align-items-center gap-2">
+                        {% if event_detail.detail_type == 'LT' and event_detail.speaker %}
+                            <a href="{% url 'event:detail_history' %}?speaker={{ event_detail.speaker|urlencode }}">{{ event_detail.speaker }}さん</a>
+                            <span aria-hidden="true">·</span>
+                        {% endif %}
+                        <time datetime="{{ event_detail.event.date|date:'Y-m-d' }}{% if event_detail.start_time %}T{{ event_detail.start_time|date:'H:i' }}{% endif %}">{{ event_detail.event.date|date:"Y年n月j日（D）" }}{% if event_detail.start_time %} {{ event_detail.start_time|date:"H:i" }}{% if event_detail.detail_type == 'LT' %}〜{{ event_detail.end_time|date:"H:i" }}{% endif %}{% endif %}</time>
                     </div>
-                {% endif %}
-
+                </header>
                 {% if can_manage_event_detail %}
                     {# id は表示順の回帰テスト（test_event_detail_admin_ui_order.py）が参照する #}
-                    <div class="d-flex" id="admin-actions">
+                    <div class="d-flex flex-wrap gap-2" id="admin-actions">
                         {% if is_community_owner %}
                             <a href="{% url 'event:my_list' %}"
                                class="btn btn-primary me-2">イベント一覧</a>
@@ -320,108 +256,129 @@
                     </div>
                 {% endif %}
 
-                {# Youtube動画を埋め込み#}
-                {% if video_id %}
-                    <div class="mb-3">
-                        <div class="ratio ratio-16x9">
-                            <iframe src="https://www.youtube.com/embed/{{ video_id }}{% if start_time %}?start={{ start_time }}{% endif %}"
-                                    title="{{ event_detail.theme }} - {{ event_detail.speaker }}"
-                                    allowfullscreen
-                                    referrerpolicy="strict-origin-when-cross-origin"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"></iframe>
+
+                {% if event_detail.thumbnail_image or video_id %}
+                    <div class="ed-media ratio ratio-16x9 mb-3">
+                        <div>
+                            {% if event_detail.thumbnail_image %}
+                                <img src="{{ event_detail.thumbnail_image.url|cf_resize:'1200' }}"
+                                     srcset="{{ event_detail.thumbnail_image.url|cf_resize:'600' }} 600w, {{ event_detail.thumbnail_image.url|cf_resize:'800' }} 800w, {{ event_detail.thumbnail_image.url|cf_resize:'1200' }} 1200w"
+                                     sizes="(min-width: 1400px) 848px, (min-width: 1200px) 728px, (min-width: 992px) 608px, (min-width: 768px) 696px, (min-width: 576px) 516px, calc(100vw - 24px)"
+                                     class="event-detail-thumbnail img-fluid"
+                                     alt="{{ event_detail.title }}のサムネイル" fetchpriority="high">
+                            {% elif video_id %}
+                                {# 高画質版が無い動画は 404 と 120px 幅の仮画像が返るので、どちらでも hqdefault に替える #}
+                                <img src="https://img.youtube.com/vi/{{ video_id }}/maxresdefault.jpg"
+                                     onerror="this.onerror=null;this.src='https://img.youtube.com/vi/{{ video_id }}/hqdefault.jpg'"
+                                     onload="if(this.naturalWidth&lt;200&amp;&amp;!this.dataset.fallback){this.dataset.fallback='1';this.src='https://img.youtube.com/vi/{{ video_id }}/hqdefault.jpg'}"
+                                     alt="{{ event_detail.title }}のサムネイル" fetchpriority="high">
+                            {% endif %}
+                            {% if video_id %}
+                                <a href="https://www.youtube.com/watch?v={{ video_id }}{% if start_time %}&amp;t={{ start_time }}{% endif %}"
+                                   class="ed-play" data-video-id="{{ video_id }}" data-start-time="{{ start_time|default_if_none:'' }}"
+                                   data-video-title="{{ event_detail.theme }} - {{ event_detail.speaker }}">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"></path></svg>
+                                    動画を再生 <span class="ed-play-sub">{{ event_detail.duration }}分</span>
+                                </a>
+                            {% endif %}
                         </div>
                     </div>
                 {% endif %}
-
-                {# detail_typeによって詳細情報の表示を切り替え #}
-                {% if event_detail.detail_type == 'LT' %}
-                    {% include 'event/detail_info_lt.html' %}
-                {% elif event_detail.detail_type == 'SPECIAL' %}
-                    {% include 'event/detail_info_special.html' %}
+                {% if event_detail.slide_url or event_detail.slide_file or is_discord %}
+                    <div class="ed-actions d-flex flex-wrap align-items-center gap-2 mb-5{% if not event_detail.thumbnail_image and not video_id %} ed-actions-no-media{% endif %}">
+                        {% if event_detail.slide_url %}
+                            <a class="btn btn-outline-primary d-inline-flex align-items-center gap-2" href="{{ event_detail.slide_url }}" target="_blank" rel="noopener noreferrer">
+                                {% include 'event/includes/_slide_icon.html' %}発表スライドを開く
+                            </a>
+                        {% endif %}
+                        {% if event_detail.slide_file %}
+                            <a class="btn btn-outline-primary d-inline-flex align-items-center gap-2" href="{{ event_detail.slide_file.url }}" target="_blank" rel="noopener noreferrer">
+                                {% include 'event/includes/_slide_icon.html' %}スライドの PDF を開く
+                            </a>
+                        {% endif %}
+                        {% if is_discord %}
+                            <a class="btn btn-outline-primary" href="{{ event_detail.youtube_url }}" target="_blank" rel="noopener noreferrer">Discord で動画を見る</a>
+                        {% endif %}
+                    </div>
                 {% endif %}
-                <div>
-                    {{ html_content|safe }}
-                </div>
-                <div>
-                    <h2>{{ event_detail.event.community.name }}の他の発表もチェック！</h2>
-                    <div class="row g-4">
-                        {% for related_event_detail in related_event_details %}
-
-                            <div class="col-12">
-                                <div class="card h-100 shadow-sm shadow-hover">
-                                    <div class="card-body">
-                                        <h3 class="card-title text-truncate mb-0"
-                                            style="all: revert; font-size: 1.25rem; margin: 0;font-weight: 400;">
-                                            {{ related_event_detail.h1 }}
-                                        </h3>
-                                        <a href="{% url 'event:detail' related_event_detail.id %}"
-                                           class="stretched-link"></a>
-                                    </div>
-                                </div>
+                {% if article_visible %}
+                    <div class="ed-body">{{ html_content|safe }}</div>
+                {% endif %}
+            </article>
+            <aside class="col-lg-4">
+                <div class="ed-aside">
+                    <section class="card shadow-sm overflow-hidden" aria-labelledby="community-card-title">
+                        {% if event_detail.event.community.poster_image %}
+                            <div class="ed-poster">
+                                <img src="{{ event_detail.event.community.poster_image.url|cf_resize:'400' }}"
+                                     srcset="{{ event_detail.event.community.poster_image.url|cf_resize:'400' }} 400w, {{ event_detail.event.community.poster_image.url|cf_resize:'800' }} 800w"
+                                     sizes="(min-width: 1400px) 408px, (min-width: 1200px) 348px, (min-width: 992px) 288px, (min-width: 768px) 696px, (min-width: 576px) 516px, calc(100vw - 24px)"
+                                     loading="lazy" decoding="async" alt="{{ event_detail.event.community.name }}のポスター">
                             </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                <div>
-                    <h2>{{ event_detail.event.community.name }}の開催情報・参加方法</h2>
-                    <div class="card h-100 shadow-sm shadow-hover">
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-4">
-                                    {% if event_detail.event.community.poster_image %}
-                                        <img src="{{ event_detail.event.community.poster_image.url|cf_resize:'400' }}"
-                                             loading="lazy" decoding="async"
-                                             class="img-fluid rounded"
-                                             alt="{{ event_detail.event.community.name }}のポスター">
-                                    {% endif %}
-                                </div>
-                                <div class="col-md-8">
-                                    <h3 class="card-title"
-                                        style="all: revert; font-size: 1.25rem; margin: 0 0 1rem 0;font-weight: 400;">
-                                        {{ event_detail.event.community.name }}
-                                    </h3>
-                                    <p class="mb-2">
-                                        <i class="bi bi-calendar-event me-2"></i>
-                                        開催日: {{ event_detail.event.date|date:"Y年n月j日" }}
-                                    </p>
-
-                                    <p class="mb-2">
-                                        <i class="bi bi-alarm me-2"></i>
-                                        開催時間: {{ community_schedule.start_time|date:"H:i" }}
-                                        - {{ community_schedule.end_time|date:"H:i" }}
-                                    </p>
-                                    <p class="mb-2"></p>
-                                    <i class="bi bi-calendar-week me-2"></i>
-                                    開催曜日: {% for weekday in community_schedule.weekdays %}{{ weekday }}
-                                    {% if not forloop.last %}・{% endif %}{% endfor %}
-                                    </p>
-                                    <p class="mb-2">
-                                        <i class="bi bi-arrow-repeat me-2"></i>
-                                        開催周期: {{ community_schedule.frequency }}
-                                    </p>
-                                    <p class="mb-3">{{ event_detail.event.community.description|truncatechars:200 }}</p>
-                                    <button class="btn btn-primary" data-bs-toggle="collapse"
-                                            data-bs-target="#collapseExample" aria-expanded="false"
-                                            aria-controls="collapseExample">
-                                        <i class="bi bi-person-plus-fill me-2"></i>参加方法
-                                    </button>
-                                    <div class="collapse" id="collapseExample">
-                                        <div class="card card-body">
-                                            {{ event_detail.event.community.description }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <a href="{% url 'community:detail' event_detail.event.community.pk %}"
-                               class="stretched-link"></a>
+                        {% endif %}
+                        <div class="card-body p-4">
+                            <p class="small text-muted mb-1">この発表があった集会</p>
+                            <h2 id="community-card-title" class="h5 fw-bold mb-3">{{ event_detail.event.community.name }}</h2>
+                            <dl class="ed-schedule">
+                                {% if next_event %}
+                                    <dt>次回</dt>
+                                    <dd>{{ next_event.date|date:"Y年n月j日（D）" }} <span class="text-nowrap">{{ next_event.start_time|date:"H:i" }}〜{{ next_event.end_time|date:"H:i" }}</span></dd>
+                                {% endif %}
+                                <dt>開催</dt>
+                                <dd>{{ community_schedule.frequency }}{% for weekday in community_schedule.weekdays %}{{ weekday }}{% if not forloop.last %}・{% endif %}{% endfor %}</dd>
+                            </dl>
+                            <p class="ed-desc mb-4">{{ event_detail.event.community.description }}</p>
+                            <a class="btn btn-primary w-100" href="{% url 'community:detail' event_detail.event.community.pk %}">参加方法を見る</a>
                         </div>
-                    </div>
+                    </section>
+                    {% if speaker_event_details %}
+                        <section class="mt-4" aria-labelledby="speaker-related-title">
+                            <h2 class="h6 fw-bold mb-3" id="speaker-related-title">{{ event_detail.speaker }}さんの他の発表</h2>
+                            <ul class="list-unstyled mb-0">
+                                {% for item in speaker_event_details %}
+                                    <li class="border-bottom py-3">
+                                        <a class="text-body text-decoration-none fw-bold" href="{% url 'event:detail' item.id %}"
+                                           data-related-slot="same_speaker" data-related-position="{{ forloop.counter }}" data-to-detail-id="{{ item.id }}">{{ item.h1 }}</a>
+                                        <p class="small text-muted mb-0 mt-1">{{ item.event__community__name }} · {{ item.event__date|date:"Y年n月j日" }}</p>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </section>
+                    {% endif %}
                 </div>
-            </div>
+            </aside>
         </div>
     </div>
-    </div>
-
+    {% if related_event_details or other_community_event_details %}
+        {# 2 つの枠は同じ帯に入れる（帯を分けると間の余白が二重になる） #}
+        <div class="ed-related bg-body-tertiary py-5">
+            <div class="container">
+                {% if related_event_details %}
+                    <section aria-labelledby="related-title">
+                        <div class="d-flex flex-wrap align-items-baseline justify-content-between gap-2 mb-4">
+                            <h2 id="related-title" class="mb-0">この集会の他の発表</h2>
+                            <a class="ed-more" href="{% url 'event:detail_history' %}?community_name={{ event_detail.event.community.name|urlencode }}">{{ event_detail.event.community.name }}の発表をすべて見る →</a>
+                        </div>
+                        <div class="row row-cols-1 row-cols-md-3 g-4">
+                            {% for item in related_event_details %}
+                                {% include 'event/includes/_detail_related_card.html' with slot='same_community' %}
+                            {% endfor %}
+                        </div>
+                    </section>
+                {% endif %}
+                {% if other_community_event_details %}
+                    <section aria-labelledby="other-related-title"{% if related_event_details %} class="mt-5"{% endif %}>
+                        <h2 id="other-related-title" class="mb-4">ほかの集会の新着</h2>
+                        <div class="row row-cols-1 row-cols-md-3 g-4">
+                            {% for item in other_community_event_details %}
+                                {% include 'event/includes/_detail_related_card.html' with slot='other_communities' %}
+                            {% endfor %}
+                        </div>
+                    </section>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
     <script>
         const generateButton = document.getElementById('generate-button');
         if (generateButton) {
@@ -499,6 +456,44 @@
 
 {% block extra_js %}
     {{ block.super }}
+    <script>
+        document.querySelectorAll('[data-related-slot]').forEach(function (link) {
+            link.addEventListener('click', function () {
+                if (typeof window.gtag === 'function') {
+                    gtag('event', 'related_click', {
+                        slot: link.dataset.relatedSlot,
+                        position: Number(link.dataset.relatedPosition),
+                        to_detail_id: Number(link.dataset.toDetailId),
+                    });
+                }
+            });
+        });
+        if (typeof window.gtag === 'function') {
+            gtag('event', 'related_impression', {
+                same_community: {{ related_event_details|length }},
+                same_speaker: {{ speaker_event_details|length }},
+                other_communities: {{ other_community_event_details|length }},
+            });
+        }
+        document.querySelectorAll('.ed-play').forEach(function (play) {
+            play.addEventListener('click', function (event) {
+                // 別タブで開く操作ではリンク先の動画をそのまま開く。
+                if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                const iframe = document.createElement('iframe');
+                iframe.src = 'https://www.youtube.com/embed/' + play.dataset.videoId + '?autoplay=1'
+                    + (play.dataset.startTime ? '&start=' + play.dataset.startTime : '');
+                iframe.title = play.dataset.videoTitle;
+                iframe.setAttribute('allowfullscreen', '');
+                iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+                iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+                play.closest('.ed-media').replaceChildren(iframe);
+                if (typeof window.gtag === 'function') {
+                    gtag('event', 'event_detail_video_play', {video_id: play.dataset.videoId});
+                }
+            });
+        });
+    </script>
     {% if can_view_analytics %}
         <script>
             if (typeof window.gtag === 'function') {

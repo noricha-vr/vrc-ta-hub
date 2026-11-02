@@ -77,8 +77,18 @@ def article_body_hash(h1: str, contents: str, meta_description: str) -> str:
 
 
 def related_event_details_cache_key(community_id: int) -> str:
-    """発表詳細ページの「他の発表もチェック！」のキャッシュキー。中身は集会ごとに決まる。"""
-    return f'related_event_details_community_{community_id}'
+    """発表詳細ページの「この集会の他の発表」のキャッシュキー。"""
+    return f'related_event_details_v2_community_{community_id}'
+
+
+def speaker_event_details_cache_key(speaker: str) -> str:
+    """発表者名をキャッシュキーへ直接含めず、固定長にする。"""
+    digest = hashlib.sha256(speaker.encode('utf-8')).hexdigest()
+    return f'related_event_details_v2_speaker_{digest}'
+
+
+def recent_event_details_cache_key() -> str:
+    return 'related_event_details_v2_recent'
 
 
 # 記事の自動生成が管理する列。フォームの保存やフル保存では書き戻さない
@@ -118,7 +128,7 @@ def article_generation_request_values(now: Optional[datetime] = None) -> dict:
 PREVIOUS_VALUE_FIELDS = (
     'status', 'slide_url', 'youtube_url', 'slide_file', 'speaker', 'theme', 'start_time',
     'detail_type', 'event_id', 'event__date', 'event__community_id', 'article_consent', 'h1', 'contents',
-    'article_source_video_id', 'deleted_at',
+    'article_source_video_id', 'deleted_at', 'thumbnail_image',
 )
 _PREVIOUS_VALUES_NOT_LOADED = object()
 
