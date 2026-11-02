@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-02
+
+### Changed
+
+- OpenAI Python SDK を 3.37.0 に更新しました。記事生成は function 型の tool call を確認して解析し、それ以外の応答では本文の JSON を使います。既存の API キー・モデル設定はそのまま利用できます。
+
 ## 2026-10-31
 
 ### Changed
