@@ -457,11 +457,12 @@
 {% block extra_js %}
     {{ block.super }}
     <script>
+        // 枠の名前はイベント名に入れる（GA4 にカスタムディメンションを登録しなくても、イベント名だけで枠ごとに数えられる）。
+        // 表示は枠が出たページごとに 1 回、クリックはリンクごとに送り、枠ごとのクリック率 = click / impression で見る
         document.querySelectorAll('[data-related-slot]').forEach(function (link) {
             link.addEventListener('click', function () {
                 if (typeof window.gtag === 'function') {
-                    gtag('event', 'related_click', {
-                        slot: link.dataset.relatedSlot,
+                    gtag('event', 'related_click_' + link.dataset.relatedSlot, {
                         position: Number(link.dataset.relatedPosition),
                         to_detail_id: Number(link.dataset.toDetailId),
                     });
@@ -469,10 +470,14 @@
             });
         });
         if (typeof window.gtag === 'function') {
-            gtag('event', 'related_impression', {
-                same_community: {{ related_event_details|length }},
-                same_speaker: {{ speaker_event_details|length }},
-                other_communities: {{ other_community_event_details|length }},
+            [
+                ['same_community', {{ related_event_details|length }}],
+                ['same_speaker', {{ speaker_event_details|length }}],
+                ['other_communities', {{ other_community_event_details|length }}],
+            ].forEach(function (slot) {
+                if (slot[1] > 0) {
+                    gtag('event', 'related_impression_' + slot[0], {items: slot[1]});
+                }
             });
         }
         document.querySelectorAll('.ed-play').forEach(function (play) {

@@ -109,6 +109,13 @@ class EventDetailRelatedTests(TestCase):
             self.assertEqual([int(a['data-to-detail-id']) for a in links], self.ids(items))
             self.assertEqual([a['data-related-position'] for a in links],
                              [str(i) for i in range(1, len(items) + 1)])
+        # GA4 にカスタムディメンションを登録せずに枠ごとに数えるため、枠の名前はイベント名に入れる
+        html = response.content.decode('utf-8')
+        self.assertIn("gtag('event', 'related_click_' + link.dataset.relatedSlot", html)
+        self.assertIn("gtag('event', 'related_impression_' + slot[0]", html)
+        for slot, items in (('same_community', related), ('same_speaker', speaker),
+                            ('other_communities', recent)):
+            self.assertIn(f"['{slot}', {len(items)}]", html)
 
     def test_community_slot_excludes_all_ineligible_articles(self):
         good = self.article()
