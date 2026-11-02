@@ -5,10 +5,17 @@ import logging
 import os
 import tempfile
 
+from django.core.cache import cache
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.db.models import Q
 
-from event.models import EventDetail
+from event.models import (
+    EventDetail,
+    recent_event_details_cache_key,
+    related_event_details_cache_key,
+    speaker_event_details_cache_key,
+)
 from event.services.pdf_worker import PdfWorkerError, run_pdf_worker
 
 logger = logging.getLogger(__name__)
@@ -65,13 +72,24 @@ def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False, overw
             os.unlink(temp_file_path)
 
 
+def _clear_related_card_caches(event_detail: EventDetail) -> None:
+    """関連記事のカード（集会・発表者・サイト全体の新着）のキャッシュを、コミットの後に消す。"""
+    keys = [
+        related_event_details_cache_key(event_detail.event.community_id),
+        recent_event_details_cache_key(),
+    ]
+    if event_detail.speaker:
+        keys.append(speaker_event_details_cache_key(event_detail.speaker))
+    transaction.on_commit(lambda: cache.delete_many(keys))
+
+
 def _store_thumbnail_if_empty(event_detail: EventDetail, source_slide_name: str) -> bool:
     """作った画像を、今の行のサムネイルが空で、PDF が作り始めた時のままの時だけ書く（条件付き UPDATE）。
 
     PDF から画像を作る間（数秒）に利用者がサムネイルを上げることがあるので、読み込んだ時の値ではなく
     書く時の行の値で決める。書けなかった時は、作った画像をストレージから消して孤児にしない。
-    UPDATE はシグナルを出さないが、サムネイルだけの保存に反応するシグナルは無い
-    （トップページのキャッシュはサムネイルを含まず、ツイートの同期は発表者・テーマ・入力の変更だけを見る）。
+    UPDATE はシグナルを出さない（トップページのキャッシュはサムネイルを含まず、ツイートの同期は発表者・テーマ・
+    入力の変更だけを見る）。発表記事ページの関連記事のカードはサムネイルを含むので、書いた後にそのキャッシュだけ消す。
 
     Returns:
         書いた時 True
@@ -82,6 +100,7 @@ def _store_thumbnail_if_empty(event_detail: EventDetail, source_slide_name: str)
         pk=event_detail.pk, slide_file=source_slide_name,
     ).update(thumbnail_image=created_name)
     if stored:
+        _clear_related_card_caches(event_detail)
         return True
 
     current_name = (

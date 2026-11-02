@@ -1,0 +1,10 @@
+<div class="col">
+    <article class="card h-100 border-0 shadow-sm shadow-hover overflow-hidden ed-rel-card">
+        {% include 'event/includes/_detail_related_thumbnail.html' with item=item only %}
+        <div class="card-body">
+            <h3 class="ed-rel-title"><a class="stretched-link text-body text-decoration-none" href="{% url 'event:detail' item.id %}"
+                data-related-slot="{{ slot }}" data-related-position="{{ forloop.counter }}" data-to-detail-id="{{ item.id }}">{{ item.h1 }}</a></h3>
+            <p class="ed-rel-meta">{% if slot == 'other_communities' %}{{ item.event__community__name }} · {% elif item.speaker %}{{ item.speaker }} · {% endif %}{{ item.event__date|date:"Y年n月j日" }}</p>
+        </div>
+    </article>
+</div>

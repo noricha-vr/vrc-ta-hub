@@ -1,8 +1,4 @@
-"""イベント詳細ページのサムネイル画像とYouTube動画の表示順序テスト.
-
-サムネイルと動画の内容がほぼ同じ絵になるため、上部にサムネイル・下部に動画を置く。
-レンダリング結果の HTML 上での出現順で検証する（Issue #599）。
-"""
+"""ヒーローは画像と再生リンクを統合し、iframe は再生時にだけ生成する。"""
 from datetime import date, time
 
 from django.core.files.base import ContentFile
@@ -21,7 +17,7 @@ MINIMAL_PNG = bytes.fromhex(
 
 
 class EventDetailMediaOrderTests(TestCase):
-    """サムネイル画像がYouTube動画より先に表示される."""
+    """初期表示の画像と動画の再生導線を検証する。"""
 
     @classmethod
     def setUpTestData(cls):
@@ -56,30 +52,37 @@ class EventDetailMediaOrderTests(TestCase):
         self.assertEqual(response.status_code, 200)
         return response.content.decode('utf-8')
 
-    def test_thumbnail_appears_before_youtube_embed(self):
-        """動画とサムネイルが両方ある時、サムネイルが動画より上に出る."""
-        detail = self._create_detail(with_video=True, with_thumbnail=True)
-
-        html = self._get_html(detail)
-
-        thumbnail_pos = html.index('event-detail-thumbnail img-fluid')
-        video_pos = html.index('https://www.youtube.com/embed/')
-        self.assertLess(thumbnail_pos, video_pos)
-
-    def test_video_only_page_renders_embed_without_thumbnail(self):
-        """サムネイルが無くても動画は表示され、空の画像枠は出ない."""
-        detail = self._create_detail(with_video=True, with_thumbnail=False)
-
-        html = self._get_html(detail)
-
-        self.assertIn('https://www.youtube.com/embed/', html)
-        self.assertNotIn('event-detail-thumbnail img-fluid', html)
-
-    def test_thumbnail_only_page_renders_image_without_embed(self):
-        """動画が無くてもサムネイルは表示され、空の動画枠は出ない."""
-        detail = self._create_detail(with_video=False, with_thumbnail=True)
-
-        html = self._get_html(detail)
-
+    def test_thumbnail_and_video_render_one_hero_without_iframe(self):
+        html = self._get_html(self._create_detail(with_video=True, with_thumbnail=True))
         self.assertIn('event-detail-thumbnail img-fluid', html)
-        self.assertNotIn('https://www.youtube.com/embed/', html)
+        self.assertIn('class="ed-play"', html)
+        self.assertIn('https://www.youtube.com/watch?v=dQw4w9WgXcQ', html)
+        self.assertNotIn('<iframe', html)
+        self.assertNotIn('/maxresdefault.jpg', html)
+
+    def test_video_only_uses_youtube_image_and_play_link(self):
+        html = self._get_html(self._create_detail(with_video=True, with_thumbnail=False))
+        self.assertIn('https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg', html)
+        self.assertIn('/hqdefault.jpg', html)
+        self.assertIn('this.onerror=null', html)
+        self.assertIn('class="ed-play"', html)
+        self.assertNotIn('<iframe', html)
+
+    def test_thumbnail_only_has_no_play_link(self):
+        html = self._get_html(self._create_detail(with_video=False, with_thumbnail=True))
+        self.assertIn('event-detail-thumbnail img-fluid', html)
+        self.assertNotIn('class="ed-play"', html)
+        self.assertNotIn('<iframe', html)
+
+    def test_no_images_has_no_hero(self):
+        html = self._get_html(self._create_detail(with_video=False, with_thumbnail=False))
+        self.assertNotIn('class="ed-media', html)
+        self.assertNotIn('<iframe', html)
+
+    def test_play_link_preserves_start_time_without_javascript(self):
+        detail = self._create_detail(with_video=True, with_thumbnail=False)
+        detail.youtube_url += '&t=1m30s'
+        detail.save(update_fields=['youtube_url'])
+        html = self._get_html(detail)
+        self.assertIn('watch?v=dQw4w9WgXcQ&amp;t=90', html)
+        self.assertIn('data-start-time="90"', html)
