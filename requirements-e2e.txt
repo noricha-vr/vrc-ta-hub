@@ -374,7 +374,7 @@ pyparsing==3.3.2
     # via
     #   -c requirements.txt
     #   httplib2
-pypdf==6.21.2
+pypdf==6.21.4
     # via
     #   -c requirements.txt
     #   -r requirements.in

@@ -236,7 +236,7 @@ pyjwt[crypto]==2.15.1
     # via django-allauth
 pyparsing==3.3.2
     # via httplib2
-pypdf==6.21.2
+pypdf==6.21.4
     # via -r requirements.in
 pypdfium2==5.14.0
     # via -r requirements.in
