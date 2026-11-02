@@ -34,12 +34,12 @@ bleach==6.4.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
-boto3==1.43.118
+boto3==1.43.122
     # via
     #   -c requirements.txt
     #   -r requirements.in
     #   django-ses
-botocore==1.43.118
+botocore==1.43.123
     # via
     #   -c requirements.txt
     #   boto3
@@ -92,7 +92,7 @@ django==5.2.17
     #   djangorestframework
     #   drf-spectacular
     #   sentry-sdk
-django-allauth[socialaccount]==65.20.1
+django-allauth==65.21.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -108,7 +108,7 @@ django-filter==26.2
     # via
     #   -c requirements.txt
     #   -r requirements.in
-django-ses==4.8.2
+django-ses==4.9.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -130,7 +130,7 @@ djangorestframework==3.18.3
     #   -c requirements.txt
     #   -r requirements.in
     #   drf-spectacular
-djangorestframework-stubs==3.15.2
+djangorestframework-stubs==3.18.1
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -146,7 +146,7 @@ google-analytics-data==0.23.3
     # via
     #   -c requirements.txt
     #   -r requirements.in
-google-api-core[grpc]==2.30.3
+google-api-core==2.30.3
     # via
     #   -c requirements.txt
     #   google-analytics-data
@@ -157,7 +157,7 @@ google-api-python-client==2.201.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
-google-auth[pyopenssl,requests]==2.62.0
+google-auth==2.62.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -177,7 +177,7 @@ google-auth-oauthlib==1.5.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
-google-cloud-bigquery==3.46.2
+google-cloud-bigquery==3.47.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -189,7 +189,7 @@ google-crc32c==1.8.0
     # via
     #   -c requirements.txt
     #   google-resumable-media
-google-genai==2.32.0
+google-genai==2.34.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -284,7 +284,7 @@ markdown==3.11.2
     # via
     #   -c requirements.txt
     #   -r requirements.in
-mypy==2.4.0
+mypy==2.4.1
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -301,7 +301,7 @@ oauthlib==4.0.0
     #   -c requirements.txt
     #   django-allauth
     #   requests-oauthlib
-openai==3.37.0
+openai==3.41.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -350,13 +350,13 @@ pycparser==3.0
     # via
     #   -c requirements.txt
     #   cffi
-pydantic==2.14.1
+pydantic==2.14.2
     # via
     #   -c requirements.txt
     #   -r requirements.in
     #   google-genai
     #   openai
-pydantic-core==2.50.1
+pydantic-core==2.50.2
     # via
     #   -c requirements.txt
     #   pydantic
@@ -366,7 +366,7 @@ pygments==2.21.0
     # via
     #   -c requirements.txt
     #   pytest
-pyjwt[crypto]==2.15.1
+pyjwt==2.15.1
     # via
     #   -c requirements.txt
     #   django-allauth
@@ -374,7 +374,7 @@ pyparsing==3.3.2
     # via
     #   -c requirements.txt
     #   httplib2
-pypdf==6.21.2
+pypdf==6.21.4
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -386,7 +386,7 @@ pysqlite3==0.6.1
     # via
     #   -c requirements.txt
     #   -r requirements.in
-pytest==9.1.1
+pytest==9.2.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -400,7 +400,7 @@ pyyaml==6.0.3
     # via
     #   -c requirements.txt
     #   drf-spectacular
-qrcode[pil]==8.2
+qrcode==8.2
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -414,7 +414,6 @@ requests==2.34.2
     #   -c requirements.txt
     #   -r requirements.in
     #   django-allauth
-    #   djangorestframework-stubs
     #   google-api-core
     #   google-auth
     #   google-cloud-bigquery
@@ -435,7 +434,7 @@ s3transfer==0.19.2
     # via
     #   -c requirements.txt
     #   boto3
-sentry-sdk[django]==2.73.0
+sentry-sdk==2.73.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -482,7 +481,7 @@ types-html5lib==1.1.11.20260518
     # via
     #   -c requirements.txt
     #   types-bleach
-types-markdown==3.10.2.20261007
+types-markdown==3.11.2.20261029
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -490,10 +489,6 @@ types-pyyaml==6.0.12.20260518
     # via
     #   -c requirements.txt
     #   django-stubs
-    #   djangorestframework-stubs
-types-requests==2.33.0.20260518
-    # via
-    #   -c requirements.txt
     #   djangorestframework-stubs
 types-webencodings==0.5.0.20260408
     # via
@@ -509,11 +504,14 @@ typing-extensions==4.16.0
     #   djangorestframework-stubs
     #   google-genai
     #   grpcio
+    #   httpx2
+    #   icalendar
     #   mypy
     #   openai
     #   pydantic
     #   pydantic-core
     #   pyee
+    #   referencing
     #   typing-inspection
 typing-inspection==0.4.4
     # via
@@ -535,7 +533,6 @@ urllib3==2.8.0
     #   botocore
     #   requests
     #   sentry-sdk
-    #   types-requests
 webencodings==0.5.1
     # via
     #   -c requirements.txt
