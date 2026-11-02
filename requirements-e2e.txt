@@ -92,7 +92,7 @@ django==5.2.17
     #   djangorestframework
     #   drf-spectacular
     #   sentry-sdk
-django-allauth==65.20.1
+django-allauth[socialaccount]==65.20.1
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -146,7 +146,7 @@ google-analytics-data==0.23.3
     # via
     #   -c requirements.txt
     #   -r requirements.in
-google-api-core==2.30.3
+google-api-core[grpc]==2.30.3
     # via
     #   -c requirements.txt
     #   google-analytics-data
@@ -157,7 +157,7 @@ google-api-python-client==2.201.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
-google-auth==2.62.0
+google-auth[pyopenssl,requests]==2.62.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -338,7 +338,7 @@ protobuf==7.36.2
     #   googleapis-common-protos
     #   grpcio-status
     #   proto-plus
-pyasn1==0.6.4
+pyasn1==0.6.5
     # via
     #   -c requirements.txt
     #   pyasn1-modules
@@ -366,7 +366,7 @@ pygments==2.21.0
     # via
     #   -c requirements.txt
     #   pytest
-pyjwt==2.15.1
+pyjwt[crypto]==2.15.1
     # via
     #   -c requirements.txt
     #   django-allauth
@@ -400,7 +400,7 @@ pyyaml==6.0.3
     # via
     #   -c requirements.txt
     #   drf-spectacular
-qrcode==8.2
+qrcode[pil]==8.2
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -435,7 +435,7 @@ s3transfer==0.19.2
     # via
     #   -c requirements.txt
     #   boto3
-sentry-sdk==2.73.0
+sentry-sdk[django]==2.73.0
     # via
     #   -c requirements.txt
     #   -r requirements.in
@@ -509,14 +509,11 @@ typing-extensions==4.16.0
     #   djangorestframework-stubs
     #   google-genai
     #   grpcio
-    #   httpx2
-    #   icalendar
     #   mypy
     #   openai
     #   pydantic
     #   pydantic-core
     #   pyee
-    #   referencing
     #   typing-inspection
 typing-inspection==0.4.4
     # via
