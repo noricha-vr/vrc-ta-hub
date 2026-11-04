@@ -1,5 +1,5 @@
 boto3==1.43.118
-django==5.2.17
+django==5.2.19
 django-storages==1.14.6
 mysqlclient==2.3.0
 Pillow==13.0.0
