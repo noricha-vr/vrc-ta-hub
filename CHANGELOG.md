@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-03
+
+### Security
+
+- Django 5.2.19 の multipart アップロード、キャッシュ分離などのセキュリティ修正に対応。
+
 ## 2026-11-02
 
 ### Changed
