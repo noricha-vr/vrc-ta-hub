@@ -316,14 +316,31 @@ class SlideFetchQueueTests(SlideSourceTestCase):
         self.assertIsNotNone(detail.article_generation_requested_at)
         self.assertTrue(detail.can_generate_in_queue)
         self.assertFalse(detail.can_auto_generate_article)
+        detail = self.generate_from_queue(detail)
+        self.assertEqual(detail.h1, '読み込んだ記事')
+        self.assertFalse(detail.slide_generate_requested)
+
+    def generate_from_queue(self, detail):
         EventDetail.objects.filter(pk=detail.pk).update(article_generation_requested_at=timezone.now())
         output = BlogOutput(title='読み込んだ記事', meta_description='説明', text='本文')
         sources = BlogSources(transcript='', pdf_content='本文', pdf_url='', slide_name=detail.article_pdf.name)
         with patch('event.services.article_generation._generate', return_value=(output, sources)):
             process_article_generation_queue()
         detail.refresh_from_db()
+        return detail
+
+    def test_requested_generation_replaces_article_written_with_the_request(self):
+        self.requested_detail(h1='手書きの見出し', contents='手書きの本文')
+        detail = self.generate_from_queue(self.fetched())
         self.assertEqual(detail.h1, '読み込んだ記事')
+
+    def test_article_edited_after_the_request_is_kept(self):
+        self.requested_detail(h1='手書きの見出し', contents='手書きの本文')
+        form_data = {'h1': '書き直した見出し', 'contents': '手書きの本文'}
+        detail = self.save_form(self.form(**form_data))
         self.assertFalse(detail.slide_generate_requested)
+        detail = self.generate_from_queue(self.fetched())
+        self.assertEqual(detail.h1, '書き直した見出し')
 
     def test_fetch_without_request_does_not_queue_unanswered_detail(self):
         EventDetail.all_objects.filter(pk=self.detail.pk).update(article_consent='unanswered')
