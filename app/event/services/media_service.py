@@ -37,6 +37,9 @@ def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False, overw
         return False
     # 画像を作る間に PDF が差し替えられたら、古い PDF の画像を書かないよう、元の PDF の名前を覚えておく
     source_slide_name = event_detail.article_pdf.name or ''
+    # 非公開の PDF から作る画像は公開されるので、発表者が記事化を断った時は作らない
+    if _is_private_source(event_detail, source_slide_name) and event_detail.is_article_ng:
+        return False
 
     temp_file_path = None
     try:
@@ -72,6 +75,10 @@ def ensure_pdf_thumbnail(event_detail: EventDetail, *, save: bool = False, overw
             os.unlink(temp_file_path)
 
 
+def _is_private_source(event_detail: EventDetail, pdf_name: str) -> bool:
+    return bool(event_detail.slide_source_file) and event_detail.slide_source_file.name == pdf_name
+
+
 def _clear_related_card_caches(event_detail: EventDetail) -> None:
     """関連記事のカード（集会・発表者・サイト全体の新着）のキャッシュを、コミットの後に消す。"""
     keys = [
@@ -95,9 +102,11 @@ def _store_thumbnail_if_empty(event_detail: EventDetail, source_slide_name: str)
         書いた時 True
     """
     created_name = event_detail.thumbnail_image.name
-    source_q = Q(slide_source_file=source_slide_name) if event_detail.slide_source_file else (
-        (Q(slide_source_file='') | Q(slide_source_file__isnull=True)) & Q(slide_file=source_slide_name)
-    )
+    if _is_private_source(event_detail, source_slide_name):
+        # 画像を作る間に記事化 NG へ変わった時も書かない
+        source_q = Q(slide_source_file=source_slide_name) & ~Q(article_consent=EventDetail.ArticleConsent.NG)
+    else:
+        source_q = Q(slide_file=source_slide_name)
     stored = EventDetail.all_objects.filter(
         source_q,
         Q(thumbnail_image='') | Q(thumbnail_image__isnull=True),

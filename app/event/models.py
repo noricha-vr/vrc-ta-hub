@@ -827,7 +827,11 @@ class EventDetail(models.Model):
     @property
     def article_pdf(self):
         """記事の入力用 PDF。公開用の URL には使わない。"""
-        return self.slide_source_file or self.slide_file
+        # 読み込んだ後に API や管理画面でリンクだけ変わった時、その PDF は今のリンクの中身ではない。
+        outdated = self.slide_fetch_url and self.slide_fetch_url != (self.slide_url or '')
+        if self.slide_source_file and not outdated:
+            return self.slide_source_file
+        return self.slide_file
 
     @property
     def slide_service(self):

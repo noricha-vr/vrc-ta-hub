@@ -20,6 +20,7 @@ from event.forms import EventDetailForm, LTApplicationEditForm
 from event.models import EventDetail, SLIDE_FETCH_FIELDS
 from event.services import slide_source
 from event.services.content_generation_service import collect_blog_sources, _slide_link_instruction
+from event.services.media_service import ensure_pdf_thumbnail
 from event.services.slide_source import (
     SlideFetchError, fetch_slide_pdf, is_importable, process_slide_fetch_queue, slide_service,
 )
@@ -107,6 +108,14 @@ class SlideServiceTests(SimpleTestCase):
             self.assertTrue(call.kwargs['stream'])
             self.assertEqual(call.kwargs['timeout'], (5, 15))
             self.assertEqual(call.kwargs['headers']['User-Agent'], slide_source.USER_AGENT)
+
+    @patch('event.services.slide_source.FETCH_DEADLINE_SECONDS', -1)
+    @patch('event.services.slide_source.requests.get')
+    def test_slow_response_stops_at_the_overall_deadline(self, get):
+        get.return_value = response(b'<html></html>')
+        with self.assertRaises(SlideFetchError) as error:
+            fetch_slide_pdf(PAGE_URL)
+        self.assertEqual(error.exception.reason, 'network')
 
     @patch('event.services.slide_source.requests.get')
     def test_japanese_file_name_is_percent_encoded_and_allowed(self, get):
@@ -412,6 +421,43 @@ class SlideFetchQueueTests(SlideSourceTestCase):
 
 
 class SlideEntryFormTests(SlideSourceTestCase):
+    def test_related_rows_are_locked_before_the_detail(self):
+        order = []
+        manager = type(EventDetail.all_objects)
+        original = manager.select_for_update
+
+        def lock_detail(*args, **kwargs):
+            order.append('detail')
+            return original(*args, **kwargs)
+
+        form = self.form()
+        self.assertTrue(form.is_valid(), form.errors.as_json())
+        with patch('vket.application_link.lock_linked_detail', side_effect=lambda detail: order.append('related')):
+            with patch.object(manager, 'select_for_update', autospec=True, side_effect=lock_detail):
+                form.save()
+        self.assertEqual(order[:2], ['related', 'detail'])
+
+    def test_manual_source_opens_on_link_side_and_survives_the_next_save(self):
+        name = self.put_source(auto=False)
+        EventDetail.objects.filter(pk=self.detail.pk).update(slide_url='')
+        self.detail.refresh_from_db()
+        form = self.form()
+        self.assertEqual(form.fields['slide_entry'].initial, 'link')
+        detail = self.save_form(self.form(slide_entry='link'))
+        self.assertEqual(detail.slide_source_file.name, name)
+
+    def test_manual_source_can_be_replaced_on_the_same_screen(self):
+        self.put_source(auto=False)
+        state = self.form().slide_state
+        self.assertEqual(state['chip'], 'PDF 登録済み')
+        self.assertTrue(state['fallback'])
+
+    def test_outdated_source_is_not_used_after_url_changes_outside_the_form(self):
+        self.put_source()
+        EventDetail.objects.filter(pk=self.detail.pk).update(slide_url=NEXT_URL)
+        self.detail.refresh_from_db()
+        self.assertFalse(self.detail.article_pdf)
+
     def test_initial_selection(self):
         self.assertEqual(EventDetailForm(instance=self.detail)['slide_entry'].value(), '')
         self.detail.slide_file = 'slide/example.pdf'
@@ -564,6 +610,46 @@ class SlideEntryFormTests(SlideSourceTestCase):
             html = render_to_string('event/includes/slide_entry_fields.html', {'form': form})
         self.assertNotIn('href="/media/slide-source/', html)
         self.assertIn('name="slide_source_file"', html)
+
+
+class SlideThumbnailTests(TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        override = override_settings(MEDIA_ROOT=directory.name)
+        override.enable()
+        self.addCleanup(override.disable)
+        storage = patch.object(
+            EventDetail._meta.get_field('slide_source_file'), 'storage',
+            FileSystemStorage(location=Path(directory.name) / 'private'),
+        )
+        storage.start()
+        self.addCleanup(storage.stop)
+        self.detail = make_event_detail(
+            make_event(make_community(), event_date=timezone.localdate()), article_consent='ng',
+        )
+        self.detail.slide_source_file.save('source.pdf', ContentFile(pdf_bytes()), save=True)
+
+    @patch('event.services.media_service.run_pdf_worker', return_value=b'image')
+    def test_private_pdf_does_not_become_a_public_image_when_article_is_refused(self, worker):
+        self.assertFalse(ensure_pdf_thumbnail(self.detail, save=True))
+        worker.assert_not_called()
+        self.detail.refresh_from_db()
+        self.assertFalse(self.detail.thumbnail_image)
+
+    @patch('event.services.media_service.run_pdf_worker', return_value=b'image')
+    def test_image_is_discarded_when_article_is_refused_while_rendering(self, worker):
+        EventDetail.objects.filter(pk=self.detail.pk).update(article_consent='ok')
+        self.detail.refresh_from_db()
+
+        def refuse(*args):
+            EventDetail.objects.filter(pk=self.detail.pk).update(article_consent='ng')
+            return b'image'
+
+        worker.side_effect = refuse
+        self.assertFalse(ensure_pdf_thumbnail(self.detail, save=True))
+        self.detail.refresh_from_db()
+        self.assertFalse(self.detail.thumbnail_image)
 
 
 class SlideRetryAndPublicTests(SlideSourceTestCase):

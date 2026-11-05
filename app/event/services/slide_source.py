@@ -4,6 +4,7 @@ from html.parser import HTMLParser
 import logging
 import re
 import tempfile
+import time
 from urllib.parse import unquote, urlsplit
 
 import requests
@@ -39,6 +40,8 @@ MAX_HTML_BYTES = 5 * 1024 * 1024
 MAX_ATTEMPTS = 3
 CLAIM_LEASE = timedelta(minutes=5)
 FETCH_TIMEOUT = (5, 15)
+# FETCH_TIMEOUT は通信の待ち時間だけを見る。少しずつ届く応答で記事生成を待たせないよう、全体にも締切を置く。
+FETCH_DEADLINE_SECONDS = 45
 
 FETCH_ERROR_MESSAGES = {
     'no_pdf_link': 'ページに PDF のダウンロードリンクがありませんでした。',
@@ -112,7 +115,7 @@ class _PdfLinkParser(HTMLParser):
                 self.pdf_url = href
 
 
-def _download(url, max_bytes):
+def _download(url, max_bytes, deadline):
     """転送を追わず、展開後の読み取り量にも上限を掛ける。"""
     try:
         with requests.get(
@@ -127,7 +130,9 @@ def _download(url, max_bytes):
             if length and length.isdigit() and int(length) > max_bytes:
                 raise SlideFetchError('too_large')
             body = bytearray()
-            for chunk in response.iter_content(chunk_size=64 * 1024):
+            for chunk in response.iter_content(chunk_size=16 * 1024):
+                if time.monotonic() > deadline:
+                    raise SlideFetchError('network')
                 if len(body) + len(chunk) > max_bytes:
                     raise SlideFetchError('too_large')
                 body.extend(chunk)
@@ -141,12 +146,13 @@ def fetch_slide_pdf(url):
     """許可したページと、そのページの Download PDF リンクだけを読む。"""
     if not is_importable(url):
         raise SlideFetchError('page_unavailable')
-    html = _download(canonical_page_url(url), MAX_HTML_BYTES)
+    deadline = time.monotonic() + FETCH_DEADLINE_SECONDS
+    html = _download(canonical_page_url(url), MAX_HTML_BYTES, deadline)
     parser = _PdfLinkParser()
     parser.feed(html.decode('utf-8', errors='replace'))
     if not parser.pdf_url:
         raise SlideFetchError('no_pdf_link')
-    data = _download(parser.pdf_url, MAX_PDF_SIZE_BYTES)
+    data = _download(parser.pdf_url, MAX_PDF_SIZE_BYTES, deadline)
     pdf = ContentFile(data, name='source.pdf')
     try:
         validate_pdf_file(pdf)
@@ -286,7 +292,8 @@ def process_slide_fetch_queue(limit=1):
             break
         try:
             results.append(_process_one(*claimed))
-        except Exception:
-            logger.exception('slide_fetch_unexpected_error: event_detail_id=%s', claimed[0])
+        except Exception as exc:
+            # 例外本文には取得先 URL が含まれうるので、種類だけ記録する。
+            logger.error('slide_fetch_unexpected_error: event_detail_id=%s type=%s', claimed[0], type(exc).__name__)
             results.append(_release_claim(*claimed))
     return {'processed': len(results), 'results': results}

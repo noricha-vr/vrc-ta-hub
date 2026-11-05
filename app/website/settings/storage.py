@@ -7,6 +7,8 @@ django-storages の STORAGES 構成を扱う。R2 が無い環境（テスト等
 import os
 import sys
 
+from django.core.exceptions import ImproperlyConfigured
+
 from .base import BASE_DIR, DEBUG, TESTING
 
 # テスト実行時は R2 認証があってもローカルストレージを使う。
@@ -18,6 +20,8 @@ AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
 AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
 AWS_PRIVATE_STORAGE_BUCKET_NAME = os.getenv('AWS_PRIVATE_STORAGE_BUCKET_NAME', 'vrc-ta-hub-private')
+if AWS_PRIVATE_STORAGE_BUCKET_NAME == AWS_STORAGE_BUCKET_NAME:
+    raise ImproperlyConfigured('非公開ファイルのバケットは公開バケットと分けてください。')
 AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL')
 AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN')
 AWS_S3_URL_PROTOCOL = os.getenv('AWS_S3_URL_PROTOCOL', 'https:')

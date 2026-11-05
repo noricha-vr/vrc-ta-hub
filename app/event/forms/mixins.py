@@ -118,7 +118,10 @@ class EventDetailMediaFormMixin:
         self.fields['slide_entry'] = forms.ChoiceField(
             choices=[('pdf', 'PDF をアップロード'), ('link', 'リンクから読み込む')],
             required=False, widget=forms.RadioSelect,
-            initial='link' if self.instance.slide_url else ('pdf' if self.instance.slide_file else ''),
+            # リンクを空にしても記事用の PDF が残る。PDF 側で開くと次の保存で消えるのでリンク側で開く。
+            initial='link' if self.instance.slide_url or self.instance.slide_source_file else (
+                'pdf' if self.instance.slide_file else ''
+            ),
         )
         # FileInput は保存済みファイルの URL を描画しない。
         self.fields['slide_source_file'].widget = forms.FileInput(attrs={'class': 'form-control', 'accept': '.pdf'})
@@ -182,6 +185,8 @@ class EventDetailMediaFormMixin:
             return {'chip': '記事化しない', 'message': 'PDF は読み込みません。リンクは公開ページに載せます。'}
         if detail.slide_fetch_status in ('pending', 'fetching'):
             return {'chip': '読み込み中', 'message': '画面を閉じても続きます。'}
+        if detail.slide_source_file and not detail.slide_fetch_url:
+            return {'chip': 'PDF 登録済み', 'tone': 'success', 'fallback': True}
         if detail.slide_source_file:
             return {'chip': 'PDF 読み込み済み', 'tone': 'success', 'fallback': not is_importable(detail.slide_url)}
         if detail.slide_fetch_status == 'failed':
@@ -270,6 +275,9 @@ class EventDetailMediaFormMixin:
         instance = super().save(commit=False)
         with transaction.atomic():
             if not instance._state.adding:
+                # Vket 同期・承認と同じく、関連する行を発表より先にロックする。
+                from vket.application_link import lock_linked_detail
+                lock_linked_detail(instance)
                 # キューが保存した PDF・状態を、開いていたフォームの古い値で戻さない。
                 current = EventDetail.all_objects.select_for_update().get(pk=instance.pk)
                 for name in ('article_consent', 'status', 'deleted_at'):
