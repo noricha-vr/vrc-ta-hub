@@ -35,13 +35,14 @@ def run_article_generation(request):
             {"error": f"limit must be an integer between 1 and {MAX_BATCH_SIZE}"},
             status=400,
         )
+    # 読み込みは外部の応答を待つので、記事生成を待たせないよう後に回す。
+    result = process_article_generation_queue(limit=limit)
     try:
         slide_fetch = process_slide_fetch_queue()
     except Exception:
         # 読み込みの失敗が記事生成を止めない。例外本文には取得先 URL が含まれうる。
         logger.error('slide_fetch', extra={'event_type': 'slide_fetch', 'service': 'speakerdeck', 'outcome': 'failed', 'reason': 'internal'})
         slide_fetch = {'processed': 0, 'error': 'internal'}
-    result = process_article_generation_queue(limit=limit)
     result['slide_fetch'] = slide_fetch
     return JsonResponse(result)
 

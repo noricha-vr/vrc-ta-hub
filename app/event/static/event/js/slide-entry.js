@@ -43,7 +43,7 @@
             const value = urlInput.value.trim();
             const changed = value !== box.dataset.savedUrl;
             const canImport = importable(value);
-            fallback.hidden = ng || !(value && ((!canImport) || (!changed && savedFallback)));
+            fallback.hidden = ng || !((value && !canImport) || (!changed && savedFallback));
             if (retry) retry.hidden = ng || changed || entry !== 'link';
             if (ng) {
                 showStatus('記事化しない', 'PDF は読み込みません。リンクは公開ページに載せます。');
