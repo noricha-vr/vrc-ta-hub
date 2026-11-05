@@ -191,7 +191,7 @@ def _process_claimed(detail: EventDetail, lease_until: datetime) -> ArticleGener
 
 def _skip_reason(detail: EventDetail) -> str:
     """生成しない理由。生成してよければ空文字。"""
-    if not detail.can_auto_generate_article:
+    if not detail.can_generate_in_queue:
         return 'not_eligible'
     state = detail.article_state()
     if state == EventDetail.ArticleState.MANUAL:
@@ -234,7 +234,7 @@ def _store_article(pk: int, lease_until: datetime, blog_output: BlogOutput,
         if current.article_generation_requested_at != lease_until:
             # 処理中に新しい入力が来た（次の呼び出しで作り直す）か、手動の生成で印が外れた
             return SKIPPED, 'superseded'
-        if not current.can_auto_generate_article:
+        if not current.can_generate_in_queue:
             _release(pk, lease_until, reset_counts=True)
             return SKIPPED, 'not_eligible'
         if current.article_state() == EventDetail.ArticleState.MANUAL:
@@ -243,7 +243,9 @@ def _store_article(pk: int, lease_until: datetime, blog_output: BlogOutput,
         if current.article_sources() != started_inputs:
             _requeue(pk, lease_until)
             return SKIPPED, 'inputs_changed'
-        current.save(update_fields=set_generated_article(current, blog_output, sources.used_sources))
+        current.slide_generate_requested = False
+        update_fields = set_generated_article(current, blog_output, sources.used_sources)
+        current.save(update_fields=[*update_fields, 'slide_generate_requested'])
     return GENERATED, ''
 
 

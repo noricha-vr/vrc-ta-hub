@@ -136,6 +136,7 @@ _PREVIOUS_VALUES_NOT_LOADED = object()
 SLIDE_FETCH_FIELDS = (
     'slide_source_file', 'slide_fetch_status', 'slide_fetch_error', 'slide_fetch_url',
     'slide_fetched_at', 'slide_source_page_count', 'slide_fetch_started_at', 'slide_fetch_attempts',
+    'slide_generate_requested',
 )
 
 
@@ -516,6 +517,8 @@ class EventDetail(models.Model):
     slide_source_page_count = models.PositiveIntegerField(blank=True, null=True)
     slide_fetch_started_at = models.DateTimeField(blank=True, null=True)
     slide_fetch_attempts = models.PositiveIntegerField(default=0, db_default=0)
+    # 保存時に記事の生成を頼まれたが、PDF の読み込みを待っている。読み込めたらキューへ渡す。
+    slide_generate_requested = models.BooleanField(default=False, db_default=False)
     thumbnail_image = models.ImageField(
         'サムネイル画像',
         blank=True,
@@ -849,6 +852,20 @@ class EventDetail(models.Model):
         return self.is_auto_generation_target(
             detail_type=self.detail_type,
             article_consent=self.article_consent,
+            status=self.status,
+            deleted_at=self.deleted_at,
+            has_slide=bool(self.article_pdf),
+            youtube_url=self.youtube_url,
+        )
+
+    @property
+    def can_generate_in_queue(self) -> bool:
+        """キューが記事を作ってよいか。頼まれた発表は、記事化が未回答でも保存時の生成と同じく作る。"""
+        if not self.slide_generate_requested or self.is_article_ng:
+            return self.can_auto_generate_article
+        return self.is_auto_generation_target(
+            detail_type=self.detail_type,
+            article_consent=self.ArticleConsent.OK,
             status=self.status,
             deleted_at=self.deleted_at,
             has_slide=bool(self.article_pdf),

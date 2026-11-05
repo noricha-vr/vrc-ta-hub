@@ -23,6 +23,7 @@ from website.settings import GEMINI_MODEL
 logger = logging.getLogger(__name__)
 
 ARTICLE_QUEUED_MESSAGE = "記事は自動で作成します。できあがったら発表者にメールでお知らせします。"
+ARTICLE_AFTER_FETCH_MESSAGE = "PDF を読み込んだら記事を作ります。"
 ARTICLE_REFUSED_MESSAGE = "生成している間に発表者が記事化を NG にしたため、記事は保存しませんでした。"
 
 
@@ -111,6 +112,8 @@ class EventDetailCreateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Cre
                     },
                 )
                 messages.error(self.request, "記事の自動生成中にエラーが発生しました")
+        elif form.instance.slide_generate_requested:
+            messages.info(self.request, ARTICLE_AFTER_FETCH_MESSAGE)
 
         return response
 
@@ -167,6 +170,8 @@ class EventDetailUpdateView(LoginRequiredMixin, AuthenticatedForbiddenMixin, Upd
                     },
                 )
                 messages.error(self.request, "記事の自動生成中にエラーが発生しました")
+        elif form.instance.slide_generate_requested:
+            messages.info(self.request, ARTICLE_AFTER_FETCH_MESSAGE)
         elif form.instance.can_auto_generate_article and form.instance.article_generation_requested_at:
             # 記事化 OK の発表は自動生成のキューが作る（保存時には作らない）
             messages.info(self.request, ARTICLE_QUEUED_MESSAGE)

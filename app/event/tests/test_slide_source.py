@@ -19,7 +19,10 @@ from api_v1.serializers import EventDetailSerializer
 from event.forms import EventDetailForm, LTApplicationEditForm
 from event.models import EventDetail, SLIDE_FETCH_FIELDS
 from event.services import slide_source
-from event.services.content_generation_service import collect_blog_sources, _slide_link_instruction
+from event.services.article_generation import process_article_generation_queue
+from event.services.content_generation_service import (
+    BlogOutput, BlogSources, collect_blog_sources, _slide_link_instruction,
+)
 from event.services.media_service import ensure_pdf_thumbnail
 from event.services.slide_source import (
     SlideFetchError, fetch_slide_pdf, is_importable, process_slide_fetch_queue, slide_service,
@@ -293,6 +296,59 @@ class SlideSourceTestCase(TestCase):
 
 
 class SlideFetchQueueTests(SlideSourceTestCase):
+    def requested_detail(self, **kwargs):
+        """記事化が未回答の発表で、リンクを貼って生成を頼んだ状態にする。"""
+        EventDetail.all_objects.filter(pk=self.detail.pk).update(article_consent='unanswered', **kwargs)
+        return self.save_form(self.form(slide_url=PAGE_URL, generate_blog_article='on'))
+
+    def fetched(self):
+        with patch('event.services.slide_source.fetch_slide_pdf',
+                   return_value=(ContentFile(pdf_bytes(), name='source.pdf'), 3)):
+            process_slide_fetch_queue()
+        self.detail.refresh_from_db()
+        return self.detail
+
+    def test_generation_requested_on_save_runs_after_the_fetch(self):
+        detail = self.requested_detail()
+        self.assertTrue(detail.slide_generate_requested)
+        self.assertIsNone(detail.article_generation_requested_at)
+        detail = self.fetched()
+        self.assertIsNotNone(detail.article_generation_requested_at)
+        self.assertTrue(detail.can_generate_in_queue)
+        self.assertFalse(detail.can_auto_generate_article)
+        EventDetail.objects.filter(pk=detail.pk).update(article_generation_requested_at=timezone.now())
+        output = BlogOutput(title='読み込んだ記事', meta_description='説明', text='本文')
+        sources = BlogSources(transcript='', pdf_content='本文', pdf_url='', slide_name=detail.article_pdf.name)
+        with patch('event.services.article_generation._generate', return_value=(output, sources)):
+            process_article_generation_queue()
+        detail.refresh_from_db()
+        self.assertEqual(detail.h1, '読み込んだ記事')
+        self.assertFalse(detail.slide_generate_requested)
+
+    def test_fetch_without_request_does_not_queue_unanswered_detail(self):
+        EventDetail.all_objects.filter(pk=self.detail.pk).update(article_consent='unanswered')
+        self.save_form(self.form(slide_url=PAGE_URL))
+        detail = self.fetched()
+        self.assertFalse(detail.slide_generate_requested)
+        self.assertIsNone(detail.article_generation_requested_at)
+
+    def test_ng_after_request_is_not_generated(self):
+        self.requested_detail()
+        detail = self.fetched()
+        EventDetail.all_objects.filter(pk=detail.pk).update(article_consent='ng')
+        detail.refresh_from_db()
+        self.assertFalse(detail.can_generate_in_queue)
+
+    def test_request_survives_retry_and_is_dropped_when_url_changes(self):
+        detail = self.requested_detail()
+        EventDetail.all_objects.filter(pk=detail.pk).update(slide_fetch_status='failed')
+        detail.refresh_from_db()
+        slide_source.mark_slide_fetch_pending(detail)
+        self.assertTrue(detail.slide_generate_requested)
+        EventDetail.all_objects.filter(pk=detail.pk).update(slide_fetch_status='failed')
+        detail = self.save_form(self.form(slide_url=NEXT_URL))
+        self.assertFalse(detail.slide_generate_requested)
+
     def test_claim_is_conditional_and_expired_lease_is_reclaimed(self):
         self.pending()
         now = timezone.now()

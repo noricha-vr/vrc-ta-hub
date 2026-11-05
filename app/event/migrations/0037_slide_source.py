@@ -13,6 +13,11 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='eventdetail',
+            name='slide_generate_requested',
+            field=models.BooleanField(db_default=False, default=False),
+        ),
+        migrations.AddField(
+            model_name='eventdetail',
             name='slide_fetch_attempts',
             field=models.PositiveIntegerField(db_default=0, default=0),
         ),

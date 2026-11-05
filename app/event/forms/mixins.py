@@ -243,6 +243,8 @@ class EventDetailMediaFormMixin:
                     mark_slide_fetch_pending(instance)
             elif not is_importable(instance.slide_url):
                 reset_slide_fetch(instance)
+            if self.cleaned_data.get('generate_blog_article') and instance.slide_fetch_status in ('pending', 'fetching'):
+                instance.slide_generate_requested = True
         new_name = instance.slide_source_file.name if instance.slide_source_file else ''
         if commit and old_name and old_name != new_name:
             transaction.on_commit(partial(old_file.storage.delete, old_name))

@@ -14,7 +14,7 @@ from django.db.models import F, Q
 from django.utils import timezone
 
 from event.form_validators import MAX_PDF_SIZE_BYTES
-from event.models import EventDetail, SLIDE_FETCH_FIELDS, validate_pdf_file
+from event.models import EventDetail, SLIDE_FETCH_FIELDS, article_generation_request_values, validate_pdf_file
 from event.services.pdf_worker import run_pdf_worker
 from event.services.media_service import ensure_pdf_thumbnail
 
@@ -178,10 +178,13 @@ def reset_slide_fetch(detail):
     detail.slide_source_page_count = None
     detail.slide_fetch_started_at = None
     detail.slide_fetch_attempts = 0
+    detail.slide_generate_requested = False
 
 
 def mark_slide_fetch_pending(detail):
+    generate_requested = detail.slide_generate_requested
     reset_slide_fetch(detail)
+    detail.slide_generate_requested = generate_requested
     detail.slide_fetch_status = EventDetail.SlideFetchStatus.PENDING
     detail.slide_fetch_url = detail.slide_url
 
@@ -261,6 +264,8 @@ def _process_one(pk, claimed_at):
         current.slide_fetch_error = ''
         current.slide_fetched_at = timezone.now()
         current.save(update_fields=SLIDE_FETCH_FIELDS)
+        if current.slide_generate_requested:
+            EventDetail.all_objects.filter(pk=pk).update(**article_generation_request_values())
     if not current.thumbnail_image:
         try:
             ensure_pdf_thumbnail(current, save=True)
