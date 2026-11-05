@@ -91,6 +91,7 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
         return bool(
             form.cleaned_data.get('generate_blog_article', False)
             and not instance.is_article_ng
+            and not instance.slide_generate_requested
             and (instance.article_pdf or instance.youtube_url)
         )
 

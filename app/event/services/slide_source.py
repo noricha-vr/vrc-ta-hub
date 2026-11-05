@@ -222,6 +222,12 @@ def _log_result(detail, outcome, reason=''):
     return result
 
 
+def _queue_requested_article(detail):
+    """読み込みを待って見送った生成の依頼をキューへ渡す。読めなかった時は今ある入力で作る。"""
+    if detail.slide_generate_requested and detail.can_generate_in_queue:
+        EventDetail.all_objects.filter(pk=detail.pk).update(**article_generation_request_values())
+
+
 def _process_one(pk, claimed_at):
     detail = EventDetail.all_objects.get(pk=pk)
     if detail.slide_fetch_started_at != claimed_at or detail.slide_fetch_status != 'fetching':
@@ -257,6 +263,8 @@ def _process_one(pk, claimed_at):
             current.slide_fetch_status = 'pending' if retry else 'failed'
             current.slide_fetch_error = reason
             current.save(update_fields=['slide_fetch_status', 'slide_fetch_error', 'slide_fetch_started_at'])
+            if not retry:
+                _queue_requested_article(current)
             return _log_result(detail, 'retry' if retry else 'failed', reason)
         current.slide_source_file.save('source.pdf', pdf, save=False)
         current.slide_source_page_count = pages
@@ -264,8 +272,7 @@ def _process_one(pk, claimed_at):
         current.slide_fetch_error = ''
         current.slide_fetched_at = timezone.now()
         current.save(update_fields=SLIDE_FETCH_FIELDS)
-        if current.slide_generate_requested:
-            EventDetail.all_objects.filter(pk=pk).update(**article_generation_request_values())
+        _queue_requested_article(current)
     if not current.thumbnail_image:
         try:
             ensure_pdf_thumbnail(current, save=True)
@@ -286,6 +293,8 @@ def _release_claim(pk, claimed_at):
         current.slide_fetch_error = 'internal'
         current.slide_fetch_started_at = None
         current.save(update_fields=['slide_fetch_status', 'slide_fetch_error', 'slide_fetch_started_at'])
+        if not retry:
+            _queue_requested_article(current)
     return _log_result(current, 'retry' if retry else 'failed', 'internal')
 
 

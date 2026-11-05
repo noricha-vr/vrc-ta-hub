@@ -24,6 +24,8 @@ from event.services.content_generation_service import (
     BlogOutput, BlogSources, collect_blog_sources, _slide_link_instruction,
 )
 from event.services.media_service import ensure_pdf_thumbnail
+from event.views.crud_event_detail import _should_generate_on_save
+from user_account.view_modules.lt_applications import LTApplicationEditView
 from event.services.slide_source import (
     SlideFetchError, fetch_slide_pdf, is_importable, process_slide_fetch_queue, slide_service,
 )
@@ -364,6 +366,31 @@ class SlideFetchQueueTests(SlideSourceTestCase):
             process_article_generation_queue()
         detail.refresh_from_db()
         self.assertEqual(detail.contents, '生成中に直した本文')
+
+    def test_waiting_for_fetch_skips_generation_from_the_old_pdf(self):
+        EventDetail.all_objects.filter(pk=self.detail.pk).update(article_consent='unanswered')
+        self.detail.refresh_from_db()
+        self.detail.slide_file.save('old.pdf', ContentFile(pdf_bytes()), save=False)
+        self.detail.save(update_fields=['slide_file'])
+        form = self.form(slide_url=PAGE_URL, generate_blog_article='on')
+        self.save_form(form)
+        self.assertFalse(_should_generate_on_save(form))
+        self.assertFalse(LTApplicationEditView._should_generate_now(form))
+
+    def test_failed_fetch_generates_from_the_inputs_at_hand(self):
+        self.requested_detail(youtube_url='https://www.youtube.com/watch?v=dQw4w9WgXcQ')
+        with patch('event.services.slide_source.fetch_slide_pdf', side_effect=SlideFetchError('no_pdf_link')):
+            process_slide_fetch_queue()
+        self.detail.refresh_from_db()
+        self.assertEqual(self.detail.slide_fetch_status, 'failed')
+        self.assertIsNotNone(self.detail.article_generation_requested_at)
+
+    def test_failed_fetch_without_other_inputs_does_not_queue(self):
+        self.requested_detail()
+        with patch('event.services.slide_source.fetch_slide_pdf', side_effect=SlideFetchError('no_pdf_link')):
+            process_slide_fetch_queue()
+        self.detail.refresh_from_db()
+        self.assertIsNone(self.detail.article_generation_requested_at)
 
     def test_fetch_without_request_does_not_queue_unanswered_detail(self):
         EventDetail.all_objects.filter(pk=self.detail.pk).update(article_consent='unanswered')
