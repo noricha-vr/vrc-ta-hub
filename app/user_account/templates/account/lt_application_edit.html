@@ -5,6 +5,7 @@
 {% block extra_css %}{{ block.super }}
 <style>.hub-admin .admin-form-field div.form-check-input { width: auto; height: auto; margin: 0; padding: 0; border: 0; background: none; float: none; }</style>
 {% endblock %}
+{% block admin_attention %}{% include 'event/includes/slide_fetch_attention.html' with return_to='application' %}{% endblock %}
 {% block admin_content %}
 <section class="admin-card" aria-label="編集する発表">
 <p class="fw-bold">{{ community.name }} / {{ event.date|date:"Y年n月j日" }} / {{ object.theme }}</p>
@@ -14,7 +15,8 @@
 <form id="application-form" method="post" enctype="multipart/form-data" data-admin-dirty
 data-article-generation-form
                               data-has-existing-slide-url="{% if object.slide_url %}true{% else %}false{% endif %}"
-                              data-has-existing-slide-file="{% if object.slide_file %}true{% else %}false{% endif %}"
+                              data-has-existing-public-pdf="{% if object.slide_file %}true{% else %}false{% endif %}"
+                              data-has-existing-slide-file="{% if object.article_pdf %}true{% else %}false{% endif %}"
                               data-has-existing-youtube-url="{% if object.youtube_url %}true{% else %}false{% endif %}">
                             {% csrf_token %}
 {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
@@ -27,10 +29,9 @@ data-article-generation-form
 {% if form.contents %}<div class="field-wrapper" data-field="contents">{% include 'ta_hub/admin/includes/form_field.html' with field=form.contents %}</div>{% endif %}
 
 </section>
-<section class="admin-card" aria-labelledby="materials-heading">
+<section class="admin-card" id="detail-materials" aria-labelledby="materials-heading">
 {% include 'ta_hub/admin/includes/section_heading.html' with title='資料' heading_id='materials-heading' %}
-{% if form.slide_file %}<div class="field-wrapper" data-field="slide_file">{% include 'ta_hub/admin/includes/form_field.html' with field=form.slide_file %}</div>{% endif %}
-{% if form.slide_url %}<div class="field-wrapper" data-field="slide_url">{% include 'ta_hub/admin/includes/form_field.html' with field=form.slide_url %}</div>{% endif %}
+{% include 'event/includes/slide_entry_fields.html' %}
 {% if form.thumbnail_image %}<div class="field-wrapper" data-field="thumbnail_image">{% include 'ta_hub/admin/includes/form_field.html' with field=form.thumbnail_image %}</div>{% endif %}
 {% if form.youtube_url %}<div class="field-wrapper" data-field="youtube_url">{% include 'ta_hub/admin/includes/form_field.html' with field=form.youtube_url %}</div>{% endif %}
 
@@ -39,20 +40,7 @@ data-article-generation-form
 {% include 'ta_hub/admin/includes/section_heading.html' with title='撮影・記事化' heading_id='consent-heading' %}
 {% if form.recording_policy %}<fieldset class="mb-3 field-wrapper" data-field="recording_policy"><legend class="form-label fs-6">{{ form.recording_policy.label }}</legend>{% include 'event/includes/recording_policy_radios.html' with field=form.recording_policy %}<div class="form-text">{{ form.recording_policy.help_text }}</div>{{ form.recording_policy.errors }}</fieldset>{% endif %}
 {% if form.article_consent %}<fieldset class="mb-3 field-wrapper" data-field="article_consent"><legend class="form-label fs-6">{{ form.article_consent.label }}</legend>{% include 'event/includes/recording_policy_radios.html' with field=form.article_consent %}<div class="form-text">{{ form.article_consent.help_text }}</div>{{ form.article_consent.errors }}</fieldset>{% endif %}
-<div class="alert alert-info" role="note">
-                                <strong>記事生成の流れ:</strong>
-                                <ol class="mb-1 ps-3">
-                                    <li>最初にスライドPDFをアップロードします。</li>
-                                    <li>次に記事を生成します。</li>
-                                    <li>その後、公開用のスライドURLがある場合は貼り付けます。</li>
-                                </ol>
-                                スライドURLは任意です。URL入力のみでは記事は生成されません。
-                                {% if form.article_auto_generation %}
-                                    <p class="mb-0 mt-2" id="article-auto-generation-note">
-                                        記事化 OK の発表は、スライドPDFか動画を登録すると記事を自動で作ります（数分かかります）。できあがったらメールでお知らせします。
-                                    </p>
-                                {% endif %}
-                            </div>
+<p id="article-auto-generation-note">{{ form.slide_article_note }}</p>
 
                             {% if form.generate_blog_article %}<div class="field-wrapper" data-field="generate_blog_article">{% include 'ta_hub/admin/includes/form_field.html' with field=form.generate_blog_article %}</div>{% endif %}
 

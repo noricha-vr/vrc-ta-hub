@@ -1,0 +1,9 @@
+{% if form.instance.slide_fetch_status == 'failed' and not form.instance.is_article_ng %}
+<div class="action-required" role="alert">
+    <strong>要対応 1</strong>
+    <div class="action-required-row mt-2"><div class="action-required-text">スライドの PDF を読み込めませんでした。</div><a class="btn btn-sm btn-outline-secondary" href="#detail-materials" data-slide-review>資料を確認</a></div>
+</div>
+<form id="slide-fetch-retry-form" method="post" action="{% url 'event:slide_fetch_retry' form.instance.pk %}">
+    {% csrf_token %}<input type="hidden" name="return_to" value="{{ return_to|default:'' }}">
+</form>
+{% endif %}

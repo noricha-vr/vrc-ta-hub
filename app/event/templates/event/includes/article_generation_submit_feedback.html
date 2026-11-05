@@ -178,9 +178,11 @@
         const detailTypeChecked = () => form.querySelector('input[name="detail_type"]:checked')?.value || 'LT';
 
         function hasExistingGenerationSource() {
+            const sourceFileCleared = form.querySelector('[name=slide_entry]:checked')?.value === 'pdf';
             const slideFileCleared = form.querySelector('#id_slide_file-clear')?.checked;
             return (
-                (!slideFileCleared && form.dataset.hasExistingSlideFile === 'true')
+                (!slideFileCleared && !sourceFileCleared && form.dataset.hasExistingSlideFile === 'true')
+                || (!slideFileCleared && form.querySelector('[name=slide_entry]:checked')?.value !== 'link' && form.dataset.hasExistingPublicPdf === 'true')
                 || form.dataset.hasExistingYoutubeUrl === 'true'
             );
         }
@@ -196,7 +198,7 @@
 
         function hasGenerationSource() {
             const youtubeUrl = form.querySelector('#id_youtube_url')?.value.trim();
-            const slideFile = form.querySelector('#id_slide_file');
+            const slideFile = form.querySelector(form.querySelector('[name=slide_entry]:checked')?.value === 'link' ? '#id_slide_source_file' : '#id_slide_file');
             const hasSelectedFile = Boolean(slideFile?.files?.length);
             return Boolean(youtubeUrl || hasSelectedFile || hasExistingGenerationSource());
         }

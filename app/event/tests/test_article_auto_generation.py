@@ -1825,6 +1825,7 @@ class RunArticleGenerationViewTest(TestCase):
             'processed': 0,
             'pending': 0,
             'results': [],
+            'slide_fetch': {'processed': 0, 'results': []},
         })
 
     @patch('event.views.article_generation.process_article_generation_queue', return_value={})

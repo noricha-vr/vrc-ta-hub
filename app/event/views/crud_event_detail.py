@@ -58,7 +58,7 @@ def _should_generate_on_save(form) -> bool:
         form.cleaned_data.get('generate_blog_article', False)
         and instance.detail_type == 'LT'
         and not instance.is_article_ng
-        and (instance.slide_file or instance.youtube_url)
+        and (instance.article_pdf or instance.youtube_url)
     )
 
 

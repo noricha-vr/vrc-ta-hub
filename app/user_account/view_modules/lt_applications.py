@@ -88,7 +88,7 @@ class LTApplicationEditView(LoginRequiredMixin, UpdateView):
         return bool(
             form.cleaned_data.get('generate_blog_article', False)
             and not instance.is_article_ng
-            and (instance.slide_file or instance.youtube_url)
+            and (instance.article_pdf or instance.youtube_url)
         )
 
     def _generate_now(self, instance):

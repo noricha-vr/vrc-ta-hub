@@ -1,0 +1,48 @@
+{% load static %}
+<div class="mb-3 field-wrapper" data-field="slide_entry" data-slide-entry
+     data-saved-url="{{ form.initial.slide_url|default:'' }}"
+     data-is-ng="{{ form.instance.is_article_ng|yesno:'true,false' }}"
+     data-has-public-pdf="{{ form.instance.slide_file|yesno:'true,false' }}"
+     data-has-source="{{ form.instance.slide_source_file|yesno:'true,false' }}">
+    <fieldset class="mb-3">
+        <legend class="form-label fs-6">スライドの登録方法</legend>
+        <div class="slide-choices">
+            {% for radio in form.slide_entry %}
+                <label class="slide-choice" for="{{ radio.id_for_label }}">
+                    {{ radio.tag }}
+                    <span><span class="title">{{ radio.choice_label }}</span><span class="sub">{% if radio.data.value == 'pdf' %}公開ページから PDF を開けます{% else %}公開ページからリンク先へ案内します{% endif %}</span></span>
+                </label>
+            {% endfor %}
+        </div>
+        {% if form.slide_entry.errors %}<div class="text-danger">{{ form.slide_entry.errors }}</div>{% endif %}
+    </fieldset>
+    <div class="mb-3" data-slide-panel="pdf">
+        <label class="form-label" for="{{ form.slide_file.id_for_label }}">スライドの PDF</label>
+        {{ form.slide_file }}
+        <div class="form-text">最大 30MB。</div>
+        {% if form.slide_file.errors %}<div class="text-danger">{{ form.slide_file.errors }}</div>{% endif %}
+    </div>
+    <div class="mb-3" data-slide-panel="link">
+        <label class="form-label" for="{{ form.slide_url.id_for_label }}">スライドのリンク</label>
+        {{ form.slide_url }}
+        {% if form.slide_url.errors %}<div class="text-danger">{{ form.slide_url.errors }}</div>{% endif %}
+        <div class="form-text" id="slide-url-help">Speaker Deck は PDF を読み込んで記事に使います。読み込んだ PDF は公開ページに出しません。</div>
+        <div class="slide-status" id="slide-status" aria-live="polite" data-slide-status>
+            {% with state=form.slide_state %}
+                {% if state.chip %}<span class="detail-chip{% if state.tone %} bg-{{ state.tone }}-subtle text-{{ state.tone }}-emphasis{% endif %}">{{ state.chip }}</span>{% endif %}
+                <span class="text">{{ state.message }}{% if state.tone == 'success' and form.instance.slide_fetched_at %}{{ form.instance.slide_source_page_count }} ページ・{{ form.instance.slide_fetched_at|date:'n/j' }} に読み込みました。{% endif %}</span>
+            {% endwith %}
+        </div>
+        {% if form.instance.slide_fetch_status == 'failed' and not form.instance.is_article_ng %}
+            <div class="slide-actions" data-slide-retry><button type="submit" form="slide-fetch-retry-form" class="btn btn-sm btn-outline-secondary">もう一度読み込む</button></div>
+        {% endif %}
+        <div class="slide-pdf" data-slide-fallback {% if not form.slide_state.fallback %}hidden{% endif %}>
+            <label class="form-label" for="{{ form.slide_source_file.id_for_label }}">記事に使う PDF</label>
+            {% if form.instance.slide_source_file %}<p class="slide-now">記事に使う PDF は登録済みです。</p>{% endif %}
+            {{ form.slide_source_file }}
+            <div class="form-text">最大 30MB。公開ページには出しません。</div>
+            {% if form.slide_source_file.errors %}<div class="text-danger">{{ form.slide_source_file.errors }}</div>{% endif %}
+        </div>
+    </div>
+</div>
+<script src="{% static 'event/js/slide-entry.js' %}" defer></script>
