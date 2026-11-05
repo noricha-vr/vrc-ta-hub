@@ -126,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Limits are set before importing pypdf, PDFium or Pillow."""
     _apply_resource_limits()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--operation", choices=("text", "thumbnail"), required=True)
+    parser.add_argument("--operation", choices=("text", "thumbnail", "page_count"), required=True)
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--max-chars", type=int)
@@ -138,6 +138,10 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             text = extract_pdf_text(args.input, max_chars=args.max_chars)
             _write_text_result(args.output, text)
+        elif args.operation == "page_count":
+            from pypdf import PdfReader
+            with open(args.input, "rb") as pdf:
+                _write_text_result(args.output, str(len(PdfReader(pdf).pages)))
         else:
             render_pdf_thumbnail(args.input, args.output)
     except MemoryError:

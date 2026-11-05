@@ -87,10 +87,11 @@ class BlogOutput(BaseModel):
         return self._sources
 
 
-def _slide_link_instruction(pdf_url: str) -> str:
+def _slide_link_instruction(pdf_url: str, *, is_external: bool = False) -> str:
     """記事末尾のスライドリンクの指示。PDF が無い時はリンクを書かせない。"""
     if pdf_url:
-        return f"- まとめの最後に、次の形式でスライドへのリンクを含める：「[発表スライド（PDF）]({pdf_url})」"
+        label = "発表スライド" if is_external else "発表スライド（PDF）"
+        return f"- まとめの最後に、次の形式でスライドへのリンクを含める：「[{label}]({pdf_url})」"
     return "- スライド（PDF）は無いので、スライドへのリンクは記載しない"
 
 
@@ -301,17 +302,17 @@ def fetch_transcript(event_detail: EventDetail) -> Optional[str]:
 
 def _read_slide_text(event_detail: EventDetail, max_chars: int) -> str:
     """スライドPDFのテキストを上限内で取り出す。読めない時は空文字。"""
-    if not event_detail.slide_file:
+    if not event_detail.article_pdf:
         return ""
 
     temp_file_path = None
     try:
-        temp_file_path = _copy_uploaded_file_to_temp_path(event_detail.slide_file)
+        temp_file_path = _copy_uploaded_file_to_temp_path(event_detail.article_pdf)
         pdf_content = _extract_pdf_text(temp_file_path, max_chars=max_chars)
         logger.info(f"Extracted PDF content: {len(pdf_content)} chars")
         return pdf_content
-    except Exception as e:
-        logger.warning(f"Error loading PDF for EventDetail {event_detail.pk}: {e}")
+    except Exception:
+        logger.warning("PDFの読み取りに失敗しました: EventDetail ID=%s", event_detail.pk)
         return ""
     finally:
         # 一時ファイルを確実に削除
@@ -350,7 +351,7 @@ def collect_blog_sources(event_detail: EventDetail,
         pdf_content=pdf_content,
         pdf_url=pdf_url,
         video_id=(event_detail.video_id or '') if limited_transcript else '',
-        slide_name=(event_detail.slide_file.name or '') if pdf_content else '',
+        slide_name=(event_detail.article_pdf.name or '') if pdf_content else '',
     )
 
 
@@ -374,7 +375,7 @@ def generate_blog(event_detail: EventDetail, model=None, sources: Optional[BlogS
         logger.info(f"Using model from environment: {model}")
 
     # youtube か slide file がない場合は処理を終了
-    if not event_detail.youtube_url and not event_detail.slide_file:
+    if not event_detail.youtube_url and not event_detail.article_pdf:
         logger.warning(f"No YouTube URL or slide file provided for EventDetail {event_detail.pk}")
         return BlogOutput(title='', meta_description='', text='')
 
@@ -405,7 +406,7 @@ def generate_blog(event_detail: EventDetail, model=None, sources: Optional[BlogS
             community_name=event_detail.event.community.name,
             speaker=event_detail.speaker,
             theme=event_detail.theme,
-            slide_link_instruction=_slide_link_instruction(sources.pdf_url),
+            slide_link_instruction=_slide_link_instruction(sources.pdf_url, is_external=bool(event_detail.slide_url)),
             format_instructions=""  # 不要
         )
         # Function Calling 未対応モデルのフォールバック用。フィールド制約は

@@ -140,6 +140,7 @@ def iter_material_upload_reminder_targets(target_date: date):
         )
         .filter(Q(slide_url="") | Q(slide_url__isnull=True))
         .filter(Q(slide_file="") | Q(slide_file__isnull=True))
+        .filter(Q(slide_source_file="") | Q(slide_source_file__isnull=True))
         .order_by("event__start_time", "start_time", "id")
     )
 

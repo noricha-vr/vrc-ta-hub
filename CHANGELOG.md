@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-05
+
+### Added
+
+- 発表の編集で「PDF をアップロード」「リンクから読み込む」を選べるようにしました。Speaker Deck のリンクは保存後に PDF を読み込んで記事に使います。SlideShare などは読み込まないので、記事には PDF をアップロードしてもらいます。読み込んだ PDF と「記事に使う PDF」は非公開で保管し（1 枚目だけサムネイルに使います）、公開ページは資料のリンク先へ案内します。非公開資料用の `slide_source` ストレージと `AWS_PRIVATE_STORAGE_BUCKET_NAME`（既定 `vrc-ta-hub-private`）の設定、読み込み状態を保存する migration を追加しました。
+
 ## 2026-11-02
 
 ### Changed

@@ -709,7 +709,7 @@ def notify_slide_material_published(event_detail: EventDetail) -> None:
 
     detail_url = build_site_url(reverse('event:detail', kwargs={'pk': event_detail.pk}))
     slide_file_url = ""
-    if event_detail.slide_file:
+    if event_detail.slide_file and not event_detail.slide_url:
         slide_file_url = _build_absolute_url(event_detail.slide_file.url)
 
     fields = [

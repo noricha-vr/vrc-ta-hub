@@ -154,23 +154,19 @@ class EventDetailFormCleanTest(TestCase):
         self.assertIn('thumbnail_image', form.fields)
         self.assertEqual(form.fields['thumbnail_image'].widget.attrs['accept'], 'image/*')
 
-    def test_slide_file_is_shown_before_slide_url(self):
+    def test_slide_entry_has_pdf_and_link_options(self):
         """スライドPDFアップロードをURL入力より先に表示する."""
         form = EventDetailForm(instance=self.existing_detail)
-        field_names = list(form.fields)
+        self.assertEqual(list(form.fields['slide_entry'].choices), [('pdf', 'PDF をアップロード'), ('link', 'リンクから読み込む')])
+        self.assertIn('最大 30MB', form.fields['slide_file'].help_text)
+        self.assertIn('Speaker Deck', form.fields['slide_url'].help_text)
 
-        self.assertLess(field_names.index('slide_file'), field_names.index('slide_url'))
-        self.assertIn('まずここにスライドPDFをアップロード', form.fields['slide_file'].help_text)
-        self.assertIn('URL入力のみでは記事は生成されません', form.fields['slide_url'].help_text)
-
-    def test_lt_application_edit_form_shows_slide_file_before_slide_url(self):
+    def test_lt_application_edit_form_has_pdf_and_link_options(self):
         """LT申請者編集フォームでもスライドPDFアップロードをURL入力より先に表示する."""
         form = LTApplicationEditForm(instance=self.existing_detail)
-        field_names = list(form.fields)
-
-        self.assertLess(field_names.index('slide_file'), field_names.index('slide_url'))
-        self.assertIn('まずここにスライドPDFをアップロード', form.fields['slide_file'].help_text)
-        self.assertIn('URL入力のみでは記事は生成されません', form.fields['slide_url'].help_text)
+        self.assertEqual(list(form.fields['slide_entry'].choices), [('pdf', 'PDF をアップロード'), ('link', 'リンクから読み込む')])
+        self.assertIn('最大 30MB', form.fields['slide_file'].help_text)
+        self.assertIn('Speaker Deck', form.fields['slide_url'].help_text)
 
     @patch('event.services.media_service.ensure_pdf_thumbnail')
     def test_event_detail_form_save_generates_pdf_thumbnail(self, mock_ensure_pdf_thumbnail):

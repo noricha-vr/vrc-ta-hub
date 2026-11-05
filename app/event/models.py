@@ -126,11 +126,27 @@ def article_generation_request_values(now: Optional[datetime] = None) -> dict:
 
 # 保存前の値を見るシグナル（event / ta_hub / twitter）が使う列。保存ごとに 1 回の SELECT で読む
 PREVIOUS_VALUE_FIELDS = (
-    'status', 'slide_url', 'youtube_url', 'slide_file', 'speaker', 'theme', 'start_time',
+    'status', 'slide_url', 'youtube_url', 'slide_file', 'slide_source_file', 'speaker', 'theme', 'start_time',
     'detail_type', 'event_id', 'event__date', 'event__community_id', 'article_consent', 'h1', 'contents',
     'article_source_video_id', 'deleted_at', 'thumbnail_image',
 )
 _PREVIOUS_VALUES_NOT_LOADED = object()
+
+
+SLIDE_FETCH_FIELDS = (
+    'slide_source_file', 'slide_fetch_status', 'slide_fetch_error', 'slide_fetch_url',
+    'slide_fetched_at', 'slide_source_page_count', 'slide_fetch_started_at', 'slide_fetch_attempts',
+    'slide_generate_article_hash',
+)
+
+
+def slide_source_storage():
+    from django.core.files.storage import storages
+    return storages['slide_source']
+
+
+def slide_source_upload_to(instance, filename):
+    return f'slide-source/{uuid.uuid4().hex}.pdf'
 
 
 def slide_file_upload_to(instance, filename):
@@ -464,6 +480,13 @@ class EventDetail(models.Model):
         OK = 'ok', '記事化 OK（スライド画像の掲載を含む）'
         NG = 'ng', '記事化 NG'
 
+    class SlideFetchStatus(models.TextChoices):
+        EMPTY = '', '未登録'
+        PENDING = 'pending', '読み込み待ち'
+        FETCHING = 'fetching', '読み込み中'
+        SUCCESS = 'success', 'PDF 読み込み済み'
+        FAILED = 'failed', '読み込み失敗'
+
     class ArticleState(models.TextChoices):
         """記事の書き手。自動生成で上書きしてよいかの判定に使う（保存はしない）。"""
 
@@ -483,6 +506,19 @@ class EventDetail(models.Model):
     youtube_url = models.URLField('YouTube URL', blank=True, null=True)
     slide_url = models.URLField('スライド URL', blank=True, null=True)
     slide_file = models.FileField('スライド', blank=True, null=True, upload_to=slide_file_upload_to, validators=[validate_pdf_file])
+    slide_source_file = models.FileField(
+        '記事に使う PDF', blank=True, null=True, storage=slide_source_storage,
+        upload_to=slide_source_upload_to, validators=[validate_pdf_file],
+    )
+    slide_fetch_status = models.CharField(max_length=10, choices=SlideFetchStatus.choices, blank=True, default='', db_default='', db_index=True)
+    slide_fetch_error = models.CharField(max_length=32, blank=True, default='', db_default='')
+    slide_fetch_url = models.URLField(blank=True, default='', db_default='')
+    slide_fetched_at = models.DateTimeField(blank=True, null=True)
+    slide_source_page_count = models.PositiveIntegerField(blank=True, null=True)
+    slide_fetch_started_at = models.DateTimeField(blank=True, null=True)
+    slide_fetch_attempts = models.PositiveIntegerField(default=0, db_default=0)
+    # 保存時に記事の生成を頼まれ、PDF の読み込みを待っている。頼まれた時の記事のハッシュを持つ。
+    slide_generate_article_hash = models.CharField(max_length=64, blank=True, default='', db_default='')
     thumbnail_image = models.ImageField(
         'サムネイル画像',
         blank=True,
@@ -610,6 +646,8 @@ class EventDetail(models.Model):
 
     def _remember_article_body(self) -> None:
         """読み込んだ時（保存した時）の記事の列の値を覚える。読み込んでいない列は覚えない。"""
+        source = self.__dict__.get('slide_source_file')
+        self._loaded_slide_source_name = getattr(source, 'name', source) or ''
         self._loaded_article_body = {
             name: self.__dict__[name] for name in ARTICLE_BODY_FIELDS if name in self.__dict__
         }
@@ -647,7 +685,11 @@ class EventDetail(models.Model):
         生成管理の列や記事を古い値で戻さないため。読み込んでいない（遅延）列も Django と同じく書かない。
         """
         loaded = getattr(self, '_loaded_article_body', None) or {}
-        skipped = set(ARTICLE_CONTROL_FIELDS)
+        skipped = set(ARTICLE_CONTROL_FIELDS) | set(SLIDE_FETCH_FIELDS[1:])
+        source = self.__dict__.get('slide_source_file')
+        source_name = getattr(source, 'name', source) or ''
+        if getattr(self, '_loaded_slide_source_name', None) == source_name:
+            skipped.add('slide_source_file')
         skipped.update(name for name, value in loaded.items() if getattr(self, name) == value)
         deferred = self.get_deferred_fields()
         return [
@@ -786,6 +828,25 @@ class EventDetail(models.Model):
         return self.article_consent == self.ArticleConsent.NG
 
     @property
+    def article_pdf(self):
+        """記事の入力用 PDF。公開用の URL には使わない。"""
+        # 読み込んだ後に API や管理画面でリンクだけ変わった時、その PDF は今のリンクの中身ではない。
+        outdated = self.slide_fetch_url and self.slide_fetch_url != (self.slide_url or '')
+        if self.slide_source_file and not outdated:
+            return self.slide_source_file
+        return self.slide_file
+
+    @property
+    def slide_service(self):
+        from event.services.slide_source import slide_service
+        return slide_service(self.slide_url)
+
+    @property
+    def slide_service_label(self):
+        from event.services.slide_source import SLIDE_SERVICE_LABELS
+        return SLIDE_SERVICE_LABELS.get(self.slide_service, '')
+
+    @property
     def can_auto_generate_article(self) -> bool:
         """記事の自動生成の対象か（判定は ``is_auto_generation_target``）。"""
         return self.is_auto_generation_target(
@@ -793,7 +854,35 @@ class EventDetail(models.Model):
             article_consent=self.article_consent,
             status=self.status,
             deleted_at=self.deleted_at,
-            has_slide=bool(self.slide_file),
+            has_slide=bool(self.article_pdf),
+            youtube_url=self.youtube_url,
+        )
+
+    @property
+    def slide_generate_requested(self) -> bool:
+        """読み込み後の生成を頼まれていて、頼まれた時から記事が変わっていないか。"""
+        return bool(self.slide_generate_article_hash) and (
+            self.slide_generate_article_hash == self.current_article_hash()
+        )
+
+    @property
+    def slide_generate_waiting(self) -> bool:
+        """生成の依頼が PDF の読み込みを待っているか。読み込めなかった後は待たない。"""
+        return self.slide_generate_requested and self.slide_fetch_status in (
+            self.SlideFetchStatus.PENDING, self.SlideFetchStatus.FETCHING,
+        )
+
+    @property
+    def can_generate_in_queue(self) -> bool:
+        """キューが記事を作ってよいか。頼まれた発表は、記事化が未回答でも保存時の生成と同じく作る。"""
+        if not self.slide_generate_requested or self.is_article_ng:
+            return self.can_auto_generate_article
+        return self.is_auto_generation_target(
+            detail_type=self.detail_type,
+            article_consent=self.ArticleConsent.OK,
+            status=self.status,
+            deleted_at=self.deleted_at,
+            has_slide=bool(self.article_pdf),
             youtube_url=self.youtube_url,
         )
 
@@ -863,7 +952,7 @@ class EventDetail(models.Model):
 
     def article_sources(self) -> tuple[str, str]:
         """今ある生成の入力（動画 ID と PDF の保存名）を返す。無い方は空文字。"""
-        slide_name = self.slide_file.name if self.slide_file else ''
+        slide_name = self.article_pdf.name if self.article_pdf else ''
         return self.video_id or '', slide_name or ''
 
     def record_generated_article(self, used_sources: Optional[tuple[str, str]] = None,

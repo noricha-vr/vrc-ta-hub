@@ -37,20 +37,20 @@ class EventDetailTemplateTest(SimpleTestCase):
         self.assertIn("function hasOptionalFieldErrors(config)", template)
         self.assertIn("hasOptionalFieldErrors(config)", template)
 
-    def test_detail_form_guides_slide_upload_before_url_input(self):
+    def test_detail_form_uses_shared_slide_entry(self):
         """スライドPDFアップロードを基本操作として案内する."""
         template = (
             Path(__file__).resolve().parents[1] / "templates" / "event" / "detail_form.html"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("最初にスライドPDFをアップロード", template)
-        self.assertIn("URL入力のみでは記事は生成されません", template)
+        self.assertIn("event/includes/slide_entry_fields.html", template)
+        self.assertNotIn("記事生成の流れ", template)
         self.assertIn(
-            "const optionalFields = ['slide_file', 'slide_url', 'thumbnail_image'",
+            "const optionalFields = ['slide_entry', 'thumbnail_image'",
             template,
         )
         self.assertIn(
-            "show: ['theme', 'speaker', 'start_time', 'duration', 'slide_file', 'slide_url'",
+            "show: ['theme', 'speaker', 'start_time', 'duration', 'slide_entry'",
             template,
         )
 

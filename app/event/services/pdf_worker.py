@@ -114,7 +114,7 @@ def _run_child(argv: list[str]) -> int:
 
 def run_pdf_worker(operation: str, input_path: str, *, max_chars: int | None = None) -> bytes:
     """Run one worker and return a bounded result; failures become sanitized errors."""
-    if operation not in {"text", "thumbnail"}:
+    if operation not in {"text", "thumbnail", "page_count"}:
         raise ValueError("unsupported PDF operation")
     if operation == "text" and (max_chars is None or max_chars < 0):
         raise ValueError("text extraction requires a non-negative character budget")

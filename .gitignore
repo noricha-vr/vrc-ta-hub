@@ -149,3 +149,6 @@ dumps/
 /uv.lock
 
 /outputs/
+
+# 記事入力用の非公開資料
+private_media/
