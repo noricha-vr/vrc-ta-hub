@@ -14,6 +14,10 @@ updates:
       time: "06:00"
       timezone: "Asia/Tokyo"
     open-pull-requests-limit: 3
+    ignore:
+      # google-genai が tenacity<9.2.0 に制限しているため、上がるまで止めておく
+      - dependency-name: "tenacity"
+        versions: [">=9.2.0"]
     groups:
       minor-and-patch:                 # 週 1 回の更新は patch と minor を 1 本にまとめる
         applies-to: version-updates
