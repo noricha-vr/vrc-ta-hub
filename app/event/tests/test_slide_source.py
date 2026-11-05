@@ -452,6 +452,16 @@ class SlideEntryFormTests(SlideSourceTestCase):
         self.assertEqual(state['chip'], 'PDF 登録済み')
         self.assertTrue(state['fallback'])
 
+    def test_unimportable_link_asks_for_pdf_upload(self):
+        EventDetail.objects.filter(pk=self.detail.pk).update(
+            slide_url='https://www.slideshare.net/slideshow/example/123',
+        )
+        self.detail.refresh_from_db()
+        state = self.form().slide_state
+        self.assertEqual(state['chip'], 'リンクのみ')
+        self.assertTrue(state['fallback'])
+        self.assertIn('PDF をアップロード', state['message'])
+
     def test_outdated_source_is_not_used_after_url_changes_outside_the_form(self):
         self.put_source()
         EventDetail.objects.filter(pk=self.detail.pk).update(slide_url=NEXT_URL)
@@ -715,6 +725,19 @@ class SlideRetryAndPublicTests(SlideSourceTestCase):
         self.detail.slide_url = ''
         self.detail.save(update_fields=['slide_url'])
         self.assertContains(self.client.get(reverse('event:detail', args=[self.detail.pk])), 'スライドの PDF を開く')
+
+    def test_uploaded_pdf_never_overrides_pasted_link(self):
+        """読み込めないリンクでも、貼った URL を公開ページの案内先にする。"""
+        url = 'https://www.slideshare.net/slideshow/example/123'
+        self.detail.slide_url = url
+        self.detail.slide_file.save('public.pdf', ContentFile(pdf_bytes()), save=False)
+        self.detail.slide_source_file.save('manual.pdf', ContentFile(pdf_bytes()), save=False)
+        self.detail.save(update_fields=['slide_url', 'slide_file', 'slide_source_file'])
+        result = self.client.get(reverse('event:detail', args=[self.detail.pk]))
+        self.assertContains(result, 'SlideShare でスライドを見る ↗')
+        self.assertContains(result, f'href="{url}"')
+        self.assertNotContains(result, 'スライドの PDF を開く')
+        self.assertEqual(self.detail.article_pdf.name, self.detail.slide_source_file.name)
 
     def test_public_unknown_service_label(self):
         self.detail.slide_url = 'https://example.com/slides'

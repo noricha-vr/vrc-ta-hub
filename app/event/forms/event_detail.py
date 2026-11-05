@@ -90,7 +90,7 @@ class EventDetailForm(EventDetailMediaFormMixin, RecordingPolicyFormMixin, forms
             'duration': '単位は分',
             'youtube_url': 'YouTubeのURLの他、Discordのメッセージへのリンクも入力できます。',
             'slide_file': '最大 30MB。',
-            'slide_url': 'Speaker Deck は PDF を読み込んで記事に使います。読み込んだ PDF は公開ページに出さず、1 枚目だけサムネイルに使います。',
+            'slide_url': 'Speaker Deck は PDF を読み込んで記事に使います（PDF は公開せず、1 枚目だけサムネイルにします）。SlideShare などは読み込めないので、記事に使う PDF をアップロードしてください。',
             'thumbnail_image': (
                 f'※ 記事ページの上部に表示される画像です。'
                 f'アップロード時にスライドと同じ横長の比率（{SLIDE_THUMBNAIL_ASPECT_RATIO_TEXT}）へ自動トリミングします。'

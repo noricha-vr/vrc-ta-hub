@@ -26,7 +26,7 @@
         <label class="form-label" for="{{ form.slide_url.id_for_label }}">スライドのリンク</label>
         {{ form.slide_url }}
         {% if form.slide_url.errors %}<div class="text-danger">{{ form.slide_url.errors }}</div>{% endif %}
-        <div class="form-text" id="slide-url-help">Speaker Deck は PDF を読み込んで記事に使います。読み込んだ PDF は公開ページに出さず、1 枚目だけサムネイルに使います。</div>
+        <div class="form-text" id="slide-url-help">Speaker Deck は PDF を読み込んで記事に使います（PDF は公開せず、1 枚目だけサムネイルにします）。SlideShare などは読み込めないので、記事に使う PDF をアップロードしてください。</div>
         <div class="slide-status" id="slide-status" aria-live="polite" data-slide-status>
             {% with state=form.slide_state %}
                 {% if state.chip %}<span class="detail-chip{% if state.tone %} bg-{{ state.tone }}-subtle text-{{ state.tone }}-emphasis{% endif %}">{{ state.chip }}</span>{% endif %}

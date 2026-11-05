@@ -186,7 +186,10 @@ class EventDetailMediaFormMixin:
         if detail.slide_fetch_status in ('pending', 'fetching'):
             return {'chip': '読み込み中', 'message': '画面を閉じても続きます。'}
         if detail.slide_source_file and not detail.slide_fetch_url:
-            return {'chip': 'PDF 登録済み', 'tone': 'success', 'fallback': True}
+            return {
+                'chip': 'PDF 登録済み', 'tone': 'success', 'fallback': True,
+                'message': '公開ページはリンク先へ案内します。' if detail.slide_url else '',
+            }
         if detail.slide_source_file:
             return {'chip': 'PDF 読み込み済み', 'tone': 'success', 'fallback': not is_importable(detail.slide_url)}
         if detail.slide_fetch_status == 'failed':
@@ -195,7 +198,7 @@ class EventDetailMediaFormMixin:
         if detail.slide_url:
             return {
                 'chip': 'リンクのみ', 'fallback': not is_importable(detail.slide_url),
-                'message': 'リンクは掲載できます。記事を作るには PDF か動画を追加してください。',
+                'message': '公開ページはリンク先へ案内します。記事を作るには PDF をアップロードするか、動画を登録してください。',
             }
         return {}
 

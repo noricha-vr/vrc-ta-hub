@@ -53,14 +53,14 @@
                     showStatus('未保存', '保存すると PDF を読み込みます。', true);
                     if (note) note.textContent = '保存後に記事を作ります。';
                 } else if (value) {
-                    showStatus('リンクのみ', 'リンクは掲載できます。記事を作るには PDF か動画を追加してください。');
+                    showStatus('リンクのみ', '公開ページはリンク先へ案内します。記事を作るには PDF をアップロードするか、動画を登録してください。');
                     if (note) note.textContent = 'PDF か動画を登録すると、記事を作ります。';
                 } else {
                     showStatus('', '');
                     if (note) note.textContent = 'スライドか動画を登録すると、記事を自動で作ります。';
                 }
             } else if (box.dataset.isNg === 'true') {
-                showStatus(value ? 'リンクのみ' : '', value ? 'リンクは掲載できます。記事を作るには PDF か動画を追加してください。' : '');
+                showStatus(value ? 'リンクのみ' : '', value ? '公開ページはリンク先へ案内します。記事を作るには PDF をアップロードするか、動画を登録してください。' : '');
                 if (note) note.textContent = '保存後に記事を作ります。';
             } else {
                 status.replaceChildren(...Array.from(savedStatus.cloneNode(true).childNodes));
