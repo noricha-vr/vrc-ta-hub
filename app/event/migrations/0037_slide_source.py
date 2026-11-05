@@ -13,8 +13,8 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name='eventdetail',
-            name='slide_generate_requested',
-            field=models.BooleanField(db_default=False, default=False),
+            name='slide_generate_article_hash',
+            field=models.CharField(blank=True, db_default='', default='', max_length=64),
         ),
         migrations.AddField(
             model_name='eventdetail',

@@ -178,13 +178,13 @@ def reset_slide_fetch(detail):
     detail.slide_source_page_count = None
     detail.slide_fetch_started_at = None
     detail.slide_fetch_attempts = 0
-    detail.slide_generate_requested = False
+    detail.slide_generate_article_hash = ''
 
 
 def mark_slide_fetch_pending(detail):
-    generate_requested = detail.slide_generate_requested
+    article_hash = detail.slide_generate_article_hash
     reset_slide_fetch(detail)
-    detail.slide_generate_requested = generate_requested
+    detail.slide_generate_article_hash = article_hash
     detail.slide_fetch_status = EventDetail.SlideFetchStatus.PENDING
     detail.slide_fetch_url = detail.slide_url
 

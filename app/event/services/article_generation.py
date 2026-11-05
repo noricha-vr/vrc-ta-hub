@@ -243,9 +243,9 @@ def _store_article(pk: int, lease_until: datetime, blog_output: BlogOutput,
         if current.article_sources() != started_inputs:
             _requeue(pk, lease_until)
             return SKIPPED, 'inputs_changed'
-        current.slide_generate_requested = False
+        current.slide_generate_article_hash = ''
         update_fields = set_generated_article(current, blog_output, sources.used_sources)
-        current.save(update_fields=[*update_fields, 'slide_generate_requested'])
+        current.save(update_fields=[*update_fields, 'slide_generate_article_hash'])
     return GENERATED, ''
 
 

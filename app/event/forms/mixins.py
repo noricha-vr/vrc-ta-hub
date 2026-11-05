@@ -244,10 +244,7 @@ class EventDetailMediaFormMixin:
             elif not is_importable(instance.slide_url):
                 reset_slide_fetch(instance)
             if self.cleaned_data.get('generate_blog_article') and instance.slide_fetch_status in ('pending', 'fetching'):
-                instance.slide_generate_requested = True
-            elif {'h1', 'contents'} & set(self.changed_data):
-                # 依頼の後に手で書いた記事を、読み込み後の生成で上書きしない。
-                instance.slide_generate_requested = False
+                instance.slide_generate_article_hash = instance.current_article_hash()
         new_name = instance.slide_source_file.name if instance.slide_source_file else ''
         if commit and old_name and old_name != new_name:
             transaction.on_commit(partial(old_file.storage.delete, old_name))

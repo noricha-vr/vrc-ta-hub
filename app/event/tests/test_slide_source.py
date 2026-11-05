@@ -298,8 +298,8 @@ class SlideSourceTestCase(TestCase):
 class SlideFetchQueueTests(SlideSourceTestCase):
     def requested_detail(self, **kwargs):
         """記事化が未回答の発表で、リンクを貼って生成を頼んだ状態にする。"""
-        EventDetail.all_objects.filter(pk=self.detail.pk).update(article_consent='unanswered', **kwargs)
-        return self.save_form(self.form(slide_url=PAGE_URL, generate_blog_article='on'))
+        EventDetail.all_objects.filter(pk=self.detail.pk).update(article_consent='unanswered')
+        return self.save_form(self.form(slide_url=PAGE_URL, generate_blog_article='on', **kwargs))
 
     def fetched(self):
         with patch('event.services.slide_source.fetch_slide_pdf',
@@ -341,6 +341,29 @@ class SlideFetchQueueTests(SlideSourceTestCase):
         self.assertFalse(detail.slide_generate_requested)
         detail = self.generate_from_queue(self.fetched())
         self.assertEqual(detail.h1, '書き直した見出し')
+
+    def test_article_edited_outside_the_form_is_kept(self):
+        self.requested_detail(h1='手書きの見出し', contents='手書きの本文')
+        EventDetail.objects.filter(pk=self.detail.pk).update(contents='API で直した本文')
+        detail = self.generate_from_queue(self.fetched())
+        self.assertEqual(detail.h1, '手書きの見出し')
+        self.assertEqual(detail.contents, 'API で直した本文')
+
+    def test_article_edited_while_generating_is_kept(self):
+        self.requested_detail(h1='手書きの見出し', contents='手書きの本文')
+        detail = self.fetched()
+
+        def edit_while_generating(*args):
+            EventDetail.objects.filter(pk=detail.pk).update(contents='生成中に直した本文')
+            return output, sources
+
+        EventDetail.objects.filter(pk=detail.pk).update(article_generation_requested_at=timezone.now())
+        output = BlogOutput(title='読み込んだ記事', meta_description='説明', text='本文')
+        sources = BlogSources(transcript='', pdf_content='本文', pdf_url='', slide_name=detail.article_pdf.name)
+        with patch('event.services.article_generation._generate', side_effect=edit_while_generating):
+            process_article_generation_queue()
+        detail.refresh_from_db()
+        self.assertEqual(detail.contents, '生成中に直した本文')
 
     def test_fetch_without_request_does_not_queue_unanswered_detail(self):
         EventDetail.all_objects.filter(pk=self.detail.pk).update(article_consent='unanswered')
